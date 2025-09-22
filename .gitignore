@@ -147,7 +147,7 @@ env.bak/
 venv.bak/
 
 # Agent SDK specific
-conversations/
+.conversations/
 agent_logs/
 *.sqlite
 *.db
