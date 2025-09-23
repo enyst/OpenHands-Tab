@@ -34,9 +34,9 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
   - File changes list with inline diff preview and apply/revert controls
   - Status/connection indicators
 - OpenHands Agent-Server (External)
-  - Exposes WebSocket API to stream oh_event and accept oh_user_action
+  - Exposes native WebSocket API streaming EventBase JSON; accepts Message JSON
   - Executes tools (bash, python, web, etc.) in its own runtime/sandbox
-  - Provides proposed code edits as patches/contents
+  - Produces events that may include code edits or file operations (reflected in workspace)
 
 Data flow notes
 - Webview does not call the network directly. All network calls and WebSocket connections go through the Extension Host (to avoid CORS and centralize auth/secrets).
@@ -95,6 +95,7 @@ Data flow notes
   - Conversation persistence (optional, for local transcripts and metadata):
     - Location: ~/.openhands/conversations (user-level, not per workspace)
     - Persist the server-provided JSON for a conversation (use the SDK’s pydantic serialization output; do not define our own schema).
+    - Default: ON
 - Telemetry/Logging
   - None by default; if enabled, only extension-level anonymized events (no content). Must be opt-in.
 
@@ -112,12 +113,12 @@ Data flow notes
 
 ## 8. UX Overview
 - Tab Layout
-  - Header: server status, session actions (New, Reset, Reconnect), settings gear
+  - Header: server status indicator (green/red dot), settings gear; reconnect is automatic; no separate New/Reset buttons in v1 (new conversation from command palette)
   - Main: message list (user/assistant and tool events), live streaming
   - Side panel: proposed file changes with counts
   - Bottom: chat composer with Send and Stop buttons
 - Flows
-  - First Run: prompt to configure server URL/API key → test connection → create session → open tab
+  - First Run: prompt to configure server URL/API key → test connection → create conversation → open tab
   - Send Prompt: user enters message → stream events → proposed changes appear → user reviews → apply/skip
   - Reconnect: on disconnect, show banner; user can retry or auto-reconnect
 
@@ -147,7 +148,7 @@ Data flow notes
 - Extension identifiers
   - Name: openhands-tab
   - Display Name: OpenHands Tab
-  - Publisher: enyst (placeholder)
+  - Publisher: openhands
 
 ## 12. Milestones
 
@@ -178,4 +179,17 @@ Data flow notes
 ## 13. Assumptions
 - Server provides a stable EventBase WebSocket stream and accepts Message JSON per agent-sdk
 - Server is responsible for model/provider configuration and tool availability
-- Code edits are reflected by the server in the workspace folder; client does not apply patches
+
+## 15. References
+- agent-sdk (core models, agent/LLM abstractions)
+  - openhands/sdk/agent/agent.py (Agent class, run loop, event generation)
+  - openhands/sdk/llm/llm.py; utils/model_features.py; utils/metrics.py (model naming, metrics)
+- agent-server (FastAPI service and WS/HTTP interface)
+  - openhands/agent_server/README.md (WS endpoint, HTTP routes for conversations/events)
+  - openhands/agent_server/conversation_service.py (StoredConversation meta save/load; conversations_path)
+  - openhands/agent_server/event_service.py (event stream; persist meta via pydantic model_dump_json)
+  - openhands/agent_server/routes/* (conversations, events, confirmation)
+- Persistence utilities
+  - openhands/sdk/io/local.py (LocalFileStore; expands "~"; basic sandboxing)
+- Event/Conversation serialization
+  - Pydantic model_dump/model_dump_json on Conversation/StoredConversation/EventBase
