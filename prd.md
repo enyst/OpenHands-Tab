@@ -38,7 +38,7 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
   - Produces events that may include code edits or file operations (reflected in workspace)
 
 Data flow notes
-- Webview does not call the network directly. All network calls and WebSocket connections go through the Extension Host (to avoid CORS and centralize auth/secrets).
+- Webview does not call the network directly. All network calls and WebSocket connections go through the Extension Host (to avoid CORS and webview limitations).
 - Extension Host relays messages to/from the Webview via VS Code postMessage API.
 
 ## 5. External Dependencies & Protocol
@@ -113,7 +113,7 @@ Data flow notes
   - Optional: show a lightweight list of recent file ops with links to open diffs in standard VS Code views (SCM/editor)
   - Bottom: chat composer with Send and Stop buttons
 - Flows
-  - First Run: prompt to configure server URL/API key → test connection → create conversation → open tab
+  - First Run: prompt to configure server URL → test connection → create conversation → open tab
   - Send Prompt: user enters message → stream events → source control shows diffs → user reviews in standard editors/SCM
   - Reconnect: on disconnect, show banner; user can retry or auto-reconnect
 
