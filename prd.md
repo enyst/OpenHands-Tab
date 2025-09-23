@@ -110,7 +110,7 @@ Data flow notes
 - Tab Layout
   - Header: server status indicator (green/red dot), settings gear; reconnect is automatic; no separate New/Reset buttons in v1 (new conversation from command palette)
   - Main: message list (user/assistant and tool events), live streaming
-  - Optional: show a lightweight list of recent file ops with links to open diffs in standard VS Code views (SCM/editor)
+  - Show a lightweight list of recent file ops (tool results) with links to open diffs in standard VS Code views (SCM/editor)
   - Bottom: chat composer with Send and Stop buttons
 - Flows
   - First Run: prompt to configure server URL → test connection → create conversation → open tab
