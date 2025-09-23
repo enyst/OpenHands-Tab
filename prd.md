@@ -88,15 +88,13 @@ Data flow notes
   - Approve -> POST /api/conversations/{id}/events/respond_to_confirmation { accept: true }
   - Reject -> POST /api/conversations/{id}/events/respond_to_confirmation { accept: false, reason }
 - File Change Handling
-  - Reflect file system changes performed by the server in the connected workspace folder (no local patch application in v1)
-  - Optional future: client-side patch preview/apply if running read-only server mode
+  - Reflect file system changes performed by the server in the connected workspace folder (no client-side patch application planned)
 - Persistence
   - Store last-used conversation_id per workspace (workspaceState)
   - Store settings in standard VS Code Settings/SecretStorage
-  - Conversation persistence folder (optional, for local transcripts and metadata):
-    - Default: .openhands/conversations in the first workspace folder
-    - Each conversation: {conversation_id}.json (serialized events or minimal transcript)
-    - Toggle to enable/disable local transcript persistence
+  - Conversation persistence (optional, for local transcripts and metadata):
+    - Location: ~/.openhands/conversations (user-level, not per workspace)
+    - Persist the server-provided JSON for a conversation (use the SDK’s pydantic serialization output; do not define our own schema).
 - Telemetry/Logging
   - None by default; if enabled, only extension-level anonymized events (no content). Must be opt-in.
 
@@ -152,6 +150,24 @@ Data flow notes
   - Publisher: enyst (placeholder)
 
 ## 12. Milestones
+
+## 14. Phased Delivery
+- POC
+  - Connect to server; create/restore conversation; send/stream messages and events
+  - Minimal chat UI; basic status; reconnect handling
+- Settings
+  - Configure server URL, API key; auto-reconnect; persist last conversation id
+  - Optional: enable/disable user-level persistence to ~/.openhands/conversations
+- Confirmation Mode
+  - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
+  - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
+- Switch LLM During Conversation
+  - If supported by server/SDK: expose command(s) to update agent model/provider mid-conversation
+  - Otherwise: provide “Start New Conversation with Model…” flow
+- UI Polish Rounds
+  - Iteratively improve event rendering, layout, and diff views
+  - Note: OpenHands V0 (current web) vs V1 (agent-sdk centric) — we will prefer reusing visual patterns where feasible, but the authoritative APIs and models are from agent-sdk (V1 rewrite). Visual similarity is desired; implementation details may differ.
+
 - M0: Scaffold extension + Webview shell; settings storage; connection test command
 - M1: WebSocket connect; send message; render basic assistant text
 - M2: Stream tool events/logs with structured UI; stop button
@@ -160,6 +176,6 @@ Data flow notes
 - M5: Error handling, reconnection, minimal telemetry (opt-in)
 
 ## 13. Assumptions
-- Server provides a stable oh_event stream and recognizes oh_user_action per current OpenHands docs
+- Server provides a stable EventBase WebSocket stream and accepts Message JSON per agent-sdk
 - Server is responsible for model/provider configuration and tool availability
-- Code edits arrive as either unified diffs or full-file contents sufficient to apply locally
+- Code edits are reflected by the server in the workspace folder; client does not apply patches
