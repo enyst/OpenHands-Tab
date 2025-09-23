@@ -1,4 +1,4 @@
-# Product Requirements: OpenHands-Tab VS Code Extension
+# OpenHands-Tab VS Code Extension
 
 ## 1. Objective
 Deliver a VS Code extension that provides an in-IDE tab to interact with an OpenHands agent, using the agent-server (OpenHands server) to execute user prompts. The extension streams events in real time, supports action approval (confirmation mode), and reflects file changes in the workspace when the server runs against the workspace folder.
@@ -8,13 +8,13 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
   - VS Code extension with a dedicated tab (Webview) for chat and agent interaction
   - Connection to an OpenHands agent-server via WebSocket/HTTP
   - Real-time streaming of agent events (messages, tool runs, logs)
-  - Display and apply code changes proposed by the agent to the local workspace
-  - Conversation management: create/reset conversations, persist last conversation per workspace (by ID only)
+  - Display live agent activity and any resulting workspace file changes
+  - Conversation management: start/restore conversations
   - Configuration UI for server URL and credentials
 - Out of scope (v1)
   - Reproducing the full OpenHands web UI
   - Server lifecycle management (installing/running Docker, etc.)
-  - Multi-tenant/team administration
+
   - Arbitrary tool configuration on the server (assumed to be preconfigured)
 
 ## 3. Target Users
@@ -26,13 +26,12 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
   - Activation + Commands
   - Connection Manager (WebSocket + HTTP proxy layer)
   - Session/State Manager (conversation lifecycle, persistence)
-  - File Change Applier (apply patches to workspace)
   - Telemetry/Logging (optional, off by default)
 - Webview (Tab UI)
   - Chat composer and transcript
   - Streaming event view (tool outputs, logs)
-  - File changes list with inline diff preview and apply/revert controls
   - Status/connection indicators
+  - No dedicated diff viewer in the tab; file diffs open in standard VS Code editors/SCM. The tab may provide links to open those diffs.
 - OpenHands Agent-Server (External)
   - Exposes native WebSocket API streaming EventBase JSON; accepts Message JSON
   - Executes tools (bash, python, web, etc.) in its own runtime/sandbox
@@ -62,20 +61,19 @@ Data flow notes
 ## 6. Functional Requirements
 - Commands
   - OpenHands: Open Tab (opens/activates the Webview)
-  - OpenHands: New Session (creates a new agent conversation)
+  - OpenHands: Start New Conversation
   - OpenHands: Configure (opens settings quick-pick/form)
-  - OpenHands: Reconnect (restarts WebSocket)
-  - OpenHands: Apply All Proposed Changes (batch apply)
+  - OpenHands: Reconnect (restarts WebSocket; rarely needed since reconnect is automatic)
+
   - OpenHands: Stop/Cancel Current Run (sends cancel if supported; otherwise disconnect/reconnect)
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
   - openhands.apiKey (secret storage)
   - openhands.autoReconnect (boolean; default true)
-  - openhands.showTelemetryPrompt (boolean; default false)
 - Connection & Conversation Lifecycle
   - Establish WebSocket connection to /api/conversations/{id}/events/socket
   - If no conversation_id exists, create one via POST /api/conversations with desired confirmation_policy
-  - Persist last used conversation_id per workspace (workspaceState); allow reset
+  - Maintain current conversation_id in workspaceState for convenience (for quick tab reload), independent of global persistence in ~/.openhands/conversations
   - Reconnect logic: exponential backoff; UI indicates connection state
 - Chat & Streaming
   - Text input -> send Message JSON over socket or POST /events/
@@ -92,10 +90,9 @@ Data flow notes
 - Persistence
   - Store last-used conversation_id per workspace (workspaceState)
   - Store settings in standard VS Code Settings/SecretStorage
-  - Conversation persistence (optional, for local transcripts and metadata):
-    - Location: ~/.openhands/conversations (user-level, not per workspace)
-    - Persist the server-provided JSON for a conversation (use the SDK’s pydantic serialization output; do not define our own schema).
-    - Default: ON
+  - Conversation persistence (default ON):
+    - Location: ~/.openhands/conversations (user-level; not tied to workspace)
+    - Persist server/SDK JSON as-is (pydantic model_dump_json); no custom schema
 - Telemetry/Logging
   - None by default; if enabled, only extension-level anonymized events (no content). Must be opt-in.
 
@@ -115,11 +112,11 @@ Data flow notes
 - Tab Layout
   - Header: server status indicator (green/red dot), settings gear; reconnect is automatic; no separate New/Reset buttons in v1 (new conversation from command palette)
   - Main: message list (user/assistant and tool events), live streaming
-  - Side panel: proposed file changes with counts
+  - Optional: show a lightweight list of recent file ops with links to open diffs in standard VS Code views (SCM/editor)
   - Bottom: chat composer with Send and Stop buttons
 - Flows
   - First Run: prompt to configure server URL/API key → test connection → create conversation → open tab
-  - Send Prompt: user enters message → stream events → proposed changes appear → user reviews → apply/skip
+  - Send Prompt: user enters message → stream events → source control shows diffs → user reviews in standard editors/SCM
   - Reconnect: on disconnect, show banner; user can retry or auto-reconnect
 
 ## 9. API/Event Mapping (Initial)
@@ -136,10 +133,10 @@ Data flow notes
 - src/extension.ts (activate, register commands)
 - src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers)
 - src/session/ConversationManager.ts (conversation_id, resume state)
-- src/edits/EditApplier.ts (diff parsing, apply, conflicts)
+
 - src/panels/OpenHandsPanel.ts (Webview setup, message bridge)
 - webview-src/ (UI bundle; framework-agnostic or lightweight React)
-  - ChatView, EventStream, ChangesPanel, StatusBar, SettingsModal
+  - ChatView, EventStream, StatusBar, SettingsModal
 
 ## 11. Packaging & Distribution
 - Engine: VS Code >= 1.85.0
@@ -158,7 +155,7 @@ Data flow notes
   - Minimal chat UI; basic status; reconnect handling
 - Settings
   - Configure server URL, API key; auto-reconnect; persist last conversation id
-  - Optional: enable/disable user-level persistence to ~/.openhands/conversations
+  - User-level persistence to ~/.openhands/conversations (default ON)
 - Confirmation Mode
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
   - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
@@ -166,15 +163,14 @@ Data flow notes
   - If supported by server/SDK: expose command(s) to update agent model/provider mid-conversation
   - Otherwise: provide “Start New Conversation with Model…” flow
 - UI Polish Rounds
-  - Iteratively improve event rendering, layout, and diff views
+  - Iteratively improve event rendering and layout
   - Note: OpenHands V0 (current web) vs V1 (agent-sdk centric) — we will prefer reusing visual patterns where feasible, but the authoritative APIs and models are from agent-sdk (V1 rewrite). Visual similarity is desired; implementation details may differ.
 
 - M0: Scaffold extension + Webview shell; settings storage; connection test command
 - M1: WebSocket connect; send message; render basic assistant text
 - M2: Stream tool events/logs with structured UI; stop button
-- M3: Parse and preview code edits; single-file apply
-- M4: Batch apply; conflict detection; UX polish
-- M5: Error handling, reconnection, minimal telemetry (opt-in)
+- M3: Error handling, reconnection, minimal telemetry (opt-in)
+- M4: (Later) Revisit any optional file change summaries or links
 
 ## 13. Assumptions
 - Server provides a stable EventBase WebSocket stream and accepts Message JSON per agent-sdk
