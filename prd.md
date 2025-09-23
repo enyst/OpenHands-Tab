@@ -19,7 +19,7 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
 
 ## 3. Target Users
 - Developers who want to use OpenHands agents directly within VS Code
-- Users with access to a running OpenHands agent-server (local or remote)
+- Users with access to a local OpenHands agent-server
 
 ## 4. Architecture Overview
 - VS Code Extension (Extension Host)
@@ -43,8 +43,7 @@ Data flow notes
 
 ## 5. External Dependencies & Protocol
 - OpenHands Server (agent-server)
-  - Default URL: http://localhost:3000 (configurable)
-  - Authentication: API key/bearer token (optional, configurable)
+  - Default URL: http://localhost:3000 (local PoC)
   - WebSocket: native WebSocket endpoint /api/conversations/{conversation_id}/events/socket (JSON messages)
     - Inbound: server streams EventBase JSON objects
     - Outbound: client may send Message JSON to enqueue and run
@@ -68,7 +67,6 @@ Data flow notes
   - OpenHands: Stop/Cancel Current Run (sends cancel if supported; otherwise disconnect/reconnect)
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
-  - openhands.apiKey (secret storage)
   - openhands.autoReconnect (boolean; default true)
 - Connection & Conversation Lifecycle
   - Establish WebSocket connection to /api/conversations/{id}/events/socket
@@ -154,7 +152,7 @@ Data flow notes
   - Connect to server; create/restore conversation; send/stream messages and events
   - Minimal chat UI; basic status; reconnect handling
 - Settings
-  - Configure server URL, API key; auto-reconnect; persist last conversation id
+  - Configure server URL; auto-reconnect; persist last conversation id
   - User-level persistence to ~/.openhands/conversations (default ON)
 - Confirmation Mode
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
