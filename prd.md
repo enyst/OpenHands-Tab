@@ -1,7 +1,7 @@
 # Product Requirements: OpenHands-Tab VS Code Extension
 
 ## 1. Objective
-Deliver a VS Code extension that provides an in-IDE tab to interact with an OpenHands agent, using the agent-server (OpenHands server) to execute user prompts. The extension streams events in real time, previews proposed code changes, and lets users apply changes to their local workspace.
+Deliver a VS Code extension that provides an in-IDE tab to interact with an OpenHands agent, using the agent-server (OpenHands server) to execute user prompts. The extension streams events in real time, supports action approval (confirmation mode), and reflects file changes in the workspace when the server runs against the workspace folder.
 
 ## 2. Scope
 - In scope
@@ -9,7 +9,7 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
   - Connection to an OpenHands agent-server via WebSocket/HTTP
   - Real-time streaming of agent events (messages, tool runs, logs)
   - Display and apply code changes proposed by the agent to the local workspace
-  - Basic session management: create/reset sessions, persist last session per workspace
+  - Conversation management: create/reset conversations, persist last conversation per workspace (by ID only)
   - Configuration UI for server URL and credentials
 - Out of scope (v1)
   - Reproducing the full OpenHands web UI
@@ -46,11 +46,16 @@ Data flow notes
 - OpenHands Server (agent-server)
   - Default URL: http://localhost:3000 (configurable)
   - Authentication: API key/bearer token (optional, configurable)
-  - WebSocket: Socket.IO endpoint /socket.io
-    - Query params include conversation_id and latest_event_id, per OpenHands docs
-    - Receives events: "oh_event"
-    - Sends actions: "oh_user_action" (type: message)
-  - HTTP endpoints (optional, as needed): create/list conversations, fetch history
+  - WebSocket: native WebSocket endpoint /api/conversations/{conversation_id}/events/socket (JSON messages)
+    - Inbound: server streams EventBase JSON objects
+    - Outbound: client may send Message JSON to enqueue and run
+  - HTTP endpoints:
+    - POST /api/conversations to start a conversation (Agent, confirmation_policy, initial_message, max_iterations)
+    - GET /api/conversations/search, /count, /{id}
+    - POST /api/conversations/{id}/pause, /resume; DELETE /api/conversations/{id}
+    - POST /api/conversations/{id}/events/ (SendMessageRequest) when not using the socket
+    - GET /api/conversations/{id}/events/search, /count, /{event_id}, batch GET
+    - POST /api/conversations/{id}/events/respond_to_confirmation to accept/reject pending actions
 - Versions
   - Aim for compatibility with current OpenHands docs (WebSocket Connection guide)
 
@@ -67,26 +72,31 @@ Data flow notes
   - openhands.apiKey (secret storage)
   - openhands.autoReconnect (boolean; default true)
   - openhands.showTelemetryPrompt (boolean; default false)
-- Connection & Session
-  - Establish Socket.IO connection with conversation_id
-  - If no conversation_id exists, create one via HTTP or let server auto-create if supported
+- Connection & Conversation Lifecycle
+  - Establish WebSocket connection to /api/conversations/{id}/events/socket
+  - If no conversation_id exists, create one via POST /api/conversations with desired confirmation_policy
   - Persist last used conversation_id per workspace (workspaceState); allow reset
   - Reconnect logic: exponential backoff; UI indicates connection state
 - Chat & Streaming
-  - Text input send -> oh_user_action: { type: "message", source: "user", message }
-  - Render assistant messages and tool events as they stream
+  - Text input -> send Message JSON over socket or POST /events/
+  - Render assistant messages and tool events (EventBase JSON) as they stream
   - Show structured tool steps (bash/python commands, outputs, status)
-  - Allow user to stop current run (best-effort)
+  - Allow user to stop/pause current run via POST /conversations/{id}/pause; resume via /resume
+- Action Confirmation Mode
+  - Policies: NeverConfirm, AlwaysConfirm, ConfirmRisky(threshold: LOW|MEDIUM|HIGH, confirm_unknown: bool)
+  - When agent status = WAITING_FOR_CONFIRMATION, surface pending actions in UI with Approve/Reject
+  - Approve -> POST /api/conversations/{id}/events/respond_to_confirmation { accept: true }
+  - Reject -> POST /api/conversations/{id}/events/respond_to_confirmation { accept: false, reason }
 - File Change Handling
-  - Parse code edit events (diff/patch or content replace) from oh_event stream
-  - Present list of proposed edits grouped by file
-  - Diff preview: original vs proposed (VS Code diff editor)
-  - Apply: write changes to workspace files; create files/directories as needed
-  - Conflict handling: if local file changed since patch base, show conflict banner, require manual review
-  - Batch apply and per-change apply
+  - Reflect file system changes performed by the server in the connected workspace folder (no local patch application in v1)
+  - Optional future: client-side patch preview/apply if running read-only server mode
 - Persistence
-  - Store conversation_id and minimal transcript index for resume (workspaceState)
+  - Store last-used conversation_id per workspace (workspaceState)
   - Store settings in standard VS Code Settings/SecretStorage
+  - Conversation persistence folder (optional, for local transcripts and metadata):
+    - Default: .openhands/conversations in the first workspace folder
+    - Each conversation: {conversation_id}.json (serialized events or minimal transcript)
+    - Toggle to enable/disable local transcript persistence
 - Telemetry/Logging
   - None by default; if enabled, only extension-level anonymized events (no content). Must be opt-in.
 
@@ -100,7 +110,7 @@ Data flow notes
   - Efficient diff rendering for typical file sizes (<1 MB per file in v1)
 - Reliability
   - Graceful handling of server unavailability; retry with backoff
-  - Resilient to transient Socket.IO disconnects
+  - Resilient to transient WebSocket disconnects
 
 ## 8. UX Overview
 - Tab Layout
@@ -114,19 +124,19 @@ Data flow notes
   - Reconnect: on disconnect, show banner; user can retry or auto-reconnect
 
 ## 9. API/Event Mapping (Initial)
-- Outbound (to server)
-  - oh_user_action: { type: "message", source: "user", message: string }
-  - Optional: cancel/run control if supported by server
-- Inbound (from server via oh_event)
-  - message events (assistant/system)
-  - tool events (bash/python start, output, end, exit code)
-  - code edit events: unified diff or file content replacement payloads
-  - run lifecycle events (start, progress, end)
+- Outbound
+  - WebSocket send: Message JSON (role/content) to queue and run
+  - HTTP POST /api/conversations/{id}/events/: SendMessageRequest when needed outside the socket
+  - Pause/Resume: POST /api/conversations/{id}/pause, /resume
+  - Confirmation: POST /api/conversations/{id}/events/respond_to_confirmation
+- Inbound
+  - WebSocket: EventBase JSON stream (includes ActionEvent, MessageEvent, AgentErrorEvent, etc.)
+  - HTTP: Events search/count for backfill on reconnect
 
 ## 10. Extension Structure (Code)
 - src/extension.ts (activate, register commands)
-- src/connection/ConnectionManager.ts (Socket.IO client, HTTP helpers)
-- src/session/SessionManager.ts (conversation_id, resume state)
+- src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers)
+- src/session/ConversationManager.ts (conversation_id, resume state)
 - src/edits/EditApplier.ts (diff parsing, apply, conflicts)
 - src/panels/OpenHandsPanel.ts (Webview setup, message bridge)
 - webview-src/ (UI bundle; framework-agnostic or lightweight React)
