@@ -1,7 +1,7 @@
 # OpenHands-Tab VS Code Extension
 
-## 1. Objective
-Deliver a VS Code extension that provides an in-IDE tab to interact with an OpenHands agent, using the agent-server (OpenHands server) to execute user prompts. The extension streams events in real time, supports action approval (confirmation mode), and reflects file changes in the workspace when the server runs against the workspace folder.
+## 1. Goal
+A VS Code extension that provides a tab to interact with the OpenHands agent, using the agent-server (OpenHands server) to execute user prompts. The extension streams events in real time, supports action approval (confirmation mode), and reflects file changes in the workspace when the server runs against the workspace folder.
 
 ## 2. Scope
 - In scope
@@ -10,31 +10,30 @@ Deliver a VS Code extension that provides an in-IDE tab to interact with an Open
   - Real-time streaming of agent events (messages, tool runs, logs)
   - Display live agent activity and any resulting workspace file changes
   - Conversation management: start/restore conversations
-  - Configuration UI for server URL and credentials
+  - Configuration UI for server URL
 - Out of scope (v1)
   - Reproducing the full OpenHands web UI
   - Server lifecycle management (installing/running Docker, etc.)
-
   - Arbitrary tool configuration on the server (assumed to be preconfigured)
 
-## 3. Target Users
+## 3. Target
 - Developers who want to use OpenHands agents directly within VS Code
-- Users with access to a local OpenHands agent-server
 
 ## 4. Architecture Overview
 - VS Code Extension (Extension Host)
   - Activation + Commands
   - Connection Manager (WebSocket + HTTP proxy layer)
   - Session/State Manager (conversation lifecycle, persistence)
-  - Telemetry/Logging (optional, off by default)
+  - Logging (debug)
 - Webview (Tab UI)
-  - Chat composer and transcript
-  - Streaming event view (tool outputs, logs)
+  - User messages entry (chat box)
+  - Streaming event view (tool outputs, agent messages, user messages)
+  - logs/system informations
   - Status/connection indicators
   - No dedicated diff viewer in the tab; file diffs open in standard VS Code editors/SCM. The tab may provide links to open those diffs.
 - OpenHands Agent-Server (External)
   - Exposes native WebSocket API streaming EventBase JSON; accepts Message JSON
-  - Executes tools (bash, python, web, etc.) in its own runtime/sandbox
+  - Executes tools (bash, python, web, etc.) in its own runtime
   - Produces events that may include code edits or file operations (reflected in workspace)
 
 Data flow notes
@@ -54,8 +53,6 @@ Data flow notes
     - POST /api/conversations/{id}/events/ (SendMessageRequest) when not using the socket
     - GET /api/conversations/{id}/events/search, /count, /{event_id}, batch GET
     - POST /api/conversations/{id}/events/respond_to_confirmation to accept/reject pending actions
-- Versions
-  - Aim for compatibility with current OpenHands docs (WebSocket Connection guide)
 
 ## 6. Functional Requirements
 - Commands
@@ -63,36 +60,32 @@ Data flow notes
   - OpenHands: Start New Conversation
   - OpenHands: Configure (opens settings quick-pick/form)
   - OpenHands: Reconnect (restarts WebSocket; rarely needed since reconnect is automatic)
-
-  - OpenHands: Stop/Cancel Current Run (sends cancel if supported; otherwise disconnect/reconnect)
+  - OpenHands: Pause Current Run (sends pause)
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
-  - openhands.autoReconnect (boolean; default true)
 - Connection & Conversation Lifecycle
   - Establish WebSocket connection to /api/conversations/{id}/events/socket
   - If no conversation_id exists, create one via POST /api/conversations with desired confirmation_policy
-  - Maintain current conversation_id in workspaceState for convenience (for quick tab reload), independent of global persistence in ~/.openhands/conversations
+  - Maintain current conversation_id in workspaceState for convenience (for quick tab reload)
   - Reconnect logic: exponential backoff; UI indicates connection state
 - Chat & Streaming
   - Text input -> send Message JSON over socket or POST /events/
   - Render assistant messages and tool events (EventBase JSON) as they stream
   - Show structured tool steps (bash/python commands, outputs, status)
-  - Allow user to stop/pause current run via POST /conversations/{id}/pause; resume via /resume
+  - Allow user to pause current run via POST /conversations/{id}/pause; resume via /resume
 - Action Confirmation Mode
   - Policies: NeverConfirm, AlwaysConfirm, ConfirmRisky(threshold: LOW|MEDIUM|HIGH, confirm_unknown: bool)
   - When agent status = WAITING_FOR_CONFIRMATION, surface pending actions in UI with Approve/Reject
   - Approve -> POST /api/conversations/{id}/events/respond_to_confirmation { accept: true }
   - Reject -> POST /api/conversations/{id}/events/respond_to_confirmation { accept: false, reason }
-- File Change Handling
-  - Reflect file system changes performed by the server in the connected workspace folder (no client-side patch application planned)
 - Persistence
   - Store last-used conversation_id per workspace (workspaceState)
   - Store settings in standard VS Code Settings/SecretStorage
   - Conversation persistence (default ON):
-    - Location: ~/.openhands/conversations (user-level; not tied to workspace)
+    - Location: ~/.openhands/conversations
     - Persist server/SDK JSON as-is (pydantic model_dump_json); no custom schema
-- Telemetry/Logging
-  - None by default; if enabled, only extension-level anonymized events (no content). Must be opt-in.
+- Logging
+  - For debugging.
 
 ## 7. Non-Functional Requirements
 - Security & Privacy
@@ -101,19 +94,18 @@ Data flow notes
   - All network traffic via Extension Host
 - Performance
   - Stream updates without blocking the UI
-  - Efficient diff rendering for typical file sizes (<1 MB per file in v1)
 - Reliability
   - Graceful handling of server unavailability; retry with backoff
   - Resilient to transient WebSocket disconnects
 
 ## 8. UX Overview
 - Tab Layout
-  - Header: server status indicator (green/red dot), settings gear; reconnect is automatic; no separate New/Reset buttons in v1 (new conversation from command palette)
+  - Header: server status indicator (green/red dot), settings gear
   - Main: message list (user/assistant and tool events), live streaming
-  - Show a lightweight list of recent file ops (tool results) with links to open diffs in standard VS Code views (SCM/editor)
+  - Tool results can be file editor results, show links for filenames so the user can see the diff in the main editor
   - Bottom: chat composer with Send and Stop buttons
 - Flows
-  - First Run: prompt to configure server URL → test connection → create conversation → open tab
+  - First Run: prompt to configure server URL → create conversation → open tab
   - Send Prompt: user enters message → stream events → source control shows diffs → user reviews in standard editors/SCM
   - Reconnect: on disconnect, show banner; user can retry or auto-reconnect
 
@@ -131,7 +123,6 @@ Data flow notes
 - src/extension.ts (activate, register commands)
 - src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers)
 - src/session/ConversationManager.ts (conversation_id, resume state)
-
 - src/panels/OpenHandsPanel.ts (Webview setup, message bridge)
 - webview-src/ (UI bundle; framework-agnostic or lightweight React)
   - ChatView, EventStream, StatusBar, SettingsModal
@@ -145,9 +136,7 @@ Data flow notes
   - Display Name: OpenHands Tab
   - Publisher: openhands
 
-## 12. Milestones
-
-## 14. Phased Delivery
+## 12. Phases
 - POC
   - Connect to server; create/restore conversation; send/stream messages and events
   - Minimal chat UI; basic status; reconnect handling
@@ -174,7 +163,7 @@ Data flow notes
 - Server provides a stable EventBase WebSocket stream and accepts Message JSON per agent-sdk
 - Server is responsible for model/provider configuration and tool availability
 
-## 15. References
+## 14. References
 - agent-sdk (core models, agent/LLM abstractions)
   - openhands/sdk/agent/agent.py (Agent class, run loop, event generation)
   - openhands/sdk/llm/llm.py; utils/model_features.py; utils/metrics.py (model naming, metrics)
