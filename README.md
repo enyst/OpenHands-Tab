@@ -56,3 +56,28 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 - Set `openhands.serverUrl` to one of the above, e.g.:
   - `https://work-1-nawspckczeposhur.prod-runtime.all-hands.dev`
 - The WebSocket endpoint and HTTP endpoints remain the same relative to the base URL (see PRD section 5).
+
+### Run with Session API Key (optional)
+
+If your agent-server requires a session API key:
+
+1) Provide `SESSION_API_KEY` to the VS Code Extension Host environment. Examples:
+- macOS/Linux (launching dev host):
+  - `SESSION_API_KEY=sk_xxx code .`
+- VS Code launch.json (add env):
+  ```json
+  {
+    "name": "Run Extension",
+    "type": "extensionHost",
+    "request": "launch",
+    "runtimeExecutable": "${execPath}",
+    "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+    "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+    "preLaunchTask": "npm: compile",
+    "env": { "SESSION_API_KEY": "sk_xxx" }
+  }
+  ```
+
+2) The extension will automatically:
+- Add `X-Session-API-Key: <key>` to HTTP requests
+- Append `?session_api_key=<key>` to the WebSocket URL

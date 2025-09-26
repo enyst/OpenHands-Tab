@@ -56,6 +56,11 @@ Data flow notes
     - GET /api/conversations/{id}/events/search, /count, /{event_id}, batch GET
     - POST /api/conversations/{id}/events/respond_to_confirmation to accept/reject pending actions
 
+Confirmation policy
+- By default, if unspecified in StartConversationRequest, server uses its configured default policy (often NeverConfirm for PoC/local). The extension omits confirmation_policy by default and will surface WAITING_FOR_CONFIRMATION if server asks.
+- Policies supported: NeverConfirm, AlwaysConfirm, ConfirmRisky(threshold: LOW|MEDIUM|HIGH, confirm_unknown: bool)
+- If we later expose UI to select a policy, we’ll send it in the POST /api/conversations payload.
+
 ## 6. Functional Requirements
 - Commands
   - OpenHands: Open Tab (opens/activates the Webview)

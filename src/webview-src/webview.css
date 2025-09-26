@@ -1,4 +1,18 @@
 body { margin: 0; font-family: sans-serif; }
+/* Message bubbles */
+#messages { padding: 8px; font-family: var(--vscode-editor-font-family, ui-sans-serif, system-ui); }
+.msg { white-space: pre-wrap; padding: 8px 10px; border-radius: 6px; margin: 6px 0; }
+.msg.user { background: rgba(0, 120, 212, 0.1); border: 1px solid rgba(0, 120, 212, 0.2); }
+.msg.assistant { background: rgba(0, 200, 0, 0.08); border: 1px solid rgba(0, 200, 0, 0.2); }
+.msg.tool { background: rgba(128, 128, 128, 0.08); border-left: 3px solid rgba(128, 128, 128, 0.6); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.msg.system { color: var(--vscode-descriptionForeground); font-style: italic; }
+
+/* Status dot */
+.status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+.status.online { background: #2ecc71; }
+.status.offline { background: #e74c3c; }
+.status.connecting { background: #f1c40f; }
+
 #app { display: flex; flex-direction: column; height: 100vh; }
 header { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #ddd; }
 .status { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }

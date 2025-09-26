@@ -42,14 +42,31 @@ window.addEventListener('message', (event) => {
   } else if (msg?.type === 'status') {
     setStatus(msg.status);
   } else if (msg?.type === 'event') {
-    const data = msg.event;
-    if (data?.type === 'message') {
-      appendMessage(data.role || 'assistant', data.content || '');
-    } else if (data?.type) {
-      const payload = `[${data.type}] ${data.name || ''} ${data.command || ''} ${data.output || ''}`.trim();
-      appendMessage('tool', payload);
-    } else {
-      appendMessage('system', JSON.stringify(data));
+    const ev = msg.event;
+    // Prefer agent-sdk shapes (kind + llm_message)
+    if (ev?.kind === 'MessageEvent' || ev?.type === 'message') {
+      let role: 'user' | 'assistant' = 'assistant';
+      let text = '';
+      if (ev?.llm_message) {
+        role = (ev.llm_message.role === 'user' || ev.source === 'user') ? 'user' : 'assistant';
+        const content = Array.isArray(ev.llm_message.content) ? ev.llm_message.content : [];
+        text = content.filter((c: any) => c && c.type === 'text' && typeof c.text === 'string').map((c: any) => c.text).join('\n');
+      } else {
+        role = (ev?.role === 'user') ? 'user' : 'assistant';
+        text = ev?.content || '';
+      }
+      if (text) appendMessage(role, text);
+    } else if (ev) {
+      // Tool/Action/Log rendering (best-effort)
+      const title = ev.kind || ev.type || 'event';
+      const name = ev.name || ev.command || ev.tool || '';
+      const output = ev.output || ev.stdout || ev.stderr || ev.log || ev.logs || '';
+      const header = [title, name].filter(Boolean).join(' · ');
+      if (output && typeof output === 'string') {
+        appendMessage('tool', `${header}\n${output}`);
+      } else {
+        appendMessage('tool', header || JSON.stringify(ev));
+      }
     }
   } else if (msg?.type === 'error') {
     appendMessage('system', `Error: ${msg.error}`);
