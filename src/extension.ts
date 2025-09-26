@@ -120,5 +120,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
     if (msg?.type === 'send' && typeof msg.text === 'string') {
       await connection?.sendUserMessage(msg.text);
     }
+    if (msg?.type === 'command') {
+      if (msg.command === 'reconnect') connection?.reconnect();
+      if (msg.command === 'pause') connection?.pause();
+      if (msg.command === 'startNewConversation') connection?.startNewConversation();
+    }
   };
 }
