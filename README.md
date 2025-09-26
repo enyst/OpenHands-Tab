@@ -51,10 +51,10 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 ### Remote Host Usage (this environment)
 
 - We also run agent-server bound to 0.0.0.0 on the exposed host:
-  - https://work-1-nawspckczeposhur.prod-runtime.all-hands.dev (port 12000)
-  - Optional second instance: https://work-2-nawspckczeposhur.prod-runtime.all-hands.dev (port 12001)
+  - https://<your-dev-host-1>
+  - Optional second instance: https://<your-dev-host-2>
 - Set `openhands.serverUrl` to one of the above, e.g.:
-  - `https://work-1-nawspckczeposhur.prod-runtime.all-hands.dev`
+  - https://<your-dev-host-1>
 - The WebSocket endpoint and HTTP endpoints remain the same relative to the base URL (see PRD section 5).
 
 ### Run with Session API Key (optional)
