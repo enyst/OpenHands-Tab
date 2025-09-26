@@ -1,0 +1,57 @@
+name: Build VSIX on PR to develop
+
+on:
+  pull_request:
+    branches: [ develop ]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: build-vsix-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile extension
+        run: npm run compile
+
+      - name: Package VSIX
+        id: package
+        run: |
+          npx vsce package
+          VSIX_FILE=$(ls -1 *.vsix | head -n1)
+          echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "vsix_name=$(basename "$VSIX_FILE")" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.vsix_name }}
+          path: ${{ steps.package.outputs.vsix_file }}
+          if-no-files-found: error
+
+      - name: Comment with artifact link
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: vsix-artifact
+          message: |
+            ✅ VSIX package is ready for this PR.
+
+            - File: `${{ steps.package.outputs.vsix_name }}`
+            - Download (requires GitHub login): https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload.outputs.artifact-id }}
+            - Actions run page: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
