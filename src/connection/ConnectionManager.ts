@@ -38,14 +38,30 @@ export class ConnectionManager {
   async startNewConversation() {
     try {
       const base = this.serverUrl.replace(/\/$/, '');
+      const llmApiKey = process.env.LITELLM_API_KEY || process.env.OPENAI_API_KEY || '';
+      const req = {
+        agent: {
+          llm: {
+            service_id: 'test-llm',
+            model: 'litellm_proxy/anthropic/claude-sonnet-4-20250514',
+            base_url: 'https://llm-proxy.eval.all-hands.dev',
+            api_key: llmApiKey || undefined
+          },
+          tools: [
+            { name: 'BashTool', params: { working_dir: process.cwd() } },
+            { name: 'FileEditorTool', params: { workspace_root: process.cwd() } },
+            { name: 'TaskTrackerTool', params: { save_dir: process.cwd() } }
+          ]
+        },
+        max_iterations: 50
+      };
+      const headers: any = { 'Content-Type': 'application/json' };
+      const sessionKey = process.env.SESSION_API_KEY || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
       const res = await fetch(base + '/api/conversations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: 'default',
-          confirmation_policy: { policy: 'NeverConfirm' },
-          max_iterations: 50
-        })
+        headers,
+        body: JSON.stringify(req)
       } as any);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: any = await res.json();
@@ -80,14 +96,18 @@ export class ConnectionManager {
     if (!this.conversationId) {
       await this.startNewConversation();
     }
-    const payload = { type: 'message', role: 'user', content: text };
+    // agent-sdk expects content to be an array of TextContent objects
+    const payload = { role: 'user', content: [{ type: 'text', text }] };
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload));
     } else {
       try {
         const base = this.serverUrl.replace(/\/$/, '');
-        await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        const headers: any = { 'Content-Type': 'application/json' };
+        const sessionKey = process.env.SESSION_API_KEY || '';
+        if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+        await fetch(`${base}/api/conversations/${this.conversationId}/events`, {
+          method: 'POST', headers, body: JSON.stringify(payload)
         } as any);
       } catch (e) { this.events.onError(e); }
     }
@@ -123,7 +143,10 @@ export class ConnectionManager {
   private connect() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
-    const wsUrl = base.replace(/^http/, 'ws') + `/api/conversations/${this.conversationId}/events/socket`;
+    const sessionKey = process.env.SESSION_API_KEY || '';
+    // agent-sdk WS path moved to /sockets/events/{conversation_id} with optional session_api_key
+    const qs = sessionKey ? `?session_api_key=${encodeURIComponent(sessionKey)}` : '';
+    const wsUrl = base.replace(/^http/, 'ws') + `/sockets/events/${this.conversationId}${qs}`;
     this.setStatus('connecting');
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
