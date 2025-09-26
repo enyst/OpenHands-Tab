@@ -31,3 +31,19 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 1. Open the project in VSCode
 2. Press `F5` to launch a new Extension Development Host
 3. The extension will be available in the new VSCode window
+
+### Local Run (agent-server + extension)
+
+- Start the agent-server (agent-sdk) locally on port 3000 using uv:
+  ```bash
+  cd agent-sdk
+  uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000
+  ```
+
+- In VS Code, set the extension setting `openhands.serverUrl` to `http://localhost:3000` (default).
+
+- Optional session API key (not needed for local testing unless configured):
+  - HTTP: send header `X-Session-API-Key: <key>`
+  - WebSocket: append `?session_api_key=<key>` to the WS URL
+
+- Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”, and chat.
