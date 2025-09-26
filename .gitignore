@@ -1,4 +1,6 @@
 # VS Code Extension Build and Development Files
+media/webview.js
+
 *.vsix
 out/
 dist/
