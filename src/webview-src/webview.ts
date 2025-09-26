@@ -31,7 +31,7 @@ function appendMessage(role: 'user' | 'assistant' | 'tool' | 'system', content: 
     const title = document.createElement('div');
     title.className = 'tool-title';
     const [evt, name] = firstLine.split(' · ');
-    title.textContent = (evt || 'Event') + (name ? '' : '');
+    title.textContent = (evt || 'Event') + (name ? ' · ' : '');
     if (name) {
       const badge = document.createElement('span');
       badge.className = 'tool-badge';
