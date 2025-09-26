@@ -47,3 +47,12 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
   - WebSocket: append `?session_api_key=<key>` to the WS URL
 
 - Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”, and chat.
+
+### Remote Host Usage (this environment)
+
+- We also run agent-server bound to 0.0.0.0 on the exposed host:
+  - https://work-1-nawspckczeposhur.prod-runtime.all-hands.dev (port 12000)
+  - Optional second instance: https://work-2-nawspckczeposhur.prod-runtime.all-hands.dev (port 12001)
+- Set `openhands.serverUrl` to one of the above, e.g.:
+  - `https://work-1-nawspckczeposhur.prod-runtime.all-hands.dev`
+- The WebSocket endpoint and HTTP endpoints remain the same relative to the base URL (see PRD section 5).
