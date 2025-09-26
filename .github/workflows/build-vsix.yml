@@ -5,6 +5,11 @@ on:
     branches: [ develop ]
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
 concurrency:
   group: build-vsix-${{ github.event.pull_request.number }}
   cancel-in-progress: true
