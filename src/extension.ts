@@ -26,6 +26,7 @@ export function activate(context: vscode.ExtensionContext) {
         onStatus: (s) => panel?.webview.postMessage({ type: 'status', status: s }),
         onEvent: (ev) => panel?.webview.postMessage({ type: 'event', event: ev }),
         onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
+        onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
       });
 
       const savedId = context.workspaceState.get<string>('openhands.conversationId');

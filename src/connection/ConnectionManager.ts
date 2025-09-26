@@ -47,7 +47,7 @@ export class ConnectionManager {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: any = await res.json();
       this.conversationId = json.id || json.conversation_id || json.uuid;
-      vscode.workspace.getConfiguration();
+      this.events.onConversationId?.(this.conversationId);
       this.connect();
       return this.conversationId;
     } catch (e) {
