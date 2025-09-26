@@ -5,6 +5,7 @@ export type ConnectionEvents = {
   onStatus: (status: 'online' | 'offline' | 'connecting') => void;
   onEvent: (event: any) => void;
   onError: (err: any) => void;
+  onConversationId?: (id: string | undefined) => void;
 };
 
 export class ConnectionManager {
@@ -14,6 +15,7 @@ export class ConnectionManager {
   private status: 'online' | 'offline' | 'connecting' = 'offline';
   private events: ConnectionEvents;
   private reconnectTimer?: NodeJS.Timeout;
+  private useApiPrefix = true;
 
   constructor(serverUrl: string, events: ConnectionEvents) {
     this.serverUrl = serverUrl;
@@ -24,11 +26,16 @@ export class ConnectionManager {
     this.serverUrl = url;
   }
 
+  setApiPrefix(enabled: boolean) {
+    this.useApiPrefix = enabled;
+  }
+
   getConversationId() { return this.conversationId; }
 
   async startNewConversation() {
     try {
-      const res = await fetch(this.serverUrl + '/api/conversations', {
+      const base = this.serverUrl.replace(/\/$/, '');
+      const res = await fetch(base + '/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -40,6 +47,7 @@ export class ConnectionManager {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: any = await res.json();
       this.conversationId = json.id || json.conversation_id || json.uuid;
+      vscode.workspace.getConfiguration();
       this.connect();
       return this.conversationId;
     } catch (e) {
@@ -55,12 +63,14 @@ export class ConnectionManager {
 
   async pause() {
     if (!this.conversationId) return;
-    try { await fetch(`${this.serverUrl}/api/conversations/${this.conversationId}/pause`, { method: 'POST' } as any); } catch (e) { this.events.onError(e); }
+    const base = this.serverUrl.replace(/\/$/, '');
+    try { await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST' } as any); } catch (e) { this.events.onError(e); }
   }
 
   async resume() {
     if (!this.conversationId) return;
-    try { await fetch(`${this.serverUrl}/api/conversations/${this.conversationId}/resume`, { method: 'POST' } as any); } catch (e) { this.events.onError(e); }
+    const base = this.serverUrl.replace(/\/$/, '');
+    try { await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST' } as any); } catch (e) { this.events.onError(e); }
   }
 
   async sendUserMessage(text: string) {
@@ -72,7 +82,8 @@ export class ConnectionManager {
       this.ws.send(JSON.stringify(payload));
     } else {
       try {
-        await fetch(`${this.serverUrl}/api/conversations/${this.conversationId}/events/`, {
+        const base = this.serverUrl.replace(/\/$/, '');
+        await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
         } as any);
       } catch (e) { this.events.onError(e); }
@@ -106,7 +117,8 @@ export class ConnectionManager {
 
   private connect() {
     if (!this.conversationId) return;
-    const wsUrl = this.serverUrl.replace(/^http/, 'ws') + `/api/conversations/${this.conversationId}/events/socket`;
+    const base = this.serverUrl.replace(/\/$/, '');
+    const wsUrl = base.replace(/^http/, 'ws') + `/api/conversations/${this.conversationId}/events/socket`;
     this.setStatus('connecting');
     const ws = new WebSocket(wsUrl);
     this.ws = ws;

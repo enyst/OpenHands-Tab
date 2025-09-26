@@ -27,6 +27,9 @@ export function activate(context: vscode.ExtensionContext) {
         onEvent: (ev) => panel?.webview.postMessage({ type: 'event', event: ev }),
         onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
       });
+
+      const savedId = context.workspaceState.get<string>('openhands.conversationId');
+      if (savedId) connection.restoreConversation(savedId);
     } else {
       panel.reveal();
     }
