@@ -24,7 +24,51 @@ function appendMessage(role: 'user' | 'assistant' | 'tool' | 'system', content: 
   state.messages.push({ role, content });
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  div.textContent = content;
+  if (role === 'tool') {
+    // Try to split header from body if first line contains a title
+    const firstLine = content.split('\n', 1)[0] || '';
+    const rest = content.slice(firstLine.length).replace(/^\n*/, '');
+    const title = document.createElement('div');
+    title.className = 'tool-title';
+    const [evt, name] = firstLine.split(' · ');
+    title.textContent = (evt || 'Event') + (name ? '' : '');
+    if (name) {
+      const badge = document.createElement('span');
+      badge.className = 'tool-badge';
+      badge.textContent = name;
+      title.appendChild(badge);
+    }
+    div.appendChild(title);
+
+    if (rest) {
+      const pre = document.createElement('div');
+      pre.className = 'tool-output';
+      pre.textContent = rest;
+      div.appendChild(pre);
+
+      if (rest.length > 2000) {
+        const toggle = document.createElement('span');
+        toggle.className = 'tool-toggle';
+        toggle.textContent = 'Show more';
+        let expanded = false;
+        const original = rest;
+        pre.textContent = rest.slice(0, 2000) + '\n…';
+        toggle.onclick = () => {
+          expanded = !expanded;
+          if (expanded) {
+            pre.textContent = original;
+            toggle.textContent = 'Show less';
+          } else {
+            pre.textContent = original.slice(0, 2000) + '\n…';
+            toggle.textContent = 'Show more';
+          }
+        };
+        div.appendChild(toggle);
+      }
+    }
+  } else {
+    div.textContent = content;
+  }
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
