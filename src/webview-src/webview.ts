@@ -65,8 +65,7 @@ sendBtn.addEventListener('click', async () => {
 });
 
 stopBtn.addEventListener('click', () => {
-  setStatus('offline');
-  vscode.postMessage({ type: 'command', command: 'reconnect' });
+  vscode.postMessage({ type: 'command', command: 'pause' });
 });
 
 settingsBtn.addEventListener('click', () => {

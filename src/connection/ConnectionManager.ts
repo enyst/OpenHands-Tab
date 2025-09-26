@@ -16,6 +16,9 @@ export class ConnectionManager {
   private events: ConnectionEvents;
   private reconnectTimer?: NodeJS.Timeout;
   private useApiPrefix = true;
+  private retryCount = 0;
+  private readonly retryBaseMs = 1000;
+  private readonly retryMaxMs = 15000;
 
   constructor(serverUrl: string, events: ConnectionEvents) {
     this.serverUrl = serverUrl;
@@ -112,7 +115,9 @@ export class ConnectionManager {
 
   private scheduleReconnect() {
     this.clearReconnect();
-    this.reconnectTimer = setTimeout(() => this.connect(), 1500);
+    const delay = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
+    this.retryCount = Math.min(this.retryCount + 1, 10);
+    this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
   private connect() {
@@ -123,9 +128,9 @@ export class ConnectionManager {
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
 
-    ws.on('open', () => this.setStatus('online'));
+    ws.on('open', () => { this.retryCount = 0; this.setStatus('online'); });
     ws.on('close', () => { this.setStatus('offline'); this.scheduleReconnect(); });
-    ws.on('error', (err) => { this.events.onError(err); this.setStatus('offline'); });
+    ws.on('error', (err) => { this.events.onError(err); this.setStatus('offline'); this.scheduleReconnect(); });
     ws.on('message', (buf) => {
       try {
         const str = buf.toString();
