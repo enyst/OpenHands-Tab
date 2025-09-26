@@ -43,14 +43,16 @@ Data flow notes
 ## 5. External Dependencies & Protocol
 - OpenHands Server (agent-server)
   - Default URL: http://localhost:3000 (local PoC)
-  - WebSocket: native WebSocket endpoint /api/conversations/{conversation_id}/events/socket (JSON messages)
+  - WebSocket: /sockets/events/{conversation_id} (JSON)
     - Inbound: server streams EventBase JSON objects
-    - Outbound: client may send Message JSON to enqueue and run
+    - Outbound: send Message JSON to enqueue and run
+    - Message payload (WS/HTTP): { "role": "user", "content": [{ "type": "text", "text": "..." }] }
+    - Session API key (optional): if enabled on server, use X-Session-API-Key header for HTTP and add ?session_api_key=... to the WebSocket URL
   - HTTP endpoints:
-    - POST /api/conversations to start a conversation (Agent, confirmation_policy, initial_message, max_iterations)
+    - POST /api/conversations to start a conversation (agent spec; optional confirmation_policy and initial_message; max_iterations)
     - GET /api/conversations/search, /count, /{id}
     - POST /api/conversations/{id}/pause, /resume; DELETE /api/conversations/{id}
-    - POST /api/conversations/{id}/events/ (SendMessageRequest) when not using the socket
+    - POST /api/conversations/{id}/events (send Message when not using the socket)
     - GET /api/conversations/{id}/events/search, /count, /{event_id}, batch GET
     - POST /api/conversations/{id}/events/respond_to_confirmation to accept/reject pending actions
 
