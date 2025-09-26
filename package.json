@@ -1,0 +1,76 @@
+{
+  "name": "openhands-tab",
+  "displayName": "OpenHands Tab",
+  "publisher": "openhands",
+  "version": "0.0.1",
+  "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
+  "license": "MIT",
+  "engines": {
+    "vscode": ">=1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:openhands.openTab",
+    "onCommand:openhands.startNewConversation",
+    "onCommand:openhands.configure",
+    "onCommand:openhands.reconnect",
+    "onCommand:openhands.pauseCurrentRun"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "openhands.openTab",
+        "title": "OpenHands: Open Tab"
+      },
+      {
+        "command": "openhands.startNewConversation",
+        "title": "OpenHands: Start New Conversation"
+      },
+      {
+        "command": "openhands.configure",
+        "title": "OpenHands: Configure"
+      },
+      {
+        "command": "openhands.reconnect",
+        "title": "OpenHands: Reconnect"
+      },
+      {
+        "command": "openhands.pauseCurrentRun",
+        "title": "OpenHands: Pause Current Run"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "OpenHands Tab",
+      "properties": {
+        "openhands.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "OpenHands agent-server base URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p . && tsc -p tsconfig.webview.json",
+    "watch": "tsc -w -p . & tsc -w -p tsconfig.webview.json",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "@types/vscode": "^1.104.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@typescript-eslint/parser": "^8.44.1",
+    "@vscode/vsce": "^3.6.1",
+    "eslint": "^9.36.0",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}

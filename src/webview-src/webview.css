@@ -1,0 +1,14 @@
+body { margin: 0; font-family: sans-serif; }
+#app { display: flex; flex-direction: column; height: 100vh; }
+header { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #ddd; }
+.status { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.status.online { background: #2ecc71; }
+.status.offline { background: #e74c3c; }
+.status.connecting { background: #f1c40f; }
+main#messages { flex: 1; overflow: auto; padding: 8px; }
+.msg { padding: 6px 8px; margin: 6px 0; border-radius: 6px; white-space: pre-wrap; }
+.msg.user { background: #e8f4fd; }
+.msg.assistant { background: #f4f4f4; }
+.msg.tool { background: #fef6e7; }
+footer { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #ddd; }
+textarea#input { flex: 1; resize: vertical; }
