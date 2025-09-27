@@ -60,6 +60,16 @@
     "vscode:prepublish": "npm run compile",
     "package": "vsce package"
   },
+  "files": [
+    "dist/**",
+    "media/**",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "bundledDependencies": [
+    "ws"
+  ],
   "devDependencies": {
     "@types/node": "^22.18.6",
     "@types/vscode": "^1.104.0",

@@ -79,8 +79,8 @@ export function deactivate() {
 }
 
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
-  const scriptUri = vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js');
-  const stylesUri = vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.css');
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
+  const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.css'));
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
