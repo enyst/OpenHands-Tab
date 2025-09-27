@@ -64,6 +64,7 @@
   "files": [
     "dist/**",
     "media/**",
+    "node_modules/ws/**",
     "package.json",
     "README.md",
     "LICENSE"
