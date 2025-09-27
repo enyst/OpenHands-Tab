@@ -53,6 +53,20 @@ jobs:
           path: ${{ steps.package.outputs.vsix_file }}
           if-no-files-found: error
 
+      - name: Upload VSIX to draft release (PRs)
+        if: github.event_name == 'pull_request'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ steps.package.outputs.vsix_file }}
+          asset_name: ${{ steps.package.outputs.vsix_name }}
+          tag: pr-${{ github.event.pull_request.number }}
+          release_name: "PR #${{ github.event.pull_request.number }} VSIX"
+          body: "Automated build for PR #${{ github.event.pull_request.number }} (commit ${{ github.sha }})"
+          draft: true
+          prerelease: true
+          overwrite: true
+
       - name: Find artifact id via API
         id: find
         uses: actions/github-script@v7
@@ -74,6 +88,6 @@ jobs:
           message: |
             ✅ VSIX package is ready for this PR.
 
-            - File: `${{ steps.find.outputs.artifact_name || steps.package.outputs.vsix_name }}`
-            - Download (requires GitHub login): https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.find.outputs.artifact_id }}
+            - File: `${{ steps.package.outputs.vsix_name }}`
+            - Direct download (release asset): https://github.com/${{ github.repository }}/releases/tag/pr-${{ github.event.pull_request.number }}
             - Actions run page: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
