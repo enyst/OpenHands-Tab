@@ -5,7 +5,7 @@ let panel: vscode.WebviewPanel | undefined;
 let connection: ConnectionManager | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  const openTab = vscode.commands.registerCommand('openhands.openTab', async () => {
+  async function ensurePanelAndConnection() {
     if (!panel) {
       panel = vscode.window.createWebviewPanel(
         'openhandsTab',
@@ -14,13 +14,15 @@ export function activate(context: vscode.ExtensionContext) {
         {
           enableScripts: true,
           retainContextWhenHidden: true,
+          localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
         }
       );
       panel.webview.html = getWebviewHtml(context, panel.webview);
       panel.webview.onDidReceiveMessage(onWebviewMessage(context, panel), undefined, context.subscriptions);
       panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
+    }
 
-      // Initialize connection manager
+    if (!connection) {
       const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
       connection = new ConnectionManager(serverUrl, {
         onStatus: (s) => panel?.webview.postMessage({ type: 'status', status: s }),
@@ -28,15 +30,19 @@ export function activate(context: vscode.ExtensionContext) {
         onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
         onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
       });
-
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       if (savedId) connection.restoreConversation(savedId);
-    } else {
-      panel.reveal();
     }
+
+    panel?.reveal();
+  }
+
+  const openTab = vscode.commands.registerCommand('openhands.openTab', async () => {
+    await ensurePanelAndConnection();
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
+    await ensurePanelAndConnection();
     await connection?.startNewConversation();
   });
 
@@ -56,10 +62,12 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
+    await ensurePanelAndConnection();
     connection?.reconnect();
   });
 
   const pause = vscode.commands.registerCommand('openhands.pauseCurrentRun', async () => {
+    await ensurePanelAndConnection();
     await connection?.pause();
   });
 
