@@ -1,0 +1,102 @@
+Task: Provide an interactive VS Code Desktop inside this Ubuntu sandbox using Xvfb + x11vnc + noVNC, accessible over the allowed ports (12000/12001).
+
+Objective
+- Run the VS Code Desktop (Electron) build in a virtual X display and expose it to the browser so we can see and interact with the editor UI, install/run the extension, and capture screenshots or video.
+
+Key constraints and rationale
+- Must use VS Code Desktop (Electron). VS Code Web (code-server/openvscode-server) runs only web extensions; our extension relies on Node/Electron modules (e.g., ws) and will not work in the web environment.
+
+Deliverables (Definition of Done)
+- A noVNC URL on one of the provided hosts/ports that renders a desktop session with VS Code running.
+- We can interact with the UI (mouse/keyboard) and open the Extensions tab.
+- We can capture at least one screenshot of the VS Code window via either the noVNC toolbar or command-line capture on the X display.
+
+High-level approach
+- Xvfb creates a headless X display (e.g., :1).
+- x11vnc exposes that X display over VNC on localhost:5901.
+- noVNC + websockify serves a browser-based VNC client on port 12000 (or 12001).
+- Launch VS Code Desktop on the X display and access it via the browser.
+
+Security considerations
+- Set a VNC password to prevent unauthorized access.
+- Keep any secrets out of logs and code; do not commit secrets to version control.
+- Use the platform-provided HTTPS hosts. Ports 12000/12001 are proxied via the provided runtime domains.
+
+Implementation steps
+
+1) Install required packages
+- Update apt and install the following:
+  apt-get update
+  apt-get install -y xvfb x11vnc novnc websockify fluxbox imagemagick wget ca-certificates
+
+- Install VS Code Desktop (stable .deb). This avoids adding a new apt repo and keeps the setup simple:
+  wget -O /tmp/code.deb "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64"
+  apt-get install -y /tmp/code.deb
+
+  Notes:
+  - Alternatively, VSCodium can be used. The primary requirement is an Electron desktop build, not the web variant.
+
+2) Create a VNC password
+- Create a VNC password file in the current user home. Choose a strong password (or generate one):
+  mkdir -p ~/.vnc
+  x11vnc -storepasswd "$(openssl rand -base64 24)" ~/.vnc/passwd
+
+  You can also specify your own password instead of a generated one.
+
+3) Start the desktop session and VS Code
+- Choose a display and resolution (example: :1 at 1280x800x24). Run the following in a shell:
+
+  export DISPLAY=:1
+  Xvfb :1 -screen 0 1280x800x24 -nolisten tcp & echo $! > /tmp/xvfb.pid
+  fluxbox -display :1 & echo $! > /tmp/wm.pid
+
+  # Expose the X display over VNC (port 5901)
+  x11vnc -display :1 -rfbport 5901 -forever -shared -passwdfile ~/.vnc/passwd -nopwmod & echo $! > /tmp/x11vnc.pid
+
+  # Serve noVNC on port 12000, proxying to the VNC server
+  websockify --web /usr/share/novnc --heartbeat 30 12000 localhost:5901 & echo $! > /tmp/novnc.pid
+
+  # Launch VS Code on the X display
+  code --user-data-dir=/tmp/vscode-profile --no-sandbox --disable-gpu & echo $! > /tmp/code.pid
+
+  Notes:
+  - Start order matters: Xvfb -> WM (fluxbox) -> x11vnc -> websockify -> code.
+  - You can adjust resolution if needed (e.g., 1440x900x24).
+
+4) Access the desktop with your browser
+- Open one of the following URLs (depending on the assigned host) in your browser:
+  https://work-1-dqujctumpcpbxgha.prod-runtime.all-hands.dev:12000
+  https://work-2-dqujctumpcpbxgha.prod-runtime.all-hands.dev:12001
+
+- The noVNC landing page typically loads at /vnc.html. If needed, use:
+  https://work-1-dqujctumpcpbxgha.prod-runtime.all-hands.dev:12000/vnc.html?autoconnect=true
+
+- Authenticate with the VNC password when prompted. You should see the Fluxbox desktop and a VS Code window. Interact using your mouse/keyboard.
+
+5) Screenshots and optional recording
+- Screenshots via noVNC toolbar: use the Screenshot button to download a PNG of the current view.
+- Programmatic screenshots from the X display:
+  # Using xwd + ImageMagick to PNG
+  xwd -display :1 -root | convert xwd:- /workspace/shot.png
+
+  # Or using ImageMagick import
+  import -display :1 -window root /workspace/shot.png
+
+- Optional: record a video of the session (adjust resolution/framerate as needed):
+  apt-get install -y ffmpeg
+  ffmpeg -y -video_size 1280x800 -framerate 30 -f x11grab -i :1.0 /workspace/session.mp4
+
+6) Stop the services cleanly
+- Kill the background processes using their recorded PIDs:
+  for f in /tmp/{code,x11vnc,novnc,wm,xvfb}.pid; do [ -f "$f" ] && kill "$(cat "$f")" || true; done
+
+Troubleshooting tips
+- If the noVNC page loads but shows a blank screen, verify x11vnc is running and bound to :1, and that websockify is proxying to localhost:5901.
+- If VS Code does not appear, ensure Fluxbox (or a minimal window manager) is running and that code is launched with DISPLAY=:1.
+- If fonts/UI look off, install additional fonts: apt-get install -y fonts-dejavu fonts-liberation
+
+Acceptance checklist
+- Able to reach noVNC in the browser and see a desktop on port 12000 (or 12001).
+- VS Code window is visible and interactive.
+- At least one screenshot captured and saved to a known path (or downloaded via the toolbar).
+- VNC access is password-protected.
