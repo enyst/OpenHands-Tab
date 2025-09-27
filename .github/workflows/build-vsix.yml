@@ -89,5 +89,6 @@ jobs:
             ✅ VSIX package is ready for this PR.
 
             - File: `${{ steps.package.outputs.vsix_name }}`
-            - Direct download (release asset): https://github.com/${{ github.repository }}/releases/tag/pr-${{ github.event.pull_request.number }}
+            - Direct download (.vsix): https://github.com/${{ github.repository }}/releases/download/pr-${{ github.event.pull_request.number }}/${{ steps.package.outputs.vsix_name }}
+            - Release page: https://github.com/${{ github.repository }}/releases/tag/pr-${{ github.event.pull_request.number }}
             - Actions run page: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
