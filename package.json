@@ -6,7 +6,8 @@
   "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
   "license": "MIT",
   "engines": {
-    "vscode": ">=1.85.0"
+    "vscode": ">=1.85.0",
+    "node": ">=22"
   },
   "categories": [
     "Other"
