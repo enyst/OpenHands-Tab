@@ -106,7 +106,7 @@ export class ConnectionManager {
         const headers: any = { 'Content-Type': 'application/json' };
         const sessionKey = process.env.SESSION_API_KEY || '';
         if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-        await fetch(`${base}/api/conversations/${this.conversationId}/events`, {
+        await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
           method: 'POST', headers, body: JSON.stringify(payload)
         } as any);
       } catch (e) { this.events.onError(e); }
