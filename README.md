@@ -1,5 +1,7 @@
 # OpenHands-Tab Prototype
 
+This repository is an experiment with agent-sdk.
+
 A VS Code extension that brings the power of OpenHands AI agents directly into your development environment. This extension provides an alternative way to interact with the [OpenHands agent-sdk](https://github.com/All-Hands-AI/agent-sdk), without leaving your IDE.
 
 ## Getting Started
