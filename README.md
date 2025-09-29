@@ -34,21 +34,42 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 2. Press `F5` to launch a new Extension Development Host
 3. The extension will be available in the new VSCode window
 
-### Local Run (agent-server + extension)
+### Backend Prerequisite: OpenHands Agent Server
 
-- Start the agent-server (agent-sdk) locally on port 3000 using uv:
-  ```bash
-  cd agent-sdk
-  uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000
-  ```
+This extension requires a running OpenHands agent server from the All-Hands-AI organization. You can run it locally via uv or Docker. See official docs for details: https://docs.all-hands.dev/usage/installation
 
-- In VS Code, set the extension setting `openhands.serverUrl` to `http://localhost:3000` (default).
+Option A — uv (recommended for local):
+```bash
+# Install uv if needed: https://docs.astral.sh/uv/
+# Launch the GUI/HTTP server on port 3000
+uvx --python 3.12 --from openhands-ai openhands serve
+# With GPU: add --gpu
+```
 
-- Optional session API key (not needed for local testing unless configured):
-  - HTTP: send header `X-Session-API-Key: <key>`
-  - WebSocket: append `?session_api_key=<key>` to the WS URL
+Option B — Docker:
+```bash
+# Map port 3000 and mount Docker socket if you plan to run sandboxes
+docker run -it --pull=always \
+  -p 3000:3000 \
+  --add-host host.docker.internal:host-gateway \
+  --name openhands-app \
+  docker.all-hands.dev/all-hands-ai/openhands:0.57
+```
 
+- The server will listen on http://localhost:3000 by default. Adjust the URL in the extension setting if different.
+- LLM configuration: you’ll need an API key for your chosen provider (e.g., OpenAI, Anthropic) or a LiteLLM proxy. The extension passes an API key in the request if you export LITELLM_API_KEY or OPENAI_API_KEY in the VS Code environment.
+
+### Using the Extension
+
+- In VS Code, ensure the setting `openhands.serverUrl` points to your server (default `http://localhost:3000`).
 - Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”, and chat.
+
+### Optional: Session API Key
+
+If your agent-server requires a session API key:
+- HTTP: send header `X-Session-API-Key: <key>`
+- WebSocket: append `?session_api_key=<key>` to the WS URL
+- Provide `SESSION_API_KEY` in the VS Code environment to let the extension attach it automatically
 
 ### Remote Host Usage (this environment)
 
