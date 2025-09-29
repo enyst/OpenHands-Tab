@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import '@openhands/ui/styles';
+import { ToastManager, toasterMessages, Button, Typography } from '@openhands/ui';
 import type { Event, MessageEvent, SystemEvent, ErrorEvent, TextContent } from '../../types/agent-sdk';
 import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
 
@@ -36,10 +37,12 @@ export function App() {
     }
     if (isSystemEvent(e)) {
       setMessages(m => [...m, { role: 'system', content: e.message }]);
+      toasterMessages.info(e.message);
       return;
     }
     if (isErrorEvent(e)) {
       setMessages(m => [...m, { role: 'system', content: `Error: ${e.error}` }]);
+      toasterMessages.error(e.error);
       return;
     }
     setMessages(m => [...m, { role: 'tool', content: e.type }]);
@@ -50,10 +53,11 @@ export function App() {
   const [input, setInput] = useState('');
   return (
     <div id="app">
+      <ToastManager />
       <header>
         <StatusDot status={status} />
-        <h1>OpenHands</h1>
-        <button onClick={() => postMessage({ type: 'openSettings' })}>Settings</button>
+        <Typography.H1>OpenHands</Typography.H1>
+        <Button onClick={() => postMessage({ type: 'openSettings' })}>Settings</Button>
       </header>
       <main id="messages">
         {messages.map((m, i) => (
@@ -62,8 +66,8 @@ export function App() {
       </main>
       <footer>
         <textarea id="input" rows={2} placeholder="Type a message..." value={input} onChange={e => setInput(e.target.value)} />
-        <button id="sendBtn" onClick={() => { const text = input.trim(); if (text) { setMessages(m => [...m, { role: 'user', content: text }]); setInput(''); postMessage({ type: 'send', text }); } }}>Send</button>
-        <button id="stopBtn" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</button>
+        <Button id="sendBtn" onClick={() => { const text = input.trim(); if (text) { setMessages(m => [...m, { role: 'user', content: text }]); setInput(''); postMessage({ type: 'send', text }); } }}>Send</Button>
+        <Button id="stopBtn" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
       </footer>
     </div>
   );
