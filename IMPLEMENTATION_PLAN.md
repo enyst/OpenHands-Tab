@@ -60,26 +60,27 @@ Commit message used:
 ## Phase 2 — Webview React Bootstrap + @openhands/ui
 Goal: Convert the webview to React and adopt base UI components.
 
-Status: PARTIALLY COMPLETED (React + esbuild done; @openhands/ui pending)
+Status: COMPLETED
 
-Changes done so far:
+Changes done:
 - Installed runtime deps: react@^19, react-dom@^19
+- Installed @openhands/ui and imported its styles in the webview App
 - Added esbuild with build:webview script; bundling src/webview-src/webview.tsx to media/webview.js
 - Updated extension HTML to mount React app at #app
-- Implemented minimal React <App /> (header, messages, footer with Send/Stop)
-
-Next steps to finish Phase 2:
-- Add @openhands/ui and its styles; wire basic components (Typography, Button, Scrollable)
-- Ensure CSS is emitted/linked appropriately (via esbuild CSS loader or copy)
-- Add basic render test for App
+- Implemented React <App /> (header, messages, footer with Send/Stop)
+- Added basic App render test with RTL; configured vitest to ignore built media/** tests
 
 Run:
 - npm run build:webview (succeeds)
-- npm run typecheck (succeeds)
+- npm run test (passing)
+- npm run typecheck (passing)
 
 Commit messages used:
 "feat(webview): bootstrap React shell and esbuild bundle"
 "build(webview): generate media/webview.js via esbuild"
+"feat(ui): add @openhands/ui and React type packages"
+"feat(webview): adopt @openhands/ui styles and factor App component"
+"test(config): exclude built media/ from vitest; fix webview tsconfig for JSX/tests"
 
 ## Phase 3 — Typed Event Rendering
 Goal: Bridge VS Code messages into React state using agent-sdk types/guards and render events.
