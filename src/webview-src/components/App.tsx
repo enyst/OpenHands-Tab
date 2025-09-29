@@ -6,7 +6,12 @@ import type { Event, MessageEvent as VscodeMessageEvent, SystemEvent, ErrorEvent
 import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
-  return <span className={`status ${status}`} />;
+  const colorClass = status === 'online'
+    ? 'bg-[var(--color-green-600)]'
+    : status === 'offline'
+      ? 'bg-[var(--color-red-600)]'
+      : 'bg-[var(--color-primary-500)]';
+  return <span className={`inline-block w-[10px] h-[10px] rounded-full mr-2 align-middle ${colorClass}`} />;
 }
 
 type RenderedMsg = { role: 'user' | 'assistant' | 'tool' | 'system'; content: string };
@@ -70,35 +75,36 @@ export function App() {
   };
 
   return (
-    <div id="app" className="oh-container">
+    <div id="app" className="flex flex-col h-screen">
       <ToastManager />
-      <header className="oh-header">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
         <StatusDot status={status} />
         <Typography.H1>OpenHands</Typography.H1>
-        <div className="oh-header-actions">
+        <div className="ml-auto flex gap-2">
           <Button onClick={() => { toasterMessages.info('Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
           <Button onClick={() => { toasterMessages.info('Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
           <Button onClick={() => { toasterMessages.info('Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
         </div>
       </header>
 
-      <div className="oh-content">
-        <Scrollable mode="auto" type="vertical" className="oh-messages" tabIndex={0}>
+      <div className="flex flex-1 min-h-0 px-3 py-2">
+        <Scrollable mode="auto" type="vertical" className="flex-1 min-h-0 rounded border border-black/10 p-2" tabIndex={0}>
           {messages.map((m, i) => (
-            <div key={i} className={`msg ${m.role}`}>{m.content}</div>
+            <div key={i} className={`whitespace-pre-wrap p-2 rounded my-1 ${m.role === 'user' ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]' : m.role === 'assistant' ? 'bg-[rgba(0,200,0,0.06)] border border-[rgba(0,200,0,0.18)]' : m.role === 'tool' ? 'bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] font-mono' : 'italic text-[var(--vscode-descriptionForeground)]'}`}>{m.content}</div>
           ))}
         </Scrollable>
       </div>
 
-      <div className="oh-composer">
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-black/10">
         <Input
           label="Message"
           placeholder="Type a message..."
           value={input}
           onChange={(e: any) => setInput(e.target.value)}
           onKeyDown={(e: any) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); } }}
+          className="flex-1"
         />
-        <div className="oh-actions">
+        <div className="flex gap-2">
           <Button id="sendBtn" onClick={send}>Send</Button>
           <Button id="stopBtn" variant="secondary" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
         </div>
