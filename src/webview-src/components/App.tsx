@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import '@openhands/ui/styles';
-import { ToastManager, toasterMessages, Button, Typography } from '@openhands/ui';
-import type { Event, MessageEvent, SystemEvent, ErrorEvent, TextContent } from '../../types/agent-sdk';
+import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
+import type { Event, MessageEvent as VscodeMessageEvent, SystemEvent, ErrorEvent, TextContent } from '../../types/agent-sdk';
 import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
@@ -15,8 +15,10 @@ export function App() {
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
 
   useEffect(() => {
+    console.debug('[webview] App mounted');
     const handler = (event: MessageEvent) => {
       const payload: any = (event as any).data;
+      console.debug('[webview] message from extension', payload?.type, payload);
       if (payload?.type === 'status') setStatus(payload.status);
       if (payload?.type === 'configUpdated') toasterMessages.info(`Config updated: ${payload.serverUrl}`);
       if (payload?.type === 'event') handleEvent(payload.event);
@@ -58,26 +60,49 @@ export function App() {
   function postMessage(msg: any) { (window as any).acquireVsCodeApi?.().postMessage(msg); }
 
   const [input, setInput] = useState('');
+  const send = () => {
+    const text = input.trim();
+    if (!text) return;
+    setMessages(m => [...m, { role: 'user', content: text }]);
+    setInput('');
+    postMessage({ type: 'send', text });
+  };
+
   return (
-    <div id="app">
+    <div id="app" className="oh-container">
       <ToastManager />
-      <header>
+      <header className="oh-header">
         <StatusDot status={status} />
         <Typography.H1>OpenHands</Typography.H1>
-        <Button onClick={() => { toasterMessages.info('Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
-        <Button onClick={() => { toasterMessages.info('Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
-        <Button onClick={() => { toasterMessages.info('Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
+        <div className="oh-header-actions">
+          <Button onClick={() => { toasterMessages.info('Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
+          <Button onClick={() => { toasterMessages.info('Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
+          <Button onClick={() => { toasterMessages.info('Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
+        </div>
       </header>
-      <main id="messages">
-        {messages.map((m, i) => (
-          <div key={i} className={`msg ${m.role}`}>{m.content}</div>
-        ))}
-      </main>
-      <footer>
-        <textarea id="input" rows={2} placeholder="Type a message..." value={input} onChange={e => setInput(e.target.value)} />
-        <Button id="sendBtn" onClick={() => { const text = input.trim(); if (text) { setMessages(m => [...m, { role: 'user', content: text }]); setInput(''); postMessage({ type: 'send', text }); } }}>Send</Button>
-        <Button id="stopBtn" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
-      </footer>
+
+      <div className="oh-content">
+        <Scrollable mode="auto" type="vertical" className="oh-messages" tabIndex={0}>
+          {messages.map((m, i) => (
+            <div key={i} className={`msg ${m.role}`}>{m.content}</div>
+          ))}
+        </Scrollable>
+      </div>
+
+      <div className="oh-composer">
+        <textarea
+          id="input"
+          rows={3}
+          placeholder="Type a message..."
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); } }}
+        />
+        <div className="oh-actions">
+          <Button id="sendBtn" onClick={send}>Send</Button>
+          <Button id="stopBtn" variant="secondary" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
+        </div>
+      </div>
     </div>
   );
 }
