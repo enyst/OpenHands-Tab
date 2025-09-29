@@ -1,5 +1,6 @@
 # VS Code Extension Build and Development Files
 media/webview.js
+media/*.map
 
 *.vsix
 out/

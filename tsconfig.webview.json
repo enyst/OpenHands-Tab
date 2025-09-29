@@ -1,16 +1,19 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "module": "ES2022",
+    "lib": ["ES2022", "DOM"]
+    ,"module": "ES2022",
     "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
     "outDir": "media",
-    "rootDir": "src/webview-src",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "sourceMap": true
   },
-  "include": ["src/webview-src/**/*"]
+  "include": ["src/webview-src/**/*"],
+  "exclude": ["src/webview-src/__tests__/**"]
 }

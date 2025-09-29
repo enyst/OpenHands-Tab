@@ -17,16 +17,8 @@ Guiding principles:
   - git pull --rebase
 - If a feature branch exists, we may cherry-pick as needed later.
 
-2) Add this implementation plan and reference it from PRD
+2) Read this implementation plan and reference it from PRD
 - File: IMPLEMENTATION_PLAN.md (this file)
-- Update prd.md to link to this plan
-- Commit message:
-  "docs: add @openhands/ui integration plan
-  
-  - Create IMPLEMENTATION_PLAN.md
-  - Link it from prd.md"
-
-Unit tests: N/A (docs only)
 
 ## Phase 1 — Test Infrastructure (Vitest + React Testing Library)
 Goal: Add a fast unit test setup usable for pure TS and React components.
@@ -60,29 +52,43 @@ Commit message used:
 ## Phase 2 — Webview React Bootstrap + @openhands/ui
 Goal: Convert the webview to React and adopt base UI components.
 
-Status: PARTIALLY COMPLETED (React + esbuild done; @openhands/ui pending)
+Status: COMPLETED
 
-Changes done so far:
+Changes done:
 - Installed runtime deps: react@^19, react-dom@^19
+- Installed @openhands/ui and imported its styles in the webview App
 - Added esbuild with build:webview script; bundling src/webview-src/webview.tsx to media/webview.js
 - Updated extension HTML to mount React app at #app
-- Implemented minimal React <App /> (header, messages, footer with Send/Stop)
-
-Next steps to finish Phase 2:
-- Add @openhands/ui and its styles; wire basic components (Typography, Button, Scrollable)
-- Ensure CSS is emitted/linked appropriately (via esbuild CSS loader or copy)
-- Add basic render test for App
+- Implemented React <App /> (header, messages, footer with Send/Stop)
+- Added basic App render test with RTL; configured vitest to ignore built media/** tests
 
 Run:
 - npm run build:webview (succeeds)
-- npm run typecheck (succeeds)
+- npm run test (passing)
+- npm run typecheck (passing)
 
 Commit messages used:
 "feat(webview): bootstrap React shell and esbuild bundle"
 "build(webview): generate media/webview.js via esbuild"
+"feat(ui): add @openhands/ui and React type packages"
+"feat(webview): adopt @openhands/ui styles and factor App component"
+"test(config): exclude built media/ from vitest; fix webview tsconfig for JSX/tests"
 
 ## Phase 3 — Typed Event Rendering
 Goal: Bridge VS Code messages into React state using agent-sdk types/guards and render events.
+
+Status: COMPLETED
+
+Changes done:
+- App uses agent-sdk guards to validate events from VS Code messages
+- Message events render text content with role mapping
+- System/error events rendered to system stream; other events noted as tool
+- Added tests: src/webview-src/__tests__/event.rendering.test.tsx
+
+Run:
+- npm run test (passing)
+- npm run typecheck (passing)
+- npm run build:webview (succeeds)
 
 Changes:
 - In webview.tsx, add window message bridge useEffect
@@ -106,43 +112,44 @@ Commit message:
 - Add unit tests for event handling"
 
 ## Phase 4 — Commands and Toasts
-Goal: Hook Send/Stop/Settings actions and add ToastManager for errors.
+Goal: Wire webview commands (send, stop, reconnect, new chat, settings) and show toasts on status + system/error.
 
-Changes:
-- Wire Send to vscode.postMessage({ type: 'send', text })
-- Wire Stop to vscode.postMessage({ type: 'command', command: 'pause' })
-- Wire Settings to vscode.postMessage({ type: 'openSettings' })
-- Add <ToastManager /> at the root and show toasts for errors/status changes
+Status: COMPLETED
 
-Tests:
-- src/webview-src/__tests__/ActionsAndToasts.test.tsx
-  - Mock vscode.postMessage and assert calls on button clicks
-  - Simulate error event and assert toast appears
+So far:
+- Added ToastManager and toasterMessages usage
+- Toasts on status transitions and config updates
+- Toasts on system and error events
+- Switched header buttons to @openhands/ui Button and Typography
+- Added non-asserting toast runtime test
 
-Run:
-- npm run test
-- npm run typecheck
+Next:
+- Add Reconnect and New Chat buttons in UI, postMessage commands
+- Optional: show success toast on command initiation
+- Quick tests to ensure no runtime errors
 
-Commit message:
-"feat(webview): actions (send/stop/settings) and toasts
-
-- Hook buttons to postMessage
-- Add ToastManager for error/status
-- Add unit tests for actions and toasts"
 
 ## Phase 5 — Compile and Manual Verification
 Goal: Build all artifacts, run type-checks, and do a manual smoke test in VS Code.
 
-Run:
-- npm run compile (includes extension + webview)
-- npm run test
-- npm run typecheck
+Status: IN PROGRESS
 
-Commit message:
-"chore: compile and finalize @openhands/ui integration
+Automated:
+- npm run compile (ok)
+- npm run test (all green)
+- npm run build:webview (ok)
 
-- Ensure compile and tests pass
-- Minor polish from manual verification"
+Manual verification steps (to do in VS Code):
+- Load extension in VS Code (F5) and open the webview
+- Observe status toast when connecting and when online
+- Send a message; verify it appears and extension receives it
+- Trigger Stop, Reconnect, New Chat; verify extension receives commands
+- Simulate system and error events; toasts appear and messages rendered
+
+Notes:
+- media/webview.js and webview.css generated; source maps exist and are currently tracked
+- Optional: remove media/*.map from git if undesired
+
 
 ## Notes
 - Fonts/CSP: Keep CSP strict; rely on fallback fonts. Optionally localize fonts later.

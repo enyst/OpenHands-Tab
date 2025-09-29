@@ -68,6 +68,12 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Build webview bundle
+        run: npm run build:webview
+
       - name: Package VSIX
         id: package
         run: |
