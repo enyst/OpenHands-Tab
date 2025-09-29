@@ -48,13 +48,24 @@ Data flow notes
     - Outbound: send Message JSON to enqueue and run
     - Message payload (WS/HTTP): { "role": "user", "content": [{ "type": "text", "text": "..." }] }
     - Session API key (optional): if enabled on server, use X-Session-API-Key header for HTTP and add ?session_api_key=... to the WebSocket URL
+    - Note: `{id}` in HTTP routes refers to the same value as `{conversation_id}` in WS paths.
   - HTTP endpoints:
-    - POST /api/conversations to start a conversation (agent spec; optional confirmation_policy and initial_message; max_iterations)
-    - GET /api/conversations/search, /count, /{id}
-    - POST /api/conversations/{id}/pause, /resume; DELETE /api/conversations/{id}
-    - POST /api/conversations/{id}/events/ (send Message when not using the socket)
-    - GET /api/conversations/{id}/events/search, /count, /{event_id}, batch GET
-    - POST /api/conversations/{id}/events/respond_to_confirmation to accept/reject pending actions
+    - Conversations:
+      - POST /api/conversations
+      - GET  /api/conversations/search
+      - GET  /api/conversations/count
+      - GET  /api/conversations/{id}
+      - GET  /api/conversations/                      (list)
+      - POST /api/conversations/{id}/pause
+      - POST /api/conversations/{id}/resume
+      - DELETE /api/conversations/{id}
+    - Events:
+      - POST /api/conversations/{id}/events/          (send Message when not using the socket)
+      - GET  /api/conversations/{id}/events/search
+      - GET  /api/conversations/{id}/events/count
+      - GET  /api/conversations/{id}/events/{event_id}
+      - GET  /api/conversations/{id}/events/          (list)
+      - POST /api/conversations/{id}/events/respond_to_confirmation  (approve/reject pending actions)
 
 Confirmation policy
 - By default, if unspecified in StartConversationRequest, server uses its configured default policy (often NeverConfirm for PoC/local). The extension omits confirmation_policy by default and will surface WAITING_FOR_CONFIRMATION if server asks.
@@ -190,10 +201,22 @@ Confirmation policy
   - Bash events: /sockets/bash-events?session_api_key=...
   - Source: agent-sdk/openhands/agent_server/sockets.py
 - HTTP endpoints (agent-sdk):
-  - Conversations: POST /api/conversations; GET /api/conversations/search|count|/{id} | batch GET /api/conversations/
-  - Events: POST /api/conversations/{id}/events/; GET /api/conversations/{id}/events/search|count|/{event_id} | batch GET /api/conversations/{id}/events/
-  - Confirmation: POST /api/conversations/{id}/events/respond_to_confirmation
-  - Pause/Resume: POST /api/conversations/{id}/pause, /resume
+  - Conversations:
+    - POST /api/conversations
+    - GET  /api/conversations/search
+    - GET  /api/conversations/count
+    - GET  /api/conversations/{id}
+    - GET  /api/conversations/                      (list)
+    - POST /api/conversations/{id}/pause
+    - POST /api/conversations/{id}/resume
+    - DELETE /api/conversations/{id}
+  - Events:
+    - POST /api/conversations/{id}/events/
+    - GET  /api/conversations/{id}/events/search
+    - GET  /api/conversations/{id}/events/count
+    - GET  /api/conversations/{id}/events/{event_id}
+    - GET  /api/conversations/{id}/events/          (list)
+    - POST /api/conversations/{id}/events/respond_to_confirmation
   - Source: agent-sdk/openhands/agent_server/{conversation_router.py,event_router.py}
 - Message schema (send over WS/HTTP):
   - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
