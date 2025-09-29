@@ -93,12 +93,12 @@ export function deactivate() {
 
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
-  const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.css'));
+  const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'index.css'));
   const version = Date.now().toString();
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
+    `style-src ${webview.cspSource}`,
     `script-src ${webview.cspSource}`,
   ].join('; ');
 
