@@ -120,29 +120,22 @@ Commit message:
 - Add unit tests for event handling"
 
 ## Phase 4 — Commands and Toasts
-Goal: Hook Send/Stop/Settings actions and add ToastManager for errors.
+Goal: Wire webview commands (send, stop, reconnect, new chat, settings) and show toasts on status + system/error.
 
-Changes:
-- Wire Send to vscode.postMessage({ type: 'send', text })
-- Wire Stop to vscode.postMessage({ type: 'command', command: 'pause' })
-- Wire Settings to vscode.postMessage({ type: 'openSettings' })
-- Add <ToastManager /> at the root and show toasts for errors/status changes
+Status: IN PROGRESS
 
-Tests:
-- src/webview-src/__tests__/ActionsAndToasts.test.tsx
-  - Mock vscode.postMessage and assert calls on button clicks
-  - Simulate error event and assert toast appears
+So far:
+- Added ToastManager and toasterMessages usage
+- Toasts on status transitions and config updates
+- Toasts on system and error events
+- Switched header buttons to @openhands/ui Button and Typography
+- Added non-asserting toast runtime test
 
-Run:
-- npm run test
-- npm run typecheck
+Next:
+- Add Reconnect and New Chat buttons in UI, postMessage commands
+- Optional: show success toast on command initiation
+- Quick tests to ensure no runtime errors
 
-Commit message:
-"feat(webview): actions (send/stop/settings) and toasts
-
-- Hook buttons to postMessage
-- Add ToastManager for error/status
-- Add unit tests for actions and toasts"
 
 ## Phase 5 — Compile and Manual Verification
 Goal: Build all artifacts, run type-checks, and do a manual smoke test in VS Code.
