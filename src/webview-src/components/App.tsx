@@ -64,7 +64,9 @@ export function App() {
       <header>
         <StatusDot status={status} />
         <Typography.H1>OpenHands</Typography.H1>
-        <Button onClick={() => postMessage({ type: 'openSettings' })}>Settings</Button>
+        <Button onClick={() => { toasterMessages.info('Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
+        <Button onClick={() => { toasterMessages.info('Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
+        <Button onClick={() => { toasterMessages.info('Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
       </header>
       <main id="messages">
         {messages.map((m, i) => (
