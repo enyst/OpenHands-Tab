@@ -235,6 +235,49 @@ Confirmation policy
   - Notes: This socket streams bash command lifecycle events (e.g., BashCommand, BashOutput). The extension may choose to subscribe for live terminal output; authentication matches the Event socket.
 
 - Message schema (send over WS/HTTP):
+## 16. TypeScript Model Alignment and @openhands/ui Adoption Plan
+
+Source of truth
+- Agent-server (agent-sdk) is the authoritative API/protocol. If any mismatch occurs between V0 and V1 assets, prefer agent-sdk.
+
+1) Data Model Alignment (prevent drift)
+- Goal: Mirror the minimal Message and Event models from agent-sdk in TypeScript to ensure send/receive parity and catch drift early.
+- Scope:
+  - Message (WS/HTTP send): role in {user, assistant, system, tool}; content: Array<TextContent | ImageContent>.
+  - Event stream (WS receive): EventBase discriminated union with common variants (MessageEvent, ActionEvent, Observation*, AgentErrorEvent, etc.).
+  - EventPage for HTTP backfill: { items: EventBase[]; next_page_id?: string | null }.
+- Implementation:
+  - Create src/types/agent-sdk.ts exporting Message, TextContent, ImageContent, and a narrowed EventBase union.
+  - Add type guards for event decoding; unknown variants are logged and rendered as raw JSON.
+  - Wire types into ConnectionManager: onEvent(e: EventBase), sendUserMessage(payload: Message).
+  - Update renderers to switch on event.type; fallback to JSON view for unknowns.
+- Anchors (comments only, no codegen yet):
+  - openhands/sdk/llm/message.py
+  - openhands/sdk/event/llm_convertible/{message.py,action.py,observation.py}
+  - openhands/agent_server/models.py (EventPage)
+- Future option: introduce codegen/tests if we see drift.
+
+2) @openhands/ui Adoption (selective, incremental)
+- Goal: Reuse OpenHands component styles for consistency while keeping agent-sdk protocol intact.
+- Constraints: @openhands/ui (V0 era, July) may not match V1 needs; where conflicts arise, prefer agent-sdk and our own choices.
+- Approach:
+  - Webview bundle imports @openhands/ui and "@openhands/ui/styles" (compiled CSS). No Tailwind at runtime.
+  - Incremental replacement: buttons, typography, scrollable containers first; then tooltips/chips/event cards.
+  - Pin @openhands/ui ~= 1.0.0-beta.9; validate upgrades.
+  - Monitor bundle size; keep layout simple and accessible; align with VS Code look later.
+
+3) Milestones
+- M-A (Models): Add src/types/agent-sdk.ts + type guards; update ConnectionManager and renderers to use types.
+- M-B (Webview Foundation): Ensure React bundling in webview supports @openhands/ui/styles.
+- M-C (UI Increment 1): Adopt Button, Typography, basic containers.
+- M-D (UI Increment 2): Tooltips, Chips, richer event cards.
+- M-E (Polish): Theme mapping to VS Code, accessibility, docs.
+
+4) Risks and decisions
+- React/tailwind peer constraints are confined to the webview bundle; we ship compiled assets.
+- If UI library imposes constraints that hinder VS Code UX, we prioritize agent-sdk-compliant functionality over stylistic fidelity.
+
+
   - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
   - File: agent-sdk/openhands/sdk/llm/message.py
   - Minimal example:
