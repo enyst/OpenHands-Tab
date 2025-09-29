@@ -18,12 +18,19 @@ export function App() {
     const handler = (event: MessageEvent) => {
       const payload: any = (event as any).data;
       if (payload?.type === 'status') setStatus(payload.status);
+      if (payload?.type === 'configUpdated') toasterMessages.info(`Config updated: ${payload.serverUrl}`);
       if (payload?.type === 'event') handleEvent(payload.event);
       if (payload?.type === 'error') setMessages((m) => [...m, { role: 'system', content: String(payload.error) }]);
     };
     window.addEventListener('message', handler as any);
     return () => window.removeEventListener('message', handler as any);
   }, []);
+
+  useEffect(() => {
+    if (status === 'connecting') toasterMessages.info('Connecting...');
+    if (status === 'online') toasterMessages.success('Connected to server');
+    if (status === 'offline') toasterMessages.warning('Disconnected');
+  }, [status]);
 
   function handleEvent(e: unknown) {
     if (!isEvent(e)) return;
