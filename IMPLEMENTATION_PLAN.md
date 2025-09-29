@@ -140,16 +140,24 @@ Next:
 ## Phase 5 — Compile and Manual Verification
 Goal: Build all artifacts, run type-checks, and do a manual smoke test in VS Code.
 
-Run:
-- npm run compile (includes extension + webview)
-- npm run test
-- npm run typecheck
+Status: IN PROGRESS
 
-Commit message:
-"chore: compile and finalize @openhands/ui integration
+Automated:
+- npm run compile (ok)
+- npm run test (all green)
+- npm run build:webview (ok)
 
-- Ensure compile and tests pass
-- Minor polish from manual verification"
+Manual verification steps (to do in VS Code):
+- Load extension in VS Code (F5) and open the webview
+- Observe status toast when connecting and when online
+- Send a message; verify it appears and extension receives it
+- Trigger Stop, Reconnect, New Chat; verify extension receives commands
+- Simulate system and error events; toasts appear and messages rendered
+
+Notes:
+- media/webview.js and webview.css generated; source maps exist and are currently tracked
+- Optional: remove media/*.map from git if undesired
+
 
 ## Notes
 - Fonts/CSP: Keep CSP strict; rely on fallback fonts. Optionally localize fonts later.
