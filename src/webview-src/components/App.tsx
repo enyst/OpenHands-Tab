@@ -1,36 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import '@openhands/ui/styles';
+import type { Event, MessageEvent, SystemEvent, ErrorEvent, TextContent } from '../../types/agent-sdk';
+import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
   return <span className={`status ${status}`} />;
 }
 
+type RenderedMsg = { role: 'user' | 'assistant' | 'tool' | 'system'; content: string };
+
 export function App() {
   const [status, setStatus] = useState<'online'|'offline'|'connecting'>('offline');
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant' | 'tool' | 'system'; content: string }>>([]);
+  const [messages, setMessages] = useState<RenderedMsg[]>([]);
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      const msg: any = event.data;
-      if (msg?.type === 'status') setStatus(msg.status);
-      if (msg?.type === 'event') {
-        const ev = msg.event;
-        if (ev?.type === 'message' && ev.message?.content) {
-          const text = (ev.message.content || [])
-            .filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
-            .map((c: any) => c.text)
-            .join('\n');
-          if (text) setMessages((m) => [...m, { role: ev.message.role === 'user' ? 'user' : 'assistant', content: text }]);
-        } else {
-          const title = ev?.kind || ev?.type || 'event';
-          setMessages((m) => [...m, { role: 'tool', content: title }]);
-        }
-      }
-      if (msg?.type === 'error') setMessages((m) => [...m, { role: 'system', content: String(msg.error) }]);
+      const payload: any = (event as any).data;
+      if (payload?.type === 'status') setStatus(payload.status);
+      if (payload?.type === 'event') handleEvent(payload.event);
+      if (payload?.type === 'error') setMessages((m) => [...m, { role: 'system', content: String(payload.error) }]);
     };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+    window.addEventListener('message', handler as any);
+    return () => window.removeEventListener('message', handler as any);
   }, []);
+
+  function handleEvent(e: unknown) {
+    if (!isEvent(e)) return;
+    if (isMessageEvent(e)) {
+      const parts = (e.message.content || []).filter(isTextContent).map(c => c.text);
+      if (parts.length) {
+        const role = e.message.role === 'user' ? 'user' : 'assistant';
+        setMessages(m => [...m, { role, content: parts.join('\n') }]);
+      }
+      return;
+    }
+    if (isSystemEvent(e)) {
+      setMessages(m => [...m, { role: 'system', content: e.message }]);
+      return;
+    }
+    if (isErrorEvent(e)) {
+      setMessages(m => [...m, { role: 'system', content: `Error: ${e.error}` }]);
+      return;
+    }
+    setMessages(m => [...m, { role: 'tool', content: e.type }]);
+  }
 
   function postMessage(msg: any) { (window as any).acquireVsCodeApi?.().postMessage(msg); }
 
