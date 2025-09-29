@@ -34,30 +34,35 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 2. Press `F5` to launch a new Extension Development Host
 3. The extension will be available in the new VSCode window
 
-### Backend Prerequisite: OpenHands Agent Server
+### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
-This extension requires a running OpenHands agent server from the All-Hands-AI organization. You can run it locally via uv or Docker. See official docs for details: https://docs.all-hands.dev/usage/installation
+This extension targets the V1 server bundled with All-Hands-AI/agent-sdk. Clone and run the server locally with uv.
 
-Option A — uv (recommended for local):
+Quick start:
 ```bash
-# Install uv if needed: https://docs.astral.sh/uv/
-# Launch the GUI/HTTP server on port 3000
-uvx --python 3.12 --from openhands-ai openhands serve
-# With GPU: add --gpu
+# 1) Clone the V1 SDK (if not already present)
+git clone https://github.com/All-Hands-AI/agent-sdk.git
+cd agent-sdk
+
+# 2) Setup (requires uv >= 0.8.13)
+make build
+
+# 3) Run the agent-server (FastAPI/WS)
+uv run agent-server --host 0.0.0.0 --port 3000
 ```
 
-Option B — Docker:
-```bash
-# Map port 3000 and mount Docker socket if you plan to run sandboxes
-docker run -it --pull=always \
-  -p 3000:3000 \
-  --add-host host.docker.internal:host-gateway \
-  --name openhands-app \
-  docker.all-hands.dev/all-hands-ai/openhands:0.57
-```
-
-- The server will listen on http://localhost:3000 by default. Adjust the URL in the extension setting if different.
-- LLM configuration: you’ll need an API key for your chosen provider (e.g., OpenAI, Anthropic) or a LiteLLM proxy. The extension passes an API key in the request if you export LITELLM_API_KEY or OPENAI_API_KEY in the VS Code environment.
+Notes:
+- API base: http://localhost:3000
+- WebSocket: ws://localhost:3000/sockets/events/{conversation_id}
+- REST endpoints used by this extension:
+  - POST /api/conversations/ (start)
+  - POST /api/conversations/{id}/events/ (send message)
+  - POST /api/conversations/{id}/pause (pause)
+  - Optional: /api/conversations/{id}/run, /api/conversations/{id}/secrets
+- Auth (optional): set SESSION_API_KEY in the server env; the extension will
+  send X-Session-API-Key and add ?session_api_key=... to WS if SESSION_API_KEY is present in the VS Code host env.
+- LLM configuration: export LITELLM_API_KEY or OPENAI_API_KEY in the VS Code
+  environment; the extension forwards one of these for starting conversations.
 
 ### Using the Extension
 
@@ -67,8 +72,8 @@ docker run -it --pull=always \
 ### Optional: Session API Key
 
 If your agent-server requires a session API key:
-- HTTP: send header `X-Session-API-Key: <key>`
-- WebSocket: append `?session_api_key=<key>` to the WS URL
+- HTTP: `X-Session-API-Key: <key>`
+- WebSocket: `?session_api_key=<key>` on the WS URL
 - Provide `SESSION_API_KEY` in the VS Code environment to let the extension attach it automatically
 
 ### Remote Host Usage (this environment)

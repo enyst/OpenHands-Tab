@@ -148,7 +148,7 @@ Manual verification steps (to do in VS Code):
 
 Notes:
 - media/webview.js and webview.css generated; source maps exist and are currently tracked
-- Backend prerequisite: An OpenHands agent server (All-Hands-AI). See README.md for setup via uv or Docker, default http://localhost:3000. Configure via Settings button or openhands.serverUrl.
+- Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
 
 - Optional: remove media/*.map from git if undesired
 
