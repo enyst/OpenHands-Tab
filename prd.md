@@ -235,6 +235,23 @@ Confirmation policy
   - Notes: This socket streams bash command lifecycle events (e.g., BashCommand, BashOutput). The extension may choose to subscribe for live terminal output; authentication matches the Event socket.
 
 - Message schema (send over WS/HTTP):
+  - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
+  - File: agent-sdk/openhands/sdk/llm/message.py
+  - Minimal example:
+    { "role": "user", "content": [{ "type": "text", "text": "Hello" }] }
+  - Notes: tool_calls, tool_call_id, name, reasoning_content are supported when relevant.
+- Event schema (received over WS):
+  - Base: openhands.sdk.event.base.EventBase (discriminated union)
+  - Common event types:
+    - MessageEvent: agent-sdk/openhands/sdk/event/llm_convertible/message.py
+    - ActionEvent: agent-sdk/openhands/sdk/event/llm_convertible/action.py
+    - Observation events: agent-sdk/openhands/sdk/event/llm_convertible/observation.py
+    - Plus system/agent error events per openhands.sdk.event
+  - Event pages: EventPage in agent-sdk/openhands/agent_server/models.py
+- Auth:
+  - HTTP: X-Session-API-Key header when enabled
+  - WebSocket: session_api_key query parameter
+
 ## 16. TypeScript Model Alignment and @openhands/ui Adoption Plan
 
 Source of truth
@@ -277,21 +294,4 @@ Source of truth
 - React/tailwind peer constraints are confined to the webview bundle; we ship compiled assets.
 - If UI library imposes constraints that hinder VS Code UX, we prioritize agent-sdk-compliant functionality over stylistic fidelity.
 
-
-  - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
-  - File: agent-sdk/openhands/sdk/llm/message.py
-  - Minimal example:
-    { "role": "user", "content": [{ "type": "text", "text": "Hello" }] }
-  - Notes: tool_calls, tool_call_id, name, reasoning_content are supported when relevant.
-- Event schema (received over WS):
-  - Base: openhands.sdk.event.base.EventBase (discriminated union)
-  - Common event types:
-    - MessageEvent: agent-sdk/openhands/sdk/event/llm_convertible/message.py
-    - ActionEvent: agent-sdk/openhands/sdk/event/llm_convertible/action.py
-    - Observation events: agent-sdk/openhands/sdk/event/llm_convertible/observation.py
-    - Plus system/agent error events per openhands.sdk.event
-  - Event pages: EventPage in agent-sdk/openhands/agent_server/models.py
-- Auth:
-  - HTTP: X-Session-API-Key header when enabled
-  - WebSocket: session_api_key query parameter
 
