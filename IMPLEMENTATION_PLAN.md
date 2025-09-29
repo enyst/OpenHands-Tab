@@ -85,6 +85,19 @@ Commit messages used:
 ## Phase 3 — Typed Event Rendering
 Goal: Bridge VS Code messages into React state using agent-sdk types/guards and render events.
 
+Status: COMPLETED
+
+Changes done:
+- App uses agent-sdk guards to validate events from VS Code messages
+- Message events render text content with role mapping
+- System/error events rendered to system stream; other events noted as tool
+- Added tests: src/webview-src/__tests__/event.rendering.test.tsx
+
+Run:
+- npm run test (passing)
+- npm run typecheck (passing)
+- npm run build:webview (succeeds)
+
 Changes:
 - In webview.tsx, add window message bridge useEffect
 - Use src/types/agent-sdk.ts guards (isEvent, isMessageEvent, etc.) to parse events
