@@ -41,6 +41,19 @@ export function activate(context: vscode.ExtensionContext) {
     await ensurePanelAndConnection();
   });
 
+  // Diagnostics command for E2E tests and troubleshooting
+  const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+  const diag = vscode.commands.registerCommand('openhands._diagnostics', async () => {
+    const diag = {
+      hasPanel: !!panel,
+      hasConnection: !!connection,
+      conversationId: connection?.getConversationId(),
+      status: connection?.getStatus(),
+      serverUrl: getServerUrl(),
+    };
+    return diag;
+  });
+
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensurePanelAndConnection();
     await connection?.startNewConversation();
@@ -71,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.pause();
   });
 
-  context.subscriptions.push(openTab, startNew, configure, reconnect, pause);
+  context.subscriptions.push(openTab, diag, startNew, configure, reconnect, pause);
 }
 
 export function deactivate() {

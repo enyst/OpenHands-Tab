@@ -41,6 +41,10 @@
       {
         "command": "openhands.pauseCurrentRun",
         "title": "OpenHands: Pause Current Run"
+      },
+      {
+        "command": "openhands._diagnostics",
+        "title": "OpenHands: Diagnostics (Internal)"
       }
     ],
     "configuration": {
@@ -56,10 +60,11 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p . && tsc -p tsconfig.webview.json",
-    "watch": "tsc -w -p . & tsc -w -p tsconfig.webview.json",
+    "compile": "tsc -p . && npm run build:webview",
+    "watch": "tsc -w -p . & node --watch esbuild.webview.mjs",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package",
+    "e2e": "npm run compile && tsc -p tsconfig.e2e.json && mocha -r ts-node/register tests/e2e/**/*.test.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
@@ -87,9 +92,12 @@
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
     "@vitest/coverage-v8": "^2.1.4",
+    "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^3.6.1",
     "esbuild": "^0.23.1",
     "eslint": "^9.36.0",
+    "mocha": "^10.8.2",
+    "ts-node": "^10.9.2",
     "jsdom": "^25.0.1",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",

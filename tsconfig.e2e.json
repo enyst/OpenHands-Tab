@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "tests/e2e/out",
+    "rootDir": "tests/e2e",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "sourceMap": false
+  },
+  "include": [
+    "tests/e2e/suite/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

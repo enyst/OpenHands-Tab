@@ -15,6 +15,7 @@ node_modules/
 *.d.ts
 !src/**/*.js
 !test/**/*.js
+!tests/**/*.js
 !webpack.config.js
 !gulpfile.js
 !rollup.config.js

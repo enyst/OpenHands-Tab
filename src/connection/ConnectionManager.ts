@@ -36,6 +36,7 @@ export class ConnectionManager {
   }
 
   getConversationId() { return this.conversationId; }
+  getStatus() { return this.status; }
 
   async startNewConversation() {
     try {
