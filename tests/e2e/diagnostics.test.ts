@@ -15,7 +15,7 @@ describe('OpenHands-Tab diagnostics', function () {
   this.timeout(120000);
 
   it('returns basic state after opening tab', async () => {
-    const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
+    const vscodeExecutablePath = await downloadAndUnzipVSCode('insider');
     const extensionDevelopmentPath = path.resolve(__dirnameE, '../..');
     const extensionTestsPath = path.resolve(__dirnameE, './out/suite');
 
@@ -23,7 +23,14 @@ describe('OpenHands-Tab diagnostics', function () {
       vscodeExecutablePath,
       extensionDevelopmentPath,
       extensionTestsPath,
-      launchArgs: ['--disable-extensions', '--no-sandbox', '--user-data-dir', userDataDir],
+      launchArgs: [
+        '--disable-extensions',
+        '--no-sandbox',
+        '--user-data-dir', userDataDir,
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--disable-software-rasterizer'
+      ],
     });
 
     assert.ok(true);
