@@ -148,7 +148,25 @@ Manual verification steps (to do in VS Code):
 
 Notes:
 - media/webview.js and webview.css generated; source maps exist and are currently tracked
+- Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
+
 - Optional: remove media/*.map from git if undesired
+
+
+## Phase 6 — VS Code Runtime Setup and Visual Validation
+Goal: Provide one-command local dev via code-server and visually verify UI actions.
+
+Plan:
+- Add scripts/dev-vscode.sh: builds webview, compiles, packages .vsix, installs to code-server, runs at 0.0.0.0:12000
+- Add npm script dev:vscode to invoke the script
+- Manual test steps (with screenshots):
+  1) Open the extension tab; confirm Connecting and Connected toasts
+  2) Send message; see user message and extension receives it
+  3) Stop, Reconnect, New Chat buttons; verify toasts and extension receives commands
+  4) Post simulated system/error events; verify toasts and rendering
+- Capture screenshots and attach for verification
+
+Status: IN PROGRESS
 
 
 ## Notes

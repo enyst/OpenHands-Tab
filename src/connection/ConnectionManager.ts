@@ -61,7 +61,7 @@ export class ConnectionManager {
       const headers: any = { 'Content-Type': 'application/json' };
       const sessionKey = process.env.SESSION_API_KEY || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(base + '/api/conversations', {
+      const res = await fetch(base + '/api/conversations/', {
         method: 'POST',
         headers,
         body: JSON.stringify(req)
