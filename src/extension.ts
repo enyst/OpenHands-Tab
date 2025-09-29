@@ -42,13 +42,14 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Diagnostics command for E2E tests and troubleshooting
+  const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
   const diag = vscode.commands.registerCommand('openhands._diagnostics', async () => {
     const diag = {
       hasPanel: !!panel,
       hasConnection: !!connection,
       conversationId: connection?.getConversationId(),
       status: connection?.getStatus(),
-      serverUrl: vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000',
+      serverUrl: getServerUrl(),
     };
     return diag;
   });

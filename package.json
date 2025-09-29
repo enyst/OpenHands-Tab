@@ -64,7 +64,7 @@
     "watch": "tsc -w -p . & tsc -w -p tsconfig.webview.json",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package",
-    "e2e": "npm run compile && mocha -r ts-node/register tests/e2e/**/*.test.ts"
+    "e2e": "npm run compile && mocha -r ts-node/register tests/e2e/**/*.test.ts && tsc -p tsconfig.e2e.json"
   },
   "files": [
     "dist/**",

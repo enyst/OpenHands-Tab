@@ -11,7 +11,7 @@ describe('OpenHands-Tab diagnostics', function () {
   it('returns basic state after opening tab', async () => {
     const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
     const extensionDevelopmentPath = path.resolve(__dirname, '../..');
-    const extensionTestsPath = path.resolve(__dirname, './suite');
+    const extensionTestsPath = path.resolve(__dirname, './out/suite');
 
     await runTests({
       vscodeExecutablePath,
