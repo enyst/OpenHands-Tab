@@ -47,7 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
       hasPanel: !!panel,
       hasConnection: !!connection,
       conversationId: connection?.getConversationId(),
-      status: connection?.getStatus?.(),
+      status: connection?.getStatus(),
       serverUrl: vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000',
     };
     return diag;
