@@ -7,7 +7,7 @@
     "jsx": "react-jsx",
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "outDir": "media",
-    "rootDir": "src/webview-src",
+    "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
