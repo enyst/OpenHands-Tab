@@ -31,29 +31,31 @@ Unit tests: N/A (docs only)
 ## Phase 1 — Test Infrastructure (Vitest + React Testing Library)
 Goal: Add a fast unit test setup usable for pure TS and React components.
 
-Changes:
-- Add devDependencies: vitest, @vitest/coverage-v8, @testing-library/react, @testing-library/user-event, @testing-library/jest-dom, jsdom, @types/jsdom
-- Add scripts to package.json:
+Status: COMPLETED
+
+Changes done:
+- Added devDependencies: vitest, @vitest/coverage-v8, @testing-library/react, @testing-library/user-event, @testing-library/jest-dom/vitest, jsdom, esbuild
+- Added scripts to package.json:
   - "test": "vitest run"
   - "test:watch": "vitest"
   - "typecheck": "tsc -p . && tsc -p tsconfig.webview.json"
-- Create vitest.config.ts (jsdom environment for webview tests)
-- Create test/setup.ts importing @testing-library/jest-dom
+- Created vitest.config.ts (jsdom environment)
+- Created test/setup.ts importing @testing-library/jest-dom/vitest
 
-Initial tests:
+Initial tests implemented:
 - src/types/__tests__/agent-sdk.guards.test.ts
-  - Validate isEvent, isMessageEvent, isTextContent against minimal valid/invalid samples.
+  - Validates isEvent, isMessageEvent, isTextContent for minimal valid/invalid samples.
 
 Run:
-- npm run test
-- npm run typecheck
+- npm run test (passing)
+- npm run typecheck (passing)
 
-Commit message:
-"test: add vitest + RTL and initial guard tests
+Commit message used:
+"test: add vitest + initial guard tests
 
-- Configure vitest (jsdom)
-- Add tests for agent-sdk type guards
-- Add test scripts"
+- Configure vitest with jsdom and setup file
+- Add initial type guard tests for agent-sdk
+- Add test/typecheck scripts and dev deps"
 
 ## Phase 2 — Webview React Bootstrap + @openhands/ui
 Goal: Convert the webview to React and adopt base UI components.
