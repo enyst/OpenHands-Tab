@@ -7,6 +7,10 @@ async function run() {
   // Always safe commands
   await vscode.commands.executeCommand('openhands.reconnect');
 
+  // Query diagnostics and log for CI visibility
+  const diag = await vscode.commands.executeCommand('openhands._diagnostics');
+  console.log('DIAG', JSON.stringify(diag));
+
   // Optional deeper path if a server is available in the environment
   if (process.env.E2E_WITH_SERVER === '1') {
     try {
