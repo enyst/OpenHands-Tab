@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../node_modules/@openhands/ui/dist/index.css"],
-  "sourcesContent": [".group .button-bold-text:before,.group .button-bold-text:after{content:\"\";display:inline-block;width:var(--text-increase-size);transition:width .2s ease;transition:font-weight .2s ease}.group:hover .button-bold-text:before,.group:hover .button-bold-text:after,.group:focus .button-bold-text:before,.group:focus .button-bold-text:after{width:0}\n"],
-  "mappings": ";AAAA,CAAC,MAAM,CAAC,gBAAgB;AAAQ,CAA/B,MAAsC,CAA/B,gBAAgD;AAAO,WAAQ;AAAG,WAAQ;AAAa,SAAM,IAAI;AAAsB,cAAW,MAAM,IAAI;AAAK,cAAW,YAAY,IAAI;AAAI;AAAC,CAAxL,KAA8L,OAAO,CAA9L,gBAA+M;AAAQ,CAA9N,KAAoO,OAAO,CAApO,gBAAqP;AAAO,CAAnQ,KAAyQ,OAAO,CAAzQ,gBAA0R;AAAQ,CAAzS,KAA+S,OAAO,CAA/S,gBAAgU;AAAO,SAAM;AAAC;",
-  "names": []
-}
