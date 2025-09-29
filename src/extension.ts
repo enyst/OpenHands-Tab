@@ -84,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.pause();
   });
 
-  context.subscriptions.push(openTab, startNew, configure, reconnect, pause);
+  context.subscriptions.push(openTab, diag, startNew, configure, reconnect, pause);
 }
 
 export function deactivate() {

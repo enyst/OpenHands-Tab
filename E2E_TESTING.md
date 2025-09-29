@@ -21,8 +21,8 @@ Option A — Local Manual E2E (fastest way to validate)
    - npm install
    - npm run compile
 2) Start agent-server (separate terminal)
-   - cd agent-sdk
-   - uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000
+   - git clone https://github.com/All-Hands-AI/agent-sdk && cd agent-sdk
+   - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
 3) Launch the extension in VS Code
    - Open this folder in VS Code
    - Press F5 to run “Extension Development Host”
