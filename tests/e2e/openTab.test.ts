@@ -1,0 +1,29 @@
+import * as assert from 'assert';
+import { runTests, downloadAndUnzipVSCode, resolveCliPathFromVSCodeExecutablePath } from '@vscode/test-electron';
+import * as cp from 'child_process';
+import * as path from 'path';
+
+// Basic E2E: launch VS Code with the extension and ensure commands run without error.
+describe('OpenHands-Tab E2E', function () {
+  this.timeout(180000);
+
+  it('opens the tab and executes commands', async () => {
+    const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
+    const cliPath = resolveCliPathFromVSCodeExecutablePath(vscodeExecutablePath);
+    const extensionDevelopmentPath = path.resolve(__dirname, '../../');
+    const extensionTestsPath = path.resolve(__dirname, './suite');
+
+    // Log VS Code version via CLI (best-effort)
+    cp.spawnSync(cliPath, ['--version'], { stdio: 'inherit', cwd: path.dirname(cliPath) });
+
+    await runTests({
+      vscodeExecutablePath,
+      extensionDevelopmentPath,
+      extensionTestsPath,
+      launchArgs: ['--disable-extensions'],
+    });
+
+    // If runTests returns without throwing, we consider smoke successful
+    assert.ok(true);
+  });
+});
