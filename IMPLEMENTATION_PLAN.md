@@ -60,33 +60,26 @@ Commit message used:
 ## Phase 2 — Webview React Bootstrap + @openhands/ui
 Goal: Convert the webview to React and adopt base UI components.
 
-Changes:
-- Install runtime deps: react@^19, react-dom@^19, @openhands/ui
-- Add bundler: esbuild (as devDependency) with a build:webview script that bundles src/webview-src/webview.tsx to media/webview.js
-- Convert src/webview-src/webview.ts → webview.tsx and implement a minimal React <App />
-  - Header: Typography.H1 title, basic status dot
-  - Main: <Scrollable> messages container
-  - Footer: textarea + <Button> Send and Stop
-- Import styles: import "@openhands/ui/styles" in webview.tsx
-- Ensure CSS is emitted to media/webview.css (either via esbuild CSS loader or by copying dist/index.css from the package as a build step)
-- Ensure extension injects media/webview.css into the webview HTML
+Status: PARTIALLY COMPLETED (React + esbuild done; @openhands/ui pending)
 
-Tests:
-- src/webview-src/__tests__/App.render.test.tsx
-  - Renders <App /> and asserts header, input, and buttons exist
+Changes done so far:
+- Installed runtime deps: react@^19, react-dom@^19
+- Added esbuild with build:webview script; bundling src/webview-src/webview.tsx to media/webview.js
+- Updated extension HTML to mount React app at #app
+- Implemented minimal React <App /> (header, messages, footer with Send/Stop)
+
+Next steps to finish Phase 2:
+- Add @openhands/ui and its styles; wire basic components (Typography, Button, Scrollable)
+- Ensure CSS is emitted/linked appropriately (via esbuild CSS loader or copy)
+- Add basic render test for App
 
 Run:
-- npm run test
-- npm run typecheck
+- npm run build:webview (succeeds)
+- npm run typecheck (succeeds)
 
-Commit message:
-"feat(webview): bootstrap React + @openhands/ui base shell
-
-- Add React and @openhands/ui
-- Bundle webview with esbuild
-- Import @openhands/ui/styles
-- Minimal App shell with Typography, Button, Scrollable
-- Add rendering test"
+Commit messages used:
+"feat(webview): bootstrap React shell and esbuild bundle"
+"build(webview): generate media/webview.js via esbuild"
 
 ## Phase 3 — Typed Event Rendering
 Goal: Bridge VS Code messages into React state using agent-sdk types/guards and render events.
