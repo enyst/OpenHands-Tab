@@ -99,6 +99,7 @@
     "mocha": "^10.8.2",
     "ts-node": "^10.9.2",
     "jsdom": "^25.0.1",
+    "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
     "vitest": "^2.1.4"
   },

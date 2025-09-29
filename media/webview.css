@@ -23,25 +23,39 @@ body {
   flex-direction: column;
   height: 100vh;
 }
-header {
+.oh-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
-main#messages {
+.oh-header-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.oh-content {
+  flex: 1;
+  display: flex;
+  padding: 8px 12px;
+}
+.oh-messages {
   flex: 1;
   overflow: auto;
   padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--vscode-editor-background);
 }
-footer {
+.oh-composer {
   display: flex;
+  align-items: flex-end;
   gap: 8px;
-  padding: 8px;
+  padding: 8px 12px;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
-textarea#input {
+.oh-composer textarea#input {
   flex: 1;
   resize: vertical;
   font-family: var(--vscode-editor-font-family, ui-sans-serif, system-ui);
