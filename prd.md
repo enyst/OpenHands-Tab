@@ -48,13 +48,24 @@ Data flow notes
     - Outbound: send Message JSON to enqueue and run
     - Message payload (WS/HTTP): { "role": "user", "content": [{ "type": "text", "text": "..." }] }
     - Session API key (optional): if enabled on server, use X-Session-API-Key header for HTTP and add ?session_api_key=... to the WebSocket URL
+    - Note: `{id}` in HTTP routes refers to the same value as `{conversation_id}` in WS paths.
   - HTTP endpoints:
-    - POST /api/conversations to start a conversation (agent spec; optional confirmation_policy and initial_message; max_iterations)
-    - GET /api/conversations/search, /count, /{id}
-    - POST /api/conversations/{id}/pause, /resume; DELETE /api/conversations/{id}
-    - POST /api/conversations/{id}/events (send Message when not using the socket)
-    - GET /api/conversations/{id}/events/search, /count, /{event_id}, batch GET
-    - POST /api/conversations/{id}/events/respond_to_confirmation to accept/reject pending actions
+    - Conversations:
+      - POST /api/conversations
+      - GET  /api/conversations/search
+      - GET  /api/conversations/count
+      - GET  /api/conversations/{id}
+      - GET  /api/conversations/                      (list)
+      - POST /api/conversations/{id}/pause
+      - POST /api/conversations/{id}/resume
+      - DELETE /api/conversations/{id}
+    - Events:
+      - POST /api/conversations/{id}/events/          (send Message when not using the socket)
+      - GET  /api/conversations/{id}/events/search
+      - GET  /api/conversations/{id}/events/count
+      - GET  /api/conversations/{id}/events/{event_id}
+      - GET  /api/conversations/{id}/events/          (list)
+      - POST /api/conversations/{id}/events/respond_to_confirmation  (approve/reject pending actions)
 
 Confirmation policy
 - By default, if unspecified in StartConversationRequest, server uses its configured default policy (often NeverConfirm for PoC/local). The extension omits confirmation_policy by default and will surface WAITING_FOR_CONFIRMATION if server asks.
@@ -71,7 +82,7 @@ Confirmation policy
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
 - Connection & Conversation Lifecycle
-  - Establish WebSocket connection to /api/conversations/{id}/events/socket
+  - Establish WebSocket connection to /sockets/events/{conversation_id}
   - If no conversation_id exists, create one via POST /api/conversations with desired confirmation_policy
   - Maintain current conversation_id in workspaceState for convenience (for quick tab reload)
   - Reconnect logic: exponential backoff; UI indicates connection state
@@ -183,3 +194,61 @@ Confirmation policy
   - openhands/sdk/io/local.py (LocalFileStore; expands "~"; basic sandboxing)
 - Event/Conversation serialization
   - Pydantic model_dump/model_dump_json on Conversation/StoredConversation/EventBase
+
+## 15. Protocol & Schema Reference (Authoritative)
+- WebSocket endpoints (agent-sdk):
+  - Conversation events: /sockets/events/{conversation_id}?session_api_key=...
+  - Bash events: /sockets/bash-events?session_api_key=...
+  - Source: agent-sdk/openhands/agent_server/sockets.py
+- HTTP endpoints (agent-sdk):
+  - Conversations:
+    - POST /api/conversations
+    - GET  /api/conversations/search
+    - GET  /api/conversations/count
+    - GET  /api/conversations/{id}
+    - GET  /api/conversations/                      (list)
+    - POST /api/conversations/{id}/pause
+    - POST /api/conversations/{id}/resume
+    - DELETE /api/conversations/{id}
+  - Events:
+    - POST /api/conversations/{id}/events/
+    - GET  /api/conversations/{id}/events/search
+    - GET  /api/conversations/{id}/events/count
+    - GET  /api/conversations/{id}/events/{event_id}
+    - GET  /api/conversations/{id}/events/          (list)
+    - POST /api/conversations/{id}/events/respond_to_confirmation
+  - Source: agent-sdk/openhands/agent_server/{conversation_router.py,event_router.py}
+- Bash events schema (received over WS at /sockets/bash-events):
+  - Base: BashEventBase; page type: BashEventPage
+  - File: agent-sdk/openhands/agent_server/models.py
+  - Minimal example (BashOutput):
+    {
+      "type": "BashOutput",
+      "command_id": "<UUID>",
+      "order": 0,
+      "exit_code": null,
+      "stdout": "...",
+      "stderr": null,
+      "id": "<UUID>",
+      "timestamp": "2025-01-01T00:00:00Z"
+    }
+  - Notes: This socket streams bash command lifecycle events (e.g., BashCommand, BashOutput). The extension may choose to subscribe for live terminal output; authentication matches the Event socket.
+
+- Message schema (send over WS/HTTP):
+  - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
+  - File: agent-sdk/openhands/sdk/llm/message.py
+  - Minimal example:
+    { "role": "user", "content": [{ "type": "text", "text": "Hello" }] }
+  - Notes: tool_calls, tool_call_id, name, reasoning_content are supported when relevant.
+- Event schema (received over WS):
+  - Base: openhands.sdk.event.base.EventBase (discriminated union)
+  - Common event types:
+    - MessageEvent: agent-sdk/openhands/sdk/event/llm_convertible/message.py
+    - ActionEvent: agent-sdk/openhands/sdk/event/llm_convertible/action.py
+    - Observation events: agent-sdk/openhands/sdk/event/llm_convertible/observation.py
+    - Plus system/agent error events per openhands.sdk.event
+  - Event pages: EventPage in agent-sdk/openhands/agent_server/models.py
+- Auth:
+  - HTTP: X-Session-API-Key header when enabled
+  - WebSocket: session_api_key query parameter
+
