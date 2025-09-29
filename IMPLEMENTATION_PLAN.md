@@ -151,6 +151,22 @@ Notes:
 - Optional: remove media/*.map from git if undesired
 
 
+## Phase 6 — VS Code Runtime Setup and Visual Validation
+Goal: Provide one-command local dev via code-server and visually verify UI actions.
+
+Plan:
+- Add scripts/dev-vscode.sh: builds webview, compiles, packages .vsix, installs to code-server, runs at 0.0.0.0:12000
+- Add npm script dev:vscode to invoke the script
+- Manual test steps (with screenshots):
+  1) Open the extension tab; confirm Connecting and Connected toasts
+  2) Send message; see user message and extension receives it
+  3) Stop, Reconnect, New Chat buttons; verify toasts and extension receives commands
+  4) Post simulated system/error events; verify toasts and rendering
+- Capture screenshots and attach for verification
+
+Status: IN PROGRESS
+
+
 ## Notes
 - Fonts/CSP: Keep CSP strict; rely on fallback fonts. Optionally localize fonts later.
 - Future: Introduce richer components (Select, Tabs, Tooltip, Dialog) and additional tests.
