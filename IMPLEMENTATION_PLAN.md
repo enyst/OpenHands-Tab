@@ -17,16 +17,8 @@ Guiding principles:
   - git pull --rebase
 - If a feature branch exists, we may cherry-pick as needed later.
 
-2) Add this implementation plan and reference it from PRD
+2) Read this implementation plan and reference it from PRD
 - File: IMPLEMENTATION_PLAN.md (this file)
-- Update prd.md to link to this plan
-- Commit message:
-  "docs: add @openhands/ui integration plan
-  
-  - Create IMPLEMENTATION_PLAN.md
-  - Link it from prd.md"
-
-Unit tests: N/A (docs only)
 
 ## Phase 1 — Test Infrastructure (Vitest + React Testing Library)
 Goal: Add a fast unit test setup usable for pure TS and React components.
