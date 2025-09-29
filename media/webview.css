@@ -13,4 +13,115 @@
 .group:focus .button-bold-text:after {
   width: 0;
 }
+
+/* src/webview-src/webview.css */
+body {
+  margin: 0;
+}
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+main#messages {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+footer {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+textarea#input {
+  flex: 1;
+  resize: vertical;
+  font-family: var(--vscode-editor-font-family, ui-sans-serif, system-ui);
+}
+.status {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.status.online {
+  background: #2ecc71;
+}
+.status.offline {
+  background: #e74c3c;
+}
+.status.connecting {
+  background: #f1c40f;
+}
+#messages {
+  font-family: var(--vscode-editor-font-family, ui-sans-serif, system-ui);
+}
+.msg {
+  white-space: pre-wrap;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin: 6px 0;
+}
+.msg.user {
+  background: rgba(0, 120, 212, 0.08);
+  border: 1px solid rgba(0, 120, 212, 0.2);
+}
+.msg.assistant {
+  background: rgba(0, 200, 0, 0.06);
+  border: 1px solid rgba(0, 200, 0, 0.18);
+}
+.msg.tool {
+  background: rgba(128, 128, 128, 0.06);
+  border-left: 3px solid rgba(128, 128, 128, 0.6);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+}
+.msg.system {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+.tool-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--vscode-foreground);
+}
+.tool-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  margin-left: 6px;
+}
+.tool-output {
+  white-space: pre-wrap;
+}
+.tool-toggle {
+  display: inline-block;
+  color: var(--vscode-textLink-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 4px;
+}
+button[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 /*# sourceMappingURL=webview.css.map */
