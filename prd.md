@@ -254,6 +254,8 @@ Confirmation policy
 
 ## 16. TypeScript Model Alignment and @openhands/ui Adoption Plan
 
+IMPORTANT: see also IMPLEMENTATION_PLAN.md for the step-by-step implementation and test plan.
+
 Source of truth
 - Agent-server (agent-sdk) is the authoritative API/protocol. If any mismatch occurs between V0 and V1 assets, prefer agent-sdk.
 
