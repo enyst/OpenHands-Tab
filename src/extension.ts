@@ -81,6 +81,7 @@ export function deactivate() {
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
   const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.css'));
+  const version = Date.now().toString();
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
@@ -94,12 +95,12 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="${stylesUri}" rel="stylesheet" />
+  <link href="${stylesUri}?v=${version}" rel="stylesheet" />
   <title>OpenHands Tab</title>
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="${scriptUri}"></script>
+  <script type="module" src="${scriptUri}?v=${version}"></script>
 </body>
 </html>`;
 }

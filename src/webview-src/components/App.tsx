@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import '@openhands/ui/styles';
+import '../vendor/openhands-ui-tokens-plain.css';
 import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
 import type { Event, MessageEvent as VscodeMessageEvent, SystemEvent, ErrorEvent, TextContent } from '../../types/agent-sdk';
 import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';

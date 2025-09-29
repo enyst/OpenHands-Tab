@@ -36,3 +36,7 @@ body { margin: 0; }
 
 /***** Buttons *****/
 button[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+/* Ensure scroll area can grow */
+.oh-content{min-height:0;}
+.oh-messages{min-height:0;}
