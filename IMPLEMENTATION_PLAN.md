@@ -122,7 +122,7 @@ Commit message:
 ## Phase 4 — Commands and Toasts
 Goal: Wire webview commands (send, stop, reconnect, new chat, settings) and show toasts on status + system/error.
 
-Status: IN PROGRESS
+Status: COMPLETED
 
 So far:
 - Added ToastManager and toasterMessages usage
