@@ -111,19 +111,7 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
   <title>OpenHands Tab</title>
 </head>
 <body>
-  <div id="app">
-    <header>
-      <span id="status" class="status offline"></span>
-      <h1>OpenHands</h1>
-      <button id="settingsBtn">Settings</button>
-    </header>
-    <main id="messages"></main>
-    <footer>
-      <textarea id="input" rows="2" placeholder="Type a message..."></textarea>
-      <button id="sendBtn">Send</button>
-      <button id="stopBtn">Stop</button>
-    </footer>
-  </div>
+  <div id="app"></div>
   <script type="module" src="${scriptUri}"></script>
 </body>
 </html>`;
