@@ -90,13 +90,12 @@ export function App() {
       </div>
 
       <div className="oh-composer">
-        <textarea
-          id="input"
-          rows={3}
+        <Input
+          label="Message"
           placeholder="Type a message..."
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); } }}
+          onChange={(e: any) => setInput(e.target.value)}
+          onKeyDown={(e: any) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); } }}
         />
         <div className="oh-actions">
           <Button id="sendBtn" onClick={send}>Send</Button>

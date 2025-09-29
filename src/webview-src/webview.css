@@ -9,8 +9,9 @@ body { margin: 0; }
 .oh-content { flex: 1; display: flex; padding: 8px 12px; }
 .oh-messages { flex: 1; overflow: auto; padding: 8px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.08); background: var(--vscode-editor-background); }
 
-.oh-composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px; border-top: 1px solid rgba(0,0,0,0.1); }
-.oh-composer textarea#input { flex: 1; resize: vertical; font-family: var(--vscode-editor-font-family, ui-sans-serif, system-ui); }
+.oh-composer { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid rgba(0,0,0,0.1); }
+.oh-composer input[type="text"], .oh-composer input, .oh-composer .input, .oh-composer [role="textbox"] { flex: 1; }
+
 
 
 /***** Status *****/
