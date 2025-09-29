@@ -218,6 +218,22 @@ Confirmation policy
     - GET  /api/conversations/{id}/events/          (list)
     - POST /api/conversations/{id}/events/respond_to_confirmation
   - Source: agent-sdk/openhands/agent_server/{conversation_router.py,event_router.py}
+- Bash events schema (received over WS at /sockets/bash-events):
+  - Base: BashEventBase; page type: BashEventPage
+  - File: agent-sdk/openhands/agent_server/models.py
+  - Minimal example (BashOutput):
+    {
+      "type": "BashOutput",
+      "command_id": "<UUID>",
+      "order": 0,
+      "exit_code": null,
+      "stdout": "...",
+      "stderr": null,
+      "id": "<UUID>",
+      "timestamp": "2025-01-01T00:00:00Z"
+    }
+  - Notes: This socket streams bash command lifecycle events (e.g., BashCommand, BashOutput). The extension may choose to subscribe for live terminal output; authentication matches the Event socket.
+
 - Message schema (send over WS/HTTP):
   - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
   - File: agent-sdk/openhands/sdk/llm/message.py
