@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import WebSocket from 'ws';
+import type { Event, Message, isEvent } from '../types/agent-sdk';
+import { isEvent as isAgentEvent } from '../types/agent-sdk';
 
 export type ConnectionEvents = {
   onStatus: (status: 'online' | 'offline' | 'connecting') => void;
-  onEvent: (event: any) => void;
+  onEvent: (event: Event) => void;
   onError: (err: any) => void;
   onConversationId?: (id: string | undefined) => void;
 };
@@ -97,7 +99,7 @@ export class ConnectionManager {
       await this.startNewConversation();
     }
     // agent-sdk expects content to be an array of TextContent objects
-    const payload = { role: 'user', content: [{ type: 'text', text }] };
+    const payload: Message = { role: 'user', content: [{ type: 'text', text }] };
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload));
     } else {
@@ -158,9 +160,10 @@ export class ConnectionManager {
       try {
         const str = buf.toString();
         const data = JSON.parse(str);
-        this.events.onEvent(data);
+        if (isAgentEvent(data)) this.events.onEvent(data);
+        else this.events.onError(new Error('Invalid event payload'));
       } catch (e) {
-        this.events.onEvent({ type: 'raw', data: buf.toString() });
+        this.events.onError(e);
       }
     });
   }
