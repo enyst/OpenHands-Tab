@@ -102,6 +102,10 @@ export function App() {
     postMessage({ type: 'send', text });
   };
 
+  function safeJsonParse(s: string) {
+    try { return JSON.parse(s); } catch { return { type: 'event', value: s }; }
+  }
+
   return (
     <div id="app" className="flex flex-col h-screen">
       <ToastManager />
@@ -111,11 +115,6 @@ export function App() {
         <div className="ml-auto flex gap-2">
           <Button onClick={() => { toasterMessages.info('Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
           <Button onClick={() => { toasterMessages.info('Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
-
-function safeJsonParse(s: string) {
-  try { return JSON.parse(s); } catch { return { type: 'event', value: s }; }
-}
-
           <Button onClick={() => { toasterMessages.info('Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
         </div>
       </header>
