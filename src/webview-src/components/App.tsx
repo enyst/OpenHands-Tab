@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react';
   - A11y roles
 */
 
-import { ToastManager, Button, Typography, Scrollable, Input } from '@openhands/ui';
+import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
 import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
 
 const vscodeApi = (typeof window !== 'undefined' && (window as any).acquireVsCodeApi)
@@ -71,8 +71,12 @@ function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: str
   const now = Date.now();
   if (lastToast.type === type && now - lastToast.at < TOAST_DEBOUNCE_MS) return;
   lastToast = { type, at: now };
-  // Defer to future toast API from @openhands/ui; for now just log as info to avoid unused import.
-  console.info(`[toast:${type}]`, msg);
+  try {
+    const fn = toasterMessages[type];
+    if (typeof fn === 'function') fn(msg);
+  } catch {
+    // no-op if UI toast API is unavailable
+  }
 }
 
 function safeJsonParse(s: string) {
