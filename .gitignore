@@ -160,3 +160,6 @@ agent_logs/
 config.json
 secrets.json
 .secrets/
+
+# Ignore generated Tailwind output for webview
+src/webview-src/tailwind.gen.css
