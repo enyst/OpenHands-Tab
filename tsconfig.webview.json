@@ -12,7 +12,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "noUnusedLocals": true
   },
   "include": ["src/webview-src/**/*"],
   "exclude": ["src/webview-src/__tests__/**"]

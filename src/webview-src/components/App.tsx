@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 /*
   App.tsx hygiene improvements:
   - Cache VS Code API once

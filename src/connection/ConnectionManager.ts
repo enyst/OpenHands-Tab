@@ -1,4 +1,3 @@
-import * as vscode from 'vscode';
 import WebSocket from 'ws';
 import type { Event, Message } from '../types/agent-sdk';
 import { isEvent as isAgentEvent } from '../types/agent-sdk';
@@ -17,7 +16,8 @@ export class ConnectionManager {
   private status: 'online' | 'offline' | 'connecting' = 'offline';
   private events: ConnectionEvents;
   private reconnectTimer?: NodeJS.Timeout;
-  private useApiPrefix = true;
+  // Reserved for future use if server pathing requires '/api' prefix toggling.
+  // private useApiPrefix = true;
   private retryCount = 0;
   private readonly retryBaseMs = 1000;
   private readonly retryMaxMs = 15000;
@@ -31,9 +31,9 @@ export class ConnectionManager {
     this.serverUrl = url;
   }
 
-  setApiPrefix(enabled: boolean) {
-    this.useApiPrefix = enabled;
-  }
+  // setApiPrefix(enabled: boolean) {
+  //   this.useApiPrefix = enabled;
+  // }
 
   getConversationId() { return this.conversationId; }
   getStatus() { return this.status; }
