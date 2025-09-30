@@ -68,6 +68,9 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
+      - name: Type check only (no build)
+        run: npm run typecheck
+
       - name: Run unit tests
         run: npm run test
 
