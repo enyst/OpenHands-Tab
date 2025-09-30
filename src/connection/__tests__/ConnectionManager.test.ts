@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Install a mock for 'ws' BEFORE importing the module under test
+let wsInstances: any[] = [];
 vi.mock('ws', () => {
   class MockWS {
     static CONNECTING = 0;
@@ -16,8 +17,7 @@ vi.mock('ws', () => {
 
     constructor(url: string) {
       this.url = url;
-      (globalThis as any).__ws_instances = (globalThis as any).__ws_instances || [];
-      (globalThis as any).__ws_instances.push(this);
+      wsInstances.push(this);
     }
     on(ev: string, cb: Function) {
       this.handlers[ev] = this.handlers[ev] || [];
@@ -35,10 +35,7 @@ vi.mock('ws', () => {
 });
 
 // Helper to get last created WS
-const getLastWS = () => {
-  const arr = (globalThis as any).__ws_instances as any[] | undefined;
-  return arr && arr[arr.length - 1];
-};
+const getLastWS = () => wsInstances[wsInstances.length - 1];
 
 // Mock fetch helper
 const makeFetchOk = (json: any, status = 200) => vi.fn(async () => ({ ok: status >= 200 && status < 300, status, json: async () => json })) as any;
@@ -55,7 +52,7 @@ describe('ConnectionManager', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    (globalThis as any).__ws_instances = [];
+    wsInstances = [];
     (globalThis as any).fetch = undefined as any;
     delete (process as any).env.SESSION_API_KEY;
   });
@@ -120,7 +117,7 @@ describe('ConnectionManager', () => {
 
     const payload = { type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] } };
     ws.message(payload);
-    expect(events.onEvent).toHaveBeenCalled();
+    expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });
 
   it('reconnects after close (exponential backoff)', async () => {
@@ -133,7 +130,7 @@ describe('ConnectionManager', () => {
 
     let ws: any = getLastWS();
     ws.open();
-    const countBefore = (globalThis as any).__ws_instances.length;
+    const countBefore = wsInstances.length;
 
     ws.close();
     expect(events.onStatus).toHaveBeenLastCalledWith('offline');
@@ -141,7 +138,7 @@ describe('ConnectionManager', () => {
     // first retry after ~1000ms
     await vi.advanceTimersByTimeAsync(1000);
 
-    const countAfter = (globalThis as any).__ws_instances.length;
+    const countAfter = wsInstances.length;
     expect(countAfter).toBeGreaterThan(countBefore);
     const ws2: any = getLastWS();
     expect(ws2.url).toContain('/sockets/events/c-xyz');
@@ -152,8 +149,8 @@ describe('ConnectionManager', () => {
     const { ConnectionManager } = await importCM();
     const calls: any[] = [];
     (globalThis as any).fetch = vi.fn(async (url: string, init?: any) => { calls.push({ url, init }); return { ok: true, json: async () => ({}) } as any; });
-    const cm = new ConnectionManager('http://localhost:3000', events) as any;
-    (cm as any).conversationId = 'c-777';
+    const cm = new ConnectionManager('http://localhost:3000', events);
+    await cm.restoreConversation('c-777');
 
     await cm.pause();
     await cm.resume();

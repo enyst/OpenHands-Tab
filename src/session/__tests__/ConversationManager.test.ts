@@ -10,7 +10,7 @@ class MemoryStorage {
 describe('ConversationManager', () => {
   it('gets/sets conversation id', () => {
     const storage = new MemoryStorage();
-    const cm = new ConversationManager(storage as any);
+    const cm = new ConversationManager(storage);
 
     expect(cm.getCurrentConversationId()).toBeUndefined();
 
@@ -20,5 +20,6 @@ describe('ConversationManager', () => {
     cm.setCurrentConversationId(undefined);
     // When undefined, we store empty string per implementation
     expect(storage.get('conversation_id')).toBe('');
+    expect(cm.getCurrentConversationId()).toBe('');
   });
 });
