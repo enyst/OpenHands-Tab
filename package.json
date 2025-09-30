@@ -52,8 +52,9 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p . && npm run build:webview",
-    "watch": "tsc -w -p . & node --watch esbuild.webview.mjs",
+    "build:tailwind": "tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --minify",
+    "compile": "tsc -p . && npm run build:tailwind && npm run build:webview",
+    "watch": "tsc -w -p . & npx tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --watch & node --watch esbuild.webview.mjs",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package",
     "e2e": "npm run compile && tsc -p tsconfig.e2e.json && mocha -r ts-node/register tests/e2e/**/*.test.ts",
@@ -93,7 +94,8 @@
     "jsdom": "^25.0.1",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "@tailwindcss/cli": "^4.1.13"
   },
   "dependencies": {
     "@openhands/ui": "^1.0.0-beta.9",

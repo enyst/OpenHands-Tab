@@ -1,15 +1,47 @@
-import React, { useEffect, useState } from 'react';
-import '@openhands/ui/styles';
-import '../vendor/openhands-ui-tokens-plain.css';
+import React, { useEffect, useRef, useState } from 'react';
 import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
-import type { Event, MessageEvent as VscodeMessageEvent, SystemEvent, ErrorEvent, TextContent } from '../../types/agent-sdk';
-import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
+import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent, isActionEvent, isObservationEvent } from '../../types/agent-sdk';
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
-  return <span className={`status ${status}`} />;
+  const colorClass = status === 'online'
+    ? 'bg-[var(--color-green-600)]'
+    : status === 'offline'
+      ? 'bg-[var(--color-red-600)]'
+      : 'bg-[var(--color-primary-500)]';
+  return <span className={`inline-block w-[10px] h-[10px] rounded-full mr-2 align-middle ${colorClass}`} />;
 }
 
 type RenderedMsg = { role: 'user' | 'assistant' | 'tool' | 'system'; content: string };
+
+function ToolEventBlock({ event }: { event: any }) {
+  const title = event?.type || event?.kind || 'event';
+  const name = event?.name || event?.command || event?.tool || '';
+  const output = event?.output || event?.stdout || event?.stderr || event?.log || event?.logs || '';
+  const header = [title, name].filter(Boolean).join(' · ');
+  const [expanded, setExpanded] = useState(false);
+  const text = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+  const tooLong = text.length > 2000;
+  const shown = expanded || !tooLong ? text : text.slice(0, 2000) + '\n…';
+  return (
+    <div className="bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] font-mono p-2 rounded my-1">
+      <div className="font-semibold mb-1 text-[var(--vscode-foreground)]">
+        {title}{name ? ' · ' : ''}
+        {name ? (<span className="ml-2 inline-block px-2 py-[1px] rounded-full bg-black/10 text-xs align-middle">{name}</span>) : null}
+      </div>
+      {text ? (
+        <>
+          <div className="whitespace-pre-wrap">{shown}</div>
+          {tooLong && (
+            <button className="text-[var(--vscode-textLink-foreground)] text-xs mt-1" onClick={() => setExpanded(!expanded)}>
+              {expanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 
 export function App() {
   const [status, setStatus] = useState<'online'|'offline'|'connecting'>('offline');
@@ -55,7 +87,8 @@ export function App() {
       toasterMessages.error(e.error);
       return;
     }
-    setMessages(m => [...m, { role: 'tool', content: e.type }]);
+    // Render action/observation/tool-like events using ToolEventBlock in the JSX list below.
+    setMessages(m => [...m, { role: 'tool', content: JSON.stringify(e) }]);
   }
 
   function postMessage(msg: any) { (window as any).acquireVsCodeApi?.().postMessage(msg); }
@@ -70,35 +103,47 @@ export function App() {
   };
 
   return (
-    <div id="app" className="oh-container">
+    <div id="app" className="flex flex-col h-screen">
       <ToastManager />
-      <header className="oh-header">
+      <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
         <StatusDot status={status} />
         <Typography.H1>OpenHands</Typography.H1>
-        <div className="oh-header-actions">
+        <div className="ml-auto flex gap-2">
           <Button onClick={() => { toasterMessages.info('Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
           <Button onClick={() => { toasterMessages.info('Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
+
+function safeJsonParse(s: string) {
+  try { return JSON.parse(s); } catch { return { type: 'event', value: s }; }
+}
+
           <Button onClick={() => { toasterMessages.info('Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
         </div>
       </header>
 
-      <div className="oh-content">
-        <Scrollable mode="auto" type="vertical" className="oh-messages" tabIndex={0}>
+      <div className="flex flex-1 min-h-0 px-3 py-2">
+        <Scrollable mode="auto" type="vertical" className="flex-1 min-h-0 rounded border border-black/10 p-2" tabIndex={0}>
           {messages.map((m, i) => (
-            <div key={i} className={`msg ${m.role}`}>{m.content}</div>
+            <div key={i}>
+              {m.role === 'tool' ? (
+                <ToolEventBlock event={safeJsonParse(m.content)} />
+              ) : (
+                <div className={`whitespace-pre-wrap p-2 rounded my-1 ${m.role === 'user' ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]' : m.role === 'assistant' ? 'bg-[rgba(0,200,0,0.06)] border border-[rgba(0,200,0,0.18)]' : 'italic text-[var(--vscode-descriptionForeground)]'}`}>{m.content}</div>
+              )}
+            </div>
           ))}
         </Scrollable>
       </div>
 
-      <div className="oh-composer">
+      <div className="flex items-center gap-2 px-3 py-2 border-t border-black/10">
         <Input
           label="Message"
           placeholder="Type a message..."
           value={input}
           onChange={(e: any) => setInput(e.target.value)}
           onKeyDown={(e: any) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); } }}
+          className="flex-1"
         />
-        <div className="oh-actions">
+        <div className="flex gap-2">
           <Button id="sendBtn" onClick={send}>Send</Button>
           <Button id="stopBtn" variant="secondary" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
         </div>
