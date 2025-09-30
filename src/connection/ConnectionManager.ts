@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import WebSocket from 'ws';
-import type { Event, Message, isEvent } from '../types/agent-sdk';
+import type { Event, Message } from '../types/agent-sdk';
 import { isEvent as isAgentEvent } from '../types/agent-sdk';
 
 export type ConnectionEvents = {
