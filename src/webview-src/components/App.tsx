@@ -12,9 +12,12 @@ import { useEffect, useRef, useState } from 'react';
 import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
 import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
 
-const vscodeApi = (typeof window !== 'undefined' && (window as any).acquireVsCodeApi)
-  ? (window as any).acquireVsCodeApi()
-  : { postMessage: (_: any) => {} };
+function getVscodeApi() {
+  if (typeof window !== 'undefined' && (window as any).acquireVsCodeApi) {
+    return (window as any).acquireVsCodeApi();
+  }
+  return { postMessage: (_: any) => {} };
+}
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
   const colorClass = status === 'online'
@@ -116,7 +119,10 @@ export function App() {
 
   useEffect(() => {
     // Deterministic scroll to bottom when messages change
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    const el = endRef.current as any;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
   }, [messages.length]);
 
   function handleEvent(e: unknown) {
@@ -143,7 +149,9 @@ export function App() {
   }
 
   function postMessage(msg: any) {
-    vscodeApi.postMessage(msg);
+    // Acquire live VS Code API on each call so tests that set window.acquireVsCodeApi late still work
+    const api = getVscodeApi();
+    api.postMessage(msg);
   }
 
   const [input, setInput] = useState('');
