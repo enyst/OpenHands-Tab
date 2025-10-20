@@ -10,7 +10,30 @@ import { useEffect, useRef, useState } from 'react';
 */
 
 import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
-import { isEvent, isMessageEvent, isTextContent, isSystemEvent, isErrorEvent } from '../../types/agent-sdk';
+import {
+  isEvent,
+  isMessageEvent,
+  isTextContent,
+  isSystemEvent,
+  isErrorEvent,
+  isSystemPromptEvent,
+  isActionEvent,
+  isObservationEvent,
+  isUserRejectObservation,
+  isAgentErrorEvent,
+  isPauseEvent,
+  isCondensation,
+  isConversationStateUpdateEvent,
+  type Event,
+  type ActionEvent,
+  type ObservationEvent,
+  type MessageEvent as AgentMessageEvent,
+  type SystemPromptEvent,
+  type UserRejectObservation,
+  type AgentErrorEvent,
+  type PauseEvent,
+  type Condensation,
+} from '../../types/agent-sdk';
 
 function getVscodeApi() {
   if (typeof window !== 'undefined' && (window as any).acquireVsCodeApi) {
@@ -33,37 +56,210 @@ function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) 
   );
 }
 
-type RenderedMsg = { id: number; role: 'user' | 'assistant' | 'tool' | 'system'; content: string };
+type RenderedEvent = { id: number; event: Event };
 
-function ToolEventBlock({ event }: { event: any }) {
-  const title = event?.type || event?.kind || 'event';
-  const name = event?.name || event?.command || event?.tool || '';
-  const output = event?.output || event?.stdout || event?.stderr || event?.log || event?.logs || '';
-  const [expanded, setExpanded] = useState(false);
-  const text = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
-  const tooLong = text.length > 2000;
-  const shown = expanded || !tooLong ? text : text.slice(0, 2000) + '\n…';
+// Event rendering components based on ConversationVisualizer
+
+function SystemPromptEventBlock({ event }: { event: SystemPromptEvent }) {
   return (
-    <div className="bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] font-mono p-2 rounded my-1">
-      <div className="font-semibold mb-1 text-[var(--vscode-foreground)]">
-        {title}{name ? ' · ' : ''}
-        {name ? (
-          <span className="ml-2 inline-block px-2 py-[1px] rounded-full bg-black/10 text-xs align-middle">{name}</span>
-        ) : null}
+    <div className="bg-[rgba(200,50,200,0.06)] border-l-[3px] border-[rgba(200,50,200,0.6)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-[var(--vscode-foreground)]">System Prompt</div>
+      <div className="whitespace-pre-wrap">{event.system_prompt.text}</div>
+      {event.tools && event.tools.length > 0 && (
+        <div className="mt-2 text-sm opacity-80">
+          Tools Available: {event.tools.length}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActionEventBlock({ event }: { event: ActionEvent }) {
+  const thought = event.thought.map((t) => t.text).join('\n');
+  const isExecuted = event.action !== null;
+  return (
+    <div className="bg-[rgba(0,120,212,0.06)] border-l-[3px] border-[rgba(0,120,212,0.6)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-[var(--vscode-foreground)]">
+        Agent Action{!isExecuted && ' (Not Executed)'}
       </div>
-      {text ? (
+      {event.security_risk && event.security_risk !== 'UNKNOWN' && (
+        <div className={`mb-2 px-2 py-1 rounded text-sm ${
+          event.security_risk === 'HIGH' ? 'bg-red-500/20 text-red-700' :
+          event.security_risk === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-700' :
+          'bg-blue-500/20 text-blue-700'
+        }`}>
+          Security Risk: {event.security_risk}
+        </div>
+      )}
+      {event.reasoning_content && (
         <>
-          <div className="whitespace-pre-wrap">{shown}</div>
-          {tooLong && (
-            <button
-              className="text-[var(--vscode-textLink-foreground)] text-xs mt-1"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? 'Show less' : 'Show more'}
-            </button>
-          )}
+          <div className="font-semibold mt-2">Reasoning:</div>
+          <div className="whitespace-pre-wrap">{event.reasoning_content}</div>
         </>
-      ) : null}
+      )}
+      {thought && (
+        <>
+          <div className="font-semibold mt-2">Thought:</div>
+          <div className="whitespace-pre-wrap">{thought}</div>
+        </>
+      )}
+      {event.tool_name && (
+        <div className="mt-2">
+          <span className="font-semibold">Tool: </span>
+          <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{event.tool_name}</span>
+        </div>
+      )}
+      {event.action && (
+        <div className="mt-2 font-mono text-sm bg-black/5 p-2 rounded overflow-auto">
+          {JSON.stringify(event.action, null, 2)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ObservationEventBlock({ event }: { event: ObservationEvent }) {
+  const [expanded, setExpanded] = useState(false);
+  const output = JSON.stringify(event.observation, null, 2);
+  const tooLong = output.length > 2000;
+  const shown = expanded || !tooLong ? output : output.slice(0, 2000) + '\n…';
+  return (
+    <div className="bg-[rgba(200,150,0,0.06)] border-l-[3px] border-[rgba(200,150,0,0.6)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-[var(--vscode-foreground)]">Observation</div>
+      <div className="mb-1">
+        <span className="font-semibold">Tool: </span>
+        <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{event.tool_name}</span>
+      </div>
+      <div className="font-semibold mt-2">Result:</div>
+      <div className="whitespace-pre-wrap font-mono text-sm bg-black/5 p-2 rounded mt-1">
+        {shown}
+      </div>
+      {tooLong && (
+        <button
+          className="text-[var(--vscode-textLink-foreground)] text-sm mt-2"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function UserRejectBlock({ event }: { event: UserRejectObservation }) {
+  return (
+    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-red-600">User Rejected Action</div>
+      <div className="mb-1">
+        <span className="font-semibold">Tool: </span>
+        <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{event.tool_name}</span>
+      </div>
+      <div className="font-semibold mt-2">Rejection Reason:</div>
+      <div className="whitespace-pre-wrap mt-1">{event.rejection_reason}</div>
+    </div>
+  );
+}
+
+function AgentErrorBlock({ event }: { event: AgentErrorEvent }) {
+  return (
+    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-red-600">Agent Error</div>
+      <div className="font-semibold">Error Details:</div>
+      <div className="whitespace-pre-wrap mt-1 text-red-700">{event.error}</div>
+      {event.tool_name && (
+        <div className="mt-2 text-sm opacity-70">Tool: {event.tool_name}</div>
+      )}
+    </div>
+  );
+}
+
+function PauseEventBlock({ event }: { event: PauseEvent }) {
+  return (
+    <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-3 rounded my-1">
+      <div className="font-bold text-yellow-700">User Paused</div>
+      <div className="mt-1 text-sm opacity-80">Conversation Paused</div>
+    </div>
+  );
+}
+
+function CondensationBlock({ event }: { event: Condensation }) {
+  return (
+    <div className="bg-[rgba(200,50,200,0.06)] border-l-[3px] border-[rgba(200,50,200,0.6)] p-3 rounded my-1">
+      <div className="font-bold mb-2">Auto Conversation Condensation Triggered</div>
+      <div>Forgetting {event.forgotten_event_ids.length} events</div>
+      {event.summary && (
+        <>
+          <div className="font-semibold mt-2">[Summary of Events Being Forgotten]</div>
+          <div className="whitespace-pre-wrap mt-1">{event.summary}</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
+  const role = event.llm_message.role;
+  const parts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
+  const content = parts.join('\n');
+  const roleColor = role === 'user' ? 'blue' : role === 'assistant' ? 'green' : 'gray';
+  const bgClass = role === 'user'
+    ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]'
+    : role === 'assistant'
+      ? 'bg-[rgba(0,200,0,0.06)] border border-[rgba(0,200,0,0.18)]'
+      : 'bg-[rgba(128,128,128,0.06)] border border-[rgba(128,128,128,0.2)]';
+
+  return (
+    <div className={`${bgClass} p-3 rounded my-1`}>
+      <div className="font-semibold mb-2 capitalize">{event.source || role}</div>
+      <div className="whitespace-pre-wrap">{content}</div>
+      {event.reasoning_content && (
+        <>
+          <div className="font-semibold mt-2">Reasoning:</div>
+          <div className="whitespace-pre-wrap mt-1">{event.reasoning_content}</div>
+        </>
+      )}
+      {event.activated_microagents && event.activated_microagents.length > 0 && (
+        <div className="mt-2 text-sm opacity-70">
+          Activated Microagents: {event.activated_microagents.join(', ')}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventBlock({ event }: { event: Event }) {
+  if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} />;
+  if (isActionEvent(event)) return <ActionEventBlock event={event} />;
+  if (isObservationEvent(event)) return <ObservationEventBlock event={event} />;
+  if (isUserRejectObservation(event)) return <UserRejectBlock event={event} />;
+  if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} />;
+  if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
+  if (isCondensation(event)) return <CondensationBlock event={event} />;
+  if (isMessageEvent(event)) return <MessageEventBlock event={event} />;
+
+  // Legacy event types
+  if (isSystemEvent(event)) {
+    return (
+      <div className="italic text-[var(--vscode-descriptionForeground)] p-2 my-1">
+        {event.message}
+      </div>
+    );
+  }
+  if (isErrorEvent(event)) {
+    return (
+      <div className="italic text-red-600 p-2 my-1">
+        Error: {event.error}
+      </div>
+    );
+  }
+
+  // Fallback for unknown events
+  return (
+    <div className="bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] p-3 rounded my-1">
+      <div className="font-semibold mb-1">Unknown Event: {event.type}</div>
+      <div className="font-mono text-sm overflow-auto">
+        {JSON.stringify(event, null, 2)}
+      </div>
     </div>
   );
 }
@@ -88,8 +284,8 @@ function safeJsonParse(s: string) {
 
 export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
-  const [messages, setMessages] = useState<RenderedMsg[]>([]);
-  const msgId = useRef(1);
+  const [events, setEvents] = useState<RenderedEvent[]>([]);
+  const eventId = useRef(1);
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
 
@@ -99,7 +295,7 @@ export function App() {
       if (payload?.type === 'status') setStatus(payload.status);
       if (payload?.type === 'configUpdated') toastDebounced('info', `Config updated: ${payload.serverUrl}`);
       if (payload?.type === 'event') handleEvent(payload.event);
-      if (payload?.type === 'error') setMessages((m) => [...m, { id: msgId.current++, role: 'system', content: String(payload.error) }]);
+      if (payload?.type === 'error') toastDebounced('error', String(payload.error));
     };
     window.addEventListener('message', handler as any);
     return () => window.removeEventListener('message', handler as any);
@@ -118,34 +314,48 @@ export function App() {
   }, [status]);
 
   useEffect(() => {
-    // Deterministic scroll to bottom when messages change
+    // Deterministic scroll to bottom when events change
     const el = endRef.current as any;
     if (el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [messages.length]);
+  }, [events.length]);
 
   function handleEvent(e: unknown) {
     if (!isEvent(e)) return;
-    if (isMessageEvent(e)) {
-      const parts = (e.message.content || []).filter(isTextContent).map((c) => c.text);
-      if (parts.length) {
-        const role = e.message.role === 'user' ? 'user' : 'assistant';
-        setMessages((m) => [...m, { id: msgId.current++, role, content: parts.join('\n') }]);
-      }
+
+    // Convert legacy event formats to new agent-sdk format
+    let event: Event = e;
+
+    // Legacy "message" event -> MessageEvent
+    if (e.type === 'message' && (e as any).message) {
+      event = {
+        type: 'MessageEvent',
+        source: (e as any).message.role === 'user' ? 'user' : 'agent',
+        llm_message: (e as any).message,
+        id: (e as any).id,
+        timestamp: (e as any).ts ? new Date((e as any).ts).toISOString() : new Date().toISOString(),
+      } as AgentMessageEvent;
+    }
+
+    // Skip ConversationStateUpdateEvent - it's for internal state tracking only
+    if (isConversationStateUpdateEvent(event)) {
       return;
     }
-    if (isSystemEvent(e)) {
-      setMessages((m) => [...m, { id: msgId.current++, role: 'system', content: e.message }]);
-      toastDebounced('info', e.message);
-      return;
+
+    // Show toast notifications for certain events
+    if (isAgentErrorEvent(event)) {
+      toastDebounced('error', event.error);
+    } else if (isPauseEvent(event)) {
+      toastDebounced('warning', 'Conversation paused');
+    } else if (isSystemEvent(event)) {
+      toastDebounced('info', event.message);
+    } else if (isErrorEvent(event)) {
+      toastDebounced('error', event.error);
     }
-    if (isErrorEvent(e)) {
-      setMessages((m) => [...m, { id: msgId.current++, role: 'system', content: `Error: ${e.error}` }]);
-      toastDebounced('error', e.error);
-      return;
-    }
-    setMessages((m) => [...m, { id: msgId.current++, role: 'tool', content: JSON.stringify(e) }]);
+
+    // Add event to the list for rendering
+    setEvents((ev) => [...ev, { id: eventId.current++, event }]);
   }
 
   function postMessage(msg: any) {
@@ -158,7 +368,16 @@ export function App() {
   const send = () => {
     const text = input.trim();
     if (!text) return;
-    setMessages((m) => [...m, { id: msgId.current++, role: 'user', content: text }]);
+    // Add a user message event to the UI immediately for responsiveness
+    const userMessageEvent: AgentMessageEvent = {
+      type: 'MessageEvent',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text }]
+      }
+    };
+    setEvents((ev) => [...ev, { id: eventId.current++, event: userMessageEvent }]);
     setInput('');
     postMessage({ type: 'send', text });
   };
@@ -182,25 +401,13 @@ export function App() {
           type="vertical"
           className="flex-1 min-h-0 rounded border border-black/10 p-2"
           tabIndex={0}
-          aria-label="Conversation messages"
+          aria-label="Conversation events"
           role="log"
           aria-live="polite"
         >
-          {messages.map((m) => (
-            <div key={m.id}>
-              {m.role === 'tool' ? (
-                <ToolEventBlock event={safeJsonParse(m.content)} />
-              ) : (
-                <div
-                  className={`whitespace-pre-wrap p-2 rounded my-1 ${m.role === 'user'
-                    ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]'
-                    : m.role === 'assistant'
-                      ? 'bg-[rgba(0,200,0,0.06)] border border-[rgba(0,200,0,0.18)]'
-                      : 'italic text-[var(--vscode-descriptionForeground)]'}`}
-                >
-                  {m.content}
-                </div>
-              )}
+          {events.map((ev) => (
+            <div key={ev.id}>
+              <EventBlock event={ev.event} />
             </div>
           ))}
           <div ref={endRef} />
