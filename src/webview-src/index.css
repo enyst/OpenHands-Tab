@@ -1,6 +1,3 @@
 @import "./tailwind.gen.css";
 @import "./vendor/openhands-ui-tokens-plain.css";
 @import "@openhands/ui/styles";
-
-/* Minimal base */
-body { margin: 0; }
