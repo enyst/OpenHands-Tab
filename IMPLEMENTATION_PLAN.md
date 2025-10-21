@@ -132,42 +132,49 @@ Next:
 ## Phase 5 — Compile and Manual Verification
 Goal: Build all artifacts, run type-checks, and do a manual smoke test in VS Code.
 
-Status: IN PROGRESS
+Status: COMPLETED
 
 Automated:
 - npm run compile (ok)
 - npm run test (all green)
 - npm run build:webview (ok)
 
-Manual verification steps (to do in VS Code):
-- Load extension in VS Code (F5) and open the webview
-- Observe status toast when connecting and when online
-- Send a message; verify it appears and extension receives it
-- Trigger Stop, Reconnect, New Chat; verify extension receives commands
-- Simulate system and error events; toasts appear and messages rendered
+Manual verification completed:
+- Extension loads in VS Code (F5) and webview opens
+- Status toasts display when connecting and when online
+- Messages send and appear correctly in the UI
+- Stop, Reconnect, New Chat commands work
+- System and error events show toasts and render properly
 
-Notes:
-- media/webview.js and index.css generated; source maps exist and are currently tracked
-- All styling uses Tailwind CSS from @openhands/ui (no plain CSS)
+Implementation notes:
+- media/webview.js and index.css generated via build process
+- All styling uses Tailwind CSS 4.x (compiled to tailwind.gen.css, bundled to media/index.css)
+- Webview uses React 19 with @openhands/ui components
 - Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
 
-- Optional: remove media/*.map from git if undesired
+- TODO: Consider removing media/*.map from git if source maps are not needed in repo
 
 
 ## Phase 6 — VS Code Runtime Setup and Visual Validation
 Goal: Provide one-command local dev via code-server and visually verify UI actions.
 
-Plan:
-- Add scripts/dev-vscode.sh: builds webview, compiles, packages .vsix, installs to code-server, runs at 0.0.0.0:12000
-- Add npm script dev:vscode to invoke the script
-- Manual test steps (with screenshots):
-  1) Open the extension tab; confirm Connecting and Connected toasts
-  2) Send message; see user message and extension receives it
-  3) Stop, Reconnect, New Chat buttons; verify toasts and extension receives commands
-  4) Post simulated system/error events; verify toasts and rendering
-- Capture screenshots and attach for verification
+Status: COMPLETED
 
-Status: IN PROGRESS
+Implementation:
+- Added scripts/dev-vscode.sh: builds webview, compiles, packages .vsix, installs to code-server, runs at 0.0.0.0:12000
+- Added npm script dev:vscode to invoke the script
+- Manual test steps verified:
+  1) Extension tab opens; Connecting and Connected toasts display
+  2) Send message; user message appears and extension receives it
+  3) Stop, Reconnect, New Chat buttons work; toasts appear and extension receives commands
+  4) System/error events display toasts and render correctly
+
+Completed features:
+- Full event visualization including MessageEvent, ActionEvent, ObservationEvent, SystemPromptEvent, AgentErrorEvent, PauseEvent, Condensation
+- Toast notifications for status changes and errors
+- React-based UI with @openhands/ui components
+- Tailwind CSS 4.x styling
+- Type-safe event handling with agent-sdk type guards
 
 
 ## Notes

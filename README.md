@@ -8,7 +8,7 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 
 ### Prerequisites
 
-- Visual Studio Code 1.85.0 or higher
+- Visual Studio Code 1.104.0 or higher
 - Node.js 22.x or higher
 - Python 3.12+ (for agent-sdk backend)
 - Access to an LLM provider (OpenAI, Anthropic, or self-hosted)
