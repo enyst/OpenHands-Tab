@@ -28,9 +28,15 @@ The agentSdkEvents test verifies that all event types from the OpenHands agent-s
 - AgentErrorEvent
 - PauseEvent
 - Condensation
-- ConversationStateUpdateEvent
+- ConversationStateUpdateEvent (filtered out, not rendered)
 
-The test uses the internal `openhands._sendTestEvent` command to inject mock events into the webview.
+The test:
+1. Uses `openhands._sendTestEvent` to inject 14 mock events into the webview
+2. Uses `openhands._queryRenderedEvents` to query the webview's actual rendered state
+3. Verifies that exactly 13 events were rendered (14 sent minus 1 ConversationStateUpdateEvent which is filtered)
+4. Verifies the event types match the expected sequence
+
+This ensures the webview actually receives, processes, and renders the events correctly.
 
 ## Notes
 

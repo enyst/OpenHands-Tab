@@ -183,5 +183,43 @@ export async function run(): Promise<void> {
   }
 
   // Wait for all events to be processed
-  await new Promise((r) => setTimeout(r, 2000));
+  await new Promise((r) => setTimeout(r, 1000));
+
+  // Query the webview to verify events were actually rendered
+  const result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+
+  // We expect 13 events rendered (14 sent - 1 ConversationStateUpdateEvent which is filtered out)
+  const expectedCount = 13;
+  const expectedTypes = [
+    'SystemPromptEvent',
+    'ActionEvent',
+    'ActionEvent',
+    'ActionEvent',
+    'ObservationEvent',
+    'UserRejectObservation',
+    'MessageEvent',
+    'MessageEvent',
+    'MessageEvent',
+    'AgentErrorEvent',
+    'PauseEvent',
+    'Condensation',
+    // ConversationStateUpdateEvent is filtered out by the webview
+  ];
+
+  if (result.count !== expectedCount) {
+    throw new Error(`Expected ${expectedCount} events rendered, got ${result.count}. Event types: ${JSON.stringify(result.eventTypes)}`);
+  }
+
+  if (!result.eventTypes || result.eventTypes.length !== expectedCount) {
+    throw new Error(`Expected ${expectedCount} event types, got ${result.eventTypes?.length || 0}`);
+  }
+
+  // Verify all expected event types are present
+  for (let i = 0; i < expectedTypes.length; i++) {
+    if (result.eventTypes[i] !== expectedTypes[i]) {
+      throw new Error(`Expected event type ${expectedTypes[i]} at index ${i}, got ${result.eventTypes[i]}`);
+    }
+  }
+
+  console.log('✓ All agent-sdk events rendered successfully in webview');
 }
