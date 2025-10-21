@@ -24,10 +24,12 @@ import {
   isPauseEvent,
   isCondensation,
   isConversationStateUpdateEvent,
+  isLegacyMessageEvent,
   type Event,
   type ActionEvent,
   type ObservationEvent,
   type MessageEvent as AgentMessageEvent,
+  type LegacyMessageEvent,
   type SystemPromptEvent,
   type UserRejectObservation,
   type AgentErrorEvent,
@@ -328,13 +330,13 @@ export function App() {
     let event: Event = e;
 
     // Legacy "message" event -> MessageEvent
-    if (e.type === 'message' && (e as any).message) {
+    if (isLegacyMessageEvent(e)) {
       event = {
         type: 'MessageEvent',
-        source: (e as any).message.role === 'user' ? 'user' : 'agent',
-        llm_message: (e as any).message,
-        id: (e as any).id,
-        timestamp: (e as any).ts ? new Date((e as any).ts).toISOString() : new Date().toISOString(),
+        source: e.message.role === 'user' ? 'user' : 'agent',
+        llm_message: e.message,
+        id: e.id,
+        timestamp: e.timestamp || new Date().toISOString(),
       } as AgentMessageEvent;
     }
 

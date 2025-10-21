@@ -119,6 +119,11 @@ export interface ConversationStateUpdateEvent extends EventBase {
 }
 
 // Legacy fallback types for backward compatibility
+export interface LegacyMessageEvent extends EventBase {
+  type: 'message';
+  message: Message;
+}
+
 export interface SystemEvent extends EventBase {
   type: 'system';
   level?: 'info'|'warn'|'error';
@@ -141,6 +146,7 @@ export type Event =
   | PauseEvent
   | Condensation
   | ConversationStateUpdateEvent
+  | LegacyMessageEvent
   | SystemEvent
   | ErrorEvent;
 
@@ -179,12 +185,13 @@ export const isSystemPromptEvent = (e: Event): e is SystemPromptEvent => e.type 
 export const isActionEvent = (e: Event): e is ActionEvent => e.type === 'ActionEvent';
 export const isObservationEvent = (e: Event): e is ObservationEvent => e.type === 'ObservationEvent';
 export const isUserRejectObservation = (e: Event): e is UserRejectObservation => e.type === 'UserRejectObservation';
-export const isMessageEvent = (e: Event): e is MessageEvent => e.type === 'MessageEvent' || e.type === 'message';
+export const isMessageEvent = (e: Event): e is MessageEvent | LegacyMessageEvent => e.type === 'MessageEvent' || e.type === 'message';
 export const isAgentErrorEvent = (e: Event): e is AgentErrorEvent => e.type === 'AgentErrorEvent';
 export const isPauseEvent = (e: Event): e is PauseEvent => e.type === 'PauseEvent';
 export const isCondensation = (e: Event): e is Condensation => e.type === 'Condensation';
 export const isConversationStateUpdateEvent = (e: Event): e is ConversationStateUpdateEvent => e.type === 'ConversationStateUpdateEvent';
 
 // Legacy event guards for backward compatibility
+export const isLegacyMessageEvent = (e: Event): e is LegacyMessageEvent => e.type === 'message';
 export const isSystemEvent = (e: Event): e is SystemEvent => e.type === 'system';
 export const isErrorEvent = (e: Event): e is ErrorEvent => e.type === 'error';
