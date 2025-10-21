@@ -120,7 +120,8 @@ describe('ConnectionManager', () => {
       source: 'agent' as const,
       llm_message: { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'hi' }] }
     };
-    ws.message(payload);
+    // Use JSON.stringify to test the actual JSON parsing path in ConnectionManager
+    ws.message(JSON.stringify(payload));
     expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });
 
