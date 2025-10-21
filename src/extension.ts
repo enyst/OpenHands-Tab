@@ -54,6 +54,15 @@ export function activate(context: vscode.ExtensionContext) {
     return diag;
   });
 
+  // Test command to send mock events to webview for E2E testing
+  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: any) => {
+    if (!panel) {
+      await ensurePanelAndConnection();
+    }
+    panel?.webview.postMessage({ type: 'event', event });
+    return { sent: true };
+  });
+
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensurePanelAndConnection();
     await connection?.startNewConversation();
@@ -84,7 +93,7 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.pause();
   });
 
-  context.subscriptions.push(openTab, diag, startNew, configure, reconnect, pause);
+  context.subscriptions.push(openTab, diag, sendTestEvent, startNew, configure, reconnect, pause);
 }
 
 export function deactivate() {
