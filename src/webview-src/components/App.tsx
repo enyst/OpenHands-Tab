@@ -17,6 +17,7 @@ import {
   isActionEvent,
   isObservationEvent,
   isUserRejectObservation,
+  isMessageEvent,
   isAgentErrorEvent,
   isPauseEvent,
   isCondensation,
@@ -196,8 +197,13 @@ function CondensationBlock({ event }: { event: Condensation }) {
 
 function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
   const role = event.llm_message.role;
-  const parts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
-  const content = parts.join('\n');
+  const textParts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
+  const content = textParts.join('\n');
+
+  // Extract image content
+  const imageParts = event.llm_message.content.filter((c): c is { type: 'image'; image_urls?: string[]; detail?: string } =>
+    c.type === 'image'
+  );
 
   const bgClass = role === 'user'
     ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]'
@@ -208,7 +214,16 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
   return (
     <div className={`${bgClass} p-3 rounded my-1`}>
       <div className="font-semibold mb-2 capitalize">{event.source || role}</div>
-      <div className="whitespace-pre-wrap">{content}</div>
+      {content && <div className="whitespace-pre-wrap">{content}</div>}
+      {imageParts.length > 0 && (
+        <div className="mt-2">
+          {imageParts.map((img, idx) => (
+            <div key={idx} className="text-sm opacity-70">
+              📷 Image {img.image_urls && img.image_urls.length > 0 ? `(${img.image_urls.length} url${img.image_urls.length > 1 ? 's' : ''})` : ''}
+            </div>
+          ))}
+        </div>
+      )}
       {event.llm_message.reasoning_content && (
         <>
           <div className="font-semibold mt-2">Reasoning:</div>
@@ -220,6 +235,12 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
           Activated Microagents: {event.activated_microagents.join(', ')}
         </div>
       )}
+      {event.extended_content && event.extended_content.length > 0 && (
+        <>
+          <div className="font-semibold mt-2">Prompt Extension based on Agent Context:</div>
+          <div className="whitespace-pre-wrap mt-1">{event.extended_content.map(c => c.text).join(' ')}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -229,10 +250,10 @@ function EventBlock({ event }: { event: Event }) {
   if (isActionEvent(event)) return <ActionEventBlock event={event} />;
   if (isObservationEvent(event)) return <ObservationEventBlock event={event} />;
   if (isUserRejectObservation(event)) return <UserRejectBlock event={event} />;
+  if (isMessageEvent(event)) return <MessageEventBlock event={event} />;
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} />;
   if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
   if (isCondensation(event)) return <CondensationBlock event={event} />;
-  if (event.type === 'MessageEvent') return <MessageEventBlock event={event} />;
 
   // Fallback for unknown events (should not happen with proper agent-sdk events)
   return (
@@ -336,16 +357,7 @@ export function App() {
   const send = () => {
     const text = input.trim();
     if (!text) return;
-    // Add a user message event to the UI immediately for responsiveness
-    const userMessageEvent: AgentMessageEvent = {
-      type: 'MessageEvent',
-      source: 'user',
-      llm_message: {
-        role: 'user',
-        content: [{ type: 'text', text }]
-      }
-    };
-    setEvents((ev) => [...ev, { id: eventId.current++, event: userMessageEvent }]);
+    // Send message and let the server echo it back to avoid duplicates
     setInput('');
     postMessage({ type: 'send', text });
   };
