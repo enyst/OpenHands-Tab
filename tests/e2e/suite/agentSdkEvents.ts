@@ -172,7 +172,7 @@ export async function run(): Promise<void> {
     {
       type: 'ConversationStateUpdateEvent',
       source: 'agent',
-      state: 'running'
+      agent_status: 'running'
     }
   ];
 
