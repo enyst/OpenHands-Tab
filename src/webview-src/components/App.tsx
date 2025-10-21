@@ -198,6 +198,7 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
   const role = event.llm_message.role;
   const parts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
   const content = parts.join('\n');
+
   const bgClass = role === 'user'
     ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]'
     : role === 'assistant'
