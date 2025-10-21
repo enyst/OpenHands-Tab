@@ -13,8 +13,6 @@ import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } 
 import {
   isEvent,
   isTextContent,
-  isSystemEvent,
-  isErrorEvent,
   isSystemPromptEvent,
   isActionEvent,
   isObservationEvent,
@@ -23,7 +21,6 @@ import {
   isPauseEvent,
   isCondensation,
   isConversationStateUpdateEvent,
-  isLegacyMessageEvent,
   type Event,
   type ActionEvent,
   type ObservationEvent,
@@ -236,23 +233,7 @@ function EventBlock({ event }: { event: Event }) {
   if (isCondensation(event)) return <CondensationBlock event={event} />;
   if (event.type === 'MessageEvent') return <MessageEventBlock event={event} />;
 
-  // Legacy event types
-  if (isSystemEvent(event)) {
-    return (
-      <div className="italic text-[var(--vscode-descriptionForeground)] p-2 my-1">
-        {event.message}
-      </div>
-    );
-  }
-  if (isErrorEvent(event)) {
-    return (
-      <div className="italic text-red-600 p-2 my-1">
-        Error: {event.error}
-      </div>
-    );
-  }
-
-  // Fallback for unknown events
+  // Fallback for unknown events (should not happen with proper agent-sdk events)
   return (
     <div className="bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] p-3 rounded my-1">
       <div className="font-semibold mb-1">Unknown Event: {event.type}</div>
@@ -319,38 +300,20 @@ export function App() {
   function handleEvent(e: unknown) {
     if (!isEvent(e)) return;
 
-    // Convert legacy event formats to new agent-sdk format
-    let event: Event = e;
-
-    // Legacy "message" event -> MessageEvent
-    if (isLegacyMessageEvent(e)) {
-      event = {
-        type: 'MessageEvent',
-        source: e.message.role === 'user' ? 'user' : 'agent',
-        llm_message: e.message,
-        id: e.id,
-        timestamp: e.timestamp || new Date().toISOString(),
-      } as AgentMessageEvent;
-    }
-
     // Skip ConversationStateUpdateEvent - it's for internal state tracking only
-    if (isConversationStateUpdateEvent(event)) {
+    if (isConversationStateUpdateEvent(e)) {
       return;
     }
 
     // Show toast notifications for certain events
-    if (isAgentErrorEvent(event)) {
-      toastDebounced('error', event.error);
-    } else if (isPauseEvent(event)) {
+    if (isAgentErrorEvent(e)) {
+      toastDebounced('error', e.error);
+    } else if (isPauseEvent(e)) {
       toastDebounced('warning', 'Conversation paused');
-    } else if (isSystemEvent(event)) {
-      toastDebounced('info', event.message);
-    } else if (isErrorEvent(event)) {
-      toastDebounced('error', event.error);
     }
 
     // Add event to the list for rendering
-    setEvents((ev) => [...ev, { id: eventId.current++, event }]);
+    setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
   }
 
   function postMessage(msg: any) {

@@ -115,7 +115,11 @@ describe('ConnectionManager', () => {
     const ws: any = getLastWS();
     ws.open();
 
-    const payload = { type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] } };
+    const payload = {
+      type: 'MessageEvent',
+      source: 'agent' as const,
+      llm_message: { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'hi' }] }
+    };
     ws.message(payload);
     expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });

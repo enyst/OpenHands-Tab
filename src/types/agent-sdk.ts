@@ -118,24 +118,6 @@ export interface ConversationStateUpdateEvent extends EventBase {
   iteration?: number;
 }
 
-// Legacy fallback types for backward compatibility
-export interface LegacyMessageEvent extends EventBase {
-  type: 'message';
-  message: Message;
-}
-
-export interface SystemEvent extends EventBase {
-  type: 'system';
-  level?: 'info'|'warn'|'error';
-  message: string;
-}
-
-export interface ErrorEvent extends EventBase {
-  type: 'error';
-  error: string;
-  code?: string|number;
-}
-
 export type Event =
   | SystemPromptEvent
   | ActionEvent
@@ -145,17 +127,14 @@ export type Event =
   | AgentErrorEvent
   | PauseEvent
   | Condensation
-  | ConversationStateUpdateEvent
-  | LegacyMessageEvent
-  | SystemEvent
-  | ErrorEvent;
+  | ConversationStateUpdateEvent;
 
 // Event-level guard
 export const isEvent = (e: any): e is Event => {
   if (!e || typeof e !== 'object' || typeof e.type !== 'string') return false;
   const t = e.type;
 
-  // New agent-sdk event types
+  // Agent-sdk event types
   if (t === 'SystemPromptEvent') return !!e.system_prompt && !!e.tools;
   if (t === 'ActionEvent') return !!e.tool_name && Array.isArray(e.thought);
   if (t === 'ObservationEvent') return !!e.observation && !!e.tool_name;
@@ -166,13 +145,6 @@ export const isEvent = (e: any): e is Event => {
   if (t === 'Condensation') return Array.isArray(e.forgotten_event_ids);
   if (t === 'ConversationStateUpdateEvent') return true;
 
-  // Legacy event types for backward compatibility
-  if (t === 'message') return !!e.message && typeof e.message === 'object';
-  if (t === 'action') return true; // Legacy action format
-  if (t === 'observation') return true; // Legacy observation format
-  if (t === 'system') return typeof e.message === 'string';
-  if (t === 'error') return typeof e.error === 'string';
-
   return false;
 };
 
@@ -180,18 +152,13 @@ export const isEvent = (e: any): e is Event => {
 export const isTextContent = (c: Content): c is TextContent => c.type === 'text';
 export const isImageContent = (c: Content): c is ImageContent => c.type === 'image';
 
-// Event kind guards - agent-sdk events
+// Event kind guards
 export const isSystemPromptEvent = (e: Event): e is SystemPromptEvent => e.type === 'SystemPromptEvent';
 export const isActionEvent = (e: Event): e is ActionEvent => e.type === 'ActionEvent';
 export const isObservationEvent = (e: Event): e is ObservationEvent => e.type === 'ObservationEvent';
 export const isUserRejectObservation = (e: Event): e is UserRejectObservation => e.type === 'UserRejectObservation';
-export const isMessageEvent = (e: Event): e is MessageEvent | LegacyMessageEvent => e.type === 'MessageEvent' || e.type === 'message';
+export const isMessageEvent = (e: Event): e is MessageEvent => e.type === 'MessageEvent';
 export const isAgentErrorEvent = (e: Event): e is AgentErrorEvent => e.type === 'AgentErrorEvent';
 export const isPauseEvent = (e: Event): e is PauseEvent => e.type === 'PauseEvent';
 export const isCondensation = (e: Event): e is Condensation => e.type === 'Condensation';
 export const isConversationStateUpdateEvent = (e: Event): e is ConversationStateUpdateEvent => e.type === 'ConversationStateUpdateEvent';
-
-// Legacy event guards for backward compatibility
-export const isLegacyMessageEvent = (e: Event): e is LegacyMessageEvent => e.type === 'message';
-export const isSystemEvent = (e: Event): e is SystemEvent => e.type === 'system';
-export const isErrorEvent = (e: Event): e is ErrorEvent => e.type === 'error';
