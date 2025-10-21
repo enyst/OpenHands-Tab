@@ -115,8 +115,13 @@ describe('ConnectionManager', () => {
     const ws: any = getLastWS();
     ws.open();
 
-    const payload = { type: 'message', message: { role: 'assistant', content: [{ type: 'text', text: 'hi' }] } };
-    ws.message(payload);
+    const payload = {
+      type: 'MessageEvent',
+      source: 'agent' as const,
+      llm_message: { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'hi' }] }
+    };
+    // Use JSON.stringify to test the actual JSON parsing path in ConnectionManager
+    ws.message(JSON.stringify(payload));
     expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });
 
