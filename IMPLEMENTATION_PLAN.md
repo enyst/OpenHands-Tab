@@ -147,7 +147,8 @@ Manual verification steps (to do in VS Code):
 - Simulate system and error events; toasts appear and messages rendered
 
 Notes:
-- media/webview.js and webview.css generated; source maps exist and are currently tracked
+- media/webview.js and index.css generated; source maps exist and are currently tracked
+- All styling uses Tailwind CSS from @openhands/ui (no plain CSS)
 - Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
 
 - Optional: remove media/*.map from git if undesired
