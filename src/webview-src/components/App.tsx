@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
 import {
   isEvent,
-  isMessageEvent,
   isTextContent,
   isSystemEvent,
   isErrorEvent,
@@ -29,7 +28,6 @@ import {
   type ActionEvent,
   type ObservationEvent,
   type MessageEvent as AgentMessageEvent,
-  type LegacyMessageEvent,
   type SystemPromptEvent,
   type UserRejectObservation,
   type AgentErrorEvent,
@@ -203,7 +201,6 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
   const role = event.llm_message.role;
   const parts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
   const content = parts.join('\n');
-  const roleColor = role === 'user' ? 'blue' : role === 'assistant' ? 'green' : 'gray';
   const bgClass = role === 'user'
     ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]'
     : role === 'assistant'
@@ -214,10 +211,10 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
     <div className={`${bgClass} p-3 rounded my-1`}>
       <div className="font-semibold mb-2 capitalize">{event.source || role}</div>
       <div className="whitespace-pre-wrap">{content}</div>
-      {event.reasoning_content && (
+      {event.llm_message.reasoning_content && (
         <>
           <div className="font-semibold mt-2">Reasoning:</div>
-          <div className="whitespace-pre-wrap mt-1">{event.reasoning_content}</div>
+          <div className="whitespace-pre-wrap mt-1">{event.llm_message.reasoning_content}</div>
         </>
       )}
       {event.activated_microagents && event.activated_microagents.length > 0 && (
@@ -237,7 +234,7 @@ function EventBlock({ event }: { event: Event }) {
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} />;
   if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
   if (isCondensation(event)) return <CondensationBlock event={event} />;
-  if (isMessageEvent(event)) return <MessageEventBlock event={event} />;
+  if (event.type === 'MessageEvent') return <MessageEventBlock event={event} />;
 
   // Legacy event types
   if (isSystemEvent(event)) {
@@ -278,10 +275,6 @@ function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: str
   } catch {
     // no-op if UI toast API is unavailable
   }
-}
-
-function safeJsonParse(s: string) {
-  try { return JSON.parse(s); } catch { return { type: 'event', value: s }; }
 }
 
 export function App() {
