@@ -41,7 +41,7 @@ export interface SystemPromptEvent extends EventBase {
   type: 'SystemPromptEvent';
   source: 'agent';
   system_prompt: TextContent;
-  tools: any[]; // ChatCompletionToolParam
+  tools: Record<string, unknown>[]; // ChatCompletionToolParam serialized to JSON
 }
 
 // ActionEvent - shown in visualizer
@@ -50,7 +50,7 @@ export interface ActionEvent extends EventBase {
   source: 'agent';
   thought: TextContent[];
   reasoning_content?: string | null;
-  action: any | null; // Action schema
+  action: Record<string, unknown> | null; // Action schema serialized to JSON
   tool_name: string;
   tool_call_id: string;
   tool_call: ToolCall;
@@ -62,7 +62,7 @@ export interface ActionEvent extends EventBase {
 export interface ObservationEvent extends EventBase {
   type: 'ObservationEvent';
   source: 'environment';
-  observation: any; // Observation schema
+  observation: Record<string, unknown>; // Observation schema serialized to JSON
   tool_name: string;
   tool_call_id: string;
   action_id: string;
