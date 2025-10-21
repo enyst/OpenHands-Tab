@@ -134,11 +134,11 @@ export const isEvent = (e: any): e is Event => {
   if (!e || typeof e !== 'object' || typeof e.type !== 'string') return false;
   const t = e.type;
 
-  // Agent-sdk event types
-  if (t === 'SystemPromptEvent') return !!e.system_prompt && !!e.tools;
+  // Agent-sdk event types - strict validation
+  if (t === 'SystemPromptEvent') return !!e.system_prompt && Array.isArray(e.tools);
   if (t === 'ActionEvent') return !!e.tool_name && Array.isArray(e.thought);
   if (t === 'ObservationEvent') return !!e.observation && !!e.tool_name;
-  if (t === 'UserRejectObservation') return typeof e.rejection_reason === 'string';
+  if (t === 'UserRejectObservation') return typeof e.rejection_reason === 'string' && !!e.tool_name;
   if (t === 'MessageEvent') return !!e.llm_message && typeof e.llm_message === 'object';
   if (t === 'AgentErrorEvent') return typeof e.error === 'string' && !!e.tool_name;
   if (t === 'PauseEvent') return e.source === 'user';
