@@ -120,8 +120,6 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - agent.llm: built from
     - model/base_url/api_version from settings
     - api_key from SecretStorage (fallback to env for dev)
-- Server’s own config: session_api_keys list, allow_cors_origins, conversations_path, bash_events_dir, static_files_path, webhooks, enable_vscode/vnc, ports
-+ Server-side configuration not surfaced in the extension: session_api_keys list, allow_cors_origins, conversations_path, bash_events_dir, static_files_path, webhooks, enable_vscode/vnc, ports
   - agent.tools: unchanged (extension-defined)
   - confirmation policy: include if configured via settings (else let server default)
   - max_iterations: from settings
