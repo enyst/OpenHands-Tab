@@ -110,7 +110,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - Merge in parsed llm.extra (ignore unknowns)
     - Apply secrets from SecretStorage last (api_key)
 - Scoping guidance
-  - serverUrl: workspace level default (Workspace/WorkspaceFolder), can override globally
+  - serverUrl: workspace-level default (Workspace/WorkspaceFolder), can override globally
   - LLM defaults: user-level defaults, overridable per workspace
   - Secrets: always global SecretStorage (per machine), not synced in settings
 
