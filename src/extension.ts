@@ -3,6 +3,7 @@ import { ConnectionManager } from './connection/ConnectionManager';
 
 let panel: vscode.WebviewPanel | undefined;
 let connection: ConnectionManager | undefined;
+let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   async function ensurePanelAndConnection() {
@@ -54,6 +55,39 @@ export function activate(context: vscode.ExtensionContext) {
     return diag;
   });
 
+  // Test command to send mock events to webview for E2E testing
+  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: any) => {
+    if (!panel) {
+      await ensurePanelAndConnection();
+    }
+    panel?.webview.postMessage({ type: 'event', event });
+    return { sent: true };
+  });
+
+  // Query rendered events from webview for E2E testing
+  const queryRenderedEvents = vscode.commands.registerCommand('openhands._queryRenderedEvents', async () => {
+    if (!panel) {
+      return { count: 0, eventTypes: [] };
+    }
+
+    // Clear previous response
+    renderedEventsInfo = undefined;
+
+    // Ask webview for current state
+    panel.webview.postMessage({ type: 'queryRenderedEvents' });
+
+    // Wait for response (with timeout)
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      if (renderedEventsInfo !== undefined) {
+        return renderedEventsInfo;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    return { count: 0, eventTypes: [] }; // timeout
+  });
+
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensurePanelAndConnection();
     await connection?.startNewConversation();
@@ -84,7 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.pause();
   });
 
-  context.subscriptions.push(openTab, diag, startNew, configure, reconnect, pause);
+  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, startNew, configure, reconnect, pause);
 }
 
 export function deactivate() {
@@ -134,6 +168,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       if (msg.command === 'reconnect') connection?.reconnect();
       if (msg.command === 'pause') connection?.pause();
       if (msg.command === 'startNewConversation') connection?.startNewConversation();
+    }
+    if (msg?.type === 'renderedEventsResponse') {
+      // Store the response from webview for testing/diagnostics
+      renderedEventsInfo = { count: msg.count, eventTypes: msg.eventTypes };
     }
   };
 }

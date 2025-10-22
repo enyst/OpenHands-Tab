@@ -294,10 +294,19 @@ export function App() {
       if (payload?.type === 'configUpdated') toastDebounced('info', `Config updated: ${payload.serverUrl}`);
       if (payload?.type === 'event') handleEvent(payload.event);
       if (payload?.type === 'error') toastDebounced('error', String(payload.error));
+      if (payload?.type === 'queryRenderedEvents') {
+        // Respond with rendered event information for testing
+        const vscodeApi = getVscodeApi();
+        vscodeApi.postMessage({
+          type: 'renderedEventsResponse',
+          count: events.length,
+          eventTypes: events.map(e => e.event.type)
+        });
+      }
     };
     window.addEventListener('message', handler as any);
     return () => window.removeEventListener('message', handler as any);
-  }, []);
+  }, [events]);
 
   useEffect(() => {
     // Suppress initial toast; debounce subsequent status changes
