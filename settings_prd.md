@@ -36,6 +36,16 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py (set_confirmation_policy)
   - PRD note: if we expose a policy selector, we include it in StartConversation payload or call the policy endpoint
 
+2a) Conversation lifecycle and persistence
+- Lifecycle endpoints used by the extension (today):
+  - Start: POST /api/conversations
+  - Pause: POST /api/conversations/{conversation_id}/pause
+  - Resume: POST /api/conversations/{conversation_id}/resume
+- Persistence
+  - Client: current conversation_id is stored in VS Code workspaceState (not a Settings value)
+  - Server: conversations/events persisted under conversations_path (default workspace/conversations) per agent-server config
+
+
 3) LLM settings (agent-sdk LLM model)
 - Authoritative class and fields
   - File: openhands-sdk/openhands/sdk/llm/llm.py (class LLM)
