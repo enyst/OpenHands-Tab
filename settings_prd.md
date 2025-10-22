@@ -8,7 +8,6 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - session API key (optional): sent as
     - HTTP: X-Session-API-Key header
     - WebSocket: ?session_api_key query param
-- Where this comes from in agent-sdk
 + Where these settings are defined in agent-sdk
   - WebSocket endpoints: /sockets/events/{conversation_id}
     - openhands-agent-server/openhands/agent_server/sockets.py
