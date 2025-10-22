@@ -76,9 +76,10 @@ Confirmation policy
 - Commands
   - OpenHands: Open Tab (opens/activates the Webview)
   - OpenHands: Start New Conversation
-  - OpenHands: Configure (opens settings quick-pick/form)
+  - OpenHands: Configure (opens input box to set server URL)
   - OpenHands: Reconnect (restarts WebSocket; rarely needed since reconnect is automatic)
   - OpenHands: Pause Current Run (sends pause)
+  - TODO: OpenHands: Resume Current Run (sends resume) - endpoint exists but command not exposed yet
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
 - Connection & Conversation Lifecycle
@@ -138,15 +139,17 @@ Confirmation policy
   - HTTP: Events search/count for backfill on reconnect
 
 ## 10. Extension Structure (Code)
-- src/extension.ts (activate, register commands)
+- src/extension.ts (activate, register commands, webview setup, message bridge)
 - src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers)
 - src/session/ConversationManager.ts (conversation_id, resume state)
-- src/panels/OpenHandsPanel.ts (Webview setup, message bridge)
-- webview-src/ (UI bundle; framework-agnostic or lightweight React)
-  - ChatView, EventStream, StatusBar, SettingsModal
+- src/types/agent-sdk.ts (TypeScript types and guards for Message/Event models)
+- src/webview-src/ (React UI bundle)
+  - webview.tsx (entry point)
+  - components/App.tsx (main React component with chat UI, event stream, status)
+  - TODO: Separate components for EventStream, SettingsModal if needed for better organization
 
 ## 11. Packaging & Distribution
-- Engine: VS Code >= 1.85.0
+- Engine: VS Code >= 1.104.0
 - Node: 22.x
 - Publish as VSIX initially; Marketplace later
 - Extension identifiers
@@ -161,12 +164,14 @@ Confirmation policy
 - Settings
   - Configure server URL; auto-reconnect; persist last conversation id
   - User-level persistence to ~/.openhands/conversations (default ON)
-- Confirmation Mode
+- TODO: Confirmation Mode
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
   - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
-- Switch LLM During Conversation
+  - Note: Backend supports this; UI not yet implemented
+- TODO: Switch LLM During Conversation
   - If supported by server/SDK: expose command(s) to update agent model/provider mid-conversation
-  - Otherwise: provide “Start New Conversation with Model…” flow
+  - Otherwise: provide "Start New Conversation with Model…" flow
+  - Note: Currently hardcoded to claude-sonnet-4 in ConnectionManager
 - UI Polish Rounds
   - Iteratively improve event rendering and layout
   - Note: OpenHands V0 (current web) vs V1 (agent-sdk centric) — we will prefer reusing visual patterns where feasible, but the authoritative APIs and models are from agent-sdk (V1 rewrite). Visual similarity is desired; implementation details may differ.
