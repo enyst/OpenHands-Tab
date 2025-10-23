@@ -2,18 +2,24 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
     "outDir": "tests/e2e/out",
     "rootDir": "tests/e2e",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "sourceMap": false
+    "sourceMap": false,
+    "allowSyntheticDefaultImports": true,
+    "types": ["node", "mocha"]
   },
   "include": [
-    "tests/e2e/suite/**/*.ts"
+    "tests/e2e/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "tests/e2e/out", "tests/e2e/suite"],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
 }

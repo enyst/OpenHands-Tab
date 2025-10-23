@@ -1,8 +1,9 @@
 import * as assert from 'assert';
-import { runTests, downloadAndUnzipVSCode } from '@vscode/test-electron';
+import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
+import { downloadVSCodeWithRetry } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirnameE = path.dirname(__filename);
@@ -14,7 +15,7 @@ describe('OpenHands-Tab Agent-SDK Events E2E', function () {
   this.timeout(120000);
 
   it('renders all agent-sdk event types in webview', async () => {
-    const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
+    const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const extensionDevelopmentPath = path.resolve(__dirnameE, '../..');
 
     // Point to the agentSdkEvents suite

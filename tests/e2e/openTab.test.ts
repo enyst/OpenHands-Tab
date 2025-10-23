@@ -1,9 +1,10 @@
 import * as assert from 'assert';
-import { runTests, downloadAndUnzipVSCode, resolveCliPathFromVSCodeExecutablePath } from '@vscode/test-electron';
+import { runTests, resolveCliPathFromVSCodeExecutablePath } from '@vscode/test-electron';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import { fileURLToPath } from 'url';
+import { downloadVSCodeWithRetry } from './testHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirnameE = path.dirname(__filename);
@@ -14,7 +15,7 @@ describe('OpenHands-Tab E2E', function () {
   this.timeout(180000);
 
   it('opens the tab and executes commands', async () => {
-    const vscodeExecutablePath = await downloadAndUnzipVSCode('stable');
+    const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const cliPath = resolveCliPathFromVSCodeExecutablePath(vscodeExecutablePath);
     const extensionDevelopmentPath = path.resolve(__dirnameE, '../../');
     const extensionTestsPath = path.resolve(__dirnameE, './out/suite');
