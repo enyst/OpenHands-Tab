@@ -70,7 +70,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - Current extension behavior
   - Hardcoded defaults in ConnectionManager when starting a conversation
     - model: litellm_proxy/anthropic/claude-sonnet-4-20250514
-    - base_url: `https://llm-proxy.eval.all-hands.dev`
+    - base_url: [https://llm-proxy.eval.all-hands.dev](https://llm-proxy.eval.all-hands.dev)
     - api_key: from env (LITELLM_API_KEY or OPENAI_API_KEY)
   - No UI to change model/params yet (noted in PR_DESCRIPTION.md)
 
