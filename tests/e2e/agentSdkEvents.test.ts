@@ -19,7 +19,7 @@ describe('OpenHands-Tab Agent-SDK Events E2E', function () {
     const extensionDevelopmentPath = path.resolve(__dirnameE, '../..');
 
     // Point to the agentSdkEvents suite
-    const extensionTestsPath = path.resolve(__dirnameE, './out/suite/agentSdkEvents.js');
+    const extensionTestsPath = path.resolve(__dirnameE, './suite/agentSdkEvents.js');
 
     await runTests({
       vscodeExecutablePath,

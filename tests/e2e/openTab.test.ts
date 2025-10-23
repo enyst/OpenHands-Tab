@@ -18,7 +18,7 @@ describe('OpenHands-Tab E2E', function () {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const cliPath = resolveCliPathFromVSCodeExecutablePath(vscodeExecutablePath);
     const extensionDevelopmentPath = path.resolve(__dirnameE, '../../');
-    const extensionTestsPath = path.resolve(__dirnameE, './out/suite');
+    const extensionTestsPath = path.resolve(__dirnameE, './suite');
 
     // Log VS Code version via CLI (best-effort)
     cp.spawnSync(cliPath, ['--version'], { stdio: 'inherit', cwd: path.dirname(cliPath) });
