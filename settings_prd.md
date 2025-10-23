@@ -83,7 +83,10 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.llm.apiVersion: string | null
   - openhands.llm.temperature: number | null
   - openhands.llm.topP: number | null
+  - openhands.llm.topK: number | null
+  - openhands.llm.maxInputTokens: number | null
   - openhands.llm.maxOutputTokens: number | null
+  - openhands.llm.timeout: number | null
   - openhands.llm.nativeToolCalling: boolean | null
   - openhands.llm.reasoningEffort: enum ('low' | 'medium' | 'high' | 'none') | null
   - openhands.conversation.maxIterations: number (default for new conversations)
@@ -97,18 +100,9 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - Retrieval pattern in extension code
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
     - const llmApiKey = await context.secrets.get('openhands.llm.apiKey')
-- Advanced overrides for LLM (complex/nested)
-  - Use a single JSON-typed setting for advanced fields that map 1:1 to agent-sdk LLM when not explicitly modeled above
-    - openhands.llm.extra: string (JSON). Example:
-      {
-        "timeout": 60,
-        "top_k": 50,
-        "metadata": {"team": "ai"}
-      }
-  - Merge strategy when starting a conversation:
-    - Begin with curated fields from settings
-    - Merge in parsed llm.extra (ignore unknowns and skip fields that have first-class settings)
-    - Apply secrets from SecretStorage last (api_key)
+- Advanced overrides for LLM
+  - For MVP, we omit openhands.llm.extra to keep the surface simple.
+  - If future agent-sdk additions warrant it, we can reintroduce a JSON pass-through for rarely used fields (e.g., metadata, usage_id) without breaking the curated keys.
 - Scoping guidance
   - serverUrl: workspace-level default (Workspace/WorkspaceFolder) — can override globally
   - LLM defaults: user-level defaults, overridable per workspace
