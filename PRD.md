@@ -82,7 +82,7 @@ Confirmation policy
   - TODO: OpenHands: Resume Current Run (sends resume) - endpoint exists but command not exposed yet
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
-  - See settings_prd.md for detailed settings and rationale
+  - See settings_prd.md for detailed settings (server connection/auth, LLM parameters, confirmation policy, and runtime mapping) and rationale
 - Connection & Conversation Lifecycle
   - Establish WebSocket connection to /sockets/events/{conversation_id}
   - If no conversation_id exists, create one via POST /api/conversations with desired confirmation_policy
