@@ -22,7 +22,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - What the extension POSTs (today, minimal PoC)
   - agent: { llm: {...}, tools: [...] }
   - max_iterations: number
-- Where this comes from in agent-sdk
+- Where these settings are defined in agent-sdk
   - Conversation creation payload consumed by RemoteConversation / server routes
     - openhands-sdk/openhands/sdk/conversation/impl/remote_conversation.py
     - openhands-agent-server/openhands/agent_server/routes/* and models.py
