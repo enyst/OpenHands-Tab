@@ -24,7 +24,6 @@ describe('OpenHands-Tab diagnostics', function () {
       extensionDevelopmentPath,
       extensionTestsPath,
       launchArgs: [
-        '--disable-extensions',
         '--no-sandbox',
         '--user-data-dir', userDataDir,
         '--disable-gpu',
