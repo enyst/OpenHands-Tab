@@ -2,11 +2,8 @@ import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
 import * as os from 'os';
-import { fileURLToPath } from 'url';
-import { downloadVSCodeWithRetry } from './testHelpers.js';
+import { downloadVSCodeWithRetry } from './testHelpers';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirnameE = path.dirname(__filename);
 const userDataDir = path.join(os.tmpdir(), `vscode-test-agent-sdk-${Date.now()}`);
 
 // E2E test for agent-sdk event rendering in the webview
@@ -16,10 +13,10 @@ describe('OpenHands-Tab Agent-SDK Events E2E', function () {
 
   it('renders all agent-sdk event types in webview', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
-    const extensionDevelopmentPath = path.resolve(__dirnameE, '../..');
+    const extensionDevelopmentPath = path.resolve(__dirname, '../..');
 
     // Point to the agentSdkEvents suite
-    const extensionTestsPath = path.resolve(__dirnameE, './suite/agentSdkEvents.js');
+    const extensionTestsPath = path.resolve(__dirname, './suite/agentSdkEvents.js');
 
     await runTests({
       vscodeExecutablePath,
