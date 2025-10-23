@@ -8,14 +8,11 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - session API key (optional): sent as
     - HTTP: X-Session-API-Key header
     - WebSocket: ?session_api_key query param
-+ Where these settings are defined in agent-sdk
-  - WebSocket endpoints: /sockets/events/{conversation_id}
+- Where these settings are defined in agent-sdk
+  - WebSocket endpoints: /sockets/events/{conversation_id}, /sockets/bash-events
     - openhands-agent-server/openhands/agent_server/sockets.py
   - HTTP routes under /api/
     - openhands-agent-server/openhands/agent_server/api.py (+ routers)
-  - Config fields on the server (for reference; the extension doesn’t set these):
-    - session_api_keys, allow_cors_origins, conversations_path, bash_events_dir, static_files_path, webhooks, enable_vscode, vscode_port, enable_vnc
-    - File: openhands-agent-server/openhands/agent_server/config.py
 - Current extension behavior
   - Setting: openhands.serverUrl (package.json)
   - Reads SESSION_API_KEY from the VS Code host environment (if provided) and forwards it as above
@@ -73,7 +70,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - Current extension behavior
   - Hardcoded defaults in ConnectionManager when starting a conversation
     - model: litellm_proxy/anthropic/claude-sonnet-4-20250514
-    - base_url: https://llm-proxy.eval.all-hands.dev
+    - base_url: `https://llm-proxy.eval.all-hands.dev`
     - api_key: from env (LITELLM_API_KEY or OPENAI_API_KEY)
   - No UI to change model/params yet (noted in PR_DESCRIPTION.md)
 
