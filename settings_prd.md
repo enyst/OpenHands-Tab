@@ -67,6 +67,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - metadata: dict[str, any]
   - Serialization/secret handling
     - api_key and select fields are masked by default; can be exposed with context={'expose_secrets': True}
+  - MVP note: we will not surface safety_settings in the extension UI
 - Current extension behavior
   - Hardcoded defaults in ConnectionManager when starting a conversation
     - model: litellm_proxy/anthropic/claude-sonnet-4-20250514
@@ -83,6 +84,8 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.llm.temperature: number | null
   - openhands.llm.topP: number | null
   - openhands.llm.maxOutputTokens: number | null
+  - openhands.llm.nativeToolCalling: boolean | null
+  - openhands.llm.reasoningEffort: enum ('low' | 'medium' | 'high' | 'none') | null
   - openhands.conversation.maxIterations: number (default for new conversations)
   - openhands.confirmation.policy: enum ('never' | 'always' | 'risky')
   - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH')
@@ -95,16 +98,16 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
     - const llmApiKey = await context.secrets.get('openhands.llm.apiKey')
 - Advanced overrides for LLM (complex/nested)
-  - Use a single JSON-typed setting for advanced fields that map 1:1 to agent-sdk LLM
+  - Use a single JSON-typed setting for advanced fields that map 1:1 to agent-sdk LLM when not explicitly modeled above
     - openhands.llm.extra: string (JSON). Example:
       {
-        "native_tool_calling": true,
-        "reasoning_effort": "high",
-        "safety_settings": [{"category": "HATE", "threshold": "medium"}]
+        "timeout": 60,
+        "top_k": 50,
+        "metadata": {"team": "ai"}
       }
   - Merge strategy when starting a conversation:
     - Begin with curated fields from settings
-    - Merge in parsed llm.extra (ignore unknowns)
+    - Merge in parsed llm.extra (ignore unknowns and skip fields that have first-class settings)
     - Apply secrets from SecretStorage last (api_key)
 - Scoping guidance
   - serverUrl: workspace-level default (Workspace/WorkspaceFolder) — can override globally
