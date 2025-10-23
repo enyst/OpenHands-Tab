@@ -21,7 +21,7 @@ export async function downloadVSCodeWithRetry(
       console.log(`Successfully downloaded VS Code to: ${vscodeExecutablePath}`);
       return vscodeExecutablePath;
     } catch (error) {
-      lastError = error as Error;
+      lastError = error instanceof Error ? error : new Error(String(error));
       console.error(`Attempt ${attempt} failed:`, error);
 
       if (attempt < maxRetries) {
