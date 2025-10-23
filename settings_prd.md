@@ -124,7 +124,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - append ?session_api_key=... if secret present
 
 6) What we won’t configure in the extension (but are in agent-server)
-- Server’s own config: session_api_keys list, allow_cors_origins, conversations_path, bash_events_dir, static_files_path, webhooks, enable_vscode/vnc, ports
+- Server-side configuration not surfaced in the extension: session_api_keys list, allow_cors_origins, conversations_path, bash_events_dir, static_files_path, webhooks, enable_vscode/vnc, ports
   - Rationale: these are server deployment choices; the extension only needs to connect
 
 7) References (agent-sdk source)
