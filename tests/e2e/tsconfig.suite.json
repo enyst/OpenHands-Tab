@@ -4,17 +4,16 @@
     "lib": ["ES2022"],
     "module": "commonjs",
     "moduleResolution": "node",
-    "outDir": "tests/e2e/out",
-    "rootDir": "tests/e2e",
+    "outDir": "./out",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "sourceMap": false,
-    "types": ["node", "mocha"]
+    "sourceMap": false
   },
   "include": [
-    "tests/e2e/**/*.ts"
+    "suite/**/*.ts"
   ],
-  "exclude": ["node_modules", "tests/e2e/out", "tests/e2e/suite"]
+  "exclude": ["node_modules", "out"]
 }

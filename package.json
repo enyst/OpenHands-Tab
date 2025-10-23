@@ -12,6 +12,9 @@
     "Other"
   ],
   "main": "./dist/extension.js",
+  "activationEvents": [
+    "*"
+  ],
   "contributes": {
     "commands": [
       {
@@ -57,7 +60,7 @@
     "watch": "tsc -w -p . & npx tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --watch & node --watch esbuild.webview.mjs",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package",
-    "e2e": "npm run compile && tsc -p tsconfig.e2e.json && mocha -r ts-node/register tests/e2e/**/*.test.ts",
+    "e2e": "npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
@@ -76,9 +79,11 @@
     "ws"
   ],
   "devDependencies": {
+    "@tailwindcss/cli": "^4.1.13",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.18.6",
     "@types/vscode": "^1.104.0",
     "@types/ws": "^8.18.1",
@@ -89,13 +94,12 @@
     "@vscode/vsce": "^3.6.1",
     "esbuild": "^0.23.1",
     "eslint": "^9.36.0",
-    "mocha": "^10.8.2",
-    "ts-node": "^10.9.2",
     "jsdom": "^25.0.1",
+    "mocha": "^10.8.2",
     "tailwindcss": "^4.1.13",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
-    "vitest": "^2.1.4",
-    "@tailwindcss/cli": "^4.1.13"
+    "vitest": "^2.1.4"
   },
   "dependencies": {
     "@openhands/ui": "^1.0.0-beta.9",
