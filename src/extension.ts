@@ -34,8 +34,8 @@ export function activate(context: vscode.ExtensionContext) {
         onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
       });
       const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
-      connection.setSettings(settings);
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
+      connection.setSettings(settings);
       if (savedId) connection.restoreConversation(savedId);
     }
 
@@ -159,7 +159,7 @@ export function activate(context: vscode.ExtensionContext) {
       llm: { usageId: usageId || undefined, model: llmModel || undefined, baseUrl: llmBaseUrl || undefined },
       agent: {
         enableSecurityAnalyzer: enableSec ? enableSec === 'Yes' : existing.agent.enableSecurityAnalyzer,
-        filterToolsRegex: filterRegex ?? null
+        filterToolsRegex: filterRegex || null
       },
       secrets: { llmApiKey: llmApiKey || undefined, sessionApiKey: sessionApiKey || undefined }
     }, 'workspace');

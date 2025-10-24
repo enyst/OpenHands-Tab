@@ -54,7 +54,7 @@ export class ConnectionManager {
             usage_id: s?.llm.usageId || 'default-llm',
             model: s?.llm.model || 'claude-sonnet-4-20250514',
             base_url: s?.llm.baseUrl,
-            api_key: s?.secrets.llmApiKey || undefined
+            api_key: s?.secrets.llmApiKey
           },
           tools: [
             { name: 'BashTool', params: { working_dir: process.cwd() } },
@@ -62,7 +62,7 @@ export class ConnectionManager {
             { name: 'TaskTrackerTool', params: { save_dir: process.cwd() } }
           ],
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
-          filter_tools_regex: s?.agent.filterToolsRegex || undefined,
+          filter_tools_regex: s?.agent.filterToolsRegex ?? undefined,
         },
         max_iterations: 50
       };
