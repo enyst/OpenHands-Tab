@@ -144,7 +144,13 @@ export function activate(context: vscode.ExtensionContext) {
     const maxIterationsStr = await vscode.window.showInputBox({
       title: 'Max Iterations (default for new conversations)',
       value: String(existing.conversation.maxIterations ?? 50),
-      placeHolder: 'e.g. 50'
+      placeHolder: 'e.g. 50',
+      validateInput: (value) => {
+        if (!value || value.trim() === '') return undefined;
+        const n = parseInt(value, 10);
+        if (Number.isNaN(n) || n <= 0) return 'Input must be a positive integer.';
+        return undefined;
+      }
     });
 
     const policy = await vscode.window.showQuickPick(['never', 'always', 'risky'], {
