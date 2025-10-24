@@ -151,7 +151,7 @@ export function activate(context: vscode.ExtensionContext) {
       placeHolder: 'e.g. 50',
       validateInput: (value) => {
         if (!value || value.trim() === '') return undefined;
-        const n = parseInt(value, 10);
+        const n = Number.parseInt(value.trim(), 10);
         if (Number.isNaN(n) || n <= 0) return 'Input must be a positive integer.';
         return undefined;
       }
@@ -195,7 +195,12 @@ export function activate(context: vscode.ExtensionContext) {
         enableSecurityAnalyzer: enableSec ? enableSec === 'Yes' : existing.agent.enableSecurityAnalyzer,
       },
       conversation: {
-        maxIterations: maxIterationsStr ? Number(maxIterationsStr) : existing.conversation.maxIterations,
+        maxIterations: (() => {
+          const v = maxIterationsStr?.trim();
+          if (!v) return existing.conversation.maxIterations;
+          const n = Math.trunc(Number(v));
+          return Number.isFinite(n) && n > 0 ? n : existing.conversation.maxIterations;
+        })(),
       },
       confirmation: {
         policy: (policy as any) || existing.confirmation.policy,

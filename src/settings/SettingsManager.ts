@@ -28,8 +28,9 @@ export class SettingsManager {
   async get(): Promise<OpenHandsSettings> {
     const serverUrl = this.adapter.get<string>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl;
     const llm: LLMSettings = {
-      usageId: this.adapter.get<string | null>('openhands.llm.usageId', DEFAULTS.llm.usageId) ?? DEFAULTS.llm.usageId,
-      model: this.adapter.get<string | null>('openhands.llm.model', DEFAULTS.llm.model) ?? DEFAULTS.llm.model,
+      // Only return explicitly configured usageId/model so ConnectionManager can omit them when undefined
+      usageId: this.adapter.getExplicit<string>('openhands.llm.usageId'),
+      model: this.adapter.getExplicit<string>('openhands.llm.model'),
       baseUrl: this.adapter.get<string | null>('openhands.llm.baseUrl', DEFAULTS.llm.baseUrl) ?? DEFAULTS.llm.baseUrl,
       apiVersion: this.adapter.get<string | null>('openhands.llm.apiVersion', DEFAULTS.llm.apiVersion) ?? DEFAULTS.llm.apiVersion,
       timeout: this.adapter.get<number | null>('openhands.llm.timeout', DEFAULTS.llm.timeout) ?? DEFAULTS.llm.timeout,

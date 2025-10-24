@@ -8,6 +8,13 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
     return vscode.workspace.getConfiguration().get<T>(key, defaultValue as any);
   }
 
+  getExplicit<T = unknown>(key: string): T | undefined {
+    const inspected = vscode.workspace.getConfiguration().inspect<T>(key);
+    if (!inspected) return undefined;
+    // Prefer workspace folder override, then workspace, then global
+    return (inspected.workspaceFolderValue as T) ?? (inspected.workspaceValue as T) ?? (inspected.globalValue as T) ?? undefined;
+  }
+
   async update<T = unknown>(key: string, value: T, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
     await vscode.workspace.getConfiguration().update(key, value, target === 'workspace' ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global);
   }

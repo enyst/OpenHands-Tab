@@ -88,3 +88,34 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.agent.filter_tools_regex).toBeUndefined();
   });
 });
+
+describe('ConnectionManager omits explicit llm fields when unset', () => {
+  it('omits llm.usage_id and llm.model when not configured to allow server defaults', async () => {
+    const baseUrl = 'http://example.com';
+    const cm2 = new ConnectionManager(baseUrl, dummyEvents as any);
+    const s2: OpenHandsSettings = {
+      serverUrl: baseUrl,
+      llm: {
+        // intentionally undefined
+      },
+      agent: { enableSecurityAnalyzer: false },
+      conversation: { maxIterations: 50 },
+      confirmation: { policy: 'never', riskyThreshold: 'HIGH', confirmUnknown: true },
+      secrets: {}
+    } as any;
+    cm2.setSettings(s2);
+    let called = false;
+    const spy = vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (_url: any, opts: any) => {
+      called = true;
+      const body = JSON.parse(opts.body);
+      expect(body.agent.llm.usage_id).toBeUndefined();
+      expect(body.agent.llm.model).toBeUndefined();
+      return { ok: true, json: async () => ({ conversation_id: 'def' }) } as any;
+    });
+    await cm2.startNewConversation();
+    expect(called).toBe(true);
+    spy.mockRestore();
+  });
+});
+
+

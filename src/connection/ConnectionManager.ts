@@ -48,10 +48,9 @@ export class ConnectionManager {
     try {
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
-      const llm: any = {
-        usage_id: s?.llm.usageId || 'default-llm',
-        model: s?.llm.model || 'claude-sonnet-4-20250514',
-      };
+      const llm: any = {};
+      if (s?.llm.usageId != null && s.llm.usageId !== '') llm.usage_id = s.llm.usageId;
+      if (s?.llm.model != null && s.llm.model !== '') llm.model = s.llm.model;
       if (s?.llm.baseUrl != null) llm.base_url = s.llm.baseUrl;
       if (s?.llm.apiVersion != null) llm.api_version = s.llm.apiVersion;
       if (s?.llm.timeout != null) llm.timeout = s.llm.timeout;

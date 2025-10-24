@@ -1,0 +1,608 @@
+﻿2025-10-24T21:38:20.0423334Z Current runner version: '2.329.0'
+2025-10-24T21:38:20.0449044Z ##[group]Runner Image Provisioner
+2025-10-24T21:38:20.0449835Z Hosted Compute Agent
+2025-10-24T21:38:20.0450450Z Version: 20251016.436
+2025-10-24T21:38:20.0451032Z Commit: 8ab8ac8bfd662a3739dab9fe09456aba92132568
+2025-10-24T21:38:20.0451713Z Build Date: 2025-10-15T20:44:12Z
+2025-10-24T21:38:20.0452292Z ##[endgroup]
+2025-10-24T21:38:20.0452848Z ##[group]Operating System
+2025-10-24T21:38:20.0453399Z Ubuntu
+2025-10-24T21:38:20.0453915Z 22.04.5
+2025-10-24T21:38:20.0454379Z LTS
+2025-10-24T21:38:20.0454826Z ##[endgroup]
+2025-10-24T21:38:20.0455262Z ##[group]Runner Image
+2025-10-24T21:38:20.0455886Z Image: ubuntu-22.04
+2025-10-24T21:38:20.0456389Z Version: 20251021.115.1
+2025-10-24T21:38:20.0457365Z Included Software: https://github.com/actions/runner-images/blob/ubuntu22/20251021.115/images/ubuntu/Ubuntu2204-Readme.md
+2025-10-24T21:38:20.0459394Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu22%2F20251021.115
+2025-10-24T21:38:20.0460459Z ##[endgroup]
+2025-10-24T21:38:20.0461640Z ##[group]GITHUB_TOKEN Permissions
+2025-10-24T21:38:20.0463941Z Actions: read
+2025-10-24T21:38:20.0464574Z Contents: read
+2025-10-24T21:38:20.0465101Z Metadata: read
+2025-10-24T21:38:20.0465582Z PullRequests: write
+2025-10-24T21:38:20.0466147Z ##[endgroup]
+2025-10-24T21:38:20.0468421Z Secret source: Actions
+2025-10-24T21:38:20.0469499Z Prepare workflow directory
+2025-10-24T21:38:20.0796448Z Prepare all required actions
+2025-10-24T21:38:20.0834427Z Getting action download info
+2025-10-24T21:38:20.4174034Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-10-24T21:38:20.6201379Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2025-10-24T21:38:20.9132379Z Download action repository 'actions/cache@v4' (SHA:0057852bfaa89a56745cba8c7296529d2fc39830)
+2025-10-24T21:38:21.5772162Z Complete job name: e2e
+2025-10-24T21:38:21.6567222Z ##[group]Run actions/checkout@v4
+2025-10-24T21:38:21.6568487Z with:
+2025-10-24T21:38:21.6568909Z   fetch-depth: 0
+2025-10-24T21:38:21.6569435Z   repository: enyst/OpenHands-Tab
+2025-10-24T21:38:21.6570359Z   token: ***
+2025-10-24T21:38:21.6570802Z   ssh-strict: true
+2025-10-24T21:38:21.6571259Z   ssh-user: git
+2025-10-24T21:38:21.6571749Z   persist-credentials: true
+2025-10-24T21:38:21.6572327Z   clean: true
+2025-10-24T21:38:21.6572820Z   sparse-checkout-cone-mode: true
+2025-10-24T21:38:21.6573493Z   fetch-tags: false
+2025-10-24T21:38:21.6573989Z   show-progress: true
+2025-10-24T21:38:21.6574492Z   lfs: false
+2025-10-24T21:38:21.6574935Z   submodules: false
+2025-10-24T21:38:21.6575435Z   set-safe-directory: true
+2025-10-24T21:38:21.6576208Z ##[endgroup]
+2025-10-24T21:38:21.7670811Z Syncing repository: enyst/OpenHands-Tab
+2025-10-24T21:38:21.7672870Z ##[group]Getting Git version info
+2025-10-24T21:38:21.7673973Z Working directory is '/home/runner/work/OpenHands-Tab/OpenHands-Tab'
+2025-10-24T21:38:21.7675871Z [command]/usr/bin/git version
+2025-10-24T21:38:21.7736186Z git version 2.51.1
+2025-10-24T21:38:21.7762783Z ##[endgroup]
+2025-10-24T21:38:21.7777412Z Temporarily overriding HOME='/home/runner/work/_temp/a5ebf77d-c34c-41f9-a229-5f47e3981578' before making global git config changes
+2025-10-24T21:38:21.7780002Z Adding repository directory to the temporary git global config as a safe directory
+2025-10-24T21:38:21.7782552Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/OpenHands-Tab/OpenHands-Tab
+2025-10-24T21:38:21.7817038Z Deleting the contents of '/home/runner/work/OpenHands-Tab/OpenHands-Tab'
+2025-10-24T21:38:21.7820664Z ##[group]Initializing the repository
+2025-10-24T21:38:21.7824694Z [command]/usr/bin/git init /home/runner/work/OpenHands-Tab/OpenHands-Tab
+2025-10-24T21:38:21.7932135Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-10-24T21:38:21.7933825Z hint: is subject to change. To configure the initial branch name to use in all
+2025-10-24T21:38:21.7935694Z hint: of your new repositories, which will suppress this warning, call:
+2025-10-24T21:38:21.7937182Z hint:
+2025-10-24T21:38:21.7937788Z hint: 	git config --global init.defaultBranch <name>
+2025-10-24T21:38:21.7939056Z hint:
+2025-10-24T21:38:21.7939825Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-10-24T21:38:21.7941567Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-10-24T21:38:21.7943016Z hint:
+2025-10-24T21:38:21.7943450Z hint: 	git branch -m <name>
+2025-10-24T21:38:21.7944001Z hint:
+2025-10-24T21:38:21.7944839Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-10-24T21:38:21.7946832Z Initialized empty Git repository in /home/runner/work/OpenHands-Tab/OpenHands-Tab/.git/
+2025-10-24T21:38:21.7949974Z [command]/usr/bin/git remote add origin https://github.com/enyst/OpenHands-Tab
+2025-10-24T21:38:21.7996820Z ##[endgroup]
+2025-10-24T21:38:21.7998705Z ##[group]Disabling automatic garbage collection
+2025-10-24T21:38:21.8001095Z [command]/usr/bin/git config --local gc.auto 0
+2025-10-24T21:38:21.8030383Z ##[endgroup]
+2025-10-24T21:38:21.8031819Z ##[group]Setting up auth
+2025-10-24T21:38:21.8038345Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-10-24T21:38:21.8071301Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-10-24T21:38:21.8419350Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-10-24T21:38:21.8451596Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-10-24T21:38:21.8672824Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-10-24T21:38:21.8715421Z ##[endgroup]
+2025-10-24T21:38:21.8717017Z ##[group]Fetching the repository
+2025-10-24T21:38:21.8728502Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/* +99650384d0f210bc7dbfbac2cbc043143df2bcb7:refs/remotes/pull/27/merge
+2025-10-24T21:38:22.4669825Z From https://github.com/enyst/OpenHands-Tab
+2025-10-24T21:38:22.4672007Z  * [new branch]      claude/fix-e2e-clean-011CUQeK4p3o2syVczi37YpL -> origin/claude/fix-e2e-clean-011CUQeK4p3o2syVczi37YpL
+2025-10-24T21:38:22.4674403Z  * [new branch]      claude/fix-e2e-extension-loading-011CUQeK4p3o2syVczi37YpL -> origin/claude/fix-e2e-extension-loading-011CUQeK4p3o2syVczi37YpL
+2025-10-24T21:38:22.4676948Z  * [new branch]      claude/fix-e2e-test-workflow-011CUQeK4p3o2syVczi37YpL -> origin/claude/fix-e2e-test-workflow-011CUQeK4p3o2syVczi37YpL
+2025-10-24T21:38:22.4679906Z  * [new branch]      claude/investigate-markdown-issue-011CUN75KhjRV5K2pF2B7Fp8 -> origin/claude/investigate-markdown-issue-011CUN75KhjRV5K2pF2B7Fp8
+2025-10-24T21:38:22.4681773Z  * [new branch]      develop                                  -> origin/develop
+2025-10-24T21:38:22.4683010Z  * [new branch]      openhands/settings-impl-take-two         -> origin/openhands/settings-impl-take-two
+2025-10-24T21:38:22.4684368Z  * [new branch]      pr/baseline-234aac5                      -> origin/pr/baseline-234aac5
+2025-10-24T21:38:22.4685490Z  * [new ref]         99650384d0f210bc7dbfbac2cbc043143df2bcb7 -> pull/27/merge
+2025-10-24T21:38:22.4719612Z ##[endgroup]
+2025-10-24T21:38:22.4720709Z ##[group]Determining the checkout info
+2025-10-24T21:38:22.4721707Z ##[endgroup]
+2025-10-24T21:38:22.4727335Z [command]/usr/bin/git sparse-checkout disable
+2025-10-24T21:38:22.4769192Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-10-24T21:38:22.4795448Z ##[group]Checking out the ref
+2025-10-24T21:38:22.4799472Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/27/merge
+2025-10-24T21:38:22.4978689Z Note: switching to 'refs/remotes/pull/27/merge'.
+2025-10-24T21:38:22.4979520Z 
+2025-10-24T21:38:22.4979984Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-10-24T21:38:22.4981190Z changes and commit them, and you can discard any commits you make in this
+2025-10-24T21:38:22.4982715Z state without impacting any branches by switching back to a branch.
+2025-10-24T21:38:22.4983999Z 
+2025-10-24T21:38:22.4984700Z If you want to create a new branch to retain commits you create, you may
+2025-10-24T21:38:22.4986429Z do so (now or later) by using -c with the switch command. Example:
+2025-10-24T21:38:22.4987467Z 
+2025-10-24T21:38:22.4988006Z   git switch -c <new-branch-name>
+2025-10-24T21:38:22.4988794Z 
+2025-10-24T21:38:22.4989108Z Or undo this operation with:
+2025-10-24T21:38:22.4989801Z 
+2025-10-24T21:38:22.4990064Z   git switch -
+2025-10-24T21:38:22.4990497Z 
+2025-10-24T21:38:22.4991334Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-10-24T21:38:22.4992691Z 
+2025-10-24T21:38:22.4994504Z HEAD is now at 9965038 Merge e5f84e97cc0e44b0efe5d387d484d35af3cd49e0 into 1df9d4b3fed5aa32793fe7576c08a317d0e05dea
+2025-10-24T21:38:22.4998387Z ##[endgroup]
+2025-10-24T21:38:22.5025945Z [command]/usr/bin/git log -1 --format=%H
+2025-10-24T21:38:22.5047622Z 99650384d0f210bc7dbfbac2cbc043143df2bcb7
+2025-10-24T21:38:22.5291745Z ##[group]Run actions/setup-node@v4
+2025-10-24T21:38:22.5292277Z with:
+2025-10-24T21:38:22.5292584Z   node-version: 22
+2025-10-24T21:38:22.5293077Z   check-latest: true
+2025-10-24T21:38:22.5293470Z   always-auth: false
+2025-10-24T21:38:22.5294050Z   token: ***
+2025-10-24T21:38:22.5294384Z ##[endgroup]
+2025-10-24T21:38:22.7031752Z Attempt to resolve the latest version from manifest...
+2025-10-24T21:38:23.2518533Z Resolved as '22.21.0'
+2025-10-24T21:38:23.2867482Z Found in cache @ /opt/hostedtoolcache/node/22.21.0/x64
+2025-10-24T21:38:23.2874830Z ##[group]Environment details
+2025-10-24T21:38:30.3121708Z node: v22.21.0
+2025-10-24T21:38:30.3122084Z npm: 10.9.4
+2025-10-24T21:38:30.3122366Z yarn: 1.22.22
+2025-10-24T21:38:30.3123195Z ##[endgroup]
+2025-10-24T21:38:30.3329029Z ##[group]Run sudo apt-get update -y
+2025-10-24T21:38:30.3329425Z [36;1msudo apt-get update -y[0m
+2025-10-24T21:38:30.3498716Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:38:30.3499008Z ##[endgroup]
+2025-10-24T21:38:30.8395124Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2025-10-24T21:38:30.8951108Z Hit:2 http://azure.archive.ubuntu.com/ubuntu jammy InRelease
+2025-10-24T21:38:30.8957369Z Hit:6 https://packages.microsoft.com/repos/azure-cli jammy InRelease
+2025-10-24T21:38:30.8965849Z Get:7 https://packages.microsoft.com/ubuntu/22.04/prod jammy InRelease [3632 B]
+2025-10-24T21:38:30.8978155Z Get:3 http://azure.archive.ubuntu.com/ubuntu jammy-updates InRelease [128 kB]
+2025-10-24T21:38:30.9022280Z Get:4 http://azure.archive.ubuntu.com/ubuntu jammy-backports InRelease [127 kB]
+2025-10-24T21:38:30.9046075Z Get:5 http://azure.archive.ubuntu.com/ubuntu jammy-security InRelease [129 kB]
+2025-10-24T21:38:31.3554409Z Get:8 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main armhf Packages [21.7 kB]
+2025-10-24T21:38:31.3685088Z Get:9 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main arm64 Packages [91.7 kB]
+2025-10-24T21:38:31.3747412Z Get:10 https://packages.microsoft.com/ubuntu/22.04/prod jammy/main amd64 Packages [264 kB]
+2025-10-24T21:38:31.4338269Z Get:11 http://azure.archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages [3027 kB]
+2025-10-24T21:38:31.4481629Z Get:12 http://azure.archive.ubuntu.com/ubuntu jammy-updates/main Translation-en [469 kB]
+2025-10-24T21:38:31.4516437Z Get:13 http://azure.archive.ubuntu.com/ubuntu jammy-updates/main amd64 c-n-f Metadata [19.0 kB]
+2025-10-24T21:38:31.4527367Z Get:14 http://azure.archive.ubuntu.com/ubuntu jammy-updates/restricted amd64 Packages [4755 kB]
+2025-10-24T21:38:31.4740246Z Get:15 http://azure.archive.ubuntu.com/ubuntu jammy-updates/restricted Translation-en [882 kB]
+2025-10-24T21:38:31.4801034Z Get:16 http://azure.archive.ubuntu.com/ubuntu jammy-updates/universe amd64 Packages [1242 kB]
+2025-10-24T21:38:31.4878412Z Get:17 http://azure.archive.ubuntu.com/ubuntu jammy-updates/universe amd64 c-n-f Metadata [29.8 kB]
+2025-10-24T21:38:31.6134003Z Get:18 http://azure.archive.ubuntu.com/ubuntu jammy-security/main amd64 Packages [2771 kB]
+2025-10-24T21:38:31.6295981Z Get:19 http://azure.archive.ubuntu.com/ubuntu jammy-security/main Translation-en [403 kB]
+2025-10-24T21:38:31.6323232Z Get:20 http://azure.archive.ubuntu.com/ubuntu jammy-security/main amd64 c-n-f Metadata [13.9 kB]
+2025-10-24T21:38:31.6750137Z Get:21 http://azure.archive.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [4613 kB]
+2025-10-24T21:38:31.6954460Z Get:22 http://azure.archive.ubuntu.com/ubuntu jammy-security/restricted Translation-en [855 kB]
+2025-10-24T21:38:31.7001454Z Get:23 http://azure.archive.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [1007 kB]
+2025-10-24T21:38:31.7050524Z Get:24 http://azure.archive.ubuntu.com/ubuntu jammy-security/universe amd64 c-n-f Metadata [22.3 kB]
+2025-10-24T21:38:43.9130291Z Fetched 20.9 MB in 3s (7722 kB/s)
+2025-10-24T21:38:44.8465626Z Reading package lists...
+2025-10-24T21:38:44.8615806Z ##[group]Run sudo apt-get -o Acquire::Retries=3 update -y
+2025-10-24T21:38:44.8616222Z [36;1msudo apt-get -o Acquire::Retries=3 update -y[0m
+2025-10-24T21:38:44.8616631Z [36;1msudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \[0m
+2025-10-24T21:38:44.8617121Z [36;1m  libgtk-3-0 libnss3 libnspr4 libasound2 libxss1 libxkbfile1 libsecret-1-0 \[0m
+2025-10-24T21:38:44.8617648Z [36;1m  libx11-6 libx11-xcb1 libxshmfence1 libgbm1 libglib2.0-0 xauth xvfb ca-certificates || \[0m
+2025-10-24T21:38:44.8618456Z [36;1m(sudo apt-get update -y && sudo apt-get install -y --no-install-recommends \[0m
+2025-10-24T21:38:44.8618937Z [36;1m  libgtk-3-0 libnss3 libnspr4 libasound2 libxss1 libxkbfile1 libsecret-1-0 \[0m
+2025-10-24T21:38:44.8619436Z [36;1m  libx11-6 libx11-xcb1 libxshmfence1 libgbm1 libglib2.0-0 xauth xvfb ca-certificates)[0m
+2025-10-24T21:38:44.8653418Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:38:44.8653640Z env:
+2025-10-24T21:38:44.8653843Z   DEBIAN_FRONTEND: noninteractive
+2025-10-24T21:38:44.8654061Z ##[endgroup]
+2025-10-24T21:38:44.9566135Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2025-10-24T21:38:45.0069559Z Hit:6 https://packages.microsoft.com/repos/azure-cli jammy InRelease
+2025-10-24T21:38:45.0099835Z Hit:7 https://packages.microsoft.com/ubuntu/22.04/prod jammy InRelease
+2025-10-24T21:38:45.0850975Z Hit:2 http://azure.archive.ubuntu.com/ubuntu jammy InRelease
+2025-10-24T21:38:45.0860586Z Hit:3 http://azure.archive.ubuntu.com/ubuntu jammy-updates InRelease
+2025-10-24T21:38:45.0871111Z Hit:4 http://azure.archive.ubuntu.com/ubuntu jammy-backports InRelease
+2025-10-24T21:38:45.0879074Z Hit:5 http://azure.archive.ubuntu.com/ubuntu jammy-security InRelease
+2025-10-24T21:38:46.5183353Z Reading package lists...
+2025-10-24T21:38:46.5770272Z Reading package lists...
+2025-10-24T21:38:46.7712869Z Building dependency tree...
+2025-10-24T21:38:46.7724595Z Reading state information...
+2025-10-24T21:38:46.9875147Z libasound2 is already the newest version (1.2.6.1-1ubuntu1).
+2025-10-24T21:38:46.9876278Z libasound2 set to manually installed.
+2025-10-24T21:38:46.9877149Z libsecret-1-0 is already the newest version (0.20.5-2).
+2025-10-24T21:38:46.9878228Z libsecret-1-0 set to manually installed.
+2025-10-24T21:38:46.9879138Z libxkbfile1 is already the newest version (1:1.1.0-1build3).
+2025-10-24T21:38:46.9879963Z libxkbfile1 set to manually installed.
+2025-10-24T21:38:46.9880784Z libxshmfence1 is already the newest version (1.3-1build4).
+2025-10-24T21:38:46.9881620Z libxshmfence1 set to manually installed.
+2025-10-24T21:38:46.9882350Z libxss1 is already the newest version (1:1.2.3-1build2).
+2025-10-24T21:38:46.9882886Z xauth is already the newest version (1:1.1-1build2).
+2025-10-24T21:38:46.9883338Z xauth set to manually installed.
+2025-10-24T21:38:46.9883986Z ca-certificates is already the newest version (20240203~22.04.1).
+2025-10-24T21:38:46.9885276Z libgbm1 is already the newest version (23.2.1-1ubuntu3.1~22.04.3).
+2025-10-24T21:38:46.9885923Z libgbm1 set to manually installed.
+2025-10-24T21:38:46.9886411Z libglib2.0-0 is already the newest version (2.72.4-0ubuntu2.6).
+2025-10-24T21:38:46.9886856Z libglib2.0-0 set to manually installed.
+2025-10-24T21:38:46.9887332Z libgtk-3-0 is already the newest version (3.24.33-1ubuntu2.2).
+2025-10-24T21:38:46.9888085Z libnspr4 is already the newest version (2:4.35-0ubuntu0.22.04.1).
+2025-10-24T21:38:46.9888656Z libnss3 is already the newest version (2:3.98-0ubuntu0.22.04.2).
+2025-10-24T21:38:46.9889182Z libx11-6 is already the newest version (2:1.7.5-1ubuntu0.3).
+2025-10-24T21:38:46.9889610Z libx11-6 set to manually installed.
+2025-10-24T21:38:46.9890072Z libx11-xcb1 is already the newest version (2:1.7.5-1ubuntu0.3).
+2025-10-24T21:38:46.9890511Z libx11-xcb1 set to manually installed.
+2025-10-24T21:38:46.9890985Z xvfb is already the newest version (2:21.1.4-2ubuntu1.7~22.04.15).
+2025-10-24T21:38:46.9891523Z 0 upgraded, 0 newly installed, 0 to remove and 23 not upgraded.
+2025-10-24T21:38:46.9920190Z ##[group]Run sudo apt-get install -y --no-install-recommends \
+2025-10-24T21:38:46.9920616Z [36;1msudo apt-get install -y --no-install-recommends \[0m
+2025-10-24T21:38:46.9921102Z [36;1m  libxrender1 libgdk-pixbuf2.0-0 libpango1.0-0 libxinerama1 libxcursor1 libxkbcommon-x11-0 \[0m
+2025-10-24T21:38:46.9921591Z [36;1m  libwayland-client0 libwayland-cursor0 libcairo2 || true[0m
+2025-10-24T21:38:46.9955150Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:38:46.9955359Z env:
+2025-10-24T21:38:46.9955523Z   DEBIAN_FRONTEND: noninteractive
+2025-10-24T21:38:46.9955742Z ##[endgroup]
+2025-10-24T21:38:47.0493596Z Reading package lists...
+2025-10-24T21:38:47.2607485Z Building dependency tree...
+2025-10-24T21:38:47.2618662Z Reading state information...
+2025-10-24T21:38:47.4282947Z libcairo2 is already the newest version (1.16.0-5ubuntu2).
+2025-10-24T21:38:47.4283743Z libcairo2 set to manually installed.
+2025-10-24T21:38:47.4284366Z libxcursor1 is already the newest version (1:1.2.0-2build4).
+2025-10-24T21:38:47.4284957Z libxcursor1 set to manually installed.
+2025-10-24T21:38:47.4285495Z libxinerama1 is already the newest version (2:1.1.4-3).
+2025-10-24T21:38:47.4286005Z libxinerama1 set to manually installed.
+2025-10-24T21:38:47.4286568Z libxrender1 is already the newest version (1:0.9.10-1build4).
+2025-10-24T21:38:47.4287388Z libxrender1 set to manually installed.
+2025-10-24T21:38:47.4288572Z libwayland-client0 is already the newest version (1.20.0-1ubuntu0.1).
+2025-10-24T21:38:47.4289210Z libwayland-client0 set to manually installed.
+2025-10-24T21:38:47.4289842Z libwayland-cursor0 is already the newest version (1.20.0-1ubuntu0.1).
+2025-10-24T21:38:47.4290441Z libwayland-cursor0 set to manually installed.
+2025-10-24T21:38:47.4290974Z The following additional packages will be installed:
+2025-10-24T21:38:47.4291541Z   libgdk-pixbuf-xlib-2.0-0 libpangoxft-1.0-0 libxcb-xkb1
+2025-10-24T21:38:47.4292701Z Suggested packages:
+2025-10-24T21:38:47.4293139Z   libpangox-1.0-0
+2025-10-24T21:38:47.4617093Z The following NEW packages will be installed:
+2025-10-24T21:38:47.4618701Z   libgdk-pixbuf-xlib-2.0-0 libgdk-pixbuf2.0-0 libpango1.0-0 libpangoxft-1.0-0
+2025-10-24T21:38:47.4622301Z   libxcb-xkb1 libxkbcommon-x11-0
+2025-10-24T21:38:47.4776749Z 0 upgraded, 6 newly installed, 0 to remove and 23 not upgraded.
+2025-10-24T21:38:47.4777379Z Need to get 140 kB of archives.
+2025-10-24T21:38:47.4778225Z After this operation, 569 kB of additional disk space will be used.
+2025-10-24T21:38:47.4778992Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2025-10-24T21:38:47.5449272Z Get:2 http://azure.archive.ubuntu.com/ubuntu jammy/main amd64 libgdk-pixbuf-xlib-2.0-0 amd64 2.40.2-2build4 [42.6 kB]
+2025-10-24T21:38:47.5959148Z Get:3 http://azure.archive.ubuntu.com/ubuntu jammy/universe amd64 libgdk-pixbuf2.0-0 amd64 2.40.2-2build4 [2454 B]
+2025-10-24T21:38:47.6415079Z Get:4 http://azure.archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpangoxft-1.0-0 amd64 1.50.6+ds-2ubuntu1 [31.0 kB]
+2025-10-24T21:38:47.6879671Z Get:5 http://azure.archive.ubuntu.com/ubuntu jammy-updates/universe amd64 libpango1.0-0 amd64 1.50.6+ds-2ubuntu1 [16.5 kB]
+2025-10-24T21:38:47.7290571Z Get:6 http://azure.archive.ubuntu.com/ubuntu jammy/main amd64 libxcb-xkb1 amd64 1.14-3ubuntu3 [32.8 kB]
+2025-10-24T21:38:47.7685099Z Get:7 http://azure.archive.ubuntu.com/ubuntu jammy/main amd64 libxkbcommon-x11-0 amd64 1.4.0-1 [14.4 kB]
+2025-10-24T21:38:48.1330859Z Fetched 140 kB in 0s (463 kB/s)
+2025-10-24T21:38:48.2178478Z Selecting previously unselected package libgdk-pixbuf-xlib-2.0-0:amd64.
+2025-10-24T21:38:48.4248788Z (Reading database ... 
+2025-10-24T21:38:48.4250548Z (Reading database ... 5%
+2025-10-24T21:38:48.4250975Z (Reading database ... 10%
+2025-10-24T21:38:48.4251380Z (Reading database ... 15%
+2025-10-24T21:38:48.4251759Z (Reading database ... 20%
+2025-10-24T21:38:48.4252043Z (Reading database ... 25%
+2025-10-24T21:38:48.4252278Z (Reading database ... 30%
+2025-10-24T21:38:48.4252522Z (Reading database ... 35%
+2025-10-24T21:38:48.4253085Z (Reading database ... 40%
+2025-10-24T21:38:48.4253318Z (Reading database ... 45%
+2025-10-24T21:38:48.4253528Z (Reading database ... 50%
+2025-10-24T21:38:49.4726583Z (Reading database ... 55%
+2025-10-24T21:38:50.4302321Z (Reading database ... 60%
+2025-10-24T21:38:51.3835180Z (Reading database ... 65%
+2025-10-24T21:38:52.4072631Z (Reading database ... 70%
+2025-10-24T21:38:53.6525890Z (Reading database ... 75%
+2025-10-24T21:38:55.1611348Z (Reading database ... 80%
+2025-10-24T21:38:56.7944792Z (Reading database ... 85%
+2025-10-24T21:38:58.2408087Z (Reading database ... 90%
+2025-10-24T21:38:59.6706324Z (Reading database ... 95%
+2025-10-24T21:38:59.6706847Z (Reading database ... 100%
+2025-10-24T21:38:59.6707630Z (Reading database ... 257559 files and directories currently installed.)
+2025-10-24T21:38:59.6763120Z Preparing to unpack .../0-libgdk-pixbuf-xlib-2.0-0_2.40.2-2build4_amd64.deb ...
+2025-10-24T21:38:59.6830619Z Unpacking libgdk-pixbuf-xlib-2.0-0:amd64 (2.40.2-2build4) ...
+2025-10-24T21:38:59.7094110Z Selecting previously unselected package libgdk-pixbuf2.0-0:amd64.
+2025-10-24T21:38:59.7259249Z Preparing to unpack .../1-libgdk-pixbuf2.0-0_2.40.2-2build4_amd64.deb ...
+2025-10-24T21:38:59.7271878Z Unpacking libgdk-pixbuf2.0-0:amd64 (2.40.2-2build4) ...
+2025-10-24T21:38:59.7575479Z Selecting previously unselected package libpangoxft-1.0-0:amd64.
+2025-10-24T21:38:59.7730892Z Preparing to unpack .../2-libpangoxft-1.0-0_1.50.6+ds-2ubuntu1_amd64.deb ...
+2025-10-24T21:38:59.7767011Z Unpacking libpangoxft-1.0-0:amd64 (1.50.6+ds-2ubuntu1) ...
+2025-10-24T21:38:59.8072745Z Selecting previously unselected package libpango1.0-0:amd64.
+2025-10-24T21:38:59.8229097Z Preparing to unpack .../3-libpango1.0-0_1.50.6+ds-2ubuntu1_amd64.deb ...
+2025-10-24T21:38:59.8239609Z Unpacking libpango1.0-0:amd64 (1.50.6+ds-2ubuntu1) ...
+2025-10-24T21:38:59.8650301Z Selecting previously unselected package libxcb-xkb1:amd64.
+2025-10-24T21:38:59.8808382Z Preparing to unpack .../4-libxcb-xkb1_1.14-3ubuntu3_amd64.deb ...
+2025-10-24T21:38:59.8818765Z Unpacking libxcb-xkb1:amd64 (1.14-3ubuntu3) ...
+2025-10-24T21:38:59.9101723Z Selecting previously unselected package libxkbcommon-x11-0:amd64.
+2025-10-24T21:38:59.9260034Z Preparing to unpack .../5-libxkbcommon-x11-0_1.4.0-1_amd64.deb ...
+2025-10-24T21:38:59.9274065Z Unpacking libxkbcommon-x11-0:amd64 (1.4.0-1) ...
+2025-10-24T21:38:59.9732560Z Setting up libgdk-pixbuf-xlib-2.0-0:amd64 (2.40.2-2build4) ...
+2025-10-24T21:38:59.9761345Z Setting up libpangoxft-1.0-0:amd64 (1.50.6+ds-2ubuntu1) ...
+2025-10-24T21:38:59.9794053Z Setting up libxcb-xkb1:amd64 (1.14-3ubuntu3) ...
+2025-10-24T21:38:59.9822359Z Setting up libgdk-pixbuf2.0-0:amd64 (2.40.2-2build4) ...
+2025-10-24T21:38:59.9850934Z Setting up libxkbcommon-x11-0:amd64 (1.4.0-1) ...
+2025-10-24T21:38:59.9878306Z Setting up libpango1.0-0:amd64 (1.50.6+ds-2ubuntu1) ...
+2025-10-24T21:38:59.9912968Z Processing triggers for libc-bin (2.35-0ubuntu3.11) ...
+2025-10-24T21:39:13.0208150Z 
+2025-10-24T21:39:13.0208839Z Running kernel seems to be up-to-date.
+2025-10-24T21:39:13.0209231Z 
+2025-10-24T21:39:13.0209468Z No services need to be restarted.
+2025-10-24T21:39:13.0209784Z 
+2025-10-24T21:39:13.0210007Z No containers need to be restarted.
+2025-10-24T21:39:13.0210267Z 
+2025-10-24T21:39:13.0210539Z No user sessions are running outdated binaries.
+2025-10-24T21:39:13.0210812Z 
+2025-10-24T21:39:13.0211107Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2025-10-24T21:39:14.4097396Z ##[group]Run # Use week-based cache key to ensure we get new VS Code versions regularly
+2025-10-24T21:39:14.4098179Z [36;1m# Use week-based cache key to ensure we get new VS Code versions regularly[0m
+2025-10-24T21:39:14.4098612Z [36;1m# while still benefiting from caching within the same week[0m
+2025-10-24T21:39:14.4098982Z [36;1mecho "version=stable-$(date +%Y-W%V)" >> $GITHUB_OUTPUT[0m
+2025-10-24T21:39:14.4133424Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:39:14.4133658Z ##[endgroup]
+2025-10-24T21:39:14.4292157Z ##[group]Run actions/cache@v4
+2025-10-24T21:39:14.4292400Z with:
+2025-10-24T21:39:14.4292571Z   path: ~/.vscode-test
+2025-10-24T21:39:14.4292779Z   key: vscode-stable-2025-W43-Linux
+2025-10-24T21:39:14.4293022Z   restore-keys: vscode-stable-
+
+2025-10-24T21:39:14.4293243Z   enableCrossOsArchive: false
+2025-10-24T21:39:14.4293458Z   fail-on-cache-miss: false
+2025-10-24T21:39:14.4293649Z   lookup-only: false
+2025-10-24T21:39:14.4293825Z   save-always: false
+2025-10-24T21:39:14.4293992Z ##[endgroup]
+2025-10-24T21:39:14.7554427Z Cache not found for input keys: vscode-stable-2025-W43-Linux, vscode-stable-
+2025-10-24T21:39:14.7624407Z ##[group]Run npm ci || npm install
+2025-10-24T21:39:14.7624687Z [36;1mnpm ci || npm install[0m
+2025-10-24T21:39:14.7658737Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:39:14.7658956Z ##[endgroup]
+2025-10-24T21:39:24.1691334Z npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+2025-10-24T21:39:26.1075519Z npm warn deprecated glob@8.1.0: Glob versions prior to v9 are no longer supported
+2025-10-24T21:39:29.7483040Z 
+2025-10-24T21:39:29.7483719Z added 742 packages, and audited 743 packages in 15s
+2025-10-24T21:39:29.7484148Z 
+2025-10-24T21:39:29.7484400Z 208 packages are looking for funding
+2025-10-24T21:39:29.7484823Z   run `npm fund` for details
+2025-10-24T21:39:29.7578844Z 
+2025-10-24T21:39:29.7579432Z 2 moderate severity vulnerabilities
+2025-10-24T21:39:29.7580271Z 
+2025-10-24T21:39:29.7580671Z To address issues that do not require attention, run:
+2025-10-24T21:39:29.7581145Z   npm audit fix
+2025-10-24T21:39:29.7581332Z 
+2025-10-24T21:39:29.7581667Z To address all issues (including breaking changes), run:
+2025-10-24T21:39:29.7582163Z   npm audit fix --force
+2025-10-24T21:39:29.7582368Z 
+2025-10-24T21:39:29.7582533Z Run `npm audit` for details.
+2025-10-24T21:39:29.8249995Z ##[group]Run npm run compile
+2025-10-24T21:39:29.8250385Z [36;1mnpm run compile[0m
+2025-10-24T21:39:29.8294407Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:39:29.8294758Z ##[endgroup]
+2025-10-24T21:39:29.9351819Z 
+2025-10-24T21:39:29.9353051Z > openhands-tab@0.0.3 compile
+2025-10-24T21:39:29.9354255Z > tsc -p . && npm run build:tailwind && npm run build:webview
+2025-10-24T21:39:29.9355464Z 
+2025-10-24T21:39:31.5147759Z 
+2025-10-24T21:39:31.5148852Z > openhands-tab@0.0.3 build:tailwind
+2025-10-24T21:39:31.5149807Z > tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --minify
+2025-10-24T21:39:31.5150356Z 
+2025-10-24T21:39:31.8424320Z [3m[1m[34m≈[39m[22m[23m tailwindcss [34mv4.1.13[39m
+2025-10-24T21:39:31.8424825Z 
+2025-10-24T21:39:31.9173534Z Done in [34m74ms[39m
+2025-10-24T21:39:32.0227459Z 
+2025-10-24T21:39:32.0228335Z > openhands-tab@0.0.3 build:webview
+2025-10-24T21:39:32.0228922Z > node esbuild.webview.mjs
+2025-10-24T21:39:32.6864202Z 
+2025-10-24T21:39:32.6901398Z ##[group]Run xvfb-run -a --server-args="-screen 0 1920x1080x24" npm run e2e
+2025-10-24T21:39:32.6902117Z [36;1mxvfb-run -a --server-args="-screen 0 1920x1080x24" npm run e2e[0m
+2025-10-24T21:39:32.6945138Z shell: /usr/bin/bash -e {0}
+2025-10-24T21:39:32.6945473Z env:
+2025-10-24T21:39:32.6945731Z   ELECTRON_DISABLE_SANDBOX: 1
+2025-10-24T21:39:32.6946073Z   ELECTRON_ENABLE_LOGGING: 1
+2025-10-24T21:39:32.6946388Z   ELECTRON_IS_DEV: 1
+2025-10-24T21:39:32.6946692Z   QTWEBENGINE_DISABLE_SANDBOX: 1
+2025-10-24T21:39:32.6947024Z   E2E_WITH_SERVER: 0
+2025-10-24T21:39:32.6947299Z ##[endgroup]
+2025-10-24T21:39:39.3419929Z 
+2025-10-24T21:39:39.3420383Z > openhands-tab@0.0.3 e2e
+2025-10-24T21:39:39.3421561Z > npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js
+2025-10-24T21:39:39.3422293Z 
+2025-10-24T21:39:39.4355950Z 
+2025-10-24T21:39:39.4356438Z > openhands-tab@0.0.3 compile
+2025-10-24T21:39:39.4357306Z > tsc -p . && npm run build:tailwind && npm run build:webview
+2025-10-24T21:39:39.4357744Z 
+2025-10-24T21:39:40.7451702Z 
+2025-10-24T21:39:40.7452267Z > openhands-tab@0.0.3 build:tailwind
+2025-10-24T21:39:40.7452955Z > tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --minify
+2025-10-24T21:39:40.7453340Z 
+2025-10-24T21:39:40.9079401Z [3m[1m[34m≈[39m[22m[23m tailwindcss [34mv4.1.13[39m
+2025-10-24T21:39:40.9079909Z 
+2025-10-24T21:39:40.9736769Z Done in [34m65ms[39m
+2025-10-24T21:39:41.0776797Z 
+2025-10-24T21:39:41.0777314Z > openhands-tab@0.0.3 build:webview
+2025-10-24T21:39:41.0777759Z > node esbuild.webview.mjs
+2025-10-24T21:39:41.0778176Z 
+2025-10-24T21:39:43.5888648Z 
+2025-10-24T21:39:43.5893039Z 
+2025-10-24T21:39:43.5900149Z   OpenHands-Tab Agent-SDK Events E2E
+2025-10-24T21:39:43.5908662Z Attempting to download VS Code (attempt 1/3)...
+2025-10-24T21:39:43.6196084Z - Resolving version...
+2025-10-24T21:39:43.8245923Z ✔ Validated version: 1.105.1
+2025-10-24T21:39:43.8275225Z - Found at https://update.code.visualstudio.com/1.105.1/linux-x64/stable?released=true
+2025-10-24T21:39:43.9293974Z ✔ Found at https://update.code.visualstudio.com/1.105.1/linux-x64/stable?released=true
+2025-10-24T21:39:43.9296917Z - Downloading (153.86 MB)
+2025-10-24T21:39:47.2242115Z ✔ Downloaded VS Code into /home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1
+2025-10-24T21:39:47.2243580Z Successfully downloaded VS Code to: /home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/code
+2025-10-24T21:39:48.2881327Z [3530:1024/213948.287388:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:48.2883530Z [3530:1024/213948.287438:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:48.2885517Z [3530:1024/213948.287449:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:48.2887380Z [3530:1024/213948.287456:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:48.2889653Z [3530:1024/213948.287466:ERROR:dbus/object_proxy.cc:590] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+2025-10-24T21:39:48.3152026Z [3555:1024/213948.314879:WARNING:ui/gfx/linux/gpu_memory_buffer_support_x11.cc:49] dri3 extension not supported.
+2025-10-24T21:39:48.4635239Z Unable to revert mtime: /usr/share/fonts
+2025-10-24T21:39:48.4737692Z Unable to revert mtime: /usr/share/fonts/truetype
+2025-10-24T21:39:48.4815459Z Unable to revert mtime: /usr/share/fonts/truetype/dejavu
+2025-10-24T21:39:48.9915791Z Unable to revert mtime: /usr/share/fonts/truetype/lato
+2025-10-24T21:39:49.8057663Z Unable to revert mtime: /usr/share/fonts/truetype/liberation
+2025-10-24T21:39:50.0861831Z Unable to revert mtime: /usr/share/fonts/truetype/noto
+2025-10-24T21:39:50.1507794Z Warning: 'disable-software-rasterizer' is not in the list of known options, but still passed to Electron/Chromium.
+2025-10-24T21:39:50.3091766Z [90m[main 2025-10-24T21:39:50.308Z][0m update#setState disabled
+2025-10-24T21:39:50.3093409Z [90m[main 2025-10-24T21:39:50.308Z][0m update#ctor - updates are disabled by the environment
+2025-10-24T21:39:50.3099067Z [3530:1024/213950.309647:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:50.3390129Z Unable to revert mtime: /usr/share/fonts
+2025-10-24T21:39:50.3434607Z Unable to revert mtime: /usr/share/fonts/truetype
+2025-10-24T21:39:50.3443949Z Unable to revert mtime: /usr/share/fonts/truetype/dejavu
+2025-10-24T21:39:50.3791547Z Unable to revert mtime: /usr/share/fonts/truetype/lato
+2025-10-24T21:39:50.4529464Z Unable to revert mtime: /usr/share/fonts/truetype/liberation
+2025-10-24T21:39:50.4560688Z Unable to revert mtime: /usr/share/fonts/truetype/noto
+2025-10-24T21:39:51.3182044Z workbench#open()
+2025-10-24T21:39:51.6431132Z ChatSessionStore: Migrating 0 chat sessions from storage service to file system
+2025-10-24T21:39:51.8205881Z Started local extension host with pid 3743.
+2025-10-24T21:39:51.8206546Z IExtensionHostStarter.start() took 46 ms.
+2025-10-24T21:39:51.9296187Z Started initializing default profile extensions in extensions installation folder. file:///home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/extensions
+2025-10-24T21:39:52.2344850Z Completed initializing default profile extensions in extensions installation folder. file:///home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/extensions
+2025-10-24T21:39:52.3566982Z Unable to read file '/home/runner/work/OpenHands-Tab/OpenHands-Tab/tests/e2e/package.json' (Error: Unable to resolve nonexistent file '/home/runner/work/OpenHands-Tab/OpenHands-Tab/tests/e2e/package.json')
+2025-10-24T21:39:52.3823648Z [3530:1024/213952.377468:INFO:CONSOLE:576] "Overwriting extension <<copilot-instructions.md>> to now point to mime <<text/x-instructions>>", source: vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js (576)
+2025-10-24T21:39:52.5832680Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:52.5956347Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:52.6112227Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:52.8699404Z MCP Registry configured: https://api.mcp.github.com/2025-09-15
+2025-10-24T21:39:53.1168270Z Settings Sync: Account status changed from uninitialized to unavailable
+2025-10-24T21:39:53.3203000Z Error: command 'openhands.openTab' not found
+2025-10-24T21:39:53.3205287Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:39:53.3207701Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)
+2025-10-24T21:39:53.3209677Z Extension host test runner error Error: command 'openhands.openTab' not found
+2025-10-24T21:39:53.3211340Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:39:53.3213712Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)
+2025-10-24T21:39:53.3215469Z [3530:1024/213953.320745:INFO:CONSOLE:3820] "Error: command 'openhands.openTab' not found
+2025-10-24T21:39:53.3217161Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:39:53.3221058Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)", source: vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js (3820)
+2025-10-24T21:39:53.3258220Z Asking native host service to exit with code 1.
+2025-10-24T21:39:53.3383704Z [90m[main 2025-10-24T21:39:53.337Z][0m Extension host with pid 3743 exited with code: 0, signal: unknown.
+2025-10-24T21:39:53.6199060Z Exit code:   1
+2025-10-24T21:39:53.6199818Z     1) renders all agent-sdk event types in webview
+2025-10-24T21:39:53.6200307Z 
+2025-10-24T21:39:53.6201066Z   OpenHands-Tab diagnostics
+2025-10-24T21:39:53.6204785Z Attempting to download VS Code (attempt 1/3)...
+2025-10-24T21:39:53.6208533Z - Resolving version...
+2025-10-24T21:39:53.6209646Z ✔ Validated version: 1.105.1
+2025-10-24T21:39:53.6215062Z ✔ Found existing install in /home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1
+2025-10-24T21:39:53.6216624Z Successfully downloaded VS Code to: /home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/code
+2025-10-24T21:39:53.9580803Z [3912:1024/213953.957518:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:53.9583235Z [3912:1024/213953.957576:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:53.9585303Z [3912:1024/213953.957586:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:53.9586740Z [3912:1024/213953.957593:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:53.9588188Z [3912:1024/213953.957608:ERROR:dbus/object_proxy.cc:590] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+2025-10-24T21:39:53.9628003Z Unable to revert mtime: /usr/share/fonts
+2025-10-24T21:39:53.9631621Z Unable to revert mtime: /usr/share/fonts/truetype
+2025-10-24T21:39:53.9635394Z Unable to revert mtime: /usr/share/fonts/truetype/dejavu
+2025-10-24T21:39:53.9696856Z Unable to revert mtime: /usr/share/fonts/truetype/lato
+2025-10-24T21:39:53.9732222Z Unable to revert mtime: /usr/share/fonts/truetype/liberation
+2025-10-24T21:39:53.9915646Z [3943:1024/213953.990291:WARNING:ui/gfx/linux/gpu_memory_buffer_support_x11.cc:49] dri3 extension not supported.
+2025-10-24T21:39:54.0182225Z Warning: 'disable-software-rasterizer' is not in the list of known options, but still passed to Electron/Chromium.
+2025-10-24T21:39:54.1057072Z Unable to revert mtime: /usr/share/fonts
+2025-10-24T21:39:54.1060289Z Unable to revert mtime: /usr/share/fonts/truetype
+2025-10-24T21:39:54.1063571Z Unable to revert mtime: /usr/share/fonts/truetype/dejavu
+2025-10-24T21:39:54.1122343Z Unable to revert mtime: /usr/share/fonts/truetype/lato
+2025-10-24T21:39:54.1158334Z Unable to revert mtime: /usr/share/fonts/truetype/liberation
+2025-10-24T21:39:54.1574120Z [90m[main 2025-10-24T21:39:54.156Z][0m update#setState disabled
+2025-10-24T21:39:54.1575791Z [90m[main 2025-10-24T21:39:54.157Z][0m update#ctor - updates are disabled by the environment
+2025-10-24T21:39:54.1584880Z [3912:1024/213954.157983:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:55.0239034Z workbench#open()
+2025-10-24T21:39:55.3252429Z ChatSessionStore: Migrating 0 chat sessions from storage service to file system
+2025-10-24T21:39:55.4761222Z Started local extension host with pid 4131.
+2025-10-24T21:39:55.4763057Z IExtensionHostStarter.start() took 29 ms.
+2025-10-24T21:39:55.8659612Z Unable to read file '/home/runner/work/OpenHands-Tab/OpenHands-Tab/tests/e2e/package.json' (Error: Unable to resolve nonexistent file '/home/runner/work/OpenHands-Tab/OpenHands-Tab/tests/e2e/package.json')
+2025-10-24T21:39:55.8833775Z [3912:1024/213955.882865:INFO:CONSOLE:576] "Overwriting extension <<copilot-instructions.md>> to now point to mime <<text/x-instructions>>", source: vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js (576)
+2025-10-24T21:39:56.2486138Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:56.2641917Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:56.2777155Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:56.4235119Z MCP Registry configured: https://api.mcp.github.com/2025-09-15
+2025-10-24T21:39:56.6098693Z Settings Sync: Account status changed from uninitialized to unavailable
+2025-10-24T21:39:57.0329693Z Error: command 'openhands.openTab' not found
+2025-10-24T21:39:57.0331307Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:39:57.0334056Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)
+2025-10-24T21:39:57.0336030Z Extension host test runner error Error: command 'openhands.openTab' not found
+2025-10-24T21:39:57.0337800Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:39:57.0340402Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)
+2025-10-24T21:39:57.0341919Z [3912:1024/213957.031826:INFO:CONSOLE:3820] "Error: command 'openhands.openTab' not found
+2025-10-24T21:39:57.0343434Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:39:57.0346759Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)", source: vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js (3820)
+2025-10-24T21:39:57.0359713Z Asking native host service to exit with code 1.
+2025-10-24T21:39:57.0515603Z [90m[main 2025-10-24T21:39:57.051Z][0m Extension host with pid 4131 exited with code: 0, signal: unknown.
+2025-10-24T21:39:57.1073410Z Exit code:   1
+2025-10-24T21:39:57.1085733Z     2) returns basic state after opening tab
+2025-10-24T21:39:57.1094579Z 
+2025-10-24T21:39:57.1094847Z   OpenHands-Tab E2E
+2025-10-24T21:39:57.1095370Z Attempting to download VS Code (attempt 1/3)...
+2025-10-24T21:39:57.1100200Z - Resolving version...
+2025-10-24T21:39:57.1101039Z ✔ Validated version: 1.105.1
+2025-10-24T21:39:57.1106740Z ✔ Found existing install in /home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1
+2025-10-24T21:39:57.1108019Z Successfully downloaded VS Code to: /home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/code
+2025-10-24T21:39:57.3055690Z 1.105.1
+2025-10-24T21:39:57.3056154Z 7d842fb85a0275a4a8e4d7e040d2625abbf7f084
+2025-10-24T21:39:57.3056442Z x64
+2025-10-24T21:39:57.6475516Z [4319:1024/213957.646978:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:57.6477792Z [4319:1024/213957.647033:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:57.6480192Z [4319:1024/213957.647043:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:57.6482096Z [4319:1024/213957.647056:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:57.6483317Z [4319:1024/213957.647068:ERROR:dbus/object_proxy.cc:590] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+2025-10-24T21:39:57.6527768Z Unable to revert mtime: /usr/share/fonts
+2025-10-24T21:39:57.6531741Z Unable to revert mtime: /usr/share/fonts/truetype
+2025-10-24T21:39:57.6535680Z Unable to revert mtime: /usr/share/fonts/truetype/dejavu
+2025-10-24T21:39:57.6597470Z Unable to revert mtime: /usr/share/fonts/truetype/lato
+2025-10-24T21:39:57.6632644Z Unable to revert mtime: /usr/share/fonts/truetype/liberation
+2025-10-24T21:39:57.6793464Z [4347:1024/213957.678342:WARNING:ui/gfx/linux/gpu_memory_buffer_support_x11.cc:49] dri3 extension not supported.
+2025-10-24T21:39:57.7062708Z Warning: 'disable-software-rasterizer' is not in the list of known options, but still passed to Electron/Chromium.
+2025-10-24T21:39:57.7990542Z Unable to revert mtime: /usr/share/fonts
+2025-10-24T21:39:57.7994472Z Unable to revert mtime: /usr/share/fonts/truetype
+2025-10-24T21:39:57.7998468Z Unable to revert mtime: /usr/share/fonts/truetype/dejavu
+2025-10-24T21:39:57.8059899Z Unable to revert mtime: /usr/share/fonts/truetype/lato
+2025-10-24T21:39:57.8098443Z Unable to revert mtime: /usr/share/fonts/truetype/liberation
+2025-10-24T21:39:57.8503993Z [90m[main 2025-10-24T21:39:57.848Z][0m update#setState disabled
+2025-10-24T21:39:57.8505207Z [90m[main 2025-10-24T21:39:57.849Z][0m update#ctor - updates are disabled by the environment
+2025-10-24T21:39:57.8506857Z [4319:1024/213957.850144:ERROR:dbus/bus.cc:408] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2025-10-24T21:39:58.7078947Z workbench#open()
+2025-10-24T21:39:59.0136342Z ChatSessionStore: Migrating 0 chat sessions from storage service to file system
+2025-10-24T21:39:59.1786933Z Started local extension host with pid 4534.
+2025-10-24T21:39:59.1788340Z IExtensionHostStarter.start() took 24 ms.
+2025-10-24T21:39:59.5641044Z Unable to read file '/home/runner/work/OpenHands-Tab/OpenHands-Tab/tests/e2e/package.json' (Error: Unable to resolve nonexistent file '/home/runner/work/OpenHands-Tab/OpenHands-Tab/tests/e2e/package.json')
+2025-10-24T21:39:59.5844955Z [4319:1024/213959.584001:INFO:CONSOLE:576] "Overwriting extension <<copilot-instructions.md>> to now point to mime <<text/x-instructions>>", source: vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js (576)
+2025-10-24T21:39:59.9295562Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:59.9464612Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:39:59.9621160Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-chat-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2025-10-24T21:40:00.1832120Z MCP Registry configured: https://api.mcp.github.com/2025-09-15
+2025-10-24T21:40:00.4049684Z Settings Sync: Account status changed from uninitialized to unavailable
+2025-10-24T21:40:00.6729326Z Error: command 'openhands.openTab' not found
+2025-10-24T21:40:00.6730894Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:40:00.6733369Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)
+2025-10-24T21:40:00.6735213Z Extension host test runner error Error: command 'openhands.openTab' not found
+2025-10-24T21:40:00.6737209Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:40:00.6740123Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)
+2025-10-24T21:40:00.6741912Z [4319:1024/214000.672731:INFO:CONSOLE:3820] "Error: command 'openhands.openTab' not found
+2025-10-24T21:40:00.6743601Z     at gJe.n (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3892)
+2025-10-24T21:40:00.6747197Z     at gJe.executeCommand (vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js:1337:3824)", source: vscode-file://vscode-app/home/runner/work/OpenHands-Tab/OpenHands-Tab/.vscode-test/vscode-linux-x64-1.105.1/resources/app/out/vs/workbench/workbench.desktop.main.js (3820)
+2025-10-24T21:40:00.6803326Z Asking native host service to exit with code 1.
+2025-10-24T21:40:00.6916307Z [90m[main 2025-10-24T21:40:00.691Z][0m Extension host with pid 4534 exited with code: 0, signal: unknown.
+2025-10-24T21:40:00.7380780Z Exit code:   1
+2025-10-24T21:40:00.7385326Z     3) opens the tab and executes commands
+2025-10-24T21:40:00.7390122Z 
+2025-10-24T21:40:00.7405883Z 
+2025-10-24T21:40:00.7407348Z   0 passing (17s)
+2025-10-24T21:40:00.7409339Z   3 failing
+2025-10-24T21:40:00.7410782Z 
+2025-10-24T21:40:00.7411193Z   1) OpenHands-Tab Agent-SDK Events E2E
+2025-10-24T21:40:00.7412063Z        renders all agent-sdk event types in webview:
+2025-10-24T21:40:00.7413070Z      Error: Test run failed with code 1
+2025-10-24T21:40:00.7414137Z       at ChildProcess.onProcessClosed (node_modules/@vscode/test-electron/out/runTest.js:110:24)
+2025-10-24T21:40:00.7414885Z       at ChildProcess.emit (node:events:519:28)
+2025-10-24T21:40:00.7415558Z       at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+2025-10-24T21:40:00.7415984Z 
+2025-10-24T21:40:00.7416153Z   2) OpenHands-Tab diagnostics
+2025-10-24T21:40:00.7416585Z        returns basic state after opening tab:
+2025-10-24T21:40:00.7417031Z      Error: Test run failed with code 1
+2025-10-24T21:40:00.7417744Z       at ChildProcess.onProcessClosed (node_modules/@vscode/test-electron/out/runTest.js:110:24)
+2025-10-24T21:40:00.7418744Z       at ChildProcess.emit (node:events:519:28)
+2025-10-24T21:40:00.7419379Z       at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+2025-10-24T21:40:00.7419797Z 
+2025-10-24T21:40:00.7419926Z   3) OpenHands-Tab E2E
+2025-10-24T21:40:00.7420315Z        opens the tab and executes commands:
+2025-10-24T21:40:00.7420781Z      Error: Test run failed with code 1
+2025-10-24T21:40:00.7421528Z       at ChildProcess.onProcessClosed (node_modules/@vscode/test-electron/out/runTest.js:110:24)
+2025-10-24T21:40:00.7422278Z       at ChildProcess.emit (node:events:519:28)
+2025-10-24T21:40:00.7422900Z       at ChildProcess._handle.onexit (node:internal/child_process:293:12)
+2025-10-24T21:40:00.7423312Z 
+2025-10-24T21:40:00.7423321Z 
+2025-10-24T21:40:00.7423329Z 
+2025-10-24T21:40:00.7610771Z ##[error]Process completed with exit code 3.
+2025-10-24T21:40:00.7694373Z Post job cleanup.
+2025-10-24T21:40:00.8658729Z [command]/usr/bin/git version
+2025-10-24T21:40:00.8695191Z git version 2.51.1
+2025-10-24T21:40:00.8749450Z Temporarily overriding HOME='/home/runner/work/_temp/6d2c9b3c-6eed-4dfd-b855-afc3b5e97b16' before making global git config changes
+2025-10-24T21:40:00.8750863Z Adding repository directory to the temporary git global config as a safe directory
+2025-10-24T21:40:00.8755887Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/OpenHands-Tab/OpenHands-Tab
+2025-10-24T21:40:00.8793965Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-10-24T21:40:00.8826376Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-10-24T21:40:00.9054293Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-10-24T21:40:00.9075861Z http.https://github.com/.extraheader
+2025-10-24T21:40:00.9089466Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-10-24T21:40:00.9120720Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-10-24T21:40:00.9453479Z Cleaning up orphan processes

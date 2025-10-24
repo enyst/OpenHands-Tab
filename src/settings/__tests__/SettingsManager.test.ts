@@ -6,6 +6,7 @@ class MemoryAdapter implements SettingsAdapter {
   cfg = new Map<string, any>();
   secrets = new Map<string, string>();
   get<T>(key: string, def?: T): T | undefined { return this.cfg.has(key) ? this.cfg.get(key) : def; }
+  getExplicit<T>(key: string): T | undefined { return this.cfg.has(key) ? this.cfg.get(key) : undefined; }
   async update<T>(key: string, value: T): Promise<void> { this.cfg.set(key, value as any); }
   async getSecret(key: string): Promise<string | undefined> { return this.secrets.get(key); }
   async storeSecret(key: string, value: string | undefined): Promise<void> {
@@ -19,7 +20,7 @@ describe('SettingsManager', () => {
     const mgr = new SettingsManager(a);
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://localhost:3000');
-    expect(s.llm.usageId).toBe('default-llm');
+    expect(s.llm.usageId).toBeUndefined();
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
   });
 
