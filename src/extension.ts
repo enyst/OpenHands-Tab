@@ -112,18 +112,18 @@ export function activate(context: vscode.ExtensionContext) {
     // Step 2: LLM
     const usageId = await vscode.window.showInputBox({
       title: 'LLM Usage ID (preferred)',
-      value: existing.llm.usageId,
+      value: existing.llm.usageId ?? undefined,
       placeHolder: 'e.g. default-llm',
       prompt: 'Maps to agent-sdk usage_id; leave blank to use server defaults.'
     });
     const llmModel = await vscode.window.showInputBox({
       title: 'LLM Model',
-      value: existing.llm.model,
+      value: existing.llm.model ?? undefined,
       placeHolder: 'e.g. claude-3-5-sonnet-20241022 or openrouter/*'
     });
     const llmBaseUrl = await vscode.window.showInputBox({
       title: 'LLM Base URL (optional)',
-      value: existing.llm.baseUrl,
+      value: existing.llm.baseUrl ?? undefined,
       placeHolder: 'e.g. https://api.openrouter.ai',
       prompt: 'Optional override; leave empty for provider default.'
     });
