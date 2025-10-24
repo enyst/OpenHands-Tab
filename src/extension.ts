@@ -22,6 +22,8 @@ export function activate(context: vscode.ExtensionContext) {
       );
       panel.webview.html = getWebviewHtml(context, panel.webview);
       panel.webview.onDidReceiveMessage(onWebviewMessage(context, panel), undefined, context.subscriptions);
+      // Inform webview how to post diagnostics info back
+      panel.webview.postMessage({ type: 'setDiagnosticsChannel' });
       panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
     }
 

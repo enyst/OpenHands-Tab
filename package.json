@@ -83,64 +83,58 @@
         },
         
         "openhands.llm.usageId": {
-          "type": ["string", "null"],
+          "type": "string",
           "default": "default-llm",
           "markdownDescription": "Preferred usage_id for LLM config sent to agent-server. If unset, server defaults apply."
         },
         "openhands.llm.model": {
-          "type": ["string", "null"],
+          "type": "string",
           "default": "claude-sonnet-4-20250514",
           "markdownDescription": "Default model name for LLM requests."
         },
         "openhands.llm.baseUrl": {
-          "type": ["string", "null"],
-          "default": null,
-          "markdownDescription": "Optional LLM base URL override."
+          "type": "string",
+          "markdownDescription": "Optional LLM base URL override. Leave empty to use provider default."
         },
         "openhands.llm.apiVersion": {
-          "type": ["string", "null"],
-          "default": null,
-          "markdownDescription": "Optional LLM API version (e.g., Azure)."
+          "type": "string",
+          "markdownDescription": "Optional LLM API version (e.g., Azure). Leave empty if not applicable."
         },
         "openhands.llm.timeout": {
-          "type": ["number", "null"],
-          "default": null,
-          "markdownDescription": "HTTP timeout in seconds."
+          "type": "number",
+          "markdownDescription": "HTTP timeout in seconds. Leave empty to use default."
         },
         "openhands.llm.temperature": {
-          "type": ["number", "null"],
+          "type": "number",
           "default": 0,
           "markdownDescription": "Sampling temperature (0-2)."
         },
         "openhands.llm.topP": {
-          "type": ["number", "null"],
+          "type": "number",
           "default": 1,
           "markdownDescription": "Top-p nucleus sampling."
         },
         "openhands.llm.topK": {
-          "type": ["number", "null"],
-          "default": null,
-          "markdownDescription": "Top-k sampling."
+          "type": "number",
+          "markdownDescription": "Top-k sampling. Leave empty to use default."
         },
         "openhands.llm.maxInputTokens": {
-          "type": ["number", "null"],
-          "default": null,
-          "markdownDescription": "Max input tokens."
+          "type": "number",
+          "markdownDescription": "Max input tokens. Leave empty to use default."
         },
         "openhands.llm.maxOutputTokens": {
-          "type": ["number", "null"],
-          "default": null,
-          "markdownDescription": "Max output tokens."
+          "type": "number",
+          "markdownDescription": "Max output tokens. Leave empty to use default."
         },
         "openhands.llm.nativeToolCalling": {
-          "type": ["boolean", "null"],
-          "default": null,
+          "type": "boolean",
+          "default": false,
           "markdownDescription": "Enable model-native tool calling if supported."
         },
         "openhands.llm.reasoningEffort": {
-          "type": ["string", "null"],
-          "enum": ["low", "medium", "high", "none", null],
-          "default": null,
+          "type": "string",
+          "enum": ["low", "medium", "high", "none"],
+          "default": "none",
           "markdownDescription": "Reasoning effort for supported models."
         }
       }
