@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { ConnectionManager } from './connection/ConnectionManager';
+import { SettingsManager } from './settings/SettingsManager';
+import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 
 let panel: vscode.WebviewPanel | undefined;
 let connection: ConnectionManager | undefined;
@@ -31,6 +33,8 @@ export function activate(context: vscode.ExtensionContext) {
         onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
         onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
       });
+      const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+      connection.setSettings(settings);
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       if (savedId) connection.restoreConversation(savedId);
     }
@@ -94,18 +98,79 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const configure = vscode.commands.registerCommand('openhands.configure', async () => {
-    const current = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
-    const input = await vscode.window.showInputBox({
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+    const existing = await settingsMgr.get();
+
+    // Step 1: Server URL
+    const serverUrl = await vscode.window.showInputBox({
       title: 'OpenHands Server URL',
-      value: current,
+      value: existing.serverUrl,
       placeHolder: 'http://localhost:3000'
     });
-    if (input) {
-      await vscode.workspace.getConfiguration().update('openhands.serverUrl', input, vscode.ConfigurationTarget.Workspace);
-      vscode.window.showInformationMessage(`OpenHands server URL set to ${input}`);
-      panel?.webview.postMessage({ type: 'configUpdated', serverUrl: input });
-      connection?.setServerUrl(input);
-    }
+    if (!serverUrl) return;
+
+    // Step 2: LLM
+    const usageId = await vscode.window.showInputBox({
+      title: 'LLM Usage ID (preferred)',
+      value: existing.llm.usageId,
+      placeHolder: 'e.g. default-llm',
+      prompt: 'Maps to agent-sdk usage_id; leave blank to use server defaults.'
+    });
+    const llmModel = await vscode.window.showInputBox({
+      title: 'LLM Model',
+      value: existing.llm.model,
+      placeHolder: 'e.g. claude-3-5-sonnet-20241022 or openrouter/*'
+    });
+    const llmBaseUrl = await vscode.window.showInputBox({
+      title: 'LLM Base URL (optional)',
+      value: existing.llm.baseUrl,
+      placeHolder: 'e.g. https://api.openrouter.ai',
+      prompt: 'Optional override; leave empty for provider default.'
+    });
+    const llmApiKey = await vscode.window.showInputBox({
+      title: 'LLM API Key (secret)',
+      value: existing.secrets.llmApiKey,
+      password: true,
+      prompt: 'Stored securely in VS Code SecretStorage.'
+    });
+
+    // Step 3: Agent options
+    const enableSec = await vscode.window.showQuickPick(['Yes', 'No'], {
+      title: 'Enable Security Analyzer?',
+      canPickMany: false,
+      placeHolder: existing.agent.enableSecurityAnalyzer ? 'Yes' : 'No'
+    });
+    const filterRegex = await vscode.window.showInputBox({
+      title: 'Filter Tools (regex, optional)',
+      value: existing.agent.filterToolsRegex ?? undefined,
+      placeHolder: 'e.g. ^(BashTool|FileEditorTool)$'
+    });
+
+    // Step 4: Session API Key (optional)
+    const sessionApiKey = await vscode.window.showInputBox({
+      title: 'Session API Key (optional, secret)',
+      value: existing.secrets.sessionApiKey,
+      password: true,
+      prompt: 'If your server requires authentication, enter the Session API key. Stored in SecretStorage.'
+    });
+
+    await settingsMgr.update({
+      serverUrl,
+      llm: { usageId: usageId || undefined, model: llmModel || undefined, baseUrl: llmBaseUrl || undefined },
+      agent: {
+        enableSecurityAnalyzer: enableSec ? enableSec === 'Yes' : existing.agent.enableSecurityAnalyzer,
+        filterToolsRegex: filterRegex ?? null
+      },
+      secrets: { llmApiKey: llmApiKey || undefined, sessionApiKey: sessionApiKey || undefined }
+    }, 'workspace');
+
+    vscode.window.showInformationMessage('OpenHands settings updated.');
+
+    // Apply to connection
+    connection?.setServerUrl(serverUrl);
+    const newSettings = await settingsMgr.get();
+    connection?.setSettings(newSettings);
+    panel?.webview.postMessage({ type: 'configUpdated', serverUrl });
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {

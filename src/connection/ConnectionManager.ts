@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import type { Event, Message } from '../types/agent-sdk';
 import { isEvent as isAgentEvent } from '../types/agent-sdk';
+import type { OpenHandsSettings } from '../settings/SettingsManager';
 
 export type ConnectionEvents = {
   onStatus: (status: 'online' | 'offline' | 'connecting') => void;
@@ -11,6 +12,7 @@ export type ConnectionEvents = {
 
 export class ConnectionManager {
   private serverUrl: string;
+  private settings?: OpenHandsSettings;
   private conversationId?: string;
   private ws?: WebSocket;
   private status: 'online' | 'offline' | 'connecting' = 'offline';
@@ -27,6 +29,10 @@ export class ConnectionManager {
     this.events = events;
   }
 
+  setSettings(settings: OpenHandsSettings) {
+    this.settings = settings;
+  }
+
   setServerUrl(url: string) {
     this.serverUrl = url;
   }
@@ -41,25 +47,27 @@ export class ConnectionManager {
   async startNewConversation() {
     try {
       const base = this.serverUrl.replace(/\/$/, '');
-      const llmApiKey = process.env.LITELLM_API_KEY || process.env.OPENAI_API_KEY || '';
+      const s = this.settings;
       const req = {
         agent: {
           llm: {
-            service_id: 'test-llm',
-            model: 'litellm_proxy/anthropic/claude-sonnet-4-20250514',
-            base_url: 'https://llm-proxy.eval.all-hands.dev',
-            api_key: llmApiKey || undefined
+            usage_id: s?.llm.usageId || 'default-llm',
+            model: s?.llm.model || 'claude-sonnet-4-20250514',
+            base_url: s?.llm.baseUrl,
+            api_key: s?.secrets.llmApiKey || undefined
           },
           tools: [
             { name: 'BashTool', params: { working_dir: process.cwd() } },
             { name: 'FileEditorTool', params: { workspace_root: process.cwd() } },
             { name: 'TaskTrackerTool', params: { save_dir: process.cwd() } }
-          ]
+          ],
+          security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
+          filter_tools_regex: s?.agent.filterToolsRegex || undefined,
         },
         max_iterations: 50
       };
       const headers: any = { 'Content-Type': 'application/json' };
-      const sessionKey = process.env.SESSION_API_KEY || '';
+      const sessionKey = s?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
       const res = await fetch(base + '/api/conversations/', {
         method: 'POST',
@@ -107,7 +115,7 @@ export class ConnectionManager {
       try {
         const base = this.serverUrl.replace(/\/$/, '');
         const headers: any = { 'Content-Type': 'application/json' };
-        const sessionKey = process.env.SESSION_API_KEY || '';
+        const sessionKey = this.settings?.secrets.sessionApiKey || '';
         if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
         await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
           method: 'POST', headers, body: JSON.stringify(payload)
@@ -146,7 +154,7 @@ export class ConnectionManager {
   private connect() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
-    const sessionKey = process.env.SESSION_API_KEY || '';
+    const sessionKey = this.settings?.secrets.sessionApiKey || '';
     // agent-sdk WS path moved to /sockets/events/{conversation_id} with optional session_api_key
     const qs = sessionKey ? `?session_api_key=${encodeURIComponent(sessionKey)}` : '';
     const wsUrl = base.replace(/^http/, 'ws') + `/sockets/events/${this.conversationId}${qs}`;
