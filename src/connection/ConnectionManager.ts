@@ -79,17 +79,20 @@ export class ConnectionManager {
         return { kind: 'NeverConfirm' };
       })();
 
+      // Determine workspace root: prefer VS Code workspace root when extension runs in host;
+      // fall back to process.cwd() for tests and non-vscode environments.
+      const root = (globalThis as any).vscodeWorkspaceRoot || process.cwd();
       const req = {
         agent: {
           llm,
           tools: [
-            { name: 'BashTool', params: { working_dir: process.cwd() } },
-            { name: 'FileEditorTool', params: { workspace_root: process.cwd() } },
-            { name: 'TaskTrackerTool', params: { save_dir: process.cwd() } }
+            { name: 'BashTool', params: { working_dir: root } },
+            { name: 'FileEditorTool', params: { workspace_root: root } },
+            { name: 'TaskTrackerTool', params: { save_dir: root } }
           ],
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
-        workspace: { kind: 'LocalWorkspace', working_dir: process.cwd() },
+        workspace: { kind: 'LocalWorkspace', working_dir: root },
         confirmation_policy,
         max_iterations: s?.conversation.maxIterations ?? 50,
       };
