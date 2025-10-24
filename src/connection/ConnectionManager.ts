@@ -48,23 +48,50 @@ export class ConnectionManager {
     try {
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
+      const llm: any = {
+        usage_id: s?.llm.usageId || 'default-llm',
+        model: s?.llm.model || 'claude-sonnet-4-20250514',
+      };
+      if (s?.llm.baseUrl != null) llm.base_url = s.llm.baseUrl;
+      if (s?.llm.apiVersion != null) llm.api_version = s.llm.apiVersion;
+      if (s?.llm.timeout != null) llm.timeout = s.llm.timeout;
+      if (s?.llm.temperature != null) llm.temperature = s.llm.temperature;
+      if (s?.llm.topP != null) llm.top_p = s.llm.topP;
+      if (s?.llm.topK != null) llm.top_k = s.llm.topK;
+      if (s?.llm.maxInputTokens != null) llm.max_input_tokens = s.llm.maxInputTokens;
+      if (s?.llm.maxOutputTokens != null) llm.max_output_tokens = s.llm.maxOutputTokens;
+      if (s?.llm.nativeToolCalling != null) llm.native_tool_calling = s.llm.nativeToolCalling;
+      if (s?.llm.reasoningEffort != null) llm.reasoning_effort = s.llm.reasoningEffort;
+      if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
+      if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
+      if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
+
+      const confirmation_policy: any = (() => {
+        const p = s?.confirmation.policy || 'never';
+        if (p === 'always') return { kind: 'AlwaysConfirm' };
+        if (p === 'risky') {
+          return {
+            kind: 'ConfirmRisky',
+            threshold: s?.confirmation.riskyThreshold || 'HIGH',
+            confirm_unknown: s?.confirmation.confirmUnknown ?? true,
+          };
+        }
+        return { kind: 'NeverConfirm' };
+      })();
+
       const req = {
         agent: {
-          llm: {
-            usage_id: s?.llm.usageId || 'default-llm',
-            model: s?.llm.model || 'claude-sonnet-4-20250514',
-            base_url: s?.llm.baseUrl,
-            api_key: s?.secrets.llmApiKey
-          },
+          llm,
           tools: [
             { name: 'BashTool', params: { working_dir: process.cwd() } },
             { name: 'FileEditorTool', params: { workspace_root: process.cwd() } },
             { name: 'TaskTrackerTool', params: { save_dir: process.cwd() } }
           ],
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
-          filter_tools_regex: s?.agent.filterToolsRegex ?? undefined,
         },
-        max_iterations: 50
+        workspace: { kind: 'LocalWorkspace', working_dir: process.cwd() },
+        confirmation_policy,
+        max_iterations: s?.conversation.maxIterations ?? 50,
       };
       const headers: any = { 'Content-Type': 'application/json' };
       const sessionKey = s?.secrets.sessionApiKey || '';

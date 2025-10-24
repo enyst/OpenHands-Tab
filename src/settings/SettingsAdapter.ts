@@ -9,9 +9,18 @@ export interface SettingsAdapter {
 }
 
 export type LLMSettings = {
-  usageId?: string;
-  model?: string;
-  baseUrl?: string;
+  usageId?: string | null;
+  model?: string | null;
+  baseUrl?: string | null;
+  apiVersion?: string | null;
+  timeout?: number | null;
+  temperature?: number | null;
+  topP?: number | null;
+  topK?: number | null;
+  maxInputTokens?: number | null;
+  maxOutputTokens?: number | null;
+  nativeToolCalling?: boolean | null;
+  reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
 };
 
 export type ServerSettings = {
@@ -20,5 +29,14 @@ export type ServerSettings = {
 
 export type AgentSettings = {
   enableSecurityAnalyzer?: boolean;
-  filterToolsRegex?: string | null;
+};
+
+export type ConversationSettings = {
+  maxIterations?: number;
+};
+
+export type ConfirmationSettings = {
+  policy?: 'never' | 'always' | 'risky';
+  riskyThreshold?: 'LOW' | 'MEDIUM' | 'HIGH';
+  confirmUnknown?: boolean;
 };

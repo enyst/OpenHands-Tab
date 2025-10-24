@@ -29,7 +29,9 @@ describe('SettingsManager', () => {
     await mgr.update({
       serverUrl: 'http://example:1234',
       llm: { usageId: 'my-usage', model: 'foo', baseUrl: 'https://api.example.com' },
-      agent: { enableSecurityAnalyzer: true, filterToolsRegex: '^(BashTool)$' },
+      agent: { enableSecurityAnalyzer: true },
+      conversation: { maxIterations: 42 },
+      confirmation: { policy: 'risky', riskyThreshold: 'MEDIUM', confirmUnknown: false },
       secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
     });
     const s = await mgr.get();
@@ -38,7 +40,10 @@ describe('SettingsManager', () => {
     expect(s.llm.model).toBe('foo');
     expect(s.llm.baseUrl).toBe('https://api.example.com');
     expect(s.agent.enableSecurityAnalyzer).toBe(true);
-    expect(s.agent.filterToolsRegex).toBe('^(BashTool)$');
+    expect(s.conversation.maxIterations).toBe(42);
+    expect(s.confirmation.policy).toBe('risky');
+    expect(s.confirmation.riskyThreshold).toBe('MEDIUM');
+    expect(s.confirmation.confirmUnknown).toBe(false);
     expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
   });

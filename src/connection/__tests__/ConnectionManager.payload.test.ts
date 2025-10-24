@@ -1,0 +1,90 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ConnectionManager } from '../ConnectionManager';
+import type { OpenHandsSettings } from '../../settings/SettingsManager';
+
+// Stub WebSocket connect() to avoid network
+(ConnectionManager as any).prototype['connect'] = function() {};
+
+const dummyEvents = {
+  onStatus: () => {},
+  onEvent: () => {},
+  onError: () => {},
+};
+
+describe('ConnectionManager startNewConversation payload', () => {
+  const baseUrl = 'http://example.com';
+  const cm = new ConnectionManager(baseUrl, dummyEvents as any);
+
+  const settings: OpenHandsSettings = {
+    serverUrl: baseUrl,
+    llm: {
+      usageId: 'use-1',
+      model: 'anthropic/claude-3-5',
+      baseUrl: 'https://api.example.com',
+      apiVersion: '2024-10-01',
+      timeout: 30,
+      temperature: 0.2,
+      topP: 0.9,
+      topK: 50,
+      maxInputTokens: 10000,
+      maxOutputTokens: 2048,
+      nativeToolCalling: true,
+      reasoningEffort: 'medium',
+    },
+    agent: { enableSecurityAnalyzer: true },
+    conversation: { maxIterations: 77 },
+    confirmation: { policy: 'risky', riskyThreshold: 'MEDIUM', confirmUnknown: false },
+    secrets: { sessionApiKey: 'sess', llmApiKey: 'k', awsAccessKeyId: 'AK', awsSecretAccessKey: 'SK' },
+  };
+
+  let fetchSpy: any;
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis as any, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ conversation_id: 'abc' }) });
+    cm.setSettings(settings);
+  });
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  it('sends expected StartConversationRequest fields', async () => {
+    await cm.startNewConversation();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, opts] = fetchSpy.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/conversations\/?$/);
+    expect(opts.method).toBe('POST');
+    expect(opts.headers['X-Session-API-Key']).toBe('sess');
+
+    const body = JSON.parse(opts.body);
+    // workspace
+    expect(body.workspace).toEqual({ kind: 'LocalWorkspace', working_dir: process.cwd() });
+    // confirmation
+    expect(body.confirmation_policy).toEqual({ kind: 'ConfirmRisky', threshold: 'MEDIUM', confirm_unknown: false });
+    // max iterations
+    expect(body.max_iterations).toBe(77);
+    // security analyzer
+    expect(body.agent.security_analyzer).toEqual({ kind: 'LLMSecurityAnalyzer' });
+    // tools present (names only check)
+    const toolNames = body.agent.tools.map((t: any) => t.name);
+    expect(toolNames).toContain('BashTool');
+    expect(toolNames).toContain('FileEditorTool');
+    expect(toolNames).toContain('TaskTrackerTool');
+    // llm mapping
+    expect(body.agent.llm.usage_id).toBe('use-1');
+    expect(body.agent.llm.model).toBe('anthropic/claude-3-5');
+    expect(body.agent.llm.base_url).toBe('https://api.example.com');
+    expect(body.agent.llm.api_version).toBe('2024-10-01');
+    expect(body.agent.llm.api_key).toBe('k');
+    expect(body.agent.llm.aws_access_key_id).toBe('AK');
+    expect(body.agent.llm.aws_secret_access_key).toBe('SK');
+    expect(body.agent.llm.timeout).toBe(30);
+    expect(body.agent.llm.temperature).toBe(0.2);
+    expect(body.agent.llm.top_p).toBe(0.9);
+    expect(body.agent.llm.top_k).toBe(50);
+    expect(body.agent.llm.max_input_tokens).toBe(10000);
+    expect(body.agent.llm.max_output_tokens).toBe(2048);
+    expect(body.agent.llm.native_tool_calling).toBe(true);
+    expect(body.agent.llm.reasoning_effort).toBe('medium');
+    // regression: ensure filter_tools_regex is not sent
+    expect(body.agent.filter_tools_regex).toBeUndefined();
+  });
+});

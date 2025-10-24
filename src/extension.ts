@@ -134,19 +134,43 @@ export function activate(context: vscode.ExtensionContext) {
       prompt: 'Stored securely in VS Code SecretStorage.'
     });
 
-    // Step 3: Agent options
+    // Step 3: Agent and conversation options
     const enableSec = await vscode.window.showQuickPick(['Yes', 'No'], {
       title: 'Enable Security Analyzer?',
       canPickMany: false,
       placeHolder: existing.agent.enableSecurityAnalyzer ? 'Yes' : 'No'
     });
-    const filterRegex = await vscode.window.showInputBox({
-      title: 'Filter Tools (regex, optional)',
-      value: existing.agent.filterToolsRegex ?? undefined,
-      placeHolder: 'e.g. ^(BashTool|FileEditorTool)$'
+
+    const maxIterationsStr = await vscode.window.showInputBox({
+      title: 'Max Iterations (default for new conversations)',
+      value: String(existing.conversation.maxIterations ?? 50),
+      placeHolder: 'e.g. 50'
     });
 
-    // Step 4: Session API Key (optional)
+    const policy = await vscode.window.showQuickPick(['never', 'always', 'risky'], {
+      title: 'Confirmation Policy',
+      canPickMany: false,
+      placeHolder: existing.confirmation.policy ?? 'never'
+    });
+
+    let riskyThreshold: 'LOW' | 'MEDIUM' | 'HIGH' | undefined = existing.confirmation.riskyThreshold;
+    let confirmUnknown: boolean | undefined = existing.confirmation.confirmUnknown;
+    if (policy === 'risky') {
+      const thresholdPick = await vscode.window.showQuickPick(['LOW', 'MEDIUM', 'HIGH'], {
+        title: 'Risk threshold for ConfirmRisky',
+        canPickMany: false,
+        placeHolder: existing.confirmation.riskyThreshold ?? 'HIGH'
+      });
+      riskyThreshold = (thresholdPick as any) || existing.confirmation.riskyThreshold || 'HIGH';
+      const confirmUnknownPick = await vscode.window.showQuickPick(['Yes', 'No'], {
+        title: 'Confirm unknown risk actions?',
+        canPickMany: false,
+        placeHolder: existing.confirmation.confirmUnknown ? 'Yes' : 'No'
+      });
+      confirmUnknown = confirmUnknownPick ? confirmUnknownPick === 'Yes' : existing.confirmation.confirmUnknown;
+    }
+
+    // Step 4: Session and LLM API Keys (optional)
     const sessionApiKey = await vscode.window.showInputBox({
       title: 'Session API Key (optional, secret)',
       value: existing.secrets.sessionApiKey,
@@ -159,7 +183,14 @@ export function activate(context: vscode.ExtensionContext) {
       llm: { usageId: usageId || undefined, model: llmModel || undefined, baseUrl: llmBaseUrl || undefined },
       agent: {
         enableSecurityAnalyzer: enableSec ? enableSec === 'Yes' : existing.agent.enableSecurityAnalyzer,
-        filterToolsRegex: filterRegex || null
+      },
+      conversation: {
+        maxIterations: maxIterationsStr ? Number(maxIterationsStr) : existing.conversation.maxIterations,
+      },
+      confirmation: {
+        policy: (policy as any) || existing.confirmation.policy,
+        riskyThreshold,
+        confirmUnknown,
       },
       secrets: { llmApiKey: llmApiKey || undefined, sessionApiKey: sessionApiKey || undefined }
     }, 'workspace');
