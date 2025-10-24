@@ -51,6 +51,32 @@
           "default": "http://localhost:3000",
           "description": "OpenHands agent-server base URL"
         }
+,
+          "openhands.llm.usageId": {
+            "type": ["string", "null"],
+            "default": "default-llm",
+            "markdownDescription": "Preferred usage_id for LLM config sent to agent-server. If unset, server defaults apply."
+          },
+          "openhands.llm.model": {
+            "type": ["string", "null"],
+            "default": "claude-sonnet-4-20250514",
+            "markdownDescription": "Default model name for LLM requests."
+          },
+          "openhands.llm.baseUrl": {
+            "type": ["string", "null"],
+            "default": null,
+            "markdownDescription": "Optional LLM base URL override."
+          },
+          "openhands.agent.enableSecurityAnalyzer": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
+          },
+          "openhands.agent.filterToolsRegex": {
+            "type": ["string", "null"],
+            "default": null,
+            "markdownDescription": "Regex to filter available tools sent to the agent."
+          }
       }
     }
   },
