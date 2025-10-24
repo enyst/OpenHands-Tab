@@ -85,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
     panel.webview.postMessage({ type: 'queryRenderedEvents' });
 
     // Wait for response (with timeout)
-    const deadline = Date.now() + 2000;
+    const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
       if (renderedEventsInfo !== undefined) {
         return renderedEventsInfo;
