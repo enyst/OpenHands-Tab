@@ -29,6 +29,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (!connection) {
       const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+      // Expose workspace root path for ConnectionManager to consume (without importing vscode).
+      (globalThis as any).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
         onStatus: (s) => panel?.webview.postMessage({ type: 'status', status: s }),
         onEvent: (ev) => panel?.webview.postMessage({ type: 'event', event: ev }),
