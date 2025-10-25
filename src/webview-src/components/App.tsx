@@ -296,6 +296,136 @@ function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: str
 }
 
 /**
+ * ConfirmationPrompt: displays pending actions awaiting user approval/rejection.
+ *
+ * Shown when agent_status is WAITING_FOR_CONFIRMATION. Lists each pending action
+ * with its tool name, security risk level, and approve/reject buttons.
+ */
+interface ConfirmationPromptProps {
+  actions: ActionEvent[];
+  onApprove: () => void;
+  onReject: (reason?: string) => void;
+}
+
+function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPromptProps) {
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  if (actions.length === 0) return null;
+
+  const handleReject = () => {
+    onReject(rejectReason || undefined);
+    setShowRejectInput(false);
+    setRejectReason('');
+  };
+
+  return (
+    <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-4 rounded my-2">
+      <div className="font-bold mb-3 text-[var(--vscode-foreground)] text-lg">
+        ⚠️ Action Confirmation Required
+      </div>
+      {actions.map((action, idx) => (
+        <div key={action.tool_call_id} className="mb-3 pb-3 border-b border-[rgba(128,128,128,0.2)] last:border-b-0">
+          <div className="mb-2">
+            <span className="font-semibold">Tool: </span>
+            <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{action.tool_name}</span>
+            {action.security_risk && action.security_risk !== 'UNKNOWN' && (
+              <span className={`ml-2 px-2 py-1 rounded text-xs font-semibold ${
+                action.security_risk === 'HIGH' ? 'bg-red-100 text-red-800' :
+                action.security_risk === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-green-100 text-green-800'
+              }`}>
+                Risk: {action.security_risk}
+              </span>
+            )}
+          </div>
+          {action.thought && action.thought.length > 0 && (
+            <div className="mb-2">
+              <div className="text-sm font-semibold">Thought:</div>
+              <div className="text-sm whitespace-pre-wrap mt-1">
+                {action.thought.map(t => t.text).join('\n')}
+              </div>
+            </div>
+          )}
+          {action.action && (
+            <div className="mb-2">
+              <div className="text-sm font-semibold">Action Details:</div>
+              <div className="font-mono text-xs bg-black/5 p-2 rounded mt-1 overflow-auto max-h-32">
+                {JSON.stringify(action.action, null, 2)}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="flex gap-2 items-center mt-3">
+        <button
+          onClick={onApprove}
+          className="px-3 py-1.5 rounded text-sm font-medium"
+          style={{
+            background: 'var(--vscode-button-background)',
+            color: 'var(--vscode-button-foreground)',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          ✓ Approve
+        </button>
+        {!showRejectInput ? (
+          <button
+            onClick={() => setShowRejectInput(true)}
+            className="px-3 py-1.5 rounded text-sm font-medium"
+            style={{
+              background: 'var(--vscode-button-secondaryBackground)',
+              color: 'var(--vscode-button-secondaryForeground)',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            ✗ Reject
+          </button>
+        ) : (
+          <>
+            <input
+              type="text"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection (optional)"
+              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
+              style={{ background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', borderColor: 'var(--vscode-input-border)' }}
+            />
+            <button
+              onClick={handleReject}
+              className="px-3 py-1.5 rounded text-sm font-medium"
+              style={{
+                background: 'var(--vscode-button-secondaryBackground)',
+                color: 'var(--vscode-button-secondaryForeground)',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Confirm Reject
+            </button>
+            <button
+              onClick={() => setShowRejectInput(false)}
+              className="px-3 py-1.5 rounded text-sm font-medium"
+              style={{
+                background: 'var(--vscode-button-secondaryBackground)',
+                color: 'var(--vscode-button-secondaryForeground)',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Main App component: React webview root for OpenHands extension.
  *
  * Architecture:
@@ -314,6 +444,8 @@ function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: str
 export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [events, setEvents] = useState<RenderedEvent[]>([]);
+  const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
+  const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
   const eventId = useRef(1);
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
@@ -363,9 +495,27 @@ export function App() {
   function handleEvent(e: unknown) {
     if (!isEvent(e)) return;
 
-    // Skip ConversationStateUpdateEvent - it's for internal state tracking only
+    // Track agent status from ConversationStateUpdateEvent
     if (isConversationStateUpdateEvent(e)) {
+      if (e.agent_status) {
+        setAgentStatus(e.agent_status);
+        // Show toast when entering confirmation mode
+        if (e.agent_status === 'WAITING_FOR_CONFIRMATION') {
+          toastDebounced('warning', 'Agent is waiting for confirmation');
+        }
+      }
+      // Don't render state update events in the UI
       return;
+    }
+
+    // Track pending actions (actions awaiting confirmation or execution)
+    if (isActionEvent(e)) {
+      setPendingActions((prev) => [...prev, e]);
+    }
+
+    // Clear pending action when we receive its observation
+    if (isObservationEvent(e) || isUserRejectObservation(e)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
     }
 
     // Show toast notifications for certain events
@@ -392,6 +542,18 @@ export function App() {
     // Send message and let the server echo it back to avoid duplicates
     setInput('');
     postMessage({ type: 'send', text });
+  };
+
+  const handleApprove = () => {
+    postMessage({ type: 'command', command: 'approveAction' });
+    toastDebounced('success', 'Action approved');
+    // Server will send ObservationEvent which clears pending actions via handleEvent
+  };
+
+  const handleReject = (reason?: string) => {
+    postMessage({ type: 'command', command: 'rejectAction', reason });
+    toastDebounced('info', 'Action rejected');
+    // Server will send UserRejectObservation which clears pending actions via handleEvent
   };
 
   return (
@@ -422,6 +584,13 @@ export function App() {
               <EventBlock event={ev.event} />
             </div>
           ))}
+          {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
+            <ConfirmationPrompt
+              actions={pendingActions}
+              onApprove={handleApprove}
+              onReject={handleReject}
+            />
+          )}
           <div ref={endRef} />
         </Scrollable>
       </div>

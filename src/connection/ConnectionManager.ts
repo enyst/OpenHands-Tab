@@ -208,6 +208,72 @@ export class ConnectionManager {
   }
 
   /**
+   * Approves a pending action during confirmation mode.
+   *
+   * When confirmation policy requires user approval (AlwaysConfirm or ConfirmRisky),
+   * this method sends acceptance to the agent-server to proceed with execution.
+   *
+   * Endpoint: POST /api/conversations/{id}/events/respond_to_confirmation
+   * Payload: { accept: true }
+   */
+  async approveAction(): Promise<void> {
+    await this.respondToConfirmation(true);
+  }
+
+  /**
+   * Rejects a pending action during confirmation mode.
+   *
+   * When confirmation policy requires user approval, this method sends rejection
+   * to the agent-server to skip the action and continue with alternative approaches.
+   *
+   * Endpoint: POST /api/conversations/{id}/events/respond_to_confirmation
+   * Payload: { accept: false, reason?: string }
+   */
+  async rejectAction(reason?: string): Promise<void> {
+    await this.respondToConfirmation(false, reason);
+  }
+
+  /**
+   * Helper method for sending confirmation responses to the agent-server.
+   *
+   * @param accept - Whether to approve (true) or reject (false) the action
+   * @param reason - Optional rejection reason (only used when accept is false)
+   * @private
+   */
+  private async respondToConfirmation(accept: boolean, reason?: string): Promise<void> {
+    const action = accept ? 'approve' : 'reject';
+    if (!this.conversationId) {
+      this.events.onError(new Error(`Cannot ${action}: no active conversation.`));
+      return;
+    }
+    const base = this.serverUrl.replace(/\/$/, '');
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionKey = this.settings?.secrets.sessionApiKey || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+
+      const payload: { accept: boolean; reason?: string } = { accept };
+      // Include reason if explicitly provided (even if empty string)
+      if (!accept && reason !== undefined) payload.reason = reason;
+
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        let info = '';
+        try { info = await res.text(); } catch {}
+        const status = res.status;
+        throw new Error(`Failed to ${action} action (HTTP ${status})${info ? `: ${info}` : ''}`);
+      }
+    } catch (e) {
+      this.events.onError(e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+
+  /**
    * Sends a user message to the agent.
    *
    * Message delivery strategy:

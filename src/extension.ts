@@ -276,7 +276,7 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
  * - 'openSettings': Opens the configuration wizard (multi-step input)
  * - 'getConfig': Returns current serverUrl to webview
  * - 'send': Sends user message to agent via ConnectionManager
- * - 'command': Executes agent control commands (reconnect, pause, startNewConversation)
+ * - 'command': Executes agent control commands (reconnect, pause, startNewConversation, approveAction, rejectAction)
  * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
  *
  * Reverse flow (extension → webview):
@@ -299,9 +299,16 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       await connection?.sendUserMessage(msg.text);
     }
     if (msg?.type === 'command') {
-      if (msg.command === 'reconnect') connection?.reconnect();
-      if (msg.command === 'pause') connection?.pause();
-      if (msg.command === 'startNewConversation') connection?.startNewConversation();
+      switch (msg.command) {
+        case 'reconnect': connection?.reconnect(); break;
+        case 'pause': await connection?.pause(); break;
+        case 'startNewConversation': await connection?.startNewConversation(); break;
+        case 'approveAction': await connection?.approveAction(); break;
+        case 'rejectAction': await connection?.rejectAction(msg.reason); break;
+        default:
+          console.warn(`Unknown command received from webview: ${msg.command}`);
+          break;
+      }
     }
     if (msg?.type === 'renderedEventsResponse') {
       // Store the response from webview for testing/diagnostics
