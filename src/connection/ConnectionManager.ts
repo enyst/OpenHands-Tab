@@ -49,10 +49,14 @@ export class ConnectionManager {
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
       const llm: any = {};
-      if (s?.llm.usageId != null && s.llm.usageId !== '') llm.usage_id = s.llm.usageId;
-      if (s?.llm.model != null && s.llm.model !== '') llm.model = s.llm.model;
-      if (s?.llm.baseUrl != null) llm.base_url = s.llm.baseUrl;
-      if (s?.llm.apiVersion != null) llm.api_version = s.llm.apiVersion;
+      const usageId = s?.llm.usageId != null ? String(s.llm.usageId).trim() : undefined;
+      const model = s?.llm.model != null ? String(s.llm.model).trim() : undefined;
+      const baseUrl = s?.llm.baseUrl != null ? String(s.llm.baseUrl).trim() : undefined;
+      const apiVersion = s?.llm.apiVersion != null ? String(s.llm.apiVersion).trim() : undefined;
+      if (usageId) llm.usage_id = usageId;
+      if (model) llm.model = model;
+      if (baseUrl) llm.base_url = baseUrl;
+      if (apiVersion) llm.api_version = apiVersion;
       if (s?.llm.timeout != null) llm.timeout = s.llm.timeout;
       if (s?.llm.temperature != null) llm.temperature = s.llm.temperature;
       if (s?.llm.topP != null) llm.top_p = s.llm.topP;
@@ -81,6 +85,11 @@ export class ConnectionManager {
       // Determine workspace root: prefer VS Code workspace root when extension runs in host;
       // fall back to process.cwd() for tests and non-vscode environments.
       const root = (globalThis as any).vscodeWorkspaceRoot || process.cwd();
+      const clampedMaxIterations = (() => {
+        const raw = s?.conversation.maxIterations;
+        const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.trunc(raw) : 50;
+        return Math.min(500, Math.max(1, n));
+      })();
       const req = {
         agent: {
           llm,
@@ -93,7 +102,7 @@ export class ConnectionManager {
         },
         workspace: { kind: 'LocalWorkspace', working_dir: root },
         confirmation_policy,
-        max_iterations: s?.conversation.maxIterations ?? 50,
+        max_iterations: clampedMaxIterations,
       };
       const headers: any = { 'Content-Type': 'application/json' };
       const sessionKey = s?.secrets.sessionApiKey || '';
@@ -103,7 +112,11 @@ export class ConnectionManager {
         headers,
         body: JSON.stringify(req)
       } as any);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let info = '';
+        try { info = await (res as any).text?.(); } catch {}
+        throw new Error(`HTTP ${res.status}${info ? `: ${info}` : ''}`);
+      }
       const json: any = await res.json();
       this.conversationId = json.id || json.conversation_id || json.uuid;
       this.events.onConversationId?.(this.conversationId);
@@ -123,18 +136,39 @@ export class ConnectionManager {
   async pause() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
-    try { await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST' } as any); } catch (e) { this.events.onError(e); }
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      const sessionKey = this.settings?.secrets.sessionApiKey || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers } as any);
+      if (!(res as any).ok) {
+        let info = '';
+        try { info = await (res as any).text?.(); } catch {}
+        throw new Error(`HTTP ${(res as any).status}${info ? `: ${info}` : ''}`);
+      }
+    } catch (e) { this.events.onError(e); }
   }
 
   async resume() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
-    try { await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST' } as any); } catch (e) { this.events.onError(e); }
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      const sessionKey = this.settings?.secrets.sessionApiKey || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST', headers } as any);
+      if (!(res as any).ok) {
+        let info = '';
+        try { info = await (res as any).text?.(); } catch {}
+        throw new Error(`HTTP ${(res as any).status}${info ? `: ${info}` : ''}`);
+      }
+    } catch (e) { this.events.onError(e); }
   }
 
   async sendUserMessage(text: string) {
     if (!this.conversationId) {
-      await this.startNewConversation();
+      const id = await this.startNewConversation();
+      if (!id) return; // bail if conversation could not be started
     }
     // agent-sdk expects content to be an array of TextContent objects
     const payload: Message = { role: 'user', content: [{ type: 'text', text }] };
@@ -175,7 +209,9 @@ export class ConnectionManager {
 
   private scheduleReconnect() {
     this.clearReconnect();
-    const delay = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
+    const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
+    const jitter = Math.floor(base * 0.2 * Math.random());
+    const delay = base + jitter;
     this.retryCount = Math.min(this.retryCount + 1, 10);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }

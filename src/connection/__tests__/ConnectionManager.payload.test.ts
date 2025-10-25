@@ -59,7 +59,7 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.workspace).toEqual({ kind: 'LocalWorkspace', working_dir: process.cwd() });
     // confirmation
     expect(body.confirmation_policy).toEqual({ kind: 'ConfirmRisky', threshold: 'MEDIUM', confirm_unknown: false });
-    // max iterations
+    // max iterations clamped in 1..500
     expect(body.max_iterations).toBe(77);
     // security analyzer
     expect(body.agent.security_analyzer).toEqual({ kind: 'LLMSecurityAnalyzer' });
@@ -72,6 +72,27 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.agent.llm.usage_id).toBe('use-1');
     expect(body.agent.llm.model).toBe('anthropic/claude-3-5');
     expect(body.agent.llm.base_url).toBe('https://api.example.com');
+
+  it('clamps max_iterations to [1,500]', async () => {
+    const baseUrl = 'http://example.com';
+    const cm = new ConnectionManager(baseUrl, dummyEvents as any);
+    const s: OpenHandsSettings = {
+      serverUrl: baseUrl,
+      llm: {}, agent: { enableSecurityAnalyzer: false },
+      conversation: { maxIterations: 9999 },
+      confirmation: { policy: 'never', riskyThreshold: 'HIGH', confirmUnknown: true },
+      secrets: {}
+    } as any;
+    cm.setSettings(s);
+    let body: any;
+    const spy = vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (_url: any, opts: any) => {
+      body = JSON.parse(opts.body);
+      return { ok: true, json: async () => ({ conversation_id: 'zzz' }) } as any;
+    });
+    await cm.startNewConversation();
+    expect(body.max_iterations).toBe(500);
+    spy.mockRestore();
+  });
     expect(body.agent.llm.api_version).toBe('2024-10-01');
     expect(body.agent.llm.api_key).toBe('k');
     expect(body.agent.llm.aws_access_key_id).toBe('AK');

@@ -152,7 +152,7 @@ export function activate(context: vscode.ExtensionContext) {
       validateInput: (value) => {
         if (!value || value.trim() === '') return undefined;
         const n = Number.parseInt(value.trim(), 10);
-        if (Number.isNaN(n) || n <= 0) return 'Input must be a positive integer.';
+        if (!Number.isFinite(n) || n < 1 || n > 500) return 'Enter an integer between 1 and 500.';
         return undefined;
       }
     });
@@ -199,7 +199,8 @@ export function activate(context: vscode.ExtensionContext) {
           const v = maxIterationsStr?.trim();
           if (!v) return existing.conversation.maxIterations;
           const n = Math.trunc(Number(v));
-          return Number.isFinite(n) && n > 0 ? n : existing.conversation.maxIterations;
+          if (!Number.isFinite(n)) return existing.conversation.maxIterations;
+          return Math.min(500, Math.max(1, n));
         })(),
       },
       confirmation: {
