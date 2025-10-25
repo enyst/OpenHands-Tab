@@ -301,10 +301,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
     if (msg?.type === 'command') {
       switch (msg.command) {
         case 'reconnect': connection?.reconnect(); break;
-        case 'pause': connection?.pause(); break;
-        case 'startNewConversation': connection?.startNewConversation(); break;
-        case 'approveAction': connection?.approveAction(); break;
-        case 'rejectAction': connection?.rejectAction(msg.reason); break;
+        case 'pause': await connection?.pause(); break;
+        case 'startNewConversation': await connection?.startNewConversation(); break;
+        case 'approveAction': await connection?.approveAction(); break;
+        case 'rejectAction': await connection?.rejectAction(msg.reason); break;
       }
     }
     if (msg?.type === 'renderedEventsResponse') {

@@ -301,11 +301,13 @@ function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: str
  * Shown when agent_status is WAITING_FOR_CONFIRMATION. Lists each pending action
  * with its tool name, security risk level, and approve/reject buttons.
  */
-function ConfirmationPrompt({ actions, onApprove, onReject }: {
+interface ConfirmationPromptProps {
   actions: ActionEvent[];
   onApprove: () => void;
   onReject: (reason?: string) => void;
-}) {
+}
+
+function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPromptProps) {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -509,15 +511,13 @@ export function App() {
   const handleApprove = () => {
     postMessage({ type: 'command', command: 'approveAction' });
     toastDebounced('success', 'Action approved');
-    // Clear pending actions - they'll be updated from server events
-    setPendingActions([]);
+    // Server will send ObservationEvent which clears pending actions via handleEvent
   };
 
   const handleReject = (reason?: string) => {
     postMessage({ type: 'command', command: 'rejectAction', reason });
     toastDebounced('info', 'Action rejected');
-    // Clear pending actions - they'll be updated from server events
-    setPendingActions([]);
+    // Server will send UserRejectObservation which clears pending actions via handleEvent
   };
 
   return (

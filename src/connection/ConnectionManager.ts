@@ -217,29 +217,7 @@ export class ConnectionManager {
    * Payload: { accept: true }
    */
   async approveAction(): Promise<void> {
-    if (!this.conversationId) {
-      this.events.onError(new Error('Cannot approve: no active conversation.'));
-      return;
-    }
-    const base = this.serverUrl.replace(/\/$/, '');
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionKey = this.settings?.secrets.sessionApiKey || '';
-      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ accept: true })
-      });
-      if (!res.ok) {
-        let info = '';
-        try { info = await res.text(); } catch {}
-        const status = res.status;
-        throw new Error(`Failed to approve action (HTTP ${status})${info ? `: ${info}` : ''}`);
-      }
-    } catch (e) {
-      this.events.onError(e instanceof Error ? e : new Error(String(e)));
-    }
+    await this.respondToConfirmation(true);
   }
 
   /**
@@ -252,8 +230,20 @@ export class ConnectionManager {
    * Payload: { accept: false, reason?: string }
    */
   async rejectAction(reason?: string): Promise<void> {
+    await this.respondToConfirmation(false, reason);
+  }
+
+  /**
+   * Helper method for sending confirmation responses to the agent-server.
+   *
+   * @param accept - Whether to approve (true) or reject (false) the action
+   * @param reason - Optional rejection reason (only used when accept is false)
+   * @private
+   */
+  private async respondToConfirmation(accept: boolean, reason?: string): Promise<void> {
+    const action = accept ? 'approve' : 'reject';
     if (!this.conversationId) {
-      this.events.onError(new Error('Cannot reject: no active conversation.'));
+      this.events.onError(new Error(`Cannot ${action}: no active conversation.`));
       return;
     }
     const base = this.serverUrl.replace(/\/$/, '');
@@ -261,18 +251,21 @@ export class ConnectionManager {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = this.settings?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const payload: { accept: boolean; reason?: string } = { accept: false };
-      if (reason) payload.reason = reason;
+
+      const payload: { accept: boolean; reason?: string } = { accept };
+      if (!accept && reason) payload.reason = reason;
+
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
       });
+
       if (!res.ok) {
         let info = '';
         try { info = await res.text(); } catch {}
         const status = res.status;
-        throw new Error(`Failed to reject action (HTTP ${status})${info ? `: ${info}` : ''}`);
+        throw new Error(`Failed to ${action} action (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
     } catch (e) {
       this.events.onError(e instanceof Error ? e : new Error(String(e)));
