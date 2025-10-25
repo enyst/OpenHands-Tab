@@ -258,20 +258,20 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: any = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = this.settings?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const payload: any = { accept: false };
+      const payload: { accept: boolean; reason?: string } = { accept: false };
       if (reason) payload.reason = reason;
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
-      } as any);
-      if (!(res as any).ok) {
+      });
+      if (!res.ok) {
         let info = '';
-        try { info = await (res as any).text?.(); } catch {}
-        const status = (res as any).status;
+        try { info = await res.text(); } catch {}
+        const status = res.status;
         throw new Error(`Failed to reject action (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
     } catch (e) {
