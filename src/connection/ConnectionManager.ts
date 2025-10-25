@@ -223,18 +223,18 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: any = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = this.settings?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ accept: true })
-      } as any);
-      if (!(res as any).ok) {
+      });
+      if (!res.ok) {
         let info = '';
-        try { info = await (res as any).text?.(); } catch {}
-        const status = (res as any).status;
+        try { info = await res.text(); } catch {}
+        const status = res.status;
         throw new Error(`Failed to approve action (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
     } catch (e) {
