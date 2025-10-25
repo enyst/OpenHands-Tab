@@ -21,6 +21,7 @@ node_modules/
 !gulpfile.js
 !rollup.config.js
 !jest.config.js
+!eslint.config.js
 
 # TypeScript build info
 *.tsbuildinfo
