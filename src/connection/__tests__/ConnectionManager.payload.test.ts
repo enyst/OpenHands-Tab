@@ -72,6 +72,21 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.agent.llm.usage_id).toBe('use-1');
     expect(body.agent.llm.model).toBe('anthropic/claude-3-5');
     expect(body.agent.llm.base_url).toBe('https://api.example.com');
+    expect(body.agent.llm.api_version).toBe('2024-10-01');
+    expect(body.agent.llm.api_key).toBe('k');
+    expect(body.agent.llm.aws_access_key_id).toBe('AK');
+    expect(body.agent.llm.aws_secret_access_key).toBe('SK');
+    expect(body.agent.llm.timeout).toBe(30);
+    expect(body.agent.llm.temperature).toBe(0.2);
+    expect(body.agent.llm.top_p).toBe(0.9);
+    expect(body.agent.llm.top_k).toBe(50);
+    expect(body.agent.llm.max_input_tokens).toBe(10000);
+    expect(body.agent.llm.max_output_tokens).toBe(2048);
+    expect(body.agent.llm.native_tool_calling).toBe(true);
+    expect(body.agent.llm.reasoning_effort).toBe('medium');
+    // regression: ensure filter_tools_regex is not sent
+    expect(body.agent.filter_tools_regex).toBeUndefined();
+  });
 
   it('clamps max_iterations to [1,500]', async () => {
     const baseUrl = 'http://example.com';
@@ -92,21 +107,6 @@ describe('ConnectionManager startNewConversation payload', () => {
     await cm.startNewConversation();
     expect(body.max_iterations).toBe(500);
     spy.mockRestore();
-  });
-    expect(body.agent.llm.api_version).toBe('2024-10-01');
-    expect(body.agent.llm.api_key).toBe('k');
-    expect(body.agent.llm.aws_access_key_id).toBe('AK');
-    expect(body.agent.llm.aws_secret_access_key).toBe('SK');
-    expect(body.agent.llm.timeout).toBe(30);
-    expect(body.agent.llm.temperature).toBe(0.2);
-    expect(body.agent.llm.top_p).toBe(0.9);
-    expect(body.agent.llm.top_k).toBe(50);
-    expect(body.agent.llm.max_input_tokens).toBe(10000);
-    expect(body.agent.llm.max_output_tokens).toBe(2048);
-    expect(body.agent.llm.native_tool_calling).toBe(true);
-    expect(body.agent.llm.reasoning_effort).toBe('medium');
-    // regression: ensure filter_tools_regex is not sent
-    expect(body.agent.filter_tools_regex).toBeUndefined();
   });
 });
 
