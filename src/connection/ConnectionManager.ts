@@ -208,6 +208,78 @@ export class ConnectionManager {
   }
 
   /**
+   * Approves a pending action during confirmation mode.
+   *
+   * When confirmation policy requires user approval (AlwaysConfirm or ConfirmRisky),
+   * this method sends acceptance to the agent-server to proceed with execution.
+   *
+   * Endpoint: POST /api/conversations/{id}/events/respond_to_confirmation
+   * Payload: { accept: true }
+   */
+  async approveAction(): Promise<void> {
+    if (!this.conversationId) {
+      this.events.onError(new Error('Cannot approve: no active conversation.'));
+      return;
+    }
+    const base = this.serverUrl.replace(/\/$/, '');
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      const sessionKey = this.settings?.secrets.sessionApiKey || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ accept: true })
+      } as any);
+      if (!(res as any).ok) {
+        let info = '';
+        try { info = await (res as any).text?.(); } catch {}
+        const status = (res as any).status;
+        throw new Error(`Failed to approve action (HTTP ${status})${info ? `: ${info}` : ''}`);
+      }
+    } catch (e) {
+      this.events.onError(e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+
+  /**
+   * Rejects a pending action during confirmation mode.
+   *
+   * When confirmation policy requires user approval, this method sends rejection
+   * to the agent-server to skip the action and continue with alternative approaches.
+   *
+   * Endpoint: POST /api/conversations/{id}/events/respond_to_confirmation
+   * Payload: { accept: false, reason?: string }
+   */
+  async rejectAction(reason?: string): Promise<void> {
+    if (!this.conversationId) {
+      this.events.onError(new Error('Cannot reject: no active conversation.'));
+      return;
+    }
+    const base = this.serverUrl.replace(/\/$/, '');
+    try {
+      const headers: any = { 'Content-Type': 'application/json' };
+      const sessionKey = this.settings?.secrets.sessionApiKey || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+      const payload: any = { accept: false };
+      if (reason) payload.reason = reason;
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      } as any);
+      if (!(res as any).ok) {
+        let info = '';
+        try { info = await (res as any).text?.(); } catch {}
+        const status = (res as any).status;
+        throw new Error(`Failed to reject action (HTTP ${status})${info ? `: ${info}` : ''}`);
+      }
+    } catch (e) {
+      this.events.onError(e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+
+  /**
    * Sends a user message to the agent.
    *
    * Message delivery strategy:
