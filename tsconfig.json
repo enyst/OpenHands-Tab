@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "noUnusedLocals": true
+    "noUnusedLocals": true,
+    "types": ["vscode", "node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": [
