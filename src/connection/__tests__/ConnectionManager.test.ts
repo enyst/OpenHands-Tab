@@ -140,8 +140,8 @@ describe('ConnectionManager', () => {
     ws.close();
     expect(events.onStatus).toHaveBeenLastCalledWith('offline');
 
-    // first retry after ~1000ms
-    await vi.advanceTimersByTimeAsync(1000);
+    // first retry after ~1000ms (+ up to ~200ms jitter)
+    await vi.advanceTimersByTimeAsync(1200);
 
     const countAfter = wsInstances.length;
     expect(countAfter).toBeGreaterThan(countBefore);
