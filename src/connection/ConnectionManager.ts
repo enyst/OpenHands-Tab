@@ -10,6 +10,16 @@ export type ConnectionEvents = {
   onConversationId?: (id: string | undefined) => void;
 };
 
+/**
+ * ConnectionManager handles all communication with the OpenHands agent-server.
+ *
+ * Features:
+ * - WebSocket connection for real-time event streaming
+ * - HTTP fallback for message sending when WebSocket is unavailable
+ * - Automatic reconnection with exponential backoff (1s base, max 15s)
+ * - Conversation lifecycle management (create, pause, resume)
+ * - Settings-driven configuration (LLM, security, confirmation policies)
+ */
 export class ConnectionManager {
   private serverUrl: string;
   private settings?: OpenHandsSettings;
@@ -115,15 +125,35 @@ export class ConnectionManager {
       if (!res.ok) {
         let info = '';
         try { info = await (res as any).text?.(); } catch {}
-        throw new Error(`HTTP ${res.status}${info ? `: ${info}` : ''}`);
+        const status = res.status;
+        // Provide user-friendly error messages based on status code
+        let userMessage = `Failed to start conversation (HTTP ${status})`;
+        if (status === 401 || status === 403) {
+          userMessage += '. Authentication failed - check your Session API Key in settings.';
+        } else if (status === 404) {
+          userMessage += `. Server not found at ${this.serverUrl}. Check the server URL in settings.`;
+        } else if (status >= 500) {
+          userMessage += '. Server error - check agent-server logs.';
+        }
+        if (info) userMessage += ` Details: ${info}`;
+        throw new Error(userMessage);
       }
       const json: any = await res.json();
       this.conversationId = json.id || json.conversation_id || json.uuid;
+      if (!this.conversationId) {
+        throw new Error('Server response missing conversation ID. Check agent-server logs.');
+      }
       this.events.onConversationId?.(this.conversationId);
       this.connect();
       return this.conversationId;
     } catch (e) {
-      this.events.onError(e);
+      // Add context to generic network errors
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      if (errorMsg.includes('fetch') || errorMsg.includes('ECONNREFUSED')) {
+        this.events.onError(new Error(`Cannot connect to agent-server at ${this.serverUrl}. Is the server running? ${errorMsg}`));
+      } else {
+        this.events.onError(e);
+      }
       return undefined;
     }
   }
@@ -134,7 +164,10 @@ export class ConnectionManager {
   }
 
   async pause() {
-    if (!this.conversationId) return;
+    if (!this.conversationId) {
+      this.events.onError(new Error('Cannot pause: no active conversation. Start a new conversation first.'));
+      return;
+    }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers: any = { 'Content-Type': 'application/json' };
@@ -144,13 +177,19 @@ export class ConnectionManager {
       if (!(res as any).ok) {
         let info = '';
         try { info = await (res as any).text?.(); } catch {}
-        throw new Error(`HTTP ${(res as any).status}${info ? `: ${info}` : ''}`);
+        const status = (res as any).status;
+        throw new Error(`Failed to pause conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
-    } catch (e) { this.events.onError(e); }
+    } catch (e) {
+      this.events.onError(e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
   async resume() {
-    if (!this.conversationId) return;
+    if (!this.conversationId) {
+      this.events.onError(new Error('Cannot resume: no active conversation. Start a new conversation first.'));
+      return;
+    }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers: any = { 'Content-Type': 'application/json' };
@@ -160,11 +199,24 @@ export class ConnectionManager {
       if (!(res as any).ok) {
         let info = '';
         try { info = await (res as any).text?.(); } catch {}
-        throw new Error(`HTTP ${(res as any).status}${info ? `: ${info}` : ''}`);
+        const status = (res as any).status;
+        throw new Error(`Failed to resume conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
-    } catch (e) { this.events.onError(e); }
+    } catch (e) {
+      this.events.onError(e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
+  /**
+   * Sends a user message to the agent.
+   *
+   * Message delivery strategy:
+   * 1. If no conversation exists, creates one first
+   * 2. If WebSocket is open: sends message over WS for immediate delivery
+   * 3. If WebSocket is closed/connecting: falls back to HTTP POST to /events/
+   *
+   * This fallback ensures messages are queued even when the connection is unstable.
+   */
   async sendUserMessage(text: string) {
     if (!this.conversationId) {
       const id = await this.startNewConversation();
@@ -175,6 +227,7 @@ export class ConnectionManager {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload));
     } else {
+      // Fallback to HTTP when WebSocket unavailable
       try {
         const base = this.serverUrl.replace(/\/$/, '');
         const headers: any = { 'Content-Type': 'application/json' };
@@ -207,6 +260,17 @@ export class ConnectionManager {
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = undefined; }
   }
 
+  /**
+   * Schedules WebSocket reconnection with exponential backoff and jitter.
+   *
+   * Retry strategy:
+   * - Base delay: 1s, doubles each attempt (2s, 4s, 8s, ...)
+   * - Max delay: 15s (prevents excessive wait times)
+   * - Jitter: +0-20% randomization to avoid thundering herd
+   * - Max retry count: 10 (prevents overflow)
+   *
+   * Called automatically on WebSocket close/error events.
+   */
   private scheduleReconnect() {
     this.clearReconnect();
     const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
@@ -216,11 +280,23 @@ export class ConnectionManager {
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
+  /**
+   * Establishes WebSocket connection to agent-server.
+   *
+   * Connection lifecycle:
+   * - URL: ws(s)://{serverUrl}/sockets/events/{conversation_id}?session_api_key=...
+   * - On open: resets retry count and sets status to 'online'
+   * - On close/error: sets status to 'offline' and schedules reconnection
+   * - On message: validates with type guards and emits event to listeners
+   *
+   * All incoming messages must pass isAgentEvent() validation to prevent
+   * malformed data from reaching the UI.
+   */
   private connect() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
     const sessionKey = this.settings?.secrets.sessionApiKey || '';
-    // agent-sdk WS path moved to /sockets/events/{conversation_id} with optional session_api_key
+    // agent-sdk WS path: /sockets/events/{conversation_id} with optional session_api_key
     const qs = sessionKey ? `?session_api_key=${encodeURIComponent(sessionKey)}` : '';
     const wsUrl = base.replace(/^http/, 'ws') + `/sockets/events/${this.conversationId}${qs}`;
     this.setStatus('connecting');
@@ -234,6 +310,7 @@ export class ConnectionManager {
       try {
         const str = buf.toString();
         const data = JSON.parse(str);
+        // Validate event structure before propagating to UI
         if (isAgentEvent(data)) this.events.onEvent(data);
         else this.events.onError(new Error('Invalid event payload'));
       } catch (e) {
