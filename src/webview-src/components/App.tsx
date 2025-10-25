@@ -364,13 +364,10 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
           type="button"
           onClick={onApprove}
           disabled={isSubmitting}
-          className="px-3 py-1.5 rounded text-sm font-medium"
+          className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
           style={{
             background: 'var(--vscode-button-background)',
-            color: 'var(--vscode-button-foreground)',
-            border: 'none',
-            cursor: isSubmitting ? 'not-allowed' : 'pointer',
-            opacity: isSubmitting ? 0.6 : 1
+            color: 'var(--vscode-button-foreground)'
           }}
         >
           ✓ Approve
@@ -380,13 +377,10 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
             type="button"
             onClick={() => setShowRejectInput(true)}
             disabled={isSubmitting}
-            className="px-3 py-1.5 rounded text-sm font-medium"
+            className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
               background: 'var(--vscode-button-secondaryBackground)',
-              color: 'var(--vscode-button-secondaryForeground)',
-              border: 'none',
-              cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              opacity: isSubmitting ? 0.6 : 1
+              color: 'var(--vscode-button-secondaryForeground)'
             }}
           >
             ✗ Reject
@@ -406,13 +400,10 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
               type="button"
               onClick={handleReject}
               disabled={isSubmitting}
-              className="px-3 py-1.5 rounded text-sm font-medium"
+              className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
               style={{
                 background: 'var(--vscode-button-secondaryBackground)',
-                color: 'var(--vscode-button-secondaryForeground)',
-                border: 'none',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                opacity: isSubmitting ? 0.6 : 1
+                color: 'var(--vscode-button-secondaryForeground)'
               }}
             >
               Confirm Reject
@@ -421,13 +412,10 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
               type="button"
               onClick={() => setShowRejectInput(false)}
               disabled={isSubmitting}
-              className="px-3 py-1.5 rounded text-sm font-medium"
+              className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
               style={{
                 background: 'var(--vscode-button-secondaryBackground)',
-                color: 'var(--vscode-button-secondaryForeground)',
-                border: 'none',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                opacity: isSubmitting ? 0.6 : 1
+                color: 'var(--vscode-button-secondaryForeground)'
               }}
             >
               Cancel
@@ -464,7 +452,8 @@ export function App() {
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
-  const confirmInFlightRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
@@ -538,14 +527,22 @@ export function App() {
     // Also reset in-flight flag to allow new confirmations
     if (isObservationEvent(e) || isUserRejectObservation(e)) {
       setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-      confirmInFlightRef.current = false;
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
     }
 
     // Show toast notifications for certain events
     if (isAgentErrorEvent(e)) {
       toastDebounced('error', e.error);
       // Reset in-flight flag on error to allow recovery
-      confirmInFlightRef.current = false;
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
     } else if (isPauseEvent(e)) {
       toastDebounced('warning', 'Conversation paused');
     }
@@ -571,8 +568,16 @@ export function App() {
 
   const handleApprove = () => {
     // Prevent double-submit: return early if confirmation already in flight
-    if (confirmInFlightRef.current) return;
-    confirmInFlightRef.current = true;
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    // Set 30-second timeout to prevent permanent lockout if backend doesn't respond
+    submissionTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      submissionTimeoutRef.current = null;
+      toastDebounced('warning', 'Confirmation timed out - please try again');
+    }, 30000);
+
     postMessage({ type: 'command', command: 'approveAction' });
     // Use "submitted" (pending state) instead of "approved" (implies success)
     toastDebounced('info', 'Approval submitted');
@@ -581,8 +586,16 @@ export function App() {
 
   const handleReject = (reason?: string) => {
     // Prevent double-submit: return early if confirmation already in flight
-    if (confirmInFlightRef.current) return;
-    confirmInFlightRef.current = true;
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    // Set 30-second timeout to prevent permanent lockout if backend doesn't respond
+    submissionTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      submissionTimeoutRef.current = null;
+      toastDebounced('warning', 'Confirmation timed out - please try again');
+    }, 30000);
+
     postMessage({ type: 'command', command: 'rejectAction', reason });
     // Use "submitted" (pending state) instead of "rejected" (implies success)
     toastDebounced('info', 'Rejection submitted');
@@ -622,7 +635,7 @@ export function App() {
               actions={pendingActions}
               onApprove={handleApprove}
               onReject={handleReject}
-              isSubmitting={confirmInFlightRef.current}
+              isSubmitting={isSubmitting}
             />
           )}
           <div ref={endRef} />
