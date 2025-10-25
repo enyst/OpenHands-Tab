@@ -152,7 +152,7 @@ export class ConnectionManager {
       if (errorMsg.includes('fetch') || errorMsg.includes('ECONNREFUSED')) {
         this.events.onError(new Error(`Cannot connect to agent-server at ${this.serverUrl}. Is the server running? ${errorMsg}`));
       } else {
-        this.events.onError(e);
+        this.events.onError(e instanceof Error ? e : new Error(String(e)));
       }
       return undefined;
     }
