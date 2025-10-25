@@ -305,6 +305,9 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         case 'startNewConversation': await connection?.startNewConversation(); break;
         case 'approveAction': await connection?.approveAction(); break;
         case 'rejectAction': await connection?.rejectAction(msg.reason); break;
+        default:
+          console.warn(`Unknown command received from webview: ${msg.command}`);
+          break;
       }
     }
     if (msg?.type === 'renderedEventsResponse') {

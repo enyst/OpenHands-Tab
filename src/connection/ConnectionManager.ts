@@ -253,7 +253,8 @@ export class ConnectionManager {
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
 
       const payload: { accept: boolean; reason?: string } = { accept };
-      if (!accept && reason) payload.reason = reason;
+      // Include reason if explicitly provided (even if empty string)
+      if (!accept && reason !== undefined) payload.reason = reason;
 
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
         method: 'POST',

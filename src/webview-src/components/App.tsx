@@ -343,7 +343,7 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPrompt
             <div className="mb-2">
               <div className="text-sm font-semibold">Thought:</div>
               <div className="text-sm whitespace-pre-wrap mt-1">
-                {action.thought.map(t => t.text).join(' ')}
+                {action.thought.map(t => t.text).join('\n')}
               </div>
             </div>
           )}
@@ -359,13 +359,31 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPrompt
       ))}
 
       <div className="flex gap-2 items-center mt-3">
-        <Button onClick={onApprove} className="bg-green-600 hover:bg-green-700 text-white">
+        <button
+          onClick={onApprove}
+          className="px-3 py-1.5 rounded text-sm font-medium"
+          style={{
+            background: 'var(--vscode-button-background)',
+            color: 'var(--vscode-button-foreground)',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
           ✓ Approve
-        </Button>
+        </button>
         {!showRejectInput ? (
-          <Button onClick={() => setShowRejectInput(true)} className="bg-red-600 hover:bg-red-700 text-white">
+          <button
+            onClick={() => setShowRejectInput(true)}
+            className="px-3 py-1.5 rounded text-sm font-medium"
+            style={{
+              background: 'var(--vscode-button-secondaryBackground)',
+              color: 'var(--vscode-button-secondaryForeground)',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
             ✗ Reject
-          </Button>
+          </button>
         ) : (
           <>
             <input
@@ -376,12 +394,30 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPrompt
               className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
               style={{ background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', borderColor: 'var(--vscode-input-border)' }}
             />
-            <Button onClick={handleReject} className="bg-red-600 hover:bg-red-700 text-white">
+            <button
+              onClick={handleReject}
+              className="px-3 py-1.5 rounded text-sm font-medium"
+              style={{
+                background: 'var(--vscode-button-secondaryBackground)',
+                color: 'var(--vscode-button-secondaryForeground)',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
               Confirm Reject
-            </Button>
-            <Button onClick={() => setShowRejectInput(false)}>
+            </button>
+            <button
+              onClick={() => setShowRejectInput(false)}
+              className="px-3 py-1.5 rounded text-sm font-medium"
+              style={{
+                background: 'var(--vscode-button-secondaryBackground)',
+                color: 'var(--vscode-button-secondaryForeground)',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
               Cancel
-            </Button>
+            </button>
           </>
         )}
       </div>
