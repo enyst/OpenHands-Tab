@@ -299,11 +299,13 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       await connection?.sendUserMessage(msg.text);
     }
     if (msg?.type === 'command') {
-      if (msg.command === 'reconnect') connection?.reconnect();
-      if (msg.command === 'pause') connection?.pause();
-      if (msg.command === 'startNewConversation') connection?.startNewConversation();
-      if (msg.command === 'approveAction') connection?.approveAction();
-      if (msg.command === 'rejectAction') connection?.rejectAction(msg.reason);
+      switch (msg.command) {
+        case 'reconnect': connection?.reconnect(); break;
+        case 'pause': connection?.pause(); break;
+        case 'startNewConversation': connection?.startNewConversation(); break;
+        case 'approveAction': connection?.approveAction(); break;
+        case 'rejectAction': connection?.rejectAction(msg.reason); break;
+      }
     }
     if (msg?.type === 'renderedEventsResponse') {
       // Store the response from webview for testing/diagnostics
