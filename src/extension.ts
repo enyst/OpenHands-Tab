@@ -230,7 +230,12 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.pause();
   });
 
-  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, startNew, configure, reconnect, pause);
+  const resume = vscode.commands.registerCommand('openhands.resumeCurrentRun', async () => {
+    await ensurePanelAndConnection();
+    await connection?.resume();
+  });
+
+  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, startNew, configure, reconnect, pause, resume);
 }
 
 export function deactivate() {
@@ -264,6 +269,23 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
 </html>`;
 }
 
+/**
+ * Message bridge handler: routes messages from webview to extension host.
+ *
+ * Supported message types:
+ * - 'openSettings': Opens the configuration wizard (multi-step input)
+ * - 'getConfig': Returns current serverUrl to webview
+ * - 'send': Sends user message to agent via ConnectionManager
+ * - 'command': Executes agent control commands (reconnect, pause, startNewConversation)
+ * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
+ *
+ * Reverse flow (extension → webview):
+ * - ConnectionManager callbacks post 'status', 'event', 'error' messages to webview
+ * - Config updates post 'configUpdated' messages
+ *
+ * Security: All network communication happens in extension host (not webview),
+ * avoiding CORS and CSP limitations.
+ */
 function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
   return async (msg: any) => {
     if (msg?.type === 'openSettings') {

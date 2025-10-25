@@ -245,6 +245,21 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
   );
 }
 
+/**
+ * Event dispatcher: routes agent-sdk events to appropriate rendering components.
+ *
+ * Supported event types (validated by type guards in agent-sdk.ts):
+ * - SystemPromptEvent: Shows system instructions and available tools
+ * - ActionEvent: Displays agent's planned action with security risk badges
+ * - ObservationEvent: Shows tool execution results (with expand/collapse for long output)
+ * - UserRejectObservation: Displays rejection notifications from confirmation mode
+ * - MessageEvent: Renders assistant/user messages (text content only)
+ * - AgentErrorEvent: Shows error messages with tool context
+ * - PauseEvent: Displays pause notifications
+ * - Condensation: Shows conversation summarization events
+ *
+ * Fallback: Unknown event types render as JSON for debugging.
+ */
 function EventBlock({ event }: { event: Event }) {
   if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} />;
   if (isActionEvent(event)) return <ActionEventBlock event={event} />;
@@ -280,6 +295,22 @@ function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: str
   }
 }
 
+/**
+ * Main App component: React webview root for OpenHands extension.
+ *
+ * Architecture:
+ * - Receives messages from extension host via window.postMessage
+ * - Renders agent-sdk events in a scrollable message stream
+ * - Sends user input and commands back to extension via vscode.postMessage
+ *
+ * State management:
+ * - status: Connection state (online/offline/connecting)
+ * - events: Array of rendered events with stable keys for React reconciliation
+ *
+ * Message flow:
+ * Extension → Webview: status updates, agent events, errors, config changes
+ * Webview → Extension: user messages, commands (pause/reconnect/newConversation)
+ */
 export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [events, setEvents] = useState<RenderedEvent[]>([]);
@@ -287,6 +318,7 @@ export function App() {
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
 
+  // Message handler: processes incoming messages from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const payload: any = (event as any).data;

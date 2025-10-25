@@ -38,6 +38,10 @@
         "title": "OpenHands: Pause Current Run"
       },
       {
+        "command": "openhands.resumeCurrentRun",
+        "title": "OpenHands: Resume Current Run"
+      },
+      {
         "command": "openhands._diagnostics",
         "title": "OpenHands: Diagnostics (Internal)"
       }
