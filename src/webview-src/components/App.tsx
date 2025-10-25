@@ -323,7 +323,7 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: {
         ⚠️ Action Confirmation Required
       </div>
       {actions.map((action, idx) => (
-        <div key={action.tool_call_id || idx} className="mb-3 pb-3 border-b border-[rgba(128,128,128,0.2)] last:border-b-0">
+        <div key={action.tool_call_id} className="mb-3 pb-3 border-b border-[rgba(128,128,128,0.2)] last:border-b-0">
           <div className="mb-2">
             <span className="font-semibold">Tool: </span>
             <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{action.tool_name}</span>
