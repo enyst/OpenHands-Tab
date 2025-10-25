@@ -305,9 +305,10 @@ interface ConfirmationPromptProps {
   actions: ActionEvent[];
   onApprove: () => void;
   onReject: (reason?: string) => void;
+  isSubmitting: boolean;
 }
 
-function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPromptProps) {
+function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: ConfirmationPromptProps) {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
 
@@ -324,7 +325,7 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPrompt
       <div className="font-bold mb-3 text-[var(--vscode-foreground)] text-lg">
         ⚠️ Action Confirmation Required
       </div>
-      {actions.map((action, idx) => (
+      {actions.map((action) => (
         <div key={action.tool_call_id} className="mb-3 pb-3 border-b border-[rgba(128,128,128,0.2)] last:border-b-0">
           <div className="mb-2">
             <span className="font-semibold">Tool: </span>
@@ -360,26 +361,32 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPrompt
 
       <div className="flex gap-2 items-center mt-3">
         <button
+          type="button"
           onClick={onApprove}
+          disabled={isSubmitting}
           className="px-3 py-1.5 rounded text-sm font-medium"
           style={{
             background: 'var(--vscode-button-background)',
             color: 'var(--vscode-button-foreground)',
             border: 'none',
-            cursor: 'pointer'
+            cursor: isSubmitting ? 'not-allowed' : 'pointer',
+            opacity: isSubmitting ? 0.6 : 1
           }}
         >
           ✓ Approve
         </button>
         {!showRejectInput ? (
           <button
+            type="button"
             onClick={() => setShowRejectInput(true)}
+            disabled={isSubmitting}
             className="px-3 py-1.5 rounded text-sm font-medium"
             style={{
               background: 'var(--vscode-button-secondaryBackground)',
               color: 'var(--vscode-button-secondaryForeground)',
               border: 'none',
-              cursor: 'pointer'
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              opacity: isSubmitting ? 0.6 : 1
             }}
           >
             ✗ Reject
@@ -390,30 +397,37 @@ function ConfirmationPrompt({ actions, onApprove, onReject }: ConfirmationPrompt
               type="text"
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
+              disabled={isSubmitting}
               placeholder="Reason for rejection (optional)"
               className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
               style={{ background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', borderColor: 'var(--vscode-input-border)' }}
             />
             <button
+              type="button"
               onClick={handleReject}
+              disabled={isSubmitting}
               className="px-3 py-1.5 rounded text-sm font-medium"
               style={{
                 background: 'var(--vscode-button-secondaryBackground)',
                 color: 'var(--vscode-button-secondaryForeground)',
                 border: 'none',
-                cursor: 'pointer'
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                opacity: isSubmitting ? 0.6 : 1
               }}
             >
               Confirm Reject
             </button>
             <button
+              type="button"
               onClick={() => setShowRejectInput(false)}
+              disabled={isSubmitting}
               className="px-3 py-1.5 rounded text-sm font-medium"
               style={{
                 background: 'var(--vscode-button-secondaryBackground)',
                 color: 'var(--vscode-button-secondaryForeground)',
                 border: 'none',
-                cursor: 'pointer'
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                opacity: isSubmitting ? 0.6 : 1
               }}
             >
               Cancel
@@ -449,6 +463,8 @@ export function App() {
   const eventId = useRef(1);
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
+  const lastAgentStatusRef = useRef<string | undefined>(undefined);
+  const confirmInFlightRef = useRef(false);
 
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
@@ -499,28 +515,37 @@ export function App() {
     if (isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
-        // Show toast when entering confirmation mode
-        if (e.agent_status === 'WAITING_FOR_CONFIRMATION') {
+        // Show toast only when transitioning INTO confirmation mode (not on repeated updates)
+        if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
           toastDebounced('warning', 'Agent is waiting for confirmation');
         }
+        lastAgentStatusRef.current = e.agent_status;
       }
       // Don't render state update events in the UI
       return;
     }
 
     // Track pending actions (actions awaiting confirmation or execution)
+    // Deduplicate by tool_call_id to prevent duplicate cards on reconnection or retries
     if (isActionEvent(e)) {
-      setPendingActions((prev) => [...prev, e]);
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
+        return exists ? prev : [...prev, e];
+      });
     }
 
     // Clear pending action when we receive its observation
+    // Also reset in-flight flag to allow new confirmations
     if (isObservationEvent(e) || isUserRejectObservation(e)) {
       setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
+      confirmInFlightRef.current = false;
     }
 
     // Show toast notifications for certain events
     if (isAgentErrorEvent(e)) {
       toastDebounced('error', e.error);
+      // Reset in-flight flag on error to allow recovery
+      confirmInFlightRef.current = false;
     } else if (isPauseEvent(e)) {
       toastDebounced('warning', 'Conversation paused');
     }
@@ -545,15 +570,23 @@ export function App() {
   };
 
   const handleApprove = () => {
+    // Prevent double-submit: return early if confirmation already in flight
+    if (confirmInFlightRef.current) return;
+    confirmInFlightRef.current = true;
     postMessage({ type: 'command', command: 'approveAction' });
-    toastDebounced('success', 'Action approved');
-    // Server will send ObservationEvent which clears pending actions via handleEvent
+    // Use "submitted" (pending state) instead of "approved" (implies success)
+    toastDebounced('info', 'Approval submitted');
+    // Server will send ObservationEvent which clears pending actions and resets flag via handleEvent
   };
 
   const handleReject = (reason?: string) => {
+    // Prevent double-submit: return early if confirmation already in flight
+    if (confirmInFlightRef.current) return;
+    confirmInFlightRef.current = true;
     postMessage({ type: 'command', command: 'rejectAction', reason });
-    toastDebounced('info', 'Action rejected');
-    // Server will send UserRejectObservation which clears pending actions via handleEvent
+    // Use "submitted" (pending state) instead of "rejected" (implies success)
+    toastDebounced('info', 'Rejection submitted');
+    // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
   };
 
   return (
@@ -589,6 +622,7 @@ export function App() {
               actions={pendingActions}
               onApprove={handleApprove}
               onReject={handleReject}
+              isSubmitting={confirmInFlightRef.current}
             />
           )}
           <div ref={endRef} />
