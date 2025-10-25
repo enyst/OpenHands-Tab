@@ -50,33 +50,93 @@
           "type": "string",
           "default": "http://localhost:3000",
           "description": "OpenHands agent-server base URL"
+        },
+        
+        "openhands.conversation.maxIterations": {
+          "type": "number",
+          "default": 50,
+          "markdownDescription": "Default max iterations for new conversations (server default is 500)."
+        },
+        
+        "openhands.confirmation.policy": {
+          "type": "string",
+          "enum": ["never", "always", "risky"],
+          "default": "never",
+          "markdownDescription": "Action confirmation policy: never ask, always ask, or ask for risky actions."
+        },
+        "openhands.confirmation.risky.threshold": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "default": "HIGH",
+          "markdownDescription": "Risk threshold for ConfirmRisky policy. Actions at or above this require confirmation."
+        },
+        "openhands.confirmation.risky.confirmUnknown": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Whether actions with UNKNOWN risk require confirmation in risky mode."
+        },
+        
+        "openhands.agent.enableSecurityAnalyzer": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
+        },
+        
+        "openhands.llm.usageId": {
+          "type": "string",
+          "default": "default-llm",
+          "markdownDescription": "Preferred usage_id for LLM config sent to agent-server. If unset, server defaults apply."
+        },
+        "openhands.llm.model": {
+          "type": "string",
+          "default": "claude-sonnet-4-20250514",
+          "markdownDescription": "Default model name for LLM requests."
+        },
+        "openhands.llm.baseUrl": {
+          "type": "string",
+          "markdownDescription": "Optional LLM base URL override. Leave empty to use provider default."
+        },
+        "openhands.llm.apiVersion": {
+          "type": "string",
+          "markdownDescription": "Optional LLM API version (e.g., Azure). Leave empty if not applicable."
+        },
+        "openhands.llm.timeout": {
+          "type": "number",
+          "markdownDescription": "HTTP timeout in seconds. Leave empty to use default."
+        },
+        "openhands.llm.temperature": {
+          "type": "number",
+          "default": 0,
+          "markdownDescription": "Sampling temperature (0-2)."
+        },
+        "openhands.llm.topP": {
+          "type": "number",
+          "default": 1,
+          "markdownDescription": "Top-p nucleus sampling."
+        },
+        "openhands.llm.topK": {
+          "type": "number",
+          "markdownDescription": "Top-k sampling. Leave empty to use default."
+        },
+        "openhands.llm.maxInputTokens": {
+          "type": "number",
+          "markdownDescription": "Max input tokens. Leave empty to use default."
+        },
+        "openhands.llm.maxOutputTokens": {
+          "type": "number",
+          "markdownDescription": "Max output tokens. Leave empty to use default."
+        },
+        "openhands.llm.nativeToolCalling": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable model-native tool calling if supported."
+        },
+        "openhands.llm.reasoningEffort": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "none"],
+          "default": "none",
+          "markdownDescription": "Reasoning effort for supported models."
         }
-,
-          "openhands.llm.usageId": {
-            "type": ["string", "null"],
-            "default": "default-llm",
-            "markdownDescription": "Preferred usage_id for LLM config sent to agent-server. If unset, server defaults apply."
-          },
-          "openhands.llm.model": {
-            "type": ["string", "null"],
-            "default": "claude-sonnet-4-20250514",
-            "markdownDescription": "Default model name for LLM requests."
-          },
-          "openhands.llm.baseUrl": {
-            "type": ["string", "null"],
-            "default": null,
-            "markdownDescription": "Optional LLM base URL override."
-          },
-          "openhands.agent.enableSecurityAnalyzer": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
-          },
-          "openhands.agent.filterToolsRegex": {
-            "type": ["string", "null"],
-            "default": null,
-            "markdownDescription": "Regex to filter available tools sent to the agent."
-          }
       }
     }
   },

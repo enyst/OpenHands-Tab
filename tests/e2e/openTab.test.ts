@@ -14,7 +14,7 @@ describe('OpenHands-Tab E2E', function () {
   it('opens the tab and executes commands', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const cliPath = resolveCliPathFromVSCodeExecutablePath(vscodeExecutablePath);
-    const extensionDevelopmentPath = path.resolve(__dirname, '../../');
+    const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
     const extensionTestsPath = path.resolve(__dirname, './suite');
 
     // Log VS Code version via CLI (best-effort)

@@ -22,11 +22,15 @@ export function activate(context: vscode.ExtensionContext) {
       );
       panel.webview.html = getWebviewHtml(context, panel.webview);
       panel.webview.onDidReceiveMessage(onWebviewMessage(context, panel), undefined, context.subscriptions);
+      // Inform webview how to post diagnostics info back
+      panel.webview.postMessage({ type: 'setDiagnosticsChannel' });
       panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
     }
 
     if (!connection) {
       const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+      // Expose workspace root path for ConnectionManager to consume (without importing vscode).
+      (globalThis as any).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
         onStatus: (s) => panel?.webview.postMessage({ type: 'status', status: s }),
         onEvent: (ev) => panel?.webview.postMessage({ type: 'event', event: ev }),
@@ -81,7 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
     panel.webview.postMessage({ type: 'queryRenderedEvents' });
 
     // Wait for response (with timeout)
-    const deadline = Date.now() + 2000;
+    const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
       if (renderedEventsInfo !== undefined) {
         return renderedEventsInfo;
@@ -112,18 +116,18 @@ export function activate(context: vscode.ExtensionContext) {
     // Step 2: LLM
     const usageId = await vscode.window.showInputBox({
       title: 'LLM Usage ID (preferred)',
-      value: existing.llm.usageId,
+      value: existing.llm.usageId ?? undefined,
       placeHolder: 'e.g. default-llm',
       prompt: 'Maps to agent-sdk usage_id; leave blank to use server defaults.'
     });
     const llmModel = await vscode.window.showInputBox({
       title: 'LLM Model',
-      value: existing.llm.model,
+      value: existing.llm.model ?? undefined,
       placeHolder: 'e.g. claude-3-5-sonnet-20241022 or openrouter/*'
     });
     const llmBaseUrl = await vscode.window.showInputBox({
       title: 'LLM Base URL (optional)',
-      value: existing.llm.baseUrl,
+      value: existing.llm.baseUrl ?? undefined,
       placeHolder: 'e.g. https://api.openrouter.ai',
       prompt: 'Optional override; leave empty for provider default.'
     });
@@ -134,19 +138,49 @@ export function activate(context: vscode.ExtensionContext) {
       prompt: 'Stored securely in VS Code SecretStorage.'
     });
 
-    // Step 3: Agent options
+    // Step 3: Agent and conversation options
     const enableSec = await vscode.window.showQuickPick(['Yes', 'No'], {
       title: 'Enable Security Analyzer?',
       canPickMany: false,
       placeHolder: existing.agent.enableSecurityAnalyzer ? 'Yes' : 'No'
     });
-    const filterRegex = await vscode.window.showInputBox({
-      title: 'Filter Tools (regex, optional)',
-      value: existing.agent.filterToolsRegex ?? undefined,
-      placeHolder: 'e.g. ^(BashTool|FileEditorTool)$'
+
+    const maxIterationsStr = await vscode.window.showInputBox({
+      title: 'Max Iterations (default for new conversations)',
+      value: String(existing.conversation.maxIterations ?? 50),
+      placeHolder: 'e.g. 50',
+      validateInput: (value) => {
+        if (!value || value.trim() === '') return undefined;
+        const n = Number.parseInt(value.trim(), 10);
+        if (!Number.isFinite(n) || n < 1 || n > 500) return 'Enter an integer between 1 and 500.';
+        return undefined;
+      }
     });
 
-    // Step 4: Session API Key (optional)
+    const policy = await vscode.window.showQuickPick(['never', 'always', 'risky'], {
+      title: 'Confirmation Policy',
+      canPickMany: false,
+      placeHolder: existing.confirmation.policy ?? 'never'
+    });
+
+    let riskyThreshold: 'LOW' | 'MEDIUM' | 'HIGH' | undefined = existing.confirmation.riskyThreshold;
+    let confirmUnknown: boolean | undefined = existing.confirmation.confirmUnknown;
+    if (policy === 'risky') {
+      const thresholdPick = await vscode.window.showQuickPick(['LOW', 'MEDIUM', 'HIGH'], {
+        title: 'Risk threshold for ConfirmRisky',
+        canPickMany: false,
+        placeHolder: existing.confirmation.riskyThreshold ?? 'HIGH'
+      });
+      riskyThreshold = (thresholdPick as any) || existing.confirmation.riskyThreshold || 'HIGH';
+      const confirmUnknownPick = await vscode.window.showQuickPick(['Yes', 'No'], {
+        title: 'Confirm unknown risk actions?',
+        canPickMany: false,
+        placeHolder: existing.confirmation.confirmUnknown ? 'Yes' : 'No'
+      });
+      confirmUnknown = confirmUnknownPick ? confirmUnknownPick === 'Yes' : existing.confirmation.confirmUnknown;
+    }
+
+    // Step 4: Session and LLM API Keys (optional)
     const sessionApiKey = await vscode.window.showInputBox({
       title: 'Session API Key (optional, secret)',
       value: existing.secrets.sessionApiKey,
@@ -159,7 +193,20 @@ export function activate(context: vscode.ExtensionContext) {
       llm: { usageId: usageId || undefined, model: llmModel || undefined, baseUrl: llmBaseUrl || undefined },
       agent: {
         enableSecurityAnalyzer: enableSec ? enableSec === 'Yes' : existing.agent.enableSecurityAnalyzer,
-        filterToolsRegex: filterRegex || null
+      },
+      conversation: {
+        maxIterations: (() => {
+          const v = maxIterationsStr?.trim();
+          if (!v) return existing.conversation.maxIterations;
+          const n = Math.trunc(Number(v));
+          if (!Number.isFinite(n)) return existing.conversation.maxIterations;
+          return Math.min(500, Math.max(1, n));
+        })(),
+      },
+      confirmation: {
+        policy: (policy as any) || existing.confirmation.policy,
+        riskyThreshold,
+        confirmUnknown,
       },
       secrets: { llmApiKey: llmApiKey || undefined, sessionApiKey: sessionApiKey || undefined }
     }, 'workspace');
