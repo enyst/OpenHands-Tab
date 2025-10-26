@@ -292,31 +292,50 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
     if (!msg || typeof msg !== 'object') return;
     const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; count?: unknown; eventTypes?: unknown };
 
-    if (message.type === 'openSettings') {
-      await vscode.commands.executeCommand('openhands.configure');
-    }
-    if (message.type === 'getConfig') {
-      const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
-      void panel.webview.postMessage({ type: 'config', serverUrl });
-    }
-    if (message.type === 'send' && typeof message.text === 'string') {
-      await connection?.sendUserMessage(message.text);
-    }
-    if (message.type === 'command' && typeof message.command === 'string') {
-      switch (message.command) {
-        case 'reconnect': connection?.reconnect(); break;
-        case 'pause': await connection?.pause(); break;
-        case 'startNewConversation': await connection?.startNewConversation(); break;
-        case 'approveAction': await connection?.approveAction(); break;
-        case 'rejectAction': await connection?.rejectAction(typeof message.reason === 'string' ? message.reason : undefined); break;
-        default:
-          console.warn(`Unknown command received from webview: ${message.command}`);
-          break;
+    switch (message.type) {
+      case 'openSettings':
+        await vscode.commands.executeCommand('openhands.configure');
+        break;
+      case 'getConfig': {
+        const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+        void panel.webview.postMessage({ type: 'config', serverUrl });
+        break;
       }
-    }
-    if (message.type === 'renderedEventsResponse' && typeof message.count === 'number' && Array.isArray(message.eventTypes)) {
-      // Store the response from webview for testing/diagnostics
-      renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
+      case 'send':
+        if (typeof message.text === 'string') {
+          await connection?.sendUserMessage(message.text);
+        }
+        break;
+      case 'command':
+        if (typeof message.command === 'string') {
+          switch (message.command) {
+            case 'reconnect':
+              connection?.reconnect();
+              break;
+            case 'pause':
+              await connection?.pause();
+              break;
+            case 'startNewConversation':
+              await connection?.startNewConversation();
+              break;
+            case 'approveAction':
+              await connection?.approveAction();
+              break;
+            case 'rejectAction':
+              await connection?.rejectAction(typeof message.reason === 'string' ? message.reason : undefined);
+              break;
+            default:
+              console.warn(`Unknown command received from webview: ${message.command}`);
+              break;
+          }
+        }
+        break;
+      case 'renderedEventsResponse':
+        if (typeof message.count === 'number' && Array.isArray(message.eventTypes)) {
+          // Store the response from webview for testing/diagnostics
+          renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
+        }
+        break;
     }
   };
 }

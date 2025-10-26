@@ -464,18 +464,32 @@ export function App() {
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string; event?: unknown; error?: unknown };
-      if (payload?.type === 'status' && payload.status) setStatus(payload.status);
-      if (payload?.type === 'configUpdated' && typeof payload.serverUrl === 'string') toastDebounced('info', `Config updated: ${payload.serverUrl}`);
-      if (payload?.type === 'event') handleEvent(payload.event);
-      if (payload?.type === 'error') toastDebounced('error', String(payload.error));
-      if (payload?.type === 'queryRenderedEvents') {
-        // Respond with rendered event information for testing
-        const vscodeApi = getVscodeApi();
-        vscodeApi.postMessage({
-          type: 'renderedEventsResponse',
-          count: events.length,
-          eventTypes: events.map(e => e.event.type)
-        });
+
+      switch (payload?.type) {
+        case 'status':
+          if (payload.status) setStatus(payload.status);
+          break;
+        case 'configUpdated':
+          if (typeof payload.serverUrl === 'string') {
+            toastDebounced('info', `Config updated: ${payload.serverUrl}`);
+          }
+          break;
+        case 'event':
+          handleEvent(payload.event);
+          break;
+        case 'error':
+          toastDebounced('error', String(payload.error));
+          break;
+        case 'queryRenderedEvents': {
+          // Respond with rendered event information for testing
+          const vscodeApi = getVscodeApi();
+          vscodeApi.postMessage({
+            type: 'renderedEventsResponse',
+            count: events.length,
+            eventTypes: events.map(e => e.event.type)
+          });
+          break;
+        }
       }
     };
     window.addEventListener('message', handler);
