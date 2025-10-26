@@ -29,7 +29,7 @@ When enabled, the extension subscribes to the agent-server's `/sockets/bash-even
 ```
 
 ## Architecture
-```
+```text
 BashEventsClient (new)
   └─> WebSocket to /sockets/bash-events
   └─> Independent lifecycle from conversation events

@@ -32,8 +32,11 @@ export function activate(context: vscode.ExtensionContext) {
       panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
     }
 
+    // Fetch settings once and reuse for both connection and bash events client
+    const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+    const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+
     if (!connection) {
-      const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
       // Expose workspace root path for ConnectionManager to consume (without importing vscode).
       (globalThis as any).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
@@ -42,7 +45,6 @@ export function activate(context: vscode.ExtensionContext) {
         onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
         onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
       });
-      const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       connection.setSettings(settings);
       if (savedId) connection.restoreConversation(savedId);
@@ -51,8 +53,6 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize bash events client if enabled
     const bashEventsEnabled = vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false);
     if (bashEventsEnabled && !bashEventsClient) {
-      const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
-      const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
       const sessionApiKey = settings.secrets.sessionApiKey;
 
       bashEventsClient = new BashEventsClient(
@@ -313,6 +313,13 @@ export function activate(context: vscode.ExtensionContext) {
     const newSettings = await settingsMgr.get();
     connection?.setSettings(newSettings);
     panel?.webview.postMessage({ type: 'configUpdated', serverUrl });
+
+    // Apply to bash events client
+    if (bashEventsClient) {
+      bashEventsClient.setServerUrl(serverUrl);
+      bashEventsClient.setSessionApiKey(newSettings.secrets.sessionApiKey);
+      bashEventsClient.reconnect();
+    }
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
@@ -329,6 +336,35 @@ export function activate(context: vscode.ExtensionContext) {
     await ensurePanelAndConnection();
     await connection?.resume();
   });
+
+  // Listen for runtime configuration changes
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
+      // Handle bash events enabled/disabled toggle
+      if (e.affectsConfiguration('openhands.bashEvents.enabled')) {
+        const enabled = vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false);
+
+        if (enabled && !bashEventsClient) {
+          // Enable bash events - initialize client
+          await ensurePanelAndConnection();
+        } else if (!enabled && bashEventsClient) {
+          // Disable bash events - cleanup
+          bashEventsClient.disconnect();
+          bashEventsClient = undefined;
+          terminal?.dispose();
+          terminal = undefined;
+        }
+      }
+
+      // Handle server URL changes
+      if (e.affectsConfiguration('openhands.serverUrl')) {
+        const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+        connection?.setServerUrl(serverUrl);
+        bashEventsClient?.setServerUrl(serverUrl);
+        bashEventsClient?.reconnect();
+      }
+    })
+  );
 
   context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, queryBashEvents, startNew, configure, reconnect, pause, resume);
 }

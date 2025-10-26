@@ -89,6 +89,7 @@
         "openhands.bashEvents.enabled": {
           "type": "boolean",
           "default": false,
+          "scope": "window",
           "markdownDescription": "Enable live bash command output streaming to VS Code integrated terminal."
         },
 
