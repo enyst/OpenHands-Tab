@@ -171,7 +171,7 @@ function AgentErrorBlock({ event }: { event: AgentErrorEvent }) {
   );
 }
 
-function PauseEventBlock({ event }: { event: PauseEvent }) {
+function PauseEventBlock({ event: _event }: { event: PauseEvent }) {
   return (
     <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-3 rounded my-1">
       <div className="font-bold text-yellow-700">User Paused</div>
