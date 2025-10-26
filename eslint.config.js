@@ -3,6 +3,7 @@ const eslint = require('@eslint/js');
 const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
 const globals = require('globals');
+const reactHooks = require('eslint-plugin-react-hooks');
 
 module.exports = [
   {
@@ -117,6 +118,29 @@ module.exports = [
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-unsafe-function-type': 'off',
       'no-empty': 'off',
+    },
+  },
+  {
+    // React Hooks linting for webview source files
+    files: ['src/webview-src/**/*.tsx'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        project: ['./tsconfig.webview.json'],
+        tsconfigRootDir: __dirname,
+      },
+      globals: {
+        ...globals.browser,
+      },
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 ];
