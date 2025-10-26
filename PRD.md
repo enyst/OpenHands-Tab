@@ -79,7 +79,7 @@ Confirmation policy
   - OpenHands: Configure (opens input box to set server URL)
   - OpenHands: Reconnect (restarts WebSocket; rarely needed since reconnect is automatic)
   - OpenHands: Pause Current Run (sends pause)
-  - TODO: OpenHands: Resume Current Run (sends resume) - endpoint exists but command not exposed yet
+  - OpenHands: Resume Current Run (sends resume)
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
   - See settings_prd.md for detailed settings (server connection/auth, LLM parameters, confirmation policy, and runtime mapping) and rationale
@@ -165,14 +165,13 @@ Confirmation policy
 - Settings
   - Configure server URL; auto-reconnect; persist last conversation id
   - User-level persistence to ~/.openhands/conversations (default ON)
-- TODO: Confirmation Mode
+- Confirmation Mode
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
   - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
-  - Note: Backend supports this; UI not yet implemented
 - TODO: Switch LLM During Conversation
   - If supported by server/SDK: expose command(s) to update agent model/provider mid-conversation
   - Otherwise: provide "Start New Conversation with Model…" flow
-  - Note: Currently hardcoded to claude-sonnet-4 in ConnectionManager
+  - Note: LLM is configurable via settings; mid-conversation switching not yet implemented
 - UI Polish Rounds
   - Iteratively improve event rendering and layout
   - Note: OpenHands V0 (current web) vs V1 (agent-sdk centric) — we will prefer reusing visual patterns where feasible, but the authoritative APIs and models are from agent-sdk (V1 rewrite). Visual similarity is desired; implementation details may differ.
