@@ -2,9 +2,13 @@ import * as vscode from 'vscode';
 import { ConnectionManager } from './connection/ConnectionManager';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
+import { BashEventsClient } from './terminal/BashEventsClient';
+import { isBashCommand, isBashOutput, isBashExit } from './types/agent-sdk';
 
 let panel: vscode.WebviewPanel | undefined;
 let connection: ConnectionManager | undefined;
+let bashEventsClient: BashEventsClient | undefined;
+let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -41,6 +45,54 @@ export function activate(context: vscode.ExtensionContext) {
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       connection.setSettings(settings);
       if (savedId) connection.restoreConversation(savedId);
+    }
+
+    // Initialize bash events client if enabled
+    const bashEventsEnabled = vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false);
+    if (bashEventsEnabled && !bashEventsClient) {
+      const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+      const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+      const sessionApiKey = settings.secrets.sessionApiKey;
+
+      bashEventsClient = new BashEventsClient(
+        serverUrl,
+        {
+          onEvent: (event) => {
+            // Create terminal on first event
+            if (!terminal) {
+              terminal = vscode.window.createTerminal({ name: 'OpenHands' });
+              terminal.show(true);
+            }
+
+            // Write events to terminal
+            if (isBashCommand(event)) {
+              terminal.sendText(`$ ${event.command}`, false);
+              terminal.sendText(''); // newline
+            } else if (isBashOutput(event)) {
+              if (event.stdout) terminal.sendText(event.stdout, false);
+              if (event.stderr) terminal.sendText(event.stderr, false);
+            } else if (isBashExit(event)) {
+              terminal.sendText(`[Process exited with code ${event.exit_code}]`);
+            }
+          },
+          onError: (err) => {
+            vscode.window.showErrorMessage(`Bash Events: ${String(err)}`);
+          },
+          onStatus: (status) => {
+            // Optional: could show status in status bar
+            console.log(`[BashEventsClient] Status: ${status}`);
+          },
+        },
+        sessionApiKey
+      );
+
+      bashEventsClient.connect();
+    } else if (!bashEventsEnabled && bashEventsClient) {
+      // Disable bash events if setting changed
+      bashEventsClient.disconnect();
+      bashEventsClient = undefined;
+      terminal?.dispose();
+      terminal = undefined;
     }
 
     panel?.reveal();
@@ -240,6 +292,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   connection?.disconnect();
+  bashEventsClient?.disconnect();
+  terminal?.dispose();
 }
 
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {

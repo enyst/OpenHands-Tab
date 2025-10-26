@@ -162,3 +162,51 @@ export const isAgentErrorEvent = (e: Event): e is AgentErrorEvent => e.type === 
 export const isPauseEvent = (e: Event): e is PauseEvent => e.type === 'PauseEvent';
 export const isCondensation = (e: Event): e is Condensation => e.type === 'Condensation';
 export const isConversationStateUpdateEvent = (e: Event): e is ConversationStateUpdateEvent => e.type === 'ConversationStateUpdateEvent';
+
+// ========================================
+// Bash Events (separate WebSocket stream)
+// ========================================
+
+export interface BashEventBase {
+  id: string;
+  type: string;
+  timestamp: string;
+  command_id: string;
+  order: number;
+}
+
+export interface BashCommand extends BashEventBase {
+  type: 'BashCommand';
+  command: string;
+}
+
+export interface BashOutput extends BashEventBase {
+  type: 'BashOutput';
+  exit_code: number | null;
+  stdout: string | null;
+  stderr: string | null;
+}
+
+export interface BashExit extends BashEventBase {
+  type: 'BashExit';
+  exit_code: number;
+}
+
+export type BashEvent = BashCommand | BashOutput | BashExit;
+
+// Bash event guards
+export const isBashEvent = (e: any): e is BashEvent => {
+  if (!e || typeof e !== 'object' || typeof e.type !== 'string') return false;
+  if (!e.command_id || typeof e.order !== 'number') return false;
+
+  const t = e.type;
+  if (t === 'BashCommand') return typeof e.command === 'string';
+  if (t === 'BashOutput') return true; // stdout/stderr can be null
+  if (t === 'BashExit') return typeof e.exit_code === 'number';
+
+  return false;
+};
+
+export const isBashCommand = (e: BashEvent): e is BashCommand => e.type === 'BashCommand';
+export const isBashOutput = (e: BashEvent): e is BashOutput => e.type === 'BashOutput';
+export const isBashExit = (e: BashEvent): e is BashExit => e.type === 'BashExit';
