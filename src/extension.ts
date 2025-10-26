@@ -111,6 +111,12 @@ export function activate(context: vscode.ExtensionContext) {
       conversationId: connection?.getConversationId(),
       status: connection?.getStatus(),
       serverUrl: getServerUrl(),
+      bashEvents: {
+        enabled: vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false),
+        hasClient: !!bashEventsClient,
+        clientStatus: bashEventsClient?.getStatus(),
+        hasTerminal: !!terminal,
+      },
     };
     return diag;
   });
@@ -146,6 +152,19 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     return { count: 0, eventTypes: [] }; // timeout
+  });
+
+  // Inject bash event for E2E testing
+  const injectBashEvent = vscode.commands.registerCommand('openhands._injectBashEvent', async (event: any) => {
+    if (!bashEventsClient) {
+      // Initialize bash events if not already done
+      await ensurePanelAndConnection();
+    }
+    if (bashEventsClient) {
+      bashEventsClient.injectEvent(event);
+      return { injected: true };
+    }
+    return { injected: false, error: 'BashEventsClient not initialized' };
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
@@ -287,7 +306,7 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.resume();
   });
 
-  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, startNew, configure, reconnect, pause, resume);
+  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, startNew, configure, reconnect, pause, resume);
 }
 
 export function deactivate() {

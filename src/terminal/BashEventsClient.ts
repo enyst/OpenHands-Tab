@@ -112,6 +112,18 @@ export class BashEventsClient {
     this.connect();
   }
 
+  /**
+   * Inject a bash event directly (for testing).
+   * Validates the event and triggers the onEvent callback.
+   */
+  injectEvent(event: BashEvent) {
+    if (isBashEvent(event)) {
+      this.callbacks.onEvent(event);
+    } else {
+      throw new Error('Invalid bash event for injection');
+    }
+  }
+
   private setStatus(status: 'online' | 'offline' | 'connecting') {
     if (this.status !== status) {
       this.status = status;
