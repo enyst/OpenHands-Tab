@@ -10,6 +10,7 @@ let connection: ConnectionManager | undefined;
 let bashEventsClient: BashEventsClient | undefined;
 let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
+let receivedBashEvents: any[] = []; // Track bash events for testing
 
 export function activate(context: vscode.ExtensionContext) {
   async function ensurePanelAndConnection() {
@@ -58,6 +59,9 @@ export function activate(context: vscode.ExtensionContext) {
         serverUrl,
         {
           onEvent: (event) => {
+            // Track received bash events for testing
+            receivedBashEvents.push({ type: event.type, timestamp: Date.now() });
+
             // Create terminal on first event
             if (!terminal) {
               try {
@@ -176,6 +180,15 @@ export function activate(context: vscode.ExtensionContext) {
       return { injected: true };
     }
     return { injected: false, error: 'BashEventsClient not initialized' };
+  });
+
+  // Query received bash events for E2E testing
+  const queryBashEvents = vscode.commands.registerCommand('openhands._queryBashEvents', async () => {
+    return {
+      count: receivedBashEvents.length,
+      eventTypes: receivedBashEvents.map((e) => e.type),
+      events: receivedBashEvents,
+    };
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
@@ -317,7 +330,7 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.resume();
   });
 
-  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, startNew, configure, reconnect, pause, resume);
+  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, queryBashEvents, startNew, configure, reconnect, pause, resume);
 }
 
 export function deactivate() {

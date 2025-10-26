@@ -122,10 +122,39 @@ export async function run(): Promise<void> {
   // Wait for all events to be processed
   await new Promise((r) => setTimeout(r, 500));
 
-  // Verify client status and event processing
-  const diagAfter: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  // Query received bash events
+  const receivedEvents: any = await vscode.commands.executeCommand('openhands._queryBashEvents');
+
+  // Verify all events were received
+  const expectedEventTypes = [
+    'BashCommand',
+    'BashOutput',
+    'BashOutput',
+    'BashExit',
+    'BashCommand',
+    'BashOutput',
+    'BashExit'
+  ];
+
+  if (receivedEvents.count !== expectedEventTypes.length) {
+    throw new Error(
+      `Expected ${expectedEventTypes.length} bash events, received ${receivedEvents.count}. ` +
+      `Event types: ${JSON.stringify(receivedEvents.eventTypes)}`
+    );
+  }
+
+  // Verify event types match expected sequence
+  for (let i = 0; i < expectedEventTypes.length; i++) {
+    if (receivedEvents.eventTypes[i] !== expectedEventTypes[i]) {
+      throw new Error(
+        `Expected event type '${expectedEventTypes[i]}' at index ${i}, ` +
+        `got '${receivedEvents.eventTypes[i]}'`
+      );
+    }
+  }
 
   // Verify client is still initialized
+  const diagAfter: any = await vscode.commands.executeCommand('openhands._diagnostics');
   if (!diagAfter?.bashEvents?.hasClient) {
     throw new Error('BashEventsClient was lost after injecting events');
   }
@@ -139,8 +168,8 @@ export async function run(): Promise<void> {
   if (diagAfter?.bashEvents?.hasTerminal) {
     console.log('✓ Terminal created successfully');
   } else {
-    console.log('⚠ Terminal not created (may fail in headless CI - this is OK)');
+    console.log('⚠ Terminal not created (headless CI environment)');
   }
 
-  console.log('✓ All bash events injected successfully');
+  console.log(`✓ All ${receivedEvents.count} bash events received and processed correctly`);
 }
