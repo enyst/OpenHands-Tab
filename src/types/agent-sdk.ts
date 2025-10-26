@@ -201,7 +201,7 @@ export const isBashEvent = (e: any): e is BashEvent => {
 
   const t = e.type;
   if (t === 'BashCommand') return typeof e.command === 'string';
-  if (t === 'BashOutput') return true; // stdout/stderr can be null
+  if (t === 'BashOutput') return 'exit_code' in e && 'stdout' in e && 'stderr' in e;
   if (t === 'BashExit') return typeof e.exit_code === 'number';
 
   return false;
