@@ -168,9 +168,11 @@ Confirmation policy
 - Confirmation Mode
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
   - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
+
 - TODO: Live Bash Events Terminal
   - Stream bash command output to VS Code integrated terminal via /sockets/bash-events
   - See bash_events.md for full feature specification
+
 - TODO: Switch LLM During Conversation
   - If supported by server/SDK: expose command(s) to update agent model/provider mid-conversation
   - Otherwise: provide "Start New Conversation with Model…" flow

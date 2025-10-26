@@ -160,6 +160,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "build:webview": "node esbuild.webview.mjs",
     "dev:vscode": "bash scripts/dev-vscode.sh"
   },
