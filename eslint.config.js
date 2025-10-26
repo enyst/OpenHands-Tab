@@ -9,16 +9,23 @@ module.exports = [
     ignores: [
       'dist/**',
       'out/**',
+      'media/**', // Build output
       'coverage/**',
       'node_modules/**',
       '*.gen.*',
       'src/webview-src/tailwind.gen.css',
       'tests/e2e/out/**',
       'esbuild.*.mjs',
+      '*.config.js', // Ignore config files (not in tsconfig)
+      '*.config.ts',
+      'vitest.config.ts',
     ],
   },
   {
-    // Production code: enable type-aware linting with type-checked rules
+    // Production code: type-aware linting configuration
+    // NOTE: Ideally we'd spread ...tseslint.configs['flat/recommended-type-checked']
+    // but that preset applies globally and conflicts with test file configurations.
+    // Instead, we manually configure parser/plugins and spread the type-checked .rules
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     ignores: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx'],
     languageOptions: {
@@ -26,10 +33,8 @@ module.exports = [
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
-        // Note: projectService is recommended but doesn't work well with multiple tsconfig files
-        // that cover different parts of the codebase. Using explicit project array instead.
         project: ['./tsconfig.json', './tsconfig.webview.json'],
-        tsconfigRootDir: __dirname, // Required for CI and monorepo environments
+        tsconfigRootDir: __dirname,
       },
       globals: {
         ...globals.node,
@@ -41,10 +46,9 @@ module.exports = [
     },
     rules: {
       ...eslint.configs.recommended.rules,
-      // Use type-checked rules for production code (enables type-aware linting)
-      ...tseslint.configs['recommended-type-checked'].rules,
+      ...tseslint.configs['recommended-type-checked'].rules, // Type-checked rules
 
-      // Prevent unused variables and parameters (this would catch the idx issue!)
+      // Custom overrides
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -54,7 +58,7 @@ module.exports = [
         },
       ],
 
-      // Code quality rules
+      // Code quality
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
@@ -73,34 +77,30 @@ module.exports = [
       '@typescript-eslint/restrict-template-expressions': 'warn',
 
       // Best practices
-      'no-console': 'off', // VS Code extensions use console
-      'no-undef': 'off', // TypeScript handles this better; avoids false positives with TS globals (NodeJS, etc.)
-      'no-empty': ['error', { allowEmptyCatch: true }], // Allow empty catch blocks (common for error swallowing)
+      'no-console': 'off',
+      'no-undef': 'off',
+      'no-empty': ['error', { allowEmptyCatch: true }],
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
       'no-throw-literal': 'error',
-
-      // React-specific (for webview code)
       '@typescript-eslint/no-empty-function': 'warn',
     },
   },
   {
     // Test files: non-type-aware linting (tests excluded from tsconfig)
-    files: ['**/__tests__/**/*.ts', '**/__tests__/**/*.tsx', '**/*.test.ts', '**/*.test.tsx'],
+    files: ['**/__tests__/**/*.ts', '**/__tests__/**/*.tsx', '**/*.test.ts', '**/*.test.tsx', 'tests/**/*.ts'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
-        // No 'project' option - tests are excluded from tsconfig files
       },
       globals: {
         ...globals.node,
         ...globals.browser,
-        ...globals.mocha, // E2E tests use Mocha (describe, it, before, after, etc.)
-        // Note: Vitest tests import describe/it explicitly, but adding globals for completeness
-        ...(globals.vitest || {}), // Vitest globals for unit tests (vi, describe, it, expect, etc.)
+        ...globals.mocha, // E2E tests
+        ...(globals.vitest || {}), // Unit tests
       },
     },
     plugins: {
@@ -110,12 +110,12 @@ module.exports = [
       ...eslint.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
 
-      // Same core rules but relaxed for tests
-      '@typescript-eslint/no-unused-vars': 'off', // Many test fixtures have intentionally unused vars
+      // Relax rules for tests
+      '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-empty-function': 'off',
-      '@typescript-eslint/no-unsafe-function-type': 'off', // Allow generic Function type in test helpers
+      '@typescript-eslint/no-unsafe-function-type': 'off',
       'no-empty': 'off',
     },
   },
