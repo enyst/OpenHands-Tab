@@ -3,7 +3,6 @@ const eslint = require('@eslint/js');
 const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
 const globals = require('globals');
-const path = require('path');
 
 module.exports = [
   {
@@ -27,6 +26,8 @@ module.exports = [
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
+        // Note: projectService is recommended but doesn't work well with multiple tsconfig files
+        // that cover different parts of the codebase. Using explicit project array instead.
         project: ['./tsconfig.json', './tsconfig.webview.json'],
         tsconfigRootDir: __dirname, // Required for CI and monorepo environments
       },
@@ -98,6 +99,8 @@ module.exports = [
         ...globals.node,
         ...globals.browser,
         ...globals.mocha, // E2E tests use Mocha (describe, it, before, after, etc.)
+        // Note: Vitest tests import describe/it explicitly, but adding globals for completeness
+        ...(globals.vitest || {}), // Vitest globals for unit tests (vi, describe, it, expect, etc.)
       },
     },
     plugins: {
