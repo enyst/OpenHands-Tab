@@ -6,7 +6,7 @@ import type { OpenHandsSettings } from '../settings/SettingsManager';
 export type ConnectionEvents = {
   onStatus: (status: 'online' | 'offline' | 'connecting') => void;
   onEvent: (event: Event) => void;
-  onError: (err: any) => void;
+  onError: (err: unknown) => void;
   onConversationId?: (id: string | undefined) => void;
 };
 
@@ -58,7 +58,7 @@ export class ConnectionManager {
     try {
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
-      const llm: any = {};
+      const llm: Record<string, unknown> = {};
       const usageId = s?.llm.usageId != null ? String(s.llm.usageId).trim() : undefined;
       const model = s?.llm.model != null ? String(s.llm.model).trim() : undefined;
       const baseUrl = s?.llm.baseUrl != null ? String(s.llm.baseUrl).trim() : undefined;
@@ -79,7 +79,7 @@ export class ConnectionManager {
       if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
       if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
 
-      const confirmation_policy: any = (() => {
+      const confirmation_policy: Record<string, unknown> = (() => {
         const p = s?.confirmation.policy || 'never';
         if (p === 'always') return { kind: 'AlwaysConfirm' };
         if (p === 'risky') {
@@ -94,7 +94,7 @@ export class ConnectionManager {
 
       // Determine workspace root: prefer VS Code workspace root when extension runs in host;
       // fall back to process.cwd() for tests and non-vscode environments.
-      const root = (globalThis as any).vscodeWorkspaceRoot || process.cwd();
+      const root = (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot || process.cwd();
       const clampedMaxIterations = (() => {
         const raw = s?.conversation.maxIterations;
         const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.trunc(raw) : 50;
@@ -114,17 +114,17 @@ export class ConnectionManager {
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
-      const headers: any = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = s?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
       const res = await fetch(base + '/api/conversations/', {
         method: 'POST',
         headers,
         body: JSON.stringify(req)
-      } as any);
+      });
       if (!res.ok) {
         let info = '';
-        try { info = await (res as any).text?.(); } catch {}
+        try { info = await res.text(); } catch {}
         const status = res.status;
         // Provide user-friendly error messages based on status code
         let userMessage = `Failed to start conversation (HTTP ${status})`;
@@ -138,7 +138,7 @@ export class ConnectionManager {
         if (info) userMessage += ` Details: ${info}`;
         throw new Error(userMessage);
       }
-      const json: any = await res.json();
+      const json = await res.json() as { id?: string; conversation_id?: string; uuid?: string };
       this.conversationId = json.id || json.conversation_id || json.uuid;
       if (!this.conversationId) {
         throw new Error('Server response missing conversation ID. Check agent-server logs.');
@@ -158,7 +158,7 @@ export class ConnectionManager {
     }
   }
 
-  async restoreConversation(id: string) {
+  restoreConversation(id: string) {
     this.conversationId = id;
     this.connect();
   }
@@ -170,14 +170,14 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: any = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = this.settings?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers } as any);
-      if (!(res as any).ok) {
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers });
+      if (!res.ok) {
         let info = '';
-        try { info = await (res as any).text?.(); } catch {}
-        const status = (res as any).status;
+        try { info = await res.text(); } catch {}
+        const status = res.status;
         throw new Error(`Failed to pause conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
     } catch (e) {
@@ -192,14 +192,14 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: any = { 'Content-Type': 'application/json' };
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = this.settings?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST', headers } as any);
-      if (!(res as any).ok) {
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST', headers });
+      if (!res.ok) {
         let info = '';
-        try { info = await (res as any).text?.(); } catch {}
-        const status = (res as any).status;
+        try { info = await res.text(); } catch {}
+        const status = res.status;
         throw new Error(`Failed to resume conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
     } catch (e) {
@@ -296,12 +296,12 @@ export class ConnectionManager {
       // Fallback to HTTP when WebSocket unavailable
       try {
         const base = this.serverUrl.replace(/\/$/, '');
-        const headers: any = { 'Content-Type': 'application/json' };
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         const sessionKey = this.settings?.secrets.sessionApiKey || '';
         if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
         await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
           method: 'POST', headers, body: JSON.stringify(payload)
-        } as any);
+        });
       } catch (e) { this.events.onError(e); }
     }
   }
@@ -372,10 +372,10 @@ export class ConnectionManager {
     ws.on('open', () => { this.retryCount = 0; this.setStatus('online'); });
     ws.on('close', () => { this.setStatus('offline'); this.scheduleReconnect(); });
     ws.on('error', (err) => { this.events.onError(err); this.setStatus('offline'); this.scheduleReconnect(); });
-    ws.on('message', (buf) => {
+    ws.on('message', (buf: Buffer) => {
       try {
-        const str = buf.toString();
-        const data = JSON.parse(str);
+        const str = buf.toString('utf8');
+        const data = JSON.parse(str) as unknown;
         // Validate event structure before propagating to UI
         if (isAgentEvent(data)) this.events.onEvent(data);
         else this.events.onError(new Error('Invalid event payload'));

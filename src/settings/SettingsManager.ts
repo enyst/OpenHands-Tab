@@ -63,7 +63,7 @@ export class SettingsManager {
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
-    const ops: Promise<any>[] = [];
+    const ops: Promise<void>[] = [];
     if (partial.serverUrl !== undefined) {
       ops.push(this.adapter.update('openhands.serverUrl', partial.serverUrl, target));
     }

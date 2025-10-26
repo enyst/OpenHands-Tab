@@ -130,19 +130,21 @@ export type Event =
   | ConversationStateUpdateEvent;
 
 // Event-level guard
-export const isEvent = (e: any): e is Event => {
-  if (!e || typeof e !== 'object' || typeof e.type !== 'string') return false;
-  const t = e.type;
+export const isEvent = (e: unknown): e is Event => {
+  if (!e || typeof e !== 'object') return false;
+  const obj = e as Record<string, unknown>;
+  if (typeof obj.type !== 'string') return false;
+  const t = obj.type;
 
   // Agent-sdk event types - strict validation
-  if (t === 'SystemPromptEvent') return !!e.system_prompt && Array.isArray(e.tools);
-  if (t === 'ActionEvent') return !!e.tool_name && Array.isArray(e.thought);
-  if (t === 'ObservationEvent') return !!e.observation && !!e.tool_name;
-  if (t === 'UserRejectObservation') return typeof e.rejection_reason === 'string' && !!e.tool_name;
-  if (t === 'MessageEvent') return !!e.llm_message && typeof e.llm_message === 'object';
-  if (t === 'AgentErrorEvent') return typeof e.error === 'string' && !!e.tool_name;
-  if (t === 'PauseEvent') return e.source === 'user';
-  if (t === 'Condensation') return Array.isArray(e.forgotten_event_ids);
+  if (t === 'SystemPromptEvent') return !!obj.system_prompt && Array.isArray(obj.tools);
+  if (t === 'ActionEvent') return !!obj.tool_name && Array.isArray(obj.thought);
+  if (t === 'ObservationEvent') return !!obj.observation && !!obj.tool_name;
+  if (t === 'UserRejectObservation') return typeof obj.rejection_reason === 'string' && !!obj.tool_name;
+  if (t === 'MessageEvent') return !!obj.llm_message && typeof obj.llm_message === 'object';
+  if (t === 'AgentErrorEvent') return typeof obj.error === 'string' && !!obj.tool_name;
+  if (t === 'PauseEvent') return obj.source === 'user';
+  if (t === 'Condensation') return Array.isArray(obj.forgotten_event_ids);
   if (t === 'ConversationStateUpdateEvent') return true;
 
   return false;
