@@ -80,6 +80,7 @@ module.exports = [
       globals: {
         ...globals.node,
         ...globals.browser,
+        ...globals.mocha, // E2E tests use Mocha (describe, it, before, after, etc.)
       },
     },
     plugins: {
