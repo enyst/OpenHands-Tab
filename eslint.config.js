@@ -3,6 +3,7 @@ const eslint = require('@eslint/js');
 const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
 const globals = require('globals');
+const path = require('path');
 
 module.exports = [
   {
@@ -18,7 +19,7 @@ module.exports = [
     ],
   },
   {
-    // Production code: enable type-aware linting
+    // Production code: enable type-aware linting with type-checked rules
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     ignores: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx'],
     languageOptions: {
@@ -27,6 +28,7 @@ module.exports = [
         ecmaVersion: 2022,
         sourceType: 'module',
         project: ['./tsconfig.json', './tsconfig.webview.json'],
+        tsconfigRootDir: __dirname, // Required for CI and monorepo environments
       },
       globals: {
         ...globals.node,
@@ -38,7 +40,8 @@ module.exports = [
     },
     rules: {
       ...eslint.configs.recommended.rules,
-      ...tseslint.configs.recommended.rules,
+      // Use type-checked rules for production code (enables type-aware linting)
+      ...tseslint.configs['recommended-type-checked'].rules,
 
       // Prevent unused variables and parameters (this would catch the idx issue!)
       '@typescript-eslint/no-unused-vars': [
@@ -55,6 +58,18 @@ module.exports = [
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
+
+      // Type-checked rules: downgrade to warnings for gradual adoption
+      '@typescript-eslint/no-unsafe-member-access': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'warn',
+      '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/require-await': 'warn',
+      '@typescript-eslint/no-floating-promises': 'warn',
+      '@typescript-eslint/no-misused-promises': 'warn',
+      '@typescript-eslint/no-base-to-string': 'warn',
+      '@typescript-eslint/restrict-template-expressions': 'warn',
 
       // Best practices
       'no-console': 'off', // VS Code extensions use console
