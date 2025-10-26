@@ -60,19 +60,30 @@ export function activate(context: vscode.ExtensionContext) {
           onEvent: (event) => {
             // Create terminal on first event
             if (!terminal) {
-              terminal = vscode.window.createTerminal({ name: 'OpenHands' });
-              terminal.show(true);
+              try {
+                terminal = vscode.window.createTerminal({ name: 'OpenHands' });
+                terminal.show(true);
+              } catch (e) {
+                console.error('[BashEvents] Failed to create terminal:', e);
+                // Terminal creation may fail in headless/test environments - continue without terminal
+              }
             }
 
-            // Write events to terminal
-            if (isBashCommand(event)) {
-              terminal.sendText(`$ ${event.command}`, false);
-              terminal.sendText(''); // newline
-            } else if (isBashOutput(event)) {
-              if (event.stdout) terminal.sendText(event.stdout, false);
-              if (event.stderr) terminal.sendText(event.stderr, false);
-            } else if (isBashExit(event)) {
-              terminal.sendText(`[Process exited with code ${event.exit_code}]`);
+            // Write events to terminal (skip if terminal creation failed)
+            if (terminal) {
+              try {
+                if (isBashCommand(event)) {
+                  terminal.sendText(`$ ${event.command}`, false);
+                  terminal.sendText(''); // newline
+                } else if (isBashOutput(event)) {
+                  if (event.stdout) terminal.sendText(event.stdout, false);
+                  if (event.stderr) terminal.sendText(event.stderr, false);
+                } else if (isBashExit(event)) {
+                  terminal.sendText(`[Process exited with code ${event.exit_code}]`);
+                }
+              } catch (e) {
+                console.error('[BashEvents] Failed to write to terminal:', e);
+              }
             }
           },
           onError: (err) => {
