@@ -58,6 +58,8 @@ module.exports = [
 
       // Best practices
       'no-console': 'off', // VS Code extensions use console
+      'no-undef': 'off', // TypeScript handles this better; avoids false positives with TS globals (NodeJS, etc.)
+      'no-empty': ['error', { allowEmptyCatch: true }], // Allow empty catch blocks (common for error swallowing)
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
@@ -95,6 +97,7 @@ module.exports = [
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/no-unsafe-function-type': 'off', // Allow generic Function type in test helpers
       'no-empty': 'off',
     },
   },
