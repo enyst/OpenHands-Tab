@@ -2,10 +2,15 @@ import * as vscode from 'vscode';
 import { ConnectionManager } from './connection/ConnectionManager';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
+import { BashEventsClient } from './terminal/BashEventsClient';
+import { isBashCommand, isBashOutput, isBashExit } from './types/agent-sdk';
 
 let panel: vscode.WebviewPanel | undefined;
 let connection: ConnectionManager | undefined;
+let bashEventsClient: BashEventsClient | undefined;
+let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
+const receivedBashEvents: any[] = []; // Track bash events for testing
 
 export function activate(context: vscode.ExtensionContext) {
   async function ensurePanelAndConnection() {
@@ -27,8 +32,11 @@ export function activate(context: vscode.ExtensionContext) {
       panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
     }
 
+    // Fetch settings once and reuse for both connection and bash events client
+    const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+    const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+
     if (!connection) {
-      const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
       // Expose workspace root path for ConnectionManager to consume (without importing vscode).
       (globalThis as any).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
@@ -37,10 +45,69 @@ export function activate(context: vscode.ExtensionContext) {
         onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
         onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
       });
-      const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       connection.setSettings(settings);
       if (savedId) connection.restoreConversation(savedId);
+    }
+
+    // Initialize bash events client if enabled
+    const bashEventsEnabled = vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false);
+    if (bashEventsEnabled && !bashEventsClient) {
+      const sessionApiKey = settings.secrets.sessionApiKey;
+
+      bashEventsClient = new BashEventsClient(
+        serverUrl,
+        {
+          onEvent: (event) => {
+            // Track received bash events for testing
+            receivedBashEvents.push({ type: event.type, timestamp: Date.now() });
+
+            // Create terminal on first event
+            if (!terminal) {
+              try {
+                terminal = vscode.window.createTerminal({ name: 'OpenHands' });
+                terminal.show(true);
+              } catch (e) {
+                console.error('[BashEvents] Failed to create terminal:', e);
+                // Terminal creation may fail in headless/test environments - continue without terminal
+              }
+            }
+
+            // Write events to terminal (skip if terminal creation failed)
+            if (terminal) {
+              try {
+                if (isBashCommand(event)) {
+                  terminal.sendText(`$ ${event.command}`, false);
+                  terminal.sendText(''); // newline
+                } else if (isBashOutput(event)) {
+                  if (event.stdout) terminal.sendText(event.stdout, false);
+                  if (event.stderr) terminal.sendText(event.stderr, false);
+                } else if (isBashExit(event)) {
+                  terminal.sendText(`[Process exited with code ${event.exit_code}]`);
+                }
+              } catch (e) {
+                console.error('[BashEvents] Failed to write to terminal:', e);
+              }
+            }
+          },
+          onError: (err) => {
+            vscode.window.showErrorMessage(`Bash Events: ${String(err)}`);
+          },
+          onStatus: (status) => {
+            // Optional: could show status in status bar
+            console.log(`[BashEventsClient] Status: ${status}`);
+          },
+        },
+        sessionApiKey
+      );
+
+      bashEventsClient.connect();
+    } else if (!bashEventsEnabled && bashEventsClient) {
+      // Disable bash events if setting changed
+      bashEventsClient.disconnect();
+      bashEventsClient = undefined;
+      terminal?.dispose();
+      terminal = undefined;
     }
 
     panel?.reveal();
@@ -59,6 +126,12 @@ export function activate(context: vscode.ExtensionContext) {
       conversationId: connection?.getConversationId(),
       status: connection?.getStatus(),
       serverUrl: getServerUrl(),
+      bashEvents: {
+        enabled: vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false),
+        hasClient: !!bashEventsClient,
+        clientStatus: bashEventsClient?.getStatus(),
+        hasTerminal: !!terminal,
+      },
     };
     return diag;
   });
@@ -94,6 +167,28 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     return { count: 0, eventTypes: [] }; // timeout
+  });
+
+  // Inject bash event for E2E testing
+  const injectBashEvent = vscode.commands.registerCommand('openhands._injectBashEvent', async (event: any) => {
+    if (!bashEventsClient) {
+      // Initialize bash events if not already done
+      await ensurePanelAndConnection();
+    }
+    if (bashEventsClient) {
+      bashEventsClient.injectEvent(event);
+      return { injected: true };
+    }
+    return { injected: false, error: 'BashEventsClient not initialized' };
+  });
+
+  // Query received bash events for E2E testing
+  const queryBashEvents = vscode.commands.registerCommand('openhands._queryBashEvents', async () => {
+    return {
+      count: receivedBashEvents.length,
+      eventTypes: receivedBashEvents.map((e) => e.type),
+      events: receivedBashEvents,
+    };
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
@@ -218,6 +313,13 @@ export function activate(context: vscode.ExtensionContext) {
     const newSettings = await settingsMgr.get();
     connection?.setSettings(newSettings);
     panel?.webview.postMessage({ type: 'configUpdated', serverUrl });
+
+    // Apply to bash events client
+    if (bashEventsClient) {
+      bashEventsClient.setServerUrl(serverUrl);
+      bashEventsClient.setSessionApiKey(newSettings.secrets.sessionApiKey);
+      bashEventsClient.reconnect();
+    }
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
@@ -235,11 +337,42 @@ export function activate(context: vscode.ExtensionContext) {
     await connection?.resume();
   });
 
-  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, startNew, configure, reconnect, pause, resume);
+  // Listen for runtime configuration changes
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
+      // Handle bash events enabled/disabled toggle
+      if (e.affectsConfiguration('openhands.bashEvents.enabled')) {
+        const enabled = vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled', false);
+
+        if (enabled && !bashEventsClient) {
+          // Enable bash events - initialize client
+          await ensurePanelAndConnection();
+        } else if (!enabled && bashEventsClient) {
+          // Disable bash events - cleanup
+          bashEventsClient.disconnect();
+          bashEventsClient = undefined;
+          terminal?.dispose();
+          terminal = undefined;
+        }
+      }
+
+      // Handle server URL changes
+      if (e.affectsConfiguration('openhands.serverUrl')) {
+        const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+        connection?.setServerUrl(serverUrl);
+        bashEventsClient?.setServerUrl(serverUrl);
+        bashEventsClient?.reconnect();
+      }
+    })
+  );
+
+  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, queryBashEvents, startNew, configure, reconnect, pause, resume);
 }
 
 export function deactivate() {
   connection?.disconnect();
+  bashEventsClient?.disconnect();
+  terminal?.dispose();
 }
 
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
