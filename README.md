@@ -83,7 +83,7 @@ If your agent-server requires a session API key:
   - Optional second instance: https://<your-dev-host-2>
 - Set `openhands.serverUrl` to one of the above, e.g.:
   - https://<your-dev-host-1>
-- The WebSocket endpoint and HTTP endpoints remain the same relative to the base URL (see PRD section 5).
+- The WebSocket endpoint and HTTP endpoints remain the same relative to the base URL (see [docs/PRD.md](docs/PRD.md) section 5).
 
 ### Run with Session API Key (optional)
 
@@ -109,3 +109,15 @@ If your agent-server requires a session API key:
 2) The extension will automatically:
 - Add `X-Session-API-Key: <key>` to HTTP requests
 - Append `?session_api_key=<key>` to the WebSocket URL
+
+## Documentation
+
+Detailed documentation is available in the [docs/](docs/) directory:
+
+- **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
+- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
+- **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
+- **[bash_events.md](docs/bash_events.md)** - Bash events live terminal integration
+- **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
+- **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
+- **[GEMINI_EXPLANATION.md](docs/GEMINI_EXPLANATION.md)** - ESLint configuration decisions
