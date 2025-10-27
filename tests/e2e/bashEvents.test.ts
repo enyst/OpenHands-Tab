@@ -4,14 +4,14 @@ import * as path from 'path';
 import * as os from 'os';
 import { downloadVSCodeWithRetry } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-agent-sdk-${Date.now()}`);
+const userDataDir = path.join(os.tmpdir(), `vscode-test-bash-events-${Date.now()}`);
 
-// E2E test for agent-sdk event rendering in the webview
-// This test exercises all event types from the agent-sdk conversation visualizer
-describe('OpenHands-Tab Agent-SDK Events E2E', function () {
+// E2E test for bash events terminal integration
+// This test verifies that bash events can be injected and trigger terminal creation
+describe('OpenHands-Tab Bash Events E2E', function () {
   this.timeout(120000);
 
-  it('renders all agent-sdk event types in webview', async () => {
+  it('injects bash events and creates terminal', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
 
@@ -30,7 +30,7 @@ describe('OpenHands-Tab Agent-SDK Events E2E', function () {
         '--disable-software-rasterizer'
       ],
       extensionTestsEnv: {
-        TEST_NAME: 'agentSdkEvents'
+        TEST_NAME: 'bashEvents'
       }
     });
 

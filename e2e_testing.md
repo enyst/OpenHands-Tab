@@ -114,13 +114,11 @@ Minimal smoke test acceptance (manual or automated)
 - Command "OpenHands: Start New Conversation" succeeds (HTTP 201)
 - WebSocket connects (status shows online) and events stream when you send a message
 
-Future CI integration
-- Add a GitHub Actions job that:
-  - Uses ubuntu-latest, Node 22
-  - npm ci && npm run compile
-  - (Optional) starts agent-server in the background
-  - Runs e2e script that uses @vscode/test-electron
-  - Uploads screenshots/logs as artifacts on failure
+CI integration
+- GitHub Actions workflows in .github/workflows/:
+  - e2e.yml: Runs E2E tests on PRs/pushes (ubuntu-latest, Node 22, xvfb)
+  - unit-tests.yml: Runs Vitest unit tests
+  - build-vsix.yml: Full build + test + package extension
 
 References
 - VS Code extension testing: https://github.com/microsoft/vscode-test
