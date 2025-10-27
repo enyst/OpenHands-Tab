@@ -55,22 +55,28 @@
           "default": "http://localhost:3000",
           "description": "OpenHands agent-server base URL"
         },
-        
         "openhands.conversation.maxIterations": {
           "type": "number",
           "default": 50,
           "markdownDescription": "Default max iterations for new conversations (server default is 500)."
         },
-        
         "openhands.confirmation.policy": {
           "type": "string",
-          "enum": ["never", "always", "risky"],
+          "enum": [
+            "never",
+            "always",
+            "risky"
+          ],
           "default": "never",
           "markdownDescription": "Action confirmation policy: never ask, always ask, or ask for risky actions."
         },
         "openhands.confirmation.risky.threshold": {
           "type": "string",
-          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH"
+          ],
           "default": "HIGH",
           "markdownDescription": "Risk threshold for ConfirmRisky policy. Actions at or above this require confirmation."
         },
@@ -79,7 +85,6 @@
           "default": true,
           "markdownDescription": "Whether actions with UNKNOWN risk require confirmation in risky mode."
         },
-        
         "openhands.agent.enableSecurityAnalyzer": {
           "type": "boolean",
           "default": false,
@@ -144,7 +149,12 @@
         },
         "openhands.llm.reasoningEffort": {
           "type": "string",
-          "enum": ["low", "medium", "high", "none"],
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "none"
+          ],
           "default": "none",
           "markdownDescription": "Reasoning effort for supported models."
         }
@@ -193,6 +203,7 @@
     "@vscode/vsce": "^3.6.1",
     "esbuild": "^0.23.1",
     "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "jsdom": "^25.0.1",
     "mocha": "^10.8.2",
     "tailwindcss": "^4.1.13",

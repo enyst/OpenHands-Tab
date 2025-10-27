@@ -4,7 +4,10 @@ const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
 const globals = require('globals');
 
+const reactHooks = require('eslint-plugin-react-hooks');
+
 module.exports = [
+
   {
     ignores: [
       'dist/**',
@@ -87,6 +90,17 @@ module.exports = [
       '@typescript-eslint/no-empty-function': 'warn',
     },
   },
+  {
+    files: ['src/webview-src/**/*.tsx'],
+    plugins: {
+      'react-hooks': reactHooks,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
+  },
+
   {
     // Test files: non-type-aware linting (tests excluded from tsconfig)
     files: ['**/__tests__/**/*.ts', '**/__tests__/**/*.tsx', '**/*.test.ts', '**/*.test.tsx', 'tests/**/*.ts'],
