@@ -10,7 +10,7 @@ let connection: ConnectionManager | undefined;
 let bashEventsClient: BashEventsClient | undefined;
 let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
-let receivedBashEvents: any[] = []; // Track bash events for testing
+const receivedBashEvents: any[] = []; // Track bash events for testing
 
 export function activate(context: vscode.ExtensionContext) {
   async function ensurePanelAndConnection() {
