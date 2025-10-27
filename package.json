@@ -219,7 +219,5 @@
     "react-dom": "^19.0.0",
     "ws": "^8.18.3"
   },
-  "bundleDependencies": [
-    "ws"
-  ]
+  }
 }
