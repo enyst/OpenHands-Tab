@@ -33,11 +33,16 @@ import {
   type Condensation,
 } from '../../types/agent-sdk';
 
-function getVscodeApi() {
-  if (typeof window !== 'undefined' && (window as any).acquireVsCodeApi) {
-    return (window as any).acquireVsCodeApi();
+interface VscodeApi {
+  postMessage: (message: unknown) => void;
+}
+
+function getVscodeApi(): VscodeApi {
+  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
+    return (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
   }
-  return { postMessage: (_: any) => {} };
+  // Fallback for non-vscode environments (e.g., tests)
+  return { postMessage: () => { /* noop for tests */ } };
 }
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
@@ -458,23 +463,37 @@ export function App() {
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      const payload: any = (event as any).data;
-      if (payload?.type === 'status') setStatus(payload.status);
-      if (payload?.type === 'configUpdated') toastDebounced('info', `Config updated: ${payload.serverUrl}`);
-      if (payload?.type === 'event') handleEvent(payload.event);
-      if (payload?.type === 'error') toastDebounced('error', String(payload.error));
-      if (payload?.type === 'queryRenderedEvents') {
-        // Respond with rendered event information for testing
-        const vscodeApi = getVscodeApi();
-        vscodeApi.postMessage({
-          type: 'renderedEventsResponse',
-          count: events.length,
-          eventTypes: events.map(e => e.event.type)
-        });
+      const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string; event?: unknown; error?: unknown };
+
+      switch (payload?.type) {
+        case 'status':
+          if (payload.status) setStatus(payload.status);
+          break;
+        case 'configUpdated':
+          if (typeof payload.serverUrl === 'string') {
+            toastDebounced('info', `Config updated: ${payload.serverUrl}`);
+          }
+          break;
+        case 'event':
+          handleEvent(payload.event);
+          break;
+        case 'error':
+          toastDebounced('error', String(payload.error));
+          break;
+        case 'queryRenderedEvents': {
+          // Respond with rendered event information for testing
+          const vscodeApi = getVscodeApi();
+          vscodeApi.postMessage({
+            type: 'renderedEventsResponse',
+            count: events.length,
+            eventTypes: events.map(e => e.event.type)
+          });
+          break;
+        }
       }
     };
-    window.addEventListener('message', handler as any);
-    return () => window.removeEventListener('message', handler as any);
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
   }, [events]);
 
   useEffect(() => {
@@ -491,8 +510,8 @@ export function App() {
 
   useEffect(() => {
     // Deterministic scroll to bottom when events change
-    const el = endRef.current as any;
-    if (el && typeof el.scrollIntoView === 'function') {
+    const el = endRef.current;
+    if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [events.length]);
@@ -551,7 +570,7 @@ export function App() {
     setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
   }
 
-  function postMessage(msg: any) {
+  function postMessage(msg: unknown) {
     // Acquire live VS Code API on each call so tests that set window.acquireVsCodeApi late still work
     const api = getVscodeApi();
     api.postMessage(msg);
@@ -647,8 +666,8 @@ export function App() {
           label="Message"
           placeholder="Type a message..."
           value={input}
-          onChange={(e: any) => setInput(e.target.value)}
-          onKeyDown={(e: any) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
           className="flex-1"
         />
         <div className="flex gap-2">

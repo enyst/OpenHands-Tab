@@ -5,7 +5,10 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   constructor(private context: vscode.ExtensionContext) {}
 
   get<T = unknown>(key: string, defaultValue?: T): T | undefined {
-    return vscode.workspace.getConfiguration().get<T>(key, defaultValue as any);
+    const cfg = vscode.workspace.getConfiguration();
+    return defaultValue !== undefined
+      ? cfg.get<T>(key, defaultValue)
+      : cfg.get<T>(key);
   }
 
   getExplicit<T = unknown>(key: string): T | undefined {

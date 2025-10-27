@@ -38,12 +38,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (!connection) {
       // Expose workspace root path for ConnectionManager to consume (without importing vscode).
-      (globalThis as any).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
-        onStatus: (s) => panel?.webview.postMessage({ type: 'status', status: s }),
-        onEvent: (ev) => panel?.webview.postMessage({ type: 'event', event: ev }),
-        onError: (err) => panel?.webview.postMessage({ type: 'error', error: String(err) }),
-        onConversationId: (id) => context.workspaceState.update('openhands.conversationId', id),
+        onStatus: (s) => { void panel?.webview.postMessage({ type: 'status', status: s }); },
+        onEvent: (ev) => { void panel?.webview.postMessage({ type: 'event', event: ev }); },
+        onError: (err) => { void panel?.webview.postMessage({ type: 'error', error: String(err) }); },
+        onConversationId: (id) => { void context.workspaceState.update('openhands.conversationId', id); },
       });
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       connection.setSettings(settings);
@@ -119,7 +119,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Diagnostics command for E2E tests and troubleshooting
   const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
-  const diag = vscode.commands.registerCommand('openhands._diagnostics', async () => {
+  const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
     const diag = {
       hasPanel: !!panel,
       hasConnection: !!connection,
@@ -137,11 +137,11 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Test command to send mock events to webview for E2E testing
-  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: any) => {
+  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: unknown) => {
     if (!panel) {
       await ensurePanelAndConnection();
     }
-    panel?.webview.postMessage({ type: 'event', event });
+    void panel?.webview.postMessage({ type: 'event', event });
     return { sent: true };
   });
 
@@ -266,7 +266,7 @@ export function activate(context: vscode.ExtensionContext) {
         canPickMany: false,
         placeHolder: existing.confirmation.riskyThreshold ?? 'HIGH'
       });
-      riskyThreshold = (thresholdPick as any) || existing.confirmation.riskyThreshold || 'HIGH';
+      riskyThreshold = (thresholdPick as 'LOW' | 'MEDIUM' | 'HIGH' | undefined) || existing.confirmation.riskyThreshold || 'HIGH';
       const confirmUnknownPick = await vscode.window.showQuickPick(['Yes', 'No'], {
         title: 'Confirm unknown risk actions?',
         canPickMany: false,
@@ -299,7 +299,7 @@ export function activate(context: vscode.ExtensionContext) {
         })(),
       },
       confirmation: {
-        policy: (policy as any) || existing.confirmation.policy,
+        policy: (policy as 'never' | 'always' | 'risky' | undefined) || existing.confirmation.policy,
         riskyThreshold,
         confirmUnknown,
       },
@@ -392,12 +392,12 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="${stylesUri}?v=${version}" rel="stylesheet" />
+  <link href="${stylesUri.toString()}?v=${version}" rel="stylesheet" />
   <title>OpenHands Tab</title>
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="${scriptUri}?v=${version}"></script>
+  <script type="module" src="${scriptUri.toString()}?v=${version}"></script>
 </body>
 </html>`;
 }
@@ -420,32 +420,55 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
  * avoiding CORS and CSP limitations.
  */
 function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
-  return async (msg: any) => {
-    if (msg?.type === 'openSettings') {
-      await vscode.commands.executeCommand('openhands.configure');
-    }
-    if (msg?.type === 'getConfig') {
-      const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
-      panel.webview.postMessage({ type: 'config', serverUrl });
-    }
-    if (msg?.type === 'send' && typeof msg.text === 'string') {
-      await connection?.sendUserMessage(msg.text);
-    }
-    if (msg?.type === 'command') {
-      switch (msg.command) {
-        case 'reconnect': connection?.reconnect(); break;
-        case 'pause': await connection?.pause(); break;
-        case 'startNewConversation': await connection?.startNewConversation(); break;
-        case 'approveAction': await connection?.approveAction(); break;
-        case 'rejectAction': await connection?.rejectAction(msg.reason); break;
-        default:
-          console.warn(`Unknown command received from webview: ${msg.command}`);
-          break;
+  return async (msg: unknown) => {
+    // Type guard for message structure
+    if (!msg || typeof msg !== 'object') return;
+    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; count?: unknown; eventTypes?: unknown };
+
+    switch (message.type) {
+      case 'openSettings':
+        await vscode.commands.executeCommand('openhands.configure');
+        break;
+      case 'getConfig': {
+        const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
+        void panel.webview.postMessage({ type: 'config', serverUrl });
+        break;
       }
-    }
-    if (msg?.type === 'renderedEventsResponse') {
-      // Store the response from webview for testing/diagnostics
-      renderedEventsInfo = { count: msg.count, eventTypes: msg.eventTypes };
+      case 'send':
+        if (typeof message.text === 'string') {
+          await connection?.sendUserMessage(message.text);
+        }
+        break;
+      case 'command':
+        if (typeof message.command === 'string') {
+          switch (message.command) {
+            case 'reconnect':
+              connection?.reconnect();
+              break;
+            case 'pause':
+              await connection?.pause();
+              break;
+            case 'startNewConversation':
+              await connection?.startNewConversation();
+              break;
+            case 'approveAction':
+              await connection?.approveAction();
+              break;
+            case 'rejectAction':
+              await connection?.rejectAction(typeof message.reason === 'string' ? message.reason : undefined);
+              break;
+            default:
+              console.warn(`Unknown command received from webview: ${message.command}`);
+              break;
+          }
+        }
+        break;
+      case 'renderedEventsResponse':
+        if (typeof message.count === 'number' && Array.isArray(message.eventTypes)) {
+          // Store the response from webview for testing/diagnostics
+          renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
+        }
+        break;
     }
   };
 }
