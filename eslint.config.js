@@ -91,12 +91,25 @@ module.exports = [
   },
   {
     files: ['src/webview-src/**/*.tsx'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+      },
+    },
     plugins: {
       'react-hooks': reactHooksPlugin,
     },
     rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'error',
+      ...reactHooksPlugin.configs.recommended.rules,
+      'react-hooks/exhaustive-deps': 'error', // Upgraded from default 'warn'
     },
   },
 
