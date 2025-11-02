@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 /*
   App.tsx hygiene improvements:
   - Cache VS Code API once
@@ -460,6 +460,61 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submissionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Define callback functions before useEffects that depend on them
+  const handleEvent = useCallback((e: unknown) => {
+    if (!isEvent(e)) return;
+
+    // Track agent status from ConversationStateUpdateEvent
+    if (isConversationStateUpdateEvent(e)) {
+      if (e.agent_status) {
+        setAgentStatus(e.agent_status);
+        // Show toast only when transitioning INTO confirmation mode (not on repeated updates)
+        if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
+          toastDebounced('warning', 'Agent is waiting for confirmation');
+        }
+        lastAgentStatusRef.current = e.agent_status;
+      }
+      // Don't render state update events in the UI
+      return;
+    }
+
+    // Track pending actions (actions awaiting confirmation or execution)
+    // Deduplicate by tool_call_id to prevent duplicate cards on reconnection or retries
+    if (isActionEvent(e)) {
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
+        return exists ? prev : [...prev, e];
+      });
+    }
+
+    // Clear pending action when we receive its observation
+    // Also reset in-flight flag to allow new confirmations
+    if (isObservationEvent(e) || isUserRejectObservation(e)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
+    }
+
+    // Show toast notifications for certain events
+    if (isAgentErrorEvent(e)) {
+      toastDebounced('error', e.error);
+      // Reset in-flight flag on error to allow recovery
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
+    } else if (isPauseEvent(e)) {
+      toastDebounced('warning', 'Conversation paused');
+    }
+
+    // Add event to the list for rendering
+    setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
+  }, []);
+
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -494,7 +549,7 @@ export function App() {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [events]);
+  }, [events, handleEvent]);
 
   // Signal readiness to extension host once on mount
   useEffect(() => {
@@ -579,22 +634,22 @@ export function App() {
     setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
   }
 
-  function postMessage(msg: unknown) {
+  const postMessage = useCallback((msg: unknown) => {
     // Acquire live VS Code API on each call so tests that set window.acquireVsCodeApi late still work
     const api = getVscodeApi();
     api.postMessage(msg);
-  }
+  }, []);
 
   const [input, setInput] = useState('');
-  const send = () => {
+  const send = useCallback(() => {
     const text = input.trim();
     if (!text) return;
     // Send message and let the server echo it back to avoid duplicates
     setInput('');
     postMessage({ type: 'send', text });
-  };
+  }, [input, postMessage]);
 
-  const handleApprove = () => {
+  const handleApprove = useCallback(() => {
     // Prevent double-submit: return early if confirmation already in flight
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -610,9 +665,9 @@ export function App() {
     // Use "submitted" (pending state) instead of "approved" (implies success)
     toastDebounced('info', 'Approval submitted');
     // Server will send ObservationEvent which clears pending actions and resets flag via handleEvent
-  };
+  }, [isSubmitting, postMessage]);
 
-  const handleReject = (reason?: string) => {
+  const handleReject = useCallback((reason?: string) => {
     // Prevent double-submit: return early if confirmation already in flight
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -628,7 +683,7 @@ export function App() {
     // Use "submitted" (pending state) instead of "rejected" (implies success)
     toastDebounced('info', 'Rejection submitted');
     // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
-  };
+  }, [isSubmitting, postMessage]);
 
   return (
     <div id="app" className="flex flex-col h-screen">
