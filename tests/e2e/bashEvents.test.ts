@@ -23,6 +23,7 @@ describe('OpenHands-Tab Bash Events E2E', function () {
       extensionDevelopmentPath,
       extensionTestsPath,
       launchArgs: [
+        extensionDevelopmentPath,
         '--no-sandbox',
         '--user-data-dir', userDataDir,
         '--disable-gpu',

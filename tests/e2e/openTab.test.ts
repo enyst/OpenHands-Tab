@@ -25,6 +25,7 @@ describe('OpenHands-Tab E2E', function () {
       extensionDevelopmentPath,
       extensionTestsPath,
       launchArgs: [
+        extensionDevelopmentPath,
         '--no-sandbox',
         '--user-data-dir', userDataDir,
         '--disable-gpu',

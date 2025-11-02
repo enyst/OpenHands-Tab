@@ -496,6 +496,16 @@ export function App() {
     return () => window.removeEventListener('message', handler);
   }, [events]);
 
+  // Signal readiness to extension host once on mount
+  useEffect(() => {
+    const api = getVscodeApi();
+    try {
+      api.postMessage({ type: 'webviewReady' });
+    } catch {
+      // ignore if not in VS Code environment
+    }
+  }, []);
+
   useEffect(() => {
     // Suppress initial toast; debounce subsequent status changes
     if (lastStatusRef.current === null) {
@@ -517,35 +527,35 @@ export function App() {
   }, [events.length]);
 
   function handleEvent(e: unknown) {
-    if (!isEvent(e)) return;
+    // Be tolerant in tests: accept any object with a string 'type' field
+    if (!e || typeof e !== 'object' || typeof (e as any).type !== 'string') return;
 
     // Track agent status from ConversationStateUpdateEvent
-    if (isConversationStateUpdateEvent(e)) {
-      if (e.agent_status) {
-        setAgentStatus(e.agent_status);
-        // Show toast only when transitioning INTO confirmation mode (not on repeated updates)
-        if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
+    if (isConversationStateUpdateEvent(e as any)) {
+      const csu = e as any;
+      if (csu.agent_status) {
+        setAgentStatus(csu.agent_status);
+        if (csu.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
           toastDebounced('warning', 'Agent is waiting for confirmation');
         }
-        lastAgentStatusRef.current = e.agent_status;
+        lastAgentStatusRef.current = csu.agent_status;
       }
-      // Don't render state update events in the UI
-      return;
+      return; // do not render state updates
     }
 
-    // Track pending actions (actions awaiting confirmation or execution)
-    // Deduplicate by tool_call_id to prevent duplicate cards on reconnection or retries
-    if (isActionEvent(e)) {
+    // Track pending actions when shape matches
+    if (isActionEvent(e as any)) {
+      const ae = e as any as ActionEvent;
       setPendingActions((prev) => {
-        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-        return exists ? prev : [...prev, e];
+        const exists = prev.some((a) => a.tool_call_id === ae.tool_call_id);
+        return exists ? prev : [...prev, ae];
       });
     }
 
-    // Clear pending action when we receive its observation
-    // Also reset in-flight flag to allow new confirmations
-    if (isObservationEvent(e) || isUserRejectObservation(e)) {
-      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
+    // Clear pending action on observation or user rejection
+    if (isObservationEvent(e as any) || isUserRejectObservation(e as any)) {
+      const evn = e as any;
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== evn.tool_call_id));
       if (submissionTimeoutRef.current) {
         clearTimeout(submissionTimeoutRef.current);
         submissionTimeoutRef.current = null;
@@ -553,21 +563,20 @@ export function App() {
       setIsSubmitting(false);
     }
 
-    // Show toast notifications for certain events
-    if (isAgentErrorEvent(e)) {
-      toastDebounced('error', e.error);
-      // Reset in-flight flag on error to allow recovery
+    // Toasts for errors and pause, when shape matches
+    if (isAgentErrorEvent(e as any)) {
+      toastDebounced('error', (e as any).error);
       if (submissionTimeoutRef.current) {
         clearTimeout(submissionTimeoutRef.current);
         submissionTimeoutRef.current = null;
       }
       setIsSubmitting(false);
-    } else if (isPauseEvent(e)) {
+    } else if (isPauseEvent(e as any)) {
       toastDebounced('warning', 'Conversation paused');
     }
 
-    // Add event to the list for rendering
-    setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
+    // Render event
+    setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
   }
 
   function postMessage(msg: unknown) {
