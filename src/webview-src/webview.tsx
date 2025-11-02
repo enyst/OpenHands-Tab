@@ -1,3 +1,4 @@
+import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './components/App';
 // Global CSS now linked via HTML (media/index.css). No CSS imports here.
