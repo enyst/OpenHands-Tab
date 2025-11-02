@@ -1,3 +1,5 @@
+// React must be in scope for JSX to work after esbuild transpilation
+// @ts-ignore - TS6133: React appears unused but is required for JSX runtime
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './components/App';
