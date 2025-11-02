@@ -4,16 +4,13 @@ export async function run(): Promise<void> {
   // Ensure panel is created
   await vscode.commands.executeCommand('openhands.openTab');
 
-  // Wait until panel is ready
+  // Wait until panel and webview are ready
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    if (diag?.hasPanel) break;
+    if (diag?.hasPanel && diag?.webviewReady) break;
     await new Promise((r) => setTimeout(r, 200));
   }
-
-  // Wait a bit for webview to initialize
-  await new Promise((r) => setTimeout(r, 1000));
 
   // Test all agent-sdk event types
   const events = [

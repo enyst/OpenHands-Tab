@@ -29,7 +29,8 @@ describe('OpenHands-Tab E2E', function () {
         '--user-data-dir', userDataDir,
         '--disable-gpu',
         '--disable-dev-shm-usage',
-        '--disable-software-rasterizer'
+        '--disable-software-rasterizer',
+        extensionDevelopmentPath  // Open workspace folder to enable workspace settings
       ],
     });
 

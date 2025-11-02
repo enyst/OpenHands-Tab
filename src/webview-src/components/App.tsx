@@ -515,6 +515,12 @@ export function App() {
     setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
   }, []);
 
+  // Signal webview is ready on mount
+  useEffect(() => {
+    const vscodeApi = getVscodeApi();
+    vscodeApi.postMessage({ type: 'webviewReady' });
+  }, []);
+
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {

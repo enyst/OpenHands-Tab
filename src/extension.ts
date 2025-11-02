@@ -10,11 +10,13 @@ let connection: ConnectionManager | undefined;
 let bashEventsClient: BashEventsClient | undefined;
 let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
+let webviewReady = false; // Track if webview is ready to receive messages
 const receivedBashEvents: any[] = []; // Track bash events for testing
 
 export function activate(context: vscode.ExtensionContext) {
   async function ensurePanelAndConnection() {
     if (!panel) {
+      webviewReady = false; // Reset readiness flag for new panel
       panel = vscode.window.createWebviewPanel(
         'openhandsTab',
         'OpenHands Tab',
@@ -27,9 +29,10 @@ export function activate(context: vscode.ExtensionContext) {
       );
       panel.webview.html = getWebviewHtml(context, panel.webview);
       panel.webview.onDidReceiveMessage(onWebviewMessage(context, panel), undefined, context.subscriptions);
-      // Inform webview how to post diagnostics info back
-      panel.webview.postMessage({ type: 'setDiagnosticsChannel' });
-      panel.onDidDispose(() => { panel = undefined; }, null, context.subscriptions);
+      panel.onDidDispose(() => {
+        panel = undefined;
+        webviewReady = false;
+      }, null, context.subscriptions);
     }
 
     // Fetch settings once and reuse for both connection and bash events client
@@ -122,6 +125,7 @@ export function activate(context: vscode.ExtensionContext) {
   const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
     const diag = {
       hasPanel: !!panel,
+      webviewReady,
       hasConnection: !!connection,
       conversationId: connection?.getConversationId(),
       status: connection?.getStatus(),
@@ -426,6 +430,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
     const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; count?: unknown; eventTypes?: unknown };
 
     switch (message.type) {
+      case 'webviewReady':
+        // Webview has mounted and is ready to receive messages
+        webviewReady = true;
+        break;
       case 'openSettings':
         await vscode.commands.executeCommand('openhands.configure');
         break;

@@ -2,20 +2,23 @@ import * as vscode from 'vscode';
 
 export async function run(): Promise<void> {
   // Enable bash events setting
-  await vscode.workspace.getConfiguration().update(
-    'openhands.bashEvents.enabled',
-    true,
-    vscode.ConfigurationTarget.Workspace
-  );
+  // Try workspace config first, fall back to global if no workspace
+  const config = vscode.workspace.getConfiguration();
+  const hasWorkspace = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0;
+  const target = hasWorkspace
+    ? vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+
+  await config.update('openhands.bashEvents.enabled', true, target);
 
   // Ensure panel is created (this will also initialize bashEventsClient)
   await vscode.commands.executeCommand('openhands.openTab');
 
-  // Wait until panel and bash events client are ready
+  // Wait until panel, webview, and bash events client are ready
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    if (diag?.hasPanel && diag?.bashEvents?.hasClient) break;
+    if (diag?.hasPanel && diag?.webviewReady && diag?.bashEvents?.hasClient) break;
     await new Promise((r) => setTimeout(r, 200));
   }
 
