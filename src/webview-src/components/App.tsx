@@ -1,3 +1,5 @@
+// React must be in scope for JSX to work after esbuild transpilation
+import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 /*
   App.tsx hygiene improvements:
@@ -37,12 +39,22 @@ interface VscodeApi {
   postMessage: (message: unknown) => void;
 }
 
+// Cache the VS Code API - it can only be acquired once per webview
+let vscodeApiInstance: VscodeApi | undefined;
+
 function getVscodeApi(): VscodeApi {
-  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
-    return (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+  if (vscodeApiInstance) {
+    return vscodeApiInstance;
   }
+
+  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
+    vscodeApiInstance = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+    return vscodeApiInstance;
+  }
+
   // Fallback for non-vscode environments (e.g., tests)
-  return { postMessage: () => { /* noop for tests */ } };
+  vscodeApiInstance = { postMessage: () => { /* noop for tests */ } };
+  return vscodeApiInstance;
 }
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
@@ -513,6 +525,12 @@ export function App() {
 
     // Add event to the list for rendering
     setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
+  }, []);
+
+  // Signal webview is ready on mount
+  useEffect(() => {
+    const vscodeApi = getVscodeApi();
+    vscodeApi.postMessage({ type: 'webviewReady' });
   }, []);
 
   // Message handler: processes incoming messages from extension host
