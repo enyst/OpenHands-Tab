@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
             // Track received bash events for testing (with ring buffer to prevent memory growth)
             receivedBashEvents.push({ type: event.type, timestamp: Date.now() });
             if (receivedBashEvents.length > MAX_BASH_EVENTS) {
-              receivedBashEvents.splice(0, receivedBashEvents.length - MAX_BASH_EVENTS);
+              receivedBashEvents.shift();
             }
 
             // Create terminal on first event
