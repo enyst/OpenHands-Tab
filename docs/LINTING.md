@@ -237,7 +237,7 @@ Choose the correct configuration block based on where the rule should apply:
 
 1. **Production code block** (lines 26-91): Rules for `src/**/*.ts(x)` excluding tests
 2. **React/webview block** (lines 92-114): Additional rules for `src/webview-src/**/*.tsx`
-3. **Test files block** (lines 116-147): Rules for `**/__tests__/**`, `**/*.test.ts`
+3. **Test files block** (lines 116-147): Rules for `**/__tests__/**/*.ts(x)`, `**/*.test.ts(x)`, and `tests/**/*.ts`
 
 ### Step 2: Determine Rule Severity
 
