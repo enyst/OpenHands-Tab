@@ -299,16 +299,25 @@ export class ConnectionManager {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         const sessionKey = this.settings?.secrets.sessionApiKey || '';
         if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-        await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
+        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
           method: 'POST', headers, body: JSON.stringify(payload)
         });
+        if (!res.ok) {
+          const info = await res.text().catch(() => '');
+          this.events.onError(new Error(`Failed to send message (HTTP ${res.status})${info ? `: ${info}` : ''}`));
+        }
       } catch (e) { this.events.onError(e); }
     }
   }
 
   disconnect() {
     this.clearReconnect();
-    if (this.ws) { try { this.ws.close(); } catch {}
+    if (this.ws) {
+      try {
+        this.ws.removeAllListeners();
+        this.ws.close();
+      } catch {}
+      this.ws = undefined;
     }
     this.setStatus('offline');
   }

@@ -470,7 +470,7 @@ export function App() {
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const submissionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Define callback functions before useEffects that depend on them
   const handleEvent = useCallback((e: unknown) => {
