@@ -30,7 +30,7 @@ describe('VscodeSettingsAdapter', () => {
     };
 
     // Mock workspace.getConfiguration to return our mock configuration
-    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue(mockConfiguration as any);
+    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue(mockConfiguration as vscode.WorkspaceConfiguration);
 
     // Create adapter with mocked context
     adapter = new VscodeSettingsAdapter(mockContext as vscode.ExtensionContext);
