@@ -39,12 +39,22 @@ interface VscodeApi {
   postMessage: (message: unknown) => void;
 }
 
+// Cache the VS Code API - it can only be acquired once per webview
+let vscodeApiInstance: VscodeApi | undefined;
+
 function getVscodeApi(): VscodeApi {
-  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
-    return (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+  if (vscodeApiInstance) {
+    return vscodeApiInstance;
   }
+
+  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
+    vscodeApiInstance = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+    return vscodeApiInstance;
+  }
+
   // Fallback for non-vscode environments (e.g., tests)
-  return { postMessage: () => { /* noop for tests */ } };
+  vscodeApiInstance = { postMessage: () => { /* noop for tests */ } };
+  return vscodeApiInstance;
 }
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
