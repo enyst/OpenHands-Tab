@@ -157,14 +157,10 @@ echo $! > /tmp/code.pid
 Navigate to the noVNC web interface:
 
 **Local URL:**
-```
-http://localhost:12000/vnc.html?autoconnect=true
-```
+`http://localhost:12000/vnc.html?autoconnect=true`
 
 **Remote host (e.g., OpenHands work environments):**
-```
-https://work-1-<your-suffix>.prod-runtime.all-hands.dev/vnc.html?autoconnect=true
-```
+`https://work-1-<your-suffix>.prod-runtime.all-hands.dev/vnc.html?autoconnect=true`
 
 You'll be prompted for the VNC password set in step 2.
 
