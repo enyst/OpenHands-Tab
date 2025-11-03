@@ -185,8 +185,8 @@ export async function run(): Promise<void> {
   // Query the webview to verify events were actually rendered
   const result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
 
-  // We expect 13 events rendered (14 sent - 1 ConversationStateUpdateEvent which is filtered out)
-  const expectedCount = 13;
+  // We expect 12 events rendered (13 sent - 1 ConversationStateUpdateEvent which is filtered out)
+  const expectedCount = 12;
   const expectedTypes = [
     'SystemPromptEvent',
     'ActionEvent',
