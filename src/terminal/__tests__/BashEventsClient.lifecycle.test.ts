@@ -385,7 +385,6 @@ describe('BashEventsClient - lifecycle and behavior', () => {
     client.setSessionApiKey('second');
     client.connect();
 
-    WS = WebSocket as unknown as vi.Mock;
     expect(WS.mock.calls[1][0]).toContain('session_api_key=second');
   });
 });
