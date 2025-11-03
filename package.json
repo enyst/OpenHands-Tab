@@ -94,14 +94,12 @@
           "default": false,
           "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
         },
-
         "openhands.bashEvents.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "window",
           "markdownDescription": "Enable live bash command output streaming to VS Code integrated terminal."
         },
-
         "openhands.llm.usageId": {
           "type": "string",
           "default": "default-llm",
@@ -193,7 +191,7 @@
   ],
   "devDependencies": {
     "@tailwindcss/cli": "^4.1.13",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
     "@types/mocha": "^10.0.10",
@@ -213,7 +211,7 @@
     "tailwindcss": "^4.1.13",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.9"
   },
   "dependencies": {
     "@openhands/ui": "^1.0.0-beta.9",
@@ -222,5 +220,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.3"
-  }
+  },
+  "bundleDependencies": [
+    "ws"
+  ]
 }
