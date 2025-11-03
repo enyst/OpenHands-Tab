@@ -184,7 +184,7 @@ describe('VscodeSettingsAdapter', () => {
 
     it('should return undefined when secret does not exist', async () => {
       const key = 'non-existent-secret';
-      mockSecrets.get.mockResolvedValue(null);
+      mockSecrets.get.mockResolvedValue(undefined);
 
       const result = await adapter.getSecret(key);
 
