@@ -20,7 +20,7 @@ The project uses ESLint 9 with the flat config format (`eslint.config.js`) and T
 
 1. **Production code** (`src/**/*.ts`, `src/**/*.tsx`) - Full type-aware linting with strict rules
 2. **React/Webview code** (`src/webview-src/**/*.tsx`) - Additional React Hooks linting
-3. **Test files** (`**/__tests__/**`, `**/*.test.ts`, `tests/**/*.ts`) - Relaxed rules, non-type-aware
+3. **Test files** (`**/__tests__/**/*.ts(x)`, `**/*.test.ts(x)`, `tests/**/*.ts`) - Relaxed rules, non-type-aware
 
 ### Key Files
 
