@@ -187,7 +187,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Query received bash events for E2E testing
-  const queryBashEvents = vscode.commands.registerCommand('openhands._queryBashEvents', async () => {
+  const queryBashEvents = vscode.commands.registerCommand('openhands._queryBashEvents', () => {
     return {
       count: receivedBashEvents.length,
       eventTypes: receivedBashEvents.map((e) => e.type),
