@@ -1,3 +1,5 @@
+// React must be in scope for JSX to work after esbuild transpilation
+import React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 /*
   App.tsx hygiene improvements:
