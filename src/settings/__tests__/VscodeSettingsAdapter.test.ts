@@ -26,7 +26,7 @@ describe('VscodeSettingsAdapter', () => {
     };
 
     mockContext = {
-      secrets: mockSecrets,
+      secrets: mockSecrets as vscode.SecretStorage,
     };
 
     // Mock workspace.getConfiguration to return our mock configuration
