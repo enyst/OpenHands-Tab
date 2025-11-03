@@ -67,6 +67,7 @@ describe('VscodeSettingsAdapter', () => {
 
       const result = adapter.get(nestedKey, {});
 
+      expect(vscode.workspace.getConfiguration).toHaveBeenCalled();
       expect(mockConfiguration.get).toHaveBeenCalledWith(nestedKey, {});
       expect(result).toEqual(expectedValue);
     });
