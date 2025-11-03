@@ -137,7 +137,7 @@ See the [TypeScript ESLint documentation](https://typescript-eslint.io/linting/t
 
 ### Why Test Files Aren't Type-Checked
 
-Test files use a separate ESLint configuration block (lines 116-147 in `eslint.config.js`) that **does not** include `parserOptions.project`. This is intentional because:
+Test files use a separate ESLint configuration block (identified by its `files` glob for tests) that **does not** include `parserOptions.project`. This is intentional because:
 
 1. Test files are excluded from production tsconfig files
 2. Type-aware linting would require a separate tsconfig for tests, increasing complexity
@@ -235,9 +235,9 @@ The `react-hooks/exhaustive-deps` rule is set to `'error'` (upgraded from defaul
 
 Choose the correct configuration block based on where the rule should apply:
 
-1. **Production code block** (lines 26-91): Rules for `src/**/*.ts(x)` excluding tests
-2. **React/webview block** (lines 92-114): Additional rules for `src/webview-src/**/*.tsx`
-3. **Test files block** (lines 116-147): Rules for `**/__tests__/**/*.ts(x)`, `**/*.test.ts(x)`, and `tests/**/*.ts`
+1. **Production code block**: Rules for `src/**/*.ts(x)` excluding tests (uses type-aware linting)
+2. **React/webview block**: Additional rules for `src/webview-src/**/*.tsx` (React Hooks rules)
+3. **Test files block**: Rules for `**/__tests__/**/*.ts(x)`, `**/*.test.ts(x)`, and `tests/**/*.ts` (relaxed rules)
 
 ### Step 2: Determine Rule Severity
 
@@ -401,7 +401,7 @@ npx eslint --debug path/to/file.ts 2>&1 | grep parser
 
 **Solution**: Ensure React files are in `src/webview-src/**/*.tsx` and have the `.tsx` extension:
 ```javascript
-// eslint.config.js (lines 93-114)
+// eslint.config.js - React/webview configuration block
 files: ['src/webview-src/**/*.tsx'],  // Must match this pattern
 ```
 
