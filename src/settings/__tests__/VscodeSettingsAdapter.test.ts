@@ -124,6 +124,19 @@ describe('VscodeSettingsAdapter', () => {
 
       expect(result).toBe(globalValue);
     });
+
+    it('should return undefined when inspect returns object with all undefined values', () => {
+      mockConfiguration.inspect.mockReturnValue({
+        workspaceFolderValue: undefined,
+        workspaceValue: undefined,
+        globalValue: undefined,
+      });
+
+      const result = adapter.getExplicit('test.key');
+
+      expect(result).toBeUndefined();
+    });
+
   });
 
   describe('update()', () => {
