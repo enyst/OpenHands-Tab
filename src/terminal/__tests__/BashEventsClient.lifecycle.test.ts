@@ -61,7 +61,7 @@ describe('BashEventsClient - lifecycle and behavior', () => {
     // reset mocks and fake timers for deterministic backoff
     vi.clearAllMocks();
     const WS: any = WebSocket as any;
-    if (Array.isArray(WS.__instances)) WS.__instances.splice(0, WS.__instances.length);
+    if (Array.isArray(WS.__instances)) WS.__instances.length = 0;
   });
 
   afterEach(() => {
