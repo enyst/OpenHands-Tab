@@ -17,7 +17,12 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "*"
+    "onCommand:openhands.openTab",
+    "onCommand:openhands.startNewConversation",
+    "onCommand:openhands.configure",
+    "onCommand:openhands.reconnect",
+    "onCommand:openhands.pauseCurrentRun",
+    "onCommand:openhands.resumeCurrentRun"
   ],
   "contributes": {
     "commands": [

@@ -133,8 +133,10 @@ export class BashEventsClient {
 
   private scheduleReconnect() {
     this.clearReconnectTimer();
-    const delay = Math.min(this.retryMaxMs, this.retryBaseMs * Math.pow(2, this.retryCount));
-    this.retryCount++;
+    const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
+    const jitter = Math.floor(base * 0.2 * Math.random());
+    const delay = base + jitter;
+    this.retryCount = Math.min(this.retryCount + 1, 10);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 

@@ -12,6 +12,7 @@ let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
 const receivedBashEvents: any[] = []; // Track bash events for testing
+const MAX_BASH_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 
 export function activate(context: vscode.ExtensionContext) {
   async function ensurePanelAndConnection() {
@@ -62,8 +63,11 @@ export function activate(context: vscode.ExtensionContext) {
         serverUrl,
         {
           onEvent: (event) => {
-            // Track received bash events for testing
+            // Track received bash events for testing (with ring buffer to prevent memory growth)
             receivedBashEvents.push({ type: event.type, timestamp: Date.now() });
+            if (receivedBashEvents.length > MAX_BASH_EVENTS) {
+              receivedBashEvents.shift();
+            }
 
             // Create terminal on first event
             if (!terminal) {
@@ -386,7 +390,7 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
-    `style-src ${webview.cspSource}`,
+    `style-src ${webview.cspSource} 'unsafe-inline'`,
     `script-src ${webview.cspSource}`,
   ].join('; ');
 
