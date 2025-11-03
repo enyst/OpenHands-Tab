@@ -4,9 +4,9 @@ import * as vscode from 'vscode';
 
 describe('VscodeSettingsAdapter', () => {
   let adapter: VscodeSettingsAdapter;
-  let mockConfiguration: any;
-  let mockSecrets: any;
-  let mockContext: any;
+  let mockConfiguration: Pick<vscode.WorkspaceConfiguration, 'get' | 'inspect' | 'update'>;
+  let mockSecrets: Pick<vscode.SecretStorage, 'get' | 'store' | 'delete'>;
+  let mockContext: Pick<vscode.ExtensionContext, 'secrets'>;
 
   beforeEach(() => {
     // Reset all mocks before each test
