@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+// React must be in scope for JSX to work after esbuild transpilation
+import React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 /*
   App.tsx hygiene improvements:
   - Cache VS Code API once
@@ -37,12 +39,22 @@ interface VscodeApi {
   postMessage: (message: unknown) => void;
 }
 
+// Cache the VS Code API - it can only be acquired once per webview
+let vscodeApiInstance: VscodeApi | undefined;
+
 function getVscodeApi(): VscodeApi {
-  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
-    return (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+  if (vscodeApiInstance) {
+    return vscodeApiInstance;
   }
+
+  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
+    vscodeApiInstance = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+    return vscodeApiInstance;
+  }
+
   // Fallback for non-vscode environments (e.g., tests)
-  return { postMessage: () => { /* noop for tests */ } };
+  vscodeApiInstance = { postMessage: () => { /* noop for tests */ } };
+  return vscodeApiInstance;
 }
 
 function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
@@ -460,63 +472,8 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submissionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Message handler: processes incoming messages from extension host
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string; event?: unknown; error?: unknown };
-
-      switch (payload?.type) {
-        case 'status':
-          if (payload.status) setStatus(payload.status);
-          break;
-        case 'configUpdated':
-          if (typeof payload.serverUrl === 'string') {
-            toastDebounced('info', `Config updated: ${payload.serverUrl}`);
-          }
-          break;
-        case 'event':
-          handleEvent(payload.event);
-          break;
-        case 'error':
-          toastDebounced('error', String(payload.error));
-          break;
-        case 'queryRenderedEvents': {
-          // Respond with rendered event information for testing
-          const vscodeApi = getVscodeApi();
-          vscodeApi.postMessage({
-            type: 'renderedEventsResponse',
-            count: events.length,
-            eventTypes: events.map(e => e.event.type)
-          });
-          break;
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [events]);
-
-  useEffect(() => {
-    // Suppress initial toast; debounce subsequent status changes
-    if (lastStatusRef.current === null) {
-      lastStatusRef.current = status;
-      return;
-    }
-    if (status === 'connecting') toastDebounced('info', 'Connecting...');
-    if (status === 'online') toastDebounced('success', 'Connected to server');
-    if (status === 'offline') toastDebounced('warning', 'Disconnected');
-    lastStatusRef.current = status;
-  }, [status]);
-
-  useEffect(() => {
-    // Deterministic scroll to bottom when events change
-    const el = endRef.current;
-    if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
-      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
-  }, [events.length]);
-
-  function handleEvent(e: unknown) {
+  // Define callback functions before useEffects that depend on them
+  const handleEvent = useCallback((e: unknown) => {
     if (!isEvent(e)) return;
 
     // Track agent status from ConversationStateUpdateEvent
@@ -568,24 +525,86 @@ export function App() {
 
     // Add event to the list for rendering
     setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
-  }
+  }, []);
 
-  function postMessage(msg: unknown) {
+  // Signal webview is ready on mount
+  useEffect(() => {
+    const vscodeApi = getVscodeApi();
+    vscodeApi.postMessage({ type: 'webviewReady' });
+  }, []);
+
+  // Message handler: processes incoming messages from extension host
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string; event?: unknown; error?: unknown };
+
+      switch (payload?.type) {
+        case 'status':
+          if (payload.status) setStatus(payload.status);
+          break;
+        case 'configUpdated':
+          if (typeof payload.serverUrl === 'string') {
+            toastDebounced('info', `Config updated: ${payload.serverUrl}`);
+          }
+          break;
+        case 'event':
+          handleEvent(payload.event);
+          break;
+        case 'error':
+          toastDebounced('error', String(payload.error));
+          break;
+        case 'queryRenderedEvents': {
+          // Respond with rendered event information for testing
+          const vscodeApi = getVscodeApi();
+          vscodeApi.postMessage({
+            type: 'renderedEventsResponse',
+            count: events.length,
+            eventTypes: events.map(e => e.event.type)
+          });
+          break;
+        }
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [events, handleEvent]);
+
+  useEffect(() => {
+    // Suppress initial toast; debounce subsequent status changes
+    if (lastStatusRef.current === null) {
+      lastStatusRef.current = status;
+      return;
+    }
+    if (status === 'connecting') toastDebounced('info', 'Connecting...');
+    if (status === 'online') toastDebounced('success', 'Connected to server');
+    if (status === 'offline') toastDebounced('warning', 'Disconnected');
+    lastStatusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    // Deterministic scroll to bottom when events change
+    const el = endRef.current;
+    if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [events.length]);
+
+  const postMessage = useCallback((msg: unknown) => {
     // Acquire live VS Code API on each call so tests that set window.acquireVsCodeApi late still work
     const api = getVscodeApi();
     api.postMessage(msg);
-  }
+  }, []);
 
   const [input, setInput] = useState('');
-  const send = () => {
+  const send = useCallback(() => {
     const text = input.trim();
     if (!text) return;
     // Send message and let the server echo it back to avoid duplicates
     setInput('');
     postMessage({ type: 'send', text });
-  };
+  }, [input, postMessage]);
 
-  const handleApprove = () => {
+  const handleApprove = useCallback(() => {
     // Prevent double-submit: return early if confirmation already in flight
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -601,9 +620,9 @@ export function App() {
     // Use "submitted" (pending state) instead of "approved" (implies success)
     toastDebounced('info', 'Approval submitted');
     // Server will send ObservationEvent which clears pending actions and resets flag via handleEvent
-  };
+  }, [isSubmitting, postMessage]);
 
-  const handleReject = (reason?: string) => {
+  const handleReject = useCallback((reason?: string) => {
     // Prevent double-submit: return early if confirmation already in flight
     if (isSubmitting) return;
     setIsSubmitting(true);
@@ -619,7 +638,7 @@ export function App() {
     // Use "submitted" (pending state) instead of "rejected" (implies success)
     toastDebounced('info', 'Rejection submitted');
     // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
-  };
+  }, [isSubmitting, postMessage]);
 
   return (
     <div id="app" className="flex flex-col h-screen">

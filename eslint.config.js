@@ -4,10 +4,9 @@ const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
 const globals = require('globals');
 
-const reactHooks = require('eslint-plugin-react-hooks');
+const reactHooksPlugin = require('eslint-plugin-react-hooks');
 
 module.exports = [
-
   {
     ignores: [
       'dist/**',
@@ -92,12 +91,25 @@ module.exports = [
   },
   {
     files: ['src/webview-src/**/*.tsx'],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+      },
+    },
     plugins: {
-      'react-hooks': reactHooks,
+      'react-hooks': reactHooksPlugin,
     },
     rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      ...reactHooksPlugin.configs.recommended.rules,
+      'react-hooks/exhaustive-deps': 'error', // Upgraded from default 'warn'
     },
   },
 
