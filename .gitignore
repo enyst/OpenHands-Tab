@@ -132,6 +132,7 @@ temp/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
+.vscode-dev/
 .idea/
 .DS_Store
 *.swp

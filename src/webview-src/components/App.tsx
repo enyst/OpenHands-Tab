@@ -21,6 +21,7 @@ import {
   isUserRejectObservation,
   isMessageEvent,
   isAgentErrorEvent,
+  isConversationErrorEvent,
   isPauseEvent,
   isCondensation,
   isConversationStateUpdateEvent,
@@ -31,6 +32,7 @@ import {
   type SystemPromptEvent,
   type UserRejectObservation,
   type AgentErrorEvent,
+  type ConversationErrorEvent,
   type PauseEvent,
   type Condensation,
 } from '../../types/agent-sdk';
@@ -188,6 +190,26 @@ function AgentErrorBlock({ event }: { event: AgentErrorEvent }) {
   );
 }
 
+function ConversationErrorBlock({ event }: { event: ConversationErrorEvent }) {
+  return (
+    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-red-600">Conversation Error</div>
+      {event.code && (
+        <div className="text-sm font-mono mb-2">Code: {event.code}</div>
+      )}
+      {event.detail && (
+        <div className="font-semibold">Details:</div>
+      )}
+      {event.detail && (
+        <div className="whitespace-pre-wrap mt-1 text-red-700">{event.detail}</div>
+      )}
+      {!event.detail && !event.code && (
+        <div className="mt-1 text-sm opacity-70">Additional information unavailable.</div>
+      )}
+    </div>
+  );
+}
+
 function PauseEventBlock({ event: _event }: { event: PauseEvent }) {
   return (
     <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-3 rounded my-1">
@@ -289,6 +311,7 @@ function EventBlock({ event }: { event: Event }) {
   if (isUserRejectObservation(event)) return <UserRejectBlock event={event} />;
   if (isMessageEvent(event)) return <MessageEventBlock event={event} />;
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} />;
+  if (isConversationErrorEvent(event)) return <ConversationErrorBlock event={event} />;
   if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
   if (isCondensation(event)) return <CondensationBlock event={event} />;
 
