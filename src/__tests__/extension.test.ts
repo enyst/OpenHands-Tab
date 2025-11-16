@@ -17,6 +17,9 @@ import * as vscode from 'vscode';
  * - E2E Support (4 tests)
  */
 
+// Track ConnectionManager instances for testing
+let lastConnectionManagerInstance: any = null;
+
 // Mock ConnectionManager
 vi.mock('../connection/ConnectionManager', () => ({
   ConnectionManager: vi.fn(function (this: any, serverUrl: string, callbacks: any) {
@@ -54,8 +57,12 @@ vi.mock('../connection/ConnectionManager', () => ({
     this.getConversationId = vi.fn(() => this.conversationId);
     this.getStatus = vi.fn(() => this.status);
 
+    // Store instance for test access
+    lastConnectionManagerInstance = this;
+
     return this;
   }),
+  __getLastInstance: () => lastConnectionManagerInstance,
 }));
 
 // Mock SettingsManager
@@ -985,15 +992,18 @@ describe('Panel Lifecycle', () => {
     expect(vscode.window.createWebviewPanel).toHaveBeenCalled();
   });
 
-  it('should cleanup on extension deactivate', () => {
-    const connectionInstance = {
-      disconnect: vi.fn(),
-    };
+  it('should cleanup on extension deactivate', async () => {
+    // Arrange: activate and create a connection by opening the tab
+    await vscode.commands.executeCommand('openhands.openTab');
+    const { __getLastInstance } = await import('../connection/ConnectionManager');
+    const connectionInstance = __getLastInstance();
+    expect(connectionInstance).toBeDefined();
 
+    // Act: deactivate the extension
     extension.deactivate();
 
-    // Deactivate should complete without errors
-    expect(true).toBe(true);
+    // Assert: ensure cleanup methods were called
+    expect(connectionInstance.disconnect).toHaveBeenCalled();
   });
 });
 
