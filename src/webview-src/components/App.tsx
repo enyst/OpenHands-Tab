@@ -811,6 +811,22 @@ export function App() {
     });
   }, [postMessage, skillsRequested]);
 
+  const handleSkillsKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!showSkillsPopover || skills.length === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSkillsActiveIndex((prev) => (prev + 1) % skills.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSkillsActiveIndex((prev) => (prev - 1 + skills.length) % skills.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const skill = skills[skillsActiveIndex];
+      if (skill) openSkill(skill.path);
+    }
+  }, [openSkill, showSkillsPopover, skills, skillsActiveIndex]);
+
   useEffect(() => {
     if (!showContextPicker) {
       setContextQuery('');
@@ -851,33 +867,18 @@ export function App() {
         setShowSkillsPopover(false);
       }
     };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        if (showContextPicker) setShowContextPicker(false);
-        if (showSkillsPopover) setShowSkillsPopover(false);
-        return;
-      }
-      if (showSkillsPopover && skills.length > 0) {
-        if (event.key === 'ArrowDown') {
-          event.preventDefault();
-          setSkillsActiveIndex((prev) => (prev + 1) % skills.length);
-        } else if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          setSkillsActiveIndex((prev) => (prev - 1 + skills.length) % skills.length);
-        } else if (event.key === 'Enter') {
-          event.preventDefault();
-          const skill = skills[skillsActiveIndex];
-          if (skill) openSkill(skill.path);
-        }
-      }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (showContextPicker) setShowContextPicker(false);
+      if (showSkillsPopover) setShowSkillsPopover(false);
     };
     window.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleEscape);
     return () => {
       window.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleEscape);
     };
-  }, [openSkill, showContextPicker, showSkillsPopover, skills, skillsActiveIndex]);
+  }, [showContextPicker, showSkillsPopover]);
 
   const connectionIcon = status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync';
   const connectionStatusClass = status === 'online'
@@ -1136,6 +1137,7 @@ function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
                 ref={skillsPopoverRef}
                 tabIndex={-1}
                 className="absolute bottom-full right-0 mb-2 w-64 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20 focus:outline-none"
+                onKeyDown={handleSkillsKeyDown}
               >
                 <div className="mb-2 text-sm font-medium">Skills</div>
                 <div className="max-h-48 overflow-auto">

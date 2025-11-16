@@ -93,10 +93,11 @@ describe('App toolbar interactions', () => {
 
     mockApi.postMessage.mockClear();
 
-    fireEvent.keyDown(window, { key: 'ArrowDown' });
+    const skillsList = await screen.findByRole('listbox', { name: 'Skills' });
+    fireEvent.keyDown(skillsList, { key: 'ArrowDown' });
     expect(screen.getByRole('option', { name: 'Beta' })).toHaveAttribute('aria-selected', 'true');
 
-    fireEvent.keyDown(window, { key: 'Enter' });
+    fireEvent.keyDown(skillsList, { key: 'Enter' });
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openSkill', path: '/tmp/beta.md' });
   });
 });
