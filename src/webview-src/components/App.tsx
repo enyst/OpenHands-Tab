@@ -774,14 +774,25 @@ export function App() {
     }
   }, [contextActiveIndex, filteredWorkspaceFiles, insertContextFile, showContextPicker]);
 
+  const closeContextPicker = useCallback(() => {
+    setShowContextPicker(false);
+    setContextQuery('');
+    setContextActiveIndex(0);
+  }, []);
+
+  const closeSkillsPopover = useCallback(() => {
+    setShowSkillsPopover(false);
+    setSkillsActiveIndex(0);
+  }, []);
+
   const openSkill = useCallback((path: string) => {
     toastDebounced('info', 'Opening skill…');
     postMessage({ type: 'openSkill', path });
-    setShowSkillsPopover(false);
-  }, [postMessage]);
+    closeSkillsPopover();
+  }, [closeSkillsPopover, postMessage]);
 
   const handleContextToggle = useCallback(() => {
-    setShowSkillsPopover(false);
+    closeSkillsPopover();
     setShowContextPicker((prev) => {
       const next = !prev;
       if (next) {
@@ -791,13 +802,16 @@ export function App() {
           setIsContextLoading(true);
           postMessage({ type: 'requestWorkspaceFiles' });
         }
+      } else {
+        setContextQuery('');
+        setContextActiveIndex(0);
       }
       return next;
     });
-  }, [postMessage, workspaceFilesRequested]);
+  }, [closeSkillsPopover, postMessage, workspaceFilesRequested]);
 
   const handleSkillsToggle = useCallback(() => {
-    setShowContextPicker(false);
+    closeContextPicker();
     setShowSkillsPopover((prev) => {
       const next = !prev;
       if (next) {
@@ -807,10 +821,12 @@ export function App() {
           setIsSkillsLoading(true);
           postMessage({ type: 'requestSkills' });
         }
+      } else {
+        setSkillsActiveIndex(0);
       }
       return next;
     });
-  }, [postMessage, skillsRequested]);
+  }, [closeContextPicker, postMessage, skillsRequested]);
 
   const handleSkillsKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
     if (!showSkillsPopover || skills.length === 0) return;
@@ -829,11 +845,7 @@ export function App() {
   }, [openSkill, showSkillsPopover, skills, skillsActiveIndex]);
 
   useEffect(() => {
-    if (!showContextPicker) {
-      setContextQuery('');
-      setContextActiveIndex(0);
-      return;
-    }
+    if (!showContextPicker) return;
     const timer = setTimeout(() => {
       const contextualInput = document.getElementById('openhands-context-query');
       if (contextualInput instanceof HTMLInputElement) contextualInput.focus();
@@ -842,10 +854,7 @@ export function App() {
   }, [showContextPicker]);
 
   useEffect(() => {
-    if (!showSkillsPopover) {
-      setSkillsActiveIndex(0);
-      return;
-    }
+    if (!showSkillsPopover) return;
     const timer = setTimeout(() => {
       const target = skillsPopoverRef.current;
       if (!target) return;
@@ -862,16 +871,16 @@ export function App() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (showContextPicker && contextPopoverRef.current && !contextPopoverRef.current.contains(event.target as Node)) {
-        setShowContextPicker(false);
+        closeContextPicker();
       }
       if (showSkillsPopover && skillsPopoverRef.current && !skillsPopoverRef.current.contains(event.target as Node)) {
-        setShowSkillsPopover(false);
+        closeSkillsPopover();
       }
     };
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      if (showContextPicker) setShowContextPicker(false);
-      if (showSkillsPopover) setShowSkillsPopover(false);
+      if (showContextPicker) closeContextPicker();
+      if (showSkillsPopover) closeSkillsPopover();
     };
     window.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('keydown', handleEscape);
@@ -879,7 +888,7 @@ export function App() {
       window.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [showContextPicker, showSkillsPopover]);
+  }, [closeContextPicker, closeSkillsPopover, showContextPicker, showSkillsPopover]);
 
   const connectionIcon = status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync';
   const connectionStatusClass = status === 'online'
