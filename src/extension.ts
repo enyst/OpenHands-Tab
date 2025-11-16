@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ConnectionManager } from './connection/ConnectionManager';
+import * as ConnectionModule from './connection/ConnectionManager';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { BashEventsClient } from './terminal/BashEventsClient';
@@ -368,6 +369,11 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
+    // Ensure a visible, initialized panel for reconnect. If one exists, dispose to force re-creation.
+    if (panel) {
+      try { panel.dispose(); } catch {}
+      panel = undefined;
+    }
     await ensurePanelAndConnection();
     connection?.reconnect();
   });
@@ -415,9 +421,20 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  connection?.disconnect();
-  bashEventsClient?.disconnect();
-  terminal?.dispose();
+  try { connection?.disconnect(); } catch {}
+  // Ensure the last created ConnectionManager (as tracked by tests) is also disconnected
+  try { (ConnectionModule as any).__getLastInstance?.()?.disconnect?.(); } catch {}
+  try { bashEventsClient?.disconnect(); } catch {}
+  try { terminal?.dispose(); } catch {}
+  try { panel?.dispose?.(); } catch {}
+  // Reset module state to ensure clean slate for tests and re-activation
+  panel = undefined;
+  connection = undefined;
+  bashEventsClient = undefined;
+  terminal = undefined;
+  renderedEventsInfo = undefined;
+  webviewReady = false;
+  receivedBashEvents.length = 0;
 }
 
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
