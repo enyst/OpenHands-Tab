@@ -124,6 +124,7 @@ export function __resetMocks() {
   mockCommands.clear();
   mockSubscriptions.length = 0;
   mockConfigListeners.length = 0;
+  mockConfigValues.clear();
   // Reset common spies to default implementations
   ;(workspace.getConfiguration as any).mockClear();
   ;(workspace.onDidChangeConfiguration as any).mockClear();
