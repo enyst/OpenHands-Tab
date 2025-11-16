@@ -1,29 +1,101 @@
-// Mock for vscode module used in unit tests
+// Comprehensive mock for the 'vscode' module used by Vitest unit tests
+// Combines capabilities needed by both legacy and new test suites
 import { vi } from 'vitest';
 
+// Internal registries for commands and listeners
+const mockCommands = new Map<string, Function>();
+const mockSubscriptions: Array<{ dispose: () => void }> = [];
+const mockConfigListeners: Function[] = [];
+const mockConfigValues = new Map<string, any>();
+
+// Workspace mock
 export const workspace = {
-  getConfiguration: vi.fn(),
+  getConfiguration: vi.fn(() => ({
+    get: vi.fn((key: string, defaultValue?: any) => (mockConfigValues.has(key) ? mockConfigValues.get(key) : defaultValue)),
+    inspect: vi.fn(),
+    update: vi.fn(),
+  })),
+  onDidChangeConfiguration: vi.fn((listener: Function) => {
+    mockConfigListeners.push(listener);
+    const disposable = { dispose: vi.fn() };
+    mockSubscriptions.push(disposable);
+    return disposable;
+  }),
+  workspaceFolders: [{ uri: { fsPath: '/test/workspace' } }],
 };
 
+// Configuration target enums used by tests
 export const ConfigurationTarget = {
   Global: 1,
   Workspace: 2,
   WorkspaceFolder: 3,
-};
+} as const;
 
+// Window mock
 export const window = {
   showInformationMessage: vi.fn(),
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
   createOutputChannel: vi.fn(),
+  createWebviewPanel: vi.fn(),
+  showInputBox: vi.fn(),
+  showQuickPick: vi.fn(),
+  createTerminal: vi.fn(),
 };
 
+// Commands mock with register/execute behavior
 export const commands = {
-  registerCommand: vi.fn(),
-  executeCommand: vi.fn(),
+  registerCommand: vi.fn((name: string, handler: Function) => {
+    mockCommands.set(name, handler);
+    const disposable = { dispose: vi.fn(() => mockCommands.delete(name)) };
+    mockSubscriptions.push(disposable);
+    return disposable;
+  }),
+  executeCommand: vi.fn(async (name: string, ...args: any[]) => {
+    const handler = mockCommands.get(name);
+    if (handler) return await handler(...args);
+  }),
 };
 
+// Uri helpers used by code and tests
 export const Uri = {
   file: vi.fn((path: string) => ({ fsPath: path, scheme: 'file' })),
   parse: vi.fn((uri: string) => ({ fsPath: uri, scheme: 'file' })),
+  joinPath: vi.fn((...args: any[]) => ({
+    toString: () => args.join('/'),
+    fsPath: args.join('/'),
+  })),
 };
+
+// ViewColumn used by extension.openTab
+export const ViewColumn = {
+  Beside: 2,
+};
+
+// Utilities for tests to reset state
+export function __resetMocks() {
+  mockCommands.clear();
+  mockSubscriptions.length = 0;
+  mockConfigListeners.length = 0;
+  // Reset common spies to default implementations
+  ;(workspace.getConfiguration as any).mockClear();
+  ;(workspace.onDidChangeConfiguration as any).mockClear();
+  ;(window.showInformationMessage as any).mockClear();
+  ;(window.showErrorMessage as any).mockClear();
+  ;(window.showWarningMessage as any).mockClear();
+  ;(window.createOutputChannel as any).mockClear();
+  ;(window.createWebviewPanel as any).mockClear();
+  ;(window.showInputBox as any).mockClear();
+  ;(window.showQuickPick as any).mockClear();
+  ;(window.createTerminal as any).mockClear();
+  ;(commands.registerCommand as any).mockClear();
+  ;(commands.executeCommand as any).mockClear();
+}
+
+// Expose helpers for tests that expect them
+export function __getMockConfigValues() { return mockConfigValues; }
+
+// Helper to manually trigger configuration change listeners (if needed by tests)
+export function __triggerConfigChange(e: any) {
+  mockConfigListeners.forEach((listener) => listener(e));
+}
