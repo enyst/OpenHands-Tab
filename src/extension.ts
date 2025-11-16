@@ -7,7 +7,7 @@ import * as ConnectionModule from './connection/ConnectionManager';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { BashEventsClient } from './terminal/BashEventsClient';
-import { isBashCommand, isBashOutput, isBashExit } from './types/agent-sdk';
+import { isBashCommand, isBashOutput, isBashExit } from 'agent-sdk-ts';
 import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
 
 let panel: vscode.WebviewPanel | undefined;

@@ -92,7 +92,7 @@ Run:
 
 Changes:
 - In webview.tsx, add window message bridge useEffect
-- Use src/types/agent-sdk.ts guards (isEvent, isMessageEvent, etc.) to parse events
+- Use the `agent-sdk-ts` workspace package guards (isEvent, isMessageEvent, etc.) to parse events
 - MessageEvent: push user/assistant messages into messages state
 - Action/Observation/System/Error events: push a tool-style message with a compact header and body
 

@@ -34,6 +34,29 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 2. Press `F5` to launch a new Extension Development Host
 3. The extension will be available in the new VSCode window
 
+### Monorepo layout & SDK builds
+
+This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript models that live in `packages/agent-sdk-ts`.
+
+- `npm run build` runs the SDK build first (`npm run build -w agent-sdk-ts`) and then compiles the extension/webview bundles.
+- `npm run test` executes `npm test -w agent-sdk-ts` before running the extension Vitest suite, ensuring both projects stay green in CI.
+- `npm run lint` calls the SDK lint task before linting the extension sources.
+
+You can work on the SDK package in isolation with the usual npm workspace commands:
+
+```bash
+# Build ESM/CJS bundles + declaration files
+npm run build -w agent-sdk-ts
+
+# Run the Vitest suite from packages/agent-sdk-ts
+npm test -w agent-sdk-ts
+
+# Lint the SDK package with its dedicated ESLint config
+npm run lint -w agent-sdk-ts
+```
+
+> 💡 If you edit `packages/agent-sdk-ts`, rerun `npm run build -w agent-sdk-ts` (or `npm run build`) before launching the extension so the bundled `node_modules/agent-sdk-ts/dist` reflects your latest changes.
+
 ### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
 This extension targets the V1 server bundled with All-Hands-AI/agent-sdk. Clone and run the server locally with uv.

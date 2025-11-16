@@ -210,9 +210,12 @@ export interface BashExit extends BashEventBase {
 export type BashEvent = BashCommand | BashOutput | BashExit;
 
 // Bash event guards
-export const isBashEvent = (e: any): e is BashEvent => {
-  if (!e || typeof e !== 'object' || typeof e.type !== 'string') return false;
-  if (!e.command_id || typeof e.order !== 'number') return false;
+export const isBashEvent = (candidate: unknown): candidate is BashEvent => {
+  if (!candidate || typeof candidate !== 'object') return false;
+  const e = candidate as Partial<BashEvent> & { type?: string };
+  if (!e.type || typeof e.type !== 'string') return false;
+  if (!('command_id' in e) || typeof e.command_id !== 'string') return false;
+  if (!('order' in e) || typeof e.order !== 'number') return false;
 
   const t = e.type;
   if (t === 'BashCommand') return typeof e.command === 'string';

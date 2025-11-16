@@ -7,7 +7,7 @@ import {
   type BashCommand,
   type BashOutput,
   type BashExit,
-} from '../../types/agent-sdk';
+} from 'agent-sdk-ts';
 
 describe('BashEventsClient type guards', () => {
   it('validates BashCommand event', () => {

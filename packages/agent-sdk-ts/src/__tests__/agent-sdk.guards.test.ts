@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { isEvent, isMessageEvent, isTextContent, type MessageEvent } from '../../types/agent-sdk';
+import {
+  isEvent,
+  isMessageEvent,
+  isTextContent,
+  type MessageEvent,
+} from '../index';
 
 describe('agent-sdk type guards', () => {
   it('validates MessageEvent with text content', () => {
