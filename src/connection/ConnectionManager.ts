@@ -60,7 +60,7 @@ export class ConnectionManager {
         try {
           this.ws.removeAllListeners();
           this.ws.close();
-        } catch {}
+} catch (e) { console.warn('[ConnectionManager] Failed to close previous WebSocket:', e); }
         this.ws = undefined;
       }
       this.setStatus('connecting');
