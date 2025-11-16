@@ -495,7 +495,6 @@ export function App() {
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
   const eventId = useRef(1);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showContextPicker, setShowContextPicker] = useState(false);
@@ -509,6 +508,8 @@ export function App() {
   const [isSkillsLoading, setIsSkillsLoading] = useState(false);
   const [skillsRequested, setSkillsRequested] = useState(false);
   const [skillsActiveIndex, setSkillsActiveIndex] = useState(0);
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>({ message: 'Initializing…', level: 'info' });
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextPopoverRef = useRef<HTMLDivElement | null>(null);
   const skillsPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -582,7 +583,16 @@ export function App() {
 
       switch (payload?.type) {
         case 'status':
-          if (payload.status) setStatus(payload.status);
+          if (payload.status) {
+            setStatus(payload.status);
+            if (payload.status === 'connecting') {
+              setStatusBanner({ message: 'Connecting to server…', level: 'info' });
+            } else if (payload.status === 'online') {
+              setStatusBanner({ message: 'Connected to server', level: 'info' });
+            } else if (payload.status === 'offline') {
+              setStatusBanner({ message: 'Disconnected from server', level: 'warn' });
+            }
+          }
           break;
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string') {
@@ -593,8 +603,26 @@ export function App() {
           handleEvent(payload.event);
           break;
         case 'error':
-          toastDebounced('error', String(payload.error));
+          if (typeof payload.error === 'string') {
+            setStatusBanner({ message: payload.error, level: 'error' });
+            toastDebounced('error', payload.error);
+          } else {
+            setStatusBanner({ message: 'An unknown error occurred', level: 'error' });
+            toastDebounced('error', String(payload.error));
+          }
           break;
+        case 'conversationStarted': {
+          const id = (payload as { conversationId?: unknown }).conversationId;
+          if (typeof id === 'string') {
+            setConversationId(id);
+            setEvents([]);
+            setPendingActions([]);
+            setAgentStatus(undefined);
+            eventId.current = 1;
+            setStatusBanner({ message: 'New conversation started', level: 'info' });
+          }
+          break;
+        }
         case 'workspaceFiles': {
           const files = Array.isArray((payload as { files?: unknown }).files)
             ? (payload as { files: unknown[] }).files.filter((f): f is string => typeof f === 'string')
@@ -648,18 +676,6 @@ export function App() {
   }, [events, handleEvent]);
 
   useEffect(() => {
-    // Suppress initial toast; debounce subsequent status changes
-    if (lastStatusRef.current === null) {
-      lastStatusRef.current = status;
-      return;
-    }
-    if (status === 'connecting') toastDebounced('info', 'Connecting...');
-    if (status === 'online') toastDebounced('success', 'Connected to server');
-    if (status === 'offline') toastDebounced('warning', 'Disconnected');
-    lastStatusRef.current = status;
-  }, [status]);
-
-  useEffect(() => {
     // Deterministic scroll to bottom when events change
     const el = endRef.current;
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
@@ -674,6 +690,17 @@ export function App() {
   }, []);
 
   const [input, setInput] = useState('');
+
+  const handleStartNewConversation = () => {
+    setStatusBanner({ message: 'Starting new conversation…', level: 'info' });
+    setConversationId(undefined);
+    setEvents([]);
+    setPendingActions([]);
+    setAgentStatus(undefined);
+    eventId.current = 1;
+    setInput('');
+    postMessage({ type: 'command', command: 'startNewConversation' });
+  };
   const filteredWorkspaceFiles = useMemo(() => {
     if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
     const lower = contextQuery.toLowerCase();
@@ -949,6 +976,12 @@ function ToolbarButton({ icon, label, onClick, disabled, statusClassName, iconCl
 
 const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
 
+const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
+  info: 'bg-[color-mix(in_srgb,var(--vscode-badge-background)_30%,transparent)] text-[var(--vscode-foreground)] border border-[color-mix(in_srgb,var(--vscode-badge-background)_50%,transparent)]',
+  warn: 'bg-[color-mix(in_srgb,var(--vscode-inputValidation-warningBackground)_55%,transparent)] text-[var(--vscode-foreground)] border border-[color-mix(in_srgb,var(--vscode-inputValidation-warningBorder)_60%,transparent)]',
+  error: 'bg-[color-mix(in_srgb,var(--vscode-inputValidation-errorBackground)_60%,transparent)] text-[var(--vscode-foreground)] border border-[color-mix(in_srgb,var(--vscode-inputValidation-errorBorder)_65%,transparent)]'
+};
+
 interface AccessoryButtonProps {
   icon: string;
   label: string;
@@ -975,7 +1008,7 @@ function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
           <ToolbarButton
             icon="add"
             label="New Conversation"
-            onClick={() => postMessage({ type: 'command', command: 'startNewConversation' })}
+            onClick={handleStartNewConversation}
           />
           <ToolbarButton
             icon="history"
@@ -1148,6 +1181,14 @@ function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
             )}
           </div>
         </div>
+        {statusBanner && (
+          <div className={`mt-1 text-sm px-2 py-1 rounded ${statusLevelClasses[statusBanner.level]}`}>
+            <span>{statusBanner.message}</span>
+            {conversationId && statusBanner.level !== 'error' && (
+              <span className="ml-2 opacity-70 text-xs">Conversation: {conversationId.slice(0, 8)}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

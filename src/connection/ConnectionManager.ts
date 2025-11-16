@@ -56,6 +56,14 @@ export class ConnectionManager {
 
   async startNewConversation() {
     try {
+      if (this.ws) {
+        try {
+          this.ws.removeAllListeners();
+          this.ws.close();
+        } catch {}
+        this.ws = undefined;
+      }
+      this.setStatus('connecting');
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
       const llm: Record<string, unknown> = {};

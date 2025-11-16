@@ -67,8 +67,10 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  outputChannel = vscode.window.createOutputChannel('OpenHands');
+  outputChannel = vscode.window.createOutputChannel('OpenHands', { log: true });
   context.subscriptions.push(outputChannel);
+  outputChannel.appendLine('[OpenHands] Logging channel initialized');
+  outputChannel.show(true);
 
   const sidebarProvider = new OpenHandsViewProvider();
   const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
@@ -127,6 +129,9 @@ export function activate(context: vscode.ExtensionContext) {
         onConversationId: (id) => {
           outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
           void context.workspaceState.update('openhands.conversationId', id);
+          if (id) {
+            void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });
+          }
         },
       });
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
@@ -605,9 +610,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
             case 'pause':
               await connection?.pause();
               break;
-            case 'startNewConversation':
+            case 'startNewConversation': {
               await connection?.startNewConversation();
               break;
+            }
             case 'approveAction':
               await connection?.approveAction();
               break;
