@@ -114,7 +114,9 @@ Confirmation policy
     - Location: ~/.openhands/conversations
     - Persist server/SDK JSON as-is (pydantic model_dump_json); no custom schema
 - Logging
-  - For debugging.
+  - For debugging and troubleshooting
+  - Output channel (VS Code Output panel) with structured logging
+  - Logs connection status, events, errors with timestamps
 
 ## 8. Non-Functional Requirements
 - Security & Privacy
@@ -166,6 +168,7 @@ Confirmation policy
 - src/webview-src/ (React UI bundle)
   - webview.tsx (entry point)
   - components/App.tsx (main React component with chat UI, event stream, status, confirmation UI)
+  - components/ToolbarButtons.tsx (top toolbar with New Conversation, Settings, Connection status)
 
 ## 12. Packaging & Distribution
 - Engine: VS Code >= 1.104.0
@@ -176,19 +179,19 @@ Confirmation policy
   - Display Name: OpenHands Tab
   - Publisher: openhands
 
-## 13. Chat Toolbar UX (Planned for feature/chat-toolbar-ui)
-- **Activation**
+## 13. Chat Toolbar UX (In Progress - feature/chat-toolbar-ui)
+- **Activation** ✓ IMPLEMENTED
   - Activity bar icon opens the chat tab (tree view remains for quick actions).
-- **Top Toolbar (persistent)**
-  - New Conversation: clears history and starts a fresh session.
-  - History: launches conversation history view (placeholder until backend ready).
-  - Settings: executes `workbench.action.openSettings` with filter `@ext:openhands.openhands-tab`.
-  - Connection Toggle: ✓ when online, ✕ when offline; clicking retries connect/reconnect.
-- **Prompt Accessories (bottom row)**
-  - `@` "Add context": opens inline workspace file search/autocomplete, inserts selection into prompt.
-  - `+` "Attach files": reserved UI (no-op for now).
-  - `MCP`: placeholder entry for future MCP server selection.
-  - `Skills`: toggles popover listing `~/.openhands/skills/*.md` (display sans `.md`, open file on click).
+- **Top Toolbar (persistent)** (PARTIALLY IMPLEMENTED)
+  - New Conversation: ✓ IMPLEMENTED - clears history and starts a fresh session.
+  - History: PLANNED - launches conversation history view (placeholder until backend ready).
+  - Settings: ✓ IMPLEMENTED - executes `workbench.action.openSettings` with filter `@ext:openhands.openhands-tab`.
+  - Connection Toggle: ✓ IMPLEMENTED - status indicator shows online/offline; clicking retries connect/reconnect.
+- **Prompt Accessories (bottom row)** (PARTIALLY IMPLEMENTED)
+  - `@` "Add context": ✓ IMPLEMENTED - backend support for workspace file search (`requestWorkspaceFiles` message handler).
+  - `+` "Attach files": PLANNED - reserved UI (no-op for now).
+  - `MCP`: PLANNED - placeholder entry for future MCP server selection.
+  - `Skills`: ✓ IMPLEMENTED - backend support for listing/opening `~/.openhands/skills/*.md` files (`requestSkills`, `openSkill` message handlers).
 - **Layout Expectations**
   - Top toolbar remains visible across conversation/history views.
   - Prompt input keeps ENTER-to-send behaviour (no send button).
@@ -215,9 +218,13 @@ Confirmation policy
 - Activity Bar Integration ✓ IMPLEMENTED
   - Custom activity bar icon and view
   - Quick action shortcuts for opening tab and settings
-- Chat Toolbar UX (PLANNED - see Section 13)
-  - Top toolbar with New Conversation, History, Settings, Connection toggle
-  - Prompt accessories: @ mentions, file attachments, MCP, Skills
+- Chat Toolbar UX (PARTIALLY IMPLEMENTED - see Section 13)
+  - ✓ Backend support for workspace file search (@ mentions)
+  - ✓ Backend support for Skills listing and opening
+  - ✓ Settings page integration
+  - ✓ Connection status indicator
+  - PLANNED: Full UI toolbar with prompt accessories
+  - PLANNED: Conversation history view
 - TODO: Switch LLM During Conversation
   - If supported by server/SDK: expose command(s) to update agent model/provider mid-conversation
   - Otherwise: provide "Start New Conversation with Model…" flow
@@ -299,10 +306,12 @@ Confirmation policy
 - Event schema (received over WS):
   - Base: openhands.sdk.event.base.EventBase (discriminated union)
   - Common event types:
-    - MessageEvent: agent-sdk/openhands/sdk/event/llm_convertible/message.py
+    - MessageEvent: agent-sdk/openhands/sdk/event/llm_convertible/message.py (supports activated_skills field)
     - ActionEvent: agent-sdk/openhands/sdk/event/llm_convertible/action.py
     - Observation events: agent-sdk/openhands/sdk/event/llm_convertible/observation.py
-    - Plus system/agent error events per openhands.sdk.event
+    - AgentErrorEvent: tool-level errors
+    - ConversationErrorEvent: conversation-level errors (code, detail fields)
+    - Plus other system events per openhands.sdk.event
   - Event pages: EventPage in agent-sdk/openhands/agent_server/models.py
 - Auth:
   - HTTP: X-Session-API-Key header when enabled
