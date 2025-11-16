@@ -14,7 +14,7 @@ describe('App - Confirmation Flow', () => {
 
   beforeEach(() => {
     // mock VS Code API
-    // @ts-expect-error
+    // @ts-expect-error Mocking VS Code acquireVsCodeApi for tests
     window.acquireVsCodeApi = () => mockApi;
     mockApi.postMessage.mockClear();
   });
