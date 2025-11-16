@@ -67,10 +67,18 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  outputChannel = vscode.window.createOutputChannel('OpenHands', { log: true });
-  context.subscriptions.push(outputChannel);
-  outputChannel.appendLine('[OpenHands] Logging channel initialized');
-  outputChannel.show(true);
+  try {
+    const factory = (vscode.window as typeof vscode.window & { createOutputChannel?: typeof vscode.window.createOutputChannel }).createOutputChannel;
+    if (factory) {
+      outputChannel = factory('OpenHands', { log: true } as any);
+      context.subscriptions.push(outputChannel);
+      outputChannel.show(true);
+      outputChannel.appendLine('[OpenHands] Logging channel initialized');
+    }
+  } catch (err) {
+    console.warn('[OpenHands] Failed to create output channel:', err);
+    outputChannel = undefined;
+  }
 
   const sidebarProvider = new OpenHandsViewProvider();
   const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
