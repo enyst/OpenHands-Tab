@@ -84,7 +84,7 @@ describe('App - Confirmation Flow', () => {
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction() });
 
-    const approveBtn = (await screen.findAllByRole('button', { name: /approve/i }))[0];
+    const approveBtn = await screen.findByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'approveAction' });
     // while submitting, buttons are disabled
