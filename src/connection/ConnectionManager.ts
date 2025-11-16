@@ -56,6 +56,14 @@ export class ConnectionManager {
 
   async startNewConversation() {
     try {
+      if (this.ws) {
+        try {
+          this.ws.removeAllListeners();
+          this.ws.close();
+} catch (e) { console.warn('[ConnectionManager] Failed to close previous WebSocket:', e); }
+        this.ws = undefined;
+      }
+      this.setStatus('connecting');
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
       const llm: Record<string, unknown> = {};
@@ -71,8 +79,12 @@ export class ConnectionManager {
       if (s?.llm.temperature != null) llm.temperature = s.llm.temperature;
       if (s?.llm.topP != null) llm.top_p = s.llm.topP;
       if (s?.llm.topK != null) llm.top_k = s.llm.topK;
-      if (s?.llm.maxInputTokens != null) llm.max_input_tokens = s.llm.maxInputTokens;
-      if (s?.llm.maxOutputTokens != null) llm.max_output_tokens = s.llm.maxOutputTokens;
+      if (s?.llm.maxInputTokens != null && s.llm.maxInputTokens > 0) {
+        llm.max_input_tokens = s.llm.maxInputTokens;
+      }
+      if (s?.llm.maxOutputTokens != null && s.llm.maxOutputTokens > 0) {
+        llm.max_output_tokens = s.llm.maxOutputTokens;
+      }
       if (s?.llm.nativeToolCalling != null) llm.native_tool_calling = s.llm.nativeToolCalling;
       if (s?.llm.reasoningEffort != null) llm.reasoning_effort = s.llm.reasoningEffort;
       if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
@@ -383,12 +395,27 @@ export class ConnectionManager {
       try {
         const str = buf.toString('utf8');
         const data = JSON.parse(str) as unknown;
+        const normalized = this.normalizeEventPayload(data);
         // Validate event structure before propagating to UI
-        if (isAgentEvent(data)) this.events.onEvent(data);
-        else this.events.onError(new Error(`Invalid event payload: ${JSON.stringify(data)}`));
+        if (isAgentEvent(normalized)) this.events.onEvent(normalized);
+        else this.events.onError(new Error(`Invalid event payload: ${JSON.stringify(normalized)}`));
       } catch (e) {
         this.events.onError(e);
       }
     });
+  }
+
+  private normalizeEventPayload(payload: unknown): unknown {
+    if (!payload || typeof payload !== 'object') return payload;
+    if (Array.isArray(payload)) return payload.map((item) => this.normalizeEventPayload(item));
+    const obj = payload as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      normalized[key] = this.normalizeEventPayload(value);
+    }
+    if (typeof obj.kind === 'string' && typeof normalized.type !== 'string') {
+      normalized.type = obj.kind;
+    }
+    return normalized;
   }
 }

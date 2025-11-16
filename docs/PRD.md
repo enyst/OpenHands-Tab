@@ -19,7 +19,14 @@ A VS Code extension that provides a tab to interact with the OpenHands agent, us
 ## 3. Target
 - Developers who want to use OpenHands agents directly within VS Code
 
-## 4. Architecture Overview
+## 4. Current Implementation Snapshot
+- Activity bar icon + quick actions tree (Open Tab, Settings shortcuts)
+- Chat webview with streaming events, confirmation mode, and message send fallback
+- Connection lifecycle aligned with agent-server 1.1 (new tool identifiers, `/run` resume)
+- Settings bridge backed by VS Code configuration & secret storage
+- Bash events optional terminal stream (toggle via settings)
+
+## 5. Architecture Overview
 - VS Code Extension (Extension Host)
   - Activation + Commands
   - Connection Manager (WebSocket + HTTP proxy layer)
@@ -40,7 +47,7 @@ Data flow notes
 - Webview does not call the network directly. All network calls and WebSocket connections go through the Extension Host (to avoid CORS and webview limitations).
 - Extension Host relays messages to/from the Webview via VS Code postMessage API.
 
-## 5. External Dependencies & Protocol
+## 6. External Dependencies & Protocol
 - OpenHands Server (agent-server)
   - Default URL: http://localhost:3000 (local PoC)
   - WebSocket: /sockets/events/{conversation_id} (JSON)
@@ -73,7 +80,7 @@ Confirmation policy
 - Policies supported: NeverConfirm, AlwaysConfirm, ConfirmRisky(threshold: LOW|MEDIUM|HIGH, confirm_unknown: bool)
 - If we later expose UI to select a policy, we’ll send it in the POST /api/conversations payload.
 
-## 6. Functional Requirements
+## 7. Functional Requirements
 - Commands
   - OpenHands: Open Tab (opens/activates the Webview)
   - OpenHands: Start New Conversation
@@ -108,7 +115,7 @@ Confirmation policy
 - Logging
   - For debugging.
 
-## 7. Non-Functional Requirements
+## 8. Non-Functional Requirements
 - Security & Privacy
   - Secrets stored via VS Code SecretStorage
   - Do not log API keys or user content
@@ -119,7 +126,7 @@ Confirmation policy
   - Graceful handling of server unavailability; retry with backoff
   - Resilient to transient WebSocket disconnects
 
-## 8. UX Overview
+## 9. UX Overview
 - Tab Layout
   - Header: server status indicator (green/red dot), settings gear
   - Main: message list (user/assistant and tool events), live streaming
@@ -130,7 +137,7 @@ Confirmation policy
   - Send Prompt: user enters message → stream events → source control shows diffs → user reviews in standard editors/SCM
   - Reconnect: on disconnect, show banner; user can retry or auto-reconnect
 
-## 9. API/Event Mapping (Initial)
+## 10. API/Event Mapping (Initial)
 - Outbound
   - WebSocket send: Message JSON (role/content) to queue and run
   - HTTP POST /api/conversations/{id}/events/: SendMessageRequest when needed outside the socket
@@ -140,7 +147,7 @@ Confirmation policy
   - WebSocket: EventBase JSON stream (includes ActionEvent, MessageEvent, AgentErrorEvent, etc.)
   - HTTP: Events search/count for backfill on reconnect
 
-## 10. Extension Structure (Code)
+## 11. Extension Structure (Code)
 - src/extension.ts (activate, register commands, webview setup, message bridge)
 - src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers)
 - src/session/ConversationManager.ts (conversation_id, resume state)
@@ -150,7 +157,7 @@ Confirmation policy
   - components/App.tsx (main React component with chat UI, event stream, status)
   - TODO: Separate components for EventStream, SettingsModal if needed for better organization
 
-## 11. Packaging & Distribution
+## 12. Packaging & Distribution
 - Engine: VS Code >= 1.104.0
 - Node: 22.x
 - Publish as VSIX initially; Marketplace later
@@ -159,7 +166,25 @@ Confirmation policy
   - Display Name: OpenHands Tab
   - Publisher: openhands
 
-## 12. Phases
+## 13. Chat Toolbar UX (Planned for feature/chat-toolbar-ui)
+- **Activation**
+  - Activity bar icon opens the chat tab (tree view remains for quick actions).
+- **Top Toolbar (persistent)**
+  - New Conversation: clears history and starts a fresh session.
+  - History: launches conversation history view (placeholder until backend ready).
+  - Settings: executes `workbench.action.openSettings` with filter `@ext:openhands.openhands-tab`.
+  - Connection Toggle: ✓ when online, ✕ when offline; clicking retries connect/reconnect.
+- **Prompt Accessories (bottom row)**
+  - `@` “Add context”: opens inline workspace file search/autocomplete, inserts selection into prompt.
+  - `+` “Attach files”: reserved UI (no-op for now).
+  - `MCP`: placeholder entry for future MCP server selection.
+  - `Skills`: toggles popover listing `~/.openhands/skills/*.md` (display sans `.md`, open file on click).
+- **Layout Expectations**
+  - Top toolbar remains visible across conversation/history views.
+  - Prompt input keeps ENTER-to-send behaviour (no send button).
+  - Accessory icons align with patterns from the Cline extension while following OpenHands-specific actions.
+
+## 14. Phases
 - POC
   - Connect to server; create/restore conversation; send/stream messages and events
   - Minimal chat UI; basic status; reconnect handling
@@ -182,17 +207,19 @@ Confirmation policy
   - Iteratively improve event rendering and layout
   - Note: OpenHands V0 (current web) vs V1 (agent-sdk centric) — we will prefer reusing visual patterns where feasible, but the authoritative APIs and models are from agent-sdk (V1 rewrite). Visual similarity is desired; implementation details may differ.
 
+- Activity Bar & Tab UX (in progress – see Section 6)
+
 - M0: Scaffold extension + Webview shell; settings storage; connection test command
 - M1: WebSocket connect; send message; render basic assistant text
 - M2: Stream tool events/logs with structured UI; stop button
 - M3: Error handling, reconnection, minimal telemetry (opt-in)
 - M4: (Later) Revisit any optional file change summaries or links
 
-## 13. Assumptions
+## 15. Assumptions
 - Server provides a stable EventBase WebSocket stream and accepts Message JSON per agent-sdk
 - Server is responsible for model/provider configuration and tool availability
 
-## 14. References
+## 16. References
 - agent-sdk (core models, agent/LLM abstractions)
   - openhands/sdk/agent/agent.py (Agent class, run loop, event generation)
   - openhands/sdk/llm/llm.py; utils/model_features.py; utils/metrics.py (model naming, metrics)
@@ -206,7 +233,7 @@ Confirmation policy
 - Event/Conversation serialization
   - Pydantic model_dump/model_dump_json on Conversation/StoredConversation/EventBase
 
-## 15. Protocol & Schema Reference (Authoritative)
+## 17. Protocol & Schema Reference (Authoritative)
 - WebSocket endpoints (agent-sdk):
   - Conversation events: /sockets/events/{conversation_id}?session_api_key=...
   - Bash events: /sockets/bash-events?session_api_key=...
@@ -263,7 +290,7 @@ Confirmation policy
   - HTTP: X-Session-API-Key header when enabled
   - WebSocket: session_api_key query parameter
 
-## 16. TypeScript Model Alignment and @openhands/ui Adoption Plan
+## 18. TypeScript Model Alignment and @openhands/ui Adoption Plan
 
 IMPORTANT: see also IMPLEMENTATION_PLAN.md for the step-by-step implementation and test plan.
 

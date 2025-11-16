@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { ConnectionManager } from './connection/ConnectionManager';
 import * as ConnectionModule from './connection/ConnectionManager';
 import { SettingsManager } from './settings/SettingsManager';
@@ -13,12 +16,82 @@ let bashEventsClient: BashEventsClient | undefined;
 let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
+let outputChannel: vscode.OutputChannel | undefined;
 const receivedBashEvents: any[] = []; // Track bash events for testing
 const MAX_BASH_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return `<unserializable: ${reason}>`;
+  }
+}
+
+async function listWorkspaceFiles(limit = 500): Promise<string[]> {
+  if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+    return [];
+  }
+  try {
+    const uris = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**,**/dist/**,**/out/**,**/build/**,**/.venv/**}', limit);
+    const unique = new Set<string>();
+    for (const uri of uris) {
+      const relative = vscode.workspace.asRelativePath(uri, false);
+      if (relative) unique.add(relative);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  } catch (err) {
+    console.error('[OpenHands] Failed to list workspace files', err);
+    return [];
+  }
+}
+
+async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
+  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
+    return files
+      .map((entry) => {
+        const absolutePath = path.join(skillsDir, entry.name);
+        const label = entry.name.slice(0, -3); // remove .md
+        return { label, path: absolutePath };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.error('[OpenHands] Failed to read skills directory', err);
+    }
+    return [];
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
+  try {
+    const factory = (vscode.window as typeof vscode.window & { createOutputChannel?: typeof vscode.window.createOutputChannel }).createOutputChannel;
+    if (factory) {
+      const channel = factory('OpenHands', { log: true } as any);
+      if (channel) {
+        outputChannel = channel;
+        context.subscriptions.push(channel);
+        channel.show?.(true);
+        channel.appendLine?.('[OpenHands] Logging channel initialized');
+      }
+    }
+  } catch (err) {
+    console.warn('[OpenHands] Failed to create output channel:', err);
+    outputChannel = undefined;
+  }
+
   const sidebarProvider = new OpenHandsViewProvider();
-  context.subscriptions.push(vscode.window.registerTreeDataProvider('openhands.quickActions', sidebarProvider));
+  const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
+  context.subscriptions.push(treeView);
+  context.subscriptions.push(treeView.onDidChangeVisibility((event) => {
+    if (event.visible) {
+      void vscode.commands.executeCommand('openhands.openTab');
+    }
+  }));
 
   async function ensurePanelAndConnection() {
     if (!panel) {
@@ -49,10 +122,29 @@ export function activate(context: vscode.ExtensionContext) {
       // Expose workspace root path for ConnectionManager to consume (without importing vscode).
       (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
-        onStatus: (s) => { void panel?.webview.postMessage({ type: 'status', status: s }); },
-        onEvent: (ev) => { void panel?.webview.postMessage({ type: 'event', event: ev }); },
-        onError: (err) => { void panel?.webview.postMessage({ type: 'error', error: String(err) }); },
-        onConversationId: (id) => { void context.workspaceState.update('openhands.conversationId', id); },
+        onStatus: (s) => {
+          outputChannel?.appendLine(`[status] ${s}`);
+          void panel?.webview.postMessage({ type: 'status', status: s });
+        },
+        onEvent: (ev) => {
+          outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+          void panel?.webview.postMessage({ type: 'event', event: ev });
+        },
+        onError: (err) => {
+          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          outputChannel?.appendLine(`[error] ${rendered}`);
+          if (err instanceof Error && err.stack) {
+            outputChannel?.appendLine(err.stack);
+          }
+          void panel?.webview.postMessage({ type: 'error', error: rendered });
+        },
+        onConversationId: (id) => {
+          outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
+          void context.workspaceState.update('openhands.conversationId', id);
+          if (id) {
+            void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });
+          }
+        },
       });
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       connection.setSettings(settings);
@@ -440,11 +532,13 @@ export function deactivate() {
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
   const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'index.css'));
+  const codiconStylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'));
   const version = Date.now().toString();
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
+    `font-src ${webview.cspSource}`,
     `script-src ${webview.cspSource}`,
   ].join('; ');
 
@@ -455,6 +549,7 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${stylesUri.toString()}?v=${version}" rel="stylesheet" />
+  <link href="${codiconStylesUri.toString()}?v=${version}" rel="stylesheet" />
   <title>OpenHands Tab</title>
 </head>
 <body>
@@ -469,9 +564,13 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
  *
  * Supported message types:
  * - 'openSettings': Opens the configuration wizard (multi-step input)
+ * - 'openSettingsPage': Opens VS Code settings scoped to OpenHands
  * - 'getConfig': Returns current serverUrl to webview
  * - 'send': Sends user message to agent via ConnectionManager
  * - 'command': Executes agent control commands (reconnect, pause, startNewConversation, approveAction, rejectAction)
+ * - 'requestWorkspaceFiles': Returns list of workspace files for @ mentions
+ * - 'requestSkills': Returns ~/.openhands/skills markdown files
+ * - 'openSkill': Opens the specified skill file in editor
  * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
  *
  * Reverse flow (extension → webview):
@@ -485,16 +584,48 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
   return async (msg: unknown) => {
     // Type guard for message structure
     if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; count?: unknown; eventTypes?: unknown };
+    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown };
 
     switch (message.type) {
       case 'webviewReady':
         // Webview has mounted and is ready to receive messages
         webviewReady = true;
         break;
+      case 'openSettingsPage':
+        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
+        break;
       case 'openSettings':
         await vscode.commands.executeCommand('openhands.configure');
         break;
+      case 'requestWorkspaceFiles': {
+        const files = await listWorkspaceFiles();
+        void panel.webview.postMessage({ type: 'workspaceFiles', files });
+        break;
+      }
+      case 'requestSkills': {
+        const skills = await listSkillFiles();
+        void panel.webview.postMessage({ type: 'skillsList', skills });
+        break;
+      }
+      case 'openSkill': {
+        const skillPath = typeof message.path === 'string' ? message.path : undefined;
+        if (!skillPath) break;
+        try {
+          const skillsRoot = path.resolve(os.homedir(), '.openhands', 'skills');
+          const resolvedPath = path.resolve(skillPath);
+          const relative = path.relative(skillsRoot, resolvedPath);
+          if (relative.startsWith('..') || path.isAbsolute(relative)) {
+            void vscode.window.showErrorMessage('Refusing to open skill outside of ~/.openhands/skills');
+            break;
+          }
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
+          await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to open skill file: ${reason}`);
+        }
+        break;
+      }
       case 'getConfig': {
         const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
         void panel.webview.postMessage({ type: 'config', serverUrl });
@@ -514,9 +645,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
             case 'pause':
               await connection?.pause();
               break;
-            case 'startNewConversation':
+            case 'startNewConversation': {
               await connection?.startNewConversation();
               break;
+            }
             case 'approveAction':
               await connection?.approveAction();
               break;

@@ -1,14 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
 
 describe('App render', () => {
-  it('renders header, input, and buttons', () => {
+  const mockApi = { postMessage: vi.fn() };
+
+  beforeEach(() => {
+    // @ts-expect-error mock VS Code API for tests
+    window.acquireVsCodeApi = () => mockApi;
+    mockApi.postMessage.mockClear();
+  });
+
+  it('renders header, input, and toolbar controls', () => {
     render(<App />);
     expect(screen.getByText('OpenHands')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument();
-    expect(screen.getByText('Send')).toBeInTheDocument();
-    expect(screen.getByText('Stop')).toBeInTheDocument();
+    expect(screen.getByLabelText('New Conversation')).toBeInTheDocument();
+    expect(screen.getByLabelText('Add context')).toBeInTheDocument();
   });
 });

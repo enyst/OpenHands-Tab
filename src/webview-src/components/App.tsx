@@ -1,6 +1,7 @@
 // React must be in scope for JSX to work after esbuild transpilation
 import React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessoryButton, ToolbarButton } from './ToolbarButtons';
 /*
   App.tsx hygiene improvements:
   - Cache VS Code API once
@@ -11,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
   - A11y roles
 */
 
-import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
+import { ToastManager, toasterMessages, Typography, Scrollable, Input } from '@openhands/ui';
 import {
   isEvent,
   isTextContent,
@@ -21,6 +22,7 @@ import {
   isUserRejectObservation,
   isMessageEvent,
   isAgentErrorEvent,
+  isConversationErrorEvent,
   isPauseEvent,
   isCondensation,
   isConversationStateUpdateEvent,
@@ -31,6 +33,7 @@ import {
   type SystemPromptEvent,
   type UserRejectObservation,
   type AgentErrorEvent,
+  type ConversationErrorEvent,
   type PauseEvent,
   type Condensation,
 } from '../../types/agent-sdk';
@@ -188,6 +191,26 @@ function AgentErrorBlock({ event }: { event: AgentErrorEvent }) {
   );
 }
 
+function ConversationErrorBlock({ event }: { event: ConversationErrorEvent }) {
+  return (
+    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
+      <div className="font-bold mb-2 text-red-600">Conversation Error</div>
+      {event.code && (
+        <div className="text-sm font-mono mb-2">Code: {event.code}</div>
+      )}
+      {event.detail && (
+        <div className="font-semibold">Details:</div>
+      )}
+      {event.detail && (
+        <div className="whitespace-pre-wrap mt-1 text-red-700">{event.detail}</div>
+      )}
+      {!event.detail && !event.code && (
+        <div className="mt-1 text-sm opacity-70">Additional information unavailable.</div>
+      )}
+    </div>
+  );
+}
+
 function PauseEventBlock({ event: _event }: { event: PauseEvent }) {
   return (
     <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-3 rounded my-1">
@@ -247,11 +270,16 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
           <div className="whitespace-pre-wrap mt-1">{event.llm_message.reasoning_content}</div>
         </>
       )}
-      {event.activated_microagents && event.activated_microagents.length > 0 && (
-        <div className="mt-2 text-sm opacity-70">
-          Activated Microagents: {event.activated_microagents.join(', ')}
-        </div>
-      )}
+      {(() => {
+        const activated = event.activated_microagents ?? event.activated_skills;
+        if (!activated || activated.length === 0) return null;
+        const label = event.activated_microagents ? 'Activated Microagents' : 'Activated Skills';
+        return (
+          <div className="mt-2 text-sm opacity-70">
+            {label}: {activated.join(', ')}
+          </div>
+        );
+      })()}
       {event.extended_content && event.extended_content.length > 0 && (
         <>
           <div className="font-semibold mt-2">Prompt Extension based on Agent Context:</div>
@@ -284,6 +312,7 @@ function EventBlock({ event }: { event: Event }) {
   if (isUserRejectObservation(event)) return <UserRejectBlock event={event} />;
   if (isMessageEvent(event)) return <MessageEventBlock event={event} />;
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} />;
+  if (isConversationErrorEvent(event)) return <ConversationErrorBlock event={event} />;
   if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
   if (isCondensation(event)) return <CondensationBlock event={event} />;
 
@@ -467,10 +496,25 @@ export function App() {
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
   const eventId = useRef(1);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showContextPicker, setShowContextPicker] = useState(false);
+  const [contextQuery, setContextQuery] = useState('');
+  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
+  const [isContextLoading, setIsContextLoading] = useState(false);
+  const [workspaceFilesRequested, setWorkspaceFilesRequested] = useState(false);
+  const [contextActiveIndex, setContextActiveIndex] = useState(0);
+  const [showSkillsPopover, setShowSkillsPopover] = useState(false);
+  const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
+  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
+  const [skillsRequested, setSkillsRequested] = useState(false);
+  const [skillsActiveIndex, setSkillsActiveIndex] = useState(0);
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>({ message: 'Initializing…', level: 'info' });
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contextPopoverRef = useRef<HTMLDivElement | null>(null);
+  const skillsPopoverRef = useRef<HTMLDivElement | null>(null);
+  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
 
   // Define callback functions before useEffects that depend on them
   const handleEvent = useCallback((e: unknown) => {
@@ -540,7 +584,16 @@ export function App() {
 
       switch (payload?.type) {
         case 'status':
-          if (payload.status) setStatus(payload.status);
+          if (payload.status) {
+            setStatus(payload.status);
+            if (payload.status === 'connecting') {
+              setStatusBanner({ message: 'Connecting to server…', level: 'info' });
+            } else if (payload.status === 'online') {
+              setStatusBanner({ message: 'Connected to server', level: 'info' });
+            } else if (payload.status === 'offline') {
+              setStatusBanner({ message: 'Disconnected from server', level: 'warn' });
+            }
+          }
           break;
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string') {
@@ -551,8 +604,51 @@ export function App() {
           handleEvent(payload.event);
           break;
         case 'error':
-          toastDebounced('error', String(payload.error));
+          if (typeof payload.error === 'string') {
+            setStatusBanner({ message: payload.error, level: 'error' });
+            toastDebounced('error', payload.error);
+          } else {
+            setStatusBanner({ message: 'An unknown error occurred', level: 'error' });
+            toastDebounced('error', String(payload.error));
+          }
           break;
+        case 'conversationStarted': {
+          const id = (payload as { conversationId?: unknown }).conversationId;
+          if (typeof id === 'string') {
+            setConversationId(id);
+            setEvents([]);
+            setPendingActions([]);
+            setAgentStatus(undefined);
+            eventId.current = 1;
+            setStatusBanner({ message: 'New conversation started', level: 'info' });
+          }
+          break;
+        }
+        case 'workspaceFiles': {
+          const files = Array.isArray((payload as { files?: unknown }).files)
+            ? (payload as { files: unknown[] }).files.filter((f): f is string => typeof f === 'string')
+            : [];
+          setWorkspaceFiles(files);
+          setIsContextLoading(false);
+          setContextActiveIndex(0);
+          break;
+        }
+        case 'skillsList': {
+          const payloadSkills = (payload as { skills?: unknown }).skills;
+          const entries = Array.isArray(payloadSkills)
+            ? payloadSkills.filter(
+                (item): item is { label: string; path: string } =>
+                  !!item &&
+                  typeof item === 'object' &&
+                  typeof (item as { label?: unknown }).label === 'string' &&
+                  typeof (item as { path?: unknown }).path === 'string'
+              )
+            : [];
+          setSkills(entries);
+          setIsSkillsLoading(false);
+          setSkillsActiveIndex(0);
+          break;
+        }
         case 'queryRenderedEvents': {
           // Respond with rendered event information for testing
           const vscodeApi = getVscodeApi();
@@ -570,18 +666,6 @@ export function App() {
   }, [events, handleEvent]);
 
   useEffect(() => {
-    // Suppress initial toast; debounce subsequent status changes
-    if (lastStatusRef.current === null) {
-      lastStatusRef.current = status;
-      return;
-    }
-    if (status === 'connecting') toastDebounced('info', 'Connecting...');
-    if (status === 'online') toastDebounced('success', 'Connected to server');
-    if (status === 'offline') toastDebounced('warning', 'Disconnected');
-    lastStatusRef.current = status;
-  }, [status]);
-
-  useEffect(() => {
     // Deterministic scroll to bottom when events change
     const el = endRef.current;
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
@@ -596,11 +680,224 @@ export function App() {
   }, []);
 
   const [input, setInput] = useState('');
+
+  const handleStartNewConversation = () => {
+    setStatusBanner({ message: 'Starting new conversation…', level: 'info' });
+    setConversationId(undefined);
+    setEvents([]);
+    setPendingActions([]);
+    setAgentStatus(undefined);
+    eventId.current = 1;
+    setInput('');
+    postMessage({ type: 'command', command: 'startNewConversation' });
+  };
+  const filteredWorkspaceFiles = useMemo(() => {
+    if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
+    const lower = contextQuery.toLowerCase();
+    return workspaceFiles.filter((file) => file.toLowerCase().includes(lower)).slice(0, 20);
+  }, [contextQuery, workspaceFiles]);
+
+  const safeContextActiveIndex = filteredWorkspaceFiles.length === 0
+    ? 0
+    : Math.min(contextActiveIndex, filteredWorkspaceFiles.length - 1);
+  const safeSkillsActiveIndex = skills.length === 0
+    ? 0
+    : Math.min(skillsActiveIndex, skills.length - 1);
+
+  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setInput(value);
+    const start = event.target.selectionStart ?? value.length;
+    const end = event.target.selectionEnd ?? start;
+    selectionRef.current = { start, end };
+  }, []);
+
+  const handleInputSelect = useCallback((event: React.SyntheticEvent<HTMLInputElement>) => {
+    const target = event.target as HTMLInputElement;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? start;
+    selectionRef.current = { start, end };
+  }, []);
+
+  const insertContextFile = useCallback((file: string) => {
+    const current = input;
+    const { start, end } = selectionRef.current;
+    const safeStart = Math.min(start, current.length);
+    const safeEnd = Math.min(end, current.length);
+    const beforeCursor = current.slice(0, safeStart);
+    const afterCursor = current.slice(safeEnd);
+    const needsLeadingSpace = beforeCursor.length > 0 && !/\s$/.test(beforeCursor);
+    const before = needsLeadingSpace ? `${beforeCursor} ` : beforeCursor;
+    const mention = `@${file}`;
+    const needsTrailingSpace = afterCursor.length === 0 || !/^\s/.test(afterCursor);
+    const after = needsTrailingSpace ? ` ${afterCursor}` : afterCursor;
+    const newValue = `${before}${mention}${after}`;
+    const caretPos = before.length + mention.length + (needsTrailingSpace ? 1 : 0);
+
+    selectionRef.current = { start: caretPos, end: caretPos };
+    setInput(newValue);
+    setShowContextPicker(false);
+    setContextQuery('');
+    setContextActiveIndex(0);
+    setTimeout(() => {
+      const el = document.getElementById('openhands-chat-input');
+      if (el instanceof HTMLInputElement) {
+        el.focus();
+        el.setSelectionRange(caretPos, caretPos);
+      }
+    }, 0);
+  }, [input]);
+
+  const handleContextQueryKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showContextPicker) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (filteredWorkspaceFiles.length === 0) return;
+      setContextActiveIndex((prev) => (prev + 1) % filteredWorkspaceFiles.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (filteredWorkspaceFiles.length === 0) return;
+      setContextActiveIndex((prev) => (prev - 1 + filteredWorkspaceFiles.length) % filteredWorkspaceFiles.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const file = filteredWorkspaceFiles[safeContextActiveIndex];
+      if (file) insertContextFile(file);
+    }
+  }, [filteredWorkspaceFiles, insertContextFile, safeContextActiveIndex, showContextPicker]);
+
+  const closeContextPicker = useCallback(() => {
+    setShowContextPicker(false);
+    setContextQuery('');
+    setContextActiveIndex(0);
+  }, []);
+
+  const closeSkillsPopover = useCallback(() => {
+    setShowSkillsPopover(false);
+    setSkillsActiveIndex(0);
+  }, []);
+
+  const openSkill = useCallback((path: string) => {
+    toastDebounced('info', 'Opening skill…');
+    postMessage({ type: 'openSkill', path });
+    closeSkillsPopover();
+  }, [closeSkillsPopover, postMessage]);
+
+  const handleContextToggle = useCallback(() => {
+    closeSkillsPopover();
+    setShowContextPicker((prev) => {
+      const next = !prev;
+      if (next) {
+        setContextActiveIndex(0);
+        if (!workspaceFilesRequested) {
+          setWorkspaceFilesRequested(true);
+          setIsContextLoading(true);
+          postMessage({ type: 'requestWorkspaceFiles' });
+        }
+      } else {
+        setContextQuery('');
+        setContextActiveIndex(0);
+      }
+      return next;
+    });
+  }, [closeSkillsPopover, postMessage, workspaceFilesRequested]);
+
+  const handleSkillsToggle = useCallback(() => {
+    closeContextPicker();
+    setShowSkillsPopover((prev) => {
+      const next = !prev;
+      if (next) {
+        setSkillsActiveIndex(0);
+        if (!skillsRequested) {
+          setSkillsRequested(true);
+          setIsSkillsLoading(true);
+          postMessage({ type: 'requestSkills' });
+        }
+      } else {
+        setSkillsActiveIndex(0);
+      }
+      return next;
+    });
+  }, [closeContextPicker, postMessage, skillsRequested]);
+
+  const handleSkillsKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!showSkillsPopover || skills.length === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setSkillsActiveIndex((prev) => (prev + 1) % skills.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setSkillsActiveIndex((prev) => (prev - 1 + skills.length) % skills.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const skill = skills[safeSkillsActiveIndex];
+      if (skill) openSkill(skill.path);
+    }
+  }, [openSkill, safeSkillsActiveIndex, showSkillsPopover, skills]);
+
+  useEffect(() => {
+    if (!showContextPicker) return;
+    const timer = setTimeout(() => {
+      const contextualInput = document.getElementById('openhands-context-query');
+      if (contextualInput instanceof HTMLInputElement) contextualInput.focus();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [showContextPicker]);
+
+  useEffect(() => {
+    if (!showSkillsPopover) return;
+    const timer = setTimeout(() => {
+      const target = skillsPopoverRef.current;
+      if (!target) return;
+      const firstButton = target.querySelector<HTMLButtonElement>('button');
+      if (firstButton) {
+        firstButton.focus();
+      } else {
+        target.focus();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [showSkillsPopover, skills.length]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showContextPicker && contextPopoverRef.current && !contextPopoverRef.current.contains(event.target as Node)) {
+        closeContextPicker();
+      }
+      if (showSkillsPopover && skillsPopoverRef.current && !skillsPopoverRef.current.contains(event.target as Node)) {
+        closeSkillsPopover();
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (showContextPicker) closeContextPicker();
+      if (showSkillsPopover) closeSkillsPopover();
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [closeContextPicker, closeSkillsPopover, showContextPicker, showSkillsPopover]);
+
+  const connectionIcon = status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync';
+  const connectionStatusClass = status === 'online'
+    ? 'bg-[var(--vscode-testing-iconPassed)]'
+    : status === 'offline'
+      ? 'bg-[var(--vscode-errorForeground)]'
+      : 'bg-[var(--vscode-testing-iconQueued)]';
   const send = useCallback(() => {
     const text = input.trim();
     if (!text) return;
     // Send message and let the server echo it back to avoid duplicates
     setInput('');
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
+    setContextQuery('');
+    setContextActiveIndex(0);
+    setSkillsActiveIndex(0);
+    selectionRef.current = { start: 0, end: 0 };
     postMessage({ type: 'send', text });
   }, [input, postMessage]);
 
@@ -640,16 +937,43 @@ export function App() {
     // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
   }, [isSubmitting, postMessage]);
 
+const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
+  info: 'text-[color-mix(in_srgb,var(--vscode-tab-activeForeground)_85%,transparent)]',
+  warn: 'text-[color-mix(in_srgb,var(--vscode-editorWarning-foreground)_90%,transparent)]',
+  error: 'text-[color-mix(in_srgb,var(--vscode-editorError-foreground)_95%,transparent)]'
+};
+
   return (
     <div id="app" className="flex flex-col h-screen">
       <ToastManager />
       <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
-        <StatusDot status={status} />
-        <Typography.H1>OpenHands</Typography.H1>
-        <div className="ml-auto flex gap-2">
-          <Button onClick={() => { toastDebounced('info', 'Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
-          <Button onClick={() => { toastDebounced('info', 'Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
-          <Button onClick={() => { toastDebounced('info', 'Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
+        <div className="flex items-center gap-2">
+          <StatusDot status={status} />
+          <Typography.H2 className="text-[17px]">OpenHands</Typography.H2>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <ToolbarButton
+            icon="add"
+            label="New Conversation"
+            onClick={handleStartNewConversation}
+          />
+          <ToolbarButton
+            icon="history"
+            label="History"
+            onClick={() => toastDebounced('info', 'History view coming soon')}
+          />
+          <ToolbarButton
+            icon="settings-gear"
+            label="Settings"
+            onClick={() => postMessage({ type: 'openSettingsPage' })}
+          />
+          <ToolbarButton
+            icon={connectionIcon}
+            iconClassName={status === 'connecting' ? 'animate-spin' : ''}
+            label={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
+            onClick={() => postMessage({ type: 'command', command: 'reconnect' })}
+            statusClassName={connectionStatusClass}
+          />
         </div>
       </header>
 
@@ -680,19 +1004,141 @@ export function App() {
         </Scrollable>
       </div>
 
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-black/10">
+      <div className="flex flex-col gap-3 px-3 py-2 border-t border-black/10">
         <Input
+          id="openhands-chat-input"
           label="Message"
           placeholder="Type a message..."
           value={input}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onChange={handleInputChange}
+          onSelect={handleInputSelect}
+          onClick={handleInputSelect}
+          onFocus={handleInputSelect}
+          onKeyUp={handleInputSelect}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              send();
+              return;
+            }
+            handleInputSelect(e);
+          }}
           className="flex-1"
         />
-        <div className="flex gap-2">
-          <Button id="sendBtn" onClick={send}>Send</Button>
-          <Button id="stopBtn" variant="secondary" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <AccessoryButton icon="mention" label="Add context" onClick={handleContextToggle} />
+            {showContextPicker && (
+              <div
+                ref={contextPopoverRef}
+                className="absolute bottom-full left-0 mb-2 w-72 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20"
+              >
+                <input
+                  id="openhands-context-query"
+                  type="text"
+                  value={contextQuery}
+                  onChange={(e) => {
+                    setContextQuery(e.target.value);
+                    setContextActiveIndex(0);
+                  }}
+                  onKeyDown={handleContextQueryKeyDown}
+                  placeholder="Search workspace files"
+                  className="w-full rounded border border-black/15 bg-[var(--vscode-input-background)] px-2 py-1 text-sm"
+                />
+                <div className="mt-2 max-h-48 overflow-auto">
+                  {isContextLoading ? (
+                    <div className="py-2 text-center text-sm opacity-70">Loading…</div>
+                  ) : filteredWorkspaceFiles.length === 0 ? (
+                    <div className="py-2 text-center text-sm opacity-70">No matches</div>
+                  ) : (
+                    <ul className="space-y-1" role="listbox" aria-label="Workspace files">
+                      {filteredWorkspaceFiles.map((file, index) => {
+                        const isActive = index === safeContextActiveIndex;
+                        return (
+                          <li key={file}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={isActive}
+                              className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] ${isActive ? 'bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)]' : ''}`}
+                              onClick={() => insertContextFile(file)}
+                              onMouseEnter={() => setContextActiveIndex(index)}
+                              onFocus={() => setContextActiveIndex(index)}
+                            >
+                              <span className="truncate" title={file}>{file}</span>
+                              <span className="codicon codicon-pass" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <AccessoryButton
+            icon="add"
+            label="Attach files"
+            onClick={() => toastDebounced('info', 'File attachments coming soon')}
+          />
+          <AccessoryButton
+            icon="server-environment"
+            label="MCP Servers"
+            onClick={() => toastDebounced('info', 'MCP server management coming soon')}
+          />
+          <div className="relative">
+            <AccessoryButton icon="mortar-board" label="Skills" onClick={handleSkillsToggle} />
+            {showSkillsPopover && (
+              <div
+                ref={skillsPopoverRef}
+                tabIndex={-1}
+                className="absolute bottom-full right-0 mb-2 w-64 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20 focus:outline-none"
+                onKeyDown={handleSkillsKeyDown}
+              >
+                <div className="mb-2 text-sm font-medium">Skills</div>
+                <div className="max-h-48 overflow-auto">
+                  {isSkillsLoading ? (
+                    <div className="py-2 text-center text-sm opacity-70">Loading…</div>
+                  ) : skills.length === 0 ? (
+                    <div className="py-2 text-center text-sm opacity-70">No skills found</div>
+                  ) : (
+                    <ul className="space-y-1" role="listbox" aria-label="Skills">
+                      {skills.map((skill, index) => {
+                        const isActive = index === safeSkillsActiveIndex;
+                        return (
+                          <li key={skill.path}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={isActive}
+                              className={`w-full rounded px-2 py-1 text-left text-sm hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] ${isActive ? 'bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)]' : ''}`}
+                              onClick={() => openSkill(skill.path)}
+                              onMouseEnter={() => setSkillsActiveIndex(index)}
+                              onFocus={() => setSkillsActiveIndex(index)}
+                            >
+                              {skill.label}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+        {statusBanner && (
+          <div
+            className={`mt-2 flex min-h-[22px] items-center gap-2 border-t border-[color-mix(in_srgb,var(--vscode-input-border)_30%,transparent)] pt-2 text-xs ${statusLevelClasses[statusBanner.level]}`}
+          >
+            <span className="font-semibold">{statusBanner.message}</span>
+            {conversationId && statusBanner.level !== 'error' && (
+              <span className="opacity-60">Conversation: {conversationId.slice(0, 8)}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
