@@ -58,6 +58,7 @@ vi.mock('../connection/ConnectionManager', () => ({
     this.getStatus = vi.fn(() => this.status);
 
     // Store instance for test access
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     lastConnectionManagerInstance = this;
 
     return this;
