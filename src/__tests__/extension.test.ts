@@ -19,7 +19,6 @@ import * as vscode from 'vscode';
 
 // Track ConnectionManager instances for testing
 let lastConnectionManagerInstance: any = null;
-
 // Mock ConnectionManager
 vi.mock('../connection/ConnectionManager', () => ({
   ConnectionManager: vi.fn(function (this: any, serverUrl: string, callbacks: any) {
@@ -181,7 +180,9 @@ describe('Extension Activation', () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
 
+
     mockContext = createMockContext();
+
 
     // Dynamically import the extension module
     extension = await import('../extension');
@@ -257,7 +258,9 @@ describe('openTab Command', () => {
 
     (vscode.window.createWebviewPanel as Mock).mockReturnValue(mockPanel);
 
+
     mockContext = createMockContext();
+
 
     extension = await import('../extension');
     await extension.activate(mockContext);
