@@ -136,7 +136,7 @@ describe('App - Confirmation Flow', () => {
     await renderAppAndWaitReady();
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction({ tool_call_id: 'call-clear' }) });
-    const approveBtn = (await screen.findAllByRole('button', { name: /approve/i }))[0];
+    const approveBtn = await screen.findByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
 
     // send observation for that tool_call_id; should clear prompt
