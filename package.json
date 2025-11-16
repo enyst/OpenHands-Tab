@@ -22,7 +22,8 @@
     "onCommand:openhands.configure",
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
-    "onCommand:openhands.resumeCurrentRun"
+    "onCommand:openhands.resumeCurrentRun",
+    "onView:openhands.quickActions"
   ],
   "contributes": {
     "commands": [
