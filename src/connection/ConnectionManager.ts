@@ -67,12 +67,17 @@ export class ConnectionManager {
       if (model) llm.model = model;
       if (baseUrl) llm.base_url = baseUrl;
       if (apiVersion) llm.api_version = apiVersion;
-      if (s?.llm.timeout != null) llm.timeout = s.llm.timeout;
-      if (s?.llm.temperature != null) llm.temperature = s.llm.temperature;
-      if (s?.llm.topP != null) llm.top_p = s.llm.topP;
-      if (s?.llm.topK != null) llm.top_k = s.llm.topK;
-      if (s?.llm.maxInputTokens != null) llm.max_input_tokens = s.llm.maxInputTokens;
-      if (s?.llm.maxOutputTokens != null) llm.max_output_tokens = s.llm.maxOutputTokens;
+      const assignIf = (value: unknown, setter: (n: number) => void, predicate: (n: number) => boolean = (n) => Number.isFinite(n)) => {
+        if (value === null || value === undefined) return;
+        const num = Number(value);
+        if (Number.isFinite(num) && predicate(num)) setter(num);
+      };
+      assignIf(s?.llm.timeout, (n) => { llm.timeout = n; }, (n) => n > 0);
+      assignIf(s?.llm.temperature, (n) => { llm.temperature = n; });
+      assignIf(s?.llm.topP, (n) => { llm.top_p = n; }, (n) => n > 0 && n <= 1);
+      assignIf(s?.llm.topK, (n) => { llm.top_k = n; }, (n) => n > 0);
+      assignIf(s?.llm.maxInputTokens, (n) => { llm.max_input_tokens = n; }, (n) => n > 0);
+      assignIf(s?.llm.maxOutputTokens, (n) => { llm.max_output_tokens = n; }, (n) => n > 0);
       if (s?.llm.nativeToolCalling != null) llm.native_tool_calling = s.llm.nativeToolCalling;
       if (s?.llm.reasoningEffort != null) llm.reasoning_effort = s.llm.reasoningEffort;
       if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
