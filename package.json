@@ -39,6 +39,10 @@
         "title": "OpenHands: Configure"
       },
       {
+        "command": "openhands.setApiKey",
+        "title": "OpenHands: Set API Key"
+      },
+      {
         "command": "openhands.reconnect",
         "title": "OpenHands: Reconnect"
       },
@@ -120,6 +124,12 @@
         "openhands.llm.baseUrl": {
           "type": "string",
           "markdownDescription": "Optional LLM base URL override. Leave empty to use provider default."
+        },
+        "openhands.llm.apiKey": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your LLM API Key securely:**\n\n[🔑 Configure API Key](command:openhands.setApiKey)\n\n_(API keys are stored in secure system keychain, not in settings.json)_"
         },
         "openhands.llm.apiVersion": {
           "type": "string",

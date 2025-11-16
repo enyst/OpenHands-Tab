@@ -330,6 +330,34 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  const setApiKey = vscode.commands.registerCommand('openhands.setApiKey', async () => {
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+    const existing = await settingsMgr.get();
+
+    const llmApiKey = await vscode.window.showInputBox({
+      title: 'LLM API Key',
+      value: existing.secrets.llmApiKey,
+      password: true,
+      prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-...'
+    });
+
+    if (llmApiKey === undefined) {
+      // User cancelled
+      return;
+    }
+
+    await settingsMgr.update({
+      secrets: { llmApiKey: llmApiKey || undefined }
+    }, 'workspace');
+
+    vscode.window.showInformationMessage('LLM API Key saved securely.');
+
+    // Apply to connection
+    const newSettings = await settingsMgr.get();
+    connection?.setSettings(newSettings);
+  });
+
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
     await ensurePanelAndConnection();
     connection?.reconnect();
@@ -374,7 +402,7 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, queryBashEvents, startNew, configure, reconnect, pause, resume);
+  context.subscriptions.push(openTab, diag, sendTestEvent, queryRenderedEvents, injectBashEvent, queryBashEvents, startNew, configure, setApiKey, reconnect, pause, resume);
 }
 
 export function deactivate() {
