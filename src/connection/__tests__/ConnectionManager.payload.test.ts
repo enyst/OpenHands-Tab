@@ -111,6 +111,31 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.max_iterations).toBe(500);
     spy.mockRestore();
   });
+
+  it('omits max token fields when values are <= 0', async () => {
+    const cmZero = new ConnectionManager(baseUrl, dummyEvents as any);
+    const zeroSettings: OpenHandsSettings = {
+      ...settings,
+      llm: {
+        ...settings.llm,
+        maxInputTokens: 0,
+        maxOutputTokens: -1
+      }
+    };
+    cmZero.setSettings(zeroSettings);
+
+    let body: any;
+    const spy = vi.spyOn(globalThis as any, 'fetch').mockImplementation(async (_url: any, opts: any) => {
+      body = JSON.parse(opts.body);
+      return { ok: true, json: async () => ({ conversation_id: 'omit' }) } as any;
+    });
+
+    await cmZero.startNewConversation();
+    expect(body.agent.llm.max_input_tokens).toBeUndefined();
+    expect(body.agent.llm.max_output_tokens).toBeUndefined();
+
+    spy.mockRestore();
+  });
 });
 
 describe('ConnectionManager omits explicit llm fields when unset', () => {

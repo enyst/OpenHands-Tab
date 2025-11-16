@@ -71,8 +71,12 @@ export class ConnectionManager {
       if (s?.llm.temperature != null) llm.temperature = s.llm.temperature;
       if (s?.llm.topP != null) llm.top_p = s.llm.topP;
       if (s?.llm.topK != null) llm.top_k = s.llm.topK;
-      if (s?.llm.maxInputTokens != null) llm.max_input_tokens = s.llm.maxInputTokens;
-      if (s?.llm.maxOutputTokens != null) llm.max_output_tokens = s.llm.maxOutputTokens;
+      if (s?.llm.maxInputTokens != null && s.llm.maxInputTokens > 0) {
+        llm.max_input_tokens = s.llm.maxInputTokens;
+      }
+      if (s?.llm.maxOutputTokens != null && s.llm.maxOutputTokens > 0) {
+        llm.max_output_tokens = s.llm.maxOutputTokens;
+      }
       if (s?.llm.nativeToolCalling != null) llm.native_tool_calling = s.llm.nativeToolCalling;
       if (s?.llm.reasoningEffort != null) llm.reasoning_effort = s.llm.reasoningEffort;
       if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
