@@ -697,21 +697,12 @@ export function App() {
     return workspaceFiles.filter((file) => file.toLowerCase().includes(lower)).slice(0, 20);
   }, [contextQuery, workspaceFiles]);
 
-  useEffect(() => {
-    setContextActiveIndex((prev) => {
-      if (filteredWorkspaceFiles.length === 0) return 0;
-      const next = Math.max(0, Math.min(prev, filteredWorkspaceFiles.length - 1));
-      return next === prev ? prev : next;
-    });
-  }, [filteredWorkspaceFiles]);
-
-  useEffect(() => {
-    setSkillsActiveIndex((prev) => {
-      if (skills.length === 0) return 0;
-      const next = Math.max(0, Math.min(prev, skills.length - 1));
-      return next === prev ? prev : next;
-    });
-  }, [skills]);
+  const safeContextActiveIndex = filteredWorkspaceFiles.length === 0
+    ? 0
+    : Math.min(contextActiveIndex, filteredWorkspaceFiles.length - 1);
+  const safeSkillsActiveIndex = skills.length === 0
+    ? 0
+    : Math.min(skillsActiveIndex, skills.length - 1);
 
   const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -769,10 +760,10 @@ export function App() {
       setContextActiveIndex((prev) => (prev - 1 + filteredWorkspaceFiles.length) % filteredWorkspaceFiles.length);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      const file = filteredWorkspaceFiles[contextActiveIndex];
+      const file = filteredWorkspaceFiles[safeContextActiveIndex];
       if (file) insertContextFile(file);
     }
-  }, [contextActiveIndex, filteredWorkspaceFiles, insertContextFile, showContextPicker]);
+  }, [filteredWorkspaceFiles, insertContextFile, safeContextActiveIndex, showContextPicker]);
 
   const closeContextPicker = useCallback(() => {
     setShowContextPicker(false);
@@ -839,10 +830,10 @@ export function App() {
       setSkillsActiveIndex((prev) => (prev - 1 + skills.length) % skills.length);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      const skill = skills[skillsActiveIndex];
+      const skill = skills[safeSkillsActiveIndex];
       if (skill) openSkill(skill.path);
     }
-  }, [openSkill, showSkillsPopover, skills, skillsActiveIndex]);
+  }, [openSkill, safeSkillsActiveIndex, showSkillsPopover, skills]);
 
   useEffect(() => {
     if (!showContextPicker) return;
@@ -1062,7 +1053,7 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
                   ) : (
                     <ul className="space-y-1" role="listbox" aria-label="Workspace files">
                       {filteredWorkspaceFiles.map((file, index) => {
-                        const isActive = index === contextActiveIndex;
+                        const isActive = index === safeContextActiveIndex;
                         return (
                           <li key={file}>
                             <button
@@ -1114,7 +1105,7 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
                   ) : (
                     <ul className="space-y-1" role="listbox" aria-label="Skills">
                       {skills.map((skill, index) => {
-                        const isActive = index === skillsActiveIndex;
+                        const isActive = index === safeSkillsActiveIndex;
                         return (
                           <li key={skill.path}>
                             <button
