@@ -15,8 +15,18 @@ let bashEventsClient: BashEventsClient | undefined;
 let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
+let outputChannel: vscode.OutputChannel | undefined;
 const receivedBashEvents: any[] = []; // Track bash events for testing
 const MAX_BASH_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return `<unserializable: ${reason}>`;
+  }
+}
 
 async function listWorkspaceFiles(limit = 500): Promise<string[]> {
   if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
@@ -57,6 +67,9 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  outputChannel = vscode.window.createOutputChannel('OpenHands');
+  context.subscriptions.push(outputChannel);
+
   const sidebarProvider = new OpenHandsViewProvider();
   const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
   context.subscriptions.push(treeView);
@@ -95,10 +108,26 @@ export function activate(context: vscode.ExtensionContext) {
       // Expose workspace root path for ConnectionManager to consume (without importing vscode).
       (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       connection = new ConnectionManager(serverUrl, {
-        onStatus: (s) => { void panel?.webview.postMessage({ type: 'status', status: s }); },
-        onEvent: (ev) => { void panel?.webview.postMessage({ type: 'event', event: ev }); },
-        onError: (err) => { void panel?.webview.postMessage({ type: 'error', error: String(err) }); },
-        onConversationId: (id) => { void context.workspaceState.update('openhands.conversationId', id); },
+        onStatus: (s) => {
+          outputChannel?.appendLine(`[status] ${s}`);
+          void panel?.webview.postMessage({ type: 'status', status: s });
+        },
+        onEvent: (ev) => {
+          outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+          void panel?.webview.postMessage({ type: 'event', event: ev });
+        },
+        onError: (err) => {
+          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          outputChannel?.appendLine(`[error] ${rendered}`);
+          if (err instanceof Error && err.stack) {
+            outputChannel?.appendLine(err.stack);
+          }
+          void panel?.webview.postMessage({ type: 'error', error: rendered });
+        },
+        onConversationId: (id) => {
+          outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
+          void context.workspaceState.update('openhands.conversationId', id);
+        },
       });
       const savedId = context.workspaceState.get<string>('openhands.conversationId');
       connection.setSettings(settings);
