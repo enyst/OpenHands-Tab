@@ -387,12 +387,27 @@ export class ConnectionManager {
       try {
         const str = buf.toString('utf8');
         const data = JSON.parse(str) as unknown;
+        const normalized = this.normalizeEventPayload(data);
         // Validate event structure before propagating to UI
-        if (isAgentEvent(data)) this.events.onEvent(data);
-        else this.events.onError(new Error(`Invalid event payload: ${JSON.stringify(data)}`));
+        if (isAgentEvent(normalized)) this.events.onEvent(normalized);
+        else this.events.onError(new Error(`Invalid event payload: ${JSON.stringify(normalized)}`));
       } catch (e) {
         this.events.onError(e);
       }
     });
+  }
+
+  private normalizeEventPayload(payload: unknown): unknown {
+    if (!payload || typeof payload !== 'object') return payload;
+    if (Array.isArray(payload)) return payload.map((item) => this.normalizeEventPayload(item));
+    const obj = payload as Record<string, unknown>;
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      normalized[key] = this.normalizeEventPayload(value);
+    }
+    if (typeof obj.kind === 'string' && typeof normalized.type !== 'string') {
+      normalized.type = obj.kind;
+    }
+    return normalized;
   }
 }

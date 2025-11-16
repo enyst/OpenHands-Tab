@@ -2,6 +2,7 @@
 media/webview.js
 media/*.map
 media/*.css
+!media/codicon.css
 
 *.vsix
 out/

@@ -247,11 +247,16 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
           <div className="whitespace-pre-wrap mt-1">{event.llm_message.reasoning_content}</div>
         </>
       )}
-      {event.activated_microagents && event.activated_microagents.length > 0 && (
-        <div className="mt-2 text-sm opacity-70">
-          Activated Microagents: {event.activated_microagents.join(', ')}
-        </div>
-      )}
+      {(() => {
+        const activated = event.activated_microagents ?? event.activated_skills;
+        if (!activated || activated.length === 0) return null;
+        const label = event.activated_microagents ? 'Activated Microagents' : 'Activated Skills';
+        return (
+          <div className="mt-2 text-sm opacity-70">
+            {label}: {activated.join(', ')}
+          </div>
+        );
+      })()}
       {event.extended_content && event.extended_content.length > 0 && (
         <>
           <div className="font-semibold mt-2">Prompt Extension based on Agent Context:</div>

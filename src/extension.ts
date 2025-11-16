@@ -470,11 +470,13 @@ export function deactivate() {
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
   const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'index.css'));
+  const codiconStylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'));
   const version = Date.now().toString();
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
+    `font-src ${webview.cspSource}`,
     `script-src ${webview.cspSource}`,
   ].join('; ');
 
@@ -485,6 +487,7 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
   <meta http-equiv="Content-Security-Policy" content="${csp}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${stylesUri.toString()}?v=${version}" rel="stylesheet" />
+  <link href="${codiconStylesUri.toString()}?v=${version}" rel="stylesheet" />
   <title>OpenHands Tab</title>
 </head>
 <body>
