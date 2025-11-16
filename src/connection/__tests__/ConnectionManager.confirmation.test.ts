@@ -37,7 +37,7 @@ vi.mock('ws', () => {
 const importCM = async () => import('../ConnectionManager');
 
 describe('ConnectionManager - Confirmation Mode', () => {
-  let events: { onStatus: any; onEvent: any; onError: any; onConversationId: any };
+  let events: { onStatus: Mock; onEvent: Mock; onError: Mock; onConversationId: Mock };
 
   beforeEach(() => {
     vi.resetModules();
