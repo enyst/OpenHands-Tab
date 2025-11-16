@@ -57,7 +57,7 @@ Data flow notes
       - GET  /api/conversations/{id}
       - GET  /api/conversations/                      (list)
       - POST /api/conversations/{id}/pause
-      - POST /api/conversations/{id}/resume
+      - POST /api/conversations/{id}/run
       - DELETE /api/conversations/{id}
     - Events:
       - POST /api/conversations/{id}/events/          (send Message when not using the socket)
@@ -66,6 +66,7 @@ Data flow notes
       - GET  /api/conversations/{id}/events/{event_id}
       - GET  /api/conversations/{id}/events/          (list)
       - POST /api/conversations/{id}/events/respond_to_confirmation  (approve/reject pending actions)
+    - StartConversationRequest payloads must use the agent-server 1.1+ tool identifiers (`terminal`, `file_editor`, `task_tracker`); older names like `BashTool` are rejected.
 
 Confirmation policy
 - By default, if unspecified in StartConversationRequest, server uses its configured default policy (often NeverConfirm for PoC/local). The extension omits confirmation_policy by default and will surface WAITING_FOR_CONFIRMATION if server asks.
@@ -79,7 +80,7 @@ Confirmation policy
   - OpenHands: Configure (opens input box to set server URL)
   - OpenHands: Reconnect (restarts WebSocket; rarely needed since reconnect is automatic)
   - OpenHands: Pause Current Run (sends pause)
-  - OpenHands: Resume Current Run (sends resume)
+  - OpenHands: Resume Current Run (sends run)
 - Settings
   - openhands.serverUrl (string; default http://localhost:3000)
   - See settings_prd.md for detailed settings (server connection/auth, LLM parameters, confirmation policy, and runtime mapping) and rationale
@@ -92,7 +93,7 @@ Confirmation policy
   - Text input -> send Message JSON over socket or POST /events/
   - Render assistant messages and tool events (EventBase JSON) as they stream
   - Show structured tool steps (bash/python commands, outputs, status)
-  - Allow user to pause current run via POST /conversations/{id}/pause; resume via /resume
+  - Allow user to pause current run via POST /conversations/{id}/pause; resume via /run
 - Action Confirmation Mode
   - Policies: NeverConfirm, AlwaysConfirm, ConfirmRisky(threshold: LOW|MEDIUM|HIGH, confirm_unknown: bool)
   - When agent status = WAITING_FOR_CONFIRMATION, surface pending actions in UI with Approve/Reject
@@ -133,7 +134,7 @@ Confirmation policy
 - Outbound
   - WebSocket send: Message JSON (role/content) to queue and run
   - HTTP POST /api/conversations/{id}/events/: SendMessageRequest when needed outside the socket
-  - Pause/Resume: POST /api/conversations/{id}/pause, /resume
+  - Pause/Resume: POST /api/conversations/{id}/pause, /run
   - Confirmation: POST /api/conversations/{id}/events/respond_to_confirmation
 - Inbound
   - WebSocket: EventBase JSON stream (includes ActionEvent, MessageEvent, AgentErrorEvent, etc.)
@@ -218,7 +219,7 @@ Confirmation policy
     - GET  /api/conversations/{id}
     - GET  /api/conversations/                      (list)
     - POST /api/conversations/{id}/pause
-    - POST /api/conversations/{id}/resume
+    - POST /api/conversations/{id}/run
     - DELETE /api/conversations/{id}
   - Events:
     - POST /api/conversations/{id}/events/
@@ -305,5 +306,3 @@ Source of truth
 4) Risks and decisions
 - React/tailwind peer constraints are confined to the webview bundle; we ship compiled assets.
 - If UI library imposes constraints that hinder VS Code UX, we prioritize agent-sdk-compliant functionality over stylistic fidelity.
-
-

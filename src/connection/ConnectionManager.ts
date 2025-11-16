@@ -100,13 +100,14 @@ export class ConnectionManager {
         const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.trunc(raw) : 50;
         return Math.min(500, Math.max(1, n));
       })();
+      const headers = this.getAuthHeaders();
       const req = {
         agent: {
           llm,
           tools: [
-            { name: 'BashTool', params: { working_dir: root } },
-            { name: 'FileEditorTool', params: { workspace_root: root } },
-            { name: 'TaskTrackerTool', params: { save_dir: root } }
+            { name: 'terminal' },
+            { name: 'file_editor' },
+            { name: 'task_tracker' }
           ],
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
@@ -114,10 +115,7 @@ export class ConnectionManager {
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionKey = s?.secrets.sessionApiKey || '';
-      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(base + '/api/conversations/', {
+      const res = await fetch(`${base}/api/conversations`, {
         method: 'POST',
         headers,
         body: JSON.stringify(req)
@@ -170,9 +168,7 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionKey = this.settings?.secrets.sessionApiKey || '';
-      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+      const headers = this.getAuthHeaders();
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers });
       if (!res.ok) {
         let info = '';
@@ -192,10 +188,8 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionKey = this.settings?.secrets.sessionApiKey || '';
-      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST', headers });
+      const headers = this.getAuthHeaders();
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
       if (!res.ok) {
         let info = '';
         try { info = await res.text(); } catch {}
@@ -248,9 +242,7 @@ export class ConnectionManager {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionKey = this.settings?.secrets.sessionApiKey || '';
-      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+      const headers = this.getAuthHeaders();
 
       const payload: { accept: boolean; reason?: string } = { accept };
       // Include reason if explicitly provided (even if empty string)
@@ -289,18 +281,17 @@ export class ConnectionManager {
       if (!id) return; // bail if conversation could not be started
     }
     // agent-sdk expects content to be an array of TextContent objects
-    const payload: Message = { role: 'user', content: [{ type: 'text', text }] };
+    const messagePayload: Message = { role: 'user', content: [{ type: 'text', text }] };
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(payload));
+      this.ws.send(JSON.stringify(messagePayload));
     } else {
       // Fallback to HTTP when WebSocket unavailable
       try {
         const base = this.serverUrl.replace(/\/$/, '');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        const sessionKey = this.settings?.secrets.sessionApiKey || '';
-        if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
-          method: 'POST', headers, body: JSON.stringify(payload)
+        const headers = this.getAuthHeaders();
+        const httpPayload = { ...messagePayload, run: true };
+        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events`, {
+          method: 'POST', headers, body: JSON.stringify(httpPayload)
         });
         if (!res.ok) {
           const info = await res.text().catch(() => '');
@@ -329,6 +320,13 @@ export class ConnectionManager {
   private setStatus(s: 'online' | 'offline' | 'connecting') {
     this.status = s;
     this.events.onStatus(s);
+  }
+
+  private getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const sessionKey = this.settings?.secrets.sessionApiKey || '';
+    if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+    return headers;
   }
 
   private clearReconnect() {

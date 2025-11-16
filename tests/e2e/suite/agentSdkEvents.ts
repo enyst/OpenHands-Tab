@@ -34,12 +34,12 @@ export async function run(): Promise<void> {
       ],
       reasoning_content: 'To understand the workspace structure',
       action: { command: 'ls -la' },
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_001',
       tool_call: {
         id: 'call_001',
         type: 'function',
-        function: { name: 'BashTool', arguments: '{"command":"ls -la"}' }
+        function: { name: 'terminal', arguments: '{"command":"ls -la"}' }
       },
       llm_response_id: 'resp_001',
       security_risk: 'LOW'
@@ -53,12 +53,12 @@ export async function run(): Promise<void> {
         { type: 'text', text: 'I will modify system files' }
       ],
       action: { command: 'sudo rm -rf /' },
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_002',
       tool_call: {
         id: 'call_002',
         type: 'function',
-        function: { name: 'BashTool', arguments: '{"command":"sudo rm -rf /"}' }
+        function: { name: 'terminal', arguments: '{"command":"sudo rm -rf /"}' }
       },
       llm_response_id: 'resp_002',
       security_risk: 'HIGH'
@@ -72,12 +72,12 @@ export async function run(): Promise<void> {
         { type: 'text', text: 'This action was rejected' }
       ],
       action: null,
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_003',
       tool_call: {
         id: 'call_003',
         type: 'function',
-        function: { name: 'BashTool', arguments: '{}' }
+        function: { name: 'terminal', arguments: '{}' }
       },
       llm_response_id: 'resp_003'
     },
@@ -90,7 +90,7 @@ export async function run(): Promise<void> {
         content: 'total 48\ndrwxr-xr-x 12 user user 4096 Oct 21 10:30 .\ndrwxr-xr-x  3 user user 4096 Oct 20 15:20 ..',
         exit_code: 0
       },
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_001',
       action_id: 'action_001'
     },
@@ -100,7 +100,7 @@ export async function run(): Promise<void> {
       type: 'UserRejectObservation',
       source: 'user',
       rejection_reason: 'This command looks dangerous',
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_002',
       action_id: 'action_002'
     },
@@ -147,7 +147,7 @@ export async function run(): Promise<void> {
       type: 'AgentErrorEvent',
       source: 'agent',
       error: 'Failed to execute command: permission denied',
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_004'
     },
 

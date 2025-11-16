@@ -65,9 +65,12 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.agent.security_analyzer).toEqual({ kind: 'LLMSecurityAnalyzer' });
     // tools present (names only check)
     const toolNames = body.agent.tools.map((t: any) => t.name);
-    expect(toolNames).toContain('BashTool');
-    expect(toolNames).toContain('FileEditorTool');
-    expect(toolNames).toContain('TaskTrackerTool');
+    expect(toolNames).toContain('terminal');
+    expect(toolNames).toContain('file_editor');
+    expect(toolNames).toContain('task_tracker');
+    body.agent.tools.forEach((tool: any) => {
+      expect(tool.params).toBeUndefined();
+    });
     // llm mapping
     expect(body.agent.llm.usage_id).toBe('use-1');
     expect(body.agent.llm.model).toBe('anthropic/claude-3-5');
@@ -138,5 +141,3 @@ describe('ConnectionManager omits explicit llm fields when unset', () => {
     spy.mockRestore();
   });
 });
-
-

@@ -103,7 +103,9 @@ describe('ConnectionManager', () => {
     ws.close();
     await cm.sendUserMessage('offline send');
     expect(postCalls.length).toBeGreaterThanOrEqual(1);
-    expect(postCalls[postCalls.length - 1].url).toMatch(/\/api\/conversations\/c-42\/events\//);
+    const lastPost = postCalls[postCalls.length - 1];
+    expect(lastPost.url).toMatch(/\/api\/conversations\/c-42\/events$/);
+    expect(JSON.parse(lastPost.init.body).run).toBe(true);
   });
 
   it('propagates incoming events via onEvent', async () => {
@@ -161,7 +163,7 @@ describe('ConnectionManager', () => {
     await cm.resume();
 
     expect(calls.some(c => /\/pause$/.test(c.url))).toBe(true);
-    expect(calls.some(c => /\/resume$/.test(c.url))).toBe(true);
+    expect(calls.some(c => /\/run$/.test(c.url))).toBe(true);
   });
 
   it('restoreConversation sets id and connects', async () => {
