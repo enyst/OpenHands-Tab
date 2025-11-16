@@ -168,7 +168,7 @@ describe('App - Confirmation Flow', () => {
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction({ tool_call_id: 'call-timeout' }) });
 
-    const approveBtn = (await screen.findAllByRole('button', { name: /approve/i }))[0];
+    const approveBtn = (await screen.findByRole('button', { name: /approve/i }));
     await userEvent.click(approveBtn);
     expect(approveBtn).toBeDisabled();
 
