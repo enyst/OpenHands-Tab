@@ -385,7 +385,7 @@ export class ConnectionManager {
         const data = JSON.parse(str) as unknown;
         // Validate event structure before propagating to UI
         if (isAgentEvent(data)) this.events.onEvent(data);
-        else this.events.onError(new Error('Invalid event payload'));
+        else this.events.onError(new Error(`Invalid event payload: ${JSON.stringify(data)}`));
       } catch (e) {
         this.events.onError(e);
       }
