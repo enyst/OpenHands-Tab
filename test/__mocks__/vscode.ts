@@ -32,16 +32,31 @@ export const ConfigurationTarget = {
 } as const;
 
 // Window mock
+const outputChannels: any[] = [];
+
 export const window = {
   showInformationMessage: vi.fn(),
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
-  createOutputChannel: vi.fn(),
+  createOutputChannel: vi.fn((name: string) => {
+    const channel = {
+      name,
+      appendLine: vi.fn(),
+      show: vi.fn(),
+      dispose: vi.fn(),
+    };
+    outputChannels.push(channel);
+    return channel;
+  }),
   createWebviewPanel: vi.fn(),
   showInputBox: vi.fn(),
   showQuickPick: vi.fn(),
   createTerminal: vi.fn(),
   registerTreeDataProvider: vi.fn(() => ({ dispose: vi.fn() })),
+  createTreeView: vi.fn(() => ({
+    onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
+    dispose: vi.fn(),
+  })),
 };
 
 // Commands mock with register/execute behavior
@@ -136,6 +151,7 @@ export function __resetMocks() {
   ;(window.showInputBox as any).mockClear();
   ;(window.showQuickPick as any).mockClear();
   ;(window.createTerminal as any).mockClear();
+  ;(window.createTreeView as any).mockClear();
   ;(commands.registerCommand as any).mockClear();
   ;(commands.executeCommand as any).mockClear();
 }

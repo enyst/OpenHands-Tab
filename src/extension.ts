@@ -71,10 +71,13 @@ export function activate(context: vscode.ExtensionContext) {
   try {
     const factory = (vscode.window as typeof vscode.window & { createOutputChannel?: typeof vscode.window.createOutputChannel }).createOutputChannel;
     if (factory) {
-      outputChannel = factory('OpenHands', { log: true } as any);
-      context.subscriptions.push(outputChannel);
-      outputChannel.show(true);
-      outputChannel.appendLine('[OpenHands] Logging channel initialized');
+      const channel = factory('OpenHands', { log: true } as any);
+      if (channel) {
+        outputChannel = channel;
+        context.subscriptions.push(channel);
+        channel.show?.(true);
+        channel.appendLine?.('[OpenHands] Logging channel initialized');
+      }
     }
   } catch (err) {
     console.warn('[OpenHands] Failed to create output channel:', err);
