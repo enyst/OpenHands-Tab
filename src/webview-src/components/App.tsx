@@ -41,6 +41,50 @@ interface VscodeApi {
   postMessage: (message: unknown) => void;
 }
 
+const iconButtonBase = 'relative inline-flex h-8 w-8 items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--vscode-toolbar-background)_92%,transparent)] text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_85%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
+
+interface ToolbarButtonProps {
+  icon: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  statusClassName?: string;
+  iconClassName?: string;
+}
+
+function ToolbarButton({ icon, label, onClick, disabled, statusClassName, iconClassName }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className={`${iconButtonBase} ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+      onClick={onClick}
+    >
+      <span className={`codicon codicon-${icon} text-sm ${iconClassName ?? ''}`} />
+      {statusClassName && (
+        <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[var(--vscode-editor-background)] ${statusClassName}`} />
+      )}
+    </button>
+  );
+}
+
+const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
+
+interface AccessoryButtonProps {
+  icon: string;
+  label: string;
+  onClick: () => void;
+}
+
+function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
+  return (
+    <button type="button" title={label} aria-label={label} className={accessoryButtonBase} onClick={onClick}>
+      <span className={`codicon codicon-${icon}`} />
+    </button>
+  );
+}
+
 // Cache the VS Code API - it can only be acquired once per webview
 let vscodeApiInstance: VscodeApi | undefined;
 
@@ -936,47 +980,11 @@ export function App() {
     // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
   }, [isSubmitting, postMessage]);
 
-const iconButtonBase = 'relative inline-flex h-8 w-8 items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--vscode-toolbar-background)_92%,transparent)] text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_85%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
-
-interface ToolbarButtonProps {
-  icon: string;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  statusClassName?: string;
-  iconClassName?: string;
-}
-
-function ToolbarButton({ icon, label, onClick, disabled, statusClassName, iconClassName }: ToolbarButtonProps) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      className={`${iconButtonBase} ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
-      onClick={onClick}
-    >
-      <span className={`codicon codicon-${icon} text-sm ${iconClassName ?? ''}`} />
-      {statusClassName && (
-        <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[var(--vscode-editor-background)] ${statusClassName}`} />
-      )}
-    </button>
-  );
-}
-
-const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
-
 const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
   info: 'text-[color-mix(in_srgb,var(--vscode-tab-activeForeground)_85%,transparent)]',
   warn: 'text-[color-mix(in_srgb,var(--vscode-editorWarning-foreground)_90%,transparent)]',
   error: 'text-[color-mix(in_srgb,var(--vscode-editorError-foreground)_95%,transparent)]'
 };
-
-interface AccessoryButtonProps {
-  icon: string;
-  label: string;
-  onClick: () => void;
-}
 
 function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
   return (
