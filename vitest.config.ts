@@ -11,6 +11,11 @@ export default defineConfig({
     jsx: 'automatic',
     jsxImportSource: 'react',
   },
+  resolve: {
+    alias: {
+      vscode: path.resolve(__dirname, './test/vscode-mock.ts'),
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./test/setup.ts'],
@@ -30,7 +35,6 @@ export default defineConfig({
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/__tests__/**',
-        'src/extension.ts',
         'src/webview-src/webview.ts',
         'src/webview-src/webview.tsx',
       ],
