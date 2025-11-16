@@ -1,0 +1,5 @@
+{
+  "openhands.llm.model": "gpt-5",
+  "openhands.llm.reasoningEffort": "low",
+  "openhands.bashEvents.enabled": true
+}
