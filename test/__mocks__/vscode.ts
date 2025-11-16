@@ -41,6 +41,7 @@ export const window = {
   showInputBox: vi.fn(),
   showQuickPick: vi.fn(),
   createTerminal: vi.fn(),
+  registerTreeDataProvider: vi.fn(() => ({ dispose: vi.fn() })),
 };
 
 // Commands mock with register/execute behavior
@@ -71,6 +72,52 @@ export const Uri = {
 export const ViewColumn = {
   Beside: 2,
 };
+
+// Tree view related mocks used by OpenHandsViewProvider
+export const TreeItemCollapsibleState = {
+  None: 0,
+  Collapsed: 1,
+  Expanded: 2,
+} as const;
+
+export class ThemeIcon {
+  id: string;
+  constructor(id: string) { this.id = id; }
+}
+
+export class EventEmitter<T> {
+  private listeners: Array<(e: T) => any> = [];
+  event = (listener: (e: T) => any) => {
+    this.listeners.push(listener);
+    return { dispose: vi.fn() };
+  };
+  fire(e: T) { this.listeners.forEach(l => l(e)); }
+  dispose() { this.listeners = []; }
+}
+
+export class TreeItem {
+  label: string;
+  collapsibleState: number;
+  iconPath: any;
+  command: any;
+  constructor(label: string, collapsibleState: number) {
+    this.label = label;
+    this.collapsibleState = collapsibleState;
+  }
+}
+
+export interface Command {
+  command: string;
+  title: string;
+  arguments?: any[];
+}
+
+export interface ProviderResult<T> extends Promise<T> {}
+
+export interface TreeDataProvider<T> {
+  getTreeItem(element: T): TreeItem | Thenable<TreeItem>;
+  getChildren(element?: T): ProviderResult<T[]>;
+}
 
 // Utilities for tests to reset state
 export function __resetMocks() {
