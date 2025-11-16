@@ -2,7 +2,7 @@
   "name": "openhands-tab",
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
   "license": "MIT",
   "repository": {

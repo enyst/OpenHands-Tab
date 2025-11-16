@@ -58,7 +58,13 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
 
 export function activate(context: vscode.ExtensionContext) {
   const sidebarProvider = new OpenHandsViewProvider();
-  context.subscriptions.push(vscode.window.registerTreeDataProvider('openhands.quickActions', sidebarProvider));
+  const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
+  context.subscriptions.push(treeView);
+  context.subscriptions.push(treeView.onDidChangeVisibility((event) => {
+    if (event.visible) {
+      void vscode.commands.executeCommand('openhands.openTab');
+    }
+  }));
 
   async function ensurePanelAndConnection() {
     if (!panel) {
