@@ -9,3 +9,4 @@ Webview stack:
 - Unified CSS bundled to media/index.css (no unsafe-inline CSP)
 - Webview bundle: src/webview-src/webview.tsx → media/webview.js via esbuild
 - Default server URL: http://localhost:3000
+- Works with agent-server >= 1.1.0 (new REST schema, tool ids `terminal`/`file_editor`/`task_tracker`, `/api/conversations/{id}/run` resume)

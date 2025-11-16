@@ -47,7 +47,7 @@ describe('Agent-SDK event rendering', () => {
       type: 'AgentErrorEvent',
       source: 'agent',
       error: 'Something went wrong',
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_123'
     };
     postToWindow({ type: 'event', event: ev });
@@ -74,14 +74,14 @@ describe('Agent-SDK event rendering', () => {
       source: 'agent' as const,
       thought: [{ type: 'text' as const, text: 'I will check the directory structure now' }],
       action: { command: 'ls -la /home' },
-      tool_name: 'BashExecutor',
+      tool_name: 'terminal',
       tool_call_id: 'call_action_1',
-      tool_call: { id: 'call_action_1', type: 'function' as const, function: { name: 'BashExecutor', arguments: '{}' } },
+      tool_call: { id: 'call_action_1', type: 'function' as const, function: { name: 'terminal', arguments: '{}' } },
       llm_response_id: 'resp_action_1'
     };
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/I will check the directory structure now/)).toBeInTheDocument();
-    expect(await screen.findByText(/BashExecutor/)).toBeInTheDocument();
+    expect(await screen.findByText(/terminal/)).toBeInTheDocument();
   });
 
   it('renders ObservationEvent', async () => {
@@ -90,7 +90,7 @@ describe('Agent-SDK event rendering', () => {
       type: 'ObservationEvent',
       source: 'environment' as const,
       observation: { content: 'Directory listing output from bash execution', exit_code: 0 },
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_obs_1',
       action_id: 'action_obs_1'
     };
@@ -104,7 +104,7 @@ describe('Agent-SDK event rendering', () => {
       type: 'UserRejectObservation',
       source: 'user' as const,
       rejection_reason: 'This command appears to be potentially harmful to the system',
-      tool_name: 'BashTool',
+      tool_name: 'terminal',
       tool_call_id: 'call_reject_2',
       action_id: 'action_reject_2'
     };

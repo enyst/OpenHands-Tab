@@ -100,13 +100,16 @@ export class ConnectionManager {
         const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.trunc(raw) : 50;
         return Math.min(500, Math.max(1, n));
       })();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const sessionKey = s?.secrets.sessionApiKey || '';
+      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
       const req = {
         agent: {
           llm,
           tools: [
-            { name: 'BashTool', params: { working_dir: root } },
-            { name: 'FileEditorTool', params: { workspace_root: root } },
-            { name: 'TaskTrackerTool', params: { save_dir: root } }
+            { name: 'terminal' },
+            { name: 'file_editor' },
+            { name: 'task_tracker' }
           ],
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
@@ -114,10 +117,7 @@ export class ConnectionManager {
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const sessionKey = s?.secrets.sessionApiKey || '';
-      if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(base + '/api/conversations/', {
+      const res = await fetch(`${base}/api/conversations`, {
         method: 'POST',
         headers,
         body: JSON.stringify(req)
@@ -195,7 +195,7 @@ export class ConnectionManager {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       const sessionKey = this.settings?.secrets.sessionApiKey || '';
       if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/resume`, { method: 'POST', headers });
+      const res = await fetch(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
       if (!res.ok) {
         let info = '';
         try { info = await res.text(); } catch {}
@@ -289,9 +289,9 @@ export class ConnectionManager {
       if (!id) return; // bail if conversation could not be started
     }
     // agent-sdk expects content to be an array of TextContent objects
-    const payload: Message = { role: 'user', content: [{ type: 'text', text }] };
+    const messagePayload: Message = { role: 'user', content: [{ type: 'text', text }] };
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(payload));
+      this.ws.send(JSON.stringify(messagePayload));
     } else {
       // Fallback to HTTP when WebSocket unavailable
       try {
@@ -299,8 +299,9 @@ export class ConnectionManager {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         const sessionKey = this.settings?.secrets.sessionApiKey || '';
         if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
-        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/`, {
-          method: 'POST', headers, body: JSON.stringify(payload)
+        const httpPayload = { ...messagePayload, run: true };
+        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events`, {
+          method: 'POST', headers, body: JSON.stringify(httpPayload)
         });
         if (!res.ok) {
           const info = await res.text().catch(() => '');

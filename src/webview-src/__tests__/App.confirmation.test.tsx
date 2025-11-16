@@ -14,7 +14,7 @@ describe('App - Confirmation Flow', () => {
 
   beforeEach(() => {
     // mock VS Code API
-    // @ts-expect-error
+    // @ts-expect-error -- VS Code API is injected by host environment during runtime
     window.acquireVsCodeApi = () => mockApi;
     mockApi.postMessage.mockClear();
   });
@@ -24,10 +24,10 @@ describe('App - Confirmation Flow', () => {
     type: 'ActionEvent',
     source: 'agent',
     thought: [{ type: 'text', text: 'Consider running bash' }],
-    action: { tool: 'BashTool', args: { command: 'echo 1' } },
-    tool_name: 'BashTool',
+    action: { tool: 'terminal', args: { command: 'echo 1' } },
+    tool_name: 'terminal',
     tool_call_id: 'call-1',
-    tool_call: { id: 'call-1', type: 'function', function: { name: 'BashTool', arguments: '{}' } },
+    tool_call: { id: 'call-1', type: 'function', function: { name: 'terminal', arguments: '{}' } },
     llm_response_id: 'resp-1',
     security_risk: 'HIGH',
     ...over,
@@ -140,7 +140,7 @@ describe('App - Confirmation Flow', () => {
     await userEvent.click(approveBtn);
 
     // send observation for that tool_call_id; should clear prompt
-    postToWindow({ type: 'event', event: { type: 'ObservationEvent', source: 'environment', observation: { ok: true }, tool_name: 'BashTool', tool_call_id: 'call-clear', action_id: 'a1' } });
+    postToWindow({ type: 'event', event: { type: 'ObservationEvent', source: 'environment', observation: { ok: true }, tool_name: 'terminal', tool_call_id: 'call-clear', action_id: 'a1' } });
     await waitFor(() => {
       expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
     });
@@ -155,7 +155,7 @@ describe('App - Confirmation Flow', () => {
     const confirmReject = await screen.findByRole('button', { name: /confirm reject/i });
     await userEvent.click(confirmReject);
 
-    postToWindow({ type: 'event', event: { type: 'UserRejectObservation', source: 'environment', rejection_reason: 'no', tool_name: 'BashTool', tool_call_id: 'call-rej', action_id: 'a2' } });
+    postToWindow({ type: 'event', event: { type: 'UserRejectObservation', source: 'environment', rejection_reason: 'no', tool_name: 'terminal', tool_call_id: 'call-rej', action_id: 'a2' } });
     await waitFor(() => {
       expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
     });
@@ -193,7 +193,7 @@ const approveBtn = await screen.findByRole('button', { name: /approve/i });
     expect(approveBtn).toBeDisabled();
 
     // Send AgentErrorEvent which should reset isSubmitting
-    postToWindow({ type: 'event', event: { type: 'AgentErrorEvent', source: 'agent', error: 'oops', tool_name: 'BashTool', tool_call_id: 'call-err' } });
+    postToWindow({ type: 'event', event: { type: 'AgentErrorEvent', source: 'agent', error: 'oops', tool_name: 'terminal', tool_call_id: 'call-err' } });
     await waitFor(() => expect(approveBtn).not.toBeDisabled());
   });
 
@@ -204,6 +204,6 @@ const approveBtn = await screen.findByRole('button', { name: /approve/i });
     postToWindow({ type: 'event', event: mkAction() });
     expect(await q.findByText(/Action Details:/)).toBeInTheDocument();
     // Use getAllBy to avoid ambiguity (tool name appears in multiple places)
-    expect(q.getAllByText(/BashTool/).length).toBeGreaterThan(0);
+    expect(q.getAllByText(/terminal/i).length).toBeGreaterThan(0);
   });
 });
