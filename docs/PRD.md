@@ -182,6 +182,26 @@ Confirmation policy
   - Iteratively improve event rendering and layout
   - Note: OpenHands V0 (current web) vs V1 (agent-sdk centric) — we will prefer reusing visual patterns where feasible, but the authoritative APIs and models are from agent-sdk (V1 rewrite). Visual similarity is desired; implementation details may differ.
 
+- Activity Bar & Tab UX (vscode-ext-bugs scope)
+  - Clicking the OpenHands activity bar icon opens the chat webview panel.
+  - Persistent top toolbar within the tab (visible on all screens):
+    - **New Conversation** icon (starts a fresh session and navigates to the conversation view)
+    - **History** icon (placeholder; will navigate to conversation history when implemented)
+    - **Settings** icon (opens VS Code Settings targeting `openhands.*`—uses `workbench.action.openSettings` with the extension filter, not a custom modal)
+    - **Connection toggle** icon:
+      - Shows a ✓/connected state when WebSocket is online, X/disconnected state otherwise.
+      - Clicking attempts connect/reconnect (invokes existing `reconnect` logic when offline, no-op when online until we add explicit disconnect).
+  - Conversation view layout:
+    - The top toolbar remains visible across all states.
+    - Main content shows streamed events (existing behaviour).
+    - Prompt input area at the bottom without a dedicated “Send” button; pressing Enter submits.
+    - A secondary control strip directly below the input with icon buttons (left-to-right):
+      - `@` (tooltip: “Add context”) – reserved hook for future context attachment flow.
+      - `+` (tooltip: “Attach files”) – reserved for attachment picker.
+      - `MCP` (tooltip: “MCP Servers”) – reserved for MCP integration UI.
+      - Skill icon (tooltip: “Skills”) – reserved for skill/microagent selector.
+    - Icons emit no-ops initially; they exist to establish the layout.
+
 - M0: Scaffold extension + Webview shell; settings storage; connection test command
 - M1: WebSocket connect; send message; render basic assistant text
 - M2: Stream tool events/logs with structured UI; stop button
