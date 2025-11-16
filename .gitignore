@@ -2,6 +2,7 @@
 media/webview.js
 media/*.map
 media/*.css
+!media/codicon.css
 
 *.vsix
 out/
@@ -127,10 +128,12 @@ temp/
 
 # Editor directories and files
 .vscode/
+!.vscode/
 !.vscode/extensions.json
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
+.vscode-dev/
 .idea/
 .DS_Store
 *.swp

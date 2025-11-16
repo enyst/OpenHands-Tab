@@ -84,6 +84,7 @@ export interface MessageEvent extends EventBase {
   source: SourceType;
   llm_message: Message;
   activated_microagents?: string[];
+  activated_skills?: string[];
   extended_content?: TextContent[];
 }
 
@@ -94,6 +95,13 @@ export interface AgentErrorEvent extends EventBase {
   error: string;
   tool_name: string;
   tool_call_id: string;
+}
+
+export interface ConversationErrorEvent extends EventBase {
+  type: 'ConversationErrorEvent';
+  source: SourceType;
+  code?: string;
+  detail?: string;
 }
 
 // PauseEvent - shown in visualizer
@@ -127,6 +135,7 @@ export type Event =
   | UserRejectObservation
   | MessageEvent
   | AgentErrorEvent
+  | ConversationErrorEvent
   | PauseEvent
   | Condensation
   | ConversationStateUpdateEvent;
@@ -145,6 +154,7 @@ export const isEvent = (e: unknown): e is Event => {
   if (t === 'UserRejectObservation') return typeof obj.rejection_reason === 'string' && !!obj.tool_name;
   if (t === 'MessageEvent') return !!obj.llm_message && typeof obj.llm_message === 'object';
   if (t === 'AgentErrorEvent') return typeof obj.error === 'string' && !!obj.tool_name;
+  if (t === 'ConversationErrorEvent') return typeof obj.detail === 'string' || typeof obj.code === 'string';
   if (t === 'PauseEvent') return obj.source === 'user';
   if (t === 'Condensation') return Array.isArray(obj.forgotten_event_ids);
   if (t === 'ConversationStateUpdateEvent') return true;
@@ -163,6 +173,7 @@ export const isObservationEvent = (e: Event): e is ObservationEvent => e.type ==
 export const isUserRejectObservation = (e: Event): e is UserRejectObservation => e.type === 'UserRejectObservation';
 export const isMessageEvent = (e: Event): e is MessageEvent => e.type === 'MessageEvent';
 export const isAgentErrorEvent = (e: Event): e is AgentErrorEvent => e.type === 'AgentErrorEvent';
+export const isConversationErrorEvent = (e: Event): e is ConversationErrorEvent => e.type === 'ConversationErrorEvent';
 export const isPauseEvent = (e: Event): e is PauseEvent => e.type === 'PauseEvent';
 export const isCondensation = (e: Event): e is Condensation => e.type === 'Condensation';
 export const isConversationStateUpdateEvent = (e: Event): e is ConversationStateUpdateEvent => e.type === 'ConversationStateUpdateEvent';

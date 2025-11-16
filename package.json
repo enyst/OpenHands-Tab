@@ -2,7 +2,7 @@
   "name": "openhands-tab",
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
   "license": "MIT",
   "repository": {
@@ -251,6 +251,7 @@
     "@openhands/ui": "^1.0.0-beta.9",
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",
+    "@vscode/codicons": "^0.0.36",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.3"

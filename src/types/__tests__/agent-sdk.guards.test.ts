@@ -23,4 +23,14 @@ describe('agent-sdk type guards', () => {
     expect(isEvent({ type: 'MessageEvent' } as any)).toBe(false);
     expect(isEvent({ type: 'MessageEvent', llm_message: null } as any)).toBe(false);
   });
+
+  it('accepts ConversationErrorEvent payloads', () => {
+    const payload = {
+      type: 'ConversationErrorEvent',
+      source: 'environment' as const,
+      code: 'LLMBadRequestError',
+      detail: 'Unsupported reasoning effort'
+    };
+    expect(isEvent(payload)).toBe(true);
+  });
 });

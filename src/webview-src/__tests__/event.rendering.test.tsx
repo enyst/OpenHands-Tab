@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
-import type { MessageEvent as AgentMessageEvent, AgentErrorEvent } from '../../types/agent-sdk';
+import type { MessageEvent as AgentMessageEvent, AgentErrorEvent, ConversationErrorEvent } from '../../types/agent-sdk';
 
 afterEach(() => {
   cleanup();
@@ -52,6 +52,20 @@ describe('Agent-SDK event rendering', () => {
     };
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
+  });
+
+  it('renders conversation error events', async () => {
+    render(<App />);
+    const ev: ConversationErrorEvent = {
+      type: 'ConversationErrorEvent',
+      source: 'environment',
+      code: 'LLMBadRequestError',
+      detail: 'Unsupported value: reasoning effort too low'
+    };
+    postToWindow({ type: 'event', event: ev });
+    expect(await screen.findByText(/Conversation Error/)).toBeInTheDocument();
+    expect(await screen.findByText(/LLMBadRequestError/)).toBeInTheDocument();
+    expect(await screen.findByText(/Unsupported value/)).toBeInTheDocument();
   });
 
   it('renders SystemPromptEvent', async () => {

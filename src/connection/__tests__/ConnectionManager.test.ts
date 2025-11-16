@@ -127,6 +127,25 @@ describe('ConnectionManager', () => {
     expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });
 
+  it('normalizes events that use "kind" instead of "type"', async () => {
+    events = { onStatus: vi.fn(), onEvent: vi.fn(), onError: vi.fn(), onConversationId: vi.fn() };
+    const { ConnectionManager } = await importCM();
+    (globalThis as any).fetch = makeFetchOk({ id: 'c-kind' });
+    const cm = new ConnectionManager('http://localhost:3000', events);
+    await cm.startNewConversation();
+    const ws: any = getLastWS();
+    ws.open();
+
+    const payload = {
+      kind: 'MessageEvent',
+      source: 'agent' as const,
+      llm_message: { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'normalized' }] }
+    };
+
+    ws.message(JSON.stringify(payload));
+    expect(events.onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'MessageEvent' }));
+  });
+
   it('reconnects after close (exponential backoff)', async () => {
     vi.useFakeTimers();
     events = { onStatus: vi.fn(), onEvent: vi.fn(), onError: vi.fn(), onConversationId: vi.fn() };
