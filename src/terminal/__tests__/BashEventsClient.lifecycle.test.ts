@@ -294,6 +294,31 @@ describe('BashEventsClient - lifecycle and behavior', () => {
     expect(client.getStatus()).toBe('offline');
   });
 
+  it('resets backoff to 1s after a successful open', () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const { client } = makeClient();
+    client.connect();
+
+    const WS = WebSocket as unknown as vi.Mock;
+
+    // First close while connecting -> schedule after 1s
+    nextWs(0)._emit('close');
+    vi.runOnlyPendingTimers();
+    expect(WS.mock.calls.length).toBe(2);
+
+    // Second socket opens -> retryCount resets to 0
+    nextWs(1)._emit('open');
+
+    // Close again -> schedule after 1s (not 2s)
+    nextWs(1)._emit('close');
+    // Verify reconnect is not immediate
+    expect(WS.mock.calls.length).toBe(2);
+    vi.runOnlyPendingTimers();
+    expect(WS.mock.calls.length).toBe(3);
+  });
+
   it('attempts reconnection on close with exponential backoff capped at 15s', () => {
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(0);
