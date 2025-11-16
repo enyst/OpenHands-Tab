@@ -426,7 +426,7 @@ describe('Command Handlers', () => {
     expect(vscode.window.showInformationMessage).not.toHaveBeenCalled();
   });
 
-  it('should initialize panel and connection if not present before command execution', async () => {
+  it('should initialize panel if not present before command execution', async () => {
     // Dispose panel to test initialization
     if (mockPanel._disposeHandler) {
       mockPanel._disposeHandler();
