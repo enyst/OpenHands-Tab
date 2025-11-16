@@ -633,26 +633,15 @@ export function App() {
           break;
         }
         case 'skillsList': {
-          const entries = Array.isArray((payload as { skills?: unknown }).skills)
-            ? (payload as { skills: unknown[] }).skills
-                .map((item) => {
-                  if (typeof item === 'string') {
-                    const normalized = item.replace(/\\/g, '/');
-                    const display = normalized.endsWith('.md') ? normalized.slice(0, -3) : normalized;
-                    return { label: display, path: item };
-                  }
-                  if (item && typeof item === 'object') {
-                    const maybe = item as { label?: unknown; path?: unknown };
-                    if (typeof maybe.path === 'string') {
-                      const labelSource = typeof maybe.label === 'string' ? maybe.label : maybe.path;
-                      const normalized = labelSource.replace(/\\/g, '/');
-                      const display = normalized.endsWith('.md') ? normalized.slice(0, -3) : normalized;
-                      return { label: display, path: maybe.path };
-                    }
-                  }
-                  return undefined;
-                })
-                .filter((entry): entry is { label: string; path: string } => Boolean(entry))
+          const payloadSkills = (payload as { skills?: unknown }).skills;
+          const entries = Array.isArray(payloadSkills)
+            ? payloadSkills.filter(
+                (item): item is { label: string; path: string } =>
+                  !!item &&
+                  typeof item === 'object' &&
+                  typeof (item as { label?: unknown }).label === 'string' &&
+                  typeof (item as { path?: unknown }).path === 'string'
+              )
             : [];
           setSkills(entries);
           setIsSkillsLoading(false);
