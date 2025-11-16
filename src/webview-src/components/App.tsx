@@ -977,9 +977,9 @@ function ToolbarButton({ icon, label, onClick, disabled, statusClassName, iconCl
 const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
 
 const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
-  info: 'bg-[color-mix(in_srgb,var(--vscode-badge-background)_30%,transparent)] text-[var(--vscode-foreground)] border border-[color-mix(in_srgb,var(--vscode-badge-background)_50%,transparent)]',
-  warn: 'bg-[color-mix(in_srgb,var(--vscode-inputValidation-warningBackground)_55%,transparent)] text-[var(--vscode-foreground)] border border-[color-mix(in_srgb,var(--vscode-inputValidation-warningBorder)_60%,transparent)]',
-  error: 'bg-[color-mix(in_srgb,var(--vscode-inputValidation-errorBackground)_60%,transparent)] text-[var(--vscode-foreground)] border border-[color-mix(in_srgb,var(--vscode-inputValidation-errorBorder)_65%,transparent)]'
+  info: 'text-[color-mix(in_srgb,var(--vscode-tab-activeForeground)_85%,transparent)]',
+  warn: 'text-[color-mix(in_srgb,var(--vscode-editorWarning-foreground)_90%,transparent)]',
+  error: 'text-[color-mix(in_srgb,var(--vscode-editorError-foreground)_95%,transparent)]'
 };
 
 interface AccessoryButtonProps {
@@ -1182,10 +1182,12 @@ function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
           </div>
         </div>
         {statusBanner && (
-          <div className={`mt-1 text-sm px-2 py-1 rounded ${statusLevelClasses[statusBanner.level]}`}>
-            <span>{statusBanner.message}</span>
+          <div
+            className={`mt-2 flex min-h-[22px] items-center gap-2 border-t border-[color-mix(in_srgb,var(--vscode-input-border)_30%,transparent)] pt-2 text-xs ${statusLevelClasses[statusBanner.level]}`}
+          >
+            <span className="font-semibold">{statusBanner.message}</span>
             {conversationId && statusBanner.level !== 'error' && (
-              <span className="ml-2 opacity-70 text-xs">Conversation: {conversationId.slice(0, 8)}</span>
+              <span className="opacity-60">Conversation: {conversationId.slice(0, 8)}</span>
             )}
           </div>
         )}
