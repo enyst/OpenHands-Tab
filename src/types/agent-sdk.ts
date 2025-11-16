@@ -116,6 +116,8 @@ export interface ConversationStateUpdateEvent extends EventBase {
   type: 'ConversationStateUpdateEvent';
   agent_status?: string;
   iteration?: number;
+  key?: string;
+  value?: unknown;
 }
 
 export type Event =

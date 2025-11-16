@@ -22,6 +22,12 @@ const DEFAULTS: OpenHandsSettings = {
   secrets: {}
 };
 
+const sanitizePositiveInteger = (value: number | null | undefined): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const int = Math.trunc(value);
+  return int > 0 ? int : undefined;
+};
+
 export class SettingsManager {
   constructor(private adapter: SettingsAdapter) {}
 
@@ -37,8 +43,8 @@ export class SettingsManager {
       temperature: this.adapter.get<number | null>('openhands.llm.temperature', DEFAULTS.llm.temperature) ?? DEFAULTS.llm.temperature,
       topP: this.adapter.get<number | null>('openhands.llm.topP', DEFAULTS.llm.topP) ?? DEFAULTS.llm.topP,
       topK: this.adapter.get<number | null>('openhands.llm.topK', DEFAULTS.llm.topK) ?? DEFAULTS.llm.topK,
-      maxInputTokens: this.adapter.get<number | null>('openhands.llm.maxInputTokens', DEFAULTS.llm.maxInputTokens) ?? DEFAULTS.llm.maxInputTokens,
-      maxOutputTokens: this.adapter.get<number | null>('openhands.llm.maxOutputTokens', DEFAULTS.llm.maxOutputTokens) ?? DEFAULTS.llm.maxOutputTokens,
+      maxInputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxInputTokens', null) ?? undefined),
+      maxOutputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxOutputTokens', null) ?? undefined),
       nativeToolCalling: this.adapter.get<boolean | null>('openhands.llm.nativeToolCalling', DEFAULTS.llm.nativeToolCalling) ?? DEFAULTS.llm.nativeToolCalling,
       reasoningEffort: this.adapter.get<'low' | 'medium' | 'high' | 'none' | null>('openhands.llm.reasoningEffort', DEFAULTS.llm.reasoningEffort) ?? DEFAULTS.llm.reasoningEffort,
     };
