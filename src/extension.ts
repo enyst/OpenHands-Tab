@@ -4,6 +4,7 @@ import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { BashEventsClient } from './terminal/BashEventsClient';
 import { isBashCommand, isBashOutput, isBashExit } from './types/agent-sdk';
+import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
 
 let panel: vscode.WebviewPanel | undefined;
 let connection: ConnectionManager | undefined;
@@ -15,6 +16,9 @@ const receivedBashEvents: any[] = []; // Track bash events for testing
 const MAX_BASH_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 
 export function activate(context: vscode.ExtensionContext) {
+  const sidebarProvider = new OpenHandsViewProvider();
+  context.subscriptions.push(vscode.window.registerTreeDataProvider('openhands.quickActions', sidebarProvider));
+
   async function ensurePanelAndConnection() {
     if (!panel) {
       webviewReady = false; // Reset readiness flag for new panel
