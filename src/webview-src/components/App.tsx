@@ -1,6 +1,6 @@
 // React must be in scope for JSX to work after esbuild transpilation
 import React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 /*
   App.tsx hygiene improvements:
   - Cache VS Code API once
@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
   - A11y roles
 */
 
-import { ToastManager, toasterMessages, Button, Typography, Scrollable, Input } from '@openhands/ui';
+import { ToastManager, toasterMessages, Typography, Scrollable, Input } from '@openhands/ui';
 import {
   isEvent,
   isTextContent,
@@ -470,7 +470,21 @@ export function App() {
   const lastStatusRef = useRef<'online' | 'offline' | 'connecting' | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showContextPicker, setShowContextPicker] = useState(false);
+  const [contextQuery, setContextQuery] = useState('');
+  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
+  const [isContextLoading, setIsContextLoading] = useState(false);
+  const [workspaceFilesRequested, setWorkspaceFilesRequested] = useState(false);
+  const [contextActiveIndex, setContextActiveIndex] = useState(0);
+  const [showSkillsPopover, setShowSkillsPopover] = useState(false);
+  const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
+  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
+  const [skillsRequested, setSkillsRequested] = useState(false);
+  const [skillsActiveIndex, setSkillsActiveIndex] = useState(0);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contextPopoverRef = useRef<HTMLDivElement | null>(null);
+  const skillsPopoverRef = useRef<HTMLDivElement | null>(null);
+  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
 
   // Define callback functions before useEffects that depend on them
   const handleEvent = useCallback((e: unknown) => {
@@ -553,6 +567,42 @@ export function App() {
         case 'error':
           toastDebounced('error', String(payload.error));
           break;
+        case 'workspaceFiles': {
+          const files = Array.isArray((payload as { files?: unknown }).files)
+            ? (payload as { files: unknown[] }).files.filter((f): f is string => typeof f === 'string')
+            : [];
+          setWorkspaceFiles(files);
+          setIsContextLoading(false);
+          setContextActiveIndex(0);
+          break;
+        }
+        case 'skillsList': {
+          const entries = Array.isArray((payload as { skills?: unknown }).skills)
+            ? (payload as { skills: unknown[] }).skills
+                .map((item) => {
+                  if (typeof item === 'string') {
+                    const normalized = item.replace(/\\/g, '/');
+                    const display = normalized.endsWith('.md') ? normalized.slice(0, -3) : normalized;
+                    return { label: display, path: item };
+                  }
+                  if (item && typeof item === 'object') {
+                    const maybe = item as { label?: unknown; path?: unknown };
+                    if (typeof maybe.path === 'string') {
+                      const labelSource = typeof maybe.label === 'string' ? maybe.label : maybe.path;
+                      const normalized = labelSource.replace(/\\/g, '/');
+                      const display = normalized.endsWith('.md') ? normalized.slice(0, -3) : normalized;
+                      return { label: display, path: maybe.path };
+                    }
+                  }
+                  return undefined;
+                })
+                .filter((entry): entry is { label: string; path: string } => Boolean(entry))
+            : [];
+          setSkills(entries);
+          setIsSkillsLoading(false);
+          setSkillsActiveIndex(0);
+          break;
+        }
         case 'queryRenderedEvents': {
           // Respond with rendered event information for testing
           const vscodeApi = getVscodeApi();
@@ -596,11 +646,212 @@ export function App() {
   }, []);
 
   const [input, setInput] = useState('');
+  const filteredWorkspaceFiles = useMemo(() => {
+    if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
+    const lower = contextQuery.toLowerCase();
+    return workspaceFiles.filter((file) => file.toLowerCase().includes(lower)).slice(0, 20);
+  }, [contextQuery, workspaceFiles]);
+
+  useEffect(() => {
+    setContextActiveIndex((prev) => {
+      if (filteredWorkspaceFiles.length === 0) return 0;
+      const next = Math.max(0, Math.min(prev, filteredWorkspaceFiles.length - 1));
+      return next === prev ? prev : next;
+    });
+  }, [filteredWorkspaceFiles]);
+
+  useEffect(() => {
+    setSkillsActiveIndex((prev) => {
+      if (skills.length === 0) return 0;
+      const next = Math.max(0, Math.min(prev, skills.length - 1));
+      return next === prev ? prev : next;
+    });
+  }, [skills]);
+
+  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setInput(value);
+    const start = event.target.selectionStart ?? value.length;
+    const end = event.target.selectionEnd ?? start;
+    selectionRef.current = { start, end };
+  }, []);
+
+  const handleInputSelect = useCallback((event: React.SyntheticEvent<HTMLInputElement>) => {
+    const target = event.target as HTMLInputElement;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? start;
+    selectionRef.current = { start, end };
+  }, []);
+
+  const insertContextFile = useCallback((file: string) => {
+    const current = input;
+    const { start, end } = selectionRef.current;
+    const safeStart = Math.min(start, current.length);
+    const safeEnd = Math.min(end, current.length);
+    const beforeCursor = current.slice(0, safeStart);
+    const afterCursor = current.slice(safeEnd);
+    const needsLeadingSpace = beforeCursor.length > 0 && !/\s$/.test(beforeCursor);
+    const before = needsLeadingSpace ? `${beforeCursor} ` : beforeCursor;
+    const mention = `@${file}`;
+    const needsTrailingSpace = afterCursor.length === 0 || !/^\s/.test(afterCursor);
+    const after = needsTrailingSpace ? ` ${afterCursor}` : afterCursor;
+    const newValue = `${before}${mention}${after}`;
+    const caretPos = before.length + mention.length + (needsTrailingSpace ? 1 : 0);
+
+    selectionRef.current = { start: caretPos, end: caretPos };
+    setInput(newValue);
+    setShowContextPicker(false);
+    setContextQuery('');
+    setContextActiveIndex(0);
+    setTimeout(() => {
+      const el = document.getElementById('openhands-chat-input');
+      if (el instanceof HTMLInputElement) {
+        el.focus();
+        el.setSelectionRange(caretPos, caretPos);
+      }
+    }, 0);
+  }, [input]);
+
+  const handleContextQueryKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showContextPicker) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (filteredWorkspaceFiles.length === 0) return;
+      setContextActiveIndex((prev) => (prev + 1) % filteredWorkspaceFiles.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (filteredWorkspaceFiles.length === 0) return;
+      setContextActiveIndex((prev) => (prev - 1 + filteredWorkspaceFiles.length) % filteredWorkspaceFiles.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const file = filteredWorkspaceFiles[contextActiveIndex];
+      if (file) insertContextFile(file);
+    }
+  }, [contextActiveIndex, filteredWorkspaceFiles, insertContextFile, showContextPicker]);
+
+  const openSkill = useCallback((path: string) => {
+    toastDebounced('info', 'Opening skill…');
+    postMessage({ type: 'openSkill', path });
+    setShowSkillsPopover(false);
+  }, [postMessage]);
+
+  const handleContextToggle = useCallback(() => {
+    setShowSkillsPopover(false);
+    setShowContextPicker((prev) => {
+      const next = !prev;
+      if (next) {
+        setContextActiveIndex(0);
+        if (!workspaceFilesRequested) {
+          setWorkspaceFilesRequested(true);
+          setIsContextLoading(true);
+          postMessage({ type: 'requestWorkspaceFiles' });
+        }
+      }
+      return next;
+    });
+  }, [postMessage, workspaceFilesRequested]);
+
+  const handleSkillsToggle = useCallback(() => {
+    setShowContextPicker(false);
+    setShowSkillsPopover((prev) => {
+      const next = !prev;
+      if (next) {
+        setSkillsActiveIndex(0);
+        if (!skillsRequested) {
+          setSkillsRequested(true);
+          setIsSkillsLoading(true);
+          postMessage({ type: 'requestSkills' });
+        }
+      }
+      return next;
+    });
+  }, [postMessage, skillsRequested]);
+
+  useEffect(() => {
+    if (!showContextPicker) {
+      setContextQuery('');
+      setContextActiveIndex(0);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const contextualInput = document.getElementById('openhands-context-query');
+      if (contextualInput instanceof HTMLInputElement) contextualInput.focus();
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [showContextPicker]);
+
+  useEffect(() => {
+    if (!showSkillsPopover) {
+      setSkillsActiveIndex(0);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const target = skillsPopoverRef.current;
+      if (!target) return;
+      const firstButton = target.querySelector<HTMLButtonElement>('button');
+      if (firstButton) {
+        firstButton.focus();
+      } else {
+        target.focus();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [showSkillsPopover, skills.length]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showContextPicker && contextPopoverRef.current && !contextPopoverRef.current.contains(event.target as Node)) {
+        setShowContextPicker(false);
+      }
+      if (showSkillsPopover && skillsPopoverRef.current && !skillsPopoverRef.current.contains(event.target as Node)) {
+        setShowSkillsPopover(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (showContextPicker) setShowContextPicker(false);
+        if (showSkillsPopover) setShowSkillsPopover(false);
+        return;
+      }
+      if (showSkillsPopover && skills.length > 0) {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setSkillsActiveIndex((prev) => (prev + 1) % skills.length);
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          setSkillsActiveIndex((prev) => (prev - 1 + skills.length) % skills.length);
+        } else if (event.key === 'Enter') {
+          event.preventDefault();
+          const skill = skills[skillsActiveIndex];
+          if (skill) openSkill(skill.path);
+        }
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openSkill, showContextPicker, showSkillsPopover, skills, skillsActiveIndex]);
+
+  const connectionIcon = status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync';
+  const connectionStatusClass = status === 'online'
+    ? 'bg-[var(--vscode-testing-iconPassed)]'
+    : status === 'offline'
+      ? 'bg-[var(--vscode-errorForeground)]'
+      : 'bg-[var(--vscode-testing-iconQueued)]';
   const send = useCallback(() => {
     const text = input.trim();
     if (!text) return;
     // Send message and let the server echo it back to avoid duplicates
     setInput('');
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
+    setContextQuery('');
+    setContextActiveIndex(0);
+    setSkillsActiveIndex(0);
+    selectionRef.current = { start: 0, end: 0 };
     postMessage({ type: 'send', text });
   }, [input, postMessage]);
 
@@ -640,16 +891,81 @@ export function App() {
     // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
   }, [isSubmitting, postMessage]);
 
+const iconButtonBase = 'relative inline-flex h-8 w-8 items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--vscode-toolbar-background)_92%,transparent)] text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_85%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
+
+interface ToolbarButtonProps {
+  icon: string;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  statusClassName?: string;
+  iconClassName?: string;
+}
+
+function ToolbarButton({ icon, label, onClick, disabled, statusClassName, iconClassName }: ToolbarButtonProps) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className={`${iconButtonBase} ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+      onClick={onClick}
+    >
+      <span className={`codicon codicon-${icon} text-sm ${iconClassName ?? ''}`} />
+      {statusClassName && (
+        <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border border-[var(--vscode-editor-background)] ${statusClassName}`} />
+      )}
+    </button>
+  );
+}
+
+const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
+
+interface AccessoryButtonProps {
+  icon: string;
+  label: string;
+  onClick: () => void;
+}
+
+function AccessoryButton({ icon, label, onClick }: AccessoryButtonProps) {
+  return (
+    <button type="button" title={label} aria-label={label} className={accessoryButtonBase} onClick={onClick}>
+      <span className={`codicon codicon-${icon}`} />
+    </button>
+  );
+}
+
   return (
     <div id="app" className="flex flex-col h-screen">
       <ToastManager />
       <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
-        <StatusDot status={status} />
-        <Typography.H1>OpenHands</Typography.H1>
-        <div className="ml-auto flex gap-2">
-          <Button onClick={() => { toastDebounced('info', 'Opening settings...'); postMessage({ type: 'openSettings' }); }}>Settings</Button>
-          <Button onClick={() => { toastDebounced('info', 'Reconnecting...'); postMessage({ type: 'command', command: 'reconnect' }); }}>Reconnect</Button>
-          <Button onClick={() => { toastDebounced('info', 'Starting new conversation...'); postMessage({ type: 'command', command: 'startNewConversation' }); }}>New Chat</Button>
+        <div className="flex items-center gap-2">
+          <StatusDot status={status} />
+          <Typography.H2 className="text-[17px]">OpenHands</Typography.H2>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <ToolbarButton
+            icon="add"
+            label="New Conversation"
+            onClick={() => postMessage({ type: 'command', command: 'startNewConversation' })}
+          />
+          <ToolbarButton
+            icon="history"
+            label="History"
+            onClick={() => toastDebounced('info', 'History view coming soon')}
+          />
+          <ToolbarButton
+            icon="settings-gear"
+            label="Settings"
+            onClick={() => postMessage({ type: 'openSettingsPage' })}
+          />
+          <ToolbarButton
+            icon={connectionIcon}
+            iconClassName={status === 'connecting' ? 'animate-spin' : ''}
+            label={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
+            onClick={() => postMessage({ type: 'command', command: 'reconnect' })}
+            statusClassName={connectionStatusClass}
+          />
         </div>
       </header>
 
@@ -680,18 +996,129 @@ export function App() {
         </Scrollable>
       </div>
 
-      <div className="flex items-center gap-2 px-3 py-2 border-t border-black/10">
+      <div className="flex flex-col gap-3 px-3 py-2 border-t border-black/10">
         <Input
+          id="openhands-chat-input"
           label="Message"
           placeholder="Type a message..."
           value={input}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
-          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          onChange={handleInputChange}
+          onSelect={handleInputSelect}
+          onClick={handleInputSelect}
+          onFocus={handleInputSelect}
+          onKeyUp={handleInputSelect}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              send();
+              return;
+            }
+            handleInputSelect(e);
+          }}
           className="flex-1"
         />
-        <div className="flex gap-2">
-          <Button id="sendBtn" onClick={send}>Send</Button>
-          <Button id="stopBtn" variant="secondary" onClick={() => postMessage({ type: 'command', command: 'pause' })}>Stop</Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <AccessoryButton icon="mention" label="Add context" onClick={handleContextToggle} />
+            {showContextPicker && (
+              <div
+                ref={contextPopoverRef}
+                className="absolute bottom-full left-0 mb-2 w-72 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20"
+              >
+                <input
+                  id="openhands-context-query"
+                  type="text"
+                  value={contextQuery}
+                  onChange={(e) => {
+                    setContextQuery(e.target.value);
+                    setContextActiveIndex(0);
+                  }}
+                  onKeyDown={handleContextQueryKeyDown}
+                  placeholder="Search workspace files"
+                  className="w-full rounded border border-black/15 bg-[var(--vscode-input-background)] px-2 py-1 text-sm"
+                />
+                <div className="mt-2 max-h-48 overflow-auto">
+                  {isContextLoading ? (
+                    <div className="py-2 text-center text-sm opacity-70">Loading…</div>
+                  ) : filteredWorkspaceFiles.length === 0 ? (
+                    <div className="py-2 text-center text-sm opacity-70">No matches</div>
+                  ) : (
+                    <ul className="space-y-1" role="listbox" aria-label="Workspace files">
+                      {filteredWorkspaceFiles.map((file, index) => {
+                        const isActive = index === contextActiveIndex;
+                        return (
+                          <li key={file}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={isActive}
+                              className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] ${isActive ? 'bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)]' : ''}`}
+                              onClick={() => insertContextFile(file)}
+                              onMouseEnter={() => setContextActiveIndex(index)}
+                              onFocus={() => setContextActiveIndex(index)}
+                            >
+                              <span className="truncate" title={file}>{file}</span>
+                              <span className="codicon codicon-pass" />
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <AccessoryButton
+            icon="add"
+            label="Attach files"
+            onClick={() => toastDebounced('info', 'File attachments coming soon')}
+          />
+          <AccessoryButton
+            icon="server-environment"
+            label="MCP Servers"
+            onClick={() => toastDebounced('info', 'MCP server management coming soon')}
+          />
+          <div className="relative">
+            <AccessoryButton icon="mortar-board" label="Skills" onClick={handleSkillsToggle} />
+            {showSkillsPopover && (
+              <div
+                ref={skillsPopoverRef}
+                tabIndex={-1}
+                className="absolute bottom-full right-0 mb-2 w-64 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20 focus:outline-none"
+              >
+                <div className="mb-2 text-sm font-medium">Skills</div>
+                <div className="max-h-48 overflow-auto">
+                  {isSkillsLoading ? (
+                    <div className="py-2 text-center text-sm opacity-70">Loading…</div>
+                  ) : skills.length === 0 ? (
+                    <div className="py-2 text-center text-sm opacity-70">No skills found</div>
+                  ) : (
+                    <ul className="space-y-1" role="listbox" aria-label="Skills">
+                      {skills.map((skill, index) => {
+                        const isActive = index === skillsActiveIndex;
+                        return (
+                          <li key={skill.path}>
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={isActive}
+                              className={`w-full rounded px-2 py-1 text-left text-sm hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] ${isActive ? 'bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)]' : ''}`}
+                              onClick={() => openSkill(skill.path)}
+                              onMouseEnter={() => setSkillsActiveIndex(index)}
+                              onFocus={() => setSkillsActiveIndex(index)}
+                            >
+                              {skill.label}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

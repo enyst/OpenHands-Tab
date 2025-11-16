@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 import { ConnectionManager } from './connection/ConnectionManager';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
@@ -14,6 +17,44 @@ let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
 const receivedBashEvents: any[] = []; // Track bash events for testing
 const MAX_BASH_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
+
+async function listWorkspaceFiles(limit = 500): Promise<string[]> {
+  if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+    return [];
+  }
+  try {
+    const uris = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**,**/dist/**,**/out/**,**/build/**,**/.venv/**}', limit);
+    const unique = new Set<string>();
+    for (const uri of uris) {
+      const relative = vscode.workspace.asRelativePath(uri, false);
+      if (relative) unique.add(relative);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  } catch (err) {
+    console.error('[OpenHands] Failed to list workspace files', err);
+    return [];
+  }
+}
+
+async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
+  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
+  try {
+    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
+    return files
+      .map((entry) => {
+        const absolutePath = path.join(skillsDir, entry.name);
+        const label = entry.name.slice(0, -3); // remove .md
+        return { label, path: absolutePath };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.error('[OpenHands] Failed to read skills directory', err);
+    }
+    return [];
+  }
+}
 
 export function activate(context: vscode.ExtensionContext) {
   const sidebarProvider = new OpenHandsViewProvider();
@@ -452,9 +493,13 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
  *
  * Supported message types:
  * - 'openSettings': Opens the configuration wizard (multi-step input)
+ * - 'openSettingsPage': Opens VS Code settings scoped to OpenHands
  * - 'getConfig': Returns current serverUrl to webview
  * - 'send': Sends user message to agent via ConnectionManager
  * - 'command': Executes agent control commands (reconnect, pause, startNewConversation, approveAction, rejectAction)
+ * - 'requestWorkspaceFiles': Returns list of workspace files for @ mentions
+ * - 'requestSkills': Returns ~/.openhands/skills markdown files
+ * - 'openSkill': Opens the specified skill file in editor
  * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
  *
  * Reverse flow (extension → webview):
@@ -468,16 +513,41 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
   return async (msg: unknown) => {
     // Type guard for message structure
     if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; count?: unknown; eventTypes?: unknown };
+    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown };
 
     switch (message.type) {
       case 'webviewReady':
         // Webview has mounted and is ready to receive messages
         webviewReady = true;
         break;
+      case 'openSettingsPage':
+        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
+        break;
       case 'openSettings':
         await vscode.commands.executeCommand('openhands.configure');
         break;
+      case 'requestWorkspaceFiles': {
+        const files = await listWorkspaceFiles();
+        void panel.webview.postMessage({ type: 'workspaceFiles', files });
+        break;
+      }
+      case 'requestSkills': {
+        const skills = await listSkillFiles();
+        void panel.webview.postMessage({ type: 'skillsList', skills });
+        break;
+      }
+      case 'openSkill': {
+        const skillPath = typeof message.path === 'string' ? message.path : undefined;
+        if (!skillPath) break;
+        try {
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(skillPath));
+          await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to open skill file: ${reason}`);
+        }
+        break;
+      }
       case 'getConfig': {
         const serverUrl = vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? 'http://localhost:3000';
         void panel.webview.postMessage({ type: 'config', serverUrl });
