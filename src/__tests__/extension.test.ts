@@ -143,6 +143,35 @@ vi.mock('../types/agent-sdk', () => ({
   isBashExit: vi.fn((event: any) => event?.type === 'bash_exit'),
 }));
 
+/**
+ * Factory function to create a mock ExtensionContext
+ * This reduces duplication and improves maintainability across test suites
+ */
+function createMockContext(): Partial<vscode.ExtensionContext> {
+  return {
+    subscriptions: [],
+    extensionUri: { fsPath: '/test/extension' } as vscode.Uri,
+    workspaceState: {
+      get: vi.fn(),
+      update: vi.fn(),
+      keys: vi.fn(() => []),
+      setKeysForSync: vi.fn(),
+    } as any,
+    globalState: {
+      get: vi.fn(),
+      update: vi.fn(),
+      keys: vi.fn(() => []),
+      setKeysForSync: vi.fn(),
+    } as any,
+    secrets: {
+      get: vi.fn(),
+      store: vi.fn(),
+      delete: vi.fn(),
+      onDidChange: vi.fn(),
+    } as any,
+  };
+}
+
 describe('Extension Activation', () => {
   let mockContext: any;
   let extension: any;
@@ -151,22 +180,7 @@ describe('Extension Activation', () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
 
-    mockContext = {
-      subscriptions: [],
-      extensionUri: { fsPath: '/test/extension' },
-      workspaceState: {
-        get: vi.fn(),
-        update: vi.fn(),
-      },
-      globalState: {
-        get: vi.fn(),
-        update: vi.fn(),
-      },
-      secrets: {
-        get: vi.fn(),
-        store: vi.fn(),
-      },
-    };
+    mockContext = createMockContext();
 
     // Dynamically import the extension module
     extension = await import('../extension');
@@ -242,22 +256,7 @@ describe('openTab Command', () => {
 
     (vscode.window.createWebviewPanel as Mock).mockReturnValue(mockPanel);
 
-    mockContext = {
-      subscriptions: [],
-      extensionUri: { fsPath: '/test/extension' },
-      workspaceState: {
-        get: vi.fn(),
-        update: vi.fn(),
-      },
-      globalState: {
-        get: vi.fn(),
-        update: vi.fn(),
-      },
-      secrets: {
-        get: vi.fn(),
-        store: vi.fn(),
-      },
-    };
+    mockContext = createMockContext();
 
     extension = await import('../extension');
     await extension.activate(mockContext);
