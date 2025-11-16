@@ -103,14 +103,12 @@
           "default": false,
           "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
         },
-
         "openhands.bashEvents.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "window",
           "markdownDescription": "Enable live bash command output streaming to VS Code integrated terminal."
         },
-
         "openhands.llm.usageId": {
           "type": "string",
           "default": "default-llm",
@@ -178,6 +176,24 @@
           "markdownDescription": "Reasoning effort for supported models."
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "openhands",
+          "title": "OpenHands",
+          "icon": "media/icons/openhands-activitybar.svg"
+        }
+      ]
+    },
+    "views": {
+      "openhands": [
+        {
+          "id": "openhands.quickActions",
+          "name": "OpenHands",
+          "type": "tree"
+        }
+      ]
     }
   },
   "scripts": {
@@ -185,7 +201,7 @@
     "compile": "tsc -p . && npm run build:tailwind && npm run build:webview",
     "watch": "tsc -w -p . & npx tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --watch & node --watch esbuild.webview.mjs",
     "vscode:prepublish": "npm run compile",
-    "package": "vsce package",
+    "package": "node scripts/run-vsce-package.js",
     "e2e": "npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -237,5 +253,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.3"
-  }
+  },
+  "bundledDependencies": [
+    "ws"
+  ]
 }
