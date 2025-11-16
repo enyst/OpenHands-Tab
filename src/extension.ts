@@ -583,7 +583,14 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         const skillPath = typeof message.path === 'string' ? message.path : undefined;
         if (!skillPath) break;
         try {
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(skillPath));
+          const skillsRoot = path.resolve(os.homedir(), '.openhands', 'skills');
+          const resolvedPath = path.resolve(skillPath);
+          const relative = path.relative(skillsRoot, resolvedPath);
+          if (relative.startsWith('..') || path.isAbsolute(relative)) {
+            void vscode.window.showErrorMessage('Refusing to open skill outside of ~/.openhands/skills');
+            break;
+          }
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
           await vscode.window.showTextDocument(document, { preview: false });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
