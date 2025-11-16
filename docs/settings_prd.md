@@ -68,41 +68,48 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - Serialization/secret handling
     - api_key and select fields are masked by default; can be exposed with context={'expose_secrets': True}
   - MVP note: we will not surface safety_settings in the extension UI
-- Current extension behavior
-  - Hardcoded defaults in ConnectionManager when starting a conversation
-    - model: litellm_proxy/anthropic/claude-sonnet-4-20250514
-    - base_url: [https://llm-proxy.eval.all-hands.dev](https://llm-proxy.eval.all-hands.dev)
-    - api_key: from env (LITELLM_API_KEY or OPENAI_API_KEY)
-  - No UI to change model/params yet (noted in PR_DESCRIPTION.md)
+- Current extension behavior (IMPLEMENTED)
+  - Settings-driven configuration via SettingsManager
+  - Default model: claude-sonnet-4-20250514 (configurable)
+  - Default usage_id: 'default-llm' (configurable)
+  - API key stored in VS Code SecretStorage
+  - All LLM parameters configurable via settings or configuration wizard
+  - ConnectionManager builds agent.llm payload dynamically from settings
 
-4) Proposed VS Code settings split
+4) VS Code settings split (IMPLEMENTED)
 - Keep simple values in VS Code Settings (configuration)
-  - openhands.serverUrl: string (already exists)
-  - openhands.llm.model: string (default model name)
+  - openhands.serverUrl: string (default: http://localhost:3000)
+  - openhands.llm.usageId: string (default: 'default-llm') - maps to agent-sdk usage_id
+  - openhands.llm.model: string (default: 'claude-sonnet-4-20250514')
   - openhands.llm.baseUrl: string | null
   - openhands.llm.apiVersion: string | null
-  - openhands.llm.temperature: number | null
-  - openhands.llm.topP: number | null
+  - openhands.llm.temperature: number (default: 0)
+  - openhands.llm.topP: number (default: 1)
   - openhands.llm.topK: number | null
   - openhands.llm.maxInputTokens: number | null
   - openhands.llm.maxOutputTokens: number | null
   - openhands.llm.timeout: number | null
-  - openhands.llm.nativeToolCalling: boolean | null
-  - openhands.llm.reasoningEffort: enum ('low' | 'medium' | 'high' | 'none') | null
-  - openhands.conversation.maxIterations: number (default for new conversations)
-  - openhands.confirmation.policy: enum ('never' | 'always' | 'risky')
-  - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH')
-  - openhands.confirmation.risky.confirmUnknown: boolean
+  - openhands.llm.nativeToolCalling: boolean (default: false)
+  - openhands.llm.reasoningEffort: enum ('low' | 'medium' | 'high' | 'none') (default: 'none')
+  - openhands.conversation.maxIterations: number (default: 50, max: 500)
+  - openhands.confirmation.policy: enum ('never' | 'always' | 'risky') (default: 'never')
+  - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'HIGH')
+  - openhands.confirmation.risky.confirmUnknown: boolean (default: true)
+  - openhands.agent.enableSecurityAnalyzer: boolean (default: false)
+  - openhands.bashEvents.enabled: boolean (default: false) - enables live bash output to terminal
 - Store secrets in VS Code SecretStorage (never in settings.json)
-  - keys suggested:
+  - Implemented keys:
     - openhands.sessionApiKey (used for X-Session-API-Key / WS query param)
-    - openhands.llm.apiKey
+    - openhands.llmApiKey (LLM API key)
+    - openhands.awsAccessKeyId (AWS credentials for Bedrock)
+    - openhands.awsSecretAccessKey (AWS secret key for Bedrock)
   - Retrieval pattern in extension code
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
-    - const llmApiKey = await context.secrets.get('openhands.llm.apiKey')
-- Advanced overrides for LLM
-  - For MVP, we omit openhands.llm.extra to keep the surface simple.
-  - If future agent-sdk additions warrant it, we can reintroduce a JSON pass-through for rarely used fields (e.g., metadata, usage_id) without breaking the curated keys.
+    - const llmApiKey = await context.secrets.get('openhands.llmApiKey')
+- Configuration UI
+  - Multi-step wizard via "OpenHands: Configure" command
+  - Dedicated "OpenHands: Set API Key" command for quick API key updates
+  - All settings accessible via VS Code Settings UI
 - Scoping guidance
   - serverUrl: workspace-level default (Workspace/WorkspaceFolder) — can override globally
   - LLM defaults: user-level defaults, overridable per workspace
@@ -131,22 +138,26 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - Agent-server config: openhands-agent-server/openhands/agent_server/config.py
 - Agent-server WS + HTTP endpoints: openhands-agent-server/openhands/agent_server/sockets.py, api.py, routes/*
 
-8) Notes on VS Code Secret Manager and Settings UI
+8) VS Code Secret Manager and Settings UI (IMPLEMENTED)
 - VS Code SecretStorage
   - API: extensionContext.secrets (stores values in OS keychain/secure store)
-  - Good for: sessionApiKey, llm.apiKey, any provider credentials
+  - Used for: sessionApiKey, llmApiKey, AWS credentials
   - Not synced in settings.json, not checked into source control
 - Settings UI capabilities
   - VS Code supports string/number/boolean and object types in configuration schemas
-  - For complex LLM options, two-tier approach recommended:
-    1) Curated simple keys for the common 90%
-    2) Single JSON pass-through for advanced fields
-- UX options for configuration
-  - Provide commands:
-    - OpenHands: Configure Server URL (existing)
-    - OpenHands: Configure LLM… (opens a JSON editor or quick form)
-    - OpenHands: Set Session API Key (writes to SecretStorage)
+  - Extension uses curated simple keys for all common LLM options
+- Configuration commands (IMPLEMENTED)
+  - OpenHands: Configure - multi-step wizard for all settings (server URL, LLM config, agent options, confirmation policy, API keys)
+  - OpenHands: Set API Key - dedicated command for quick LLM API key updates
+  - All settings also accessible via standard VS Code Settings UI
 
-9) Immediate deltas vs current repo
-- Today, only openhands.serverUrl is surfaced; ConnectionManager hardcodes model and base_url and pulls api key from env
-- Next steps (not implemented here): wire settings + secrets to build agent.llm payload dynamically and expose model selection per PR_DESCRIPTION.md
+9) Implementation status
+- ✓ IMPLEMENTED: All proposed settings from section 4 are now implemented
+- ✓ IMPLEMENTED: Settings wizard (multi-step configuration via "OpenHands: Configure" command)
+- ✓ IMPLEMENTED: Secure API key storage via VS Code SecretStorage
+- ✓ IMPLEMENTED: Dynamic LLM configuration - ConnectionManager builds agent.llm payload from settings
+- ✓ IMPLEMENTED: Model selection and all LLM parameters are configurable
+- ✓ IMPLEMENTED: Bash events feature with dedicated WebSocket client
+- ✓ IMPLEMENTED: Security analyzer toggle and confirmation policies
+- Settings are stored in VS Code workspace/user settings and secrets in OS keychain
+- Configuration is applied when starting new conversations and can be updated during extension runtime
