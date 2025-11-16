@@ -95,7 +95,7 @@ describe('App - Confirmation Flow', () => {
     await renderAppAndWaitReady();
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction({ tool_call_id: 'call-dbl' }) });
-    const approveBtn = (await screen.findAllByRole('button', { name: /approve/i }))[0];
+    const approveBtn = await screen.findByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
     await userEvent.click(approveBtn);
     // only first click should dispatch
