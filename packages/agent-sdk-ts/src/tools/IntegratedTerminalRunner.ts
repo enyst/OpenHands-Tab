@@ -6,9 +6,9 @@ import type { LocalWorkspace } from '../workspace/LocalWorkspace';
 
 const loadVscode = (): typeof import('vscode') | null => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('vscode') as typeof import('vscode');
-  } catch (err) {
+  } catch {
     return null;
   }
 };
@@ -51,7 +51,7 @@ export class IntegratedTerminalRunner {
     let exitCode = 0;
     let timedOut = false;
     let aborted = false;
-    let timeout: NodeJS.Timeout | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutMs = options.timeoutMs;
 
     let childProcess: ReturnType<typeof spawn> | null = null;
@@ -84,13 +84,13 @@ export class IntegratedTerminalRunner {
           options.signal.addEventListener('abort', abortHandler);
         }
 
-        childProcess.stdout?.on('data', (data) => {
+        childProcess.stdout?.on('data', (data: Buffer | string) => {
           const chunk = data.toString();
           stdout += chunk;
           writeEmitter.fire(chunk);
         });
 
-        childProcess.stderr?.on('data', (data) => {
+        childProcess.stderr?.on('data', (data: Buffer | string) => {
           const chunk = data.toString();
           stderr += chunk;
           writeEmitter.fire(chunk);
@@ -167,11 +167,11 @@ export class IntegratedTerminalRunner {
         options.signal.addEventListener('abort', abortHandler);
       }
 
-      child.stdout?.on('data', (data) => {
+      child.stdout?.on('data', (data: Buffer | string) => {
         stdout += data.toString();
       });
 
-      child.stderr?.on('data', (data) => {
+      child.stderr?.on('data', (data: Buffer | string) => {
         stderr += data.toString();
       });
 

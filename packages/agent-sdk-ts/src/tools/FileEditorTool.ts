@@ -24,7 +24,7 @@ export class FileEditorTool implements ToolHandler<FileEditorArgs, FileEditorRes
     if (rawContent !== undefined && typeof rawContent !== 'string') {
       throw new Error('content must be a string');
     }
-    const content = (rawContent as string | undefined) ?? '';
+    const content = rawContent ?? '';
     const append = obj.append === undefined ? false : requireBoolean(obj.append, 'append');
     return { path: filePath, content, append };
   }
@@ -37,7 +37,13 @@ export class FileEditorTool implements ToolHandler<FileEditorArgs, FileEditorRes
     const writeMethod = args.append
       ? context.workspace
           .readFile(args.path)
-          .catch((err: NodeJS.ErrnoException) => (err?.code === 'ENOENT' ? '' : Promise.reject(err)))
+          .catch((err: unknown) => {
+            if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === 'ENOENT') {
+              return '';
+            }
+            const error = err instanceof Error ? err : new Error(String(err));
+            return Promise.reject(error);
+          })
       : Promise.resolve('');
     const existing = await writeMethod;
     const newContent = args.append ? `${existing}${existing ? '\n' : ''}${args.content}` : args.content;

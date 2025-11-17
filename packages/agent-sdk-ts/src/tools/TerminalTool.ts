@@ -27,7 +27,7 @@ export class TerminalTool implements ToolHandler<TerminalArgs, TerminalResult> {
 
   async execute(args: TerminalArgs, context: ToolContext): Promise<TerminalResult> {
     const runner = new IntegratedTerminalRunner(context.workspace);
-    let timeout: NodeJS.Timeout | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
 
     if (args.timeoutMs && args.timeoutMs > 0) {

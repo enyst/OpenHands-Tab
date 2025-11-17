@@ -2,9 +2,9 @@ import type { SecretStorage } from 'vscode';
 
 const loadVscode = (): typeof import('vscode') | null => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('vscode') as typeof import('vscode');
-  } catch (err) {
+  } catch {
     return null;
   }
 };

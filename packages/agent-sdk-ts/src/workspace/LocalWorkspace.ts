@@ -1,11 +1,16 @@
 import { spawn } from 'child_process';
-import fs from 'fs';
+import type { SpawnOptions } from 'child_process';
+import * as fs from 'fs';
+import { readFile as readFileAsync, mkdir, writeFile as writeFileAsync, rm, readdir } from 'node:fs/promises';
+import type { Buffer } from 'node:buffer';
+import type { BufferEncoding } from 'node:buffer';
+import type { ProcessEnv } from 'node:process';
 import path from 'path';
 import os from 'os';
 
 export interface CommandOptions {
   cwd?: string;
-  env?: NodeJS.ProcessEnv;
+  env?: ProcessEnv;
   timeoutMs?: number;
   shell?: string;
 }
@@ -42,13 +47,13 @@ export class LocalWorkspace {
 
   private static getVsCodeWorkspaceRoot(): string | null {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const vscode = require('vscode') as typeof import('vscode');
       const folder = vscode.workspace?.workspaceFolders?.[0];
       if (folder?.uri?.scheme === 'file') {
         return folder.uri.fsPath;
       }
-    } catch (err) {
+    } catch {
       return null;
     }
     return null;
@@ -68,23 +73,25 @@ export class LocalWorkspace {
 
   async readFile(targetPath: string, encoding: BufferEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    return fs.promises.readFile(resolved, { encoding });
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const readOptions: { encoding: BufferEncoding } = { encoding };
+    return readFileAsync(resolved, readOptions);
   }
 
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
     const resolved = this.resolvePath(targetPath);
-    await fs.promises.mkdir(path.dirname(resolved), { recursive: true });
-    await fs.promises.writeFile(resolved, content);
+    await mkdir(path.dirname(resolved), { recursive: true });
+    await writeFileAsync(resolved, content);
   }
 
   async remove(targetPath: string): Promise<void> {
     const resolved = this.resolvePath(targetPath);
-    await fs.promises.rm(resolved, { force: true, recursive: true });
+    await rm(resolved, { force: true, recursive: true });
   }
 
   async list(targetPath = '.'): Promise<DirectoryEntry[]> {
     const resolved = this.resolvePath(targetPath);
-    const entries = await fs.promises.readdir(resolved, { withFileTypes: true });
+    const entries = await readdir(resolved, { withFileTypes: true });
     return entries.map((entry) => ({
       name: entry.name,
       path: path.join(targetPath, entry.name),
@@ -94,18 +101,22 @@ export class LocalWorkspace {
 
   async ensureDirectory(targetPath: string): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    await fs.promises.mkdir(resolved, { recursive: true });
+    await mkdir(resolved, { recursive: true });
     return resolved;
   }
 
   async runCommand(command: string, options: CommandOptions = {}): Promise<CommandResult> {
     const cwd = options.cwd ? this.resolvePath(options.cwd) : this.root;
-    return new Promise<CommandResult>((resolve) => {
-      const child = spawn(command, {
-        cwd,
-        env: { ...process.env, ...options.env },
-        shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
-      });
+      return new Promise<CommandResult>((resolve) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const env: ProcessEnv = { ...process.env, ...(options.env ?? {}) };
+        const spawnOptions: SpawnOptions = {
+          cwd,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          env,
+          shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
+        };
+      const child = spawn(command, spawnOptions);
 
       let stdout = '';
       let stderr = '';
@@ -115,10 +126,10 @@ export class LocalWorkspace {
           }, options.timeoutMs)
         : null;
 
-      child.stdout?.on('data', (data) => {
+      child.stdout?.on('data', (data: Buffer | string) => {
         stdout += data.toString();
       });
-      child.stderr?.on('data', (data) => {
+      child.stderr?.on('data', (data: Buffer | string) => {
         stderr += data.toString();
       });
 

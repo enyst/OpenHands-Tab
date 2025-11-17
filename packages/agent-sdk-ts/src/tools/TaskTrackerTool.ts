@@ -39,7 +39,7 @@ export class TaskTrackerTool implements ToolHandler<TaskTrackerArgs, TaskTracker
     return { action: action as TaskTrackerArgs['action'], id, title, notes, completed };
   }
 
-  async execute(args: TaskTrackerArgs, _context: ToolContext): Promise<TaskTrackerResult> {
+  execute(args: TaskTrackerArgs, _context: ToolContext): Promise<TaskTrackerResult> {
     switch (args.action) {
       case 'create':
         this.createTask(args.title ?? 'Untitled task', args.notes);
@@ -61,7 +61,7 @@ export class TaskTrackerTool implements ToolHandler<TaskTrackerArgs, TaskTracker
         break;
     }
 
-    return { tasks: Array.from(this.tasks.values()) };
+    return Promise.resolve({ tasks: Array.from(this.tasks.values()) });
   }
 
   private createTask(title: string, notes?: string): TaskRecord {
