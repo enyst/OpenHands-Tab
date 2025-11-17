@@ -47,6 +47,45 @@ Data flow notes
 - Webview does not call the network directly. All network calls and WebSocket connections go through the Extension Host (to avoid CORS and webview limitations).
 - Extension Host relays messages to/from the Webview via VS Code postMessage API.
 
+## 5a. TypeScript SDK Architecture (@openhands/agent-sdk-ts)
+
+The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that provides reusable agent infrastructure. While the VS Code extension can connect to an external agent-server, the SDK enables building agents directly in TypeScript/JavaScript environments.
+
+### SDK Layers
+
+**Runtime Layer** (`src/runtime/`):
+- `AgentOrchestrator` - LLM streaming orchestration with tool call accumulation
+- `EventLog` - Event history management and queries
+- `ConversationState` - Stateful conversation tracking with snapshots
+- `SecretRegistry` - Secure credential storage (integrates with VS Code SecretStorage)
+- `AsyncLock` - Concurrency control for agent operations
+- `StuckDetector` - Agent health monitoring and loop detection
+
+**LLM Integration** (`src/llm/`):
+- Streaming LLM clients: Anthropic (`anthropic.ts`), OpenAI-compatible (`openai-compatible.ts`)
+- Factory pattern (`factory.ts`) for auto-detecting providers
+- Credential management (`credentials.ts`) with environment/secret fallback
+- Complete type definitions for streaming chunks, responses, and configuration
+
+**Tool System** (`src/tools/`):
+- `TerminalTool` - Execute shell commands (cwd, timeoutMs). Returns stdout/stderr/exitCode.
+- `FileEditorTool` - Write or append file contents with path validation. Args: { path, content, append? }
+- `TaskTrackerTool` - In-memory task list: actions {create, update, complete, list}
+- `BrowserTool` - HTTP GET/POST with size limits (maxBytes). Validates http/https URLs.
+- `IntegratedTerminalRunner` - VS Code terminal integration used by TerminalTool
+
+**Workspace** (`src/workspace/`):
+- `LocalWorkspace` - File system abstraction with path validation and sandboxing
+
+**Protocol Types** (`src/types/`):
+- Complete TypeScript types for Message/Event protocol
+- Type guards for runtime validation (isEvent, isMessageEvent, isActionEvent, etc.)
+- Support for all event types (MessageEvent, ActionEvent, ObservationEvent, SystemPromptEvent, AgentErrorEvent, ConversationErrorEvent, PauseEvent, Condensation, ConversationStateUpdateEvent)
+
+### SDK vs. Extension
+
+See [agent-sdk-architecture.md](./agent-sdk-architecture.md) for detailed SDK documentation.
+
 ## 6. External Dependencies & Protocol
 - OpenHands Server (agent-server)
   - Default URL: http://localhost:3000 (local PoC)

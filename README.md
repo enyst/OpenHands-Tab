@@ -1,8 +1,12 @@
-# OpenHands-Tab Prototype
+# OpenHands-Tab
 
-This repository is an experiment with agent-sdk.
+A VS Code extension and TypeScript SDK for building AI agents with the OpenHands platform.
 
-A VS Code extension that brings the power of OpenHands AI agents directly into your dev environment. This extension provides an alternative way to interact with the [OpenHands agent-sdk](https://github.com/All-Hands-AI/agent-sdk), without leaving your IDE.
+This repository provides two complementary components:
+1. **@openhands/agent-sdk-ts** - A complete TypeScript SDK for building AI agents with LLM orchestration, tool execution, and state management
+2. **OpenHands Tab VS Code Extension** - A native VS Code interface for interacting with OpenHands agents directly in your IDE
+
+The extension connects to an [OpenHands agent-server](https://github.com/All-Hands-AI/agent-sdk) backend and provides a rich, integrated development experience with real-time streaming, file editing, terminal integration, and more.
 
 ## Getting Started
 
@@ -36,7 +40,7 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 
 ### Monorepo layout & SDK builds
 
-This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript models that live in `packages/agent-sdk-ts` and are published as `@openhands/agent-sdk-ts`.
+This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript SDK that lives in `packages/agent-sdk-ts` and is published as `@openhands/agent-sdk-ts`.
 
 - `npm run build` runs the SDK build first (`npm run build -w @openhands/agent-sdk-ts`) and then compiles the extension/webview bundles.
 - `npm run test` executes `npm test -w @openhands/agent-sdk-ts` before running the extension Vitest suite, ensuring both projects stay green in CI.
@@ -56,6 +60,41 @@ npm run lint -w @openhands/agent-sdk-ts
 ```
 
 > 💡 If you edit `packages/agent-sdk-ts`, rerun `npm run build -w @openhands/agent-sdk-ts` (or `npm run build`) before launching the extension so the bundled `node_modules/@openhands/agent-sdk-ts/dist` reflects your latest changes.
+
+### The @openhands/agent-sdk-ts Package
+
+The SDK provides a complete TypeScript implementation for building OpenHands agents, including:
+
+**Runtime Layer**:
+- `AgentOrchestrator` - LLM orchestration with streaming support
+- `EventLog` - Event management and history tracking
+- `ConversationState` - Stateful conversation tracking with snapshots
+- `SecretRegistry` - Secure credential and secret management
+- `AsyncLock` - Concurrency control for agent operations
+- `StuckDetector` - Agent health monitoring and recovery
+
+**LLM Integration**:
+- Streaming LLM clients for Anthropic and OpenAI-compatible APIs
+- Factory pattern for creating LLM clients with proper configuration
+- Token usage tracking and caching support
+- Credential management with secure storage
+
+**Tool System**:
+- `TerminalTool` - Execute shell commands (cwd, timeoutMs). Returns stdout/stderr/exitCode.
+- `FileEditorTool` - Write or append file contents with path validation. Args: { path, content, append? }
+- `TaskTrackerTool` - In-memory tasks: actions {create, update, complete, list}; fields: {title, notes, completed}
+- `BrowserTool` - HTTP GET/POST with size limits (maxBytes). URL validation (http/https only).
+- `IntegratedTerminalRunner` - VS Code terminal-backed command runner used by TerminalTool
+
+**Workspace Abstraction**:
+- `LocalWorkspace` - File system operations with path validation
+
+**Protocol Types**:
+- Complete TypeScript types for Message/Event protocol
+- Type guards for runtime validation
+- Support for all event types (MessageEvent, ActionEvent, ObservationEvent, etc.)
+
+See `packages/agent-sdk-ts/AGENTS.md` and `docs/agent-sdk-architecture.md` for detailed SDK documentation.
 
 ### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
