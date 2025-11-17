@@ -124,12 +124,6 @@ interface ConversationInstance {
 - Full conversation state management
 - No external server required (but still VS Code-bound)
 
-**Current Behavior**:
-- Accepts user messages and emits MessageEvent
-- Does NOT execute LLM calls or tools
-- Does NOT run actual agent loop
-- Suitable only for testing event flow
-
 **Note**: Even when fully implemented, LocalConversation will be **VS Code-bound** (uses VS Code SecretStorage, IntegratedTerminalRunner, etc.). "Local mode" means running the agent in VS Code without an external server, not running as a standalone CLI.
 
 ### RemoteConversation
