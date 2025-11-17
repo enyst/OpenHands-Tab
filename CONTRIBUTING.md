@@ -5,7 +5,7 @@ Thanks for building on OpenHands Tab! The repo now uses npm workspaces so the SD
 ## Workspace layout
 
 - `./` – VS Code extension, build scripts, docs, and integration tests.
-- `packages/agent-sdk-ts` – TypeScript definitions + type guards for the OpenHands agent-server protocol. This package produces both CJS and ESM bundles via `tsup` and emits `.d.ts` files via `tsc`.
+- `packages/agent-sdk-ts` – TypeScript definitions + type guards for the OpenHands agent-server protocol, published as `@openhands/agent-sdk-ts`. This package produces both CJS and ESM bundles via `tsup` and emits `.d.ts` files via `tsc`.
 
 ## Common tasks
 
@@ -28,9 +28,9 @@ npm run lint
 To focus on the SDK package you can use workspace-qualified commands:
 
 ```bash
-npm run build -w agent-sdk-ts
-npm test -w agent-sdk-ts
-npm run lint -w agent-sdk-ts
+npm run build -w @openhands/agent-sdk-ts
+npm test -w @openhands/agent-sdk-ts
+npm run lint -w @openhands/agent-sdk-ts
 ```
 
 Running `npm run package` or `vsce package` automatically triggers `npm run build`, so the SDK artifacts are always up to date when bundling the extension.

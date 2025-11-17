@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
-import type { Event, Message } from 'agent-sdk-ts';
-import { isEvent as isAgentEvent } from 'agent-sdk-ts';
+import type { Event, Message } from '@openhands/agent-sdk-ts';
+import { isEvent as isAgentEvent } from '@openhands/agent-sdk-ts';
 import type { OpenHandsSettings } from '../settings/SettingsManager';
 
 export type ConnectionEvents = {

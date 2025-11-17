@@ -5,7 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       vscode: path.resolve(__dirname, './test/__mocks__/vscode.ts'),
-      'agent-sdk-ts': path.resolve(__dirname, './packages/agent-sdk-ts/src'),
+      '@openhands/agent-sdk-ts': path.resolve(__dirname, './packages/agent-sdk-ts/src'),
     },
   },
   esbuild: {

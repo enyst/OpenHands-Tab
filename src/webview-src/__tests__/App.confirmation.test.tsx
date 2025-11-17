@@ -3,7 +3,7 @@ import { render, screen, act, waitFor, cleanup, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
-import type { ActionEvent, ConversationStateUpdateEvent } from 'agent-sdk-ts';
+import type { ActionEvent, ConversationStateUpdateEvent } from '@openhands/agent-sdk-ts';
 
 function postToWindow(payload: any) {
   window.postMessage(payload, '*');

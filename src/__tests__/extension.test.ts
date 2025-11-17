@@ -137,7 +137,7 @@ vi.mock('../terminal/BashEventsClient', () => ({
 }));
 
 // Mock agent-sdk type guards
-vi.mock('agent-sdk-ts', () => ({
+vi.mock('@openhands/agent-sdk-ts', () => ({
   isBashCommand: vi.fn((event: any) => event?.type === 'bash_command'),
   isBashOutput: vi.fn((event: any) => event?.type === 'bash_output'),
   isBashExit: vi.fn((event: any) => event?.type === 'bash_exit'),

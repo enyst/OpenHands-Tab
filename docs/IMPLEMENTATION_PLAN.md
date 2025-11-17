@@ -92,7 +92,7 @@ Run:
 
 Changes:
 - In webview.tsx, add window message bridge useEffect
-- Use the `agent-sdk-ts` workspace package guards (isEvent, isMessageEvent, etc.) to parse events
+- Use the `@openhands/agent-sdk-ts` workspace package guards (isEvent, isMessageEvent, etc.) to parse events
 - MessageEvent: push user/assistant messages into messages state
 - Action/Observation/System/Error events: push a tool-style message with a compact header and body
 
@@ -107,7 +107,7 @@ Run:
 Commit message:
 "feat(webview): typed event bridge and rendering
 
-- Use agent-sdk guards to validate events
+- Use @openhands/agent-sdk-ts guards to validate events
 - Render message and tool events in React
 - Add unit tests for event handling"
 

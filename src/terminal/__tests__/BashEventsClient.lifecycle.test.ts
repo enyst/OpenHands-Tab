@@ -43,7 +43,7 @@ vi.mock('ws', () => {
 
 import WebSocket from 'ws';
 import { BashEventsClient, type BashEventsCallbacks } from '../BashEventsClient';
-import type { BashCommand, BashExit, BashOutput } from 'agent-sdk-ts';
+import type { BashCommand, BashExit, BashOutput } from '@openhands/agent-sdk-ts';
 
 const makeClient = (overrides: Partial<BashEventsCallbacks> = {}, serverUrl = 'http://localhost:3000', apiKey?: string) => {
   const onEvent = vi.fn();
