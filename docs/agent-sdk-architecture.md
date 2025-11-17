@@ -410,18 +410,18 @@ console.log(result.exit_code);
 ```typescript
 import { FileEditorTool } from '@openhands/agent-sdk-ts';
 
-const fileEditor = new FileEditorTool(workspace);
+const fileEditor = new FileEditorTool();
 
 await fileEditor.execute({
   operation: 'write',
   path: 'src/hello.ts',
   content: 'export function hello() { return "Hello, world!"; }'
-});
+}, { workspace });
 
 const result = await fileEditor.execute({
   operation: 'read',
   path: 'src/hello.ts'
-});
+}, { workspace });
 ```
 
 ### TaskTrackerTool
