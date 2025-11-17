@@ -22,3 +22,4 @@ Next steps: investigate how to pull history (HTTP search vs WS resend) without d
 ## Implemented fixes
 - Added conversation history replay for remote sessions via REST `/events/search` with pagination and event-type validation.
 - Ensured `RemoteConversation` emits `conversationStarted` when restoring or constructed with an ID, clears dedup state per conversation, and deduplicates events using server-provided IDs (covers `resend_all` WS replays and HTTP history fetch).
+- Deferred remote socket reconnection until after history replay completes and now surface errors from the replay promise rather than silently failing during constructor-based restores.

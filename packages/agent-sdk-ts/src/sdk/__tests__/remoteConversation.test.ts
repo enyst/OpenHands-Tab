@@ -3,6 +3,8 @@ import type { Event } from '../types';
 
 let wsInstances: MockWS[] = [];
 
+type Handler = (...args: unknown[]) => void;
+
 class MockWS {
   static CONNECTING = 0;
   static OPEN = 1;
@@ -10,7 +12,7 @@ class MockWS {
   static CLOSED = 3;
 
   url: string;
-  handlers: Record<string, Function[]> = {};
+  handlers: Record<string, Handler[]> = {};
   readyState = MockWS.CONNECTING;
   sent: string[] = [];
 
@@ -19,13 +21,13 @@ class MockWS {
     wsInstances.push(this);
   }
 
-  on(ev: string, cb: Function) {
+  on(ev: string, cb: Handler) {
     this.handlers[ev] = this.handlers[ev] || [];
     this.handlers[ev].push(cb);
     return this as any;
   }
 
-  emit(ev: string, ...args: any[]) {
+  emit(ev: string, ...args: unknown[]) {
     (this.handlers[ev] || []).forEach((fn) => fn(...args));
   }
 

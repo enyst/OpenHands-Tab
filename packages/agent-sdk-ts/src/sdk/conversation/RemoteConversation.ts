@@ -52,11 +52,13 @@ export class RemoteConversation extends EventEmitter {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
       this.emit('conversationStarted', this.conversationId);
-      this.replayHistory().then(() => {
+      void this.replayHistory().then(() => {
         if (this.conversationId === options.conversationId) {
           this.connect();
           this.connectBashEvents();
         }
+      }).catch((err) => {
+        this.emit('error', err instanceof Error ? err : new Error(String(err)));
       });
     }
   }
