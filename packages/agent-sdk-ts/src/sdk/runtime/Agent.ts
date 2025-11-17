@@ -4,7 +4,7 @@ import { AgentOrchestrator } from './AgentOrchestrator';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
-import type { LLMClient } from '../llm';
+import type { LLMClient, LLMToolDefinition } from '../llm';
 import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import { isTextContent, type SecurityRisk } from '../types';
@@ -52,6 +52,7 @@ export class Agent extends EventEmitter {
     this.workspace = new LocalWorkspace(options.workspaceRoot);
     this.events = options.events ?? new EventLog();
     this.state = options.state ?? new ConversationState(this.events);
+    this.state.attachEventLog(this.events);
     this.secrets = options.secrets ?? new SecretRegistry();
     const providedTools = options.tools ?? [];
     this.tools = new Map(providedTools.map((tool) => [tool.name, tool]));
@@ -71,7 +72,7 @@ export class Agent extends EventEmitter {
   async run(input: AgentRunInput): Promise<Message | undefined> {
     this.cancelled = false;
     return this.lock.acquire(async () => {
-      await this.ensureSystemPrompt();
+      this.ensureSystemPrompt();
       this.pushUserMessage(input);
       return this.runLoop();
     });
@@ -201,11 +202,15 @@ export class Agent extends EventEmitter {
     return { systemPrompt: SYSTEM_PROMPT, messages, tools };
   }
 
-  private getToolDefinitions() {
+  private getToolDefinitions(): LLMToolDefinition[] {
     return Array.from(this.tools.values()).map((tool) => ({
       type: 'function',
       function: { name: tool.name },
     }));
+  }
+
+  private getToolDefinitionsForEvent(): Record<string, unknown>[] {
+    return this.getToolDefinitions().map((tool) => tool as unknown as Record<string, unknown>);
   }
 
   private async getOrchestrator(): Promise<AgentOrchestrator> {
@@ -249,7 +254,7 @@ export class Agent extends EventEmitter {
       type: 'SystemPromptEvent',
       source: 'agent',
       system_prompt: { type: 'text', text: SYSTEM_PROMPT },
-      tools: this.getToolDefinitions(),
+      tools: this.getToolDefinitionsForEvent(),
     } as Event);
   }
 
@@ -265,12 +270,12 @@ export class Agent extends EventEmitter {
   private parseToolArgs(raw: string | undefined): { args: Record<string, unknown>; securityRisk?: SecurityRisk } {
     if (!raw) return { args: {} };
     try {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const { security_risk, ...rest } = parsed as Record<string, unknown>;
         return { args: rest, securityRisk: security_risk as SecurityRisk | undefined };
       }
-      return { args: {} };
+      throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
       this.events.push({
         type: 'AgentErrorEvent',
@@ -328,8 +333,21 @@ export class Agent extends EventEmitter {
       return;
     }
 
+    let validated;
     try {
-      const validated = tool.validate(args);
+      validated = tool.validate(args);
+    } catch (e) {
+      this.events.push({
+        type: 'AgentErrorEvent',
+        source: 'agent',
+        error: `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`,
+        tool_name: toolCall.function.name,
+        tool_call_id: toolCall.id,
+      } as Event);
+      return;
+    }
+
+    try {
       const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
       const result = await tool.execute(validated, context);
 

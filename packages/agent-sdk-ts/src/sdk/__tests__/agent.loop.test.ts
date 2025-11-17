@@ -5,15 +5,16 @@ import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from 
 import type { ToolHandler } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 
-class MockLLM implements LLMClient {
-  constructor(private readonly chunks: LLMStreamChunk[]) {}
+  class MockLLM implements LLMClient {
+    constructor(private readonly chunks: LLMStreamChunk[]) {}
 
-  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
-    for (const chunk of this.chunks) {
-      yield chunk;
+    async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+      void _request;
+      for (const chunk of this.chunks) {
+        yield chunk;
+      }
     }
   }
-}
 
 const baseSettings: OpenHandsSettings = {
   llm: { model: 'test-model' },

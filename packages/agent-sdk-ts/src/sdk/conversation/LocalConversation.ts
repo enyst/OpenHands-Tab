@@ -81,8 +81,8 @@ export class LocalConversation extends EventEmitter {
     return Promise.resolve();
   }
 
-  resume(): Promise<void> {
-    return this.agent.resume().then(() => undefined);
+  async resume(): Promise<void> {
+    await this.agent.resume();
   }
 
   approveAction(): Promise<void> {
