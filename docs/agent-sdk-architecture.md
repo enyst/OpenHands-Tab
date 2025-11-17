@@ -13,7 +13,7 @@ The SDK follows these core principles:
 3. **Type Safety** - Complete TypeScript types with runtime validation
 4. **Modularity** - Each layer can be used independently or composed together
 5. **Extensibility** - Easy to add new LLM providers, tools, and workspace implementations
-6. **Testing** - Comprehensive test coverage with deterministic fixtures
+6. **Testing** - Tests with deterministic fixtures
 
 ## Architecture Layers
 
