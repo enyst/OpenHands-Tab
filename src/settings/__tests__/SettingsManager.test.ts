@@ -25,7 +25,7 @@ describe('SettingsManager', () => {
 
   it('returns defaults when unset', async () => {
     const s = await mgr.get();
-    expect(s.serverUrl).toBe('http://localhost:3000');
+    expect(s.serverUrl).toBeUndefined();
     expect(s.llm.usageId).toBeUndefined();
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
   });
@@ -171,7 +171,7 @@ describe('SettingsManager', () => {
 
     const s = await mgr.get();
 
-    expect(s.serverUrl).toBe('http://localhost:3000');
+    expect(s.serverUrl).toBeUndefined();
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
     expect(s.conversation.maxIterations).toBe(50);
     expect(s.confirmation.policy).toBe('never');

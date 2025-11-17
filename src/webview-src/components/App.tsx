@@ -491,6 +491,7 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
  */
 export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
+  const [mode, setMode] = useState<'local' | 'remote'>('remote');
   const [events, setEvents] = useState<RenderedEvent[]>([]);
   const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
@@ -580,13 +581,18 @@ export function App() {
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string; event?: unknown; error?: unknown };
+      const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string | null; mode?: 'local' | 'remote'; event?: unknown; error?: unknown; terminalEvent?: unknown };
 
       switch (payload?.type) {
         case 'status':
           if (payload.status) {
             setStatus(payload.status);
-            if (payload.status === 'connecting') {
+            if (payload.mode === 'local' || payload.mode === 'remote') {
+              setMode(payload.mode);
+            }
+            if (payload.mode === 'local') {
+              setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
+            } else if (payload.status === 'connecting') {
               setStatusBanner({ message: 'Connecting to server…', level: 'info' });
             } else if (payload.status === 'online') {
               setStatusBanner({ message: 'Connected to server', level: 'info' });
@@ -596,8 +602,15 @@ export function App() {
           }
           break;
         case 'configUpdated':
-          if (typeof payload.serverUrl === 'string') {
-            toastDebounced('info', `Config updated: ${payload.serverUrl}`);
+          if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
+            const label = payload.serverUrl && payload.serverUrl.length > 0 ? payload.serverUrl : 'local mode';
+            toastDebounced('info', `Config updated: ${label}`);
+          }
+          if (payload.mode === 'local') {
+            setMode('local');
+            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
+          } else if (payload.mode === 'remote') {
+            setMode('remote');
           }
           break;
         case 'event':
@@ -624,6 +637,9 @@ export function App() {
           }
           break;
         }
+        case 'terminalEvent':
+          // terminal events are rendered in the VS Code terminal; keep hook for future UI updates
+          break;
         case 'workspaceFiles': {
           const files = Array.isArray((payload as { files?: unknown }).files)
             ? (payload as { files: unknown[] }).files.filter((f): f is string => typeof f === 'string')
@@ -881,6 +897,7 @@ export function App() {
     };
   }, [closeContextPicker, closeSkillsPopover, showContextPicker, showSkillsPopover]);
 
+  const isLocalMode = mode === 'local';
   const connectionIcon = status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync';
   const connectionStatusClass = status === 'online'
     ? 'bg-[var(--vscode-testing-iconPassed)]'
@@ -948,8 +965,13 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
       <ToastManager />
       <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
         <div className="flex items-center gap-2">
-          <StatusDot status={status} />
+          {!isLocalMode && <StatusDot status={status} />}
           <Typography.H2 className="text-[17px]">OpenHands</Typography.H2>
+          {isLocalMode && (
+            <span className="text-xs px-2 py-1 rounded bg-[color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] text-[color-mix(in_srgb,var(--vscode-foreground)_80%,transparent)]">
+              Local mode
+            </span>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2">
           <ToolbarButton
@@ -967,13 +989,15 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
             label="Settings"
             onClick={() => postMessage({ type: 'openSettingsPage' })}
           />
-          <ToolbarButton
-            icon={connectionIcon}
-            iconClassName={status === 'connecting' ? 'animate-spin' : ''}
-            label={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
-            onClick={() => postMessage({ type: 'command', command: 'reconnect' })}
-            statusClassName={connectionStatusClass}
-          />
+          {!isLocalMode && (
+            <ToolbarButton
+              icon={connectionIcon}
+              iconClassName={status === 'connecting' ? 'animate-spin' : ''}
+              label={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
+              onClick={() => postMessage({ type: 'command', command: 'reconnect' })}
+              statusClassName={connectionStatusClass}
+            />
+          )}
         </div>
       </header>
 

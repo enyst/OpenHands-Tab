@@ -67,8 +67,8 @@
       "properties": {
         "openhands.serverUrl": {
           "type": "string",
-          "default": "http://localhost:3000",
-          "description": "OpenHands agent-server base URL"
+          "default": "",
+          "markdownDescription": "OpenHands agent-server base URL. Leave blank to run in local mode."
         },
         "openhands.conversation.maxIterations": {
           "type": "number",
@@ -104,12 +104,6 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
-        },
-        "openhands.bashEvents.enabled": {
-          "type": "boolean",
-          "default": false,
-          "scope": "window",
-          "markdownDescription": "Enable live bash command output streaming to VS Code integrated terminal."
         },
         "openhands.llm.usageId": {
           "type": "string",
@@ -176,6 +170,11 @@
           ],
           "default": "none",
           "markdownDescription": "Reasoning effort for supported models."
+        },
+        "openhands.bashEvents.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable streaming bash events into the extension (experimental)"
         }
       }
     },

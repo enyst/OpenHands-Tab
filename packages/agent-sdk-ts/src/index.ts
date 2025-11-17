@@ -3,3 +3,4 @@ export * from './workspace';
 export * from './tools';
 export * from './runtime';
 export * from './llm';
+export * from './conversation';
