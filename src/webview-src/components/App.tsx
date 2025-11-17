@@ -640,12 +640,6 @@ export function App() {
         case 'terminalEvent':
           // terminal events are rendered in the VS Code terminal; keep hook for future UI updates
           break;
-        case 'renderedEventsResponse':
-          if (typeof payload.count === 'number' && Array.isArray(payload.eventTypes)) {
-            // Store the response from webview for testing/diagnostics
-            renderedEventsInfo = { count: payload.count, eventTypes: payload.eventTypes as string[] };
-          }
-          break;
         case 'workspaceFiles': {
           const files = Array.isArray((payload as { files?: unknown }).files)
             ? (payload as { files: unknown[] }).files.filter((f): f is string => typeof f === 'string')
