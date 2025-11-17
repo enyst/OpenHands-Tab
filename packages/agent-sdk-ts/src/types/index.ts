@@ -145,21 +145,31 @@ export const isEvent = (candidate: unknown): candidate is Event => {
   if (!candidate || typeof candidate !== 'object') return false;
   const obj = candidate as Record<string, unknown>;
   if (typeof obj.type !== 'string') return false;
-  const { type } = obj;
 
-  // Agent-sdk event types - strict validation
-  if (type === 'SystemPromptEvent') return !!obj.system_prompt && Array.isArray(obj.tools);
-  if (type === 'ActionEvent') return !!obj.tool_name && Array.isArray(obj.thought);
-  if (type === 'ObservationEvent') return !!obj.observation && !!obj.tool_name;
-  if (type === 'UserRejectObservation') return typeof obj.rejection_reason === 'string' && !!obj.tool_name;
-  if (type === 'MessageEvent') return !!obj.llm_message && typeof obj.llm_message === 'object';
-  if (type === 'AgentErrorEvent') return typeof obj.error === 'string' && !!obj.tool_name;
-  if (type === 'ConversationErrorEvent') return typeof obj.detail === 'string' || typeof obj.code === 'string';
-  if (type === 'PauseEvent') return obj.source === 'user';
-  if (type === 'Condensation') return Array.isArray(obj.forgotten_event_ids);
-  if (type === 'ConversationStateUpdateEvent') return true;
-
-  return false;
+  switch (obj.type) {
+    case 'SystemPromptEvent':
+      return !!obj.system_prompt && Array.isArray(obj.tools);
+    case 'ActionEvent':
+      return !!obj.tool_name && Array.isArray(obj.thought);
+    case 'ObservationEvent':
+      return !!obj.observation && !!obj.tool_name;
+    case 'UserRejectObservation':
+      return typeof obj.rejection_reason === 'string' && !!obj.tool_name;
+    case 'MessageEvent':
+      return !!obj.llm_message && typeof obj.llm_message === 'object';
+    case 'AgentErrorEvent':
+      return typeof obj.error === 'string' && !!obj.tool_name;
+    case 'ConversationErrorEvent':
+      return typeof obj.detail === 'string' || typeof obj.code === 'string';
+    case 'PauseEvent':
+      return obj.source === 'user';
+    case 'Condensation':
+      return Array.isArray(obj.forgotten_event_ids);
+    case 'ConversationStateUpdateEvent':
+      return true;
+    default:
+      return false;
+  }
 };
 
 // Content guards
@@ -212,17 +222,26 @@ export type BashEvent = BashCommand | BashOutput | BashExit;
 // Bash event guards
 export const isBashEvent = (candidate: unknown): candidate is BashEvent => {
   if (!candidate || typeof candidate !== 'object') return false;
-  const e = candidate as Partial<BashEvent> & { type?: string };
-  if (!e.type || typeof e.type !== 'string') return false;
-  if (!('command_id' in e) || typeof e.command_id !== 'string') return false;
-  if (!('order' in e) || typeof e.order !== 'number') return false;
+  const e = candidate as Record<string, unknown>;
 
-  const { type } = e;
-  if (type === 'BashCommand') return typeof e.command === 'string';
-  if (type === 'BashOutput') return 'exit_code' in e && 'stdout' in e && 'stderr' in e;
-  if (type === 'BashExit') return typeof e.exit_code === 'number';
+  if (
+    typeof e.type !== 'string' ||
+    typeof e.command_id !== 'string' ||
+    typeof e.order !== 'number'
+  ) {
+    return false;
+  }
 
-  return false;
+  switch (e.type) {
+    case 'BashCommand':
+      return typeof e.command === 'string';
+    case 'BashOutput':
+      return 'exit_code' in e && 'stdout' in e && 'stderr' in e;
+    case 'BashExit':
+      return typeof e.exit_code === 'number';
+    default:
+      return false;
+  }
 };
 
 export const isBashCommand = (event: BashEvent): event is BashCommand => event.type === 'BashCommand';
