@@ -84,16 +84,6 @@ The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that
 
 ### SDK vs. Extension
 
-| Capability | SDK (@openhands/agent-sdk-ts) | VS Code Extension |
-|------------|-------------------------------|-------------------|
-| LLM Orchestration | ✅ Built-in streaming clients | ❌ Relies on external agent-server |
-| Tool Execution | ✅ Direct execution in Node.js | ❌ Server-side execution |
-| Workspace Access | ✅ LocalWorkspace abstraction | ✅ Via VS Code APIs |
-| Protocol Types | ✅ Full TypeScript types | ✅ Uses SDK types |
-| State Management | ✅ ConversationState, EventLog | ✅ VS Code workspaceState |
-
-The extension primarily uses the SDK for protocol types and guards, while relying on the external agent-server for agent execution. Future versions may offer a "local agent" mode using the SDK's full runtime capabilities.
-
 See [agent-sdk-architecture.md](./agent-sdk-architecture.md) for detailed SDK documentation.
 
 ## 6. External Dependencies & Protocol
