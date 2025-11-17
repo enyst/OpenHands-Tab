@@ -168,8 +168,14 @@ export class Agent extends EventEmitter {
         break;
       }
 
+      let toolExecutionFailed = false;
       for (const toolCall of toolCalls) {
-        const { args, securityRisk } = this.parseToolArgs(toolCall.function.arguments);
+        const parsedArgs = this.parseToolArgs(toolCall);
+        if (!parsedArgs) {
+          toolExecutionFailed = true;
+          break;
+        }
+        const { args, securityRisk } = parsedArgs;
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
@@ -180,7 +186,17 @@ export class Agent extends EventEmitter {
           return lastAssistantMessage;
         }
 
-        await this.executeTool(toolCall, recordedAction, args);
+        try {
+          await this.executeTool(toolCall, recordedAction, args);
+        } catch {
+          toolExecutionFailed = true;
+          break;
+        }
+      }
+
+      if (toolExecutionFailed) {
+        this.state.setStatus('IDLE');
+        continue;
       }
     }
 
@@ -267,7 +283,8 @@ export class Agent extends EventEmitter {
     this.events.push(event);
   }
 
-  private parseToolArgs(raw: string | undefined): { args: Record<string, unknown>; securityRisk?: SecurityRisk } {
+  private parseToolArgs(toolCall: ToolCall): { args: Record<string, unknown>; securityRisk?: SecurityRisk } | undefined {
+    const raw = toolCall.function.arguments;
     if (!raw) return { args: {} };
     try {
       const parsed: unknown = JSON.parse(raw);
@@ -281,10 +298,10 @@ export class Agent extends EventEmitter {
         type: 'AgentErrorEvent',
         source: 'agent',
         error: `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`,
-        tool_name: 'unknown',
-        tool_call_id: randomUUID(),
+        tool_name: toolCall.function.name,
+        tool_call_id: toolCall.id,
       } as Event);
-      return { args: {} };
+      return undefined;
     }
   }
 
@@ -383,6 +400,7 @@ export class Agent extends EventEmitter {
         detail: e instanceof Error ? e.message : String(e),
         code: 'tool_execution_failed',
       } as Event);
+      throw e;
     }
   }
 

@@ -19,7 +19,7 @@ import type { OpenHandsSettings } from '../types/settings';
 const baseSettings: OpenHandsSettings = {
   llm: { model: 'test-model' },
   agent: {},
-  conversation: {},
+  conversation: { maxIterations: 1 },
   confirmation: {},
   secrets: {},
 };
@@ -75,5 +75,29 @@ describe('Agent loop control', () => {
     expect(eventsAfterApproval.some(isObservationEvent)).toBe(true);
     const toolMessages = eventsAfterApproval.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages.length).toBe(1);
+  });
+
+  it('records agent error when tool arguments are not objects', async () => {
+    const log = new EventLog();
+    const tool: ToolHandler<Record<string, unknown>, { echoed: boolean }> = {
+      name: 'echo',
+      validate: (input) => input,
+      execute: async (args) => ({ echoed: Boolean(args.value) }),
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Calling tool' },
+      { type: 'tool_call_delta', id: 'call_invalid', name: 'echo', arguments: 'false' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/workspace', llmClient: llm, tools: [tool] });
+    await agent.run('bad args');
+
+    const events = log.list();
+    const agentErrors = events.filter((event) => event.type === 'AgentErrorEvent');
+    expect(agentErrors).toHaveLength(1);
+    expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_invalid');
+    expect(events.some(isActionEvent)).toBe(false);
+    expect(events.some(isObservationEvent)).toBe(false);
   });
 });
