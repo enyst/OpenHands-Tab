@@ -2,9 +2,9 @@
 
 ## Overview
 
-The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation for building AI agents with the OpenHands platform. It provides a runtime layer for agent orchestration, LLM integration, tool execution, workspace management, and full protocol type definitions.
+> Scope: VS Code Extension only — this SDK is intended to run inside VSCode for use of the OpenHands-Tab extension; standalone usage or non‑VS Code API integrations are not in scope.
 
-This SDK can be used standalone or as part of the OpenHands-Tab VS Code extension.
+The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. It provides a runtime layer for agent orchestration, LLM integration, tool execution, workspace management, and full protocol type definitions.
 
 ## Architecture
 
