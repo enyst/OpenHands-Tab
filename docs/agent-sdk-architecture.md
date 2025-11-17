@@ -417,6 +417,136 @@ if (result.stuck) {
 }
 ```
 
+### LocalConversation
+
+**Purpose**: Provides full in-process agent execution within VS Code without requiring an external agent-server.
+
+**Key Responsibilities**:
+- Orchestrate complete agent loops with LLM calls and tool execution
+- Manage conversation state and iteration limits
+- Emit proper events (MessageEvent, ActionEvent, ObservationEvent, etc.)
+- Handle confirmation flow for risky actions
+- Integrate with VS Code APIs (SecretStorage, Terminal, Workspace)
+
+**Usage Example**:
+```typescript
+import { LocalConversation } from '@openhands/agent-sdk-ts';
+
+const conversation = new LocalConversation({
+  settings: {
+    llm: {
+      model: 'claude-sonnet-4-20250514',
+      temperature: 0.7,
+    },
+    conversation: {
+      maxIterations: 50,
+    },
+    confirmation: {
+      policy: 'risky', // 'never' | 'always' | 'risky'
+    },
+    secrets: {
+      llmApiKey: 'your-api-key',
+    },
+  },
+  workspaceRoot: '/path/to/workspace',
+  secretStorage: vscode.secrets, // VS Code SecretStorage
+});
+
+// Listen to events
+conversation.on('event', (event) => {
+  if (event.type === 'MessageEvent') {
+    console.log('Agent message:', event.llm_message);
+  }
+  if (event.type === 'ActionEvent') {
+    console.log('Agent action:', event.tool_name, event.action);
+  }
+  if (event.type === 'ObservationEvent') {
+    console.log('Tool result:', event.observation);
+  }
+});
+
+// Send user message (triggers agent loop)
+await conversation.sendUserMessage('Create a hello world function');
+
+// Control execution
+await conversation.pause();
+await conversation.resume();
+
+// Confirmation flow
+await conversation.approveAction();
+await conversation.rejectAction('Too risky');
+```
+
+**Internal Agent Loop**:
+```
+sendUserMessage(text)
+  ↓
+Emit MessageEvent (user)
+  ↓
+run() [Agent Loop]
+  ↓
+while (iteration < maxIterations):
+  ├─ Call LLM via AgentOrchestrator
+  │  ├─ Stream LLM response
+  │  └─ Emit MessageEvent (assistant)
+  ├─ Check for tool calls
+  ├─ For each tool call:
+  │  ├─ Validate arguments
+  │  ├─ Emit ActionEvent
+  │  ├─ Check confirmation policy
+  │  │  ├─ If requires confirmation:
+  │  │  │  ├─ Set status: waiting_for_confirmation
+  │  │  │  └─ Wait for approve/reject
+  │  │  └─ Else: execute tool
+  │  ├─ Execute tool (Terminal/FileEditor/TaskTracker/Browser)
+  │  └─ Emit ObservationEvent
+  ├─ Add tool results to message history
+  └─ Continue to next iteration
+  ↓
+Set status: finished
+```
+
+**Available Tools**:
+- `terminal`: Execute shell commands in workspace
+- `file_editor`: Create/modify files in workspace
+- `task_tracker`: Manage tasks and track progress
+- `browser`: Browse web pages (requires browser integration)
+
+**Confirmation Policy**:
+- `never`: All tools execute automatically (default)
+- `always`: All tools require user confirmation
+- `risky`: Only risky tools require confirmation (e.g., `rm -rf`, `sudo`)
+
+**VS Code Integration**:
+- Uses `vscode.SecretStorage` for API keys
+- Uses `IntegratedTerminalRunner` for terminal integration
+- Uses VS Code workspace APIs for file operations
+- Emits terminal events for command output visualization
+
+**State Management**:
+- Tracks conversation messages and history
+- Manages iteration count with configurable limits
+- Maintains execution status (idle/running/paused/waiting_for_confirmation/finished/error)
+- Stores pending actions waiting for confirmation
+
+**Error Handling**:
+- Emits `AgentErrorEvent` for tool execution errors
+- Emits `ConversationErrorEvent` for conversation-level errors
+- Sets execution status to `error` on failures
+- Continues execution after recoverable errors
+
+**Comparison with RemoteConversation**:
+
+| Feature | LocalConversation | RemoteConversation |
+|---------|------------------|-------------------|
+| Agent execution | In-process | External agent-server |
+| Network required | No | Yes |
+| Setup complexity | Low | Medium (requires server) |
+| VS Code binding | Strong | Weak |
+| Performance | Fast (no network) | Slower (network overhead) |
+| Scalability | Single workspace | Multi-workspace |
+| State persistence | Memory only | Server-managed |
+
 ## Layer 2: LLM Integration
 
 The LLM layer provides streaming clients for various LLM providers with unified interfaces.
