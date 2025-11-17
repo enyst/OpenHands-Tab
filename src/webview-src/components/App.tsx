@@ -36,7 +36,7 @@ import {
   type ConversationErrorEvent,
   type PauseEvent,
   type Condensation,
-} from 'agent-sdk-ts';
+} from '@openhands/agent-sdk-ts';
 
 interface VscodeApi {
   postMessage: (message: unknown) => void;

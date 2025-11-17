@@ -6,7 +6,7 @@ import type {
   MessageEvent as AgentMessageEvent,
   AgentErrorEvent,
   ConversationErrorEvent,
-} from 'agent-sdk-ts';
+} from '@openhands/agent-sdk-ts';
 
 afterEach(() => {
   cleanup();

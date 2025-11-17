@@ -7,7 +7,7 @@ import {
   type BashCommand,
   type BashOutput,
   type BashExit,
-} from 'agent-sdk-ts';
+} from '@openhands/agent-sdk-ts';
 
 describe('BashEventsClient type guards', () => {
   it('validates BashCommand event', () => {

@@ -36,26 +36,26 @@ A VS Code extension that brings the power of OpenHands AI agents directly into y
 
 ### Monorepo layout & SDK builds
 
-This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript models that live in `packages/agent-sdk-ts`.
+This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript models that live in `packages/agent-sdk-ts` and are published as `@openhands/agent-sdk-ts`.
 
-- `npm run build` runs the SDK build first (`npm run build -w agent-sdk-ts`) and then compiles the extension/webview bundles.
-- `npm run test` executes `npm test -w agent-sdk-ts` before running the extension Vitest suite, ensuring both projects stay green in CI.
+- `npm run build` runs the SDK build first (`npm run build -w @openhands/agent-sdk-ts`) and then compiles the extension/webview bundles.
+- `npm run test` executes `npm test -w @openhands/agent-sdk-ts` before running the extension Vitest suite, ensuring both projects stay green in CI.
 - `npm run lint` calls the SDK lint task before linting the extension sources.
 
 You can work on the SDK package in isolation with the usual npm workspace commands:
 
 ```bash
 # Build ESM/CJS bundles + declaration files
-npm run build -w agent-sdk-ts
+npm run build -w @openhands/agent-sdk-ts
 
 # Run the Vitest suite from packages/agent-sdk-ts
-npm test -w agent-sdk-ts
+npm test -w @openhands/agent-sdk-ts
 
 # Lint the SDK package with its dedicated ESLint config
-npm run lint -w agent-sdk-ts
+npm run lint -w @openhands/agent-sdk-ts
 ```
 
-> 💡 If you edit `packages/agent-sdk-ts`, rerun `npm run build -w agent-sdk-ts` (or `npm run build`) before launching the extension so the bundled `node_modules/agent-sdk-ts/dist` reflects your latest changes.
+> 💡 If you edit `packages/agent-sdk-ts`, rerun `npm run build -w @openhands/agent-sdk-ts` (or `npm run build`) before launching the extension so the bundled `node_modules/@openhands/agent-sdk-ts/dist` reflects your latest changes.
 
 ### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
