@@ -100,4 +100,28 @@ describe('Agent loop control', () => {
     expect(events.some(isActionEvent)).toBe(false);
     expect(events.some(isObservationEvent)).toBe(false);
   });
+
+  it('handles JSON primitives in tool arguments by emitting agent error', async () => {
+    const log = new EventLog();
+    const tool: ToolHandler<Record<string, unknown>, { echoed: boolean }> = {
+      name: 'echo',
+      validate: (input) => input,
+      execute: async (args) => ({ echoed: Boolean(args.value) }),
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Calling tool' },
+      { type: 'tool_call_delta', id: 'call_primitive', name: 'echo', arguments: '42' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/workspace', llmClient: llm, tools: [tool] });
+    await agent.run('bad args');
+
+    const events = log.list();
+    const agentErrors = events.filter((event) => event.type === 'AgentErrorEvent');
+    expect(agentErrors).toHaveLength(1);
+    expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_primitive');
+    expect(events.some(isActionEvent)).toBe(false);
+    expect(events.some(isObservationEvent)).toBe(false);
+  });
 });
