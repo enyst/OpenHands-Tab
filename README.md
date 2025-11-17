@@ -69,11 +69,11 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 
 **Conversation Layer** (Primary API):
 - `Conversation()` - Factory function that creates local or remote conversation instances
-- `LocalConversation` - In-memory agent execution stub (not yet fully implemented)
+- `LocalConversation` - In-memory agent execution for VS Code with workspace tools
 - `RemoteConversation` - WebSocket-based remote agent communication with auto-reconnect
 - Event-driven API: `.on('event', ...)`, `.on('status', ...)`, `.on('error', ...)`
 - Dual mode support: Automatically selects local or remote based on serverUrl
-- **Note**: Currently requires agent-server (localhost or remote) for functional agent execution
+- Local mode runs directly inside VS Code; remote mode requires an agent-server
 
 **Runtime Layer**:
 - `AgentOrchestrator` - LLM orchestration with streaming support

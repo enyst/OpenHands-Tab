@@ -22,7 +22,11 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
       conversationId: options.conversationId,
     }) as ConversationInstance;
   }
-  return new LocalConversation({ settings: options.settings, conversationId: options.conversationId }) as ConversationInstance;
+  return new LocalConversation({
+    settings: options.settings,
+    conversationId: options.conversationId,
+    workspaceRoot: options.workspaceRoot,
+  }) as ConversationInstance;
 }
 
 export { LocalConversation, RemoteConversation };
