@@ -312,7 +312,6 @@ conversation.disconnect();
 ```typescript
 // Local mode - ⚠️ Currently a stub (no actual agent execution)
 const localConversation = Conversation({
-  serverUrl: undefined, // or omit
   settings: { /* ... */ },
   workspaceRoot: '/workspace',
 });
