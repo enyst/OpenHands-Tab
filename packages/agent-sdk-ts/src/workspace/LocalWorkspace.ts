@@ -2,15 +2,12 @@ import { spawn } from 'child_process';
 import type { SpawnOptions } from 'child_process';
 import * as fs from 'fs';
 import { readFile as readFileAsync, mkdir, writeFile as writeFileAsync, rm, readdir } from 'node:fs/promises';
-import type { Buffer } from 'node:buffer';
-import type { BufferEncoding } from 'node:buffer';
-import type { ProcessEnv } from 'node:process';
 import path from 'path';
 import os from 'os';
 
 export interface CommandOptions {
   cwd?: string;
-  env?: ProcessEnv;
+  env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
   shell?: string;
 }
@@ -107,15 +104,15 @@ export class LocalWorkspace {
 
   async runCommand(command: string, options: CommandOptions = {}): Promise<CommandResult> {
     const cwd = options.cwd ? this.resolvePath(options.cwd) : this.root;
-      return new Promise<CommandResult>((resolve) => {
+    return new Promise<CommandResult>((resolve) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const env: NodeJS.ProcessEnv = { ...process.env, ...(options.env ?? {}) };
+      const spawnOptions: SpawnOptions = {
+        cwd,
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const env: ProcessEnv = { ...process.env, ...(options.env ?? {}) };
-        const spawnOptions: SpawnOptions = {
-          cwd,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          env,
-          shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
-        };
+        env,
+        shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
+      };
       const child = spawn(command, spawnOptions);
 
       let stdout = '';
