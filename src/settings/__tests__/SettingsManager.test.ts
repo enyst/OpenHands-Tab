@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { SettingsManager } from '../SettingsManager';
 import type { SettingsAdapter } from '../SettingsAdapter';
 
@@ -15,9 +15,15 @@ class MemoryAdapter implements SettingsAdapter {
 }
 
 describe('SettingsManager', () => {
+  let a: MemoryAdapter;
+  let mgr: SettingsManager;
+
+  beforeEach(() => {
+    a = new MemoryAdapter();
+    mgr = new SettingsManager(a);
+  });
+
   it('returns defaults when unset', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://localhost:3000');
     expect(s.llm.usageId).toBeUndefined();
@@ -25,8 +31,6 @@ describe('SettingsManager', () => {
   });
 
   it('updates and persists config and secrets', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
     await mgr.update({
       serverUrl: 'http://example:1234',
       llm: { usageId: 'my-usage', model: 'foo', baseUrl: 'https://api.example.com' },
@@ -50,8 +54,6 @@ describe('SettingsManager', () => {
   });
 
   it('clears secret when undefined is provided', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
     await mgr.update({ secrets: { llmApiKey: 'abc' } });
     let s = await mgr.get();
     expect(s.secrets.llmApiKey).toBe('abc');
@@ -61,9 +63,6 @@ describe('SettingsManager', () => {
   });
 
   it('updates AWS credentials', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
-
     await mgr.update({
       secrets: {
         awsAccessKeyId: 'AKIAIOSFODNN7EXAMPLE',
@@ -77,9 +76,6 @@ describe('SettingsManager', () => {
   });
 
   it('clears AWS credentials when undefined is provided', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
-
     await mgr.update({
       secrets: {
         awsAccessKeyId: 'AKIAIOSFODNN7EXAMPLE',
@@ -104,9 +100,6 @@ describe('SettingsManager', () => {
   });
 
   it('updates all optional LLM fields', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
-
     await mgr.update({
       llm: {
         apiVersion: '2024-01-01',
@@ -134,9 +127,6 @@ describe('SettingsManager', () => {
   });
 
   it('handles sanitizePositiveInteger with invalid inputs', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
-
     // Test with invalid maxInputTokens and maxOutputTokens
     await mgr.update({
       llm: {
@@ -151,9 +141,6 @@ describe('SettingsManager', () => {
   });
 
   it('handles sanitizePositiveInteger with fractional numbers', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
-
     await mgr.update({
       llm: {
         maxInputTokens: 4096.7 as any, // Should be truncated to 4096
@@ -167,20 +154,21 @@ describe('SettingsManager', () => {
   });
 
   it('handles null returns from adapter.get by falling back to defaults', async () => {
-    const a = new MemoryAdapter();
     // Override get to return null for specific keys
     const originalGet = a.get.bind(a);
+    const nullKeys = new Set([
+      'openhands.serverUrl',
+      'openhands.agent.enableSecurityAnalyzer',
+      'openhands.conversation.maxIterations',
+      'openhands.confirmation.policy',
+      'openhands.confirmation.risky.threshold',
+      'openhands.confirmation.risky.confirmUnknown',
+    ]);
     a.get = <T>(key: string, def?: T): T | undefined => {
-      if (key === 'openhands.serverUrl') return null as any;
-      if (key === 'openhands.agent.enableSecurityAnalyzer') return null as any;
-      if (key === 'openhands.conversation.maxIterations') return null as any;
-      if (key === 'openhands.confirmation.policy') return null as any;
-      if (key === 'openhands.confirmation.risky.threshold') return null as any;
-      if (key === 'openhands.confirmation.risky.confirmUnknown') return null as any;
+      if (nullKeys.has(key)) return null as any;
       return originalGet(key, def);
     };
 
-    const mgr = new SettingsManager(a);
     const s = await mgr.get();
 
     expect(s.serverUrl).toBe('http://localhost:3000');
@@ -192,9 +180,6 @@ describe('SettingsManager', () => {
   });
 
   it('updates settings with global target', async () => {
-    const a = new MemoryAdapter();
-    const mgr = new SettingsManager(a);
-
     await mgr.update({ serverUrl: 'http://global:5000' }, 'global');
 
     const s = await mgr.get();
