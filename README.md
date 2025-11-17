@@ -189,6 +189,6 @@ Detailed documentation is available in the [docs/](docs/) directory:
 - **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
 - **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
 - **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
-- Bash events live terminal integration is now handled by LocalConversation in local mode; the previous docs/bash_events.md has been removed.
+- **Bash Events** - Live terminal integration is now handled by `LocalConversation` in local mode; the previous `docs/bash_events.md` has been removed.
 - **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
 - **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
