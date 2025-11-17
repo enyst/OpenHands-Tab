@@ -12,6 +12,7 @@ class FakeLLM implements LLMClient {
     this.responses = responses;
   }
 
+  // eslint-disable-next-line require-await
   async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     const next = this.responses.shift() ?? [];
     for (const chunk of next) {
