@@ -143,4 +143,3 @@ Detailed documentation is available in the [docs/](docs/) directory:
 - **[bash_events.md](docs/bash_events.md)** - Bash events live terminal integration
 - **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
 - **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
-- **[GEMINI_EXPLANATION.md](docs/GEMINI_EXPLANATION.md)** - ESLint configuration decisions
