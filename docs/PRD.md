@@ -47,6 +47,55 @@ Data flow notes
 - Webview does not call the network directly. All network calls and WebSocket connections go through the Extension Host (to avoid CORS and webview limitations).
 - Extension Host relays messages to/from the Webview via VS Code postMessage API.
 
+## 5a. TypeScript SDK Architecture (@openhands/agent-sdk-ts)
+
+The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that provides reusable agent infrastructure. While the VS Code extension can connect to an external agent-server, the SDK enables building agents directly in TypeScript/JavaScript environments.
+
+### SDK Layers
+
+**Runtime Layer** (`src/runtime/`):
+- `AgentOrchestrator` - LLM streaming orchestration with tool call accumulation
+- `EventLog` - Event history management and queries
+- `ConversationState` - Stateful conversation tracking with snapshots
+- `SecretRegistry` - Secure credential storage (integrates with VS Code SecretStorage)
+- `AsyncLock` - Concurrency control for agent operations
+- `StuckDetector` - Agent health monitoring and loop detection
+
+**LLM Integration** (`src/llm/`):
+- Streaming LLM clients: Anthropic (`anthropic.ts`), OpenAI-compatible (`openai-compatible.ts`)
+- Factory pattern (`factory.ts`) for auto-detecting providers
+- Credential management (`credentials.ts`) with environment/secret fallback
+- Complete type definitions for streaming chunks, responses, and configuration
+
+**Tool System** (`src/tools/`):
+- `TerminalTool` - Execute shell commands with streaming output
+- `FileEditorTool` - File operations (read, write, search/replace) with validation
+- `TaskTrackerTool` - Task management (create, update, query)
+- `BrowserTool` - Browser automation (navigate, execute JS, screenshots)
+- `IntegratedTerminalRunner` - VS Code terminal integration
+
+**Workspace** (`src/workspace/`):
+- `LocalWorkspace` - File system abstraction with path validation and sandboxing
+
+**Protocol Types** (`src/types/`):
+- Complete TypeScript types for Message/Event protocol
+- Type guards for runtime validation (isEvent, isMessageEvent, isActionEvent, etc.)
+- Support for all event types (MessageEvent, ActionEvent, ObservationEvent, SystemPromptEvent, AgentErrorEvent, ConversationErrorEvent, PauseEvent, Condensation, ConversationStateUpdateEvent)
+
+### SDK vs. Extension
+
+| Capability | SDK (@openhands/agent-sdk-ts) | VS Code Extension |
+|------------|-------------------------------|-------------------|
+| LLM Orchestration | ✅ Built-in streaming clients | ❌ Relies on external agent-server |
+| Tool Execution | ✅ Direct execution in Node.js | ❌ Server-side execution |
+| Workspace Access | ✅ LocalWorkspace abstraction | ✅ Via VS Code APIs |
+| Protocol Types | ✅ Full TypeScript types | ✅ Uses SDK types |
+| State Management | ✅ ConversationState, EventLog | ✅ VS Code workspaceState |
+
+The extension primarily uses the SDK for protocol types and guards, while relying on the external agent-server for agent execution. Future versions may offer a "local agent" mode using the SDK's full runtime capabilities.
+
+See [agent-sdk-architecture.md](./agent-sdk-architecture.md) for detailed SDK documentation.
+
 ## 6. External Dependencies & Protocol
 - OpenHands Server (agent-server)
   - Default URL: http://localhost:3000 (local PoC)
