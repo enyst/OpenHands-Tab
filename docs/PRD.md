@@ -283,10 +283,10 @@ Confirmation policy
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
   - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
   - Security risk indicators (LOW/MEDIUM/HIGH) in action events
-- Live Bash Events Terminal ✓ IMPLEMENTED
-  - Stream bash command output to VS Code integrated terminal via /sockets/bash-events
+- Live Bash Events Terminal ✓ IMPLEMENTED (local mode)
+  - In local mode, the SDK emits bash events which are rendered in the VS Code integrated terminal
   - Configurable via openhands.bashEvents.enabled setting
-  - See bash_events.md for full feature specification
+  - The legacy /sockets/bash-events client and docs/bash_events.md were removed
 - Activity Bar Integration ✓ IMPLEMENTED
   - Custom activity bar icon and view
   - Quick action shortcuts for opening tab and settings
