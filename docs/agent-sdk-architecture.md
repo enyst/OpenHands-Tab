@@ -995,7 +995,7 @@ await conversation.startNewConversation();
 await conversation.sendUserMessage('List files in the current directory');
 ```
 
-**Note**: LocalConversation (serverUrl: undefined) is currently a stub. For functional local execution, use RemoteConversation with agent-server on localhost.
+**TODO**: LocalConversation (serverUrl: undefined) is currently a stub.
 
 ### Pattern 3: Low-Level Orchestration (Advanced)
 
