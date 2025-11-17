@@ -49,7 +49,7 @@ Data flow notes
 
 ## 5a. TypeScript SDK Architecture (@openhands/agent-sdk-ts)
 
-The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that provides reusable agent infrastructure. While the VS Code extension can connect to an external agent-server, the SDK enables building agents directly in TypeScript/JavaScript environments.
+The repository includes a TypeScript SDK (`packages/agent-sdk-ts`) that provides reusable agent infrastructure for the VS Code extension. The SDK is intended for use inside the OpenHands-Tab VS Code extension and does not support standalone execution or non‑VS Code environments.
 
 ### SDK Layers
 
