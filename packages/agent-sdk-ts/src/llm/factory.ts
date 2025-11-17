@@ -19,9 +19,15 @@ export class LLMFactory {
   }
 
   async createClient(): Promise<LLMClient> {
-    const apiKey = await this.credentialProvider.getApiKey(
-      this.config.apiKey ?? this.preferredKeys ?? this.getDefaultApiKeyName(),
-    );
+    const inlineApiKey =
+      typeof this.config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(this.config.apiKey)
+        ? this.config.apiKey
+        : undefined;
+    const apiKey =
+      inlineApiKey ??
+      (await this.credentialProvider.getApiKey(
+        this.config.apiKey ?? this.preferredKeys ?? this.getDefaultApiKeyName(),
+      ));
     if (!apiKey) {
       throw new Error('Missing API key for LLM provider');
     }

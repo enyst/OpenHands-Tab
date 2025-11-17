@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { AgentOrchestrator } from '../runtime';
-import { OpenAICompatibleClient, LLMFactory } from '../llm';
+import { OpenAICompatibleClient, LLMFactory, LLMCredentialProvider } from '../llm';
 import type { ChatCompletionRequest, LLMConfiguration } from '../llm';
 import { ConversationState, EventLog } from '../runtime';
 
@@ -78,6 +78,16 @@ describe('OpenAICompatibleClient streaming', () => {
 });
 
 describe('LLMFactory integration', () => {
+  it('uses inline apiKey without registry lookup', async () => {
+    const spy = vi.spyOn(LLMCredentialProvider.prototype, 'getApiKey');
+    const factory = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', apiKey: 'sk-inline' });
+
+    const client = await factory.createClient();
+
+    expect(client).toBeInstanceOf(OpenAICompatibleClient);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   const maybeIt = process.env.OPENAI_API_KEY ? it : it.skip;
 
   maybeIt('streams from OpenAI with real credentials', async () => {
