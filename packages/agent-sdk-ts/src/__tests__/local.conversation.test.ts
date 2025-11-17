@@ -80,4 +80,38 @@ describe('LocalConversation', () => {
     expect(bashEvents.some((event) => event.type === 'BashCommand')).toBe(true);
     expect(bashEvents.some((event) => event.type === 'BashExit')).toBe(true);
   });
+
+  it('provides a final assistant response when hitting the iteration cap', async () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), 'local-conv-cap-'));
+    const llm = new FakeLLM([
+      [
+        { type: 'tool_call_delta', id: 'call_3', name: 'terminal', arguments: '{"command":"pwd"}' },
+        { type: 'finish', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'tool_call_delta', id: 'call_4', name: 'terminal', arguments: '{"command":"pwd"}' },
+        { type: 'finish', finishReason: 'tool_calls' },
+      ],
+      [
+        { type: 'text', text: 'Done after limit' },
+        { type: 'finish', finishReason: 'stop' },
+      ],
+    ]);
+
+    const settings: OpenHandsSettings = {
+      ...baseSettings,
+      conversation: { maxIterations: 2 },
+    };
+
+    const conversation = new LocalConversation({ settings, workspaceRoot: tmp, llmClient: llm });
+    const events: Event[] = [];
+    conversation.on('event', (event) => events.push(event));
+
+    await conversation.sendUserMessage('check cwd twice then summarize');
+
+    const agentMessages = events.filter((event) => event.type === 'MessageEvent' && event.source === 'agent');
+    expect(agentMessages.length).toBe(3);
+    const finalMessage = agentMessages.at(-1);
+    expect(finalMessage?.llm_message.content?.[0]).toMatchObject({ type: 'text', text: 'Done after limit' });
+  });
 });

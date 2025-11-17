@@ -32,11 +32,11 @@ export class LLMFactory {
       throw new Error('Missing API key for LLM provider');
     }
 
-    if (this.config.provider === 'anthropic') {
-      return new AnthropicClient(this.config, apiKey);
+    const provider = this.config.provider ?? this.detectProviderFromBaseUrl();
+    if (provider === 'anthropic') {
+      return new AnthropicClient({ ...this.config, provider }, apiKey);
     }
 
-    const provider = this.config.provider ?? this.detectProviderFromBaseUrl();
     return new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
   }
 
@@ -45,6 +45,7 @@ export class LLMFactory {
   }
 
   private detectProviderFromBaseUrl(): LLMProvider {
+    if (this.config.baseUrl?.includes('anthropic')) return 'anthropic';
     if (this.config.baseUrl?.includes('openrouter.ai')) return 'openrouter';
     if (this.config.baseUrl?.includes('litellm')) return 'litellm_proxy';
     return 'openai';

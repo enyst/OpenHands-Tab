@@ -67,7 +67,7 @@ export class LocalConversation extends EventEmitter {
   }
 
   startNewConversation(): Promise<string | undefined> {
-    this.conversationId = `local-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+    this.conversationId = `local-${randomUUID()}`;
     this.messages.length = 0;
     this.emit('conversationStarted', this.conversationId);
     return Promise.resolve(this.conversationId);
@@ -111,9 +111,11 @@ export class LocalConversation extends EventEmitter {
 
   private async runAgentLoop(): Promise<void> {
     const maxIterations = Math.min(Math.max(this.settings?.conversation.maxIterations ?? 4, 1), 10);
+    let lastAssistantMessage: Message | undefined;
     for (let i = 0; i < maxIterations; i += 1) {
       const response = await this.generateAssistantMessage();
       const assistantMessage = response.message;
+      lastAssistantMessage = assistantMessage;
       this.messages.push(assistantMessage);
       this.events.push({ type: 'MessageEvent', source: 'agent', llm_message: assistantMessage });
 
@@ -124,15 +126,22 @@ export class LocalConversation extends EventEmitter {
 
       await this.handleToolCalls(toolCalls, assistantMessage);
     }
+
+    if (lastAssistantMessage?.tool_calls?.length) {
+      const finalResponse = await this.generateAssistantMessage([]);
+      const finalMessage = finalResponse.message;
+      this.messages.push(finalMessage);
+      this.events.push({ type: 'MessageEvent', source: 'agent', llm_message: finalMessage });
+    }
   }
 
-  private async generateAssistantMessage() {
+  private async generateAssistantMessage(tools?: ChatCompletionRequest['tools']) {
     const llm = this.providedClient ?? (await this.createLlmClient());
     const orchestrator = new AgentOrchestrator(llm, { events: this.events });
     const request: ChatCompletionRequest = {
       systemPrompt: this.buildSystemPrompt(),
       messages: [...this.messages],
-      tools: this.buildToolSchemas(),
+      tools: tools ?? this.buildToolSchemas(),
     };
     return orchestrator.runChat(request);
   }
@@ -143,7 +152,7 @@ export class LocalConversation extends EventEmitter {
       const args = this.parseToolArgs(call);
       const thoughtText = assistantMessage.content
         .filter((c) => c.type === 'text')
-        .map((c) => (c.type === 'text' ? c.text : ''))
+        .map((c) => c.text)
         .join(' ');
 
       this.events.push({
@@ -332,7 +341,6 @@ export class LocalConversation extends EventEmitter {
     }
     const factory = new LLMFactory({
       model,
-      provider: this.settings.llm.baseUrl?.includes('anthropic') ? 'anthropic' : undefined,
       baseUrl: this.settings.llm.baseUrl ?? undefined,
       apiVersion: this.settings.llm.apiVersion ?? undefined,
       temperature: this.settings.llm.temperature ?? undefined,
