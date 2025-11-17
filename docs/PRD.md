@@ -53,6 +53,14 @@ The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that
 
 ### SDK Layers
 
+**Conversation Layer** (`src/conversation/`) - Primary API:
+- `Conversation()` - Factory function that creates local or remote conversation instances
+- `LocalConversation` - Event-driven local agent execution with in-memory state
+- `RemoteConversation` - WebSocket-based remote agent communication with auto-reconnect
+- Event-driven API: `.on('event', ...)`, `.on('status', ...)`, `.on('error', ...)`
+- Dual mode support: Automatically selects local (no server) or remote (with serverUrl) execution
+- Unified interface for conversation control, message sending, and action confirmation
+
 **Runtime Layer** (`src/runtime/`):
 - `AgentOrchestrator` - LLM streaming orchestration with tool call accumulation
 - `EventLog` - Event history management and queries
@@ -82,7 +90,32 @@ The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that
 - Type guards for runtime validation (isEvent, isMessageEvent, isActionEvent, etc.)
 - Support for all event types (MessageEvent, ActionEvent, ObservationEvent, SystemPromptEvent, AgentErrorEvent, ConversationErrorEvent, PauseEvent, Condensation, ConversationStateUpdateEvent)
 
-### SDK vs. Extension
+### SDK Usage in Extension
+
+The extension uses the Conversation API as its primary interface to the SDK:
+
+```typescript
+import { Conversation, type ConversationInstance } from '@openhands/agent-sdk-ts';
+
+// Create conversation (auto-detects local vs remote mode)
+const conversation: ConversationInstance = Conversation({
+  serverUrl: settings.serverUrl ?? undefined,  // undefined = local mode
+  settings,                                      // OpenHandsSettings object
+  workspaceRoot,                                 // Current workspace path
+  conversationId: savedId,                       // Optional existing ID
+});
+
+// Event listeners
+conversation.on('status', (s) => {...});
+conversation.on('event', (ev) => {...});
+conversation.on('error', (err) => {...});
+
+// Control methods
+await conversation.startNewConversation();
+await conversation.sendUserMessage(text);
+await conversation.pause();
+await conversation.resume();
+```
 
 See [agent-sdk-architecture.md](./agent-sdk-architecture.md) for detailed SDK documentation.
 

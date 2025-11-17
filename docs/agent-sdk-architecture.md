@@ -28,6 +28,12 @@ The SDK follows these core principles:
 ├──────────────────────────────────────────────────────────┤
 │                                                           │
 │  ┌─────────────────────────────────────────────────┐    │
+│  │      Conversation Layer (Primary API)            │    │
+│  │  Conversation() Factory │ Local │ Remote         │    │
+│  │  Event-driven API (.on) │ Auto-reconnect         │    │
+│  └──────────────┬──────────────────────────────────┘    │
+│                 │                                         │
+│  ┌──────────────┴──────────────────────────────────┐    │
 │  │         Runtime Layer (Orchestration)            │    │
 │  │  AgentOrchestrator │ EventLog │ State │ Locks   │    │
 │  └──────────────┬──────────────────────────────────┘    │
@@ -45,6 +51,201 @@ The SDK follows these core principles:
 │                                                           │
 └───────────────────────────────────────────────────────────┘
 ```
+
+## Layer 0: Conversation (Primary API)
+
+The conversation layer provides the main API for the SDK, wrapping all lower layers into an event-driven interface for managing agent conversations.
+
+### Conversation Factory
+
+**Purpose**: Entry point for creating conversation instances with automatic mode detection.
+
+**Files**: `src/conversation/index.ts`
+
+**API**:
+```typescript
+function Conversation(options: ConversationOptions): ConversationInstance;
+
+interface ConversationOptions {
+  serverUrl?: string;              // undefined = local mode, string = remote mode
+  settings: OpenHandsSettings;     // LLM config, tools, confirmation policy, etc.
+  workspaceRoot: string;           // Workspace directory path
+  conversationId?: string;         // Optional: restore existing conversation
+}
+
+interface ConversationInstance {
+  // Event listeners (EventEmitter pattern)
+  on(event: 'status', listener: (status: 'online' | 'offline' | 'connecting') => void): void;
+  on(event: 'event', listener: (event: Event) => void): void;
+  on(event: 'error', listener: (error: Error) => void): void;
+  on(event: 'conversationStarted', listener: (id: string) => void): void;
+  on(event: 'terminal', listener: (event: BashEvent) => void): void;
+
+  // Conversation control
+  startNewConversation(): Promise<void>;
+  restoreConversation(id: string): Promise<void>;
+  sendUserMessage(text: string): Promise<void>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+
+  // Action confirmation
+  approveAction(): Promise<void>;
+  rejectAction(reason: string): Promise<void>;
+
+  // Configuration
+  setSettings(settings: Partial<OpenHandsSettings>): void;
+
+  // Connection management (remote mode)
+  reconnect(): void;
+  disconnect(): void;
+
+  // Status
+  getStatus(): 'online' | 'offline' | 'connecting';
+  getConversationId(): string | undefined;
+
+  // Cleanup
+  removeAllListeners(): void;
+}
+```
+
+### LocalConversation
+
+**File**: `src/conversation/LocalConversation.ts`
+
+**Purpose**: In-memory agent execution within VS Code without an external agent-server.
+
+**Current Status**: ⚠️ **STUB IMPLEMENTATION** - Currently only emits events without actual agent orchestration. Full implementation tracked in issue [to be created].
+
+**Intended Features** (when implemented):
+- Runs agent orchestration locally using `AgentOrchestrator`
+- EventEmitter-based event dispatching
+- Manages tool execution with `LocalWorkspace`
+- Terminal events for VS Code integrated terminal
+- Full conversation state management
+- No external server required (but still VS Code-bound)
+
+**Note**: Even when fully implemented, LocalConversation will be **VS Code-bound** (uses VS Code SecretStorage, IntegratedTerminalRunner, etc.). "Local mode" means running the agent in VS Code without an external server, not running as a standalone CLI.
+
+### RemoteConversation
+
+**File**: `src/conversation/RemoteConversation.ts`
+
+**Purpose**: WebSocket-based connection to OpenHands agent-server.
+
+**Features**:
+- WebSocket connection to `/sockets/events/{conversation_id}`
+- Real-time event streaming
+- HTTP fallback for message delivery
+- Automatic reconnection with exponential backoff
+- Session API key authentication
+- Conversation lifecycle management via REST API
+
+**Connection Strategy**:
+```
+Primary: WebSocket
+  ├─ Real-time bidirectional communication
+  ├─ Server pushes events as they occur
+  └─ Client sends messages instantly
+
+Fallback: HTTP POST
+  ├─ Used when WebSocket is unavailable
+  ├─ POST /api/conversations/{id}/events
+  └─ Ensures message delivery
+
+Reconnection:
+  ├─ Exponential backoff (1s base, 15s max)
+  ├─ Up to 10 retries
+  └─ Status events: 'connecting' → 'online'
+```
+
+**Usage Example**:
+```typescript
+const conversation = Conversation({
+  serverUrl: 'http://localhost:3000',
+  settings: {
+    llm: { model: 'claude-sonnet-4-20250514', usageId: 'remote' },
+    secrets: {
+      sessionApiKey: 'sk_session_xxx',
+      llmApiKey: process.env.ANTHROPIC_API_KEY,
+    },
+  },
+  workspaceRoot: '/workspace',
+});
+
+conversation.on('status', (status) => {
+  console.log('Connection:', status);
+});
+
+conversation.on('event', (event) => {
+  if (isActionEvent(event)) {
+    console.log('Agent action:', event.tool_name);
+  }
+});
+
+await conversation.startNewConversation();
+await conversation.sendUserMessage('Install npm dependencies');
+```
+
+**REST API Integration**:
+// Start conversation
+POST /api/conversations
+{
+  agent: {
+    llm: { model, api_key, ... },
+    tools: ['terminal', 'file_editor', 'task_tracker'],
+    workspace: { type: 'local', working_directory: '/workspace' }
+  },
+  confirmation_policy: { type: 'NeverConfirm' },
+  max_iterations: 50
+}
+
+// Control conversation
+POST /api/conversations/{id}/pause
+POST /api/conversations/{id}/run
+
+// Confirmation
+POST /api/conversations/{id}/events/respond_to_confirmation
+{ accept: true }  // or { accept: false, reason: "..." }
+```
+
+### Mode Detection Logic
+
+The `Conversation()` factory automatically selects the implementation:
+
+```typescript
+export function Conversation(options: ConversationOptions): ConversationInstance {
+  if (options.serverUrl) {
+    return new RemoteConversation(options);
+  } else {
+    return new LocalConversation(options);
+  }
+}
+```
+
+### Event-Driven Architecture
+
+Both implementations extend Node.js `EventEmitter` for consistent event handling:
+
+**Event Types**:
+1. **status** - Connection/execution state
+   - Values: `'online'` | `'offline'` | `'connecting'`
+   - Emitted on: connection changes, pause/resume
+
+2. **event** - Agent events
+   - Type: `Event` (MessageEvent, ActionEvent, ObservationEvent, etc.)
+   - Emitted on: every agent event (streaming)
+
+3. **error** - Error notifications
+   - Type: `Error`
+   - Emitted on: connection errors, execution errors
+
+4. **conversationStarted** - New conversation created
+   - Type: `string` (conversation ID)
+   - Emitted on: successful conversation creation
+
+5. **terminal** - Terminal events (local mode only)
+   - Type: `BashEvent` (BashCommand, BashOutput, BashExit)
+   - Emitted on: command execution, output, completion
 
 ## Layer 1: Runtime (Orchestration)
 
@@ -649,7 +850,156 @@ export const isImageContent = (c: Content): c is ImageContent => c.type === 'ima
 
 ## Integration Patterns
 
-### Pattern 1: VS Code Extension
+### Pattern 1: VS Code Extension (Primary)
+
+This is the actual pattern used by the OpenHands-Tab extension:
+
+```typescript
+import {
+  Conversation,
+  type ConversationInstance,
+  isMessageEvent,
+  isActionEvent,
+  isObservationEvent
+} from '@openhands/agent-sdk-ts';
+
+// Create conversation (auto-detects local vs remote)
+const conversation: ConversationInstance = Conversation({
+  serverUrl: settings.serverUrl ?? undefined, // undefined = local mode
+  settings: {
+    llm: {
+      model: 'claude-sonnet-4-20250514',
+      usageId: 'default-llm',
+      temperature: 0.7,
+    },
+    conversation: {
+      maxIterations: 50,
+    },
+    secrets: {
+      sessionApiKey: await context.secrets.get('openhands.sessionApiKey'),
+      llmApiKey: await context.secrets.get('openhands.llmApiKey'),
+    },
+  },
+  workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd(),
+});
+
+// Listen to events
+conversation.on('status', (status) => {
+  // Update UI connection indicator
+  webview.postMessage({ type: 'status', status });
+});
+
+conversation.on('event', (event) => {
+  // Forward events to webview for rendering
+  webview.postMessage({ type: 'event', event });
+
+  // Handle specific event types
+  if (isActionEvent(event)) {
+    console.log('Agent action:', event.tool_name);
+  } else if (isObservationEvent(event)) {
+    console.log('Tool result:', event.observation);
+  }
+});
+
+conversation.on('error', (error) => {
+  vscode.window.showErrorMessage(`Agent error: ${error.message}`);
+});
+
+conversation.on('conversationStarted', (conversationId) => {
+  // Save conversation ID for restoration
+  context.workspaceState.update('currentConversationId', conversationId);
+});
+
+conversation.on('terminal', (bashEvent) => {
+  // In local mode, display bash events in VS Code terminal
+  if (bashEvent.type === 'BashOutput' && bashEvent.stdout) {
+    terminal.write(bashEvent.stdout);
+  }
+});
+
+// Start conversation
+await conversation.startNewConversation();
+
+// Handle user input from webview
+webview.onDidReceiveMessage(async (message) => {
+  if (message.type === 'send') {
+    await conversation.sendUserMessage(message.text);
+  } else if (message.type === 'command') {
+    switch (message.command) {
+      case 'pause':
+        await conversation.pause();
+        break;
+      case 'resume':
+        await conversation.resume();
+        break;
+      case 'reconnect':
+        conversation.reconnect();
+        break;
+      case 'approveAction':
+        await conversation.approveAction();
+        break;
+      case 'rejectAction':
+        await conversation.rejectAction(message.reason);
+        break;
+    }
+  }
+});
+
+// Update settings dynamically
+settingsWatcher.onDidChange((newSettings) => {
+  conversation.setSettings(newSettings);
+});
+
+// Cleanup on deactivation
+context.subscriptions.push({
+  dispose: () => {
+    conversation.removeAllListeners();
+    conversation.disconnect();
+  }
+});
+```
+
+### Pattern 2: Remote Mode with Local Agent-Server
+
+For VS Code usage without an external server, run agent-server on localhost:
+
+```typescript
+import { Conversation, isMessageEvent } from '@openhands/agent-sdk-ts';
+
+// Run agent-server locally: uv run agent-server --host 0.0.0.0 --port 3000
+const conversation = Conversation({
+  serverUrl: 'http://localhost:3000', // connects to local agent-server
+  settings: {
+    llm: {
+      model: 'claude-sonnet-4-20250514',
+      usageId: 'local-server',
+    },
+    secrets: {
+      llmApiKey: process.env.ANTHROPIC_API_KEY,
+    },
+  },
+  workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '/workspace',
+});
+
+conversation.on('event', (event) => {
+  if (isMessageEvent(event) && event.source === 'agent') {
+    const text = event.llm_message.content
+      .filter(c => c.type === 'text')
+      .map(c => c.text)
+      .join('');
+    console.log('Agent:', text);
+  }
+});
+
+await conversation.startNewConversation();
+await conversation.sendUserMessage('List files in the current directory');
+```
+
+**TODO**: LocalConversation (serverUrl: undefined) is currently a stub.
+
+### Pattern 3: Low-Level Orchestration (Advanced)
+
+For advanced use cases requiring direct control:
 
 ```typescript
 import {
@@ -726,37 +1076,6 @@ if (response.message.tool_calls) {
     });
   }
 }
-```
-
-### Pattern 2: Standalone Agent
-
-```typescript
-import { AgentOrchestrator, LLMFactory } from '@openhands/agent-sdk-ts';
-
-const client = await new LLMFactory({
-  provider: 'openai',
-  model: 'gpt-4o',
-  apiKey: process.env.OPENAI_API_KEY
-}).createClient();
-
-const orchestrator = new AgentOrchestrator(client);
-
-async function chat(userMessage: string) {
-  const response = await orchestrator.runChat({
-    systemPrompt: 'You are a helpful assistant.',
-    messages: [{ role: 'user', content: [{ type: 'text', text: userMessage }] }]
-  });
-
-  const text = response.message.content
-    .filter(c => c.type === 'text')
-    .map(c => c.text)
-    .join('');
-
-  console.log('Assistant:', text);
-  console.log('Tokens:', response.usage);
-}
-
-await chat('Hello, who are you?');
 ```
 
 ## Testing Strategy
