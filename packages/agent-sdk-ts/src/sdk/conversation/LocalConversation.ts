@@ -1,6 +1,5 @@
 import EventEmitter from 'events';
 import { randomUUID } from 'crypto';
-import type { SecretStorage } from 'vscode';
 import { AgentOrchestrator, AsyncLock, ConversationState, EventLog, SecretRegistry } from '../runtime';
 import { LLMFactory } from '../llm';
 import type { LLMClient, LLMConfiguration, LLMToolDefinition } from '../llm';
@@ -17,7 +16,6 @@ export interface LocalConversationOptions {
   conversationId?: string;
   workspaceRoot?: string;
   llmClient?: LLMClient;
-  secretStorage?: SecretStorage;
   tools?: ToolHandler<unknown, unknown>[];
 }
 
@@ -44,7 +42,7 @@ export class LocalConversation extends EventEmitter {
     this.events = new EventLog();
     this.state = new ConversationState(this.events);
     this.customLlmClient = options.llmClient;
-    this.secrets = new SecretRegistry(options.secretStorage);
+    this.secrets = new SecretRegistry();
     const providedTools = options.tools ?? [];
     this.tools = new Map<string, ToolHandler<unknown, unknown>>(providedTools.map((tool) => [tool.name, tool]));
 
