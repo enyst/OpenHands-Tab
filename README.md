@@ -65,6 +65,13 @@ npm run lint -w @openhands/agent-sdk-ts
 
 The SDK provides a complete TypeScript implementation for building OpenHands agents, including:
 
+**Conversation Layer** (Primary API):
+- `Conversation()` - Factory function that creates local or remote conversation instances
+- `LocalConversation` - Event-driven local agent execution with in-memory state
+- `RemoteConversation` - WebSocket-based remote agent communication with auto-reconnect
+- Event-driven API: `.on('event', ...)`, `.on('status', ...)`, `.on('error', ...)`
+- Dual mode support: Automatically selects local (no server) or remote (with serverUrl) execution
+
 **Runtime Layer**:
 - `AgentOrchestrator` - LLM orchestration with streaming support
 - `EventLog` - Event management and history tracking

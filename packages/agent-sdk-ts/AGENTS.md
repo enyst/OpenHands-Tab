@@ -8,9 +8,48 @@ This SDK can be used standalone or as part of the OpenHands-Tab VS Code extensio
 
 ## Architecture
 
-The SDK is organized into five main layers:
+The SDK is organized into six main layers:
 
-### 1. Runtime Layer (`src/runtime/`)
+### 1. Conversation Layer (`src/conversation/`) - Primary API
+
+High-level conversation management with dual-mode support (local vs remote execution):
+
+- **`Conversation()` factory** - Auto-detects mode based on configuration
+  - Returns `LocalConversation` when no serverUrl provided
+  - Returns `RemoteConversation` when serverUrl is configured
+  - Event-driven API with `.on()` listeners for status, events, errors
+  - Unified interface for both local and remote agent execution
+
+- **`LocalConversation`** - In-memory agent execution
+  - Runs agent orchestration locally using EventEmitter
+  - Manages LLM streaming, tool execution, and state
+  - No server required - ideal for testing and lightweight use cases
+  - Emits events: 'status', 'event', 'error', 'conversationStarted', 'terminal'
+
+- **`RemoteConversation`** - WebSocket-based remote agent
+  - Connects to OpenHands agent-server via WebSocket
+  - Real-time event streaming with auto-reconnect
+  - HTTP fallback for message delivery when WebSocket unavailable
+  - Exponential backoff retry strategy (1s base, 15s max, 10 retries)
+
+**Common API Methods**:
+- `startNewConversation()` - Starts a new conversation
+- `restoreConversation(id)` - Reconnects to existing conversation
+- `sendUserMessage(text)` - Sends user input
+- `pause()` / `resume()` - Control conversation execution
+- `approveAction()` / `rejectAction(reason)` - Handle action confirmations
+- `setSettings(settings)` - Update configuration
+- `reconnect()` - Force reconnection (remote mode)
+- `disconnect()` - Close connections
+
+**Event Types**:
+- `status`: Connection/execution status ('online' | 'offline' | 'connecting')
+- `event`: Agent events (MessageEvent, ActionEvent, ObservationEvent, etc.)
+- `error`: Error notifications
+- `conversationStarted`: New conversation ID
+- `terminal`: Terminal events (local mode)
+
+### 2. Runtime Layer (`src/runtime/`)
 Agent execution and state management:
 
 - **`AgentOrchestrator`** - Core orchestration layer that manages LLM streaming, tool calls, and conversation flow
@@ -46,7 +85,7 @@ Agent execution and state management:
   - Configurable threshold (default 30 seconds)
   - Returns structured result with stuck status and reason
 
-### 2. LLM Integration Layer (`src/llm/`)
+### 3. LLM Integration Layer (`src/llm/`)
 Streaming LLM clients and configuration:
 
 - **`types.ts`** - Core LLM types and interfaces
@@ -77,7 +116,7 @@ Streaming LLM clients and configuration:
   - Loads API keys from environment or secret storage
   - Provider-specific credential handling (OpenAI, Anthropic, AWS)
 
-### 3. Tool System (`src/tools/`)
+### 4. Tool System (`src/tools/`)
 Agent tool implementations:
 
 - **`TerminalTool`** - Shell command execution
@@ -109,7 +148,7 @@ Agent tool implementations:
 - **`types.ts`** - Tool type definitions
 - **`validation.ts`** - Tool input validation schemas
 
-### 4. Workspace Layer (`src/workspace/`)
+### 5. Workspace Layer (`src/workspace/`)
 File system abstraction:
 
 - **`LocalWorkspace`** - Local file system operations
@@ -118,7 +157,7 @@ File system abstraction:
   - Path normalization and security checks
   - File metadata and existence checks
 
-### 5. Protocol Types (`src/types/`)
+### 6. Protocol Types (`src/types/`)
 Complete OpenHands protocol definitions:
 
 - **Message types**: User, assistant, system, tool messages with structured content
@@ -134,6 +173,10 @@ packages/agent-sdk-ts/
 ├── src/
 │   ├── index.ts              # Main exports
 │   ├── browser.ts            # Browser-specific exports
+│   ├── conversation/         # Conversation layer (primary API)
+│   │   ├── index.ts          # Conversation() factory
+│   │   ├── LocalConversation.ts
+│   │   └── RemoteConversation.ts
 │   ├── types/                # Protocol types and guards
 │   ├── runtime/              # Agent runtime and state
 │   ├── llm/                  # LLM clients and streaming
@@ -202,7 +245,97 @@ npm run lint -w @openhands/agent-sdk-ts -- --fix
 
 ## Usage Examples
 
-### Creating an LLM Client
+### Using the Conversation API (Primary Pattern)
+
+This is the main API used by the OpenHands-Tab extension:
+
+```typescript
+import { Conversation, type ConversationInstance } from '@openhands/agent-sdk-ts';
+
+// Create a conversation (auto-detects local vs remote mode)
+const conversation: ConversationInstance = Conversation({
+  serverUrl: 'http://localhost:3000', // or undefined for local mode
+  settings: {
+    llm: {
+      model: 'claude-sonnet-4-20250514',
+      usageId: 'default-llm',
+      temperature: 0.7,
+    },
+    conversation: {
+      maxIterations: 50,
+    },
+    secrets: {
+      llmApiKey: process.env.ANTHROPIC_API_KEY,
+    },
+  },
+  workspaceRoot: '/path/to/workspace',
+});
+
+// Listen to events
+conversation.on('status', (status) => {
+  console.log('Status:', status); // 'online' | 'offline' | 'connecting'
+});
+
+conversation.on('event', (event) => {
+  console.log('Event:', event.type); // MessageEvent, ActionEvent, etc.
+  // Handle different event types with type guards
+  if (isMessageEvent(event)) {
+    console.log('Message:', event.llm_message);
+  } else if (isActionEvent(event)) {
+    console.log('Action:', event.tool_name, event.action);
+  }
+});
+
+conversation.on('error', (error) => {
+  console.error('Error:', error);
+});
+
+conversation.on('conversationStarted', (conversationId) => {
+  console.log('Conversation ID:', conversationId);
+});
+
+// Start a new conversation
+await conversation.startNewConversation();
+
+// Send a user message
+await conversation.sendUserMessage('Write a hello world function');
+
+// Control conversation
+await conversation.pause();
+await conversation.resume();
+
+// Action confirmation (when agent is waiting)
+await conversation.approveAction();
+// or
+await conversation.rejectAction('Not safe to proceed');
+
+// Clean up
+conversation.removeAllListeners();
+conversation.disconnect();
+```
+
+### Local vs Remote Mode
+
+```typescript
+// Local mode - no server required
+const localConversation = Conversation({
+  serverUrl: undefined, // or omit
+  settings: { /* ... */ },
+  workspaceRoot: '/workspace',
+});
+
+// Remote mode - connects to agent-server
+const remoteConversation = Conversation({
+  serverUrl: 'http://localhost:3000',
+  settings: { /* ... */ },
+  workspaceRoot: '/workspace',
+});
+```
+
+### Creating an LLM Client (Low-Level)
+
+For advanced use cases, you can use the LLM clients directly:
+
 ```typescript
 import { LLMFactory, LLMConfiguration } from '@openhands/agent-sdk-ts';
 
@@ -216,7 +349,10 @@ const config: LLMConfiguration = {
 const client = await new LLMFactory(config).createClient();
 ```
 
-### Using AgentOrchestrator
+### Using AgentOrchestrator (Low-Level)
+
+For direct orchestration without the Conversation wrapper:
+
 ```typescript
 import { AgentOrchestrator } from '@openhands/agent-sdk-ts';
 
@@ -230,7 +366,8 @@ const response = await orchestrator.runChat({
 console.log(response.message.content);
 ```
 
-### Working with Events
+### Working with Events (Low-Level)
+
 ```typescript
 import { EventLog, isMessageEvent } from '@openhands/agent-sdk-ts';
 
