@@ -32,16 +32,6 @@ High-level conversation management with dual-mode support (local vs remote execu
   - HTTP fallback for message delivery when WebSocket unavailable
   - Exponential backoff retry strategy (1s base, 15s max, 10 retries)
 
-**Common API Methods**:
-- `startNewConversation()` - Starts a new conversation
-- `restoreConversation(id)` - Reconnects to existing conversation
-- `sendUserMessage(text)` - Sends user input
-- `pause()` / `resume()` - Control conversation execution
-- `approveAction()` / `rejectAction(reason)` - Handle action confirmations
-- `setSettings(settings)` - Update configuration
-- `reconnect()` - Force reconnection (remote mode)
-- `disconnect()` - Close connections
-
 ### 2. Runtime Layer (`src/runtime/`)
 Agent execution and state management:
 
