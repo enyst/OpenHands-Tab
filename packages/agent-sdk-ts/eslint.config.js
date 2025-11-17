@@ -10,7 +10,7 @@ module.exports = [
   },
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/__tests__/**'],
+    ignores: ['src/**/__tests__/**'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -35,7 +35,7 @@ module.exports = [
     },
   },
   {
-    files: ['src/__tests__/**/*.ts'],
+    files: ['src/**/__tests__/**/*.ts'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {

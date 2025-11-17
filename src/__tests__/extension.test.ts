@@ -46,6 +46,16 @@ vi.mock('../settings/VscodeSettingsAdapter', () => ({
 
 let lastConversation: any = null;
 vi.mock('@openhands/agent-sdk-ts', () => {
+  class StubTool {
+    name: string;
+    description = '';
+    schema: Record<string, unknown> = {};
+
+    constructor(name: string) {
+      this.name = name;
+    }
+  }
+
   const Conversation = vi.fn((options: any) => {
     const emitter = new EventEmitter() as any;
     emitter.mode = options?.serverUrl ? 'remote' : 'local';
@@ -79,6 +89,10 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),
     isBashExit: vi.fn((event: any) => event?.type === 'BashExit'),
     __getLastConversation: () => lastConversation,
+    TerminalTool: vi.fn(() => new StubTool('terminal')),
+    FileEditorTool: vi.fn(() => new StubTool('file_editor')),
+    TaskTrackerTool: vi.fn(() => new StubTool('task_tracker')),
+    BrowserTool: vi.fn(() => new StubTool('browser')),
   };
 });
 

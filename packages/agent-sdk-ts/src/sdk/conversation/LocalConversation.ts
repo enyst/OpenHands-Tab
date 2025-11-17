@@ -7,8 +7,8 @@ import type { LLMClient, LLMConfiguration, LLMToolDefinition } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import { isTextContent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
-import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool, type ToolHandler } from '../tools';
-import { LocalWorkspace } from '../workspace/LocalWorkspace';
+import type { ToolHandler } from '../types/tools';
+import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
@@ -47,13 +47,8 @@ export class LocalConversation extends EventEmitter {
     this.secretStorage = options.secretStorage;
     this.customLlmClient = options.llmClient;
     this.secrets = new SecretRegistry(options.secretStorage);
-    const providedTools = options.tools ?? [
-      new TerminalTool(),
-      new FileEditorTool(),
-      new TaskTrackerTool(),
-      new BrowserTool(),
-    ];
-    this.tools = new Map(providedTools.map((tool) => [tool.name, tool as ToolHandler<unknown, unknown>]));
+    const providedTools = options.tools ?? [];
+    this.tools = new Map<string, ToolHandler<unknown, unknown>>(providedTools.map((tool) => [tool.name, tool]));
 
     this.events.on((event) => this.emit('event', event));
     this.setStatus('online');
