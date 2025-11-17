@@ -13,8 +13,10 @@ const FALLBACK_KEY_ORDER = [
 export class LLMCredentialProvider {
   private readonly registry: SecretRegistry;
 
-  constructor(storage?: SecretStorage) {
-    this.registry = new SecretRegistry(storage);
+  constructor(storageOrRegistry?: SecretStorage | SecretRegistry) {
+    this.registry = storageOrRegistry instanceof SecretRegistry
+      ? storageOrRegistry
+      : new SecretRegistry(storageOrRegistry);
   }
 
   async getApiKey(preferredKeys?: string | string[]): Promise<string | undefined> {
