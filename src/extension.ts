@@ -195,11 +195,13 @@ export function activate(context: vscode.ExtensionContext) {
       if (savedId) {
         conversation.restoreConversation(savedId);
       }
-    } else {
+    } else if (conversation) {
       conversation.setSettings(settings);
       if (savedId) {
         conversation.restoreConversation(savedId);
       }
+    } else {
+      outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
     }
 
     void panel?.webview.postMessage({
