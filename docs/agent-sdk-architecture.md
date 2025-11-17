@@ -114,9 +114,9 @@ interface ConversationInstance {
 
 **Purpose**: In-memory agent execution within VS Code without an external agent-server.
 
-**Current Status**: ⚠️ **STUB IMPLEMENTATION** - Currently only emits events without actual agent orchestration. Full implementation tracked in issue [to be created].
+**Status**: Local execution path that runs the full agent loop directly inside VS Code using `AgentOrchestrator`, built-in tools, and `LocalWorkspace`.
 
-**Intended Features** (when implemented):
+**Features**:
 - Runs agent orchestration locally using `AgentOrchestrator`
 - EventEmitter-based event dispatching
 - Manages tool execution with `LocalWorkspace`
@@ -124,7 +124,7 @@ interface ConversationInstance {
 - Full conversation state management
 - No external server required (but still VS Code-bound)
 
-**Note**: Even when fully implemented, LocalConversation will be **VS Code-bound** (uses VS Code SecretStorage, IntegratedTerminalRunner, etc.). "Local mode" means running the agent in VS Code without an external server, not running as a standalone CLI.
+**Note**: LocalConversation remains **VS Code-bound** (uses VS Code SecretStorage, IntegratedTerminalRunner, etc.). "Local mode" means running the agent in VS Code without an external server, not running as a standalone CLI.
 
 ### RemoteConversation
 
