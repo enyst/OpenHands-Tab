@@ -6,6 +6,11 @@ import type { OpenHandsSettings } from '../types/settings';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
+interface ConversationHistoryPage {
+  items?: unknown[];
+  next_page_id?: string | null;
+}
+
 export interface RemoteConversationOptions {
   serverUrl: string;
   settings: OpenHandsSettings;
@@ -36,6 +41,7 @@ export class RemoteConversation extends EventEmitter {
   private readonly retryBaseMs = 1000;
   private readonly retryMaxMs = 15000;
   private readonly workspaceRoot: string;
+  private static readonly historyPageLimit = 100;
 
   constructor(options: RemoteConversationOptions) {
     super();
@@ -46,9 +52,12 @@ export class RemoteConversation extends EventEmitter {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
       this.emit('conversationStarted', this.conversationId);
-      void this.replayHistory();
-      this.connect();
-      this.connectBashEvents();
+      this.replayHistory().then(() => {
+        if (this.conversationId === options.conversationId) {
+          this.connect();
+          this.connectBashEvents();
+        }
+      });
     }
   }
 
@@ -390,7 +399,7 @@ export class RemoteConversation extends EventEmitter {
     let pageId: string | undefined;
     try {
       while (true) {
-        const params = new URLSearchParams({ limit: '100' });
+        const params = new URLSearchParams({ limit: String(RemoteConversation.historyPageLimit) });
         if (pageId) params.set('page_id', pageId);
         const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/search?${params.toString()}`, { headers });
         if (!res.ok) {
@@ -398,7 +407,7 @@ export class RemoteConversation extends EventEmitter {
           this.emit('error', new Error(`Failed to fetch conversation history (HTTP ${res.status})${info ? `: ${info}` : ''}`));
           return;
         }
-        const body = await res.json() as { items?: unknown[]; next_page_id?: string | null };
+        const body = await res.json() as ConversationHistoryPage;
         const items = Array.isArray(body.items) ? body.items : [];
         for (const raw of items) {
           const normalized = this.normalizeEventPayload(raw);

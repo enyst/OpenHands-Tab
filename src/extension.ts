@@ -232,12 +232,12 @@ export function activate(context: vscode.ExtensionContext) {
       });
       conversation.on('terminal', (event) => handleTerminalEvent(event));
       if (savedId) {
-        conversation.restoreConversation(savedId);
+        void conversation.restoreConversation(savedId);
       }
     } else if (conversation) {
       conversation.setSettings(settings);
       if (savedId) {
-        conversation.restoreConversation(savedId);
+        void conversation.restoreConversation(savedId);
       }
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
