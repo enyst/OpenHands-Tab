@@ -1,6 +1,5 @@
 import EventEmitter from 'events';
 import { randomUUID } from 'crypto';
-import type { SecretStorage } from 'vscode';
 import { AgentOrchestrator, AsyncLock, ConversationState, EventLog, SecretRegistry } from '../runtime';
 import { LLMFactory } from '../llm';
 import type { LLMClient, LLMConfiguration, LLMToolDefinition } from '../llm';
@@ -17,7 +16,6 @@ export interface LocalConversationOptions {
   conversationId?: string;
   workspaceRoot?: string;
   llmClient?: LLMClient;
-  secretStorage?: SecretStorage;
   tools?: ToolHandler<unknown, unknown>[];
 }
 
@@ -35,7 +33,6 @@ export class LocalConversation extends EventEmitter {
   private paused = false;
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: unknown };
   private readonly customLlmClient?: LLMClient;
-  private readonly secretStorage?: SecretStorage;
 
   constructor(options: LocalConversationOptions) {
     super();
@@ -44,9 +41,8 @@ export class LocalConversation extends EventEmitter {
     this.workspace = new LocalWorkspace(options.workspaceRoot);
     this.events = new EventLog();
     this.state = new ConversationState(this.events);
-    this.secretStorage = options.secretStorage;
     this.customLlmClient = options.llmClient;
-    this.secrets = new SecretRegistry(options.secretStorage);
+    this.secrets = new SecretRegistry();
     const providedTools = options.tools ?? [];
     this.tools = new Map<string, ToolHandler<unknown, unknown>>(providedTools.map((tool) => [tool.name, tool]));
 
@@ -242,7 +238,7 @@ export class LocalConversation extends EventEmitter {
       nativeToolCalling: s.llm.nativeToolCalling ?? undefined,
       reasoningEffort: s.llm.reasoningEffort ?? undefined,
     };
-    const factory = new LLMFactory(config, { storage: this.secretStorage });
+    const factory = new LLMFactory(config, { secrets: this.secrets });
     return factory.createClient();
   }
 

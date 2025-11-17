@@ -1,11 +1,11 @@
-import type { SecretStorage } from 'vscode';
 import { LLMCredentialProvider } from './credentials';
 import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
+import type { SecretRegistry } from '../runtime/SecretRegistry';
 
 export interface LLMFactoryOptions {
-  storage?: SecretStorage;
+  secrets?: SecretRegistry;
   preferredApiKeys?: string | string[];
 }
 
@@ -14,7 +14,7 @@ export class LLMFactory {
   private readonly preferredKeys?: string | string[];
 
   constructor(private readonly config: LLMConfiguration, options: LLMFactoryOptions = {}) {
-    this.credentialProvider = new LLMCredentialProvider(options.storage);
+    this.credentialProvider = new LLMCredentialProvider(options.secrets);
     this.preferredKeys = options.preferredApiKeys;
   }
 

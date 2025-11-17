@@ -1,4 +1,3 @@
-import type { SecretStorage } from 'vscode';
 import { SecretRegistry } from '../runtime/SecretRegistry';
 
 const FALLBACK_KEY_ORDER = [
@@ -13,8 +12,8 @@ const FALLBACK_KEY_ORDER = [
 export class LLMCredentialProvider {
   private readonly registry: SecretRegistry;
 
-  constructor(storage?: SecretStorage) {
-    this.registry = new SecretRegistry(storage);
+  constructor(registry?: SecretRegistry) {
+    this.registry = registry ?? new SecretRegistry();
   }
 
   async getApiKey(preferredKeys?: string | string[]): Promise<string | undefined> {
