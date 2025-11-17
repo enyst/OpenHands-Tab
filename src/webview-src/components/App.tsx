@@ -12,7 +12,7 @@ import { AccessoryButton, ToolbarButton } from './ToolbarButtons';
   - A11y roles
 */
 
-import { ToastManager, toasterMessages, Typography, Scrollable, Input } from '@openhands/ui';
+import { Typography, Scrollable, Input } from '@openhands/ui';
 import {
   isEvent,
   isTextContent,
@@ -327,19 +327,15 @@ function EventBlock({ event }: { event: Event }) {
   );
 }
 
-const TOAST_DEBOUNCE_MS = 600;
-let lastToast = { type: '' as '' | 'info' | 'success' | 'warning' | 'error', at: 0 };
-function toastDebounced(type: 'info' | 'success' | 'warning' | 'error', msg: string) {
-  const now = Date.now();
-  if (lastToast.type === type && now - lastToast.at < TOAST_DEBOUNCE_MS) return;
-  lastToast = { type, at: now };
-  try {
-    const fn = toasterMessages[type];
-    if (typeof fn === 'function') fn(msg);
-  } catch {
-    // no-op if UI toast API is unavailable
-  }
-}
+/**
+ * Status message debouncing and auto-dismiss configuration
+ * - Messages are debounced to prevent spam (600ms window)
+ * - Messages auto-dismiss after 5 seconds unless they're errors
+ * - Error messages stay visible until replaced
+ */
+const STATUS_DEBOUNCE_MS = 600;
+const STATUS_AUTO_DISMISS_MS = 5000;
+let lastStatusMessage = { level: '' as 'info' | 'warn' | 'error', message: '', at: 0 };
 
 /**
  * ConfirmationPrompt: displays pending actions awaiting user approval/rejection.
@@ -513,9 +509,43 @@ export function App() {
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>({ message: 'Initializing…', level: 'info' });
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusAutoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextPopoverRef = useRef<HTMLDivElement | null>(null);
   const skillsPopoverRef = useRef<HTMLDivElement | null>(null);
   const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+
+  // Helper function to show status messages with debouncing and auto-dismiss
+  const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string, autoDismiss = true) => {
+    const now = Date.now();
+    // Debounce: skip if same message type was shown recently
+    if (lastStatusMessage.level === level && lastStatusMessage.message === message && now - lastStatusMessage.at < STATUS_DEBOUNCE_MS) {
+      return;
+    }
+    lastStatusMessage = { level, message, at: now };
+
+    // Clear any existing auto-dismiss timer
+    if (statusAutoDismissRef.current) {
+      clearTimeout(statusAutoDismissRef.current);
+      statusAutoDismissRef.current = null;
+    }
+
+    // Set the status message
+    setStatusBanner({ message, level });
+
+    // Auto-dismiss after timeout (except for errors which stay until replaced)
+    if (autoDismiss && level !== 'error') {
+      statusAutoDismissRef.current = setTimeout(() => {
+        setStatusBanner((current) => {
+          // Only clear if this is still the same message
+          if (current?.message === message) {
+            return null;
+          }
+          return current;
+        });
+        statusAutoDismissRef.current = null;
+      }, STATUS_AUTO_DISMISS_MS);
+    }
+  }, []);
 
   // Define callback functions before useEffects that depend on them
   const handleEvent = useCallback((e: unknown) => {
@@ -525,9 +555,9 @@ export function App() {
     if (isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
-        // Show toast only when transitioning INTO confirmation mode (not on repeated updates)
+        // Show status message only when transitioning INTO confirmation mode (not on repeated updates)
         if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
-          toastDebounced('warning', 'Agent is waiting for confirmation');
+          showStatusMessage('warn', 'Agent is waiting for confirmation');
         }
         lastAgentStatusRef.current = e.agent_status;
       }
@@ -555,9 +585,9 @@ export function App() {
       setIsSubmitting(false);
     }
 
-    // Show toast notifications for certain events
+    // Show status messages for certain events
     if (isAgentErrorEvent(e)) {
-      toastDebounced('error', e.error);
+      showStatusMessage('error', e.error);
       // Reset in-flight flag on error to allow recovery
       if (submissionTimeoutRef.current) {
         clearTimeout(submissionTimeoutRef.current);
@@ -565,12 +595,12 @@ export function App() {
       }
       setIsSubmitting(false);
     } else if (isPauseEvent(e)) {
-      toastDebounced('warning', 'Conversation paused');
+      showStatusMessage('warn', 'Conversation paused');
     }
 
     // Add event to the list for rendering
     setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
-  }, []);
+  }, [showStatusMessage]);
 
   // Signal webview is ready on mount
   useEffect(() => {
@@ -604,7 +634,7 @@ export function App() {
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
             const label = payload.serverUrl && payload.serverUrl.length > 0 ? payload.serverUrl : 'local mode';
-            toastDebounced('info', `Config updated: ${label}`);
+            showStatusMessage('info', `Config updated: ${label}`);
           }
           if (payload.mode === 'local') {
             setMode('local');
@@ -619,10 +649,8 @@ export function App() {
         case 'error':
           if (typeof payload.error === 'string') {
             setStatusBanner({ message: payload.error, level: 'error' });
-            toastDebounced('error', payload.error);
           } else {
             setStatusBanner({ message: 'An unknown error occurred', level: 'error' });
-            toastDebounced('error', String(payload.error));
           }
           break;
         case 'conversationStarted': {
@@ -679,7 +707,7 @@ export function App() {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [events, handleEvent]);
+  }, [events, handleEvent, showStatusMessage]);
 
   useEffect(() => {
     // Deterministic scroll to bottom when events change
@@ -793,10 +821,10 @@ export function App() {
   }, []);
 
   const openSkill = useCallback((path: string) => {
-    toastDebounced('info', 'Opening skill…');
+    showStatusMessage('info', 'Opening skill…');
     postMessage({ type: 'openSkill', path });
     closeSkillsPopover();
-  }, [closeSkillsPopover, postMessage]);
+  }, [closeSkillsPopover, postMessage, showStatusMessage]);
 
   const handleContextToggle = useCallback(() => {
     closeSkillsPopover();
@@ -927,14 +955,14 @@ export function App() {
     submissionTimeoutRef.current = setTimeout(() => {
       setIsSubmitting(false);
       submissionTimeoutRef.current = null;
-      toastDebounced('warning', 'Confirmation timed out - please try again');
+      showStatusMessage('warn', 'Confirmation timed out - please try again');
     }, 30000);
 
     postMessage({ type: 'command', command: 'approveAction' });
     // Use "submitted" (pending state) instead of "approved" (implies success)
-    toastDebounced('info', 'Approval submitted');
+    showStatusMessage('info', 'Approval submitted');
     // Server will send ObservationEvent which clears pending actions and resets flag via handleEvent
-  }, [isSubmitting, postMessage]);
+  }, [isSubmitting, postMessage, showStatusMessage]);
 
   const handleReject = useCallback((reason?: string) => {
     // Prevent double-submit: return early if confirmation already in flight
@@ -945,14 +973,14 @@ export function App() {
     submissionTimeoutRef.current = setTimeout(() => {
       setIsSubmitting(false);
       submissionTimeoutRef.current = null;
-      toastDebounced('warning', 'Confirmation timed out - please try again');
+      showStatusMessage('warn', 'Confirmation timed out - please try again');
     }, 30000);
 
     postMessage({ type: 'command', command: 'rejectAction', reason });
     // Use "submitted" (pending state) instead of "rejected" (implies success)
-    toastDebounced('info', 'Rejection submitted');
+    showStatusMessage('info', 'Rejection submitted');
     // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
-  }, [isSubmitting, postMessage]);
+  }, [isSubmitting, postMessage, showStatusMessage]);
 
 const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
   info: 'text-[color-mix(in_srgb,var(--vscode-tab-activeForeground)_85%,transparent)]',
@@ -962,7 +990,6 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
 
   return (
     <div id="app" className="flex flex-col h-screen">
-      <ToastManager />
       <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
         <div className="flex items-center gap-2">
           {!isLocalMode && <StatusDot status={status} />}
@@ -982,7 +1009,7 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
           <ToolbarButton
             icon="history"
             label="History"
-            onClick={() => toastDebounced('info', 'History view coming soon')}
+            onClick={() => showStatusMessage('info', 'History view coming soon')}
           />
           <ToolbarButton
             icon="settings-gear"
@@ -1104,12 +1131,12 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
           <AccessoryButton
             icon="add"
             label="Attach files"
-            onClick={() => toastDebounced('info', 'File attachments coming soon')}
+            onClick={() => showStatusMessage('info', 'File attachments coming soon')}
           />
           <AccessoryButton
             icon="server-environment"
             label="MCP Servers"
-            onClick={() => toastDebounced('info', 'MCP server management coming soon')}
+            onClick={() => showStatusMessage('info', 'MCP server management coming soon')}
           />
           <div className="relative">
             <AccessoryButton icon="mortar-board" label="Skills" onClick={handleSkillsToggle} />

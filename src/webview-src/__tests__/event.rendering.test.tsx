@@ -55,7 +55,9 @@ describe('Agent-SDK event rendering', () => {
       tool_call_id: 'call_123'
     };
     postToWindow({ type: 'event', event: ev });
-    expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
+    // Error appears in both the event block and status banner
+    const errorElements = await screen.findAllByText(/Something went wrong/);
+    expect(errorElements.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders conversation error events', async () => {
