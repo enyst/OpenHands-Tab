@@ -209,7 +209,7 @@
     "test": "npm test -w agent-sdk-ts && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
-    "lint": "npm run lint -w agent-sdk-ts && eslint .",
+    "lint": "npm run lint -w agent-sdk-ts && eslint src tests",
     "lint:fix": "eslint . --fix",
     "build:webview": "node esbuild.webview.mjs",
     "dev:vscode": "bash scripts/dev-vscode.sh"
