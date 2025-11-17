@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation for building AI agents with the OpenHands platform. This document provides a comprehensive architectural overview and implementation guide for the SDK.
+The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. This document provides an architectural overview and implementation guide for the SDK.
 
 ## Design Philosophy
 
