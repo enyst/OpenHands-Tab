@@ -1,4 +1,3 @@
-import type { AgentSettings, ConfirmationSettings, ConversationSettings, LLMSettings, ServerSettings } from '@openhands/agent-sdk-ts';
 export type { AgentSettings, ConfirmationSettings, ConversationSettings, LLMSettings, ServerSettings } from '@openhands/agent-sdk-ts';
 
 export interface SettingsAdapter {

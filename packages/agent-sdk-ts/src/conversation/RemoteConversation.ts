@@ -28,8 +28,8 @@ export class RemoteConversation extends EventEmitter {
   private status: ConversationStatus = 'offline';
   private ws?: WebSocket;
   private bashWs?: WebSocket;
-  private reconnectTimer?: NodeJS.Timeout;
-  private bashReconnectTimer?: NodeJS.Timeout;
+  private reconnectTimer?: ReturnType<typeof setTimeout>;
+  private bashReconnectTimer?: ReturnType<typeof setTimeout>;
   private retryCount = 0;
   private bashRetryCount = 0;
   private readonly retryBaseMs = 1000;
@@ -62,42 +62,48 @@ export class RemoteConversation extends EventEmitter {
     this.serverUrl = url;
   }
 
-  async startNewConversation(): Promise<string | undefined> {
-    try {
-      if (this.ws) {
-        try {
+    async startNewConversation(): Promise<string | undefined> {
+      try {
+        if (this.ws) {
           this.ws.removeAllListeners();
           this.ws.close();
-        } catch {}
-        this.ws = undefined;
-      }
-      this.setStatus('connecting');
-      const base = this.serverUrl.replace(/\/$/, '');
-      const s = this.settings;
-      const llm: Record<string, unknown> = {};
-      const usageId = s?.llm.usageId != null ? String(s.llm.usageId).trim() : undefined;
-      const model = s?.llm.model != null ? String(s.llm.model).trim() : undefined;
-      const baseUrl = s?.llm.baseUrl != null ? String(s.llm.baseUrl).trim() : undefined;
-      const apiVersion = s?.llm.apiVersion != null ? String(s.llm.apiVersion).trim() : undefined;
-      if (usageId) llm.usage_id = usageId;
-      if (model) llm.model = model;
-      if (baseUrl) llm.base_url = baseUrl;
-      if (apiVersion) llm.api_version = apiVersion;
-      if (s?.llm.timeout != null) llm.timeout = s.llm.timeout;
-      if (s?.llm.temperature != null) llm.temperature = s.llm.temperature;
-      if (s?.llm.topP != null) llm.top_p = s.llm.topP;
-      if (s?.llm.topK != null) llm.top_k = s.llm.topK;
-      if (s?.llm.maxInputTokens != null && s.llm.maxInputTokens > 0) {
-        llm.max_input_tokens = s.llm.maxInputTokens;
-      }
-      if (s?.llm.maxOutputTokens != null && s.llm.maxOutputTokens > 0) {
-        llm.max_output_tokens = s.llm.maxOutputTokens;
-      }
-      if (s?.llm.nativeToolCalling != null) llm.native_tool_calling = s.llm.nativeToolCalling;
-      if (s?.llm.reasoningEffort != null) llm.reasoning_effort = s.llm.reasoningEffort;
-      if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
-      if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
-      if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
+          this.ws = undefined;
+        }
+        this.setStatus('connecting');
+        const base = this.serverUrl.replace(/\/$/, '');
+        const s = this.settings;
+        const llm: Record<string, unknown> = {};
+        const toOptionalString = (value: unknown): string | undefined => {
+          if (typeof value === 'string') return value.trim() || undefined;
+          if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+            const text = String(value).trim();
+            return text.length > 0 ? text : undefined;
+          }
+          return undefined;
+        };
+        const usageId = toOptionalString(s?.llm.usageId);
+        const model = toOptionalString(s?.llm.model);
+        const baseUrl = toOptionalString(s?.llm.baseUrl);
+        const apiVersion = toOptionalString(s?.llm.apiVersion);
+        if (usageId) llm.usage_id = usageId;
+        if (model) llm.model = model;
+        if (baseUrl) llm.base_url = baseUrl;
+        if (apiVersion) llm.api_version = apiVersion;
+        if (s?.llm.timeout !== undefined) llm.timeout = s.llm.timeout;
+        if (s?.llm.temperature !== undefined) llm.temperature = s.llm.temperature;
+        if (s?.llm.topP !== undefined) llm.top_p = s.llm.topP;
+        if (s?.llm.topK !== undefined) llm.top_k = s.llm.topK;
+        if (typeof s?.llm.maxInputTokens === 'number' && s.llm.maxInputTokens > 0) {
+          llm.max_input_tokens = Math.trunc(s.llm.maxInputTokens);
+        }
+        if (typeof s?.llm.maxOutputTokens === 'number' && s.llm.maxOutputTokens > 0) {
+          llm.max_output_tokens = Math.trunc(s.llm.maxOutputTokens);
+        }
+        if (s?.llm.nativeToolCalling !== undefined) llm.native_tool_calling = s.llm.nativeToolCalling;
+        if (s?.llm.reasoningEffort !== undefined) llm.reasoning_effort = s.llm.reasoningEffort;
+        if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
+        if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
+        if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
 
       const confirmation_policy: Record<string, unknown> = (() => {
         const p = s?.confirmation.policy || 'never';
@@ -118,10 +124,10 @@ export class RemoteConversation extends EventEmitter {
         return Math.min(500, Math.max(1, n));
       })();
       const headers = this.getAuthHeaders();
-      const req = {
-        agent: {
-          llm,
-          tools: [
+        const req = {
+          agent: {
+            llm,
+            tools: [
             { name: 'terminal' },
             { name: 'file_editor' },
             { name: 'task_tracker' }
@@ -137,11 +143,10 @@ export class RemoteConversation extends EventEmitter {
         headers,
         body: JSON.stringify(req)
       });
-      if (!res.ok) {
-        let info = '';
-        try { info = await res.text(); } catch {}
-        const status = res.status;
-        let userMessage = `Failed to start conversation (HTTP ${status})`;
+        if (!res.ok) {
+          const info = await res.text().catch(() => '');
+          const status = res.status;
+          let userMessage = `Failed to start conversation (HTTP ${status})`;
         if (status === 401 || status === 403) {
           userMessage += '. Authentication failed - check your Session API Key in settings.';
         } else if (status === 404) {
@@ -188,8 +193,7 @@ export class RemoteConversation extends EventEmitter {
       const headers = this.getAuthHeaders();
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers });
       if (!res.ok) {
-        let info = '';
-        try { info = await res.text(); } catch {}
+        const info = await res.text().catch(() => '');
         const status = res.status;
         throw new Error(`Failed to pause conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
@@ -208,8 +212,7 @@ export class RemoteConversation extends EventEmitter {
       const headers = this.getAuthHeaders();
       const res = await fetch(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
       if (!res.ok) {
-        let info = '';
-        try { info = await res.text(); } catch {}
+        const info = await res.text().catch(() => '');
         const status = res.status;
         throw new Error(`Failed to resume conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
@@ -246,8 +249,7 @@ export class RemoteConversation extends EventEmitter {
       });
 
       if (!res.ok) {
-        let info = '';
-        try { info = await res.text(); } catch {}
+        const info = await res.text().catch(() => '');
         const status = res.status;
         throw new Error(`Failed to ${action} action (HTTP ${status})${info ? `: ${info}` : ''}`);
       }
@@ -283,17 +285,13 @@ export class RemoteConversation extends EventEmitter {
   disconnect() {
     this.clearReconnect();
     if (this.ws) {
-      try {
-        this.ws.removeAllListeners();
-        this.ws.close();
-      } catch {}
+      this.ws.removeAllListeners();
+      this.ws.close();
       this.ws = undefined;
     }
     if (this.bashWs) {
-      try {
-        this.bashWs.removeAllListeners();
-        this.bashWs.close();
-      } catch {}
+      this.bashWs.removeAllListeners();
+      this.bashWs.close();
       this.bashWs = undefined;
     }
     this.setStatus('offline');
@@ -380,14 +378,21 @@ export class RemoteConversation extends EventEmitter {
       ws.on('open', () => { this.bashRetryCount = 0; });
       ws.on('close', () => { this.scheduleBashReconnect(); });
       ws.on('error', (err) => { this.emit('error', err); this.scheduleBashReconnect(); });
-      ws.on('message', (data: any) => {
+      ws.on('message', (data: WebSocket.RawData) => {
         try {
-          const event = JSON.parse(data.toString());
+          const text = typeof data === 'string'
+            ? data
+            : Array.isArray(data)
+              ? Buffer.concat(data).toString('utf8')
+              : Buffer.isBuffer(data)
+                ? data.toString('utf8')
+                : Buffer.from(data).toString('utf8');
+          const event = JSON.parse(text) as unknown;
           if (isBashEvent(event)) {
             this.emit('terminal', event);
           }
         } catch (e) {
-          this.emit('error', e);
+          this.emit('error', e instanceof Error ? e : new Error(String(e)));
         }
       });
     } catch (e) {

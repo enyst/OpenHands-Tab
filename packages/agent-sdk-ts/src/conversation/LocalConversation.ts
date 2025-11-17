@@ -31,10 +31,10 @@ export class LocalConversation extends EventEmitter {
     this.settings = settings;
   }
 
-  async startNewConversation(): Promise<string | undefined> {
+  startNewConversation(): Promise<string | undefined> {
     this.conversationId = this.conversationId ?? `local-${Date.now().toString(36)}`;
     this.emit('conversationStarted', this.conversationId);
-    return this.conversationId;
+    return Promise.resolve(this.conversationId);
   }
 
   restoreConversation(id: string) {
@@ -54,15 +54,16 @@ export class LocalConversation extends EventEmitter {
     this.emit('event', event);
   }
 
-  async pause() {
+  pause(): Promise<void> {
     this.emit('event', { type: 'PauseEvent', source: 'user' } as Event);
+    return Promise.resolve();
   }
 
-  async resume() { /* local resume no-op */ }
+  resume(): Promise<void> { return Promise.resolve(); /* local resume no-op */ }
 
-  async approveAction() { /* local approve no-op */ }
+  approveAction(): Promise<void> { return Promise.resolve(); /* local approve no-op */ }
 
-  async rejectAction(_reason?: string) { /* local reject no-op */ }
+  rejectAction(_reason?: string): Promise<void> { return Promise.resolve(); /* local reject no-op */ }
 
   disconnect() {
     this.setStatus('offline');
