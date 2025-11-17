@@ -93,7 +93,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // Should have multiple action details sections
       const toolLabels = screen.getAllByText(/Tool:/);
-      expect(toolLabels.length).toBeGreaterThan(2);
+      expect(toolLabels.length).toBeGreaterThanOrEqual(4);
     });
   });
 
