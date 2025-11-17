@@ -468,9 +468,11 @@ describe('App - Advanced Test Coverage', () => {
       const newChatBtn = screen.getByLabelText('New Conversation');
       await userEvent.click(newChatBtn);
 
+      expect(input.value).toBe('');
+
       expect(mockApi.postMessage).toHaveBeenCalledWith({
-        type: 'command',
-        command: 'startNewConversation'
+        type: "command",
+        command: "startNewConversation"
       });
     });
   });
