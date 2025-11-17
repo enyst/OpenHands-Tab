@@ -41,9 +41,10 @@ Agent execution and state management:
   - Queue-based lock acquisition
 
 - **`StuckDetector`** - Agent health monitoring
-  - Detects when agents are stuck in loops or unproductive patterns
-  - Configurable detection heuristics
-  - Recovery suggestions and interventions
+  - Detects idle agents (no events for threshold time)
+  - Detects actions without observations (unproductive tool calls)
+  - Configurable threshold (default 30 seconds)
+  - Returns structured result with stuck status and reason
 
 ### 2. LLM Integration Layer (`src/llm/`)
 Streaming LLM clients and configuration:

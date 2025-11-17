@@ -198,20 +198,20 @@ await lock.acquire(async () => {
 **Purpose**: Detect when agents are stuck in unproductive loops.
 
 **Detection Strategies**:
-- Repeated identical tool calls
-- Excessive error rates
-- Stagnant conversation progress
-- Token budget exhaustion
+- Idle detection: No events for a configurable threshold (default 30 seconds)
+- Actions without observations: Multiple actions without corresponding observation events
 
 **Usage Example**:
 ```typescript
-import { StuckDetector } from '@openhands/agent-sdk-ts';
+import { StuckDetector, EventLog } from '@openhands/agent-sdk-ts';
 
-const detector = new StuckDetector();
+const eventLog = new EventLog();
+const detector = new StuckDetector(eventLog, 30_000); // 30 second threshold
 
-detector.recordIteration(eventLog);
-if (detector.isStuck()) {
-  console.log('Agent appears stuck:', detector.getStuckReason());
+const result = detector.evaluate();
+if (result.stuck) {
+  console.log('Agent appears stuck:', result.reason);
+  console.log('Last event:', result.lastEvent);
   // Trigger recovery or intervention
 }
 ```
