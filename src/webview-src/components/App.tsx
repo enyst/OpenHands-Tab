@@ -36,7 +36,7 @@ import {
   type ConversationErrorEvent,
   type PauseEvent,
   type Condensation,
-} from '../../types/agent-sdk';
+} from 'agent-sdk-ts';
 
 interface VscodeApi {
   postMessage: (message: unknown) => void;

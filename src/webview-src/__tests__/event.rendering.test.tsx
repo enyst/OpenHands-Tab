@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
-import type { MessageEvent as AgentMessageEvent, AgentErrorEvent, ConversationErrorEvent } from '../../types/agent-sdk';
+import type {
+  MessageEvent as AgentMessageEvent,
+  AgentErrorEvent,
+  ConversationErrorEvent,
+} from 'agent-sdk-ts';
 
 afterEach(() => {
   cleanup();

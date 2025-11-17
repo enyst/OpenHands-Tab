@@ -158,7 +158,7 @@ Confirmation policy
 ## 11. Extension Structure (Code)
 - src/extension.ts (activate, register commands, webview setup, message bridge)
 - src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers, conversation lifecycle)
-- src/types/agent-sdk.ts (TypeScript types and guards for Message/Event models, Bash events)
+- packages/agent-sdk-ts/src/index.ts (TypeScript types and guards for Message/Event models, Bash events)
 - src/settings/ (settings management with VS Code integration)
   - SettingsManager.ts (central settings access layer)
   - SettingsAdapter.ts (interface for settings storage)
@@ -331,7 +331,7 @@ Source of truth
   - Event stream (WS receive): EventBase discriminated union with common variants (MessageEvent, ActionEvent, Observation*, AgentErrorEvent, etc.).
   - EventPage for HTTP backfill: { items: EventBase[]; next_page_id?: string | null }.
 - Implementation:
-  - Create src/types/agent-sdk.ts exporting Message, TextContent, ImageContent, and a narrowed EventBase union.
+  - Create a dedicated `agent-sdk-ts` package exporting Message, TextContent, ImageContent, and a narrowed EventBase union.
   - Add type guards for event decoding; unknown variants are logged and rendered as raw JSON.
   - Wire types into ConnectionManager: onEvent(e: EventBase), sendUserMessage(payload: Message).
   - Update renderers to switch on event.type; fallback to JSON view for unknowns.
@@ -351,7 +351,7 @@ Source of truth
   - Monitor bundle size; keep layout simple and accessible; align with VS Code look later.
 
 3) Milestones
-- M-A (Models): Add src/types/agent-sdk.ts + type guards; update ConnectionManager and renderers to use types.
+- M-A (Models): Add the `agent-sdk-ts` workspace package + type guards; update ConnectionManager and renderers to use types.
 - M-B (Webview Foundation): Ensure React bundling in webview supports @openhands/ui/styles.
 - M-C (UI Increment 1): Adopt Button, Typography, basic containers.
 - M-D (UI Increment 2): Tooltips, Chips, richer event cards.

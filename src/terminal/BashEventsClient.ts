@@ -1,6 +1,6 @@
 import WebSocket from 'ws';
-import type { BashEvent } from '../types/agent-sdk';
-import { isBashEvent } from '../types/agent-sdk';
+import type { BashEvent } from 'agent-sdk-ts';
+import { isBashEvent } from 'agent-sdk-ts';
 
 export type BashEventsCallbacks = {
   onEvent: (event: BashEvent) => void;

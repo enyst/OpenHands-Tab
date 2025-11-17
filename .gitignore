@@ -7,6 +7,7 @@ media/*.css
 *.vsix
 out/
 dist/
+packages/agent-sdk-ts/dist/
 node_modules/
 .vscode-test/
 .vscode-test-web/
