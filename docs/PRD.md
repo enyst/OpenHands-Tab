@@ -68,11 +68,11 @@ The repository includes a complete TypeScript SDK (`packages/agent-sdk-ts`) that
 - Complete type definitions for streaming chunks, responses, and configuration
 
 **Tool System** (`src/tools/`):
-- `TerminalTool` - Execute shell commands with streaming output
-- `FileEditorTool` - File operations (read, write, search/replace) with validation
-- `TaskTrackerTool` - Task management (create, update, query)
-- `BrowserTool` - Browser automation (navigate, execute JS, screenshots)
-- `IntegratedTerminalRunner` - VS Code terminal integration
+- `TerminalTool` - Execute shell commands (cwd, timeoutMs). Returns stdout/stderr/exitCode.
+- `FileEditorTool` - Write or append file contents with path validation. Args: { path, content, append? }
+- `TaskTrackerTool` - In-memory task list: actions {create, update, complete, list}
+- `BrowserTool` - HTTP GET/POST with size limits (maxBytes). Validates http/https URLs.
+- `IntegratedTerminalRunner` - VS Code terminal integration used by TerminalTool
 
 **Workspace** (`src/workspace/`):
 - `LocalWorkspace` - File system abstraction with path validation and sandboxing

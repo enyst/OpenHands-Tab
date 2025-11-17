@@ -80,11 +80,11 @@ The SDK provides a complete TypeScript implementation for building OpenHands age
 - Credential management with secure storage
 
 **Tool System**:
-- `TerminalTool` - Execute shell commands in sandboxed environments
-- `FileEditorTool` - Read, write, and edit files with validation
-- `TaskTrackerTool` - Manage tasks and todos
-- `BrowserTool` - HTTP web fetching with streaming and size limits
-- `IntegratedTerminalRunner` - VS Code terminal integration
+- `TerminalTool` - Execute shell commands (cwd, timeoutMs). Returns stdout/stderr/exitCode.
+- `FileEditorTool` - Write or append file contents with path validation. Args: { path, content, append? }
+- `TaskTrackerTool` - In-memory tasks: actions {create, update, complete, list}; fields: {title, notes, completed}
+- `BrowserTool` - HTTP GET/POST with size limits (maxBytes). URL validation (http/https only).
+- `IntegratedTerminalRunner` - VS Code terminal-backed command runner used by TerminalTool
 
 **Workspace Abstraction**:
 - `LocalWorkspace` - File system operations with path validation

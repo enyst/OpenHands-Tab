@@ -62,9 +62,9 @@ The runtime layer coordinates agent execution, manages conversation state, and o
 
 **Usage Example**:
 ```typescript
-import { AgentOrchestrator, createLLMClient } from '@openhands/agent-sdk-ts';
+import { AgentOrchestrator, LLMFactory } from '@openhands/agent-sdk-ts';
 
-const client = createLLMClient({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' });
+const client = await new LLMFactory({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }).createClient();
 const orchestrator = new AgentOrchestrator(client);
 
 const response = await orchestrator.runChat({
@@ -168,8 +168,8 @@ import { SecretRegistry } from '@openhands/agent-sdk-ts';
 
 const secrets = new SecretRegistry(vscodeSecrets);
 
-await secrets.set('llm', 'api_key', 'sk-...');
-const apiKey = await secrets.get('llm', 'api_key');
+// SecretRegistry exposes get(name) with env/SecretStorage fallback
+const apiKey = await secrets.get('OPENAI_API_KEY');
 ```
 
 ### AsyncLock
@@ -320,20 +320,21 @@ class AnthropicClient implements LLMClient {
 
 **Usage Example**:
 ```typescript
-import { createLLMClient } from '@openhands/agent-sdk-ts';
+import { LLMFactory } from '@openhands/agent-sdk-ts';
 
-// Auto-detects Anthropic
-const client1 = createLLMClient({
+// Auto-detects Anthropic by provided model/api key
+const client1 = await new LLMFactory({
+  provider: 'anthropic',
   model: 'claude-sonnet-4-20250514',
   apiKey: 'sk-ant-...'
-});
+}).createClient();
 
 // Explicit provider
-const client2 = createLLMClient({
+const client2 = await new LLMFactory({
   provider: 'openai',
-  model: 'gpt-4',
+  model: 'gpt-4o',
   apiKey: 'sk-...'
-});
+}).createClient();
 ```
 
 ### Credential Management
@@ -370,10 +371,9 @@ interface ToolExecutor {
 
 **Capabilities**:
 - Execute bash/shell commands
-- Stream command output
-- Working directory management
-- Environment variable support
-- Exit code handling
+- Working directory management (cwd)
+- Optional timeoutMs
+- Exit code and stdout/stderr capture
 
 **Usage Example**:
 ```typescript
@@ -397,16 +397,11 @@ console.log(result.exitCode);
 **File**: `src/tools/FileEditorTool.ts`
 
 **Operations**:
-- `read` - Read file contents
-- `write` - Write/overwrite file
-- `create` - Create new file (fail if exists)
-- `delete` - Delete file
-- `search_replace` - Find and replace text
+- write: overwrite file content
+- append: append to file content (creates file/dirs as needed)
 
-**Security**:
-- Path validation (no `..` traversal)
-- Workspace boundary enforcement
-- Sandboxed operations
+**Validation**:
+- Path validation and workspace boundary enforcement via LocalWorkspace
 
 **Usage Example**:
 ```typescript
@@ -422,8 +417,12 @@ await fileEditor.execute({
   content: 'export function hello() { return "Hello, world!"; }'
 }, context);
 
-// Read file
-const content = await workspace.readFile('src/hello.ts');
+// Append content
+await fileEditor.execute({
+  path: 'src/hello.ts',
+  content: '\nexport const x = 1;\n',
+  append: true,
+}, context);
 ```
 
 ### TaskTrackerTool
@@ -431,10 +430,10 @@ const content = await workspace.readFile('src/hello.ts');
 **File**: `src/tools/TaskTrackerTool.ts`
 
 **Features**:
-- Create tasks with descriptions
-- Update task status (pending, in_progress, completed)
-- Query tasks by status
-- Task persistence
+- Create tasks with title/notes
+- Update title/notes and completed flag; complete action also supported
+- List all tasks (no filtering)
+- In-memory only (no persistence)
 
 **Usage Example**:
 ```typescript
@@ -655,7 +654,7 @@ export const isImageContent = (c: Content): c is ImageContent => c.type === 'ima
 ```typescript
 import {
   AgentOrchestrator,
-  createLLMClient,
+  LLMFactory,
   EventLog,
   ConversationState,
   SecretRegistry,
@@ -666,8 +665,8 @@ import {
 
 // Setup
 const secrets = new SecretRegistry(context.secrets);
-const apiKey = await secrets.get('llm', 'api_key');
-const client = createLLMClient({ provider: 'anthropic', model: '...', apiKey });
+const apiKey = await secrets.get('ANTHROPIC_API_KEY');
+const client = await new LLMFactory({ provider: 'anthropic', model: 'claude-sonnet-4-20250514', apiKey }).createClient();
 
 const eventLog = new EventLog();
 const state = new ConversationState(eventLog);
@@ -732,13 +731,13 @@ if (response.message.tool_calls) {
 ### Pattern 2: Standalone Agent
 
 ```typescript
-import { AgentOrchestrator, createLLMClient } from '@openhands/agent-sdk-ts';
+import { AgentOrchestrator, LLMFactory } from '@openhands/agent-sdk-ts';
 
-const client = createLLMClient({
+const client = await new LLMFactory({
   provider: 'openai',
-  model: 'gpt-4',
+  model: 'gpt-4o',
   apiKey: process.env.OPENAI_API_KEY
-});
+}).createClient();
 
 const orchestrator = new AgentOrchestrator(client);
 

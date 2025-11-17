@@ -87,24 +87,23 @@ Agent tool implementations:
   - Working directory management
 
 - **`FileEditorTool`** - File operations
-  - Read, write, create, delete files
-  - Search and replace operations
-  - Path validation and sandboxing
-  - Diff generation for edits
+  - Write or append file contents with path validation
+  - Args: { path: string; content?: string; append?: boolean }
+  - Creates parent directories as needed
 
 - **`TaskTrackerTool`** - Task management
-  - Create, update, complete tasks
-  - Task state tracking (pending, in_progress, completed)
-  - Task queries and filtering
+  - Actions: create, update, complete, list
+  - Fields: { id, title, notes, completed }
+  - In-memory store; returns { tasks }
 
 - **`BrowserTool`** - HTTP web fetching
   - HTTP GET and POST requests
-  - Response content streaming with size limits
+  - Streams response while enforcing maxBytes limit
   - URL validation (http/https only)
 
 - **`IntegratedTerminalRunner`** - VS Code terminal integration
   - Execute commands in VS Code integrated terminal
-  - Real-time output streaming
+  - Captures stdout/stderr and exit codes
   - Terminal lifecycle management
 
 - **`types.ts`** - Tool type definitions
@@ -205,7 +204,7 @@ npm run lint -w @openhands/agent-sdk-ts -- --fix
 
 ### Creating an LLM Client
 ```typescript
-import { createLLMClient, LLMConfiguration } from '@openhands/agent-sdk-ts';
+import { LLMFactory, LLMConfiguration } from '@openhands/agent-sdk-ts';
 
 const config: LLMConfiguration = {
   provider: 'anthropic',
@@ -214,7 +213,7 @@ const config: LLMConfiguration = {
   temperature: 0.7,
 };
 
-const client = createLLMClient(config);
+const client = await new LLMFactory(config).createClient();
 ```
 
 ### Using AgentOrchestrator
