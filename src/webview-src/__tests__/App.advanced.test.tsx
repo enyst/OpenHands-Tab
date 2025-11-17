@@ -730,14 +730,8 @@ describe('App - Advanced Test Coverage', () => {
   });
 
   describe('Auto-scroll behavior', () => {
-    it('scrolls to bottom when new events arrive', async () => {
+    it('renders without errors when new events arrive', async () => {
       render(<App />);
-
-      const scrollIntoViewMock = vi.fn();
-      const endRef = document.querySelector('[ref]');
-      if (endRef) {
-        endRef.scrollIntoView = scrollIntoViewMock;
-      }
 
       const message = {
         type: 'MessageEvent',
@@ -754,8 +748,10 @@ describe('App - Advanced Test Coverage', () => {
         expect(screen.getByText('New message')).toBeInTheDocument();
       });
 
-      // Note: scrollIntoView is called in useEffect, which may not be easily
-      // testable in this environment. This test verifies the component renders.
+      // Note: scrollIntoView is called in useEffect when events change,
+      // but it's difficult to test in this environment since React refs
+      // don't create HTML attributes that can be queried with document.querySelector.
+      // This test verifies the component renders correctly without crashing.
     });
   });
 
