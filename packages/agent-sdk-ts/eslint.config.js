@@ -2,6 +2,7 @@
 const eslint = require('@eslint/js');
 const tseslint = require('@typescript-eslint/eslint-plugin');
 const tsparser = require('@typescript-eslint/parser');
+const globals = require('globals');
 
 module.exports = [
   {
@@ -18,6 +19,7 @@ module.exports = [
         project: ['./tsconfig.json'],
         tsconfigRootDir: __dirname,
       },
+      globals: globals.node,
     },
     plugins: {
       '@typescript-eslint': tseslint,
@@ -40,6 +42,7 @@ module.exports = [
         ecmaVersion: 2022,
         sourceType: 'module',
       },
+      globals: globals.node,
     },
     plugins: {
       '@typescript-eslint': tseslint,
