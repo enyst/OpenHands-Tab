@@ -4,7 +4,17 @@ import * as path from 'path';
 import * as os from 'os';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
-import { Conversation, type ConversationInstance, isBashCommand, isBashExit, isBashOutput } from '@openhands/agent-sdk-ts';
+import {
+  Conversation,
+  type ConversationInstance,
+  BrowserTool,
+  FileEditorTool,
+  TaskTrackerTool,
+  TerminalTool,
+  isBashCommand,
+  isBashExit,
+  isBashOutput,
+} from '@openhands/agent-sdk-ts';
 import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -20,6 +30,13 @@ const injectedBashEvents: any[] = [];
 let bashEventsEnabled = false;
 let bashEventsClientInitialized = false;
 let bashEventsClientStatus: 'online' | 'offline' = 'offline';
+
+const createDefaultLocalTools = () => [
+  new TerminalTool(),
+  new FileEditorTool(),
+  new TaskTrackerTool(),
+  new BrowserTool(),
+];
 
 function refreshBashEventsConfig() {
   bashEventsEnabled = !!vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled');
@@ -178,12 +195,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (needsNewConversation) {
       try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch {}
-      conversation = Conversation({
+      const conversationOptions = {
         serverUrl: settings.serverUrl ?? undefined,
         settings,
         workspaceRoot,
         conversationId: savedId,
-      });
+        tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
+      };
+
+      conversation = Conversation(conversationOptions);
       conversationMode = desiredMode;
 
       conversation.removeAllListeners();

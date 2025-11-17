@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool } from '../../tools';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import { LocalConversation } from './LocalConversation';
 import type { Event, MessageEvent } from '../types';
@@ -29,10 +30,12 @@ const baseSettings: OpenHandsSettings = {
   secrets: {},
 };
 
+const createDefaultTools = () => [new TerminalTool(), new FileEditorTool(), new TaskTrackerTool(), new BrowserTool()];
+
 describe('LocalConversation', () => {
   it('emits assistant messages when LLM responds without tools', async () => {
     const llm = new FakeLLM([[{ type: 'text', text: 'Hello world' }, { type: 'finish' }]]);
-    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
 
     const events: Event[] = [];
     conversation.on('event', (e: Event) => events.push(e));
@@ -55,7 +58,7 @@ describe('LocalConversation', () => {
       [{ type: 'text', text: 'Tasks listed' }, { type: 'finish' }],
     ]);
 
-    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
     const events: Event[] = [];
     conversation.on('event', (e: Event) => events.push(e));
 
@@ -82,7 +85,7 @@ describe('LocalConversation', () => {
       [{ type: 'text', text: 'Recovered' }, { type: 'finish' }],
     ]);
 
-    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
     const events: Event[] = [];
     conversation.on('event', (e: Event) => events.push(e));
 
@@ -105,7 +108,7 @@ describe('LocalConversation', () => {
       [{ type: 'text', text: 'Handled' }, { type: 'finish' }],
     ]);
 
-    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
     const events: Event[] = [];
     conversation.on('event', (e: Event) => events.push(e));
 
@@ -124,7 +127,7 @@ describe('LocalConversation', () => {
       [{ type: 'text', text: 'Done' }, { type: 'finish' }],
     ]);
 
-    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
     const events: Event[] = [];
     conversation.on('event', (e: Event) => events.push(e));
 

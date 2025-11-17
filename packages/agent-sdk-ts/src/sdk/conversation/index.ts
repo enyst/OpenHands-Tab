@@ -1,4 +1,5 @@
 import type { OpenHandsSettings } from '../types/settings';
+import type { ToolHandler } from '../types/tools';
 import { LocalConversation } from './LocalConversation';
 import { RemoteConversation } from './RemoteConversation';
 
@@ -11,6 +12,7 @@ export interface ConversationFactoryOptions {
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   conversationId?: string;
+  tools?: ToolHandler<unknown, unknown>[];
 }
 
 export function Conversation(options: ConversationFactoryOptions): ConversationInstance {
@@ -26,6 +28,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     settings: options.settings,
     conversationId: options.conversationId,
     workspaceRoot: options.workspaceRoot,
+    tools: options.tools,
   }) as ConversationInstance;
 }
 
