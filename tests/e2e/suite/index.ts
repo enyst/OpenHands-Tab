@@ -9,10 +9,6 @@ export async function run(): Promise<void> {
     return runAgentSdkEventsTest();
   }
 
-  if (testName === 'bashEvents') {
-    const { run: runBashEventsTest } = await import('./bashEvents');
-    return runBashEventsTest();
-  }
 
   // Default smoke test: open tab and verify it works
   await vscode.commands.executeCommand('openhands.openTab');
