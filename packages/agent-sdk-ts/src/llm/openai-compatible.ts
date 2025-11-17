@@ -8,9 +8,48 @@ const mergeHeaders = (base?: Record<string, string>, overrides?: Record<string, 
   ...(overrides ?? {}),
 });
 
-const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number]): any => {
+type OpenAIChatMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
+};
+
+type OpenAIContentPart = { type: 'text'; text?: string };
+
+type OpenAIToolCallDelta = {
+  id?: string;
+  index?: number;
+  function?: { name?: string; arguments?: string };
+};
+
+type OpenAIChoiceDelta = {
+  content?: string | OpenAIContentPart[];
+  tool_calls?: OpenAIToolCallDelta[];
+  reasoning_content?: string | { text?: string }[];
+};
+
+type OpenAIChoice = {
+  delta?: OpenAIChoiceDelta;
+  finish_reason?: string | null;
+};
+
+type OpenAIStreamChunk = {
+  choices?: OpenAIChoice[];
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    prompt_tokens_details?: { cached_tokens?: number };
+  };
+};
+
+const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
+  typeof value === 'object' && value !== null && ('choices' in value || 'usage' in value);
+
+const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number]): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
-  const base: Record<string, unknown> = {
+  const base: OpenAIChatMessage = {
     role: message.role,
     content: contentText,
   };
@@ -95,13 +134,13 @@ class OpenAIToolCallAccumulator implements ToolCallAccumulator {
   }
 }
 
-const mapChunkToStream = (chunk: any, accumulator: OpenAIToolCallAccumulator): LLMStreamChunk[] => {
+const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallAccumulator): LLMStreamChunk[] => {
   const choice = chunk?.choices?.[0];
   if (!choice) return [];
   const deltas: LLMStreamChunk[] = [];
 
   const delta = choice.delta ?? {};
-  const content = delta.content as any;
+  const content = delta.content;
   if (typeof content === 'string') {
     deltas.push({ type: 'text', text: content });
   } else if (Array.isArray(content)) {
@@ -114,12 +153,13 @@ const mapChunkToStream = (chunk: any, accumulator: OpenAIToolCallAccumulator): L
 
   if (Array.isArray(delta.tool_calls)) {
     for (const call of delta.tool_calls) {
+      const toolId = call.id ?? call.index?.toString() ?? 'tool_call';
       const acc = accumulator.applyDelta({
-        id: call.id ?? call.index?.toString() ?? 'tool_call',
+        id: toolId,
         name: call.function?.name,
         arguments: call.function?.arguments,
       });
-      const current = acc.find((item) => item.id === (call.id ?? call.index?.toString() ?? 'tool_call'));
+      const current = acc.find((item) => item.id === toolId);
       if (current) {
         deltas.push({
           type: 'tool_call_delta',
@@ -133,7 +173,7 @@ const mapChunkToStream = (chunk: any, accumulator: OpenAIToolCallAccumulator): L
 
   if (delta.reasoning_content) {
     const reasoning = Array.isArray(delta.reasoning_content)
-      ? delta.reasoning_content.map((entry: any) => entry.text ?? '').join('')
+      ? delta.reasoning_content.map((entry) => entry?.text ?? '').join('')
       : String(delta.reasoning_content ?? '');
     if (reasoning) deltas.push({ type: 'reasoning', reasoning });
   }
@@ -176,7 +216,8 @@ export class OpenAICompatibleClient implements LLMClient {
       }
 
       try {
-        const json = JSON.parse(payload);
+        const json = JSON.parse(payload) as unknown;
+        if (!isOpenAIStreamChunk(json)) continue;
         const mapped = mapChunkToStream(json, accumulator);
         for (const item of mapped) {
           yield item;

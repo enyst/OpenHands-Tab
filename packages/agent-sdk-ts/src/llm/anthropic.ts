@@ -9,6 +9,36 @@ interface AnthropicMessage {
   name?: string;
 }
 
+type AnthropicEventName = 'message_start' | 'content_block_delta' | 'message_delta' | (string & {});
+
+interface AnthropicMessageStartEvent {
+  message?: {
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+  };
+}
+
+interface AnthropicContentDeltaEvent {
+  delta?: { type?: string; text?: string };
+}
+
+interface AnthropicMessageDeltaEvent {
+  delta?: { stop_reason?: string };
+}
+
+const isMessageStartEvent = (data: unknown): data is AnthropicMessageStartEvent =>
+  typeof data === 'object' && data !== null && 'message' in data;
+
+const isContentDeltaEvent = (data: unknown): data is AnthropicContentDeltaEvent =>
+  typeof data === 'object' && data !== null && 'delta' in data;
+
+const isMessageDeltaEvent = (data: unknown): data is AnthropicMessageDeltaEvent =>
+  typeof data === 'object' && data !== null && 'delta' in data;
+
 const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[] =>
   request.messages
     .filter((message) => message.role === 'user' || message.role === 'assistant')
@@ -18,7 +48,7 @@ const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[]
       name: message.name,
     }));
 
-const parseAnthropicStream = async function* (response: Response): AsyncGenerator<{ event?: string; data?: any }> {
+const parseAnthropicStream = async function* (response: Response): AsyncGenerator<{ event?: AnthropicEventName; data?: unknown }> {
   const reader = response.body?.getReader();
   if (!reader) return;
 
@@ -67,7 +97,7 @@ export class AnthropicClient implements LLMClient {
       if (!data) continue;
       switch (event) {
         case 'message_start':
-          if (data.message?.usage) {
+          if (isMessageStartEvent(data) && data.message?.usage) {
             yield {
               type: 'usage',
               inputTokens: data.message.usage.input_tokens,
@@ -78,12 +108,12 @@ export class AnthropicClient implements LLMClient {
           }
           break;
         case 'content_block_delta':
-          if (data.delta?.type === 'text_delta' && data.delta.text) {
+          if (isContentDeltaEvent(data) && data.delta?.type === 'text_delta' && data.delta.text) {
             yield { type: 'text', text: data.delta.text };
           }
           break;
         case 'message_delta':
-          if (data.delta?.stop_reason) {
+          if (isMessageDeltaEvent(data) && data.delta?.stop_reason) {
             yield { type: 'finish', finishReason: data.delta.stop_reason };
           }
           break;
