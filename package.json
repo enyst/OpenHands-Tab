@@ -206,7 +206,7 @@
     "vscode:prepublish": "npm run build",
     "package": "node scripts/run-vsce-package.js",
     "e2e": "npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
-    "test": "npm test -w agent-sdk-ts && vitest run",
+    "test": "npm test -w agent-sdk-ts && vitest run --dir src",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
     "lint": "npm run lint -w agent-sdk-ts && eslint src tests",
