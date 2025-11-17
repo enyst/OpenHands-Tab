@@ -25,7 +25,6 @@ High-level conversation management with dual-mode support (local vs remote execu
   - Current: Only emits events without actual agent execution
   - No external server required (but still VS Code-bound)
   - Emits events: 'status', 'event', 'error', 'conversationStarted', 'terminal'
-  - **For functional local execution, use RemoteConversation with localhost agent-server**
 
 - **`RemoteConversation`** - WebSocket-based remote agent
   - Connects to OpenHands agent-server via WebSocket
