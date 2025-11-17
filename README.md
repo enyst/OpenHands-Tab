@@ -67,10 +67,11 @@ The SDK provides a complete TypeScript implementation for building OpenHands age
 
 **Conversation Layer** (Primary API):
 - `Conversation()` - Factory function that creates local or remote conversation instances
-- `LocalConversation` - Event-driven local agent execution with in-memory state
+- `LocalConversation` - In-memory agent execution stub (not yet fully implemented)
 - `RemoteConversation` - WebSocket-based remote agent communication with auto-reconnect
 - Event-driven API: `.on('event', ...)`, `.on('status', ...)`, `.on('error', ...)`
-- Dual mode support: Automatically selects local (no server) or remote (with serverUrl) execution
+- Dual mode support: Automatically selects local or remote based on serverUrl
+- **Note**: Currently requires agent-server (localhost or remote) for functional agent execution
 
 **Runtime Layer**:
 - `AgentOrchestrator` - LLM orchestration with streaming support

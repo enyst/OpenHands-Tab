@@ -112,53 +112,25 @@ interface ConversationInstance {
 
 **File**: `src/conversation/LocalConversation.ts`
 
-**Purpose**: In-memory agent execution without a server.
+**Purpose**: In-memory agent execution within VS Code without an external agent-server.
 
-**Features**:
+**Current Status**: ⚠️ **STUB IMPLEMENTATION** - Currently only emits events without actual agent orchestration. Full implementation tracked in issue [to be created].
+
+**Intended Features** (when implemented):
 - Runs agent orchestration locally using `AgentOrchestrator`
 - EventEmitter-based event dispatching
 - Manages tool execution with `LocalWorkspace`
-- Terminal events for command output
+- Terminal events for VS Code integrated terminal
 - Full conversation state management
-- No network dependencies
+- No external server required (but still VS Code-bound)
 
-**Usage Example**:
-```typescript
-const conversation = Conversation({
-  serverUrl: undefined, // or omit for local mode
-  settings: {
-    llm: { model: 'claude-sonnet-4-20250514', usageId: 'local' },
-    secrets: { llmApiKey: process.env.ANTHROPIC_API_KEY },
-  },
-  workspaceRoot: '/workspace',
-});
+**Current Behavior**:
+- Accepts user messages and emits MessageEvent
+- Does NOT execute LLM calls or tools
+- Does NOT run actual agent loop
+- Suitable only for testing event flow
 
-conversation.on('event', (event) => {
-  console.log('Event:', event.type);
-});
-
-await conversation.startNewConversation();
-await conversation.sendUserMessage('List files in current directory');
-```
-
-**Internal Flow**:
-```
-sendUserMessage(text)
-  ↓
-Create MessageEvent (user)
-  ↓
-orchestrator.runChat()
-  ↓
-Stream LLM response chunks
-  ↓
-Accumulate tool calls
-  ↓
-Execute tools (Terminal, FileEditor, etc.)
-  ↓
-Emit ObservationEvent
-  ↓
-Loop until completion or max iterations
-```
+**Note**: Even when fully implemented, LocalConversation will be **VS Code-bound** (uses VS Code SecretStorage, IntegratedTerminalRunner, etc.). "Local mode" means running the agent in VS Code without an external server, not running as a standalone CLI.
 
 ### RemoteConversation
 
@@ -993,23 +965,26 @@ context.subscriptions.push({
 });
 ```
 
-### Pattern 2: Standalone CLI Agent
+### Pattern 2: Remote Mode with Local Agent-Server
+
+For VS Code usage without an external server, run agent-server on localhost:
 
 ```typescript
 import { Conversation, isMessageEvent } from '@openhands/agent-sdk-ts';
 
+// Run agent-server locally: uv run agent-server --host 0.0.0.0 --port 3000
 const conversation = Conversation({
-  serverUrl: undefined, // local mode
+  serverUrl: 'http://localhost:3000', // connects to local agent-server
   settings: {
     llm: {
       model: 'claude-sonnet-4-20250514',
-      usageId: 'cli-agent',
+      usageId: 'local-server',
     },
     secrets: {
       llmApiKey: process.env.ANTHROPIC_API_KEY,
     },
   },
-  workspaceRoot: process.cwd(),
+  workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '/workspace',
 });
 
 conversation.on('event', (event) => {
@@ -1025,6 +1000,8 @@ conversation.on('event', (event) => {
 await conversation.startNewConversation();
 await conversation.sendUserMessage('List files in the current directory');
 ```
+
+**Note**: LocalConversation (serverUrl: undefined) is currently a stub. For functional local execution, use RemoteConversation with agent-server on localhost.
 
 ### Pattern 3: Low-Level Orchestration (Advanced)
 

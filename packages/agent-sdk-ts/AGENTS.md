@@ -20,11 +20,12 @@ High-level conversation management with dual-mode support (local vs remote execu
   - Event-driven API with `.on()` listeners for status, events, errors
   - Unified interface for both local and remote agent execution
 
-- **`LocalConversation`** - In-memory agent execution
-  - Runs agent orchestration locally using EventEmitter
-  - Manages LLM streaming, tool execution, and state
-  - No server required - ideal for testing and lightweight use cases
+- **`LocalConversation`** - In-memory agent execution (⚠️ STUB - not yet implemented)
+  - Intended: Runs agent orchestration locally using EventEmitter
+  - Current: Only emits events without actual agent execution
+  - No external server required (but still VS Code-bound)
   - Emits events: 'status', 'event', 'error', 'conversationStarted', 'terminal'
+  - **For functional local execution, use RemoteConversation with localhost agent-server**
 
 - **`RemoteConversation`** - WebSocket-based remote agent
   - Connects to OpenHands agent-server via WebSocket
@@ -317,20 +318,22 @@ conversation.disconnect();
 ### Local vs Remote Mode
 
 ```typescript
-// Local mode - no server required
+// Local mode - ⚠️ Currently a stub (no actual agent execution)
 const localConversation = Conversation({
   serverUrl: undefined, // or omit
   settings: { /* ... */ },
   workspaceRoot: '/workspace',
 });
 
-// Remote mode - connects to agent-server
+// Remote mode - connects to agent-server (RECOMMENDED)
 const remoteConversation = Conversation({
-  serverUrl: 'http://localhost:3000',
+  serverUrl: 'http://localhost:3000', // can be localhost or remote
   settings: { /* ... */ },
   workspaceRoot: '/workspace',
 });
 ```
+
+**Note**: For functional agent execution in VS Code, use remote mode with agent-server running on localhost until LocalConversation is fully implemented.
 
 ### Creating an LLM Client (Low-Level)
 
