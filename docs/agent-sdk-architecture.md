@@ -52,7 +52,7 @@ The runtime layer coordinates agent execution, manages conversation state, and o
 
 ### AgentOrchestrator
 
-**Purpose**: Manages the complete LLM interaction lifecycle with streaming support.
+**Purpose**: Manages the Conversation using the LLMClient with streaming support.
 
 **Key Responsibilities**:
 - Stream chat completions from LLM providers
