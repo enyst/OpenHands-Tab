@@ -188,6 +188,8 @@ export const isPauseEvent = (event: Event): event is PauseEvent => event.type ==
 export const isCondensation = (event: Event): event is Condensation => event.type === 'Condensation';
 export const isConversationStateUpdateEvent = (event: Event): event is ConversationStateUpdateEvent => event.type === 'ConversationStateUpdateEvent';
 
+export * from './settings';
+
 // ========================================
 // Bash Events (separate WebSocket stream)
 // ========================================

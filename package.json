@@ -67,8 +67,8 @@
       "properties": {
         "openhands.serverUrl": {
           "type": "string",
-          "default": "http://localhost:3000",
-          "description": "OpenHands agent-server base URL"
+          "default": "",
+          "markdownDescription": "OpenHands agent-server base URL. Leave blank to run in local mode."
         },
         "openhands.conversation.maxIterations": {
           "type": "number",

@@ -14,12 +14,17 @@ export type OpenHandsSettings = ServerSettings & {
 };
 
 const DEFAULTS: OpenHandsSettings = {
-  serverUrl: 'http://localhost:3000',
+  serverUrl: '',
   llm: { usageId: 'default-llm', model: 'claude-sonnet-4-20250514' },
   agent: { enableSecurityAnalyzer: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'HIGH', confirmUnknown: true },
   secrets: {}
+};
+
+const normalizeServerUrl = (value: string | null | undefined): string | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed || undefined;
 };
 
 const sanitizePositiveInteger = (value: number | null | undefined): number | undefined => {
@@ -32,7 +37,9 @@ export class SettingsManager {
   constructor(private adapter: SettingsAdapter) {}
 
   async get(): Promise<OpenHandsSettings> {
-    const serverUrl = this.adapter.get<string>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl;
+    const serverUrl = normalizeServerUrl(
+      this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl
+    );
     const llm: LLMSettings = {
       // Only return explicitly configured usageId/model so ConnectionManager can omit them when undefined
       usageId: this.adapter.getExplicit<string>('openhands.llm.usageId'),
@@ -70,9 +77,11 @@ export class SettingsManager {
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
     const ops: Promise<void>[] = [];
+
     if (partial.serverUrl !== undefined) {
-      ops.push(this.adapter.update('openhands.serverUrl', partial.serverUrl, target));
+      ops.push(this.adapter.update('openhands.serverUrl', partial.serverUrl ?? '', target));
     }
+
     if (partial.llm) {
       if (partial.llm.usageId !== undefined) ops.push(this.adapter.update('openhands.llm.usageId', partial.llm.usageId, target));
       if (partial.llm.model !== undefined) ops.push(this.adapter.update('openhands.llm.model', partial.llm.model, target));
@@ -87,17 +96,31 @@ export class SettingsManager {
       if (partial.llm.nativeToolCalling !== undefined) ops.push(this.adapter.update('openhands.llm.nativeToolCalling', partial.llm.nativeToolCalling, target));
       if (partial.llm.reasoningEffort !== undefined) ops.push(this.adapter.update('openhands.llm.reasoningEffort', partial.llm.reasoningEffort, target));
     }
+
     if (partial.agent) {
-      if (partial.agent.enableSecurityAnalyzer !== undefined) ops.push(this.adapter.update('openhands.agent.enableSecurityAnalyzer', partial.agent.enableSecurityAnalyzer, target));
+      if (partial.agent.enableSecurityAnalyzer !== undefined) {
+        ops.push(this.adapter.update('openhands.agent.enableSecurityAnalyzer', partial.agent.enableSecurityAnalyzer, target));
+      }
     }
+
     if (partial.conversation) {
-      if (partial.conversation.maxIterations !== undefined) ops.push(this.adapter.update('openhands.conversation.maxIterations', partial.conversation.maxIterations, target));
+      if (partial.conversation.maxIterations !== undefined) {
+        ops.push(this.adapter.update('openhands.conversation.maxIterations', partial.conversation.maxIterations, target));
+      }
     }
+
     if (partial.confirmation) {
-      if (partial.confirmation.policy !== undefined) ops.push(this.adapter.update('openhands.confirmation.policy', partial.confirmation.policy, target));
-      if (partial.confirmation.riskyThreshold !== undefined) ops.push(this.adapter.update('openhands.confirmation.risky.threshold', partial.confirmation.riskyThreshold, target));
-      if (partial.confirmation.confirmUnknown !== undefined) ops.push(this.adapter.update('openhands.confirmation.risky.confirmUnknown', partial.confirmation.confirmUnknown, target));
+      if (partial.confirmation.policy !== undefined) {
+        ops.push(this.adapter.update('openhands.confirmation.policy', partial.confirmation.policy, target));
+      }
+      if (partial.confirmation.riskyThreshold !== undefined) {
+        ops.push(this.adapter.update('openhands.confirmation.risky.threshold', partial.confirmation.riskyThreshold, target));
+      }
+      if (partial.confirmation.confirmUnknown !== undefined) {
+        ops.push(this.adapter.update('openhands.confirmation.risky.confirmUnknown', partial.confirmation.confirmUnknown, target));
+      }
     }
+
     if (partial.secrets) {
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'sessionApiKey')) {
         ops.push(this.adapter.storeSecret('openhands.sessionApiKey', partial.secrets.sessionApiKey));
@@ -112,6 +135,7 @@ export class SettingsManager {
         ops.push(this.adapter.storeSecret('openhands.awsSecretAccessKey', partial.secrets.awsSecretAccessKey));
       }
     }
+
     await Promise.all(ops);
   }
 }
