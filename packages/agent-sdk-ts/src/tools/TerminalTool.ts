@@ -27,11 +27,25 @@ export class TerminalTool implements ToolHandler<TerminalArgs, TerminalResult> {
 
   async execute(args: TerminalArgs, context: ToolContext): Promise<TerminalResult> {
     const runner = new IntegratedTerminalRunner(context.workspace);
-    const result = await runner.execute(args.command, { cwd: args.cwd, timeoutMs: args.timeoutMs });
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode,
-    };
+    let timeout: NodeJS.Timeout | undefined;
+    let controller: AbortController | undefined;
+
+    if (args.timeoutMs && args.timeoutMs > 0) {
+      controller = new AbortController();
+      timeout = setTimeout(() => controller?.abort(new Error('Command timed out')), args.timeoutMs);
+    }
+
+    try {
+      const result = await runner.execute(args.command, { cwd: args.cwd, signal: controller?.signal });
+      return {
+        stdout: result.stdout,
+        stderr: controller?.signal.aborted ? result.stderr || 'Command timed out' : result.stderr,
+        exitCode: controller?.signal.aborted ? result.exitCode || -1 : result.exitCode,
+      };
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
   }
 }

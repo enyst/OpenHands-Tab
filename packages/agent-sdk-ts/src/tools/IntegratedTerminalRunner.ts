@@ -17,6 +17,7 @@ export interface TerminalRunOptions {
   cwd?: string;
   timeoutMs?: number;
   terminalName?: string;
+  signal?: AbortSignal;
 }
 
 export class IntegratedTerminalRunner {
@@ -30,16 +31,16 @@ export class IntegratedTerminalRunner {
     const workingDirectory = options.cwd ? this.workspace.resolvePath(options.cwd) : this.workspace.root;
     const terminalName = options.terminalName ?? 'OpenHands Agent';
     if (this.vscodeApi) {
-      return this.runWithPseudoterminal(command, workingDirectory, terminalName, options.timeoutMs);
+      return this.runWithPseudoterminal(command, workingDirectory, terminalName, options);
     }
-    return this.spawnDirect(command, workingDirectory, options.timeoutMs);
+    return this.spawnDirect(command, workingDirectory, options);
   }
 
   private async runWithPseudoterminal(
     command: string,
     cwd: string,
     terminalName: string,
-    timeoutMs?: number,
+    options: TerminalRunOptions,
   ): Promise<CommandResult> {
     const vscode = this.vscodeApi!;
     const writeEmitter = new vscode.EventEmitter<string>();
@@ -49,9 +50,15 @@ export class IntegratedTerminalRunner {
     let stderr = '';
     let exitCode = 0;
     let timedOut = false;
+    let aborted = false;
     let timeout: NodeJS.Timeout | undefined;
+    const timeoutMs = options.timeoutMs;
 
     let childProcess: ReturnType<typeof spawn> | null = null;
+    const abortHandler = () => {
+      aborted = true;
+      childProcess?.kill('SIGTERM');
+    };
 
     const pty: Pseudoterminal = {
       onDidWrite: writeEmitter.event,
@@ -70,6 +77,13 @@ export class IntegratedTerminalRunner {
           }, timeoutMs);
         }
 
+        if (options.signal) {
+          if (options.signal.aborted) {
+            abortHandler();
+          }
+          options.signal.addEventListener('abort', abortHandler);
+        }
+
         childProcess.stdout?.on('data', (data) => {
           const chunk = data.toString();
           stdout += chunk;
@@ -86,13 +100,20 @@ export class IntegratedTerminalRunner {
           if (timeout) {
             clearTimeout(timeout);
           }
-          exitCode = timedOut ? code ?? -1 : code ?? 0;
+          if (options.signal) {
+            options.signal.removeEventListener('abort', abortHandler);
+          }
+          const cancelled = timedOut || aborted;
+          exitCode = cancelled ? code ?? -1 : code ?? 0;
           closeEmitter.fire();
         });
       },
       close: () => {
         if (timeout) {
           clearTimeout(timeout);
+        }
+        if (options.signal) {
+          options.signal.removeEventListener('abort', abortHandler);
         }
         childProcess?.kill();
         closeEmitter.fire();
@@ -115,7 +136,7 @@ export class IntegratedTerminalRunner {
     });
   }
 
-  private spawnDirect(command: string, cwd: string, timeoutMs?: number): Promise<CommandResult> {
+  private spawnDirect(command: string, cwd: string, options: TerminalRunOptions): Promise<CommandResult> {
     return new Promise<CommandResult>((resolve) => {
       const child = spawn(command, {
         cwd,
@@ -126,12 +147,25 @@ export class IntegratedTerminalRunner {
       let stdout = '';
       let stderr = '';
       let timedOut = false;
-      const timeout = timeoutMs
+      let aborted = false;
+      const timeout = options.timeoutMs
         ? setTimeout(() => {
             timedOut = true;
             child.kill('SIGTERM');
-          }, timeoutMs)
+          }, options.timeoutMs)
         : null;
+
+      const abortHandler = () => {
+        aborted = true;
+        child.kill('SIGTERM');
+      };
+
+      if (options.signal) {
+        if (options.signal.aborted) {
+          abortHandler();
+        }
+        options.signal.addEventListener('abort', abortHandler);
+      }
 
       child.stdout?.on('data', (data) => {
         stdout += data.toString();
@@ -145,12 +179,15 @@ export class IntegratedTerminalRunner {
         if (timeout) {
           clearTimeout(timeout);
         }
+        if (options.signal) {
+          options.signal.removeEventListener('abort', abortHandler);
+        }
         resolve({
           command,
           cwd,
           stdout,
           stderr,
-          exitCode: timedOut ? code ?? -1 : code ?? 0,
+          exitCode: timedOut || aborted ? code ?? -1 : code ?? 0,
         });
       });
     });
