@@ -238,14 +238,14 @@ import { EventLog, isMessageEvent } from '@openhands/agent-sdk-ts';
 const eventLog = new EventLog();
 
 // Add events
-eventLog.addEvent({
+eventLog.push({
   type: 'MessageEvent',
   source: 'user',
   llm_message: { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
 });
 
 // Query events
-const messages = eventLog.getEvents().filter(isMessageEvent);
+const messages = eventLog.list().filter(isMessageEvent);
 ```
 
 ## See Also

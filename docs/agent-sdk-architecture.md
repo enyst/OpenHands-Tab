@@ -114,14 +114,14 @@ import { EventLog, isMessageEvent } from '@openhands/agent-sdk-ts';
 const eventLog = new EventLog();
 
 // Add events
-eventLog.addEvent({
+eventLog.push({
   type: 'MessageEvent',
   source: 'user',
   llm_message: { role: 'user', content: [{ type: 'text', text: 'Hello' }] }
 });
 
 // Query events
-const allEvents = eventLog.getEvents();
+const allEvents = eventLog.list();
 const messages = allEvents.filter(isMessageEvent);
 ```
 
@@ -687,7 +687,7 @@ if (response.message.tool_calls) {
     }
 
     // Add observation event
-    eventLog.addEvent({
+    eventLog.push({
       type: 'ObservationEvent',
       source: 'environment',
       observation: result,
