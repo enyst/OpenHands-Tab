@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it, afterEach } from 'vitest';
-import { LocalWorkspace } from '../workspace';
+import { LocalWorkspace } from '..';
 
 const makeWorkspace = async (register: (dir: string) => void) => {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-'));

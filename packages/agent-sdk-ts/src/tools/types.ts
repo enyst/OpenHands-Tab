@@ -1,6 +1,6 @@
-import type { EventLog } from '../runtime/EventLog';
+import type { EventLog } from '../sdk/runtime/EventLog';
+import type { SecretRegistry } from '../sdk/runtime/SecretRegistry';
 import type { LocalWorkspace } from '../workspace/LocalWorkspace';
-import type { SecretRegistry } from '../runtime/SecretRegistry';
 
 export interface ToolContext {
   workspace: LocalWorkspace;

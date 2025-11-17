@@ -2,8 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it, afterEach } from 'vitest';
-import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool } from '../tools';
-import { LocalWorkspace } from '../workspace';
+import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool } from '..';
+import { LocalWorkspace } from '../../workspace';
 
 const makeWorkspace = async () => {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-tools-'));

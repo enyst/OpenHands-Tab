@@ -7,8 +7,8 @@ import type { LLMClient, LLMConfiguration, LLMToolDefinition } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import { isTextContent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
-import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool, type ToolHandler } from '../tools';
-import { LocalWorkspace } from '../workspace/LocalWorkspace';
+import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool, type ToolHandler } from '../../tools';
+import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
