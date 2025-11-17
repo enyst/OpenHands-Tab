@@ -270,7 +270,7 @@ export function activate(context: vscode.ExtensionContext) {
     return { sent: true };
   });
 
-  const injectBashEvent = vscode.commands.registerCommand('openhands._injectBashEvent', async (event: any) => {
+  const injectBashEvent = vscode.commands.registerCommand('openhands._injectBashEvent', (event: any) => {
     refreshBashEventsConfig();
     if (!bashEventsEnabled) {
       bashEventsEnabled = true;
