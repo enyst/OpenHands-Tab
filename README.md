@@ -2,6 +2,8 @@
 
 A VS Code extension and TypeScript SDK intended to run in VS Code for building AI agents with OpenHands.
 
+> Scope: VS Code Extension only — this project targets VS Code. The @openhands/agent-sdk-ts package is intended to run inside the OpenHands-Tab extension; standalone usage or non‑VS Code API integrations are not supported.
+
 This repository provides two complementary components:
 1. **@openhands/agent-sdk-ts** - A TypeScript SDK used by the extension for LLM orchestration, tool execution, and state management (VS Code environment)
 2. **OpenHands Tab VS Code Extension** - A native VS Code interface for interacting with OpenHands agents directly in your IDE
