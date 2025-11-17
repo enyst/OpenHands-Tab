@@ -42,13 +42,6 @@ High-level conversation management with dual-mode support (local vs remote execu
 - `reconnect()` - Force reconnection (remote mode)
 - `disconnect()` - Close connections
 
-**Event Types**:
-- `status`: Connection/execution status ('online' | 'offline' | 'connecting')
-- `event`: Agent events (MessageEvent, ActionEvent, ObservationEvent, etc.)
-- `error`: Error notifications
-- `conversationStarted`: New conversation ID
-- `terminal`: Terminal events (local mode)
-
 ### 2. Runtime Layer (`src/runtime/`)
 Agent execution and state management:
 
