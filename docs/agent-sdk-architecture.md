@@ -379,12 +379,12 @@ interface ToolExecutor {
 ```typescript
 import { TerminalTool } from '@openhands/agent-sdk-ts';
 
-const terminal = new TerminalTool(workspace);
+const terminal = new TerminalTool();
 
 const result = await terminal.execute({
   command: 'npm install',
   workdir: '/workspace/project'
-});
+}, { workspace });
 
 console.log(result.stdout);
 console.log(result.exit_code);
