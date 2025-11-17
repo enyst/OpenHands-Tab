@@ -16,7 +16,7 @@ The extension connects to an [OpenHands agent-server](https://github.com/All-Han
 
 - Visual Studio Code 1.104.0 or higher
 - Node.js 22.x or higher
-- Python 3.12+ (for agent-sdk backend)
+- Python 3.12+ (optional; only needed when using a remote agent-server)
 - Access to an LLM provider (OpenAI, Anthropic, or self-hosted)
 
 ### Installation
@@ -189,6 +189,6 @@ Detailed documentation is available in the [docs/](docs/) directory:
 - **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
 - **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
 - **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
-- **[bash_events.md](docs/bash_events.md)** - Bash events live terminal integration
+- Bash events live terminal integration is now handled by LocalConversation in local mode; the previous docs/bash_events.md has been removed.
 - **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
 - **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
