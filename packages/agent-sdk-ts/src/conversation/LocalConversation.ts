@@ -303,7 +303,7 @@ export class LocalConversation extends EventEmitter {
     try {
       const validated = tool.validate(args);
       const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
-      const result = await tool.execute(validated as never, context);
+      const result = await tool.execute(validated, context);
 
       if (toolCall.function.name === 'terminal') {
         this.emitTerminalEvents(toolCall, result);

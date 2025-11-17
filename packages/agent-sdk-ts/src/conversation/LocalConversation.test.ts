@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import { LocalConversation } from './LocalConversation';
 import type { Event, MessageEvent } from '../types';
-import { isActionEvent, isMessageEvent, isObservationEvent } from '../types';
+import { isActionEvent, isAgentErrorEvent, isMessageEvent, isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 
 class FakeLLM implements LLMClient {
@@ -12,7 +12,7 @@ class FakeLLM implements LLMClient {
     this.responses = responses;
   }
 
-  // eslint-disable-next-line require-await
+  // eslint-disable-next-line @typescript-eslint/require-await
   async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     const next = this.responses.shift() ?? [];
     for (const chunk of next) {
@@ -35,7 +35,7 @@ describe('LocalConversation', () => {
     const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
 
     const events: Event[] = [];
-    conversation.on('event', (e) => events.push(e));
+    conversation.on('event', (e: Event) => events.push(e));
 
     await conversation.sendUserMessage('hi');
 
@@ -57,7 +57,7 @@ describe('LocalConversation', () => {
 
     const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
     const events: Event[] = [];
-    conversation.on('event', (e) => events.push(e));
+    conversation.on('event', (e: Event) => events.push(e));
 
     await conversation.sendUserMessage('list tasks');
 
@@ -71,5 +71,66 @@ describe('LocalConversation', () => {
       .filter((e): e is MessageEvent => isMessageEvent(e) && e.source === 'agent')
       .pop();
     expect(finalAssistant?.llm_message.content[0]).toEqual({ type: 'text', text: 'Tasks listed' });
+  });
+
+  it('records AgentErrorEvents when tool args JSON is invalid', async () => {
+    const llm = new FakeLLM([
+      [
+        { type: 'tool_call_delta', id: 'tool_bad', name: 'task_tracker', arguments: '{"action":"list"' },
+        { type: 'finish' },
+      ],
+      [{ type: 'text', text: 'Recovered' }, { type: 'finish' }],
+    ]);
+
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const events: Event[] = [];
+    conversation.on('event', (e: Event) => events.push(e));
+
+    await conversation.sendUserMessage('do something');
+
+    const errors = events.filter(isAgentErrorEvent);
+    expect(errors.some((e) => e.error.includes('Invalid tool arguments'))).toBe(true);
+    const finalAssistant = events
+      .filter((e): e is MessageEvent => isMessageEvent(e) && e.source === 'agent')
+      .pop();
+    expect(finalAssistant?.llm_message.content[0]).toEqual({ type: 'text', text: 'Recovered' });
+  });
+
+  it('emits AgentErrorEvent for unknown tools', async () => {
+    const llm = new FakeLLM([
+      [
+        { type: 'tool_call_delta', id: 'tool_unknown', name: 'nonexistent', arguments: '{"any":"value"}' },
+        { type: 'finish' },
+      ],
+      [{ type: 'text', text: 'Handled' }, { type: 'finish' }],
+    ]);
+
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const events: Event[] = [];
+    conversation.on('event', (e: Event) => events.push(e));
+
+    await conversation.sendUserMessage('call bad tool');
+
+    const error = events.find(isAgentErrorEvent);
+    expect(error?.error).toContain('Unknown tool');
+  });
+
+  it('captures tool execution failures as AgentErrorEvents', async () => {
+    const llm = new FakeLLM([
+      [
+        { type: 'tool_call_delta', id: 'tool_fail', name: 'task_tracker', arguments: '{"action":"complete"}' },
+        { type: 'finish' },
+      ],
+      [{ type: 'text', text: 'Done' }, { type: 'finish' }],
+    ]);
+
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    const events: Event[] = [];
+    conversation.on('event', (e: Event) => events.push(e));
+
+    await conversation.sendUserMessage('complete unknown task');
+
+    const error = events.find(isAgentErrorEvent);
+    expect(error?.error).toContain('id is required');
   });
 });
