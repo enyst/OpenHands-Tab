@@ -72,7 +72,10 @@ export class AgentOrchestrator {
   private applyStateUpdate(chunk: LLMStreamChunk): void {
     switch (chunk.type) {
       case 'text':
-        this.state.setValue('llm_stream', chunk.text);
+        this.state.setValue(
+          'llm_stream',
+          `${typeof this.state.snapshot.values.llm_stream === 'string' ? this.state.snapshot.values.llm_stream : ''}${chunk.text}`,
+        );
         break;
       case 'tool_call_delta':
         this.state.setValue('llm_tool_call', chunk.id);
