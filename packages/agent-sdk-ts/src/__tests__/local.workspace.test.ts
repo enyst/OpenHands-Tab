@@ -1,0 +1,43 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { LocalWorkspace } from '../workspace';
+
+const makeWorkspace = async (register: (dir: string) => void) => {
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-'));
+  register(dir);
+  return { dir, workspace: new LocalWorkspace(dir) };
+};
+
+describe('LocalWorkspace', () => {
+  const created: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(created.map((dir) => fs.promises.rm(dir, { recursive: true, force: true })));
+    created.length = 0;
+  });
+
+  describe('file operations', () => {
+    it('writes and reads files inside the sandbox', async () => {
+      const { workspace } = await makeWorkspace((dir) => created.push(dir));
+      await workspace.writeFile('test.txt', 'hello');
+      const content = await workspace.readFile('test.txt');
+      expect(content).toBe('hello');
+    });
+
+    it('blocks traversal outside the sandbox', async () => {
+      const { workspace } = await makeWorkspace((dir) => created.push(dir));
+      expect(() => workspace.resolvePath('../etc/passwd')).toThrowError();
+    });
+  });
+
+  describe('commands', () => {
+    it('runs commands rooted in the workspace', async () => {
+      const { workspace, dir } = await makeWorkspace((value) => created.push(value));
+      const result = await workspace.runCommand('pwd');
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout.trim()).toBe(dir);
+    });
+  });
+});
