@@ -26,6 +26,16 @@ describe('TerminalTool', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim()).toBe('hello');
   });
+
+  it('times out long-running commands', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+    const start = Date.now();
+    const result = await tool.execute(tool.validate({ command: 'sleep 2', timeoutMs: 200 }), { workspace });
+    expect(Date.now() - start).toBeLessThan(2000);
+    expect(result.exitCode).not.toBe(0);
+  });
 });
 
 describe('FileEditorTool', () => {

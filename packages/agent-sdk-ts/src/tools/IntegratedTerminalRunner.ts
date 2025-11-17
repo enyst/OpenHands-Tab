@@ -13,6 +13,12 @@ const loadVscode = (): typeof import('vscode') | null => {
   }
 };
 
+export interface TerminalRunOptions {
+  cwd?: string;
+  timeoutMs?: number;
+  terminalName?: string;
+}
+
 export class IntegratedTerminalRunner {
   private readonly vscodeApi: typeof import('vscode') | null;
 
@@ -20,18 +26,20 @@ export class IntegratedTerminalRunner {
     this.vscodeApi = vscodeModule;
   }
 
-  async execute(command: string, cwd?: string, terminalName = 'OpenHands Agent'): Promise<CommandResult> {
-    const workingDirectory = cwd ? this.workspace.resolvePath(cwd) : this.workspace.root;
+  async execute(command: string, options: TerminalRunOptions = {}): Promise<CommandResult> {
+    const workingDirectory = options.cwd ? this.workspace.resolvePath(options.cwd) : this.workspace.root;
+    const terminalName = options.terminalName ?? 'OpenHands Agent';
     if (this.vscodeApi) {
-      return this.runWithPseudoterminal(command, workingDirectory, terminalName);
+      return this.runWithPseudoterminal(command, workingDirectory, terminalName, options.timeoutMs);
     }
-    return this.spawnDirect(command, workingDirectory);
+    return this.spawnDirect(command, workingDirectory, options.timeoutMs);
   }
 
   private async runWithPseudoterminal(
     command: string,
     cwd: string,
     terminalName: string,
+    timeoutMs?: number,
   ): Promise<CommandResult> {
     const vscode = this.vscodeApi!;
     const writeEmitter = new vscode.EventEmitter<string>();
@@ -40,6 +48,8 @@ export class IntegratedTerminalRunner {
     let stdout = '';
     let stderr = '';
     let exitCode = 0;
+    let timedOut = false;
+    let timeout: NodeJS.Timeout | undefined;
 
     let childProcess: ReturnType<typeof spawn> | null = null;
 
@@ -52,6 +62,13 @@ export class IntegratedTerminalRunner {
           env: process.env,
           shell: os.platform() === 'win32' ? undefined : '/bin/bash',
         });
+
+        if (timeoutMs && timeoutMs > 0) {
+          timeout = setTimeout(() => {
+            timedOut = true;
+            childProcess?.kill('SIGTERM');
+          }, timeoutMs);
+        }
 
         childProcess.stdout?.on('data', (data) => {
           const chunk = data.toString();
@@ -66,11 +83,17 @@ export class IntegratedTerminalRunner {
         });
 
         childProcess.on('close', (code) => {
-          exitCode = code ?? 0;
+          if (timeout) {
+            clearTimeout(timeout);
+          }
+          exitCode = timedOut ? code ?? -1 : code ?? 0;
           closeEmitter.fire();
         });
       },
       close: () => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
         childProcess?.kill();
         closeEmitter.fire();
       },
@@ -92,7 +115,7 @@ export class IntegratedTerminalRunner {
     });
   }
 
-  private spawnDirect(command: string, cwd: string): Promise<CommandResult> {
+  private spawnDirect(command: string, cwd: string, timeoutMs?: number): Promise<CommandResult> {
     return new Promise<CommandResult>((resolve) => {
       const child = spawn(command, {
         cwd,
@@ -102,6 +125,13 @@ export class IntegratedTerminalRunner {
 
       let stdout = '';
       let stderr = '';
+      let timedOut = false;
+      const timeout = timeoutMs
+        ? setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGTERM');
+          }, timeoutMs)
+        : null;
 
       child.stdout?.on('data', (data) => {
         stdout += data.toString();
@@ -112,12 +142,15 @@ export class IntegratedTerminalRunner {
       });
 
       child.on('close', (code) => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
         resolve({
           command,
           cwd,
           stdout,
           stderr,
-          exitCode: code ?? 0,
+          exitCode: timedOut ? code ?? -1 : code ?? 0,
         });
       });
     });

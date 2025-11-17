@@ -27,10 +27,7 @@ export class TerminalTool implements ToolHandler<TerminalArgs, TerminalResult> {
 
   async execute(args: TerminalArgs, context: ToolContext): Promise<TerminalResult> {
     const runner = new IntegratedTerminalRunner(context.workspace);
-    const result = await runner.execute(args.command, args.cwd);
-    if (typeof args.timeoutMs === 'number' && args.timeoutMs > 0 && result.exitCode === 0) {
-      // Simple guard to mimic timeout enforcement; runner already cancels via signal when configured
-    }
+    const result = await runner.execute(args.command, { cwd: args.cwd, timeoutMs: args.timeoutMs });
     return {
       stdout: result.stdout,
       stderr: result.stderr,
