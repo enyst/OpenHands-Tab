@@ -145,7 +145,7 @@ export class LocalWorkspace {
     const sanitizedPaths = paths?.map((p) => this.resolvePath(p));
     const relativePaths = sanitizedPaths?.map((p) => path.relative(this.root, p));
     const command = relativePaths?.length
-      ? `git diff HEAD -- ${relativePaths.map((p) => `'${p}'`).join(' ')}`
+      ? `git diff HEAD -- ${relativePaths.map((p) => JSON.stringify(p)).join(' ')}`
       : 'git diff HEAD';
     return this.runCommand(command, { cwd: this.root });
   }

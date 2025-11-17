@@ -42,7 +42,12 @@ export class BrowserTool implements ToolHandler<BrowserArgs, BrowserResult> {
     const maxBytes = args.maxBytes ?? DEFAULT_MAX_BYTES;
     let bytesRead = 0;
 
-    const response = await fetch(parsed, {
+    const fetchFn = globalThis.fetch;
+    if (!fetchFn) {
+      throw new Error('Global fetch API is unavailable in this runtime');
+    }
+
+    const response = await fetchFn(parsed, {
       method: args.method ?? 'GET',
       body: args.body,
       signal: controller.signal,

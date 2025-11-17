@@ -50,7 +50,11 @@ export class TaskTrackerTool implements ToolHandler<TaskTrackerArgs, TaskTracker
         break;
       case 'update':
         if (!args.id) throw new Error('id is required to update a task');
-        this.updateTask(args.id, { title: args.title, notes: args.notes, completed: args.completed });
+        this.updateTask(args.id, {
+          ...(args.title !== undefined ? { title: args.title } : {}),
+          ...(args.notes !== undefined ? { notes: args.notes } : {}),
+          ...(args.completed !== undefined ? { completed: args.completed } : {}),
+        });
         break;
       case 'list':
       default:

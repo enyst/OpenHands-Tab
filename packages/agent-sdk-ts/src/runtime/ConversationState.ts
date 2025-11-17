@@ -1,4 +1,4 @@
-import type { ConversationStateUpdateEvent, Event } from '../types';
+import type { ConversationStateUpdateEvent } from '../types';
 import { EventLog } from './EventLog';
 
 export interface AgentState {
@@ -48,6 +48,6 @@ export class ConversationState {
       source: 'agent',
       ...update,
     };
-    this.events.push(event as Event);
+    this.events.push(event);
   }
 }

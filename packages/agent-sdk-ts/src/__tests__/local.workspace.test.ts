@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 import { LocalWorkspace } from '../workspace';
 
 const makeWorkspace = async (register: (dir: string) => void) => {
