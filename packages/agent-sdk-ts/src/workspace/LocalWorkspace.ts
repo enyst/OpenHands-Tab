@@ -5,9 +5,23 @@ import { readFile as readFileAsync, mkdir, writeFile as writeFileAsync, rm, read
 import path from 'path';
 import os from 'os';
 
+type WorkspaceEncoding =
+  | 'ascii'
+  | 'utf8'
+  | 'utf-8'
+  | 'utf16le'
+  | 'ucs2'
+  | 'ucs-2'
+  | 'base64'
+  | 'base64url'
+  | 'latin1'
+  | 'binary'
+  | 'hex';
+type EnvVars = Record<string, string | undefined>;
+
 export interface CommandOptions {
   cwd?: string;
-  env?: NodeJS.ProcessEnv;
+  env?: EnvVars;
   timeoutMs?: number;
   shell?: string;
 }
@@ -68,11 +82,9 @@ export class LocalWorkspace {
     throw new Error(`Path escapes workspace root: ${targetPath}`);
   }
 
-  async readFile(targetPath: string, encoding: BufferEncoding = 'utf8'): Promise<string> {
+  async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const readOptions: { encoding: BufferEncoding } = { encoding };
-    return readFileAsync(resolved, readOptions);
+    return readFileAsync(resolved, encoding);
   }
 
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
@@ -105,11 +117,16 @@ export class LocalWorkspace {
   async runCommand(command: string, options: CommandOptions = {}): Promise<CommandResult> {
     const cwd = options.cwd ? this.resolvePath(options.cwd) : this.root;
     return new Promise<CommandResult>((resolve) => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const env: NodeJS.ProcessEnv = { ...process.env, ...(options.env ?? {}) };
+      const env: EnvVars = { ...process.env };
+      if (options.env) {
+        for (const [key, value] of Object.entries(options.env)) {
+          if (typeof value === 'string' || value === undefined) {
+            env[key] = value;
+          }
+        }
+      }
       const spawnOptions: SpawnOptions = {
         cwd,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         env,
         shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
       };
