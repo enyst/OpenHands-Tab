@@ -313,9 +313,6 @@ const remoteConversation = Conversation({
   workspaceRoot: '/workspace',
 });
 ```
-
-**Note**: For functional agent execution in VS Code, use remote mode with agent-server running on localhost until LocalConversation is fully implemented.
-
 ### Creating an LLM Client (Low-Level)
 
 For advanced use cases, you can use the LLM clients directly:
