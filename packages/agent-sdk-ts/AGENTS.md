@@ -97,11 +97,10 @@ Agent tool implementations:
   - Task state tracking (pending, in_progress, completed)
   - Task queries and filtering
 
-- **`BrowserTool`** - Browser automation
-  - Navigate to URLs
-  - Execute JavaScript in browser context
-  - Screenshot capture
-  - Page content extraction
+- **`BrowserTool`** - HTTP web fetching
+  - HTTP GET and POST requests
+  - Response content streaming with size limits
+  - URL validation (http/https only)
 
 - **`IntegratedTerminalRunner`** - VS Code terminal integration
   - Execute commands in VS Code integrated terminal

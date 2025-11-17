@@ -377,17 +377,19 @@ interface ToolExecutor {
 
 **Usage Example**:
 ```typescript
-import { TerminalTool } from '@openhands/agent-sdk-ts';
+import { TerminalTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
 
+const workspace = new LocalWorkspace('/workspace');
 const terminal = new TerminalTool();
+const context = { workspace };
 
 const result = await terminal.execute({
   command: 'npm install',
-  workdir: '/workspace/project'
-}, { workspace });
+  cwd: '/workspace/project'
+}, context);
 
 console.log(result.stdout);
-console.log(result.exit_code);
+console.log(result.exitCode);
 ```
 
 ### FileEditorTool
@@ -408,20 +410,20 @@ console.log(result.exit_code);
 
 **Usage Example**:
 ```typescript
-import { FileEditorTool } from '@openhands/agent-sdk-ts';
+import { FileEditorTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
 
+const workspace = new LocalWorkspace('/workspace');
 const fileEditor = new FileEditorTool();
+const context = { workspace };
 
+// Write file
 await fileEditor.execute({
-  operation: 'write',
   path: 'src/hello.ts',
   content: 'export function hello() { return "Hello, world!"; }'
-}, { workspace });
+}, context);
 
-const result = await fileEditor.execute({
-  operation: 'read',
-  path: 'src/hello.ts'
-}, { workspace });
+// Read file
+const content = await workspace.readFile('src/hello.ts');
 ```
 
 ### TaskTrackerTool
@@ -436,22 +438,29 @@ const result = await fileEditor.execute({
 
 **Usage Example**:
 ```typescript
-import { TaskTrackerTool } from '@openhands/agent-sdk-ts';
+import { TaskTrackerTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
 
+const workspace = new LocalWorkspace('/workspace');
 const tracker = new TaskTrackerTool();
+const context = { workspace };
 
-await tracker.execute({
+// Create task
+const created = await tracker.execute({
   action: 'create',
-  description: 'Implement login page'
-});
+  title: 'Implement login page',
+  notes: 'Add username/password form'
+}, context);
 
+// Update task to mark as completed
 await tracker.execute({
   action: 'update',
-  taskId: 1,
-  status: 'in_progress'
-});
+  id: created.tasks[0].id,
+  completed: true
+}, context);
 
-const tasks = await tracker.execute({ action: 'list' });
+// List all tasks
+const result = await tracker.execute({ action: 'list' }, context);
+console.log(result.tasks);
 ```
 
 ### BrowserTool
@@ -459,25 +468,27 @@ const tasks = await tracker.execute({ action: 'list' });
 **File**: `src/tools/BrowserTool.ts`
 
 **Capabilities**:
-- Navigate to URLs
-- Execute JavaScript
-- Screenshot capture
-- Extract page content
+- HTTP GET and POST requests
+- Response content streaming with size limits
+- Automatic URL validation (http/https only)
 
 **Usage Example**:
 ```typescript
-import { BrowserTool } from '@openhands/agent-sdk-ts';
+import { BrowserTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
 
+const workspace = new LocalWorkspace('/workspace');
 const browser = new BrowserTool();
+const context = { workspace };
 
-await browser.execute({
-  action: 'navigate',
-  url: 'https://example.com'
-});
+// Fetch webpage content
+const result = await browser.execute({
+  url: 'https://example.com',
+  method: 'GET',
+  maxBytes: 256 * 1024  // 256KB limit
+}, context);
 
-const content = await browser.execute({
-  action: 'extract_content'
-});
+console.log(result.status);   // HTTP status code
+console.log(result.content);  // Response body
 ```
 
 ### IntegratedTerminalRunner
@@ -664,14 +675,33 @@ const orchestrator = new AgentOrchestrator(client, { events: eventLog, state });
 
 // Tools
 const workspace = new LocalWorkspace('/workspace');
-const terminal = new TerminalTool(workspace);
-const fileEditor = new FileEditorTool(workspace);
+const terminal = new TerminalTool();
+const fileEditor = new FileEditorTool();
+
+const toolContext = { workspace, events: eventLog, secrets };
 
 // Execute agent
 const response = await orchestrator.runChat({
   systemPrompt: 'You are a helpful assistant.',
   messages: conversation.messages,
-  tools: [terminal.definition, fileEditor.definition]
+  tools: [
+    {
+      type: 'function',
+      function: {
+        name: 'terminal',
+        description: 'Execute shell commands',
+        parameters: { /* JSON schema */ }
+      }
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'file_editor',
+        description: 'Edit files in the workspace',
+        parameters: { /* JSON schema */ }
+      }
+    }
+  ]
 });
 
 // Handle tool calls
@@ -681,9 +711,9 @@ if (response.message.tool_calls) {
     let result;
 
     if (toolCall.function.name === 'terminal') {
-      result = await terminal.execute(args);
+      result = await terminal.execute(args, toolContext);
     } else if (toolCall.function.name === 'file_editor') {
-      result = await fileEditor.execute(args);
+      result = await fileEditor.execute(args, toolContext);
     }
 
     // Add observation event

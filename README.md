@@ -83,7 +83,7 @@ The SDK provides a complete TypeScript implementation for building OpenHands age
 - `TerminalTool` - Execute shell commands in sandboxed environments
 - `FileEditorTool` - Read, write, and edit files with validation
 - `TaskTrackerTool` - Manage tasks and todos
-- `BrowserTool` - Browser automation capabilities
+- `BrowserTool` - HTTP web fetching with streaming and size limits
 - `IntegratedTerminalRunner` - VS Code terminal integration
 
 **Workspace Abstraction**:
