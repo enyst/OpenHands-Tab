@@ -17,7 +17,7 @@
 - The SDK primarily serves the OpenHands VS Code extension, so it is fine to depend on VS Code types or semantics when doing so makes integration simpler.
 
 ## Testing Notes
-- Prefer deterministic fixtures for protocol payloads; add shared mocks under `test/__mocks__` in the root if they are broadly useful.
+- Prefer deterministic fixtures for protocol payloads; add shared mocks under the repository root's `test/__mocks__` folder if they are broadly useful.
 - When changing schemas, cover both happy-path parsing and failure states to prevent silent contract drift.
 
 ## Release Considerations
