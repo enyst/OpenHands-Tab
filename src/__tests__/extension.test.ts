@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import * as vscode from 'vscode';
 import { EventEmitter } from 'events';
 
-let mockSettings = {
+const defaultMockSettings = {
   serverUrl: 'http://localhost:3000',
   llm: {
     usageId: 'default-llm',
@@ -25,6 +25,8 @@ let mockSettings = {
     sessionApiKey: 'test-session-key',
   },
 };
+
+let mockSettings = structuredClone(defaultMockSettings);
 
 vi.mock('../settings/SettingsManager', () => ({
   SettingsManager: vi.fn(function (this: any) {
@@ -73,9 +75,9 @@ vi.mock('@openhands/agent-sdk-ts', () => {
 
   return {
     Conversation,
-    isBashCommand: vi.fn((event: any) => event?.type === 'bash_command'),
-    isBashOutput: vi.fn((event: any) => event?.type === 'bash_output'),
-    isBashExit: vi.fn((event: any) => event?.type === 'bash_exit'),
+    isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
+    isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),
+    isBashExit: vi.fn((event: any) => event?.type === 'BashExit'),
     __getLastConversation: () => lastConversation,
   };
 });
@@ -112,7 +114,7 @@ describe('Extension Activation', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
-    mockSettings.serverUrl = 'http://localhost:3000';
+    mockSettings = structuredClone(defaultMockSettings);
     mockContext = createMockContext();
     extension = await import('../extension');
   });
@@ -141,7 +143,7 @@ describe('Open tab behavior', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
-    mockSettings.serverUrl = 'http://localhost:3000';
+    mockSettings = structuredClone(defaultMockSettings);
 
     mockPanel = {
       webview: {
@@ -185,7 +187,7 @@ describe('Open tab behavior', () => {
   });
 });
 
-describe('Command handlers', () => {
+  describe('Command handlers', () => {
   let mockContext: any;
   let extension: any;
   let mockPanel: any;
@@ -194,7 +196,7 @@ describe('Command handlers', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
-    mockSettings.serverUrl = 'http://localhost:3000';
+    mockSettings = structuredClone(defaultMockSettings);
 
     mockPanel = {
       webview: {
@@ -251,7 +253,7 @@ describe('Command handlers', () => {
   });
 });
 
-describe('Settings and modes', () => {
+  describe('Settings and modes', () => {
   let mockContext: any;
   let extension: any;
   let mockPanel: any;
@@ -259,7 +261,7 @@ describe('Settings and modes', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
-
+    mockSettings = structuredClone(defaultMockSettings);
     mockPanel = {
       webview: {
         html: '',
