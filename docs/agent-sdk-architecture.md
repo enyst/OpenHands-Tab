@@ -221,7 +221,6 @@ await conversation.sendUserMessage('Install npm dependencies');
 ```
 
 **REST API Integration**:
-```typescript
 // Start conversation
 POST /api/conversations
 {
