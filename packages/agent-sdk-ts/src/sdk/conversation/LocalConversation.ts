@@ -5,6 +5,7 @@ import type { BashEvent, Event } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import { AgentContext } from '../context';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
@@ -14,6 +15,7 @@ export interface LocalConversationOptions {
   workspaceRoot?: string;
   llmClient?: LLMClient;
   tools?: ToolHandler<unknown, unknown>[];
+  agentContext?: AgentContext;
 }
 
 export class LocalConversation extends EventEmitter {
@@ -27,6 +29,7 @@ export class LocalConversation extends EventEmitter {
   private readonly lock = new AsyncLock();
   private readonly customLlmClient?: LLMClient;
   private readonly tools: ToolHandler<unknown, unknown>[];
+  private readonly agentContext?: AgentContext;
   private agent: Agent;
 
   constructor(options: LocalConversationOptions) {
@@ -39,6 +42,7 @@ export class LocalConversation extends EventEmitter {
     this.customLlmClient = options.llmClient;
     this.tools = options.tools ?? [];
     this.secrets = new SecretRegistry();
+    this.agentContext = options.agentContext;
     this.agent = this.createAgent();
 
     this.events.on((event) => this.emit('event', event));
@@ -118,6 +122,7 @@ export class LocalConversation extends EventEmitter {
       events: this.events,
       state: this.state,
       secrets: this.secrets,
+      agentContext: this.agentContext,
       onTerminalEvent: (event) => this.emit('terminal', event),
     });
   }
