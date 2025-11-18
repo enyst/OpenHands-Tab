@@ -14,7 +14,7 @@ export class AgentOrchestrator {
 
   constructor(private readonly llm: LLMClient, options: AgentOrchestratorOptions = {}) {
     this.events = options.events ?? new EventLog();
-    this.state = options.state ?? new ConversationState(this.events);
+    this.state = options.state ?? new ConversationState({ eventLog: this.events });
     this.state.attachEventLog(this.events);
   }
 
@@ -66,6 +66,8 @@ export class AgentOrchestrator {
       message.tool_calls = Object.values(toolCalls);
     }
 
+    this.state.persistSnapshot();
+
     return { message, usage };
   }
 
@@ -75,10 +77,11 @@ export class AgentOrchestrator {
         this.state.setValue(
           'llm_stream',
           `${typeof this.state.snapshot.values.llm_stream === 'string' ? this.state.snapshot.values.llm_stream : ''}${chunk.text}`,
+          false,
         );
         break;
       case 'tool_call_delta':
-        this.state.setValue('llm_tool_call', chunk.id);
+        this.state.setValue('llm_tool_call', chunk.id, false);
         break;
       case 'usage':
         this.state.setValue('llm_usage', {
@@ -86,7 +89,7 @@ export class AgentOrchestrator {
           output: chunk.outputTokens,
           cacheRead: chunk.cacheReadTokens,
           cacheWrite: chunk.cacheWriteTokens,
-        });
+        }, false);
         break;
       default:
         break;

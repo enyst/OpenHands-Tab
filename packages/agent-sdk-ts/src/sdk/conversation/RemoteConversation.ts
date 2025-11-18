@@ -372,7 +372,7 @@ export class RemoteConversation extends EventEmitter {
 
     ws.on('open', () => { this.retryCount = 0; this.setStatus('online'); });
     ws.on('close', () => { this.setStatus('offline'); this.scheduleReconnect(); });
-    ws.on('error', (err) => { this.emit('error', err); this.setStatus('offline'); this.scheduleReconnect(); });
+    ws.on('error', (err: Error) => { this.emit('error', err); this.setStatus('offline'); this.scheduleReconnect(); });
     ws.on('message', (buf: Buffer) => {
       try {
         const str = buf.toString('utf8');
@@ -439,7 +439,7 @@ export class RemoteConversation extends EventEmitter {
       this.bashWs = ws;
       ws.on('open', () => { this.bashRetryCount = 0; });
       ws.on('close', () => { this.scheduleBashReconnect(); });
-      ws.on('error', (err) => { this.emit('error', err); this.scheduleBashReconnect(); });
+      ws.on('error', (err: Error) => { this.emit('error', err); this.scheduleBashReconnect(); });
       ws.on('message', (data: WebSocket.RawData) => {
         try {
           const text = typeof data === 'string'

@@ -1,5 +1,7 @@
-import type { ConversationStateUpdateEvent } from '../types';
+import type { ConversationStateUpdateEvent, Event } from '../types';
+import { isConversationStateUpdateEvent } from '../types';
 import { EventLog } from './EventLog';
+import type { ConversationPersistence } from './persistence';
 
 export interface AgentState {
   status: string;
@@ -7,39 +9,92 @@ export interface AgentState {
   values: Record<string, unknown>;
 }
 
-export class ConversationState {
-  private state: AgentState = {
-    status: 'idle',
-    iteration: 0,
-    values: {},
-  };
+export interface ConversationStateOptions {
+  eventLog?: EventLog;
+  persistence?: ConversationPersistence;
+  initialState?: AgentState;
+}
 
-  constructor(private events: EventLog = new EventLog()) {}
+export class ConversationState {
+  private state: AgentState;
+  private eventLog: EventLog;
+  private persistence?: ConversationPersistence;
+
+  constructor(options: ConversationStateOptions = {}) {
+    this.eventLog = options.eventLog ?? new EventLog();
+    this.persistence = options.persistence;
+    this.state = options.initialState ?? {
+      status: 'idle',
+      iteration: 0,
+      values: {},
+    };
+  }
 
   get snapshot(): AgentState {
     return { ...this.state, values: { ...this.state.values } };
   }
 
   incrementIteration(): AgentState {
-    this.state = { ...this.state, iteration: this.state.iteration + 1 };
-    this.emitUpdate({ iteration: this.state.iteration });
-    return this.snapshot;
+    return this.updateState({ iteration: this.state.iteration + 1 }, true, true);
   }
 
   setStatus(status: string): AgentState {
-    this.state = { ...this.state, status };
-    this.emitUpdate({ agent_status: status });
+    return this.updateState({ agent_status: status }, true, true);
+  }
+
+  setValue(key: string, value: unknown, persist = true): AgentState {
+    return this.updateState({ key, value }, true, persist);
+  }
+
+  restore(snapshot: AgentState): AgentState {
+    this.state = { ...snapshot, values: { ...snapshot.values } };
     return this.snapshot;
   }
 
-  setValue(key: string, value: unknown): AgentState {
-    this.state = { ...this.state, values: { ...this.state.values, [key]: value } };
-    this.emitUpdate({ key, value });
+  loadEvents(events: Event[]): AgentState {
+    this.state = { status: 'idle', iteration: 0, values: {} };
+    events.filter(isConversationStateUpdateEvent).forEach((event) => {
+      this.updateState(event, false, false);
+    });
+    this.persistSnapshot();
     return this.snapshot;
   }
 
-  attachEventLog(events: EventLog): void {
-    this.events = events;
+  attachEventLog(eventLog: EventLog): void {
+    this.eventLog = eventLog;
+  }
+
+  attachPersistence(persistence: ConversationPersistence): void {
+    this.persistence = persistence;
+  }
+
+  persistSnapshot(): void {
+    this.persistence?.writeState(this.snapshot);
+  }
+
+  private updateState(
+    update: Partial<Omit<ConversationStateUpdateEvent, 'kind' | 'source'>>,
+    emitEvent: boolean,
+    persist: boolean,
+  ): AgentState {
+    if (typeof update.iteration === 'number') {
+      this.state = { ...this.state, iteration: update.iteration };
+    }
+    if (typeof update.agent_status === 'string') {
+      this.state = { ...this.state, status: update.agent_status };
+    }
+    if (update.key) {
+      this.state = { ...this.state, values: { ...this.state.values, [update.key]: update.value } };
+    }
+
+    if (emitEvent) {
+      this.emitUpdate(update);
+    }
+
+    if (persist) {
+      this.persistSnapshot();
+    }
+    return this.snapshot;
   }
 
   private emitUpdate(update: Omit<Partial<ConversationStateUpdateEvent>, 'kind' | 'source'>): void {
@@ -48,6 +103,6 @@ export class ConversationState {
       kind: 'ConversationStateUpdateEvent',
       source: 'agent',
     };
-    this.events.push(event);
+    this.eventLog.push(event);
   }
 }

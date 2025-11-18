@@ -5,7 +5,7 @@ import { isConversationStateUpdateEvent } from '../types';
 describe('EventLog and ConversationState', () => {
   it('records state updates', () => {
     const log = new EventLog();
-    const state = new ConversationState(log);
+    const state = new ConversationState({ eventLog: log });
     state.setStatus('running');
     state.incrementIteration();
 

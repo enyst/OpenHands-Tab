@@ -13,6 +13,7 @@ export interface ConversationFactoryOptions {
   workspaceRoot?: string;
   conversationId?: string;
   tools?: ToolHandler<unknown, unknown>[];
+  persistenceDir?: string;
 }
 
 export function Conversation(options: ConversationFactoryOptions): ConversationInstance {
@@ -29,6 +30,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     conversationId: options.conversationId,
     workspaceRoot: options.workspaceRoot,
     tools: options.tools,
+    persistenceDir: options.persistenceDir,
   }) as ConversationInstance;
 }
 

@@ -1,10 +1,12 @@
 import EventEmitter from 'events';
-import { Agent, AsyncLock, ConversationState, EventLog, SecretRegistry } from '../runtime';
+import { Agent, AsyncLock, ConversationState, EventLog, FileStore, SecretRegistry } from '../runtime';
 import type { LLMClient } from '../llm';
 import type { BashEvent, Event } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import path from 'path';
+import type { ConversationPersistence } from '../runtime/persistence';
 import { AgentContext } from '../context';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -15,6 +17,8 @@ export interface LocalConversationOptions {
   workspaceRoot?: string;
   llmClient?: LLMClient;
   tools?: ToolHandler<unknown, unknown>[];
+  persistenceDir?: string;
+  persistence?: ConversationPersistence;
   agentContext?: AgentContext;
 }
 
@@ -29,6 +33,8 @@ export class LocalConversation extends EventEmitter {
   private readonly lock = new AsyncLock();
   private readonly customLlmClient?: LLMClient;
   private readonly tools: ToolHandler<unknown, unknown>[];
+  private readonly persistenceDir?: string;
+  private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;
   private agent: Agent;
 
@@ -37,8 +43,10 @@ export class LocalConversation extends EventEmitter {
     this.settings = options.settings;
     this.conversationId = options.conversationId;
     this.workspace = new LocalWorkspace(options.workspaceRoot);
-    this.events = new EventLog();
-    this.state = new ConversationState(this.events);
+    this.persistenceDir = options.persistenceDir;
+    this.persistence = options.persistence;
+    this.events = new EventLog({ persistence: this.persistence });
+    this.state = new ConversationState({ eventLog: this.events, persistence: this.persistence });
     this.customLlmClient = options.llmClient;
     this.tools = options.tools ?? [];
     this.secrets = new SecretRegistry();
@@ -64,13 +72,34 @@ export class LocalConversation extends EventEmitter {
 
   startNewConversation(): Promise<string | undefined> {
     this.conversationId = this.conversationId ?? `local-${Date.now().toString(36)}`;
+    this.initializePersistence();
+    this.state.persistSnapshot();
     this.emit('conversationStarted', this.conversationId);
     return Promise.resolve(this.conversationId);
   }
 
   restoreConversation(id: string) {
     this.conversationId = id;
-    this.emit('conversationStarted', id);
+    if (!this.persistenceDir && !this.persistence) {
+      this.emit('error', new Error('Persistence is not configured; starting fresh session'));
+      this.emit('conversationStarted', id);
+      return;
+    }
+    try {
+      this.initializePersistence();
+      const events = this.persistence?.readEvents() ?? [];
+      this.events.replay(events);
+      const snapshot = this.persistence?.readState();
+      if (snapshot) {
+        this.state.restore(snapshot);
+      } else {
+        this.state.loadEvents(events);
+      }
+      this.emit('conversationStarted', id);
+    } catch (error) {
+      this.emit('error', error);
+      throw error;
+    }
   }
 
   async sendUserMessage(text: string) {
@@ -125,6 +154,29 @@ export class LocalConversation extends EventEmitter {
       agentContext: this.agentContext,
       onTerminalEvent: (event) => this.emit('terminal', event),
     });
+  }
+
+  private initializePersistence() {
+    if (!this.conversationId) return;
+
+    if (this.persistence && this.persistence.conversationId !== this.conversationId) {
+      throw new Error('Provided persistence does not match conversation id');
+    }
+
+    if (!this.persistenceDir) {
+      if (this.persistence) {
+        this.events.attachPersistence(this.persistence);
+        this.state.attachPersistence(this.persistence);
+      }
+      return;
+    }
+
+    const rootDir = path.isAbsolute(this.persistenceDir)
+      ? this.persistenceDir
+      : path.join(this.workspace.root, this.persistenceDir);
+    this.persistence = this.persistence ?? new FileStore({ rootDir, conversationId: this.conversationId });
+    this.events.attachPersistence(this.persistence);
+    this.state.attachPersistence(this.persistence);
   }
 }
 

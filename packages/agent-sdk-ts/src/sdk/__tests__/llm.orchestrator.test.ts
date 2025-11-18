@@ -40,7 +40,7 @@ describe('OpenAICompatibleClient streaming', () => {
     ].join('\n');
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse(sse));
-    const state = new ConversationState(new EventLog());
+    const state = new ConversationState({ eventLog: new EventLog() });
     const client = new OpenAICompatibleClient(baseConfig, 'test-key');
     const orchestrator = new AgentOrchestrator(client, { state });
 

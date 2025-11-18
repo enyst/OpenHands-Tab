@@ -55,7 +55,7 @@ export class Agent extends EventEmitter {
     super();
     this.workspace = new LocalWorkspace(options.workspaceRoot);
     this.events = options.events ?? new EventLog();
-    this.state = options.state ?? new ConversationState(this.events);
+    this.state = options.state ?? new ConversationState({ eventLog: this.events });
     this.state.attachEventLog(this.events);
     this.secrets = options.secrets ?? new SecretRegistry();
     const providedTools = options.tools ?? [];
