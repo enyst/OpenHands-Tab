@@ -5,7 +5,9 @@
   "version": "0.0.4",
   "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
   "license": "MIT",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/enyst/OpenHands-Tab.git"
@@ -245,7 +247,7 @@
     "mocha": "^10.8.2",
     "tailwindcss": "^4.1.13",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
+    "typescript": "^5.9.3",
     "vitest": "^2.1.4"
   },
   "dependencies": {
@@ -257,5 +259,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.3"
-  }
+  },
+  "bundleDependencies": [
+    "ws"
+  ]
 }

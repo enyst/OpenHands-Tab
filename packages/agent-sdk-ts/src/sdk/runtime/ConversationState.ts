@@ -42,10 +42,10 @@ export class ConversationState {
     this.events = events;
   }
 
-  private emitUpdate(update: Omit<Partial<ConversationStateUpdateEvent>, 'type' | 'source'>): void {
+  private emitUpdate(update: Omit<Partial<ConversationStateUpdateEvent>, 'kind' | 'source'>): void {
     const event: ConversationStateUpdateEvent = {
       ...update,
-      type: 'ConversationStateUpdateEvent',
+      kind: 'ConversationStateUpdateEvent',
       source: 'agent',
     };
     this.events.push(event);

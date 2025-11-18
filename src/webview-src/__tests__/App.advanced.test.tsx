@@ -28,7 +28,7 @@ describe('App - Advanced Test Coverage', () => {
   });
 
   const mkAction = (over: Partial<ActionEvent> = {}): ActionEvent => ({
-    type: 'ActionEvent',
+    kind: 'ActionEvent',
     source: 'agent',
     thought: [{ type: 'text', text: 'Running command' }],
     action: { tool: 'terminal', args: { command: 'echo test' } },
@@ -37,14 +37,14 @@ describe('App - Advanced Test Coverage', () => {
     tool_call: { id: 'call-1', type: 'function', function: { name: 'terminal', arguments: '{}' } },
     llm_response_id: 'resp-1',
     ...over,
-  });
+  } as any);
 
   describe('Event deduplication', () => {
     it('prevents duplicate actions with same tool_call_id', async () => {
       render(<App />);
       const setWaitingForConfirmation = () => {
         const state: ConversationStateUpdateEvent = {
-          type: 'ConversationStateUpdateEvent',
+          kind: 'ConversationStateUpdateEvent',
           agent_status: 'WAITING_FOR_CONFIRMATION'
         } as ConversationStateUpdateEvent;
         postToWindow({ type: 'event', event: state });
@@ -75,7 +75,7 @@ describe('App - Advanced Test Coverage', () => {
       render(<App />);
       const setWaitingForConfirmation = () => {
         const state: ConversationStateUpdateEvent = {
-          type: 'ConversationStateUpdateEvent',
+          kind: 'ConversationStateUpdateEvent',
           agent_status: 'WAITING_FOR_CONFIRMATION'
         } as ConversationStateUpdateEvent;
         postToWindow({ type: 'event', event: state });
@@ -103,7 +103,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // Send multiple error events rapidly with the same message
       const error1: AgentErrorEvent = {
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: 'Test error',
         tool_name: 'terminal',
@@ -128,7 +128,7 @@ describe('App - Advanced Test Coverage', () => {
       const { container } = render(<App />);
 
       const error1: AgentErrorEvent = {
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: 'First error',
         tool_name: 'terminal',
@@ -147,7 +147,7 @@ describe('App - Advanced Test Coverage', () => {
       expect(container.textContent).toContain('First error');
 
       const error2: AgentErrorEvent = {
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: 'Second error',
         tool_name: 'terminal',
@@ -187,7 +187,7 @@ describe('App - Advanced Test Coverage', () => {
       const { container } = render(<App />);
 
       const error: AgentErrorEvent = {
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: 'Critical error',
         tool_name: 'terminal',
@@ -211,7 +211,7 @@ describe('App - Advanced Test Coverage', () => {
       render(<App />);
 
       const stateUpdate: ConversationStateUpdateEvent = {
-        type: 'ConversationStateUpdateEvent',
+        kind: 'ConversationStateUpdateEvent',
         agent_status: 'RUNNING'
       } as ConversationStateUpdateEvent;
 
@@ -231,7 +231,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // Transition to RUNNING
       const state1: ConversationStateUpdateEvent = {
-        type: 'ConversationStateUpdateEvent',
+        kind: 'ConversationStateUpdateEvent',
         agent_status: 'RUNNING'
       } as ConversationStateUpdateEvent;
       postToWindow({ type: 'event', event: state1 });
@@ -242,7 +242,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // Transition to WAITING_FOR_CONFIRMATION
       const state2: ConversationStateUpdateEvent = {
-        type: 'ConversationStateUpdateEvent',
+        kind: 'ConversationStateUpdateEvent',
         agent_status: 'WAITING_FOR_CONFIRMATION'
       } as ConversationStateUpdateEvent;
       postToWindow({ type: 'event', event: state2 });
@@ -260,7 +260,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // First transition to WAITING_FOR_CONFIRMATION
       const state1: ConversationStateUpdateEvent = {
-        type: 'ConversationStateUpdateEvent',
+        kind: 'ConversationStateUpdateEvent',
         agent_status: 'WAITING_FOR_CONFIRMATION'
       } as ConversationStateUpdateEvent;
       postToWindow({ type: 'event', event: state1 });
@@ -409,7 +409,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // Add some events first
       const message = {
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'user',
         llm_message: {
           role: 'user',
@@ -436,7 +436,7 @@ describe('App - Advanced Test Coverage', () => {
 
       const setWaitingForConfirmation = () => {
         const state: ConversationStateUpdateEvent = {
-          type: 'ConversationStateUpdateEvent',
+          kind: 'ConversationStateUpdateEvent',
           agent_status: 'WAITING_FOR_CONFIRMATION'
         } as ConversationStateUpdateEvent;
         postToWindow({ type: 'event', event: state });
@@ -502,7 +502,7 @@ describe('App - Advanced Test Coverage', () => {
       // Post 50 events rapidly
       for (let i = 0; i < 50; i++) {
         const message = {
-          type: 'MessageEvent',
+          kind: 'MessageEvent',
           source: 'agent',
           llm_message: {
             role: 'assistant',
@@ -691,7 +691,7 @@ describe('App - Advanced Test Coverage', () => {
 
       // Add some events
       const message1 = {
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'user',
         llm_message: {
           role: 'user',
@@ -699,7 +699,7 @@ describe('App - Advanced Test Coverage', () => {
         }
       };
       const message2 = {
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'agent',
         llm_message: {
           role: 'assistant',
@@ -736,7 +736,7 @@ describe('App - Advanced Test Coverage', () => {
       render(<App />);
 
       const message = {
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'agent',
         llm_message: {
           role: 'assistant',
@@ -875,7 +875,7 @@ describe('App - Advanced Test Coverage', () => {
 
       const longOutput = 'x'.repeat(3000);
       const observation = {
-        type: 'ObservationEvent',
+        kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
         tool_name: 'terminal',
@@ -895,7 +895,7 @@ describe('App - Advanced Test Coverage', () => {
 
       const longOutput = 'x'.repeat(3000);
       const observation = {
-        type: 'ObservationEvent',
+        kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
         tool_name: 'terminal',

@@ -20,13 +20,13 @@ describe('Agent-SDK event rendering', () => {
   it('renders text content from MessageEvent', async () => {
     render(<App />);
     const ev: AgentMessageEvent = {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'agent',
       llm_message: {
         role: 'assistant',
         content: [ { type: 'text', text: 'Hello world' } ]
       }
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('Hello world')).toBeInTheDocument();
   });
@@ -34,13 +34,13 @@ describe('Agent-SDK event rendering', () => {
   it('renders user messages correctly', async () => {
     render(<App />);
     const ev: AgentMessageEvent = {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'user',
       llm_message: {
         role: 'user',
         content: [ { type: 'text', text: 'User message here' } ]
       }
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('User message here')).toBeInTheDocument();
   });
@@ -48,12 +48,12 @@ describe('Agent-SDK event rendering', () => {
   it('renders agent error events', async () => {
     render(<App />);
     const ev: AgentErrorEvent = {
-      type: 'AgentErrorEvent',
+      kind: 'AgentErrorEvent',
       source: 'agent',
       error: 'Something went wrong',
       tool_name: 'terminal',
       tool_call_id: 'call_123'
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     // Error appears in both the event block and status banner
     const errorElements = await screen.findAllByText(/Something went wrong/);
@@ -63,11 +63,11 @@ describe('Agent-SDK event rendering', () => {
   it('renders conversation error events', async () => {
     render(<App />);
     const ev: ConversationErrorEvent = {
-      type: 'ConversationErrorEvent',
+      kind: 'ConversationErrorEvent',
       source: 'environment',
       code: 'LLMBadRequestError',
       detail: 'Unsupported value: reasoning effort too low'
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Conversation Error/)).toBeInTheDocument();
     expect(await screen.findByText(/LLMBadRequestError/)).toBeInTheDocument();
@@ -77,11 +77,11 @@ describe('Agent-SDK event rendering', () => {
   it('renders SystemPromptEvent', async () => {
     render(<App />);
     const ev = {
-      type: 'SystemPromptEvent',
+      kind: 'SystemPromptEvent',
       source: 'agent' as const,
       system_prompt: { type: 'text' as const, text: 'You are a helpful AI assistant designed for testing' },
       tools: [{ name: 'bash' }, { name: 'read' }, { name: 'write' }]
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
     expect(await screen.findByText(/Tools Available: 3/)).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe('Agent-SDK event rendering', () => {
   it('renders ActionEvent', async () => {
     render(<App />);
     const ev = {
-      type: 'ActionEvent',
+      kind: 'ActionEvent',
       source: 'agent' as const,
       thought: [{ type: 'text' as const, text: 'I will check the directory structure now' }],
       action: { command: 'ls -la /home' },
@@ -98,7 +98,7 @@ describe('Agent-SDK event rendering', () => {
       tool_call_id: 'call_action_1',
       tool_call: { id: 'call_action_1', type: 'function' as const, function: { name: 'terminal', arguments: '{}' } },
       llm_response_id: 'resp_action_1'
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/I will check the directory structure now/)).toBeInTheDocument();
     expect(await screen.findByText(/terminal/)).toBeInTheDocument();
@@ -107,13 +107,13 @@ describe('Agent-SDK event rendering', () => {
   it('renders ObservationEvent', async () => {
     render(<App />);
     const ev = {
-      type: 'ObservationEvent',
+      kind: 'ObservationEvent',
       source: 'environment' as const,
       observation: { content: 'Directory listing output from bash execution', exit_code: 0 },
       tool_name: 'terminal',
       tool_call_id: 'call_obs_1',
       action_id: 'action_obs_1'
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Directory listing output from bash execution/)).toBeInTheDocument();
   });
@@ -121,13 +121,13 @@ describe('Agent-SDK event rendering', () => {
   it('renders UserRejectObservation', async () => {
     render(<App />);
     const ev = {
-      type: 'UserRejectObservation',
+      kind: 'UserRejectObservation',
       source: 'user' as const,
       rejection_reason: 'This command appears to be potentially harmful to the system',
       tool_name: 'terminal',
       tool_call_id: 'call_reject_2',
       action_id: 'action_reject_2'
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/This command appears to be potentially harmful to the system/)).toBeInTheDocument();
   });
@@ -135,9 +135,9 @@ describe('Agent-SDK event rendering', () => {
   it('renders PauseEvent', async () => {
     render(<App />);
     const ev = {
-      type: 'PauseEvent',
+      kind: 'PauseEvent',
       source: 'user' as const
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/User Paused/)).toBeInTheDocument();
   });
@@ -145,11 +145,11 @@ describe('Agent-SDK event rendering', () => {
   it('renders Condensation', async () => {
     render(<App />);
     const ev = {
-      type: 'Condensation',
+      kind: 'Condensation',
       source: 'agent' as const,
       forgotten_event_ids: ['ev1', 'ev2', 'ev3', 'ev4', 'ev5'],
       summary: 'Condensed multiple historical events to save memory'
-    };
+    } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Forgetting 5 events/)).toBeInTheDocument();
   });

@@ -21,7 +21,7 @@ describe('App - Confirmation Flow', () => {
   afterEach(() => { vi.useRealTimers(); cleanup(); });
 
   const mkAction = (over: Partial<ActionEvent> = {}): ActionEvent => ({
-    type: 'ActionEvent',
+    kind: 'ActionEvent',
     source: 'agent',
     thought: [{ type: 'text', text: 'Consider running bash' }],
     action: { tool: 'terminal', args: { command: 'echo 1' } },
@@ -31,10 +31,10 @@ describe('App - Confirmation Flow', () => {
     llm_response_id: 'resp-1',
     security_risk: 'HIGH',
     ...over,
-  });
+  } as any);
 
   const setWaitingForConfirmation = () => {
-    const state: ConversationStateUpdateEvent = { type: 'ConversationStateUpdateEvent', agent_status: 'WAITING_FOR_CONFIRMATION' } as any;
+    const state: ConversationStateUpdateEvent = { kind: 'ConversationStateUpdateEvent', agent_status: 'WAITING_FOR_CONFIRMATION' } as any;
     postToWindow({ type: 'event', event: state });
   };
 
@@ -140,7 +140,7 @@ describe('App - Confirmation Flow', () => {
     await userEvent.click(approveBtn);
 
     // send observation for that tool_call_id; should clear prompt
-    postToWindow({ type: 'event', event: { type: 'ObservationEvent', source: 'environment', observation: { ok: true }, tool_name: 'terminal', tool_call_id: 'call-clear', action_id: 'a1' } });
+    postToWindow({ type: 'event', event: { kind: 'ObservationEvent', source: 'environment', observation: { ok: true }, tool_name: 'terminal', tool_call_id: 'call-clear', action_id: 'a1' } });
     await waitFor(() => {
       expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
     });
@@ -155,7 +155,7 @@ describe('App - Confirmation Flow', () => {
     const confirmReject = await screen.findByRole('button', { name: /confirm reject/i });
     await userEvent.click(confirmReject);
 
-    postToWindow({ type: 'event', event: { type: 'UserRejectObservation', source: 'environment', rejection_reason: 'no', tool_name: 'terminal', tool_call_id: 'call-rej', action_id: 'a2' } });
+    postToWindow({ type: 'event', event: { kind: 'UserRejectObservation', source: 'environment', rejection_reason: 'no', tool_name: 'terminal', tool_call_id: 'call-rej', action_id: 'a2' } });
     await waitFor(() => {
       expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
     });
@@ -193,7 +193,7 @@ const approveBtn = await screen.findByRole('button', { name: /approve/i });
     expect(approveBtn).toBeDisabled();
 
     // Send AgentErrorEvent which should reset isSubmitting
-    postToWindow({ type: 'event', event: { type: 'AgentErrorEvent', source: 'agent', error: 'oops', tool_name: 'terminal', tool_call_id: 'call-err' } });
+    postToWindow({ type: 'event', event: { kind: 'AgentErrorEvent', source: 'agent', error: 'oops', tool_name: 'terminal', tool_call_id: 'call-err' } });
     await waitFor(() => expect(approveBtn).not.toBeDisabled());
   });
 

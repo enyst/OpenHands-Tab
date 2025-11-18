@@ -48,7 +48,7 @@ describe('StuckDetector', () => {
     const result = detector.evaluate();
     expect(result.stuck).toBe(false);
     // simulate old event
-    log.push({ type: 'PauseEvent', source: 'user', timestamp: '2000-01-01T00:00:00Z' });
+    log.push({ kind: 'PauseEvent', source: 'user', timestamp: '2000-01-01T00:00:00Z' } as any);
     const stuck = detector.evaluate(Date.parse('2000-01-01T00:01:00Z'));
     expect(stuck.stuck).toBe(true);
   });
