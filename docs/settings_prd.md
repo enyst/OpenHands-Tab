@@ -96,7 +96,6 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'HIGH')
   - openhands.confirmation.risky.confirmUnknown: boolean (default: true)
   - openhands.agent.enableSecurityAnalyzer: boolean (default: false)
-  - openhands.bashEvents.enabled: boolean (default: false) - enables live bash output to terminal
 - Store secrets in VS Code SecretStorage (never in settings.json)
   - Implemented keys:
     - openhands.sessionApiKey (used for X-Session-API-Key / WS query param)
@@ -157,7 +156,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - ✓ IMPLEMENTED: Secure API key storage via VS Code SecretStorage
 - ✓ IMPLEMENTED: Dynamic LLM configuration - ConnectionManager builds agent.llm payload from settings
 - ✓ IMPLEMENTED: Model selection and all LLM parameters are configurable
-- ✓ IMPLEMENTED: Bash events feature (local mode emits terminal events; no dedicated WebSocket client)
+- ✓ IMPLEMENTED: Terminal integration (local mode emits terminal events from agent's tool execution)
 - ✓ IMPLEMENTED: Security analyzer toggle and confirmation policies
 - Settings are stored in VS Code workspace/user settings and secrets in OS keychain
 - Configuration is applied when starting new conversations and can be updated during extension runtime

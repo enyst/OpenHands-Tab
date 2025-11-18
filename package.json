@@ -179,11 +179,6 @@
           ],
           "default": "none",
           "markdownDescription": "Reasoning effort for supported models."
-        },
-        "openhands.bashEvents.enabled": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "Enable streaming bash events into the extension (experimental)"
         }
       }
     },

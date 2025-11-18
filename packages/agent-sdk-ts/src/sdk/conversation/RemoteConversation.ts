@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import WebSocket from 'ws';
 import type { BashEvent, Event, Message } from '../types';
-import { isBashEvent, isEvent as isAgentEvent } from '../types';
+import { isEvent as isAgentEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -33,11 +33,8 @@ export class RemoteConversation extends EventEmitter {
   private status: ConversationStatus = 'offline';
   private readonly seenEventIds = new Set<string>();
   private ws?: WebSocket;
-  private bashWs?: WebSocket;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private bashReconnectTimer?: ReturnType<typeof setTimeout>;
   private retryCount = 0;
-  private bashRetryCount = 0;
   private readonly retryBaseMs = 1000;
   private readonly retryMaxMs = 15000;
   private readonly workspaceRoot: string;
@@ -55,7 +52,6 @@ export class RemoteConversation extends EventEmitter {
       void this.replayHistory().then(() => {
         if (this.conversationId === options.conversationId) {
           this.connect();
-          this.connectBashEvents();
         }
       }).catch((err) => {
         this.emit('error', err instanceof Error ? err : new Error(String(err)));
@@ -180,7 +176,6 @@ export class RemoteConversation extends EventEmitter {
       }
       this.emit('conversationStarted', this.conversationId);
       this.connect();
-      this.connectBashEvents();
       return this.conversationId;
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -199,7 +194,6 @@ export class RemoteConversation extends EventEmitter {
     this.emit('conversationStarted', id);
     await this.replayHistory();
     this.connect();
-    this.connectBashEvents();
   }
 
   async pause() {
@@ -308,18 +302,12 @@ export class RemoteConversation extends EventEmitter {
       this.ws.close();
       this.ws = undefined;
     }
-    if (this.bashWs) {
-      this.bashWs.removeAllListeners();
-      this.bashWs.close();
-      this.bashWs = undefined;
-    }
     this.setStatus('offline');
   }
 
   reconnect() {
     if (this.conversationId) {
       this.connect();
-      this.connectBashEvents();
     }
   }
 
@@ -337,7 +325,6 @@ export class RemoteConversation extends EventEmitter {
 
   private clearReconnect() {
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = undefined; }
-    if (this.bashReconnectTimer) { clearTimeout(this.bashReconnectTimer); this.bashReconnectTimer = undefined; }
   }
 
   private scheduleReconnect() {
@@ -347,14 +334,6 @@ export class RemoteConversation extends EventEmitter {
     const delay = base + jitter;
     this.retryCount = Math.min(this.retryCount + 1, 10);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
-  }
-
-  private scheduleBashReconnect() {
-    const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.bashRetryCount)));
-    const jitter = Math.floor(base * 0.2 * Math.random());
-    const delay = base + jitter;
-    this.bashRetryCount = Math.min(this.bashRetryCount + 1, 10);
-    this.bashReconnectTimer = setTimeout(() => this.connectBashEvents(), delay);
   }
 
   private connect() {
@@ -423,43 +402,6 @@ export class RemoteConversation extends EventEmitter {
       }
     } catch (e) {
       this.emit('error', e instanceof Error ? e : new Error(String(e)));
-    }
-  }
-
-  private connectBashEvents() {
-    if (!this.conversationId) return;
-    const base = this.serverUrl.replace(/^http/, 'ws').replace(/\/$/, '');
-    const sessionKey = this.settings?.secrets.sessionApiKey;
-    let url = `${base}/sockets/bash-events`;
-    if (sessionKey) {
-      url += `?session_api_key=${encodeURIComponent(sessionKey)}`;
-    }
-    try {
-      const ws = new WebSocket(url);
-      this.bashWs = ws;
-      ws.on('open', () => { this.bashRetryCount = 0; });
-      ws.on('close', () => { this.scheduleBashReconnect(); });
-      ws.on('error', (err: Error) => { this.emit('error', err); this.scheduleBashReconnect(); });
-      ws.on('message', (data: WebSocket.RawData) => {
-        try {
-          const text = typeof data === 'string'
-            ? data
-            : Array.isArray(data)
-              ? Buffer.concat(data).toString('utf8')
-              : Buffer.isBuffer(data)
-                ? data.toString('utf8')
-                : Buffer.from(data).toString('utf8');
-          const event = JSON.parse(text) as unknown;
-          if (isBashEvent(event)) {
-            this.emit('terminal', event);
-          }
-        } catch (e) {
-          this.emit('error', e instanceof Error ? e : new Error(String(e)));
-        }
-      });
-    } catch (e) {
-      this.emit('error', e);
-      this.scheduleBashReconnect();
     }
   }
 

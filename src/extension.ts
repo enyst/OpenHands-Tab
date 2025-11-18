@@ -26,10 +26,6 @@ let webviewReady = false; // Track if webview is ready to receive messages
 let outputChannel: vscode.OutputChannel | undefined;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
-const injectedBashEvents: Array<{ type?: string; [key: string]: unknown }> = [];
-let bashEventsEnabled = false;
-let bashEventsClientInitialized = false;
-let bashEventsClientStatus: 'online' | 'offline' = 'offline';
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
 const sentTestEvents: unknown[] = [];
 
@@ -57,14 +53,6 @@ const createDefaultLocalTools = () => [
   new TaskTrackerTool(),
   new BrowserTool(),
 ];
-
-function refreshBashEventsConfig() {
-  bashEventsEnabled = !!vscode.workspace.getConfiguration().get<boolean>('openhands.bashEvents.enabled');
-  if (!bashEventsEnabled) {
-    bashEventsClientInitialized = false;
-    bashEventsClientStatus = 'offline';
-  }
-}
 
 function safeStringify(value: unknown): string {
   try {
@@ -114,7 +102,6 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  refreshBashEventsConfig();
   try {
     const factory = (vscode.window as typeof vscode.window & { createOutputChannel?: typeof vscode.window.createOutputChannel }).createOutputChannel;
     if (factory) {
@@ -211,12 +198,6 @@ export function activate(context: vscode.ExtensionContext) {
     const settings = await settingsMgr.get();
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
-
-    refreshBashEventsConfig();
-    if (bashEventsEnabled) {
-      bashEventsClientInitialized = true;
-      bashEventsClientStatus = 'offline';
-    }
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const savedId = context.workspaceState.get<string>('openhands.conversationId');
@@ -318,12 +299,6 @@ export function activate(context: vscode.ExtensionContext) {
         hasTerminal: !!terminal,
         received: receivedTerminalEvents.length,
       },
-      bashEvents: {
-        enabled: bashEventsEnabled,
-        hasClient: bashEventsClientInitialized,
-        clientStatus: bashEventsClientStatus,
-        hasTerminal: !!terminal,
-      },
     };
     return diag;
   });
@@ -336,26 +311,6 @@ export function activate(context: vscode.ExtensionContext) {
     sentTestEvents.push(event);
     void panel?.webview.postMessage({ type: 'event', event });
     return { sent: true };
-  });
-
-  const injectBashEvent = vscode.commands.registerCommand('openhands._injectBashEvent', (event: any) => {
-    refreshBashEventsConfig();
-    if (!bashEventsEnabled) {
-      bashEventsEnabled = true;
-    }
-    bashEventsClientInitialized = true;
-    bashEventsClientStatus = 'offline';
-    injectedBashEvents.push(event);
-    if (injectedBashEvents.length > MAX_TERMINAL_EVENTS) {
-      injectedBashEvents.shift();
-    }
-    handleTerminalEvent(event);
-    return { injected: true };
-  });
-
-  const queryBashEvents = vscode.commands.registerCommand('openhands._queryBashEvents', () => {
-    const eventTypes = injectedBashEvents.map((e) => (e && typeof e.type === 'string' ? e.type : 'unknown'));
-    return { count: injectedBashEvents.length, eventTypes };
   });
 
   // Query rendered events from webview for E2E testing
@@ -570,13 +525,6 @@ export function activate(context: vscode.ExtensionContext) {
         try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch {}
         conversation = undefined;
         await ensurePanelAndConnection();
-      } else if (e.affectsConfiguration('openhands.bashEvents.enabled')) {
-        refreshBashEventsConfig();
-        if (!bashEventsEnabled) {
-          injectedBashEvents.length = 0;
-          bashEventsClientInitialized = false;
-          bashEventsClientStatus = 'offline';
-        }
       }
     })
   );
@@ -585,8 +533,6 @@ export function activate(context: vscode.ExtensionContext) {
     openTab,
     diag,
     sendTestEvent,
-    injectBashEvent,
-    queryBashEvents,
     queryRenderedEvents,
     startNew,
     configure,
@@ -608,10 +554,6 @@ export function deactivate() {
   renderedEventsInfo = undefined;
   webviewReady = false;
   receivedTerminalEvents.length = 0;
-  injectedBashEvents.length = 0;
-  bashEventsEnabled = false;
-  bashEventsClientInitialized = false;
-  bashEventsClientStatus = 'offline';
 }
 
 function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {

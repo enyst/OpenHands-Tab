@@ -24,7 +24,6 @@ A VS Code extension that provides a tab to interact with the OpenHands agent, us
 - Chat webview with streaming events, confirmation mode, and message send fallback
 - Connection lifecycle aligned with agent-server 1.1 (new tool identifiers, `/run` resume)
 - Settings bridge backed by VS Code configuration & secret storage
-- Bash events optional terminal stream (toggle via settings)
 
 ## 5. Architecture Overview
 - VS Code Extension (Extension Host)
@@ -282,10 +281,9 @@ Confirmation policy
   - Surface WAITING_FOR_CONFIRMATION state; list pending actions; Approve/Reject flow
   - Policies selectable when starting a conversation (NeverConfirm, AlwaysConfirm, ConfirmRisky)
   - Security risk indicators (LOW/MEDIUM/HIGH) in action events
-- Live Bash Events Terminal ✓ IMPLEMENTED (local mode)
-  - In local mode, the SDK emits bash events which are rendered in the VS Code integrated terminal
-  - Configurable via openhands.bashEvents.enabled setting
-  - The legacy /sockets/bash-events client and docs/bash_events.md were removed
+- Live Terminal Integration ✓ IMPLEMENTED (local mode)
+  - In local mode, the SDK emits terminal events when the agent executes commands
+  - Terminal output is rendered in the VS Code integrated terminal
 - Activity Bar Integration ✓ IMPLEMENTED
   - Custom activity bar icon and view
   - Quick action shortcuts for opening tab and settings
