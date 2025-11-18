@@ -11,6 +11,8 @@ export type LLMSettings = {
   maxOutputTokens?: number | null;
   nativeToolCalling?: boolean | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
+  inputCostPerToken?: number | null;
+  outputCostPerToken?: number | null;
 };
 
 export type ServerSettings = {

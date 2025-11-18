@@ -14,6 +14,7 @@ export interface LLMToolDefinition {
 export interface LLMConfiguration {
   provider?: LLMProvider;
   model: string;
+  usageId?: string | null;
   baseUrl?: string | null;
   apiKey?: string;
   apiVersion?: string | null;
@@ -26,6 +27,8 @@ export interface LLMConfiguration {
   nativeToolCalling?: boolean | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
   headers?: Record<string, string>;
+  inputCostPerToken?: number | null;
+  outputCostPerToken?: number | null;
 }
 
 export interface ChatCompletionRequest {
