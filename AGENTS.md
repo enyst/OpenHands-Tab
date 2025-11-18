@@ -82,7 +82,7 @@ or alternatives.
 - See `packages/agent-sdk-ts/AGENTS.md` for SDK-focused instructions (build/test workflow, publishing expectations, generated artifacts).
 
 ### Local and Remote VS Code setup
-- See docs/vscode_local_setup.md for a hands-on guide to running the extension locally in a Development host, including how to enable the webview→extension debug bridge and where logs are written.
+- See `docs/vscode_local_setup.md` for a hands-on guide to running the extension locally in a Development host, including how to enable the webview→extension debug bridge and where logs are written.
 - See docs/vscode_remote_setup.md for remote/headless setup, including noVNC/desktop notes and convenience scripts to run a headless VS Code + webview.
 
 Agents: read both of these files as part of your environment setup to ensure logging and diagnostics are available during development and tests.
