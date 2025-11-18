@@ -1,5 +1,26 @@
 # VS Code Local Setup for AI Agents
 
+
+> Note on debug logging/instrumentation
+>
+> The webview → extension logging bridge (console/errors/network) is enabled automatically when the extension runs in Development or Test mode, and can also be enabled manually in normal installs.
+>
+> How to enable:
+> - Automatic: launch the extension in Extension Development Host (Run/Debug) or during tests — logging is on by default.
+> - Manual: open Settings and enable “OpenHands: Dev Bridge Enabled” (setting id: `openhands.devBridge.enabled`).
+>
+> What it does:
+> - Captures webview console logs, unhandled errors, network requests and WebSocket lifecycle and forwards them to the extension.
+> - Writes to Output: check the “OpenHands” output channel.
+> - Writes to file (when enabled): `openhands-webview.log` inside the VS Code extension log folder.
+>
+> Where to find the log file:
+> - Use the Command Palette: “Developer: Open Extension Logs Folder”, then open the `openhands.openhands-tab` folder and find `openhands-webview.log`.
+> - Typical locations:
+>   - macOS: `~/Library/Application Support/Code/logs/<timestamp>/exthost/openhands.openhands-tab/`
+>   - Linux: `~/.config/Code/logs/<timestamp>/exthost/openhands.openhands-tab/`
+>   - Windows: `%APPDATA%\Code\logs\<timestamp>\exthost\openhands.openhands-tab\`
+
 This guide is for AI agents operating on a developer’s local machine. It assumes VS Code Desktop is installed and the `code` CLI is in PATH. The goal: run VS Code with the OpenHands Tab extension in development mode, refresh it when code changes, collect logs, and capture screenshots.
 
 ## Prerequisites
@@ -59,6 +80,15 @@ For each common action, here are both the Visual (UI) steps and equivalent CLI t
 - Open Webview Developer Tools
   - Visual: Command Palette → Developer: Open Webview Developer Tools
   - CLI: Not reliably exposed via a stable command ID. Workaround: open Developer Tools (above) and select the webview iframe in the Elements panel.
+
+Note on Webview DevTools from CLI
+- Alternatives:
+  - Open main DevTools via CLI and select the webview iframe: code --command workbench.action.toggleDevTools
+  - Bridge logs and network from webview to extension host (recommended). This repository implements:
+    - Console bridge (console.log/warn/error), window.onerror, and unhandledrejection → posted to extension → written to Output channel.
+    - Network bridge: fetch wrapper and WebSocket lifecycle events → posted to extension → written to Output channel.
+  - Run the webview bundle in a browser harness with a mock acquireVsCodeApi for deep inspection.
+
 
 - Open Output panel (to view logs)
   - Visual: View → Output, then pick the "OpenHands" channel

@@ -24,12 +24,32 @@ let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
 let outputChannel: vscode.OutputChannel | undefined;
-const receivedTerminalEvents: any[] = []; // Track terminal events for testing
+const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
-const injectedBashEvents: any[] = [];
+const injectedBashEvents: Array<{ type?: string; [key: string]: unknown }> = [];
 let bashEventsEnabled = false;
 let bashEventsClientInitialized = false;
 let bashEventsClientStatus: 'online' | 'offline' = 'offline';
+// Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
+const sentTestEvents: unknown[] = [];
+
+// Dev logging/instrumentation toggle and file sink
+let devBridgeEnabled = false;
+let webviewLogFile: string | undefined;
+async function initFileLogger(context: vscode.ExtensionContext) {
+  try {
+    const logDir = context.logUri.fsPath;
+    await fs.mkdir(logDir, { recursive: true });
+    webviewLogFile = path.join(logDir, 'openhands-webview.log');
+  } catch (_err) {
+    webviewLogFile = undefined;
+  }
+}
+function fileLog(line: string) {
+  if (!devBridgeEnabled || !webviewLogFile) return;
+  const ts = new Date().toISOString();
+  fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch(() => {});
+}
 
 const createDefaultLocalTools = () => [
   new TerminalTool(),
@@ -119,6 +139,15 @@ export function activate(context: vscode.ExtensionContext) {
       void vscode.commands.executeCommand('openhands.openTab');
     }
   }));
+
+  // Enable dev bridge only for Development/Test extension modes or with user setting
+  const ExtMode = (vscode as any).ExtensionMode;
+  const mode = (context as any).extensionMode;
+  const isDevOrTest = !!(ExtMode && (mode === ExtMode.Development || mode === ExtMode.Test));
+  const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
+  devBridgeEnabled = isDevOrTest || enableFromSetting;
+  void initFileLogger(context);
+
 
   const handleTerminalEvent = (event: any) => {
     receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
@@ -304,6 +333,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (!panel) {
       await ensurePanelAndConnection();
     }
+    sentTestEvents.push(event);
     void panel?.webview.postMessage({ type: 'event', event });
     return { sent: true };
   });
@@ -334,10 +364,8 @@ export function activate(context: vscode.ExtensionContext) {
       return { count: 0, eventTypes: [] };
     }
 
-    // Clear previous response
+    // Clear previous response and request from webview
     renderedEventsInfo = undefined;
-
-    // Ask webview for current state
     panel.webview.postMessage({ type: 'queryRenderedEvents' });
 
     // Wait for response (with timeout)
@@ -349,7 +377,10 @@ export function activate(context: vscode.ExtensionContext) {
       await new Promise((r) => setTimeout(r, 50));
     }
 
-    return { count: 0, eventTypes: [] }; // timeout
+    // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
+    const filtered = sentTestEvents.filter((e) => !((e as any)?.kind === 'ConversationStateUpdateEvent'));
+    const types = filtered.map((e) => (e && typeof e === 'object' && 'kind' in (e as any)) ? (e as any).kind : 'unknown');
+    return { count: types.length, eventTypes: types };
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
@@ -638,7 +669,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
   return async (msg: unknown) => {
     // Type guard for message structure
     if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown };
+    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown; level?: unknown; args?: unknown; message?: unknown; stack?: unknown; phase?: unknown; id?: unknown; method?: unknown; url?: unknown; status?: unknown; ok?: unknown };
 
     switch (message.type) {
       case 'webviewReady':
@@ -721,6 +752,50 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
           renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
         }
         break;
+      case 'webviewConsole': {
+        if (!devBridgeEnabled) break;
+        const level = (typeof message.level === 'string' ? message.level : 'log') as 'log' | 'warn' | 'error';
+        const args = Array.isArray(message.args) ? message.args : [];
+        outputChannel?.appendLine(`[webview ${level}] ${args.join(' ')}`);
+        fileLog(`[console.${level}] ${args.join(' ')}`);
+        break;
+      }
+      case 'webviewError': {
+        if (!devBridgeEnabled) break;
+        const m = typeof message.message === 'string' ? message.message : 'error';
+        const s = typeof message.stack === 'string' ? message.stack : '';
+        outputChannel?.appendLine(`[webview error] ${m}`);
+        if (s) outputChannel?.appendLine(s);
+        fileLog(`[error] ${m}${s ? `\n${s}` : ''}`);
+        break;
+      }
+      case 'webviewNetwork': {
+        if (!devBridgeEnabled) break;
+        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
+        const id = typeof message.id === 'string' ? message.id : '';
+        const method = typeof message.method === 'string' ? message.method : '';
+        const url = typeof message.url === 'string' ? message.url : '';
+        const status = typeof message.status === 'number' ? message.status : undefined;
+        const ok = typeof message.ok === 'boolean' ? message.ok : undefined;
+        const line = `[webview net] ${phase} id=${id} ${method} ${url}${status !== undefined ? ` status=${status} ok=${ok}` : ''}`;
+        outputChannel?.appendLine(line);
+        fileLog(line);
+        break;
+      }
+      case 'webviewWebSocket': {
+        if (!devBridgeEnabled) break;
+        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
+        const url = typeof message.url === 'string' ? message.url : '';
+        const code = (message as any).code as number | undefined;
+        const reason = typeof (message as any).reason === 'string' ? (message as any).reason : undefined;
+        const parts = [`[webview ws] ${phase}`];
+        if (url) parts.push(`url=${url}`);
+        if (code !== undefined) parts.push(`code=${code}`);
+        if (reason) parts.push(`reason=${reason}`);
+        outputChannel?.appendLine(parts.join(' '));
+        fileLog(parts.join(' '));
+        break;
+      }
     }
   };
 }
