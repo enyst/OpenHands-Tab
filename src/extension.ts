@@ -232,18 +232,30 @@ export function activate(context: vscode.ExtensionContext) {
       });
       conversation.on('terminal', (event) => handleTerminalEvent(event));
       if (savedId) {
-        conversation.restoreConversation(savedId).catch((err: unknown) => {
+        try {
+          const maybe = conversation.restoreConversation(savedId);
+          void Promise.resolve(maybe).catch((err: unknown) => {
+            const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+            outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
+          });
+        } catch (err) {
           const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
           outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-        });
+        }
       }
     } else if (conversation) {
       conversation.setSettings(settings);
       if (savedId) {
-        conversation.restoreConversation(savedId).catch((err: unknown) => {
+        try {
+          const maybe = conversation.restoreConversation(savedId);
+          void Promise.resolve(maybe).catch((err: unknown) => {
+            const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+            outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
+          });
+        } catch (err) {
           const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
           outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-        });
+        }
       }
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
