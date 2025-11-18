@@ -471,7 +471,6 @@ export class RemoteConversation extends EventEmitter {
     for (const [key, value] of Object.entries(obj)) {
       normalized[key] = this.normalizeEventPayload(value);
     }
-    // No backward-compat normalization: events must provide 'kind'
     return normalized;
   }
 }
