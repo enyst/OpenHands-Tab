@@ -8,7 +8,7 @@ The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation fo
 
 ## Architecture
 
-The SDK is organized into six main layers:
+The SDK is organized into seven main layers:
 
 ### 1. Conversation Layer (`src/conversation/`) - Primary API
 
@@ -31,7 +31,31 @@ High-level conversation management with dual-mode support (local vs remote execu
   - HTTP fallback for message delivery when WebSocket unavailable
   - Exponential backoff retry strategy (1s base, 15s max, 10 retries)
 
-### 2. Runtime Layer (`src/runtime/`)
+### 2. Context Layer (`src/context/`)
+Prompt extension and skill management:
+
+- **`AgentContext`** - Central structure for managing prompt extensions
+  - Manages repository context, runtime context, and conversation instructions
+  - Handles system message suffix injection (repo skills)
+  - Handles user message suffix injection (knowledge skills)
+  - Automatic user skill loading with deduplication
+  - Validates unique skill names
+
+- **`Skill`** - Provides specialized knowledge or functionality
+  - Loading from markdown files with frontmatter metadata
+  - Support for third-party files (.cursorrules, agents.md, AGENTS.md)
+  - Three trigger types:
+    - **null** (repo skills): Always active, added to system prompt
+    - **KeywordTrigger**: Activated when keywords match user message
+    - **TaskTrigger**: Activated for specific tasks with user input variables
+  - Variable extraction for user input (${variable_name} format)
+  - `loadUserSkills()` function to load from ~/.openhands/skills/ and ~/.openhands/microagents/
+
+Skills are loaded from:
+1. `~/.openhands/skills/` - Primary skills directory
+2. `~/.openhands/microagents/` - Legacy support
+
+### 3. Runtime Layer (`src/runtime/`)
 Agent execution and state management:
 
 - **`AgentOrchestrator`** - Core orchestration layer that manages LLM streaming, tool calls, and conversation flow
@@ -62,7 +86,7 @@ Agent execution and state management:
   - Queue-based lock acquisition
 
 
-### 3. LLM Integration Layer (`src/llm/`)
+### 4. LLM Integration Layer (`src/llm/`)
 Streaming LLM clients and configuration:
 
 - **`types.ts`** - Core LLM types and interfaces
@@ -93,7 +117,7 @@ Streaming LLM clients and configuration:
   - Loads API keys from environment or secret storage
   - Provider-specific credential handling (OpenAI, Anthropic, AWS)
 
-### 4. Tool System (`src/tools/`)
+### 5. Tool System (`src/tools/`)
 Agent tool implementations:
 
 - **`TerminalTool`** - Shell command execution
@@ -125,7 +149,7 @@ Agent tool implementations:
 - **`types.ts`** - Tool type definitions
 - **`validation.ts`** - Tool input validation schemas
 
-### 5. Workspace Layer (`src/workspace/`)
+### 6. Workspace Layer (`src/workspace/`)
 File system abstraction:
 
 - **`LocalWorkspace`** - Local file system operations
@@ -134,7 +158,7 @@ File system abstraction:
   - Path normalization and security checks
   - File metadata and existence checks
 
-### 6. Protocol Types (`src/types/`)
+### 7. Protocol Types (`src/types/`)
 Complete OpenHands protocol definitions:
 
 - **Message types**: User, assistant, system, tool messages with structured content
@@ -154,6 +178,11 @@ packages/agent-sdk-ts/
 │   │   ├── index.ts          # Conversation() factory
 │   │   ├── LocalConversation.ts
 │   │   └── RemoteConversation.ts
+│   ├── context/              # Context and skills layer
+│   │   ├── agent-context.ts  # AgentContext class
+│   │   └── skills/           # Skill system
+│   │       ├── skill.ts      # Skill class and loading
+│   │       └── types.ts      # Skill types
 │   ├── types/                # Protocol types and guards
 │   ├── runtime/              # Agent runtime and state
 │   ├── llm/                  # LLM clients and streaming
@@ -357,6 +386,78 @@ eventLog.push({
 
 // Query events
 const messages = eventLog.list().filter(isMessageEvent);
+```
+
+### Using Skills and AgentContext
+
+Skills extend agent capabilities with specialized knowledge and repository-specific instructions:
+
+```typescript
+import { AgentContext, Skill } from '@openhands/agent-sdk-ts';
+
+// Create skills manually
+const repoSkill = new Skill({
+  name: 'coding-standards',
+  content: 'Always use TypeScript strict mode and 2-space indentation.',
+  trigger: null, // Always active (repo skill)
+});
+
+const knowledgeSkill = new Skill({
+  name: 'react-patterns',
+  content: 'Use functional components with hooks. Prefer composition over inheritance.',
+  trigger: { type: 'keyword', keywords: ['react', 'component'] },
+});
+
+// Create AgentContext with skills
+const agentContext = new AgentContext({
+  skills: [repoSkill, knowledgeSkill],
+  loadUserSkills: true, // Auto-load from ~/.openhands/skills/
+});
+
+// Get system message suffix (includes repo skills)
+const systemSuffix = agentContext.getSystemMessageSuffix();
+
+// Augment user message with triggered skills
+const userMessage = { role: 'user', content: [{ type: 'text', text: 'How do I create a React component?' }] };
+const augmented = agentContext.getUserMessageSuffix(userMessage);
+if (augmented) {
+  console.log('Triggered skills:', augmented.activatedSkillNames);
+  console.log('Additional context:', augmented.content.text);
+}
+
+// Use with LocalConversation
+const conversation = Conversation({
+  settings: { /* ... */ },
+  workspaceRoot: '/workspace',
+  agentContext, // Pass AgentContext to conversation
+});
+```
+
+Skills can also be loaded from markdown files:
+
+```typescript
+import { Skill, loadUserSkills } from '@openhands/agent-sdk-ts';
+
+// Load a single skill from a file
+const skill = Skill.load({ path: '/path/to/skill.md' });
+
+// Load all user skills from ~/.openhands/skills/
+const userSkills = loadUserSkills();
+```
+
+Skill file format (with frontmatter):
+
+```markdown
+---
+name: typescript-best-practices
+triggers:
+  - typescript
+  - ts
+---
+
+# TypeScript Best Practices
+
+Always enable strict mode and use explicit types for function parameters and return values.
 ```
 
 ## See Also
