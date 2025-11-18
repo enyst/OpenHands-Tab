@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { LocalConversation } from '../conversation';
 import { ConversationState, EventLog, FileStore } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
-import type { Event } from '../types';
+import type { Event, MessageEvent, TextContent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 
 class MockLLM implements LLMClient {
@@ -230,8 +230,8 @@ describe('FileStore advanced features', () => {
 
     expect(events1).toHaveLength(1);
     expect(events2).toHaveLength(1);
-    expect((events1[0] as any).llm_message.content[0].text).toBe('message A');
-    expect((events2[0] as any).llm_message.content[0].text).toBe('message B');
+    expect(((events1[0] as MessageEvent).llm_message.content[0] as TextContent).text).toBe('message A');
+    expect(((events2[0] as MessageEvent).llm_message.content[0] as TextContent).text).toBe('message B');
   });
 });
 
@@ -261,7 +261,7 @@ describe('Persistence attachment', () => {
     // Only the second event should be persisted
     const events = persistence.readEvents();
     expect(events).toHaveLength(1);
-    expect((events[0] as any).llm_message.content[0].text).toBe('after');
+    expect(((events[0] as MessageEvent).llm_message.content[0] as TextContent).text).toBe('after');
   });
 
   it('attaches persistence to ConversationState after creation', () => {
