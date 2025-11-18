@@ -61,8 +61,7 @@ For each common action, here are both the Visual (UI) steps and equivalent CLI t
   - CLI: Not reliably exposed via a stable command ID. Workaround: open Developer Tools (above) and select the webview iframe in the Elements panel.
 
 Note on Webview DevTools from CLI
-- Visual: Command Palette → Developer: Open Webview Developer Tools
-- CLI: Not reliably exposed via a stable command ID. Workarounds and alternatives:
+- Alternatives:
   - Open main DevTools via CLI and select the webview iframe: code --command workbench.action.toggleDevTools
   - Bridge logs and network from webview to extension host (recommended). This repository implements:
     - Console bridge (console.log/warn/error), window.onerror, and unhandledrejection → posted to extension → written to Output channel.
