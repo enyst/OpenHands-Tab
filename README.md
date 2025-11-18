@@ -208,4 +208,4 @@ Detailed documentation is available in the [docs/](docs/) directory:
 - **[AGENTS.md](AGENTS.md)** - Contribution guidelines for AI agents
 - **[packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md)** - SDK-specific development guidelines and architecture
 - **[packages/agent-sdk-ts/docs/python-parity.md](packages/agent-sdk-ts/docs/python-parity.md)** - Python SDK alignment documentation
-- **Bash Events** - Live terminal integration is now handled by `LocalConversation` in local mode; the previous `docs/bash_events.md` has been removed.
+- **Bash Events** - Live terminal integration is now handled by `LocalConversation` in local mode.
