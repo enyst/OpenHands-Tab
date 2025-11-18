@@ -26,6 +26,56 @@ Choose one of the following:
 - Open the folder in VS Code
 - Press F5 (or Run and Debug → "Run OH-Tab")
   - Uses .vscode/launch.json to start an Extension Development Host
+
+## Action shortcuts: Visual vs CLI
+
+For each common action, here are both the Visual (UI) steps and equivalent CLI triggers for agents.
+
+- Start Extension Development Host
+  - Visual: Open folder → Run and Debug → "Run OH-Tab" (F5)
+  - CLI: code --extensionDevelopmentPath="$(pwd)"
+
+- Rebuild extension (backend + webview)
+  - Visual: Terminal → Run Task → "npm: compile" (or use F5 which runs preLaunchTask)
+  - CLI: npm run compile
+
+- Rebuild webview only (CSS/JS)
+  - Visual: Terminal → Run Task → "npm: build:webview" (or keep a watcher running)
+  - CLI: npm run build:webview
+  - Watch mode (fast loop): npm run watch
+
+- Reload the VS Code window
+  - Visual: Command Palette → Developer: Reload Window
+  - CLI: code --command workbench.action.reloadWindow
+
+- Restart Extension Host
+  - Visual: Command Palette → Developer: Restart Extension Host
+  - CLI: code --command workbench.action.restartExtensionHost
+
+- Open Developer Tools (window)
+  - Visual: Help → Toggle Developer Tools
+  - CLI: code --command workbench.action.toggleDevTools
+
+- Open Webview Developer Tools
+  - Visual: Command Palette → Developer: Open Webview Developer Tools
+  - CLI: Not reliably exposed via a stable command ID. Workaround: open Developer Tools (above) and select the webview iframe in the Elements panel.
+
+- Open Output panel (to view logs)
+  - Visual: View → Output, then pick the "OpenHands" channel
+  - CLI: code --command workbench.action.output.toggleOutput (opens/toggles Output; channel selection is manual)
+
+- Open Logs Folder
+  - Visual: Command Palette → Developer: Open Logs Folder
+  - CLI: code --command workbench.action.openLogsFolder
+
+- Take a screenshot
+  - Visual: Use OS screenshot shortcuts, then save to media/screenshots/
+  - CLI (examples):
+    - macOS: screencapture -x media/screenshots/openhands-local.png
+    - Linux (GNOME): gnome-screenshot -f media/screenshots/openhands-local.png
+    - Linux (ImageMagick): import -window root media/screenshots/openhands-local.png
+    - Windows (PowerShell, simplified): Use Snipping Tool (Snip & Sketch) via UI or third-party CLI tool
+
 - A new window (Dev Host) opens with the extension loaded
 
 ### B. From terminal using the code CLI
