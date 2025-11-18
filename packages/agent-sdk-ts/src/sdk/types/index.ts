@@ -181,8 +181,9 @@ export const isImageContent = (content: Content): content is ImageContent => con
 
 // Event kind guards (kind-only)
 const eventDiscriminant = (e: unknown): string | undefined => {
-  const obj = e as any;
-  const k = obj?.kind;
+  if (!e || typeof e !== 'object') return undefined;
+  if (!('kind' in e)) return undefined;
+  const k = (e as { kind?: unknown }).kind;
   return typeof k === 'string' ? k : undefined;
 };
 
