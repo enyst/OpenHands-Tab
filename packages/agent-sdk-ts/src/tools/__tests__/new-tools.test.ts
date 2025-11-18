@@ -144,6 +144,15 @@ describe('PlanningFileEditorTool', () => {
       /old_str is not unique and matches multiple locations/,
     );
   });
+
+  it('rejects create when file already exists', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'initial' });
+    await tool.execute(createArgs, { workspace });
+    await expect(tool.execute(createArgs, { workspace })).rejects.toThrow(/already exists/);
+  });
 });
 
 describe('ZodTool parameter conversion', () => {

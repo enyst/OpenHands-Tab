@@ -145,6 +145,18 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
     }
 
     if (args.command === 'create') {
+      try {
+        const existing = await fs.stat(resolved);
+        if (existing.isFile()) {
+          throw new Error('create failed: file already exists');
+        }
+        if (existing.isDirectory()) {
+          throw new Error('create failed: path already exists and is a directory');
+        }
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== 'ENOENT') throw error;
+      }
       await fs.mkdir(path.dirname(resolved), { recursive: true });
       await fs.writeFile(resolved, args.file_text ?? '', 'utf8');
       return { command: 'create', path: resolved, content: args.file_text ?? '' };
