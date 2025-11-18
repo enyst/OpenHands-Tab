@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { homedir } from 'os';
 import frontmatter from 'front-matter';
 import type { InputMetadata, KeywordTrigger, TaskTrigger, TriggerType } from './types';
@@ -88,24 +88,24 @@ export class Skill {
    * Load a skill from a markdown file with frontmatter.
    */
   static load(params: { path: string; skillDir?: string | null; fileContent?: string | null }): Skill {
-    const { path, skillDir, fileContent: providedContent } = params;
+    const { path: filePath, skillDir, fileContent: providedContent } = params;
 
     // Calculate derived name from relative path if skillDir is provided
     let skillName: string;
     if (skillDir) {
-      const baseName = path.split('/').pop()?.toLowerCase() ?? '';
+      const baseName = filePath.split('/').pop()?.toLowerCase() ?? '';
       skillName =
         this.PATH_TO_THIRD_PARTY_SKILL_NAME[baseName] ??
-        path.replace(skillDir + '/', '').replace(/\.md$/, '');
+        relative(skillDir, filePath).replace(/\.md$/, '');
     } else {
-      skillName = path.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
+      skillName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
     }
 
     // Read file content if not provided
-    const fileContent = providedContent ?? readFileSync(path, 'utf-8');
+    const fileContent = providedContent ?? readFileSync(filePath, 'utf-8');
 
     // Handle third-party skill files
-    const thirdPartySkill = this.handleThirdParty(path, fileContent);
+    const thirdPartySkill = this.handleThirdParty(filePath, fileContent);
     if (thirdPartySkill) {
       return thirdPartySkill;
     }
@@ -155,7 +155,7 @@ export class Skill {
       return new Skill({
         name,
         content,
-        source: path,
+        source: filePath,
         trigger: { type: 'task', triggers: keywords },
         inputs,
       });
@@ -163,7 +163,7 @@ export class Skill {
       return new Skill({
         name,
         content,
-        source: path,
+        source: filePath,
         trigger: { type: 'keyword', keywords },
       });
     } else {
@@ -171,7 +171,7 @@ export class Skill {
       return new Skill({
         name,
         content,
-        source: path,
+        source: filePath,
         trigger: null,
       });
     }
