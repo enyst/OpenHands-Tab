@@ -1,69 +1,273 @@
-# Python parity gaps across SDK layers
+# Python ↔︎ TypeScript SDK parity guide
 
-This document tracks where the TypeScript `@openhands/agent-sdk-ts` interfaces diverge from the Python `agent-sdk` implementations. It focuses on callable interfaces and behaviors for conversation control, agents, context/skills, event logging, workspace handling, and persistence/event types.
+This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@openhands/agent-sdk-ts` (VS Code-focused SDK). It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
 
-## Workspace APIs
-- **Python** exposes a `Workspace` factory that returns `LocalWorkspace` or `RemoteWorkspace` based on a `host` flag and optional `api_key`, building on a shared base with `working_dir` metadata.
-- **TypeScript** only exports `LocalWorkspace` with path resolution, file read/write/remove, directory creation, command execution, and simple git helpers; there is no factory or base class.
+## Workspace layer
 
-### Missing in TypeScript
-- Workspace factory that selects local vs remote implementations and carries host/API key metadata.
-- Shared base interface with a `working_dir` concept to allow polymorphism across workspace types.
-- File upload/download helpers and structured git change models mirroring Python’s copy-based behavior.
-- Command result metadata (e.g., timeout flags) aligned with Python’s `CommandResult` model.
-- Remote workspace implementation with HTTP-backed command lifecycle, file transfer, and git diff/change retrieval.
-- Context/cleanup hooks analogous to Python’s context manager support and centralized path validation.
+**Python shape**
+- Factory `Workspace()` returns `LocalWorkspace` or `RemoteWorkspace` based on `host`/`api_key`, sharing `BaseWorkspace` with `working_dir`, context-manager support, and discriminated union typing.
+- `LocalWorkspace` supports command execution with timeout/error metadata, git change/diff helpers, upload/download/copy operations, and strict path validation.
+- `RemoteWorkspace` wraps HTTP endpoints for commands, file transfer, and git metadata, mirroring `CommandResult`/`FileOperationResult` schemas and queue-based locking.
 
-## Conversation interfaces
-- **Python** offers a `Conversation` factory that routes to `LocalConversation` or `RemoteConversation`, threading callbacks, persistence directory, conversation ID, max-iteration limits, visualizer choice, stuck detection, and secret injection; conversations manage cleanup and can resume from persisted state.
-- **TypeScript** provides a `Conversation` factory that picks `LocalConversation` (in-process) or `RemoteConversation` (WebSocket + HTTP history replay). Local conversations construct a fresh `Agent`, `EventLog`, `ConversationState`, and `SecretRegistry` but lack persistence. Remote conversations handle retries and history paging but expose fewer lifecycle hooks.
+**TypeScript shape**
+- Only `LocalWorkspace` exists; it resolves workspace root, reads/writes/removes files, creates directories, and runs commands via VS Code APIs with minimal metadata.
+- No shared base class or factory; no remote workspace or file transfer helpers.
 
-### Missing in TypeScript
-- Persistence-aware conversation construction (no `persistence_dir` or resume-from-disk semantics).
-- Visualizer/stuck-detection hooks and configurable callback stacks for event handling.
-- Secret injection on conversations (secrets are always fresh, non-persisted registries).
-- Remote conversation parity with Python’s HTTP command/file/git helpers—TS remote mode only proxies chat/events.
-- Context manager/cleanup patterns present in Python’s conversations.
+**Gaps to close**
+- Add workspace factory + base abstraction with `working_dir`, context manager/cleanup semantics, and discriminated typing for local vs remote.
+- Port upload/download/copy helpers, git change/diff models, and richer `CommandResult` fields (timeout, stderr segmentation).
+- Implement remote workspace with HTTP-backed command lifecycle and path validation parity.
 
-## Agent lifecycle
-- **Python** `Agent` extends `AgentBase`, injects a system prompt with serialized tool schemas, optionally routes through condensers, enforces confirmation/security via analyzers, and drives `_execute_actions` with pending-action replay and laminar observability hooks. It runs against `LocalConversation` with persisted `ConversationState` and supports both completion and responses APIs.
-- **TypeScript** `Agent` builds a local workspace, `EventLog`, `ConversationState`, and `SecretRegistry`, wires optional tools and `AgentContext`, and drives a simple run loop that pushes user messages, streams LLM responses, executes tool calls (with optional confirmation), and updates iteration/usage counters. Error handling records `ConversationErrorEvent` and stops; there is no condenser/security analyzer integration.
+```mermaid
+classDiagram
+    class BaseWorkspace {
+      <<Python>>
+      +working_dir: str
+      +execute_command(cmd, cwd?, timeout?)
+      +file_upload(src, dst)
+      +file_download(src, dst)
+      +git_changes(path)
+      +git_diff(path)
+      +__enter__()/__exit__()
+    }
+    class LocalWorkspacePython {
+      <<Python>>
+      +copy_to_workspace()
+      +read_file()/write_file()
+      +remove()
+      +mkdir()
+      +validate_path()
+    }
+    class RemoteWorkspacePython {
+      <<Python>>
+      +execute_command_http()
+      +upload/download()
+      +git_changes_remote()
+    }
+    BaseWorkspace <|-- LocalWorkspacePython
+    BaseWorkspace <|-- RemoteWorkspacePython
+    class LocalWorkspaceTS {
+      <<TypeScript>>
+      +root: string
+      +readFile()/writeFile()
+      +remove()
+      +mkdir()
+      +exec()
+    }
+```
 
-### Missing in TypeScript
-- Tool schema/security analyzer injection and associated risk-aware validation.
-- Condenser pipeline and laminar observability hooks around `step` execution.
-- Persistent `ConversationState` restoration and replay of pending actions from disk.
-- Dual LLM API support (responses API parity) and fine-grained confirmation policy classes; TS uses a minimal policy enum.
+## Conversation layer
 
-## AgentContext
-- **Python** `AgentContext` is a Pydantic model that templates repo skills into a system suffix (`system_message_suffix.j2`), formats triggered knowledge through Jinja templates, enforces duplicate-skill validation, and automatically loads user skills with warnings.
-- **TypeScript** `AgentContext` is a simple class that concatenates always-on skills into Markdown blocks, matches triggers by substring, and appends an optional suffix; user skills can be loaded but formatting is plain strings.
+**Python shape**
+- Factory `Conversation()` chooses `LocalConversation` vs `RemoteConversation` from workspace type, passing `persistence_dir`, `conversation_id`, callback stack, `max_iteration_per_run`, stuck detection toggle, visualizer implementation, and secrets.
+- `LocalConversation` runs the `Agent` loop, persists events/state, supports resume-from-disk, and exposes context-manager cleanup.
+- `RemoteConversation` prohibits persistence dir, relays messages over HTTP/WebSocket, mirrors confirmation/status callbacks, and replays history from the agent server.
 
-### Missing in TypeScript
-- Template-driven rendering for system/user suffixes (no Jinja-based formatting or repo-skill templating).
-- Structured validation/metadata on context fields via schemas.
-- Detailed logging (TS uses console warnings only) and richer trigger matching behaviors.
+**TypeScript shape**
+- `Conversation()` selects `LocalConversation` (in-process) or `RemoteConversation` (WebSocket with HTTP history replay) from `serverUrl` presence.
+- `LocalConversation` builds fresh `Agent`, `EventLog`, `ConversationState`, and `SecretRegistry`, emits `status/event/error/conversationStarted/terminal`, but has no persistence or cleanup hooks.
+- `RemoteConversation` manages reconnect/replay and exposes settings mutation but only proxies chat/events (no remote workspace/file helpers).
 
-## Skill loading and triggers
-- **Python** `Skill` is a Pydantic model with keyword/task triggers, optional MCP tool metadata, input validation, automatic `/name` trigger addition for task skills, and a `requires_user_input` helper used to append missing-variable prompts.
-- **TypeScript** `Skill` mirrors keyword/task/always-on triggers, third-party file aliases, and missing-variable prompt injection, but lacks MCP tool metadata and Pydantic validation; trigger matching is case-insensitive substring search without regex support.
+**Gaps to close**
+- Persistence-aware construction (resume from disk, persistence directory validation) and context-manager cleanup.
+- Visualizer/stuck-detection hooks, richer callback chaining, and secret injection aligned with Python’s constructor signature.
+- Remote workspace-aware commands, git/file helpers, and HTTP fallback parity (TS remote mode only streams chat/events).
 
-### Missing in TypeScript
-- MCP tool configuration on repo skills and validation of structured metadata.
-- Centralized validation helpers (`requires_user_input`, `SkillValidationError` parity for nested types).
-- Regex-based trigger matching and richer trigger models.
+```mermaid
+classDiagram
+    class ConversationPython {
+      <<Factory>>
+      +__new__(agent, workspace, persistence_dir?, conversation_id?, callbacks?, max_iteration_per_run?, stuck_detection?, visualizer?, secrets?)
+    }
+    ConversationPython --> LocalConversationPython
+    ConversationPython --> RemoteConversationPython
+    class LocalConversationPython {
+      +run()
+      +send_message()
+      +resume_from_disk()
+      +callbacks
+      +visualizer
+    }
+    class RemoteConversationPython {
+      +send_message()
+      +run()
+      +callbacks
+    }
+    class ConversationTS {
+      <<Factory>>
+      +Conversation(options)
+    }
+    ConversationTS --> LocalConversationTS
+    ConversationTS --> RemoteConversationTS
+    class LocalConversationTS {
+      +startNewConversation()
+      +sendUserMessage()
+      +pause()/resume()
+      +approveAction()/rejectAction()
+      -Agent
+      -EventLog
+      -ConversationState
+    }
+    class RemoteConversationTS {
+      +startNewConversation()
+      +restoreConversation()
+      +sendUserMessage()
+      +disconnect()/reconnect()
+      -WebSocket
+      -historyReplay()
+    }
+```
 
-## Event logging and persistence
-- **Python** `EventLog` is file-backed (`FileStore`) with index/id mappings, duplicate detection, slice iteration, and on-disk naming conventions (`EVENT_FILE_PATTERN`). Conversations also rely on `EventsListBase`, persistence constants, and `ConversationState.create` to hydrate from disk with optional diff serialization.
-- **TypeScript** `EventLog` is in-memory, normalizes IDs/timestamps, broadcasts listeners, and exposes `push`, `list`, and `on` helpers; no disk persistence, indexing, or append safeguards beyond runtime validation.
+## Agent lifecycle and orchestration
 
-### Missing in TypeScript
-- File-backed storage with deterministic event filenames/indices and duplicate ID protection.
-- Persistence constants and diff/serialization helpers for resume/replay flows.
-- Secret persistence (`secret_registry`), FIFO locks, and stuck-detection metadata that accompany Python’s state management.
+**Python shape**
+- `Agent` extends `AgentBase`, injects system prompt with serialized tool schemas, enforces confirmation/security via analyzers, and supports condenser pipelines plus observability hooks.
+- Drives `_step` loop with deduplication, condensed event windows, dual LLM APIs (responses vs completions), and pending-action replay with disk-backed `ConversationState`.
+- Integrates with `SecretRegistry` persistence, stuck detection, and configurable confirmation policies.
 
-## Event and persistence interface reference
-- **Python event classes** (Pydantic models in `openhands.sdk.event`): `SystemPromptEvent`, `ActionEvent`, `ObservationEvent`, `UserRejectObservation`, `MessageEvent`, `AgentErrorEvent`, `TokenEvent`, `PauseEvent`, `Condensation`, `CondensationRequest`, `CondensationSummaryEvent`, and `ConversationStateUpdateEvent`; all extend `Event`/`LLMConvertibleEvent` with `id`, `timestamp`, `source`, and type-specific fields (tool call IDs, thought/reasoning content, summaries, etc.).
-- **TypeScript event interfaces** (`src/sdk/types`): mirrors `SystemPromptEvent`, `ActionEvent`, `ObservationEvent`, `UserRejectObservation`, `MessageEvent`, `AgentErrorEvent`, `ConversationErrorEvent`, `PauseEvent`, `Condensation`, and `ConversationStateUpdateEvent` with discriminated `kind` plus optional metadata; lacks `TokenEvent` and condensation request/summary variants.
-- **Python persistence helpers**: `EventLog` (file-backed), `EventsListBase` (iteration/index helpers), `persistence_const` (directory and filename patterns), `ConversationState.create` (hydration with max-iteration/stuck-detection metadata), `serialization_diff` (state diffing), `secret_registry` (persistent secrets), and `fifo_lock` (cross-process lock).
-- **TypeScript persistence helpers**: in-memory `EventLog`, `ConversationState` (in-memory status/iteration tracking with `attachEventLog`), and `SecretRegistry` (non-persisted secrets); no disk-based storage, diffing, or cross-process locking primitives.
+**TypeScript shape**
+- `Agent` wraps `AgentOrchestrator`, builds/attaches `EventLog`, `ConversationState`, `SecretRegistry`, optional tools/LLM client, and optional `AgentContext`.
+- Methods: `run`, `pause/resume`, `cancel`, `approveAction/rejectAction`; enforces iteration cap, confirmation policy enum, and executes tool calls with basic error handling.
+- No condenser, security analyzer, or persisted state replay; confirmation logic is minimal and local-only.
+
+**Gaps to close**
+- Add tool schema/security analyzer injection, condenser pipeline, and observability hooks around `runLoop`.
+- Support persisted `ConversationState` restoration and pending-action replay.
+- Implement responses-API parity and richer confirmation policies akin to Python analyzers.
+
+```mermaid
+classDiagram
+    class AgentPython {
+      +run()
+      +_step()
+      +_execute_actions()
+      +add_system_prompt()
+      +condenser/analyzers
+      +pending_action_replay()
+      -ConversationState (persisted)
+      -SecretRegistry (persisted)
+    }
+    class AgentTSPython {
+      note "TypeScript" as n1
+    }
+    class AgentTS {
+      +run()
+      +pause()/resume()/cancel()
+      +approveAction()/rejectAction()
+      -AgentOrchestrator
+      -ConversationState (in-memory)
+      -EventLog (in-memory)
+      -SecretRegistry (in-memory)
+      -AgentContext?
+    }
+    AgentPython --> ConversationStatePython
+    AgentTS --> ConversationStateTS
+```
+
+## AgentContext and skills
+
+**Python AgentContext**
+- Pydantic model with repo-skill templating (`system_message_suffix.j2`), triggered knowledge rendering, duplicate detection, auto-loading of user skills with warnings, and structured metadata.
+- Produces both system and user suffixes with templated variables and activation tracking.
+
+**TypeScript AgentContext**
+- Lightweight class that concatenates always-on skills into Markdown and appends optional suffix; matches triggers via substring search and logs warnings for duplicates.
+- Skill activation tracking is minimal and formatting is plain strings (no templating).
+
+**Skill models**
+- Python `Skill` uses Pydantic validation, keyword/task triggers, auto `/name` trigger for task skills, MCP tool metadata, input validation helpers (`requires_user_input`), and third-party aliasing.
+- TypeScript `Skill` mirrors keyword/task/always-on triggers, aliasing, and missing-variable prompts but lacks MCP tool metadata, schema validation, and regex triggers.
+
+**Gaps to close**
+- Introduce template-driven rendering for system/user suffixes and richer trigger matching (regex, keyword weighting).
+- Add MCP tool metadata, schema validation, and structured activation logs to TypeScript skills.
+
+```mermaid
+classDiagram
+    class AgentContextPython {
+      +system_suffix(skills)
+      +user_suffix(activated_skills)
+      +render_templates()
+      +validate_duplicates()
+      +auto_load_user_skills()
+    }
+    class SkillPython {
+      +name
+      +description
+      +keywords/tasks
+      +aliases
+      +mcp_tool
+      +requires_user_input()
+    }
+    AgentContextPython --> SkillPython
+    class AgentContextTS {
+      +systemSuffix()
+      +userSuffix()
+      +loadUserSkills()
+      -string concatenation
+    }
+    class SkillTS {
+      +name
+      +description
+      +keywords/tasks/alwaysOn
+      +aliases
+      +validateInput()
+    }
+    AgentContextTS --> SkillTS
+```
+
+## Event logging, persistence, and events
+
+**EventLog/persistence**
+- Python `EventLog` is file-backed with deterministic filenames/indices, duplicate-ID detection, slicing/iteration helpers, and integration with `EventsListBase`, `persistence_const`, `serialization_diff`, and FIFO locks; `ConversationState.create` hydrates state (iteration counts, stuck detection) from disk, and `SecretRegistry` persists secrets.
+- TypeScript `EventLog` is in-memory only; it normalizes IDs/timestamps, broadcasts listeners, and supports `push/list/on`. `ConversationState` is in-memory with optional `attachEventLog`; `SecretRegistry` is non-persisted.
+
+**Gaps to close**
+- Add file-backed storage with deterministic naming/indexing and duplicate protection; port persistence constants, diffing, and cross-process locks.
+- Persist secrets and conversation state for resume/replay; expose hydration helpers mirroring Python’s `ConversationState.create`.
+
+**Event interface coverage**
+- Python events (Pydantic models) include: `SystemPromptEvent`, `ActionEvent`, `ObservationEvent`, `UserRejectObservation`, `MessageEvent`, `AgentErrorEvent`, `ConversationErrorEvent`, `TokenEvent`, `PauseEvent`, `Condensation`, `CondensationRequest`, `CondensationSummaryEvent`, `ConversationStateUpdateEvent` (all extend `Event`/`LLMConvertibleEvent` with `id`, `timestamp`, `source`, and type-specific fields like tool call IDs, reasoning, summaries).
+- TypeScript events mirror most discriminated unions (`SystemPromptEvent`, `ActionEvent`, `ObservationEvent`, `UserRejectObservation`, `MessageEvent`, `AgentErrorEvent`, `ConversationErrorEvent`, `PauseEvent`, `Condensation`, `ConversationStateUpdateEvent`) but omit `TokenEvent` and condensation request/summary variants; metadata fields are narrower (e.g., no stuck-detection or condenser fields).
+
+```mermaid
+classDiagram
+    class EventLogPython {
+      +push(event)
+      +__iter__()
+      +by_id()/slice()
+      +persist_to_disk()
+      -file_store
+      -index_map
+    }
+    class ConversationStatePython {
+      +create(persistence_dir)
+      +hydrate()
+      +stuck_detection
+    }
+    class SecretRegistryPython {
+      +persisted_secrets
+    }
+    class EventLogTS {
+      +push(event)
+      +list()
+      +on(listener)
+      -memory_only
+    }
+    class ConversationStateTS {
+      +attachEventLog()
+      +setValue()/snapshot
+    }
+    class SecretRegistryTS {
+      +volatile_secrets
+    }
+    EventLogPython --> ConversationStatePython
+    EventLogTS --> ConversationStateTS
+```
+
+## Quick checklist for parity work
+- Implement workspace factory/base with remote support, path validation, git helpers, and richer command metadata.
+- Extend conversations with persistence, visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
+- Augment agent with condenser/security analyzers, persisted state replay, and expanded confirmation policies.
+- Add template-aware `AgentContext`, MCP-aware `Skill` metadata/validation, and richer trigger matching.
+- Provide file-backed `EventLog`, state/secret persistence helpers, and the missing event variants (`TokenEvent`, condensation request/summary).
