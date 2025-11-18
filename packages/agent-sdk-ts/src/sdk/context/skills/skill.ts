@@ -7,7 +7,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
 import { basename, join, relative } from 'path';
 import { homedir } from 'os';
 import frontmatter from 'front-matter';
-import type { InputMetadata, KeywordTrigger, TaskTrigger, TriggerType } from './types';
+import type { InputMetadata, TriggerType } from './types';
 
 /**
  * Error thrown when skill validation fails.
@@ -123,7 +123,9 @@ export class Skill {
     if (triggerMetadata && !Array.isArray(triggerMetadata)) {
       throw new SkillValidationError('Triggers must be a list of strings');
     }
-    let keywords: string[] = Array.isArray(triggerMetadata) ? [...triggerMetadata] : [];
+    const keywords: string[] = Array.isArray(triggerMetadata)
+      ? (triggerMetadata as string[])
+      : [];
 
     // Infer the trigger type:
     // 1. If inputs exist -> TaskTrigger
