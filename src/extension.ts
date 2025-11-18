@@ -140,10 +140,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }));
 
-  // Enable dev bridge only for development builds or with user setting
-  const isDev = (process.env.VSCODE_DEBUG_MODE === 'true') || ((vscode as any).env?.appName?.includes?.('Code - OSS') || (vscode as any).env?.appName?.includes?.('Insiders'));
+  // Enable dev bridge only for Development/Test extension modes or with user setting
+  const isDevOrTest = context.extensionMode === vscode.ExtensionMode.Development || context.extensionMode === vscode.ExtensionMode.Test;
   const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
-  devBridgeEnabled = isDev || enableFromSetting;
+  devBridgeEnabled = isDevOrTest || enableFromSetting;
   void initFileLogger(context);
 
 
