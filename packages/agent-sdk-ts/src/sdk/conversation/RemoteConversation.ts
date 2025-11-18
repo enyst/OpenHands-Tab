@@ -6,6 +6,11 @@ import type { OpenHandsSettings } from '../types/settings';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
+interface ConversationHistoryPage {
+  items?: unknown[];
+  next_page_id?: string | null;
+}
+
 export interface RemoteConversationOptions {
   serverUrl: string;
   settings: OpenHandsSettings;
@@ -26,6 +31,7 @@ export class RemoteConversation extends EventEmitter {
   private settings: OpenHandsSettings;
   private conversationId?: string;
   private status: ConversationStatus = 'offline';
+  private readonly seenEventIds = new Set<string>();
   private ws?: WebSocket;
   private bashWs?: WebSocket;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
@@ -35,6 +41,7 @@ export class RemoteConversation extends EventEmitter {
   private readonly retryBaseMs = 1000;
   private readonly retryMaxMs = 15000;
   private readonly workspaceRoot: string;
+  private static readonly historyPageLimit = 100;
 
   constructor(options: RemoteConversationOptions) {
     super();
@@ -43,8 +50,16 @@ export class RemoteConversation extends EventEmitter {
     this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
     if (options.conversationId) {
       this.conversationId = options.conversationId;
-      this.connect();
-      this.connectBashEvents();
+      this.seenEventIds.clear();
+      this.emit('conversationStarted', this.conversationId);
+      void this.replayHistory().then(() => {
+        if (this.conversationId === options.conversationId) {
+          this.connect();
+          this.connectBashEvents();
+        }
+      }).catch((err) => {
+        this.emit('error', err instanceof Error ? err : new Error(String(err)));
+      });
     }
   }
 
@@ -69,6 +84,7 @@ export class RemoteConversation extends EventEmitter {
           this.ws.close();
           this.ws = undefined;
         }
+        this.seenEventIds.clear();
         this.setStatus('connecting');
         const base = this.serverUrl.replace(/\/$/, '');
         const s = this.settings;
@@ -177,8 +193,11 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  restoreConversation(id: string) {
+  async restoreConversation(id: string) {
     this.conversationId = id;
+    this.seenEventIds.clear();
+    this.emit('conversationStarted', id);
+    await this.replayHistory();
     this.connect();
     this.connectBashEvents();
   }
@@ -342,8 +361,11 @@ export class RemoteConversation extends EventEmitter {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
     const sessionKey = this.settings?.secrets.sessionApiKey || '';
-    const qs = sessionKey ? `?session_api_key=${encodeURIComponent(sessionKey)}` : '';
-    const wsUrl = base.replace(/^http/, 'ws') + `/sockets/events/${this.conversationId}${qs}`;
+    const params = new URLSearchParams();
+    if (sessionKey) params.set('session_api_key', sessionKey);
+    params.set('resend_all', 'true');
+    const qs = params.toString();
+    const wsUrl = `${base.replace(/^http/, 'ws')}/sockets/events/${this.conversationId}?${qs}`;
     this.setStatus('connecting');
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
@@ -356,12 +378,52 @@ export class RemoteConversation extends EventEmitter {
         const str = buf.toString('utf8');
         const data = JSON.parse(str) as unknown;
         const normalized = this.normalizeEventPayload(data);
-        if (isAgentEvent(normalized)) this.emit('event', normalized);
+        if (isAgentEvent(normalized)) this.emitIfNewEvent(normalized);
         else this.emit('error', new Error(`Invalid event payload: ${JSON.stringify(normalized)}`));
       } catch (e) {
         this.emit('error', e);
       }
     });
+  }
+
+  private emitIfNewEvent(event: Event) {
+    if (event?.id) {
+      if (this.seenEventIds.has(event.id)) return;
+      this.seenEventIds.add(event.id);
+    }
+    this.emit('event', event);
+  }
+
+  private async replayHistory(): Promise<void> {
+    if (!this.conversationId) return;
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    let pageId: string | undefined;
+    try {
+      while (true) {
+        const params = new URLSearchParams({ limit: String(RemoteConversation.historyPageLimit) });
+        if (pageId) params.set('page_id', pageId);
+        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/search?${params.toString()}`, { headers });
+        if (!res.ok) {
+          const info = await res.text().catch(() => '');
+          this.emit('error', new Error(`Failed to fetch conversation history (HTTP ${res.status})${info ? `: ${info}` : ''}`));
+          return;
+        }
+        const body = await res.json() as ConversationHistoryPage;
+        const items = Array.isArray(body.items) ? body.items : [];
+        for (const raw of items) {
+          const normalized = this.normalizeEventPayload(raw);
+          if (isAgentEvent(normalized)) {
+            this.emitIfNewEvent(normalized);
+          }
+        }
+        const next = body.next_page_id;
+        if (!next || typeof next !== 'string') break;
+        pageId = next;
+      }
+    } catch (e) {
+      this.emit('error', e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
   private connectBashEvents() {
