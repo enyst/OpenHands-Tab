@@ -197,15 +197,15 @@ If your agent-server requires a session API key:
 
 Detailed documentation is available in the [docs/](docs/) directory:
 
-- **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
-- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
-- **[agent-sdk-architecture.md](docs/agent-sdk-architecture.md)** - SDK architecture documentation
-- **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
-- **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
-- **[LINTING.md](docs/LINTING.md)** - Linting guidelines and configuration
-- **[vscode_local_setup.md](docs/vscode_local_setup.md)** - Local VS Code setup for development
-- **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
 - **[AGENTS.md](AGENTS.md)** - Contribution guidelines for AI agents
+- **[agent-sdk-architecture.md](docs/agent-sdk-architecture.md)** - SDK architecture documentation
+- **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
+- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
+- **[LINTING.md](docs/LINTING.md)** - Linting guidelines and configuration
 - **[packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md)** - SDK-specific development guidelines and architecture
 - **[packages/agent-sdk-ts/docs/python-parity.md](packages/agent-sdk-ts/docs/python-parity.md)** - Python SDK alignment documentation
+- **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
+- **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
+- **[vscode_local_setup.md](docs/vscode_local_setup.md)** - Local VS Code setup for development
+- **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
 - **Bash Events** - Live terminal integration is now handled by `LocalConversation` in local mode.
