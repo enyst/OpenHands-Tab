@@ -413,7 +413,6 @@ export class ConnectionManager {
     for (const [key, value] of Object.entries(obj)) {
       normalized[key] = this.normalizeEventPayload(value);
     }
-    // No backward-compat normalization: events must provide 'kind'
     return normalized;
   }
 }
