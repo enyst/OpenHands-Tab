@@ -247,7 +247,218 @@ Both implementations extend Node.js `EventEmitter` for consistent event handling
    - Type: `BashEvent` (BashCommand, BashOutput, BashExit)
    - Emitted on: command execution, output, completion
 
-## Layer 1: Runtime (Orchestration)
+## Layer 1: Context (Prompt Extension)
+
+The context layer manages prompt extensions through skills and agent context, enabling dynamic injection of repository-specific guidelines, knowledge-based enhancements, and runtime information into agent prompts.
+
+### AgentContext
+
+**Purpose**: Central structure for managing all prompt extensions and contextual inputs that shape how the system interprets user requests.
+
+**Files**: `src/context/agent-context.ts`
+
+**Key Responsibilities**:
+- Manage repository context, runtime context, and conversation instructions
+- Inject system message suffixes (repo skills)
+- Inject user message suffixes (knowledge skills)
+- Automatically load and deduplicate user skills
+- Validate unique skill names
+
+**API**:
+```typescript
+class AgentContext {
+  constructor(params?: {
+    skills?: Skill[];
+    systemMessageSuffix?: string;
+    userMessageSuffix?: string;
+    loadUserSkills?: boolean;  // Default: false
+  });
+
+  // Get system message suffix with repo skill content
+  getSystemMessageSuffix(): string | null;
+
+  // Augment user message with triggered skills
+  getUserMessageSuffix(
+    userMessage: Message,
+    skipSkillNames?: string[]
+  ): { content: TextContent; activatedSkillNames: string[] } | null;
+}
+```
+
+**Usage Example**:
+```typescript
+import { AgentContext, Skill } from '@openhands/agent-sdk-ts';
+
+// Create context with skills
+const context = new AgentContext({
+  skills: [
+    new Skill({
+      name: 'repo-guidelines',
+      content: 'Use TypeScript strict mode.',
+      trigger: null, // Always active
+    }),
+  ],
+  loadUserSkills: true,
+  systemMessageSuffix: 'Current date: 2025-01-15',
+});
+
+// Get system suffix (includes repo skills)
+const systemSuffix = context.getSystemMessageSuffix();
+// Returns: "## repo-guidelines\n\nUse TypeScript strict mode.\n\nCurrent date: 2025-01-15"
+
+// Augment user message
+const userMessage = {
+  role: 'user',
+  content: [{ type: 'text', text: 'How do I use React hooks?' }]
+};
+const augmented = context.getUserMessageSuffix(userMessage);
+// Returns triggered skills and formatted knowledge
+```
+
+### Skill
+
+**Purpose**: Provides specialized knowledge or functionality that can be activated based on triggers.
+
+**Files**: `src/context/skills/skill.ts`, `src/context/skills/types.ts`
+
+**Key Responsibilities**:
+- Load skills from markdown files with frontmatter metadata
+- Support third-party files (.cursorrules, agents.md, AGENTS.md)
+- Match triggers against user messages
+- Extract variables from skill content (${variable_name} format)
+- Load user skills from ~/.openhands/skills/ and ~/.openhands/microagents/
+
+**Skill Types**:
+
+1. **Repo Skills** (trigger: null)
+   - Always active, added to system prompt
+   - Used for repository-specific guidelines and coding standards
+   - Example: .cursorrules, coding standards
+
+2. **Knowledge Skills** (KeywordTrigger)
+   - Activated when keywords match user message
+   - Used for domain-specific knowledge injection
+   - Example: "react" keyword triggers React best practices
+
+3. **Task Skills** (TaskTrigger)
+   - Activated for specific tasks with user input variables
+   - Can request user input if variables are missing
+   - Example: /refactor task with ${target_file} variable
+
+**API**:
+```typescript
+class Skill {
+  name: string;
+  content: string;
+  trigger: TriggerType; // null | KeywordTrigger | TaskTrigger
+  source: string | null;
+  inputs: InputMetadata[];
+
+  constructor(params: {
+    name: string;
+    content: string;
+    trigger: TriggerType;
+    source?: string | null;
+    inputs?: InputMetadata[];
+  });
+
+  // Load skill from markdown file
+  static load(params: {
+    path: string;
+    skillDir?: string | null;
+    fileContent?: string | null;
+  }): Skill;
+
+  // Match trigger in message
+  matchTrigger(message: string): string | null;
+
+  // Extract variables (${var}) from content
+  extractVariables(): string[];
+
+  // Check if skill requires user input
+  requiresUserInput(): boolean;
+}
+
+// Load all user skills
+function loadUserSkills(): Skill[];
+```
+
+**Usage Example**:
+```typescript
+import { Skill } from '@openhands/agent-sdk-ts';
+
+// Create skill manually
+const skill = new Skill({
+  name: 'react-hooks',
+  content: 'Use functional components with hooks. Avoid class components.',
+  trigger: { type: 'keyword', keywords: ['react', 'hooks'] },
+});
+
+// Load from file
+const fileSkill = Skill.load({ path: '/path/to/skill.md' });
+
+// Match trigger
+const trigger = skill.matchTrigger('How do I use React hooks?');
+// Returns: 'react'
+
+// Extract variables
+const contentWithVars = 'Refactor ${target_file} to use ${pattern}';
+const vars = new Skill({
+  name: 'refactor',
+  content: contentWithVars,
+  trigger: { type: 'task', triggers: ['/refactor'] },
+}).extractVariables();
+// Returns: ['target_file', 'pattern']
+```
+
+**Skill File Format**:
+
+Skills are loaded from markdown files with YAML frontmatter:
+
+```markdown
+---
+name: react-best-practices
+triggers:
+  - react
+  - component
+---
+
+# React Best Practices
+
+Use functional components with hooks instead of class components.
+Prefer composition over inheritance.
+```
+
+For task skills with inputs:
+
+```markdown
+---
+name: refactor-code
+triggers:
+  - /refactor
+inputs:
+  - name: target_file
+    description: The file to refactor
+  - name: pattern
+    description: The pattern to apply
+---
+
+# Code Refactoring
+
+Refactor ${target_file} using ${pattern} pattern.
+```
+
+**User Skills Loading**:
+
+Skills are automatically loaded from:
+1. `~/.openhands/skills/` - Primary skills directory
+2. `~/.openhands/microagents/` - Legacy support
+
+Third-party files supported:
+- `.cursorrules` → skill name: "cursorrules"
+- `agents.md` or `AGENTS.md` → skill name: "agents"
+
+## Layer 2: Runtime (Orchestration)
 
 The runtime layer coordinates agent execution, manages conversation state, and orchestrates LLM interactions.
 
@@ -427,7 +638,7 @@ await lock.acquire(async () => {
 });
 ```
 
-## Layer 2: LLM Integration
+## Layer 3: LLM Integration
 
 The LLM layer provides streaming clients for various LLM providers with unified interfaces.
 
@@ -557,7 +768,7 @@ const client2 = await new LLMFactory({
 2. VS Code SecretStorage (if available)
 3. Environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
 
-## Layer 3: Tool System
+## Layer 4: Tool System
 
 The tool layer provides agent capabilities for interacting with the environment.
 
@@ -713,7 +924,7 @@ console.log(result.content);  // Response body
 - Multiple terminal support
 - Command history
 
-## Layer 4: Workspace Abstraction
+## Layer 5: Workspace Abstraction
 
 ### LocalWorkspace
 
@@ -738,7 +949,7 @@ interface Workspace {
 - No `..` traversal outside workspace
 - Symbolic link validation
 
-## Layer 5: Protocol Types
+## Layer 6: Protocol Types
 
 ### Message Types
 
