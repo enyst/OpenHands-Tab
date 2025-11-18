@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { Skill, SkillValidationError, loadSkillsFromDir, loadUserSkills } from '../skill';
+import { Skill, SkillValidationError, loadSkillsFromDir, loadUserSkills, USER_SKILLS_DIRS } from '../skill';
 
 describe('Skill', () => {
   describe('constructor', () => {
@@ -427,24 +427,168 @@ Content`);
   });
 
   describe('loadUserSkills', () => {
+    let tempDir: string;
+    let skillsDir: string;
+    let microagentsDir: string;
+    let originalDirs: string[];
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `user-skills-test-${Date.now()}`);
+      skillsDir = join(tempDir, '.openhands', 'skills');
+      microagentsDir = join(tempDir, '.openhands', 'microagents');
+      mkdirSync(skillsDir, { recursive: true });
+      mkdirSync(microagentsDir, { recursive: true });
+
+      // Save original directories and replace with test directories
+      originalDirs = [...USER_SKILLS_DIRS];
+      USER_SKILLS_DIRS.length = 0;
+      USER_SKILLS_DIRS.push(skillsDir, microagentsDir);
+    });
+
+    afterEach(() => {
+      if (existsSync(tempDir)) {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+
+      // Restore original directories
+      USER_SKILLS_DIRS.length = 0;
+      USER_SKILLS_DIRS.push(...originalDirs);
+    });
+
     it('returns empty array when user skills directories do not exist', () => {
-      // Mock existsSync to return false for all user skill directories
-      const fs = require('fs');
-      const existsSyncSpy = vi.spyOn(fs, 'existsSync');
-      existsSyncSpy.mockReturnValue(false);
+      // Remove the directories we created
+      rmSync(tempDir, { recursive: true, force: true });
 
       const skills = loadUserSkills();
 
       expect(skills).toEqual([]);
       expect(skills).toHaveLength(0);
+    });
 
-      existsSyncSpy.mockRestore();
+    it('loads skills from primary skills directory', () => {
+      // Create a skill in the primary directory
+      writeFileSync(join(skillsDir, 'test-skill.md'), `---
+triggers:
+  - test
+---
+
+Test skill content`);
+
+      const skills = loadUserSkills();
+
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe('test-skill');
+      expect(skills[0].content).toBe('Test skill content');
+    });
+
+    it('loads skills from legacy microagents directory', () => {
+      // Create a skill in the microagents directory
+      writeFileSync(join(microagentsDir, 'legacy-skill.md'), `---
+triggers:
+  - legacy
+---
+
+Legacy skill content`);
+
+      const skills = loadUserSkills();
+
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe('legacy-skill');
+      expect(skills[0].content).toBe('Legacy skill content');
     });
 
     it('loads and deduplicates skills from multiple directories', () => {
-      // This test would require more complex mocking of the file system
-      // For now, we rely on the loadSkillsFromDir tests which are more comprehensive
-      expect(true).toBe(true);
+      // Create skills in both directories
+      writeFileSync(join(skillsDir, 'unique-skill.md'), `---
+triggers:
+  - unique
+---
+
+Unique skill`);
+
+      writeFileSync(join(microagentsDir, 'legacy-skill.md'), `---
+triggers:
+  - legacy
+---
+
+Legacy skill`);
+
+      // Create duplicate skill (skills directory takes precedence)
+      writeFileSync(join(skillsDir, 'duplicate.md'), `---
+triggers:
+  - dup
+---
+
+From skills directory`);
+
+      writeFileSync(join(microagentsDir, 'duplicate.md'), `---
+triggers:
+  - dup
+---
+
+From microagents directory`);
+
+      const skills = loadUserSkills();
+
+      expect(skills).toHaveLength(3); // unique-skill, legacy-skill, duplicate (from skills dir)
+
+      const skillNames = skills.map(s => s.name);
+      expect(skillNames).toContain('unique-skill');
+      expect(skillNames).toContain('legacy-skill');
+      expect(skillNames).toContain('duplicate');
+
+      // Verify the duplicate is from skills directory (higher priority)
+      const duplicateSkill = skills.find(s => s.name === 'duplicate');
+      expect(duplicateSkill?.content).toBe('From skills directory');
+    });
+
+    it('loads both repo skills and knowledge skills', () => {
+      // Create a repo skill (no triggers)
+      writeFileSync(join(skillsDir, 'repo-skill.md'), 'Repository guidelines');
+
+      // Create a knowledge skill (with triggers)
+      writeFileSync(join(skillsDir, 'knowledge-skill.md'), `---
+triggers:
+  - keyword
+---
+
+Knowledge content`);
+
+      const skills = loadUserSkills();
+
+      expect(skills).toHaveLength(2);
+
+      const repoSkill = skills.find(s => s.name === 'repo-skill');
+      const knowledgeSkill = skills.find(s => s.name === 'knowledge-skill');
+
+      expect(repoSkill?.trigger).toBeNull();
+      expect(knowledgeSkill?.trigger).toEqual({ type: 'keyword', keywords: ['keyword'] });
+    });
+
+    it('handles errors gracefully and continues loading', () => {
+      // Create a valid skill
+      writeFileSync(join(skillsDir, 'valid.md'), 'Valid content');
+
+      // Create an invalid skill
+      writeFileSync(join(skillsDir, 'invalid.md'), `---
+triggers: "not-an-array"
+---
+
+Invalid`);
+
+      // Mock console.warn to suppress warnings
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const skills = loadUserSkills();
+
+      // Should continue despite error, but valid skill won't load either due to loadSkillsFromDir throwing
+      // The error is caught and logged in loadUserSkills
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(consoleSpy.mock.calls.some(call =>
+        call[0].includes('Failed to load user skills')
+      )).toBe(true);
+
+      consoleSpy.mockRestore();
     });
   });
 });
