@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import picomatch from 'picomatch';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
@@ -35,15 +36,6 @@ Examples:
 
 const MAX_RESULTS = 100;
 
-const globToRegExp = (pattern: string): RegExp => {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '.*')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '.');
-  return new RegExp(`^${escaped}$`);
-};
-
 const listFiles = async (root: string): Promise<string[]> => {
   const entries = await fs.readdir(root, { withFileTypes: true });
   const results: string[] = [];
@@ -59,6 +51,13 @@ const listFiles = async (root: string): Promise<string[]> => {
   return results;
 };
 
+const normalize = (p: string): string => p.split(path.sep).join('/');
+
+const createMatcher = (pattern: string): ((value: string) => boolean) => {
+  const matcher = picomatch(pattern, { dot: true }) as (value: string) => boolean;
+  return (value: string) => Boolean(matcher(value));
+};
+
 export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult> {
   readonly name = 'glob';
   readonly description = TOOL_DESCRIPTION;
@@ -66,13 +65,13 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
 
   async execute(args: z.infer<typeof globArgsSchema>, context: ToolContext): Promise<GlobResult> {
     const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
-    const regex = globToRegExp(args.pattern);
+    const matcher = createMatcher(args.pattern);
     const files = await listFiles(searchRoot);
     const filtered: string[] = [];
 
     for (const file of files) {
-      const relative = path.relative(searchRoot, file);
-      if (regex.test(relative)) {
+      const relative = normalize(path.relative(searchRoot, file));
+      if (matcher(relative)) {
         filtered.push(file);
       }
     }

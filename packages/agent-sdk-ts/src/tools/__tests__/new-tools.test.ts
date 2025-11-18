@@ -61,6 +61,17 @@ describe('GlobTool', () => {
     expect(result.files.some((file) => file.endsWith('todo.txt'))).toBe(true);
     expect(result.pattern).toBe('**/*.txt');
   });
+
+  it('supports brace expansion in patterns', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await workspace.writeFile('config/app.json', '{}');
+    await workspace.writeFile('config/app.yaml', '---');
+    const tool = new GlobTool();
+    const args = tool.validate({ pattern: '**/*.{json,yaml}' });
+    const result = await tool.execute(args, { workspace });
+    expect(result.files.filter((file) => file.endsWith('.json') || file.endsWith('.yaml')).length).toBe(2);
+  });
 });
 
 describe('GrepTool', () => {
@@ -74,6 +85,18 @@ describe('GrepTool', () => {
     const result = await tool.execute(args, { workspace });
     expect(result.matches.length).toBeGreaterThan(0);
     expect(result.matches.some((file) => file.endsWith('README.md'))).toBe(true);
+  });
+
+  it('honors brace expansion for include filters', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await workspace.writeFile('README.md', 'match me');
+    await workspace.writeFile('config/app.yaml', 'match me too');
+    const tool = new GrepTool();
+    const args = tool.validate({ pattern: 'match', include: '**/*.{md,yaml}' });
+    const result = await tool.execute(args, { workspace });
+    expect(result.matches.some((file) => file.endsWith('README.md'))).toBe(true);
+    expect(result.matches.some((file) => file.endsWith('app.yaml'))).toBe(true);
   });
 });
 

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import picomatch from 'picomatch';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
@@ -34,15 +35,6 @@ const TOOL_DESCRIPTION = `Fast content search tool.
 
 const MAX_RESULTS = 100;
 
-const globToRegExp = (pattern: string): RegExp => {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '.*')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\?/g, '.');
-  return new RegExp(`^${escaped}$`);
-};
-
 const listFiles = async (root: string): Promise<string[]> => {
   const entries = await fs.readdir(root, { withFileTypes: true });
   const results: string[] = [];
@@ -58,6 +50,13 @@ const listFiles = async (root: string): Promise<string[]> => {
   return results;
 };
 
+const normalize = (p: string): string => p.split(path.sep).join('/');
+
+const createMatcher = (pattern: string): ((value: string) => boolean) => {
+  const matcher = picomatch(pattern, { dot: true }) as (value: string) => boolean;
+  return (value: string) => Boolean(matcher(value));
+};
+
 export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult> {
   readonly name = 'grep';
   readonly description = TOOL_DESCRIPTION;
@@ -65,14 +64,14 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
 
   async execute(args: z.infer<typeof grepArgsSchema>, context: ToolContext): Promise<GrepResult> {
     const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
-    const includeRegex = args.include ? globToRegExp(args.include) : null;
+    const includeMatcher = args.include ? createMatcher(args.include) : null;
     const files = await listFiles(searchRoot);
     const matches: { file: string; mtime: number }[] = [];
     const contentRegex = new RegExp(args.pattern, 'm');
 
     for (const file of files) {
-      const relative = path.relative(searchRoot, file);
-      if (includeRegex && !includeRegex.test(relative)) continue;
+      const relative = normalize(path.relative(searchRoot, file));
+      if (includeMatcher && !includeMatcher(relative)) continue;
       try {
         const content = await fs.readFile(file, 'utf8');
         if (contentRegex.test(content)) {
