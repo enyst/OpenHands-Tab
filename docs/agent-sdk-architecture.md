@@ -122,7 +122,11 @@ interface ConversationInstance {
 - Manages tool execution with `LocalWorkspace`
 - Terminal events for VS Code integrated terminal
 - Full conversation state management
+- **Conversation persistence** - save and restore conversations using `FileStore`
 - No external server required (but still VS Code-bound)
+
+**Persistence Support**:
+LocalConversation supports persistent conversations through the `persistenceDir` or `persistence` options. When configured, all events and state are automatically saved to disk and can be restored later. See [Persistence](#persistence) section for details.
 
 **Note**: LocalConversation remains **VS Code-bound** (uses VS Code SecretStorage, IntegratedTerminalRunner, etc.). "Local mode" means running the agent in VS Code without an external server, not running as a standalone CLI.
 
@@ -635,6 +639,268 @@ const lock = new AsyncLock();
 await lock.acquire(async () => {
   // Critical section - only one execution at a time
   await performCriticalOperation();
+});
+```
+
+### Persistence
+
+**Purpose**: Enable conversation state and event history to be saved to disk and restored across sessions.
+
+**Files**: `src/sdk/runtime/persistence.ts`
+
+**Key Components**:
+
+#### ConversationPersistence Interface
+
+Defines the contract for persistence implementations:
+
+```typescript
+interface ConversationPersistence {
+  conversationId: string;
+  appendEvent(event: Event): void;
+  readEvents(): Event[];
+  writeState(state: AgentState): void;
+  readState(): AgentState | undefined;
+}
+```
+
+#### FileStore Implementation
+
+**Purpose**: File-based persistence using JSONL for events and JSON for state.
+
+**Storage Structure**:
+```
+{rootDir}/
+  {conversationId}/
+    events.jsonl     # Append-only event log (one JSON object per line)
+    state.json       # Latest state snapshot
+```
+
+**Default Location**: `.openhands/conversations/` in the current working directory
+
+**Features**:
+- **Event Storage**: Append-only JSONL format for efficient event streaming
+- **State Snapshots**: JSON format for quick state restoration
+- **Corruption Tolerance**: Skips corrupted lines in events.jsonl
+- **Error Handling**: Gracefully handles missing or malformed state files
+- **Auto-creation**: Automatically creates conversation directories
+
+**API**:
+```typescript
+class FileStore implements ConversationPersistence {
+  constructor(options: FileStoreOptions);
+  appendEvent(event: Event): void;
+  readEvents(): Event[];
+  writeState(state: AgentState): void;
+  readState(): AgentState | undefined;
+  static listConversations(rootDir?: string): string[];
+}
+
+interface FileStoreOptions {
+  rootDir?: string;           // Defaults to .openhands/conversations
+  conversationId: string;
+}
+```
+
+**Usage Example**:
+```typescript
+import { FileStore, EventLog, ConversationState } from '@openhands/agent-sdk-ts';
+
+// Create persistence
+const persistence = new FileStore({
+  rootDir: '/path/to/conversations',
+  conversationId: 'conv-123'
+});
+
+// Use with EventLog
+const eventLog = new EventLog({ persistence });
+eventLog.push({
+  kind: 'MessageEvent',
+  source: 'user',
+  llm_message: { role: 'user', content: [{ type: 'text', text: 'Hello' }] }
+});
+// Event is automatically persisted to events.jsonl
+
+// Use with ConversationState
+const state = new ConversationState({ eventLog, persistence });
+state.setValue('iteration', 1);
+// State is automatically persisted to state.json
+
+// List all conversations
+const conversations = FileStore.listConversations('/path/to/conversations');
+console.log(conversations); // ['conv-123', 'conv-456', ...]
+```
+
+**Integration with LocalConversation**:
+
+LocalConversation automatically manages persistence when configured:
+
+```typescript
+import { LocalConversation } from '@openhands/agent-sdk-ts';
+
+// Option 1: Use persistenceDir (FileStore created automatically)
+const conversation = new LocalConversation({
+  settings: { /* ... */ },
+  workspaceRoot: '/workspace',
+  persistenceDir: '.openhands/conversations',  // Relative or absolute path
+});
+
+await conversation.startNewConversation();
+// Conversation state and events are automatically persisted
+
+// Option 2: Provide custom persistence implementation
+const customPersistence = new FileStore({
+  rootDir: '/custom/path',
+  conversationId: 'my-conversation'
+});
+
+const conversation2 = new LocalConversation({
+  settings: { /* ... */ },
+  workspaceRoot: '/workspace',
+  persistence: customPersistence,
+});
+```
+
+**Restoring Conversations**:
+
+```typescript
+import { LocalConversation, FileStore } from '@openhands/agent-sdk-ts';
+
+// List available conversations
+const conversations = FileStore.listConversations('.openhands/conversations');
+console.log('Available conversations:', conversations);
+
+// Restore a specific conversation
+const conversation = new LocalConversation({
+  settings: { /* ... */ },
+  workspaceRoot: '/workspace',
+  persistenceDir: '.openhands/conversations',
+});
+
+conversation.restoreConversation('conv-123');
+// Events and state are loaded from disk
+// You can continue the conversation from where it left off
+
+await conversation.sendUserMessage('Continue from where we left off');
+```
+
+**Restoration Process**:
+
+When restoring a conversation, the system:
+1. Reads all events from `events.jsonl`
+2. Replays events through EventLog (emitted to listeners)
+3. Attempts to restore state from `state.json` snapshot
+4. If no snapshot exists, rebuilds state from events
+5. Emits 'conversationStarted' event with the conversation ID
+
+**Error Handling**:
+
+The persistence layer handles various error scenarios gracefully:
+
+```typescript
+// Corrupted event line - skipped with console.error
+// [FileStore] Skipping corrupted event line: <error>
+
+// Corrupted state file - returns undefined, state rebuilt from events
+// [FileStore] Could not read or parse state file: <error>
+
+// Missing persistence configuration
+conversation.on('error', (err) => {
+  console.error('Persistence error:', err);
+});
+
+try {
+  conversation.restoreConversation('conv-123');
+} catch (error) {
+  // Handle restoration errors
+}
+```
+
+**File Format Examples**:
+
+events.jsonl:
+```jsonl
+{"id":"evt-1","kind":"MessageEvent","source":"user","timestamp":"2025-11-18T10:00:00Z","llm_message":{"role":"user","content":[{"type":"text","text":"Hello"}]}}
+{"id":"evt-2","kind":"MessageEvent","source":"agent","timestamp":"2025-11-18T10:00:01Z","llm_message":{"role":"assistant","content":[{"type":"text","text":"Hi!"}]}}
+{"id":"evt-3","kind":"ConversationStateUpdateEvent","source":"agent","timestamp":"2025-11-18T10:00:02Z","iteration":1}
+```
+
+state.json:
+```json
+{
+  "status": "running",
+  "iteration": 1,
+  "values": {
+    "llm_usage": {
+      "input": 100,
+      "output": 50
+    }
+  }
+}
+```
+
+**Attach Persistence After Initialization**:
+
+For advanced use cases, persistence can be attached after EventLog or ConversationState creation:
+
+```typescript
+const eventLog = new EventLog();
+const state = new ConversationState({ eventLog });
+
+// Later, attach persistence
+const persistence = new FileStore({
+  rootDir: '.openhands/conversations',
+  conversationId: 'conv-123'
+});
+
+eventLog.attachPersistence(persistence);
+state.attachPersistence(persistence);
+
+// Future events and state changes will be persisted
+```
+
+**Custom Persistence Implementation**:
+
+You can implement custom persistence backends by implementing the `ConversationPersistence` interface:
+
+```typescript
+import type { ConversationPersistence, AgentState, Event } from '@openhands/agent-sdk-ts';
+
+class DatabasePersistence implements ConversationPersistence {
+  conversationId: string;
+
+  constructor(conversationId: string, private db: Database) {
+    this.conversationId = conversationId;
+  }
+
+  appendEvent(event: Event): void {
+    this.db.query('INSERT INTO events (conversation_id, data) VALUES (?, ?)',
+      [this.conversationId, JSON.stringify(event)]);
+  }
+
+  readEvents(): Event[] {
+    const rows = this.db.query('SELECT data FROM events WHERE conversation_id = ?',
+      [this.conversationId]);
+    return rows.map(row => JSON.parse(row.data));
+  }
+
+  writeState(state: AgentState): void {
+    this.db.query('INSERT OR REPLACE INTO states (conversation_id, data) VALUES (?, ?)',
+      [this.conversationId, JSON.stringify(state)]);
+  }
+
+  readState(): AgentState | undefined {
+    const row = this.db.queryOne('SELECT data FROM states WHERE conversation_id = ?',
+      [this.conversationId]);
+    return row ? JSON.parse(row.data) : undefined;
+  }
+}
+
+// Use custom persistence
+const persistence = new DatabasePersistence('conv-123', myDatabase);
+const conversation = new LocalConversation({
+  settings: { /* ... */ },
+  persistence,
 });
 ```
 
