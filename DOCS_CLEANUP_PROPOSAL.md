@@ -1,53 +1,43 @@
-# Documentation Cleanup Proposal
+# Documentation Cleanup - Completed
 
-## Files Proposed for Removal
+## Files Removed
 
-### 1. `README_DEV.md` - **REMOVE**
-**Reason**: Redundant with README.md and CONTRIBUTING.md
+### 1. `CONTRIBUTING.md` - **REMOVED** ✅
+**Reason**: Merged into AGENTS.md
+- Content was redundant with AGENTS.md
+- Unique content (workspace commands, package notes) merged into AGENTS.md
+- AGENTS.md is now the single source of truth for contribution guidelines
+
+---
+
+### 2. `README_DEV.md` - **REMOVED** ✅
+**Reason**: Redundant with README.md and AGENTS.md
 - Only 13 lines long
 - Information already covered in:
   - README.md (Development section)
-  - CONTRIBUTING.md (Build, Test, and Development Commands)
+  - AGENTS.md (Build, Test, and Development Commands)
 - No unique value
 
-**Impact**: None - all info is duplicated elsewhere
-
 ---
 
-### 2. `AGENTS.md` - **CONSIDER RENAMING OR MERGING**
-**Reason**: Overlaps significantly with CONTRIBUTING.md
-- CONTRIBUTING.md is newer and more comprehensive
-- Both cover: project structure, build commands, coding style, testing, commits
-- AGENTS.md has some unique content about package-specific notes
-
-**Options**:
-1. **REMOVE** AGENTS.md, migrate unique content to CONTRIBUTING.md
-2. **RENAME** AGENTS.md to something more specific if it has a distinct purpose
-3. **KEEP BOTH** but clearly differentiate their purposes
-
-**Recommendation**: Remove AGENTS.md and ensure CONTRIBUTING.md has all the content
-
----
-
-### 3. `packages/agent-sdk-ts/findings.md` - **REMOVE**
+### 3. `packages/agent-sdk-ts/findings.md` - **REMOVED** ✅
 **Reason**: Working notes/investigation log, not documentation
-- Contains development investigation notes
-- Has TODO items and gap analysis from development
+- Contained development investigation notes
+- Had TODO items and gap analysis from development
 - Already implemented fixes are documented
 - Not useful for end users or new contributors
 
-**Impact**: None - this is internal working notes
-
 ---
 
-## Summary
+## Result
 
-**Definite Removals** (no risk):
-- README_DEV.md
-- packages/agent-sdk-ts/findings.md
+**Files Removed**:
+- CONTRIBUTING.md (merged into AGENTS.md)
+- README_DEV.md (redundant)
+- packages/agent-sdk-ts/findings.md (internal notes)
 
-**Consider**:
-- AGENTS.md (overlaps with CONTRIBUTING.md)
+**Files Updated**:
+- AGENTS.md (now includes all contribution guidelines with workspace-aware commands)
 
 ## Files Updated (Already Fixed)
 
