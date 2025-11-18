@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
@@ -5,16 +8,16 @@ import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from 
 import type { ToolHandler } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 
-  class MockLLM implements LLMClient {
-    constructor(private readonly chunks: LLMStreamChunk[]) {}
+class MockLLM implements LLMClient {
+  constructor(private readonly chunks: LLMStreamChunk[]) {}
 
-    async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
-      void _request;
-      for (const chunk of this.chunks) {
-        yield chunk;
-      }
+  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    void _request;
+    for (const chunk of this.chunks) {
+      yield chunk;
     }
   }
+}
 
 const baseSettings: OpenHandsSettings = {
   llm: { model: 'test-model' },
@@ -24,6 +27,8 @@ const baseSettings: OpenHandsSettings = {
   secrets: {},
 };
 
+const createWorkspaceRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'agent-workspace-'));
+
 describe('Agent loop control', () => {
   it('emits system prompt and stops when no tool calls', async () => {
     const log = new EventLog();
@@ -32,7 +37,7 @@ describe('Agent loop control', () => {
       { type: 'finish' },
     ]);
 
-    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/workspace', llmClient: llm });
+    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: createWorkspaceRoot(), llmClient: llm });
 
     await agent.run('hi there');
 
@@ -59,7 +64,7 @@ describe('Agent loop control', () => {
     const agent = new Agent({
       settings: { ...baseSettings, confirmation: { policy: 'always' } },
       events: log,
-      workspaceRoot: '/workspace',
+      workspaceRoot: createWorkspaceRoot(),
       llmClient: llm,
       tools: [tool],
     });
@@ -90,7 +95,13 @@ describe('Agent loop control', () => {
       { type: 'finish' },
     ]);
 
-    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/workspace', llmClient: llm, tools: [tool] });
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
     await agent.run('bad args');
 
     const events = log.list();
@@ -114,7 +125,13 @@ describe('Agent loop control', () => {
       { type: 'finish' },
     ]);
 
-    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/workspace', llmClient: llm, tools: [tool] });
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
     await agent.run('bad args');
 
     const events = log.list();
