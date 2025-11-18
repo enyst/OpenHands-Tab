@@ -7,7 +7,7 @@ import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
 import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
-import { isTextContent, type SecurityRisk } from '../types';
+import { isTextContent, isMessageEvent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
@@ -81,7 +81,7 @@ export class Agent extends EventEmitter {
   pause(): void {
     if (this.paused) return;
     this.paused = true;
-    const pause: Event = { type: 'PauseEvent', source: 'user' } as Event;
+    const pause: Event = { kind: 'PauseEvent', source: 'user' } as Event;
     this.events.push(pause);
     this.state.setStatus('PAUSED');
   }
@@ -142,7 +142,7 @@ export class Agent extends EventEmitter {
         response = await orchestrator.runChat(request);
       } catch (error) {
         this.events.push({
-          type: 'ConversationErrorEvent',
+          kind: 'ConversationErrorEvent',
           source: 'agent',
           detail: error instanceof Error ? error.message : String(error),
         } as Event);
@@ -151,7 +151,7 @@ export class Agent extends EventEmitter {
       }
 
       const assistantEvent: MessageEvent = {
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'agent',
         llm_message: response.message,
       };
@@ -182,7 +182,7 @@ export class Agent extends EventEmitter {
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args };
           this.state.setStatus('WAITING_FOR_CONFIRMATION');
-          this.events.push({ type: 'PauseEvent', source: 'user' } as Event);
+          this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
           return lastAssistantMessage;
         }
 
@@ -212,7 +212,7 @@ export class Agent extends EventEmitter {
   private buildChatRequest() {
     const messages = this.events
       .list()
-      .filter((event): event is MessageEvent => event.type === 'MessageEvent')
+      .filter((event): event is MessageEvent => (event as any).kind === 'MessageEvent')
       .map((event) => event.llm_message);
     const tools = this.getToolDefinitions();
     return { systemPrompt: SYSTEM_PROMPT, messages, tools };
@@ -279,7 +279,7 @@ export class Agent extends EventEmitter {
       typeof input === 'string'
         ? { role: 'user', content: [{ type: 'text', text: input }] }
         : input;
-    const event: MessageEvent = { type: 'MessageEvent', source: 'user', llm_message: message };
+    const event: MessageEvent = { kind: 'MessageEvent', source: 'user', llm_message: message };
     this.events.push(event);
   }
 
@@ -295,7 +295,7 @@ export class Agent extends EventEmitter {
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
       this.events.push({
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`,
         tool_name: toolCall.function.name,
@@ -324,7 +324,7 @@ export class Agent extends EventEmitter {
   ): ActionEvent {
     const thought = message.content.filter(isTextContent);
     return {
-      type: 'ActionEvent',
+      kind: 'ActionEvent',
       source: 'agent',
       thought,
       reasoning_content: message.reasoning_content,
@@ -341,7 +341,7 @@ export class Agent extends EventEmitter {
     const tool = this.tools.get(toolCall.function.name);
     if (!tool) {
       this.events.push({
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: `Unknown tool: ${toolCall.function.name}`,
         tool_name: toolCall.function.name,
@@ -355,7 +355,7 @@ export class Agent extends EventEmitter {
       validated = tool.validate(args);
     } catch (e) {
       this.events.push({
-        type: 'AgentErrorEvent',
+        kind: 'AgentErrorEvent',
         source: 'agent',
         error: `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`,
         tool_name: toolCall.function.name,
@@ -373,7 +373,7 @@ export class Agent extends EventEmitter {
       }
 
       const observation = {
-        type: 'ObservationEvent',
+        kind: 'ObservationEvent',
         source: 'environment',
         observation: result as Record<string, unknown>,
         tool_name: toolCall.function.name,
@@ -383,7 +383,7 @@ export class Agent extends EventEmitter {
       this.events.push(observation);
 
       const toolMessage: MessageEvent = {
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'environment',
         llm_message: {
           role: 'tool',
@@ -395,7 +395,7 @@ export class Agent extends EventEmitter {
       this.events.push(toolMessage);
     } catch (e) {
       this.events.push({
-        type: 'ConversationErrorEvent',
+        kind: 'ConversationErrorEvent',
         source: 'environment',
         detail: e instanceof Error ? e.message : String(e),
         code: 'tool_execution_failed',
