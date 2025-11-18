@@ -1,4 +1,8 @@
-# Repository Guidelines
+# Contributing to OpenHands-Tab
+
+Thanks for building on OpenHands Tab! This guide covers the repository structure, development workflow, and contribution guidelines.
+
+## Repository Guidelines
 
 ## Project Structure & Module Organization
 - `src/extension.ts` is the VS Code entry point; feature logic lives in `src/connection`, `src/session`, `src/settings`, and `src/terminal`.
@@ -8,13 +12,46 @@
 - `scripts/` holds helper tooling (for example `dev-vscode.sh`), and `docs/` contains feature reference material.
 
 ## Build, Test, and Development Commands
-- `npm install` to sync dependencies.
+
+### Common Tasks
+
+All commands can be run from the repo root:
+
+```bash
+# Install dependencies for every workspace
+npm install
+
+# Build SDK (tsup + tsc) and then compile the extension/webview
+npm run build
+
+# Execute SDK Vitest specs and then the extension Vitest suite
+npm test
+
+# Run both lint configs (SDK first, then extension)
+npm run lint
+```
+
+### Additional Commands
+
 - `npm run compile` produces the extension bundle and minified Tailwind CSS.
-- Workspace-aware scripts exist for the SDK: run `npm run build -w @openhands/agent-sdk-ts`, `npm test -w @openhands/agent-sdk-ts`, or `npm run lint -w @openhands/agent-sdk-ts` when iterating on the package in isolation. Top-level `npm run build`, `npm test`, and `npm run lint` already invoke these for you.
 - `npm run watch` keeps TypeScript, Tailwind, and the webview builder running during active development.
 - `npm run dev:vscode` launches the extension host with the proper environment wiring.
 - Testing commands: `npm test` (Vitest unit suite), `npm run test:watch`, and `npm run e2e` (Mocha-driven VS Code integration).
 - `npm run lint` and `npm run typecheck` must be clean before you push; `npm run lint:fix` can resolve formatter issues.
+
+### Workspace-Aware Commands
+
+To focus on the SDK package you can use workspace-qualified commands:
+
+```bash
+npm run build -w @openhands/agent-sdk-ts
+npm test -w @openhands/agent-sdk-ts
+npm run lint -w @openhands/agent-sdk-ts
+```
+
+Top-level `npm run build`, `npm test`, and `npm run lint` already invoke these for you.
+
+**Note**: Running `npm run package` or `vsce package` automatically triggers `npm run build`, so the SDK artifacts are always up to date when bundling the extension.
 
 ## Coding Style & Naming Conventions
 - TypeScript (ES2022) with JSX for the webview; prefer 2-space indentation, single quotes, and trailing semicolons to match existing files.

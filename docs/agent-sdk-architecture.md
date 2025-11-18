@@ -742,7 +742,7 @@ interface Workspace {
 
 ### Message Types
 
-**File**: `src/types/index.ts`
+**File**: `src/sdk/types/index.ts`
 
 **Message Structure**:
 ```typescript
@@ -786,7 +786,7 @@ interface ToolCall {
 ```typescript
 interface EventBase {
   id?: string;
-  type: string;
+  kind: string;
   timestamp?: string;
   source?: 'agent' | 'user' | 'environment';
 }
@@ -809,7 +809,7 @@ type Event =
 - **MessageEvent** - LLM messages (user/assistant)
   ```typescript
   interface MessageEvent extends EventBase {
-    type: 'MessageEvent';
+    kind: 'MessageEvent';
     source: 'agent' | 'user' | 'environment';
     llm_message: Message;
     activated_microagents?: string[];
@@ -820,7 +820,7 @@ type Event =
 - **ActionEvent** - Agent tool calls
   ```typescript
   interface ActionEvent extends EventBase {
-    type: 'ActionEvent';
+    kind: 'ActionEvent';
     source: 'agent';
     thought: TextContent[];
     action: Record<string, unknown> | null;
@@ -834,7 +834,7 @@ type Event =
 - **ObservationEvent** - Tool execution results
   ```typescript
   interface ObservationEvent extends EventBase {
-    type: 'ObservationEvent';
+    kind: 'ObservationEvent';
     source: 'environment';
     observation: Record<string, unknown>;
     tool_name: string;
@@ -849,9 +849,9 @@ type Event =
 ```typescript
 // Event type guards
 export const isEvent = (candidate: unknown): candidate is Event => { /* ... */ };
-export const isMessageEvent = (e: Event): e is MessageEvent => e.type === 'MessageEvent';
-export const isActionEvent = (e: Event): e is ActionEvent => e.type === 'ActionEvent';
-export const isObservationEvent = (e: Event): e is ObservationEvent => e.type === 'ObservationEvent';
+export const isMessageEvent = (e: Event): e is MessageEvent => e.kind === 'MessageEvent';
+export const isActionEvent = (e: Event): e is ActionEvent => e.kind === 'ActionEvent';
+export const isObservationEvent = (e: Event): e is ObservationEvent => e.kind === 'ObservationEvent';
 
 // Content type guards
 export const isTextContent = (c: Content): c is TextContent => c.type === 'text';
@@ -1004,8 +1004,6 @@ conversation.on('event', (event) => {
 await conversation.startNewConversation();
 await conversation.sendUserMessage('List files in the current directory');
 ```
-
-**TODO**: LocalConversation (serverUrl: undefined) is currently a stub.
 
 ### Pattern 3: Low-Level Orchestration (Advanced)
 

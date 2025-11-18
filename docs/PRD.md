@@ -229,13 +229,13 @@ Confirmation policy
 ## 11. Extension Structure (Code)
 - src/extension.ts (activate, register commands, webview setup, message bridge)
 - src/connection/ConnectionManager.ts (native WebSocket client, HTTP helpers, conversation lifecycle)
-- packages/agent-sdk-ts/src/types/index.ts (TypeScript types and guards for Message/Event models, Bash events)
+- packages/agent-sdk-ts/src/sdk/types/index.ts (TypeScript types and guards for Message/Event models, Bash events)
 - src/settings/ (settings management with VS Code integration)
   - SettingsManager.ts (central settings access layer)
   - SettingsAdapter.ts (interface for settings storage)
   - VscodeSettingsAdapter.ts (VS Code implementation with SecretStorage for API keys)
 - src/sidebar/OpenHandsViewProvider.ts (activity bar tree view provider)
-- src/terminal/BashEventsClient.ts (WebSocket client for bash command streaming to terminal)
+
 - src/webview-src/ (React UI bundle)
   - webview.tsx (entry point)
   - components/App.tsx (main React component with chat UI, event stream, status, confirmation UI)
@@ -332,8 +332,8 @@ Confirmation policy
 ## 17. Protocol & Schema Reference (Authoritative)
 - WebSocket endpoints (agent-sdk):
   - Conversation events: /sockets/events/{conversation_id}?session_api_key=...
-  - Bash events: /sockets/bash-events?session_api_key=...
   - Source: agent-sdk/openhands/agent_server/sockets.py
+  - Note: Bash events in local mode are emitted by LocalConversation as 'terminal' events (not via WebSocket)
 - HTTP endpoints (agent-sdk):
   - Conversations:
     - POST /api/conversations
@@ -352,22 +352,6 @@ Confirmation policy
     - GET  /api/conversations/{id}/events/          (list)
     - POST /api/conversations/{id}/events/respond_to_confirmation
   - Source: agent-sdk/openhands/agent_server/{conversation_router.py,event_router.py}
-- Bash events schema (received over WS at /sockets/bash-events):
-  - Base: BashEventBase; page type: BashEventPage
-  - File: agent-sdk/openhands/agent_server/models.py
-  - Minimal example (BashOutput):
-    {
-      "type": "BashOutput",
-      "command_id": "<UUID>",
-      "order": 0,
-      "exit_code": null,
-      "stdout": "...",
-      "stderr": null,
-      "id": "<UUID>",
-      "timestamp": "2025-01-01T00:00:00Z"
-    }
-  - Notes: This socket streams bash command lifecycle events (e.g., BashCommand, BashOutput). The extension may choose to subscribe for live terminal output; authentication matches the Event socket.
-
 - Message schema (send over WS/HTTP):
   - Class: openhands.sdk.llm.message.Message (+ TextContent, ImageContent)
   - File: agent-sdk/openhands/sdk/llm/message.py
@@ -405,7 +389,7 @@ Source of truth
   - Create a dedicated `@openhands/agent-sdk-ts` package exporting Message, TextContent, ImageContent, and a narrowed EventBase union.
   - Add type guards for event decoding; unknown variants are logged and rendered as raw JSON.
   - Wire types into ConnectionManager: onEvent(e: EventBase), sendUserMessage(payload: Message).
-  - Update renderers to switch on event.type; fallback to JSON view for unknowns.
+  - Update renderers to switch on event.kind; fallback to JSON view for unknowns.
 - Anchors (comments only, no codegen yet):
   - openhands/sdk/llm/message.py
   - openhands/sdk/event/llm_convertible/{message.py,action.py,observation.py}

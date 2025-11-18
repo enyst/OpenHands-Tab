@@ -29,6 +29,9 @@
     "test": "vitest run",
     "prepare": "npm run build"
   },
+  "dependencies": {
+    "front-matter": "^4.0.2"
+  },
   "devDependencies": {
     "@types/vscode": "^1.104.0",
     "@types/node": "^22.18.6",

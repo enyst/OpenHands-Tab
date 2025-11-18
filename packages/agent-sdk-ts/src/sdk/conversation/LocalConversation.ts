@@ -7,6 +7,7 @@ import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime/persistence';
+import { AgentContext } from '../context';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
@@ -18,6 +19,7 @@ export interface LocalConversationOptions {
   tools?: ToolHandler<unknown, unknown>[];
   persistenceDir?: string;
   persistence?: ConversationPersistence;
+  agentContext?: AgentContext;
 }
 
 export class LocalConversation extends EventEmitter {
@@ -33,6 +35,7 @@ export class LocalConversation extends EventEmitter {
   private readonly tools: ToolHandler<unknown, unknown>[];
   private readonly persistenceDir?: string;
   private persistence?: ConversationPersistence;
+  private readonly agentContext?: AgentContext;
   private agent: Agent;
 
   constructor(options: LocalConversationOptions) {
@@ -47,6 +50,7 @@ export class LocalConversation extends EventEmitter {
     this.customLlmClient = options.llmClient;
     this.tools = options.tools ?? [];
     this.secrets = new SecretRegistry();
+    this.agentContext = options.agentContext;
     this.agent = this.createAgent();
 
     this.events.on((event) => this.emit('event', event));
@@ -147,6 +151,7 @@ export class LocalConversation extends EventEmitter {
       events: this.events,
       state: this.state,
       secrets: this.secrets,
+      agentContext: this.agentContext,
       onTerminalEvent: (event) => this.emit('terminal', event),
     });
   }
