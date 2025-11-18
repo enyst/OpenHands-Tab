@@ -9,7 +9,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - HTTP: X-Session-API-Key header
     - WebSocket: ?session_api_key query param
 - Where these settings are defined in agent-sdk
-  - WebSocket endpoints: /sockets/events/{conversation_id}, /sockets/bash-events
+  - WebSocket endpoints: /sockets/events/{conversation_id}
     - openhands-agent-server/openhands/agent_server/sockets.py
   - HTTP routes under /api/
     - openhands-agent-server/openhands/agent_server/api.py (+ routers)
@@ -128,7 +128,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - append ?session_api_key=... if secret present
 
 6) What we won’t configure in the extension (but are in agent-server)
-- Server-side configuration not surfaced in the extension: session_api_keys list, allow_cors_origins, conversations_path, bash_events_dir, static_files_path, webhooks, enable_vscode/vnc, ports
+- Server-side configuration not surfaced in the extension: session_api_keys list, allow_cors_origins, conversations_path, static_files_path, webhooks, enable_vscode/vnc, ports
   - Rationale: these are server deployment choices; the extension only needs to connect
 
 7) References (agent-sdk source)
@@ -157,7 +157,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - ✓ IMPLEMENTED: Secure API key storage via VS Code SecretStorage
 - ✓ IMPLEMENTED: Dynamic LLM configuration - ConnectionManager builds agent.llm payload from settings
 - ✓ IMPLEMENTED: Model selection and all LLM parameters are configurable
-- ✓ IMPLEMENTED: Bash events feature with dedicated WebSocket client
+- ✓ IMPLEMENTED: Bash events feature (local mode emits terminal events; no dedicated WebSocket client)
 - ✓ IMPLEMENTED: Security analyzer toggle and confirmation policies
 - Settings are stored in VS Code workspace/user settings and secrets in OS keychain
 - Configuration is applied when starting new conversations and can be updated during extension runtime
