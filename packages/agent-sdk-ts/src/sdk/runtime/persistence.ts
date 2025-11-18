@@ -39,11 +39,18 @@ export class FileStore implements ConversationPersistence {
   readEvents(): Event[] {
     if (!fs.existsSync(this.eventsFile)) return [];
     const content = fs.readFileSync(this.eventsFile, 'utf8');
-    return content
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as Event);
+    const events: Event[] = [];
+    const lines = content.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        events.push(JSON.parse(trimmed) as Event);
+      } catch (error) {
+        console.error(`[FileStore] Skipping corrupted event line: ${error}`);
+      }
+    }
+    return events;
   }
 
   writeState(state: AgentState): void {
@@ -52,7 +59,13 @@ export class FileStore implements ConversationPersistence {
 
   readState(): AgentState | undefined {
     if (!fs.existsSync(this.stateFile)) return undefined;
-    return JSON.parse(fs.readFileSync(this.stateFile, 'utf8')) as AgentState;
+    try {
+      const content = fs.readFileSync(this.stateFile, 'utf8');
+      return JSON.parse(content) as AgentState;
+    } catch (error) {
+      console.error(`[FileStore] Could not read or parse state file: ${error}`);
+      return undefined;
+    }
   }
 
   static listConversations(rootDir?: string): string[] {

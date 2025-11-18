@@ -35,15 +35,15 @@ export class ConversationState {
   }
 
   incrementIteration(): AgentState {
-    return this.updateState({ iteration: this.state.iteration + 1 }, true);
+    return this.updateState({ iteration: this.state.iteration + 1 }, true, true);
   }
 
   setStatus(status: string): AgentState {
-    return this.updateState({ agent_status: status }, true);
+    return this.updateState({ agent_status: status }, true, true);
   }
 
-  setValue(key: string, value: unknown): AgentState {
-    return this.updateState({ key, value }, true);
+  setValue(key: string, value: unknown, persist = true): AgentState {
+    return this.updateState({ key, value }, true, persist);
   }
 
   restore(snapshot: AgentState): AgentState {
@@ -54,7 +54,7 @@ export class ConversationState {
   loadEvents(events: Event[]): AgentState {
     this.state = { status: 'idle', iteration: 0, values: {} };
     events.filter(isConversationStateUpdateEvent).forEach((event) => {
-      this.updateState(event, false);
+      this.updateState(event, false, false);
     });
     this.persistSnapshot();
     return this.snapshot;
@@ -75,6 +75,7 @@ export class ConversationState {
   private updateState(
     update: Partial<Omit<ConversationStateUpdateEvent, 'kind' | 'source'>>,
     emitEvent: boolean,
+    persist: boolean,
   ): AgentState {
     if (typeof update.iteration === 'number') {
       this.state = { ...this.state, iteration: update.iteration };
@@ -90,7 +91,9 @@ export class ConversationState {
       this.emitUpdate(update);
     }
 
-    this.persistSnapshot();
+    if (persist) {
+      this.persistSnapshot();
+    }
     return this.snapshot;
   }
 
