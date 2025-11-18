@@ -394,29 +394,6 @@ await lock.acquire(async () => {
 });
 ```
 
-### StuckDetector
-
-**Purpose**: Detect when agents are stuck in unproductive loops.
-
-**Detection Strategies**:
-- Idle detection: No events for a configurable threshold (default 30 seconds)
-- Actions without observations: Multiple actions without corresponding observation events
-
-**Usage Example**:
-```typescript
-import { StuckDetector, EventLog } from '@openhands/agent-sdk-ts';
-
-const eventLog = new EventLog();
-const detector = new StuckDetector(eventLog, 30_000); // 30 second threshold
-
-const result = detector.evaluate();
-if (result.stuck) {
-  console.log('Agent appears stuck:', result.reason);
-  console.log('Last event:', result.lastEvent);
-  // Trigger recovery or intervention
-}
-```
-
 ## Layer 2: LLM Integration
 
 The LLM layer provides streaming clients for various LLM providers with unified interfaces.

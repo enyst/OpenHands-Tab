@@ -81,7 +81,6 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - `ConversationState` - Stateful conversation tracking with snapshots
 - `SecretRegistry` - Secure credential and secret management
 - `AsyncLock` - Concurrency control for agent operations
-- `StuckDetector` - Agent health monitoring and recovery
 
 **LLM Integration**:
 - Streaming LLM clients for Anthropic and OpenAI-compatible APIs

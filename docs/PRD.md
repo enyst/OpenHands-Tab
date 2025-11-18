@@ -67,7 +67,6 @@ The repository includes a TypeScript SDK (`packages/agent-sdk-ts`) that provides
 - `ConversationState` - Stateful conversation tracking with snapshots
 - `SecretRegistry` - Secure credential storage (integrates with VS Code SecretStorage)
 - `AsyncLock` - Concurrency control for agent operations
-- `StuckDetector` - Agent health monitoring and loop detection
 
 **LLM Integration** (`src/llm/`):
 - Streaming LLM clients: Anthropic (`anthropic.ts`), OpenAI-compatible (`openai-compatible.ts`)

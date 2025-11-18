@@ -20,10 +20,9 @@ High-level conversation management with dual-mode support (local vs remote execu
   - Event-driven API with `.on()` listeners for status, events, errors
   - Unified interface for both local and remote agent execution
 
-- **`LocalConversation`** - In-memory agent execution (⚠️ STUB - not yet implemented)
-  - Intended: Runs agent orchestration locally using EventEmitter
-  - Current: Only emits events without actual agent execution
-  - No external server required (but still VS Code-bound)
+- **`LocalConversation`** - Event-driven in-process agent execution for VS Code
+  - Runs the orchestration loop locally with `EventLog`, `ConversationState`, and configured tools
+  - Uses VS Code workspace access via `LocalWorkspace` (no remote workspace support)
   - Emits events: 'status', 'event', 'error', 'conversationStarted', 'terminal'
 
 - **`RemoteConversation`** - WebSocket-based remote agent
@@ -62,11 +61,6 @@ Agent execution and state management:
   - Prevents race conditions in async agent operations
   - Queue-based lock acquisition
 
-- **`StuckDetector`** - Agent health monitoring
-  - Detects idle agents (no events for threshold time)
-  - Detects actions without observations (unproductive tool calls)
-  - Configurable threshold (default 30 seconds)
-  - Returns structured result with stuck status and reason
 
 ### 3. LLM Integration Layer (`src/llm/`)
 Streaming LLM clients and configuration:
@@ -300,7 +294,7 @@ conversation.disconnect();
 ### Local vs Remote Mode
 
 ```typescript
-// Local mode - ⚠️ Currently a stub (no actual agent execution)
+// Local mode - runs the orchestrator in-process against the VS Code workspace
 const localConversation = Conversation({
   settings: { /* ... */ },
   workspaceRoot: '/workspace',
