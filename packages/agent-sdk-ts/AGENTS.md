@@ -237,6 +237,13 @@ npm run lint -w @openhands/agent-sdk-ts -- --fix
 - The SDK primarily serves the OpenHands VS Code extension, so it is fine to depend on VS Code types or semantics when doing so makes integration simpler.
 - Each layer should be independently testable with minimal cross-layer dependencies.
 
+
+Use real newlines in commit messages. Do not include literal \n sequences. For multi-paragraph messages, prefer one of:
+- git commit -m 'Subject' -m 'Body paragraph 1' -m 'Body paragraph 2'
+- git commit -F message.txt (where message.txt contains actual newlines)
+- git commit -m "Subject" && git commit --amend (to open editor and enter newlines)
+or alternatives.
+
 ## Testing Notes
 - Prefer deterministic fixtures for protocol payloads; add shared mocks under the repository root's `test/__mocks__` folder if they are broadly useful.
 - When changing schemas, cover both happy-path parsing and failure states to prevent silent contract drift.
