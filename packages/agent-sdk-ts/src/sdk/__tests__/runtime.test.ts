@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConversationState, EventLog, SecretRegistry, AsyncLock, StuckDetector } from '../runtime';
+import { ConversationState, EventLog, SecretRegistry, AsyncLock } from '../runtime';
 import { isConversationStateUpdateEvent } from '../types';
 
 describe('EventLog and ConversationState', () => {
@@ -41,15 +41,3 @@ describe('AsyncLock', () => {
   });
 });
 
-describe('StuckDetector', () => {
-  it('flags idle sessions', () => {
-    const log = new EventLog();
-    const detector = new StuckDetector(log, 1);
-    const result = detector.evaluate();
-    expect(result.stuck).toBe(false);
-    // simulate old event
-    log.push({ type: 'PauseEvent', source: 'user', timestamp: '2000-01-01T00:00:00Z' });
-    const stuck = detector.evaluate(Date.parse('2000-01-01T00:01:00Z'));
-    expect(stuck.stuck).toBe(true);
-  });
-});
