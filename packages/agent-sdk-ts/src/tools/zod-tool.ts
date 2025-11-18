@@ -18,18 +18,18 @@ export abstract class ZodTool<TArgs, TResult> implements ToolHandler<TArgs, TRes
     return this.schema.parse(input) as TArgs;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async execute(_args: TArgs, _context: ToolContext): Promise<TResult> {
-    throw new Error('Execute must be implemented by subclasses');
-  }
+  abstract execute(args: TArgs, context: ToolContext): Promise<TResult>;
 
   get parameters(): Record<string, unknown> {
     if (this.parameterSchema) return this.parameterSchema;
 
-    const { $schema, definitions, $ref, ...jsonSchema } = zodToJsonSchema(this.schema, {
+    const toJsonSchema = zodToJsonSchema as (schema: ZodTypeAny, options?: Record<string, unknown>) => Record<string, unknown>;
+    const schemaJson = toJsonSchema(this.schema, {
       name: `${this.name}_schema`,
       $refStrategy: 'none',
-    }) as Record<string, unknown>;
+    });
+
+    const { definitions, $ref, ...jsonSchema } = schemaJson;
 
     if (typeof $ref === 'string' && definitions && typeof definitions === 'object') {
       const definitionKey = $ref.replace('#/definitions/', '');

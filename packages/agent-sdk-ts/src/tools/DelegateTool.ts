@@ -66,12 +66,12 @@ export class DelegateTool extends ZodTool<z.infer<typeof delegateSchema>, Delega
   readonly description = TOOL_DESCRIPTION;
   readonly schema = delegateSchema;
 
-  async execute(args: z.infer<typeof delegateSchema>, _context: ToolContext): Promise<DelegateResult> {
+  execute(args: z.infer<typeof delegateSchema>, _context: ToolContext): Promise<DelegateResult> {
     if (args.command === 'spawn') {
-      return { command: 'spawn', detail: { spawned: args.ids ?? [] } };
+      return Promise.resolve({ command: 'spawn', detail: { spawned: args.ids ?? [] } });
     }
 
-    return { command: 'delegate', detail: { tasks: args.tasks ?? {} } };
+    return Promise.resolve({ command: 'delegate', detail: { tasks: args.tasks ?? {} } });
   }
 }
 

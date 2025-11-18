@@ -66,10 +66,10 @@ const planningSchema = z
 
 const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing files in plain-text format
 * State is persistent across command calls and discussions with the user
-* If \\\"path\\\" is a text file, \\\"view\\\" displays the result of applying cat -n. If \\\"path\\\" is a directory, \\\"view\\\" lists non-hidden files and directories up to 2 levels deep
-* The \\\"create\\\" command cannot be used if the specified \\\"path\\\" already exists as a file
-* If a \\\"command\\\" generates a long output, it will be truncated and marked with <response clipped>
-* The \\\"undo_edit\\\" command will revert the last edit made to the file at \\\"path\\\"
+* If "path" is a text file, "view" displays the result of applying cat -n. If "path" is a directory, "view" lists non-hidden files and directories up to 2 levels deep
+* The "create" command cannot be used if the specified "path" already exists as a file
+* If a "command" generates a long output, it will be truncated and marked with <response clipped>
+* The "undo_edit" command will revert the last edit made to the file at "path"
 * This tool can be used for creating and editing files in plain-text format.
 
 
@@ -85,13 +85,13 @@ When making edits:
 
 CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 
-1. EXACT MATCHING: The \\\"old_str\\\" parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if \\\"old_str\\\" matches multiple locations or doesn't match exactly with the file content.
+1. EXACT MATCHING: The "old_str" parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if "old_str" matches multiple locations or doesn't match exactly with the file content.
 
-2. UNIQUENESS: The \\\"old_str\\\" must uniquely identify a single instance in the file:
+2. UNIQUENESS: The "old_str" must uniquely identify a single instance in the file:
    - Include sufficient context before and after the change point (3-5 lines recommended)
    - If not unique, the replacement will not be performed
 
-3. REPLACEMENT: The \\\"new_str\\\" parameter should contain the edited lines that replace the \\\"old_str\\\". Both strings must be different.
+3. REPLACEMENT: The "new_str" parameter should contain the edited lines that replace the "old_str". Both strings must be different.
 
 Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
 
