@@ -7,7 +7,7 @@ import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
 import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
-import { isTextContent, isMessageEvent, type SecurityRisk } from '../types';
+import { isTextContent, isMessageEvent, isSystemPromptEvent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
@@ -212,7 +212,7 @@ export class Agent extends EventEmitter {
   private buildChatRequest() {
     const messages = this.events
       .list()
-      .filter((event): event is MessageEvent => (event as any).kind === 'MessageEvent')
+      .filter(isMessageEvent)
       .map((event) => event.llm_message);
     const tools = this.getToolDefinitions();
     return { systemPrompt: SYSTEM_PROMPT, messages, tools };
@@ -264,7 +264,7 @@ export class Agent extends EventEmitter {
   }
 
   private ensureSystemPrompt() {
-    const existing = this.events.list().find((event) => (event as any).kind === 'SystemPromptEvent');
+    const existing = this.events.list().find(isSystemPromptEvent);
     if (existing) return;
     this.events.push({
       kind: 'SystemPromptEvent',

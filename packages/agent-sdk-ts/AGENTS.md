@@ -254,7 +254,7 @@ conversation.on('status', (status) => {
 });
 
 conversation.on('event', (event) => {
-  console.log('Event:', (event as any).kind); // MessageEvent, ActionEvent, etc.
+  console.log('Event:', event.kind); // MessageEvent, ActionEvent, etc.
   // Handle different event types with type guards
   if (isMessageEvent(event)) {
     console.log('Message:', event.llm_message);
