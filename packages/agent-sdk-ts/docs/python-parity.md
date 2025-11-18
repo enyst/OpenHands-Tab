@@ -258,6 +258,61 @@ classDiagram
   - Keyword/task triggers
   - Auto `/name` trigger for task skills
   - MCP tool metadata
+## Tool and event parity
+
+### Python tool architecture
+
+In Python, tools are modeled as `ToolDefinition[ActionT, ObservationT]` with a few key components:
+
+- `Action` and `Observation` are Pydantic models (see `openhands.sdk.tool.schema`) that define the structured input/output for a tool.
+- A `ToolDefinition` instance carries:
+  - `name`, `description`, `annotations`, `meta`
+  - `action_type` and `observation_type` (the concrete `Action`/`Observation` subclasses)
+  - a runtime-only `executor: ToolExecutor[ActionT, ObservationT] | None` which performs the side effects
+- `ToolExecutor.__call__(self, action: ActionT, conversation: LocalConversation | None) -> ObservationT` is responsible for executing the tool logic. For example, the Terminal tool uses an executor that runs shell commands in the workspace and returns an `ExecuteBashObservation`.
+- The `Agent` never calls tools directly with raw args. Instead, the flow is:
+  1. LLM produces a tool call (function name + JSON arguments).
+  2. `_get_action_event` parses/validates arguments into an `Action` instance (e.g., `ExecuteBashAction`) and emits an `ActionEvent`.
+  3. `_execute_action_event` looks up the corresponding `ToolDefinition`, invokes its `executor(action, conversation)`, and receives an `Observation`.
+  4. The `Observation` is wrapped in an `ObservationEvent` and appended to the conversation.
+- The `ConversationState` ties everything together by tracking events (including `ActionEvent`/`ObservationEvent`) and execution status.
+
+### TypeScript tool architecture today
+
+In TypeScript, the core tool abstraction is `ToolHandler<TArgs, TResult>` (see `src/sdk/types/tools.ts`):
+
+- `ToolHandler` defines:
+  - `name`, optional `description` and `parameters` (for schema)
+  - `validate(input: unknown): TArgs` to coerce LLM arguments into a concrete args object
+  - `execute(args: TArgs, context: ToolContext): Promise<TResult>` which performs the side effects and returns a result
+  - an optional `getToolDefinition()` to expose an LLM-facing tool schema (`LLMToolDefinition`).
+- Tools like `TerminalTool`, `FileEditorTool`, etc. currently implement `execute()` directly and return a simple result object (`TerminalResult`, `FileEditorResult`, ...). There are no explicit `Action`/`Observation` classes.
+- The `Agent` loop (`src/sdk/runtime/Agent.ts`) handles tool calls by:
+  1. Parsing `tool_call.arguments` as JSON.
+  2. Validating arguments via `tool.validate()`.
+  3. Emitting an `ActionEvent` (using the validated args as a plain record, not a typed `Action` subclass).
+  4. Executing `tool.execute(args, context)` once confirmation policy allows.
+  5. Wrapping the returned result in an `ObservationEvent` where `observation` is a plain JSON object.
+- Event interfaces in `src/sdk/types/index.ts` mirror the Python wire format: `ActionEvent` and `ObservationEvent` are present, but they carry raw records (`Record<string, unknown>`) instead of strongly-typed `Action`/`Observation` models.
+
+### Gaps and intended direction
+
+- The TS runtime currently has **ActionEvent/ObservationEvent types but no first-class Action/Observation classes**. The Python stack uses Pydantic models for validation, kind resolution, and serialization; TS simply forwards validated args/results as plain JSON.
+- There is no `ToolDefinition`/`ToolExecutor` split in TS. `ToolHandler.execute` is both the definition and executor. This is enough for VS Code usage but diverges from Python, where the executor can be swapped or wrapped (e.g., for remote execution, observability, or sandboxing).
+- The Python Agent works in terms of `ActionEvent`→`ToolExecutor`→`ObservationEvent`. TS mirrors the **event shapes** but shortcuts the intermediate typed models.
+
+**Practical parity goal for now:**
+
+Rather than fully re-implementing Pydantic-style action/observation classes in TS, the near-term goal is:
+
+- Keep the event wire format aligned (ActionEvent/ObservationEvent shapes stay compatible with Python).
+- Ensure each tool has a well-defined input/result schema and that the Agent loop always:
+  - emits an `ActionEvent` when the LLM calls a tool;
+  - executes the corresponding tool;
+  - emits an `ObservationEvent` with the structured result.
+
+`TerminalTool` is the first place where we validate this end-to-end behavior for a “real” environment-interacting tool.
+
   - Input validation helpers (`requires_user_input`)
   - Third-party aliasing
 - **TypeScript `Skill`**
