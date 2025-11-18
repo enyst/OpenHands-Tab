@@ -1053,6 +1053,10 @@ interface ToolExecutor {
 }
 ```
 
+**Implementation Notes**:
+- Tool handlers now expose zod schemas to validate inputs and surface JSON schemas for LLM tool definitions (`src/tools/zod-tool.ts`).
+- `Agent` injects tool descriptions into the system prompt so models see name + description context alongside function metadata.
+
 ### TerminalTool
 
 **File**: `src/tools/TerminalTool.ts`
@@ -1177,6 +1181,52 @@ const result = await browser.execute({
 console.log(result.status);   // HTTP status code
 console.log(result.content);  // Response body
 ```
+
+### BrowserUseTool (browser_use toolset)
+
+**File**: `src/tools/BrowserUseTool.ts`
+
+**Capabilities**:
+- Navigation (`browser_navigate`), clicks (`browser_click`), typing (`browser_type`)
+- Page state/content retrieval with optional screenshots (`browser_get_state`, `browser_get_content`)
+- Scrolling and history (`browser_scroll`, `browser_go_back`)
+- Tab management (`browser_list_tabs`, `browser_switch_tab`, `browser_close_tab`)
+
+**Notes**: These tools mirror the Python `browser_use` schemas and share stubbed execution that returns the requested action payload for unit validation.
+
+### DelegateTool
+
+**File**: `src/tools/DelegateTool.ts`
+
+**Capabilities**:
+- `spawn` command to initialize sub-agent identifiers
+- `delegate` command to assign tasks to previously spawned identifiers
+- Validates required fields per command using zod schemas
+
+### GlobTool
+
+**File**: `src/tools/GlobTool.ts`
+
+**Capabilities**:
+- Glob-style file discovery relative to the workspace root or provided path
+- Simple pattern-to-regex translation, sorted results, 100-file truncation
+
+### GrepTool
+
+**File**: `src/tools/GrepTool.ts`
+
+**Capabilities**:
+- Regex-based content search with optional include glob filter
+- Returns matched files sorted by modification time with truncation safeguards
+
+### PlanningFileEditorTool
+
+**File**: `src/tools/PlanningFileEditorTool.ts`
+
+**Capabilities**:
+- Mirrors Python planning file editor schema (view/create/str_replace/insert/undo_edit commands)
+- Enforces write operations against `PLAN.md` while allowing read access to other files
+- Supports simple view ranges and inline replacement/insert helpers for plan content
 
 ### IntegratedTerminalRunner
 

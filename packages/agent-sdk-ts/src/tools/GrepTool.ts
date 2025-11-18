@@ -1,0 +1,115 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { z } from 'zod';
+import type { ToolContext } from './types';
+import { ZodTool } from './zod-tool';
+
+export interface GrepResult {
+  matches: string[];
+  pattern: string;
+  searchPath: string;
+  includePattern?: string;
+  truncated: boolean;
+}
+
+const grepArgsSchema = z.object({
+  pattern: z.string(),
+  path: z.string().optional(),
+  include: z.string().optional(),
+});
+
+const TOOL_DESCRIPTION = `Fast content search tool.
+* Searches file contents using regular expressions
+* Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.)
+* Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
+* Returns matching file paths sorted by modification time.
+* Only the first 100 results are returned. Consider narrowing your search with stricter regex patterns or provide path parameter if you need more results.
+* Use this tool when you need to find files containing specific patterns.`;
+
+const grepParameters = {
+  type: 'object',
+  properties: {
+    pattern: {
+      type: 'string',
+      description: 'The regex pattern to search for in file contents',
+    },
+    path: {
+      type: 'string',
+      description: 'The directory (absolute path) to search in. Defaults to the current working directory.',
+    },
+    include: {
+      type: 'string',
+      description: 'Optional file pattern to filter which files to search (e.g., "*.js", "*.{ts,tsx}")',
+    },
+  },
+  required: ['pattern'],
+};
+
+const MAX_RESULTS = 100;
+
+const globToRegExp = (pattern: string): RegExp => {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '.');
+  return new RegExp(`^${escaped}$`);
+};
+
+const listFiles = async (root: string): Promise<string[]> => {
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  const results: string[] = [];
+  for (const entry of entries) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      const child = await listFiles(fullPath);
+      results.push(...child);
+    } else {
+      results.push(fullPath);
+    }
+  }
+  return results;
+};
+
+export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult> {
+  readonly name = 'grep';
+  readonly description = TOOL_DESCRIPTION;
+  readonly schema = grepArgsSchema;
+  readonly parameters = grepParameters;
+
+  async execute(args: z.infer<typeof grepArgsSchema>, context: ToolContext): Promise<GrepResult> {
+    const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
+    const includeRegex = args.include ? globToRegExp(args.include) : null;
+    const files = await listFiles(searchRoot);
+    const matches: { file: string; mtime: number }[] = [];
+    const contentRegex = new RegExp(args.pattern, 'm');
+
+    for (const file of files) {
+      const relative = path.relative(searchRoot, file);
+      if (includeRegex && !includeRegex.test(relative)) continue;
+      try {
+        const content = await fs.readFile(file, 'utf8');
+        if (contentRegex.test(content)) {
+          const stat = await fs.stat(file);
+          matches.push({ file, mtime: stat.mtimeMs });
+        }
+      } catch {
+        // Ignore unreadable files
+      }
+      if (matches.length > MAX_RESULTS) break;
+    }
+
+    const sorted = matches.sort((a, b) => b.mtime - a.mtime).map((item) => item.file);
+    const truncated = sorted.length > MAX_RESULTS;
+    const limited = truncated ? sorted.slice(0, MAX_RESULTS) : sorted;
+
+    return {
+      matches: limited,
+      pattern: args.pattern,
+      searchPath: searchRoot,
+      includePattern: args.include,
+      truncated,
+    };
+  }
+}
+

@@ -215,15 +215,7 @@ export class Agent extends EventEmitter {
   }
 
   private buildChatRequest() {
-    // Build system prompt with agent context if available
-    let systemPrompt = SYSTEM_PROMPT;
-    if (this.agentContext) {
-      const suffix = this.agentContext.getSystemMessageSuffix();
-      if (suffix) {
-        systemPrompt += '\n\n' + suffix;
-      }
-    }
-
+    const systemPrompt = this.buildSystemPrompt();
     const messages = this.events
       .list()
       .filter(isMessageEvent)
@@ -233,14 +225,47 @@ export class Agent extends EventEmitter {
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {
-    return Array.from(this.tools.values()).map((tool) => ({
-      type: 'function',
-      function: { name: tool.name },
-    }));
+    return Array.from(this.tools.values()).map((tool) => {
+      if (typeof tool.getToolDefinition === 'function') {
+        return tool.getToolDefinition();
+      }
+      const definition: LLMToolDefinition['function'] = { name: tool.name };
+      if (tool.description) {
+        definition.description = tool.description;
+      }
+      if (tool.parameters) {
+        definition.parameters = tool.parameters;
+      }
+      return { type: 'function', function: definition };
+    });
   }
 
   private getToolDefinitionsForEvent(): Record<string, unknown>[] {
     return this.getToolDefinitions().map((tool) => tool as unknown as Record<string, unknown>);
+  }
+
+  private buildSystemPrompt(): string {
+    let systemPrompt = SYSTEM_PROMPT;
+    if (this.agentContext) {
+      const suffix = this.agentContext.getSystemMessageSuffix();
+      if (suffix) {
+        systemPrompt += '\n\n' + suffix;
+      }
+    }
+
+    const summaries = this.getToolDefinitions()
+      .map((tool) => {
+        const description = tool.function.description;
+        if (!description) return undefined;
+        return `- ${tool.function.name}: ${description}`;
+      })
+      .filter((value): value is string => Boolean(value));
+
+    if (summaries.length) {
+      systemPrompt += '\n\nAvailable tools:\n' + summaries.join('\n');
+    }
+
+    return systemPrompt;
   }
 
   private async getOrchestrator(): Promise<AgentOrchestrator> {
@@ -281,15 +306,7 @@ export class Agent extends EventEmitter {
     const existing = this.events.list().find(isSystemPromptEvent);
     if (existing) return;
 
-    // Build system prompt with agent context if available
-    let systemPrompt = SYSTEM_PROMPT;
-    if (this.agentContext) {
-      const suffix = this.agentContext.getSystemMessageSuffix();
-      if (suffix) {
-        systemPrompt += '\n\n' + suffix;
-      }
-    }
-
+    const systemPrompt = this.buildSystemPrompt();
     this.events.push({
       kind: 'SystemPromptEvent',
       source: 'agent',
