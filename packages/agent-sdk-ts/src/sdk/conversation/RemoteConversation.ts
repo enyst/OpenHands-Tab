@@ -448,7 +448,7 @@ export class RemoteConversation extends EventEmitter {
               ? Buffer.concat(data).toString('utf8')
               : Buffer.isBuffer(data)
                 ? data.toString('utf8')
-                : Buffer.from(data as ArrayBuffer).toString('utf8');
+                : Buffer.from(data).toString('utf8');
           const event = JSON.parse(text) as unknown;
           if (isBashEvent(event)) {
             this.emit('terminal', event);
