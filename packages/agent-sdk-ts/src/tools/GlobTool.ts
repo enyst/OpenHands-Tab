@@ -12,8 +12,13 @@ export interface GlobResult {
 }
 
 const globArgsSchema = z.object({
-  pattern: z.string(),
-  path: z.string().optional(),
+  pattern: z
+    .string()
+    .describe('The glob pattern to match files (e.g., "**/*.js", "src/**/*.ts").'),
+  path: z
+    .string()
+    .optional()
+    .describe('The directory (absolute path) to search in. Defaults to the current working directory.'),
 });
 
 const TOOL_DESCRIPTION = `Fast file pattern matching tool.
@@ -27,21 +32,6 @@ Examples:
 - Find TypeScript files in src: "src/**/*.ts"
 - Find Python test files: "**/test_*.py"
 - Find configuration files: "**/*.{json,yaml,yml,toml}"`;
-
-const globParameters = {
-  type: 'object',
-  properties: {
-    pattern: {
-      type: 'string',
-      description: 'The glob pattern to match files (e.g., "**/*.js", "src/**/*.ts")',
-    },
-    path: {
-      type: 'string',
-      description: 'The directory (absolute path) to search in. Defaults to the current working directory.',
-    },
-  },
-  required: ['pattern'],
-};
 
 const MAX_RESULTS = 100;
 
@@ -73,7 +63,6 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
   readonly name = 'glob';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = globArgsSchema;
-  readonly parameters = globParameters;
 
   async execute(args: z.infer<typeof globArgsSchema>, context: ToolContext): Promise<GlobResult> {
     const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;

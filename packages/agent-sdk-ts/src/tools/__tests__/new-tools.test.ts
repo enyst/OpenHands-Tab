@@ -2,12 +2,14 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import {
   BrowserNavigateTool,
   DelegateTool,
   GlobTool,
   GrepTool,
   PlanningFileEditorTool,
+  ZodTool,
 } from '..';
 import { LocalWorkspace } from '../../workspace';
 
@@ -101,6 +103,32 @@ describe('PlanningFileEditorTool', () => {
     const args = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'ok' });
     const workspace = new LocalWorkspace(process.cwd());
     await expect(tool.execute({ ...args, path: 'README.md' }, { workspace })).rejects.toThrow();
+  });
+});
+
+describe('ZodTool parameter conversion', () => {
+  const demoSchema = z.object({ greeting: z.string().describe('A greeting message.') });
+
+  class DemoTool extends ZodTool<z.infer<typeof demoSchema>, { ok: boolean }> {
+    readonly name = 'demo';
+    readonly description = 'demo tool';
+    readonly schema = demoSchema;
+
+    async execute(): Promise<{ ok: boolean }> {
+      return { ok: true };
+    }
+  }
+
+  it('produces JSON Schema parameters from zod definitions', () => {
+    const tool = new DemoTool();
+    const definition = tool.getToolDefinition();
+    expect(definition.function.parameters).toMatchObject({
+      type: 'object',
+      properties: {
+        greeting: { type: 'string', description: 'A greeting message.' },
+      },
+      required: ['greeting'],
+    });
   });
 });
 

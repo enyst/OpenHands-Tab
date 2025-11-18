@@ -15,42 +15,59 @@ const stubExecution = (name: string, args: Record<string, unknown>): BrowserUseR
 });
 
 const navigateSchema = z.object({
-  url: z.string().url(),
-  new_tab: booleanWithDefault(false),
+  url: z.string().url().describe('The URL to navigate to'),
+  new_tab: booleanWithDefault(false).describe('Whether to open in a new tab. Default: False'),
 });
 
 const clickSchema = z.object({
-  index: z.number().int().min(0),
-  new_tab: booleanWithDefault(false),
+  index: z
+    .number()
+    .int()
+    .min(0)
+    .describe('The index of the element to click (from browser_get_state).'),
+  new_tab: booleanWithDefault(false).describe(
+    'Whether to open any resulting navigation in a new tab. Default: False',
+  ),
 });
 
 const typeSchema = z.object({
-  index: z.number().int().min(0),
-  text: z.string(),
+  index: z
+    .number()
+    .int()
+    .min(0)
+    .describe('The index of the input element (from browser_get_state).'),
+  text: z.string().describe('The text to type.'),
 });
 
 const getStateSchema = z.object({
-  include_screenshot: booleanWithDefault(false),
+  include_screenshot: booleanWithDefault(false).describe(
+    'Whether to include a screenshot of the current page. Default: False',
+  ),
 });
 
 const getContentSchema = z.object({
-  extract_links: booleanWithDefault(false),
-  start_from_char: z.number().int().min(0).default(0),
+  extract_links: booleanWithDefault(false).describe('Whether to include links in the content (default: False).'),
+  start_from_char: z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe('Character index to start from in the page content (default: 0).'),
 });
 
 const scrollSchema = z.object({
-  direction: z.union([z.literal('up'), z.literal('down')]).default('down'),
+  direction: z.enum(['up', 'down']).default('down').describe("Direction to scroll - 'up' or 'down'. Default: 'down'."),
 });
 
 const goBackSchema = z.object({});
 const listTabsSchema = z.object({});
 
 const switchTabSchema = z.object({
-  tab_id: z.string(),
+  tab_id: z.string().describe('4 Character Tab ID of the tab to switch to.'),
 });
 
 const closeTabSchema = z.object({
-  tab_id: z.string(),
+  tab_id: z.string().describe('4 Character Tab ID of the tab to close.'),
 });
 
 const BROWSER_NAVIGATE_DESCRIPTION = `Navigate to a URL in the browser.
@@ -130,91 +147,6 @@ Use this tool to close tabs you no longer need. Get the tab_id from browser_list
 Parameters:
 - tab_id: 4 Character Tab ID of the tab to close`;
 
-const navParams = {
-  type: 'object',
-  properties: {
-    url: { type: 'string', description: 'The URL to navigate to' },
-    new_tab: {
-      type: 'boolean',
-      description: 'Whether to open in a new tab. Default: False',
-    },
-  },
-  required: ['url'],
-};
-
-const clickParams = {
-  type: 'object',
-  properties: {
-    index: {
-      type: 'integer',
-      description: 'The index of the element to click (from browser_get_state)',
-      minimum: 0,
-    },
-    new_tab: {
-      type: 'boolean',
-      description: 'Whether to open any resulting navigation in a new tab. Default: False',
-    },
-  },
-  required: ['index'],
-};
-
-const typeParams = {
-  type: 'object',
-  properties: {
-    index: {
-      type: 'integer',
-      description: 'The index of the input element (from browser_get_state)',
-      minimum: 0,
-    },
-    text: { type: 'string', description: 'The text to type' },
-  },
-  required: ['index', 'text'],
-};
-
-const getStateParams = {
-  type: 'object',
-  properties: {
-    include_screenshot: {
-      type: 'boolean',
-      description: 'Whether to include a screenshot of the current page. Default: False',
-    },
-  },
-};
-
-const getContentParams = {
-  type: 'object',
-  properties: {
-    extract_links: {
-      type: 'boolean',
-      description: 'Whether to include links in the content (default: False)',
-    },
-    start_from_char: {
-      type: 'integer',
-      description: 'Character index to start from in the page content (default: 0)',
-      minimum: 0,
-    },
-  },
-};
-
-const scrollParams = {
-  type: 'object',
-  properties: {
-    direction: {
-      type: 'string',
-      enum: ['up', 'down'],
-      description: "Direction to scroll. Options: 'up', 'down'. Default: 'down'",
-    },
-  },
-};
-
-const tabParamShape = {
-  type: 'object',
-  properties: {
-    tab_id: { type: 'string', description: '4 Character Tab ID of the tab' },
-  },
-  required: ['tab_id'],
-};
-
 abstract class BaseBrowserUseTool extends ZodTool<Record<string, unknown>, BrowserUseResult> {
   async execute(args: Record<string, unknown>, _context: ToolContext): Promise<BrowserUseResult> {
     return Promise.resolve(stubExecution(this.name, args));
@@ -225,70 +157,60 @@ export class BrowserNavigateTool extends BaseBrowserUseTool {
   readonly name = 'browser_navigate';
   readonly description = BROWSER_NAVIGATE_DESCRIPTION;
   readonly schema = navigateSchema;
-  readonly parameters = navParams;
 }
 
 export class BrowserClickTool extends BaseBrowserUseTool {
   readonly name = 'browser_click';
   readonly description = BROWSER_CLICK_DESCRIPTION;
   readonly schema = clickSchema;
-  readonly parameters = clickParams;
 }
 
 export class BrowserTypeTool extends BaseBrowserUseTool {
   readonly name = 'browser_type';
   readonly description = BROWSER_TYPE_DESCRIPTION;
   readonly schema = typeSchema;
-  readonly parameters = typeParams;
 }
 
 export class BrowserGetStateTool extends BaseBrowserUseTool {
   readonly name = 'browser_get_state';
   readonly description = BROWSER_GET_STATE_DESCRIPTION;
   readonly schema = getStateSchema;
-  readonly parameters = getStateParams;
 }
 
 export class BrowserGetContentTool extends BaseBrowserUseTool {
   readonly name = 'browser_get_content';
   readonly description = BROWSER_GET_CONTENT_DESCRIPTION;
   readonly schema = getContentSchema;
-  readonly parameters = getContentParams;
 }
 
 export class BrowserScrollTool extends BaseBrowserUseTool {
   readonly name = 'browser_scroll';
   readonly description = BROWSER_SCROLL_DESCRIPTION;
   readonly schema = scrollSchema;
-  readonly parameters = scrollParams;
 }
 
 export class BrowserGoBackTool extends BaseBrowserUseTool {
   readonly name = 'browser_go_back';
   readonly description = BROWSER_GO_BACK_DESCRIPTION;
   readonly schema = goBackSchema;
-  readonly parameters = { type: 'object', properties: {} };
 }
 
 export class BrowserListTabsTool extends BaseBrowserUseTool {
   readonly name = 'browser_list_tabs';
   readonly description = BROWSER_LIST_TABS_DESCRIPTION;
   readonly schema = listTabsSchema;
-  readonly parameters = { type: 'object', properties: {} };
 }
 
 export class BrowserSwitchTabTool extends BaseBrowserUseTool {
   readonly name = 'browser_switch_tab';
   readonly description = BROWSER_SWITCH_TAB_DESCRIPTION;
   readonly schema = switchTabSchema;
-  readonly parameters = tabParamShape;
 }
 
 export class BrowserCloseTabTool extends BaseBrowserUseTool {
   readonly name = 'browser_close_tab';
   readonly description = BROWSER_CLOSE_TAB_DESCRIPTION;
   readonly schema = closeTabSchema;
-  readonly parameters = tabParamShape;
 }
 
 export const browserUseTools = [

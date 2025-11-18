@@ -338,6 +338,12 @@ classDiagram
 - Add file-backed storage with deterministic naming/indexing and duplicate protection
 - Port persistence constants, diffing, and cross-process locks
 - Persist secrets and conversation state for resume/replay
+
+## Tool schema parity
+
+- Introduced zod-backed tool definitions for `browser_use`, `delegate`, `glob`, `grep`, and `planning_file_editor` so the TypeScript
+  SDK mirrors the Python tool descriptions and annotations. Structured tools now surface JSON Schema parameters in the system
+  prompt to keep VS Code behavior aligned with the reference SDK.
 - Expose hydration helpers mirroring Python's `ConversationState.create`
 
 ### Event interface coverage

@@ -15,19 +15,37 @@ export interface PlanningFileEditorResult {
 
 const planningSchema = z
   .object({
-    command: z.union([
-      z.literal('view'),
-      z.literal('create'),
-      z.literal('str_replace'),
-      z.literal('insert'),
-      z.literal('undo_edit'),
-    ]),
-    path: z.string(),
-    file_text: z.string().optional(),
-    old_str: z.string().optional(),
-    new_str: z.string().optional(),
-    insert_line: z.number().int().min(0).optional(),
-    view_range: z.array(z.number().int()).length(2).optional(),
+    command: z
+      .enum(['view', 'create', 'str_replace', 'insert', 'undo_edit'])
+      .describe('Allowed options: `view`, `create`, `str_replace`, `insert`, `undo_edit`.'),
+    path: z.string().describe('Absolute path to file or directory.'),
+    file_text: z
+      .string()
+      .optional()
+      .describe('Required for `create` command, with the content of the file to be created.'),
+    old_str: z
+      .string()
+      .optional()
+      .describe('Required for `str_replace` command containing the string in `path` to replace.'),
+    new_str: z
+      .string()
+      .optional()
+      .describe(
+        'Optional for `str_replace` (new text to use). Required for `insert` containing the string to insert.',
+      ),
+    insert_line: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Required for `insert`. The `new_str` will be inserted AFTER the line `insert_line` of `path`.'),
+    view_range: z
+      .array(z.number().int())
+      .length(2)
+      .optional()
+      .describe(
+        'Optional for `view` when `path` points to a file. If provided, the file will be shown in the indicated line number range.',
+      ),
   })
   .superRefine((value, ctx) => {
     if (value.command === 'create' && value.file_text === undefined) {
@@ -84,43 +102,6 @@ IMPORTANT RESTRICTION FOR PLANNING AGENT:
 * All editing commands (create, str_replace, insert, undo_edit) are restricted to PLAN.md only
 * The PLAN.md file already contains the required section structure - you just need to fill in the content`;
 
-const planningParameters = {
-  type: 'object',
-  properties: {
-    command: {
-      type: 'string',
-      enum: ['view', 'create', 'str_replace', 'insert', 'undo_edit'],
-      description: 'The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.',
-    },
-    path: { type: 'string', description: 'Absolute path to file or directory.' },
-    file_text: {
-      type: 'string',
-      description: 'Required parameter of `create` command, with the content of the file to be created.',
-    },
-    old_str: {
-      type: 'string',
-      description: 'Required parameter of `str_replace` command containing the string in `path` to replace.',
-    },
-    new_str: {
-      type: 'string',
-      description:
-        'Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing the string to insert.',
-    },
-    insert_line: {
-      type: 'integer',
-      description: 'Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.',
-      minimum: 0,
-    },
-    view_range: {
-      type: 'array',
-      items: { type: 'integer' },
-      description:
-        'Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range.',
-    },
-  },
-  required: ['command', 'path'],
-};
-
 const PLAN_BASENAME = 'PLAN.md';
 
 const applyViewRange = (content: string, viewRange?: number[]): string => {
@@ -135,7 +116,6 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
   readonly name = 'planning_file_editor';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = planningSchema;
-  readonly parameters = planningParameters;
 
   private ensurePlanTarget(command: PlanningCommand, resolvedPath: string) {
     if (command === 'view') return;

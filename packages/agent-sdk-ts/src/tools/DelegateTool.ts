@@ -11,9 +11,18 @@ export interface DelegateResult {
 
 const delegateSchema = z
   .object({
-    command: z.union([z.literal('spawn'), z.literal('delegate')]),
-    ids: z.array(z.string()).nonempty().optional(),
-    tasks: z.record(z.string()).optional(),
+    command: z
+      .union([z.literal('spawn'), z.literal('delegate')])
+      .describe('The commands to run. Allowed options are: `spawn`, `delegate`.'),
+    ids: z
+      .array(z.string())
+      .nonempty()
+      .optional()
+      .describe('Required for `spawn`. List of identifiers to initialize sub-agents with.'),
+    tasks: z
+      .record(z.string())
+      .optional()
+      .describe('Required for `delegate`. Dictionary mapping identifiers to task descriptions.'),
   })
   .superRefine((value, ctx) => {
     if (value.command === 'spawn' && (!value.ids || value.ids.length === 0)) {
@@ -52,33 +61,10 @@ This tool provides two commands:
 - All operations are blocking and return comprehensive results
 - Sub-agents work in the same workspace as the main agent`;
 
-const delegateParameters = {
-  type: 'object',
-  properties: {
-    command: {
-      type: 'string',
-      description: 'The commands to run. Allowed options are: `spawn`, `delegate`.',
-      enum: ['spawn', 'delegate'],
-    },
-    ids: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Required for `spawn`. List of identifiers to initialize sub-agents with.',
-    },
-    tasks: {
-      type: 'object',
-      additionalProperties: { type: 'string' },
-      description: 'Required for `delegate`. Dictionary mapping identifiers to task descriptions.',
-    },
-  },
-  required: ['command'],
-};
-
 export class DelegateTool extends ZodTool<z.infer<typeof delegateSchema>, DelegateResult> {
   readonly name = 'delegate';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = delegateSchema;
-  readonly parameters = delegateParameters;
 
   async execute(args: z.infer<typeof delegateSchema>, _context: ToolContext): Promise<DelegateResult> {
     if (args.command === 'spawn') {

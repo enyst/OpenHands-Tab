@@ -13,9 +13,15 @@ export interface GrepResult {
 }
 
 const grepArgsSchema = z.object({
-  pattern: z.string(),
-  path: z.string().optional(),
-  include: z.string().optional(),
+  pattern: z.string().describe('The regex pattern to search for in file contents.'),
+  path: z
+    .string()
+    .optional()
+    .describe('The directory (absolute path) to search in. Defaults to the current working directory.'),
+  include: z
+    .string()
+    .optional()
+    .describe('Optional file pattern to filter which files to search (e.g., "*.js", "*.{ts,tsx}").'),
 });
 
 const TOOL_DESCRIPTION = `Fast content search tool.
@@ -25,25 +31,6 @@ const TOOL_DESCRIPTION = `Fast content search tool.
 * Returns matching file paths sorted by modification time.
 * Only the first 100 results are returned. Consider narrowing your search with stricter regex patterns or provide path parameter if you need more results.
 * Use this tool when you need to find files containing specific patterns.`;
-
-const grepParameters = {
-  type: 'object',
-  properties: {
-    pattern: {
-      type: 'string',
-      description: 'The regex pattern to search for in file contents',
-    },
-    path: {
-      type: 'string',
-      description: 'The directory (absolute path) to search in. Defaults to the current working directory.',
-    },
-    include: {
-      type: 'string',
-      description: 'Optional file pattern to filter which files to search (e.g., "*.js", "*.{ts,tsx}")',
-    },
-  },
-  required: ['pattern'],
-};
 
 const MAX_RESULTS = 100;
 
@@ -75,7 +62,6 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
   readonly name = 'grep';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = grepArgsSchema;
-  readonly parameters = grepParameters;
 
   async execute(args: z.infer<typeof grepArgsSchema>, context: ToolContext): Promise<GrepResult> {
     const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
