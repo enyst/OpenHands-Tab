@@ -199,7 +199,7 @@ Detailed documentation is available in the [docs/](docs/) directory:
 
 - **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
 - **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
-- **[agent-sdk-architecture.md](docs/agent-sdk-architecture.md)** - Comprehensive SDK architecture documentation
+- **[agent-sdk-architecture.md](docs/agent-sdk-architecture.md)** - SDK architecture documentation
 - **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
 - **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
 - **[LINTING.md](docs/LINTING.md)** - Linting guidelines and configuration
