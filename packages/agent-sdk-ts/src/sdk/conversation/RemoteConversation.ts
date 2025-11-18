@@ -1,5 +1,8 @@
 import EventEmitter from 'events';
 import WebSocket from 'ws';
+// TypeScript may not have @types/ws in downstream consumers; provide a minimal ambient declaration as fallback.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type WebSocketRawData = unknown;
 import type { BashEvent, Event, Message } from '../types';
 import { isBashEvent, isEvent as isAgentEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
@@ -372,7 +375,7 @@ export class RemoteConversation extends EventEmitter {
 
     ws.on('open', () => { this.retryCount = 0; this.setStatus('online'); });
     ws.on('close', () => { this.setStatus('offline'); this.scheduleReconnect(); });
-    ws.on('error', (err) => { this.emit('error', err); this.setStatus('offline'); this.scheduleReconnect(); });
+    ws.on('error', (err: Error) => { this.emit('error', err); this.setStatus('offline'); this.scheduleReconnect(); });
     ws.on('message', (buf: Buffer) => {
       try {
         const str = buf.toString('utf8');
@@ -439,8 +442,8 @@ export class RemoteConversation extends EventEmitter {
       this.bashWs = ws;
       ws.on('open', () => { this.bashRetryCount = 0; });
       ws.on('close', () => { this.scheduleBashReconnect(); });
-      ws.on('error', (err) => { this.emit('error', err); this.scheduleBashReconnect(); });
-      ws.on('message', (data: WebSocket.RawData) => {
+      ws.on('error', (err: Error) => { this.emit('error', err); this.scheduleBashReconnect(); });
+      ws.on('message', (data: WebSocket.RawData | WebSocketRawData) => {
         try {
           const text = typeof data === 'string'
             ? data
@@ -448,7 +451,7 @@ export class RemoteConversation extends EventEmitter {
               ? Buffer.concat(data).toString('utf8')
               : Buffer.isBuffer(data)
                 ? data.toString('utf8')
-                : Buffer.from(data).toString('utf8');
+                : Buffer.from(data as ArrayBuffer).toString('utf8');
           const event = JSON.parse(text) as unknown;
           if (isBashEvent(event)) {
             this.emit('terminal', event);
