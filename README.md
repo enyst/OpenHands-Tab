@@ -96,7 +96,7 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - `TaskTrackerTool` - In-memory tasks: actions {create, update, complete, list}; fields: {title, notes, completed}
 - `BrowserTool` - HTTP GET/POST with size limits (maxBytes). URL validation (http/https only).
 - `BrowserUseTool` - Browser automation suite with 10 tools for navigation, clicking, typing, scrolling, tab management, and content extraction (currently stubbed)
-- `DelegateTool` - Multi-agent delegation for spawning and managing sub-agents
+- `DelegateTool` - Multi-agent delegation for spawning and managing sub-agents (currently stubbed)
 - `GlobTool` - File pattern matching using picomatch for finding files by glob patterns
 - `GrepTool` - Content search with regex support for searching code and text
 - `PlanningFileEditorTool` - Planning-specific file editor restricted to PLAN.md
