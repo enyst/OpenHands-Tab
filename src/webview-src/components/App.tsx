@@ -549,10 +549,10 @@ export function App() {
 
   // Define callback functions before useEffects that depend on them
   const handleEvent = useCallback((e: unknown) => {
-    if (!isEvent(e)) return;
+    const known = isEvent(e);
 
     // Track agent status from ConversationStateUpdateEvent
-    if (isConversationStateUpdateEvent(e)) {
+    if (known && isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
         // Show status message only when transitioning INTO confirmation mode (not on repeated updates)
@@ -565,41 +565,47 @@ export function App() {
       return;
     }
 
-    // Track pending actions (actions awaiting confirmation or execution)
-    // Deduplicate by tool_call_id to prevent duplicate cards on reconnection or retries
-    if (isActionEvent(e)) {
-      setPendingActions((prev) => {
-        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-        return exists ? prev : [...prev, e];
-      });
-    }
-
-    // Clear pending action when we receive its observation
-    // Also reset in-flight flag to allow new confirmations
-    if (isObservationEvent(e) || isUserRejectObservation(e)) {
-      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
+    if (known) {
+      // Track pending actions (actions awaiting confirmation or execution)
+      // Deduplicate by tool_call_id to prevent duplicate cards on reconnection or retries
+      if (isActionEvent(e)) {
+        setPendingActions((prev) => {
+          const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
+          return exists ? prev : [...prev, e];
+        });
       }
-      setIsSubmitting(false);
-    }
 
-    // Show status messages for certain events
-    if (isAgentErrorEvent(e)) {
-      showStatusMessage('error', e.error);
-      // Reset in-flight flag on error to allow recovery
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
+      // Clear pending action when we receive its observation
+      // Also reset in-flight flag to allow new confirmations
+      if (isObservationEvent(e) || isUserRejectObservation(e)) {
+        setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
+        if (submissionTimeoutRef.current) {
+          clearTimeout(submissionTimeoutRef.current);
+          submissionTimeoutRef.current = null;
+        }
+        setIsSubmitting(false);
       }
-      setIsSubmitting(false);
-    } else if (isPauseEvent(e)) {
-      showStatusMessage('warn', 'Conversation paused');
+
+      // Show status messages for certain events
+      if (isAgentErrorEvent(e)) {
+        showStatusMessage('error', e.error);
+        // Reset in-flight flag on error to allow recovery
+        if (submissionTimeoutRef.current) {
+          clearTimeout(submissionTimeoutRef.current);
+          submissionTimeoutRef.current = null;
+        }
+        setIsSubmitting(false);
+      } else if (isPauseEvent(e)) {
+        showStatusMessage('warn', 'Conversation paused');
+      }
     }
 
-    // Add event to the list for rendering
-    setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
+    // Add event to the list for rendering regardless of type guard outcome,
+    // but explicitly skip ConversationStateUpdateEvent which should not be rendered
+    if ((e as any)?.kind === 'ConversationStateUpdateEvent') {
+      return;
+    }
+    setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
   }, [showStatusMessage]);
 
   // Signal webview is ready on mount

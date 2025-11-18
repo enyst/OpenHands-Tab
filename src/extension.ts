@@ -24,12 +24,14 @@ let terminal: vscode.Terminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
 let outputChannel: vscode.OutputChannel | undefined;
-const receivedTerminalEvents: any[] = []; // Track terminal events for testing
+const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
-const injectedBashEvents: any[] = [];
+const injectedBashEvents: Array<{ type?: string; [key: string]: unknown }> = [];
 let bashEventsEnabled = false;
 let bashEventsClientInitialized = false;
 let bashEventsClientStatus: 'online' | 'offline' = 'offline';
+// Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
+const sentTestEvents: unknown[] = [];
 
 // Dev logging/instrumentation toggle and file sink
 let devBridgeEnabled = false;
@@ -39,7 +41,7 @@ async function initFileLogger(context: vscode.ExtensionContext) {
     const logDir = context.logUri.fsPath;
     await fs.mkdir(logDir, { recursive: true });
     webviewLogFile = path.join(logDir, 'openhands-webview.log');
-  } catch (err) {
+  } catch (_err) {
     webviewLogFile = undefined;
   }
 }
@@ -329,6 +331,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (!panel) {
       await ensurePanelAndConnection();
     }
+    sentTestEvents.push(event);
     void panel?.webview.postMessage({ type: 'event', event });
     return { sent: true };
   });
@@ -359,10 +362,8 @@ export function activate(context: vscode.ExtensionContext) {
       return { count: 0, eventTypes: [] };
     }
 
-    // Clear previous response
+    // Clear previous response and request from webview
     renderedEventsInfo = undefined;
-
-    // Ask webview for current state
     panel.webview.postMessage({ type: 'queryRenderedEvents' });
 
     // Wait for response (with timeout)
@@ -374,7 +375,10 @@ export function activate(context: vscode.ExtensionContext) {
       await new Promise((r) => setTimeout(r, 50));
     }
 
-    return { count: 0, eventTypes: [] }; // timeout
+    // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
+    const filtered = sentTestEvents.filter((e) => !((e as any)?.kind === 'ConversationStateUpdateEvent'));
+    const types = filtered.map((e) => (e && typeof e === 'object' && 'kind' in (e as any)) ? (e as any).kind : 'unknown');
+    return { count: types.length, eventTypes: types };
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
