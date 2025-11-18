@@ -46,6 +46,32 @@ This setup is intended for:
 
 ## Step-by-Step Setup
 
+## Quick Start (using scripts)
+
+If this repository is already on the remote machine, you can use helper scripts to start/stop/status everything in one step:
+
+- Start on default port 12000:
+  ./scripts/start-remote-vscode.sh
+- Start on second host/port 12001:
+  NOVNC_PORT=12001 ./scripts/start-remote-vscode.sh
+- Check status:
+  ./scripts/status-remote-vscode.sh
+- Stop services:
+  ./scripts/stop-remote-vscode.sh
+
+These scripts:
+- Start Xvfb, Fluxbox, x11vnc (VNC), websockify (noVNC) and VS Code in extension dev mode
+- Generate a VNC password if missing and save the plaintext at /tmp/vnc_password
+- Write logs to /tmp/*.log and store PIDs in /tmp/*.pid
+
+Environment overrides:
+- DISPLAY (default :1)
+- VNC_PORT (default 5901)
+- NOVNC_PORT (default 12000)
+- RES (default 1280x800x24)
+- WEBROOT (default /usr/share/novnc)
+
+
 ### 1. Install Required Packages
 
 ```bash
