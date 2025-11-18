@@ -121,17 +121,19 @@ describe('LocalConversation persistence', () => {
     await conversation.sendUserMessage('first message');
 
     // Restore and continue
+    const restoredEvents: Event[] = [];
     const restored = new LocalConversation({
       settings: baseSettings,
       workspaceRoot,
       llmClient: llm,
       persistenceDir: dir,
     });
+    restored.on('event', (e) => restoredEvents.push(e));
     restored.restoreConversation(id!);
 
-    const messagesBefore = (restored as unknown as { events: EventLog }).events.list().length;
+    const messagesBefore = restoredEvents.length;
     await restored.sendUserMessage('second message');
-    const messagesAfter = (restored as unknown as { events: EventLog }).events.list().length;
+    const messagesAfter = restoredEvents.length;
 
     expect(messagesAfter).toBeGreaterThan(messagesBefore);
   });
