@@ -89,26 +89,15 @@ export class AgentContext {
   getSystemMessageSuffix(): string | null {
     const repoSkills = this.skills.filter((s) => s.trigger === null);
 
-    if (repoSkills.length > 0) {
-      // Build the system message suffix with repo skills
-      let formatted = '';
+    const repoSkillContent = repoSkills
+      .map((skill) => `## ${skill.name}\n\n${skill.content}`)
+      .join('\n\n');
 
-      // Add repo skill content
-      for (const skill of repoSkills) {
-        formatted += `\n\n## ${skill.name}\n\n${skill.content}`;
-      }
+    const suffix = [repoSkillContent, this.systemMessageSuffix?.trim()]
+      .filter(Boolean)
+      .join('\n\n');
 
-      // Add custom suffix if provided
-      if (this.systemMessageSuffix?.trim()) {
-        formatted += `\n\n${this.systemMessageSuffix.trim()}`;
-      }
-
-      return formatted.trim();
-    } else if (this.systemMessageSuffix?.trim()) {
-      return this.systemMessageSuffix.trim();
-    }
-
-    return null;
+    return suffix || null;
   }
 
   /**
