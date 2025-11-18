@@ -583,6 +583,7 @@ Invalid`);
 
       // Should continue despite error, but valid skill won't load either due to loadSkillsFromDir throwing
       // The error is caught and logged in loadUserSkills
+      expect(skills).toEqual([]); // Returns empty array due to error
       expect(consoleSpy).toHaveBeenCalled();
       expect(consoleSpy.mock.calls.some(call =>
         call[0].includes('Failed to load user skills')
