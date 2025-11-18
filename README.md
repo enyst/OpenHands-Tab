@@ -81,6 +81,8 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - `ConversationState` - Stateful conversation tracking with snapshots
 - `SecretRegistry` - Secure credential and secret management
 - `AsyncLock` - Concurrency control for agent operations
+- `AgentContext` - Skills system for loading and managing agent capabilities from markdown files
+- Skills support with trigger types (KeywordTrigger, TaskTrigger) and ~/.openhands/skills/ directory
 
 **LLM Integration**:
 - Streaming LLM clients for Anthropic and OpenAI-compatible APIs
@@ -93,6 +95,11 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - `FileEditorTool` - Write or append file contents with path validation. Args: { path, content, append? }
 - `TaskTrackerTool` - In-memory tasks: actions {create, update, complete, list}; fields: {title, notes, completed}
 - `BrowserTool` - HTTP GET/POST with size limits (maxBytes). URL validation (http/https only).
+- `BrowserUseTool` - Browser automation suite with 10 tools for navigation, clicking, typing, scrolling, tab management, and content extraction (currently stubbed)
+- `DelegateTool` - Multi-agent delegation for spawning and managing sub-agents (currently stubbed)
+- `GlobTool` - File pattern matching using picomatch for finding files by glob patterns
+- `GrepTool` - Content search with regex support for searching code and text
+- `PlanningFileEditorTool` - Planning-specific file editor restricted to PLAN.md
 - `IntegratedTerminalRunner` - VS Code terminal-backed command runner used by TerminalTool
 
 **Workspace Abstraction**:
@@ -103,7 +110,12 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - Type guards for runtime validation
 - Support for all event types (MessageEvent, ActionEvent, ObservationEvent, etc.)
 
-See `packages/agent-sdk-ts/AGENTS.md` and `docs/agent-sdk-architecture.md` for detailed SDK documentation.
+**Testing**:
+- Unit tests with Vitest and @testing-library/react
+- E2E tests with Mocha and @vscode/test-electron
+- Coverage thresholds: 60% statements, 50% branches, 60% functions, 60% lines
+
+See [AGENTS.md](AGENTS.md) for contribution guidelines, [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) for detailed SDK documentation, and [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) for architecture details.
 
 ### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
@@ -185,8 +197,15 @@ If your agent-server requires a session API key:
 
 Detailed documentation is available in the [docs/](docs/) directory:
 
-- **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
-- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
-- **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
+- **[AGENTS.md](AGENTS.md)** - Contribution guidelines for AI agents
+- **[agent-sdk-architecture.md](docs/agent-sdk-architecture.md)** - SDK architecture documentation
 - **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
+- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
+- **[LINTING.md](docs/LINTING.md)** - Linting guidelines and configuration
+- **[packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md)** - SDK-specific development guidelines and architecture
+- **[packages/agent-sdk-ts/docs/python-parity.md](packages/agent-sdk-ts/docs/python-parity.md)** - Python SDK alignment documentation
+- **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
+- **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
+- **[vscode_local_setup.md](docs/vscode_local_setup.md)** - Local VS Code setup for development
 - **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
+- **Bash Events** - Live terminal integration is now handled by `LocalConversation` in local mode.
