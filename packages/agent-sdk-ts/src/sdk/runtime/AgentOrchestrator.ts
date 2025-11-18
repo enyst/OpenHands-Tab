@@ -14,7 +14,7 @@ export class AgentOrchestrator {
 
   constructor(private readonly llm: LLMClient, options: AgentOrchestratorOptions = {}) {
     this.events = options.events ?? new EventLog();
-    this.state = options.state ?? new ConversationState(this.events);
+    this.state = options.state ?? new ConversationState({ eventLog: this.events });
     this.state.attachEventLog(this.events);
   }
 

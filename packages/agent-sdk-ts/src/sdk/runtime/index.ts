@@ -4,3 +4,4 @@ export * from './SecretRegistry';
 export * from './AsyncLock';
 export * from './Agent';
 export * from './AgentOrchestrator';
+export * from './persistence';
