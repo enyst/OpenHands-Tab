@@ -35,7 +35,7 @@ export class Skill {
   inputs: InputMetadata[];
 
   // Map third-party files to skill names
-  private static readonly PATH_TO_THIRD_PARTY_SKILL_NAME: Record<string, string> = {
+  public static readonly PATH_TO_THIRD_PARTY_SKILL_NAME: Record<string, string> = {
     '.cursorrules': 'cursorrules',
     'agents.md': 'agents',
     'agent.md': 'agents',
