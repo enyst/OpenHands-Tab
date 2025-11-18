@@ -181,11 +181,11 @@ export const isImageContent = (content: Content): content is ImageContent => con
 
 // Event kind guards (backward-compatible)
 const eventDiscriminant = (e: unknown): string | undefined => {
-  const obj = e as any;
-  const k = obj?.kind;
-  if (typeof k === 'string') return k;
-  const t = obj?.type;
-  return typeof t === 'string' ? t : undefined;
+  if (typeof e !== 'object' || !e) return undefined;
+  const obj = e as { kind?: unknown; type?: unknown };
+  if (typeof obj.kind === 'string') return obj.kind;
+  if (typeof obj.type === 'string') return obj.type;
+  return undefined;
 };
 
 export const isSystemPromptEvent = (event: Event): event is SystemPromptEvent => eventDiscriminant(event) === 'SystemPromptEvent';
