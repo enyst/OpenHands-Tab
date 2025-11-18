@@ -60,6 +60,16 @@ For each common action, here are both the Visual (UI) steps and equivalent CLI t
   - Visual: Command Palette → Developer: Open Webview Developer Tools
   - CLI: Not reliably exposed via a stable command ID. Workaround: open Developer Tools (above) and select the webview iframe in the Elements panel.
 
+Note on Webview DevTools from CLI
+- Visual: Command Palette → Developer: Open Webview Developer Tools
+- CLI: Not reliably exposed via a stable command ID. Workarounds and alternatives:
+  - Open main DevTools via CLI and select the webview iframe: code --command workbench.action.toggleDevTools
+  - Bridge logs and network from webview to extension host (recommended). This repository implements:
+    - Console bridge (console.log/warn/error), window.onerror, and unhandledrejection → posted to extension → written to Output channel.
+    - Network bridge: fetch wrapper and WebSocket lifecycle events → posted to extension → written to Output channel.
+  - Run the webview bundle in a browser harness with a mock acquireVsCodeApi for deep inspection.
+
+
 - Open Output panel (to view logs)
   - Visual: View → Output, then pick the "OpenHands" channel
   - CLI: code --command workbench.action.output.toggleOutput (opens/toggles Output; channel selection is manual)

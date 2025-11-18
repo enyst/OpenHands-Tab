@@ -638,7 +638,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
   return async (msg: unknown) => {
     // Type guard for message structure
     if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown };
+    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown; level?: unknown; args?: unknown; message?: unknown; stack?: unknown; phase?: unknown; id?: unknown; method?: unknown; url?: unknown; status?: unknown; ok?: unknown };
 
     switch (message.type) {
       case 'webviewReady':
@@ -721,6 +721,42 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
           renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
         }
         break;
+      case 'webviewConsole': {
+        const level = (typeof message.level === 'string' ? message.level : 'log') as 'log' | 'warn' | 'error';
+        const args = Array.isArray(message.args) ? message.args : [];
+        outputChannel?.appendLine(`[webview ${level}] ${args.join(' ')}`);
+        break;
+      }
+      case 'webviewError': {
+        const m = typeof message.message === 'string' ? message.message : 'error';
+        const s = typeof message.stack === 'string' ? message.stack : '';
+        outputChannel?.appendLine(`[webview error] ${m}`);
+        if (s) outputChannel?.appendLine(s);
+        break;
+      }
+      case 'webviewNetwork': {
+        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
+        const id = typeof message.id === 'string' ? message.id : '';
+        const method = typeof message.method === 'string' ? message.method : '';
+        const url = typeof message.url === 'string' ? message.url : '';
+        const status = typeof message.status === 'number' ? message.status : undefined;
+        const ok = typeof message.ok === 'boolean' ? message.ok : undefined;
+        const line = `[webview net] ${phase} id=${id} ${method} ${url}${status !== undefined ? ` status=${status} ok=${ok}` : ''}`;
+        outputChannel?.appendLine(line);
+        break;
+      }
+      case 'webviewWebSocket': {
+        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
+        const url = typeof message.url === 'string' ? message.url : '';
+        const code = (message as any).code as number | undefined;
+        const reason = typeof (message as any).reason === 'string' ? (message as any).reason : undefined;
+        const parts = [`[webview ws] ${phase}`];
+        if (url) parts.push(`url=${url}`);
+        if (code !== undefined) parts.push(`code=${code}`);
+        if (reason) parts.push(`reason=${reason}`);
+        outputChannel?.appendLine(parts.join(' '));
+        break;
+      }
     }
   };
 }
