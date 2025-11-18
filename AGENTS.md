@@ -80,3 +80,6 @@ or alternatives.
 
 ## Package-Specific Notes
 - See `packages/agent-sdk-ts/AGENTS.md` for SDK-focused instructions (build/test workflow, publishing expectations, generated artifacts).
+
+Please do NOT use `set -e` or any other `set` in this environment, it can brick the shell here; you can use regular commands and you could make a script if you need to run many.
+
