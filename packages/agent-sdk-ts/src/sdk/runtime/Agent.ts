@@ -12,6 +12,7 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
+import type { AgentContext } from '../context';
 
 export type AgentRunInput = string | Message;
 
@@ -29,6 +30,7 @@ export interface AgentOptions {
   events?: EventLog;
   state?: ConversationState;
   secrets?: SecretRegistry;
+  agentContext?: AgentContext;
   onTerminalEvent?: (event: BashEvent) => void;
 }
 
@@ -46,6 +48,8 @@ export class Agent extends EventEmitter {
   private paused = false;
   private cancelled = false;
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> };
+  private readonly agentContext?: AgentContext;
+  private readonly activatedSkillNames: string[] = [];
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -61,6 +65,7 @@ export class Agent extends EventEmitter {
       riskyThreshold: options.settings?.confirmation?.riskyThreshold ?? 'MEDIUM',
       confirmUnknown: options.settings?.confirmation?.confirmUnknown ?? true,
     };
+    this.agentContext = options.agentContext;
 
     this.events.on((event) => this.emit('event', event));
   }
@@ -210,12 +215,21 @@ export class Agent extends EventEmitter {
   }
 
   private buildChatRequest() {
+    // Build system prompt with agent context if available
+    let systemPrompt = SYSTEM_PROMPT;
+    if (this.agentContext) {
+      const suffix = this.agentContext.getSystemMessageSuffix();
+      if (suffix) {
+        systemPrompt += '\n\n' + suffix;
+      }
+    }
+
     const messages = this.events
       .list()
       .filter(isMessageEvent)
       .map((event) => event.llm_message);
     const tools = this.getToolDefinitions();
-    return { systemPrompt: SYSTEM_PROMPT, messages, tools };
+    return { systemPrompt, messages, tools };
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {
@@ -266,10 +280,20 @@ export class Agent extends EventEmitter {
   private ensureSystemPrompt() {
     const existing = this.events.list().find(isSystemPromptEvent);
     if (existing) return;
+
+    // Build system prompt with agent context if available
+    let systemPrompt = SYSTEM_PROMPT;
+    if (this.agentContext) {
+      const suffix = this.agentContext.getSystemMessageSuffix();
+      if (suffix) {
+        systemPrompt += '\n\n' + suffix;
+      }
+    }
+
     this.events.push({
       kind: 'SystemPromptEvent',
       source: 'agent',
-      system_prompt: { type: 'text', text: SYSTEM_PROMPT },
+      system_prompt: { type: 'text', text: systemPrompt },
       tools: this.getToolDefinitionsForEvent(),
     } as Event);
   }
@@ -279,7 +303,27 @@ export class Agent extends EventEmitter {
       typeof input === 'string'
         ? { role: 'user', content: [{ type: 'text', text: input }] }
         : input;
-    const event: MessageEvent = { kind: 'MessageEvent', source: 'user', llm_message: message };
+
+    // Augment message with skills if agent context is available
+    const activatedSkillNames: string[] = [];
+    const extendedContent: { type: 'text'; text: string }[] = [];
+
+    if (this.agentContext) {
+      const suffix = this.agentContext.getUserMessageSuffix(message, this.activatedSkillNames);
+      if (suffix) {
+        extendedContent.push(suffix.content);
+        activatedSkillNames.push(...suffix.activatedSkillNames);
+        this.activatedSkillNames.push(...suffix.activatedSkillNames);
+      }
+    }
+
+    const event: MessageEvent = {
+      kind: 'MessageEvent',
+      source: 'user',
+      llm_message: message,
+      ...(activatedSkillNames.length > 0 && { activated_skills: activatedSkillNames }),
+      ...(extendedContent.length > 0 && { extended_content: extendedContent }),
+    };
     this.events.push(event);
   }
 
