@@ -151,22 +151,19 @@ export class AgentContext {
 
     if (recalledKnowledge.length > 0) {
       // Format triggered skills
-      let formatted = '';
-      for (const agentInfo of recalledKnowledge) {
-        formatted += `<EXTRA_INFO>\n`;
-        formatted += `The following information has been included based on a keyword match for "${agentInfo.trigger}".\n`;
-        formatted += `It may or may not be relevant to the user's request.\n\n`;
-        formatted += `${agentInfo.content}\n`;
-        formatted += `</EXTRA_INFO>\n\n`;
-      }
+      const knowledgeContent = recalledKnowledge
+        .map(
+          (agentInfo) =>
+            `<EXTRA_INFO>\nThe following information has been included based on a keyword match for "${agentInfo.trigger}".\nIt may or may not be relevant to the user's request.\n\n${agentInfo.content}\n</EXTRA_INFO>`,
+        )
+        .join('\n\n');
 
-      // Add custom suffix if provided
-      if (this.userMessageSuffix?.trim()) {
-        formatted += this.userMessageSuffix.trim();
-      }
+      const formatted = [knowledgeContent, this.userMessageSuffix?.trim()]
+        .filter(Boolean)
+        .join('\n\n');
 
       return {
-        content: { type: 'text', text: formatted.trim() },
+        content: { type: 'text', text: formatted },
         activatedSkillNames: recalledKnowledge.map((k) => k.name),
       };
     }
