@@ -115,7 +115,7 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - E2E tests with Mocha and @vscode/test-electron
 - Coverage thresholds: 60% statements, 50% branches, 60% functions, 60% lines
 
-See `AGENTS.md` for contribution guidelines, `packages/agent-sdk-ts/AGENTS.md` for detailed SDK documentation, and `docs/agent-sdk-architecture.md` for architecture details.
+See [AGENTS.md](AGENTS.md) for contribution guidelines, [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) for detailed SDK documentation, and [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) for architecture details.
 
 ### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
