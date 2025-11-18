@@ -157,10 +157,20 @@ export class LocalConversation extends EventEmitter {
   }
 
   private initializePersistence() {
-    if (!this.persistenceDir || !this.conversationId) return;
+    if (!this.conversationId) return;
+
     if (this.persistence && this.persistence.conversationId !== this.conversationId) {
       throw new Error('Provided persistence does not match conversation id');
     }
+
+    if (!this.persistenceDir) {
+      if (this.persistence) {
+        this.events.attachPersistence(this.persistence);
+        this.state.attachPersistence(this.persistence);
+      }
+      return;
+    }
+
     const rootDir = path.isAbsolute(this.persistenceDir)
       ? this.persistenceDir
       : path.join(this.workspace.root, this.persistenceDir);

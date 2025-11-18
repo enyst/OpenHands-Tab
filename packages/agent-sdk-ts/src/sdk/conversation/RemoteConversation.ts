@@ -1,8 +1,5 @@
 import EventEmitter from 'events';
 import WebSocket from 'ws';
-// TypeScript may not have @types/ws in downstream consumers; provide a minimal ambient declaration as fallback.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type WebSocketRawData = unknown;
 import type { BashEvent, Event, Message } from '../types';
 import { isBashEvent, isEvent as isAgentEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
@@ -443,7 +440,7 @@ export class RemoteConversation extends EventEmitter {
       ws.on('open', () => { this.bashRetryCount = 0; });
       ws.on('close', () => { this.scheduleBashReconnect(); });
       ws.on('error', (err: Error) => { this.emit('error', err); this.scheduleBashReconnect(); });
-      ws.on('message', (data: WebSocket.RawData | WebSocketRawData) => {
+      ws.on('message', (data: WebSocket.RawData) => {
         try {
           const text = typeof data === 'string'
             ? data

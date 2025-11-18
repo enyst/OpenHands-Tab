@@ -47,7 +47,7 @@ export class FileStore implements ConversationPersistence {
       try {
         events.push(JSON.parse(trimmed) as Event);
       } catch (error) {
-        console.error(`[FileStore] Skipping corrupted event line: ${error}`);
+        console.error(`[FileStore] Skipping corrupted event line: ${String(error)}`);
       }
     }
     return events;
@@ -63,7 +63,7 @@ export class FileStore implements ConversationPersistence {
       const content = fs.readFileSync(this.stateFile, 'utf8');
       return JSON.parse(content) as AgentState;
     } catch (error) {
-      console.error(`[FileStore] Could not read or parse state file: ${error}`);
+      console.error(`[FileStore] Could not read or parse state file: ${String(error)}`);
       return undefined;
     }
   }
