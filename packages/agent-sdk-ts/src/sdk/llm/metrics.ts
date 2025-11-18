@@ -34,42 +34,93 @@ export class Metrics {
   }
 
   static fromJSON(json: unknown): Metrics {
-    if (!json || typeof json !== 'object') return new Metrics();
-    const obj = json as Record<string, any>;
-    const m = new Metrics(String(obj.modelName ?? obj.model_name ?? 'default'));
-    m.accumulatedCost = Number(obj.accumulatedCost ?? obj.accumulated_cost ?? 0) || 0;
-    m.maxBudgetPerTask = obj.maxBudgetPerTask ?? obj.max_budget_per_task ?? null;
-    m.costs = Array.isArray(obj.costs) ? obj.costs.map((c: any) => ({ model: String(c.model ?? m.modelName), cost: Number(c.cost) || 0, timestamp: Number(c.timestamp) || Date.now() })) : [];
-    m.responseLatencies = Array.isArray(obj.responseLatencies)
-      ? obj.responseLatencies.map((r: any) => ({ model: String(r.model ?? m.modelName), latency: Math.max(0, Number(r.latency) || 0), responseId: String(r.responseId ?? r.response_id ?? '') }))
-      : [];
-    m.tokenUsages = Array.isArray(obj.tokenUsages)
-      ? obj.tokenUsages.map((u: any) => ({
-          model: String(u.model ?? m.modelName),
-          promptTokens: Math.max(0, Number(u.promptTokens ?? u.prompt_tokens) || 0),
-          completionTokens: Math.max(0, Number(u.completionTokens ?? u.completion_tokens) || 0),
-          cacheReadTokens: Math.max(0, Number(u.cacheReadTokens ?? u.cache_read_tokens) || 0),
-          cacheWriteTokens: Math.max(0, Number(u.cacheWriteTokens ?? u.cache_write_tokens) || 0),
-          reasoningTokens: Math.max(0, Number(u.reasoningTokens ?? u.reasoning_tokens) || 0),
-          contextWindow: Math.max(0, Number(u.contextWindow ?? u.context_window) || 0),
-          perTurnToken: Math.max(0, Number(u.perTurnToken ?? u.per_turn_token) || 0),
-          responseId: String(u.responseId ?? u.response_id ?? ''),
-        }))
-      : [];
-    const acc = obj.accumulatedTokenUsage ?? obj.accumulated_token_usage;
-    m.accumulatedTokenUsage = acc
-      ? {
-          model: String(acc.model ?? acc.model_name ?? m.modelName),
-          promptTokens: Math.max(0, Number(acc.promptTokens ?? acc.prompt_tokens) || 0),
-          completionTokens: Math.max(0, Number(acc.completionTokens ?? acc.completion_tokens) || 0),
-          cacheReadTokens: Math.max(0, Number(acc.cacheReadTokens ?? acc.cache_read_tokens) || 0),
-          cacheWriteTokens: Math.max(0, Number(acc.cacheWriteTokens ?? acc.cache_write_tokens) || 0),
-          reasoningTokens: Math.max(0, Number(acc.reasoningTokens ?? acc.reasoning_tokens) || 0),
-          contextWindow: Math.max(0, Number(acc.contextWindow ?? acc.context_window) || 0),
-          perTurnToken: Math.max(0, Number(acc.perTurnToken ?? acc.per_turn_token) || 0),
-          responseId: String(acc.responseId ?? acc.response_id ?? ''),
+    const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object';
+    if (!isRecord(json)) return new Metrics();
+    const obj = json;
+
+    const getStr = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : fallback);
+    const getNum = (v: unknown, fallback = 0): number => {
+      const n = typeof v === 'number' ? v : Number(v ?? fallback);
+      return Number.isFinite(n) ? n : fallback;
+    };
+
+    const m = new Metrics(getStr(obj['modelName'] ?? obj['model_name'], 'default'));
+    m.accumulatedCost = getNum(obj['accumulatedCost'] ?? obj['accumulated_cost'], 0);
+    const mbptA = obj['maxBudgetPerTask'];
+    const mbptB = obj['max_budget_per_task'];
+    if (typeof mbptA === 'number' || mbptA === null) {
+      m.maxBudgetPerTask = mbptA as number | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+    } else if (typeof mbptB === 'number' || mbptB === null) {
+      m.maxBudgetPerTask = mbptB as number | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+    } else {
+      m.maxBudgetPerTask = null;
+    }
+
+    const costs = obj['costs'];
+    if (Array.isArray(costs)) {
+      m.costs = [];
+      for (const raw of costs) {
+        if (isRecord(raw)) {
+          m.costs.push({
+            model: getStr(raw['model'], m.modelName),
+            cost: getNum(raw['cost'], 0),
+            timestamp: getNum(raw['timestamp'], Date.now()),
+          });
         }
-      : null;
+      }
+    }
+
+    const lats = obj['responseLatencies'];
+    if (Array.isArray(lats)) {
+      m.responseLatencies = [];
+      for (const raw of lats) {
+        if (isRecord(raw)) {
+          m.responseLatencies.push({
+            model: getStr(raw['model'], m.modelName),
+            latency: Math.max(0, getNum(raw['latency'], 0)),
+            responseId: getStr(raw['responseId'] ?? raw['response_id'], ''),
+          });
+        }
+      }
+    }
+
+    const usages = obj['tokenUsages'];
+    if (Array.isArray(usages)) {
+      m.tokenUsages = [];
+      for (const raw of usages) {
+        if (isRecord(raw)) {
+          m.tokenUsages.push({
+            model: getStr(raw['model'], m.modelName),
+            promptTokens: Math.max(0, getNum(raw['promptTokens'] ?? raw['prompt_tokens'], 0)),
+            completionTokens: Math.max(0, getNum(raw['completionTokens'] ?? raw['completion_tokens'], 0)),
+            cacheReadTokens: Math.max(0, getNum(raw['cacheReadTokens'] ?? raw['cache_read_tokens'], 0)),
+            cacheWriteTokens: Math.max(0, getNum(raw['cacheWriteTokens'] ?? raw['cache_write_tokens'], 0)),
+            reasoningTokens: Math.max(0, getNum(raw['reasoningTokens'] ?? raw['reasoning_tokens'], 0)),
+            contextWindow: Math.max(0, getNum(raw['contextWindow'] ?? raw['context_window'], 0)),
+            perTurnToken: Math.max(0, getNum(raw['perTurnToken'] ?? raw['per_turn_token'], 0)),
+            responseId: getStr(raw['responseId'] ?? raw['response_id'], ''),
+          });
+        }
+      }
+    }
+
+    const accRaw = obj['accumulatedTokenUsage'] ?? obj['accumulated_token_usage'];
+    if (isRecord(accRaw)) {
+      m.accumulatedTokenUsage = {
+        model: getStr(accRaw['model'] ?? accRaw['model_name'], m.modelName),
+        promptTokens: Math.max(0, getNum(accRaw['promptTokens'] ?? accRaw['prompt_tokens'], 0)),
+        completionTokens: Math.max(0, getNum(accRaw['completionTokens'] ?? accRaw['completion_tokens'], 0)),
+        cacheReadTokens: Math.max(0, getNum(accRaw['cacheReadTokens'] ?? accRaw['cache_read_tokens'], 0)),
+        cacheWriteTokens: Math.max(0, getNum(accRaw['cacheWriteTokens'] ?? accRaw['cache_write_tokens'], 0)),
+        reasoningTokens: Math.max(0, getNum(accRaw['reasoningTokens'] ?? accRaw['reasoning_tokens'], 0)),
+        contextWindow: Math.max(0, getNum(accRaw['contextWindow'] ?? accRaw['context_window'], 0)),
+        perTurnToken: Math.max(0, getNum(accRaw['perTurnToken'] ?? accRaw['per_turn_token'], 0)),
+        responseId: getStr(accRaw['responseId'] ?? accRaw['response_id'], ''),
+      };
+    } else {
+      m.accumulatedTokenUsage = null;
+    }
+
     return m;
   }
 
@@ -139,7 +190,7 @@ export class Metrics {
       responseId: '',
     };
 
-    if (this.accumulatedTokenUsage == null) {
+    if (this.accumulatedTokenUsage === null) {
       this.accumulatedTokenUsage = add;
     } else {
       this.accumulatedTokenUsage = {
@@ -157,7 +208,7 @@ export class Metrics {
 
   merge(other: Metrics): void {
     this.accumulatedCost += other.accumulatedCost;
-    if (this.maxBudgetPerTask == null && other.maxBudgetPerTask != null) this.maxBudgetPerTask = other.maxBudgetPerTask;
+    if (this.maxBudgetPerTask === null && other.maxBudgetPerTask !== null) this.maxBudgetPerTask = other.maxBudgetPerTask;
     this.costs.push(...other.costs);
     this.responseLatencies.push(...other.responseLatencies);
     this.tokenUsages.push(...other.tokenUsages);

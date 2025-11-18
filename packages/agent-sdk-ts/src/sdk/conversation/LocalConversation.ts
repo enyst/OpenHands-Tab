@@ -6,6 +6,7 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { LLMRegistry } from '../llm';
+import type { RegistryEvent } from '../llm/registry';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime/persistence';
 import { AgentContext } from '../context';
@@ -57,7 +58,7 @@ export class LocalConversation extends EventEmitter {
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();
     // connect registry to stats
-    this.llmRegistry.subscribe((event) => this.stats.register_llm(event as any));
+    this.llmRegistry.subscribe((event: RegistryEvent) => this.stats.register_llm(event));
 
     this.agent = this.createAgent();
 
@@ -100,7 +101,8 @@ export class LocalConversation extends EventEmitter {
       const snapshot = this.persistence?.readState();
       if (snapshot) {
         this.state.restore(snapshot);
-        const rawStats = (snapshot.values as any)?.stats;
+        const values: Record<string, unknown> = snapshot.values;
+        const rawStats = values['stats'];
         if (rawStats) {
           const restored = ConversationStats.fromJSON(rawStats);
           this.stats.usage_to_metrics = restored.usage_to_metrics;
