@@ -83,13 +83,13 @@ describe('RemoteConversation', () => {
     const history: Event[] = [
       {
         id: 'e-1',
-        type: 'MessageEvent',
+        kind: 'MessageEvent',
         source: 'user',
         llm_message: { role: 'user', content: [{ type: 'text', text: 'hi' }] },
       } as Event,
       {
         id: 'e-2',
-        type: 'ActionEvent',
+        kind: 'ActionEvent',
         source: 'agent',
         thought: [{ type: 'text', text: 'thinking' }],
         action: { command: 'pwd' },
