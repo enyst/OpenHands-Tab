@@ -71,5 +71,12 @@ Top-level `npm run build`, `npm test`, and `npm run lint` already invoke these f
 - Pull requests should outline the rationale, list validation steps (`npm test`, `npm run lint`), and attach screenshots for webview changes.
 - Ensure docs or changelog updates accompany user-visible behavior shifts.
 
+Use real newlines in commit messages. Do not include literal \n sequences. For multi-paragraph messages, prefer one of:
+- git commit -m 'Subject' -m 'Body paragraph 1' -m 'Body paragraph 2'
+- git commit -F message.txt (where message.txt contains actual newlines)
+- git commit -m "Subject" && git commit --amend (to open editor and enter newlines)
+or alternatives.
+
+
 ## Package-Specific Notes
 - See `packages/agent-sdk-ts/AGENTS.md` for SDK-focused instructions (build/test workflow, publishing expectations, generated artifacts).
