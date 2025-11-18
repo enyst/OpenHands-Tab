@@ -312,7 +312,7 @@ const userMessage = {
   content: [{ type: 'text', text: 'How do I use React hooks?' }]
 };
 const augmented = context.getUserMessageSuffix(userMessage);
-// Returns triggered skills and formatted knowledge
+// Returns an object like { content: { type: 'text', text: '...' }, activatedSkillNames: ['some-skill'] }
 ```
 
 ### Skill
