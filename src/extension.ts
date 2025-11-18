@@ -31,6 +31,24 @@ let bashEventsEnabled = false;
 let bashEventsClientInitialized = false;
 let bashEventsClientStatus: 'online' | 'offline' = 'offline';
 
+// Dev logging/instrumentation toggle and file sink
+let devBridgeEnabled = false;
+let webviewLogFile: string | undefined;
+async function initFileLogger(context: vscode.ExtensionContext) {
+  try {
+    const logDir = context.logUri.fsPath;
+    await fs.mkdir(logDir, { recursive: true });
+    webviewLogFile = path.join(logDir, 'openhands-webview.log');
+  } catch (err) {
+    webviewLogFile = undefined;
+  }
+}
+function fileLog(line: string) {
+  if (!devBridgeEnabled || !webviewLogFile) return;
+  const ts = new Date().toISOString();
+  fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch(() => {});
+}
+
 const createDefaultLocalTools = () => [
   new TerminalTool(),
   new FileEditorTool(),
@@ -119,6 +137,13 @@ export function activate(context: vscode.ExtensionContext) {
       void vscode.commands.executeCommand('openhands.openTab');
     }
   }));
+
+  // Enable dev bridge only for development builds or with user setting
+  const isDev = (process.env.VSCODE_DEBUG_MODE === 'true') || ((vscode as any).env?.appName?.includes?.('Code - OSS') || (vscode as any).env?.appName?.includes?.('Insiders'));
+  const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
+  devBridgeEnabled = isDev || enableFromSetting;
+  void initFileLogger(context);
+
 
   const handleTerminalEvent = (event: any) => {
     receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
@@ -722,19 +747,24 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         }
         break;
       case 'webviewConsole': {
+        if (!devBridgeEnabled) break;
         const level = (typeof message.level === 'string' ? message.level : 'log') as 'log' | 'warn' | 'error';
         const args = Array.isArray(message.args) ? message.args : [];
         outputChannel?.appendLine(`[webview ${level}] ${args.join(' ')}`);
+        fileLog(`[console.${level}] ${args.join(' ')}`);
         break;
       }
       case 'webviewError': {
+        if (!devBridgeEnabled) break;
         const m = typeof message.message === 'string' ? message.message : 'error';
         const s = typeof message.stack === 'string' ? message.stack : '';
         outputChannel?.appendLine(`[webview error] ${m}`);
         if (s) outputChannel?.appendLine(s);
+        fileLog(`[error] ${m}${s ? `\n${s}` : ''}`);
         break;
       }
       case 'webviewNetwork': {
+        if (!devBridgeEnabled) break;
         const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
         const id = typeof message.id === 'string' ? message.id : '';
         const method = typeof message.method === 'string' ? message.method : '';
@@ -743,9 +773,11 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         const ok = typeof message.ok === 'boolean' ? message.ok : undefined;
         const line = `[webview net] ${phase} id=${id} ${method} ${url}${status !== undefined ? ` status=${status} ok=${ok}` : ''}`;
         outputChannel?.appendLine(line);
+        fileLog(line);
         break;
       }
       case 'webviewWebSocket': {
+        if (!devBridgeEnabled) break;
         const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
         const url = typeof message.url === 'string' ? message.url : '';
         const code = (message as any).code as number | undefined;
@@ -755,6 +787,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         if (code !== undefined) parts.push(`code=${code}`);
         if (reason) parts.push(`reason=${reason}`);
         outputChannel?.appendLine(parts.join(' '));
+        fileLog(parts.join(' '));
         break;
       }
     }

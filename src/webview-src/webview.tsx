@@ -36,15 +36,15 @@ import { App } from './components/App';
 
     // fetch wrapper
     const origFetch = window.fetch.bind(window);
-    (window as any).fetch = async (...args: any[]) => {
+    type FetchParams = Parameters<typeof window.fetch>;
+    (window as any).fetch = async (...args: FetchParams) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       try {
-        const input = args[0];
-        const init = args[1] || {};
-        const method = (init && init.method) || (input?.method) || 'GET';
-        const url = (typeof input === 'string') ? input : (input?.url ?? String(input));
+        const [input, init] = args;
+        const method = ((init as any)?.method) || ((input as any)?.method) || 'GET';
+        const url = (typeof input === 'string' || input instanceof URL) ? String(input) : (((input as any)?.url) ?? String(input));
         post({ type: 'webviewNetwork', phase: 'request', id, method, url });
-        const res: Response = await origFetch(...args);
+        const res: Response = await origFetch(input as any, init as any);
         post({ type: 'webviewNetwork', phase: 'response', id, status: res.status, ok: res.ok });
         return res;
       } catch (err) {
