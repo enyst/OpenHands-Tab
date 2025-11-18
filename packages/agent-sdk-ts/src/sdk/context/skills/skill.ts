@@ -4,7 +4,7 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
-import { join, relative } from 'path';
+import { basename, join, relative } from 'path';
 import { homedir } from 'os';
 import frontmatter from 'front-matter';
 import type { InputMetadata, KeywordTrigger, TaskTrigger, TriggerType } from './types';
@@ -69,7 +69,7 @@ export class Skill {
    * Handle third-party skill files (.cursorrules, agents.md, etc.)
    */
   private static handleThirdParty(path: string, fileContent: string): Skill | null {
-    const baseName = path.split('/').pop()?.toLowerCase() ?? '';
+    const baseName = basename(path).toLowerCase();
     const skillName = this.PATH_TO_THIRD_PARTY_SKILL_NAME[baseName];
 
     if (skillName) {
@@ -93,12 +93,12 @@ export class Skill {
     // Calculate derived name from relative path if skillDir is provided
     let skillName: string;
     if (skillDir) {
-      const baseName = filePath.split('/').pop()?.toLowerCase() ?? '';
+      const baseName = basename(filePath).toLowerCase();
       skillName =
         this.PATH_TO_THIRD_PARTY_SKILL_NAME[baseName] ??
         relative(skillDir, filePath).replace(/\.md$/, '');
     } else {
-      skillName = filePath.split('/').pop()?.replace(/\.md$/, '') ?? 'unknown';
+      skillName = basename(filePath, '.md');
     }
 
     // Read file content if not provided
