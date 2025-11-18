@@ -105,7 +105,7 @@ export class LocalConversation extends EventEmitter {
         const rawStats = values['stats'];
         if (rawStats) {
           const restored = ConversationStats.fromJSON(rawStats);
-          this.stats.usage_to_metrics = restored.usage_to_metrics;
+          this.stats.restore(restored);
         }
       } else {
         this.state.loadEvents(events);

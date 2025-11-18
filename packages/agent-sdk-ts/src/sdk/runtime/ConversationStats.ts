@@ -27,6 +27,11 @@ export class ConversationStats {
     };
   }
 
+  restore(other: ConversationStats): void {
+    this.usage_to_metrics = other.usage_to_metrics;
+    this._restored_usage_ids = new Set(other._restored_usage_ids);
+  }
+
   get_combined_metrics(): Metrics {
     const total = new Metrics('combined');
     for (const m of Object.values(this.usage_to_metrics)) total.merge(m);

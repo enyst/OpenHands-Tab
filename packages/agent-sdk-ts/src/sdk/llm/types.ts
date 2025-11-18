@@ -27,7 +27,9 @@ export interface LLMConfiguration {
   nativeToolCalling?: boolean | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
   headers?: Record<string, string>;
+  /** Cost per input token in USD (or base currency). */
   inputCostPerToken?: number | null;
+  /** Cost per output token in USD (or base currency). */
   outputCostPerToken?: number | null;
 }
 

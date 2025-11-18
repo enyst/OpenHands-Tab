@@ -31,6 +31,19 @@ describe('LLMRegistry and TrackedLLMClient', () => {
     expect(onUpdate).toHaveBeenCalled();
     const json = metrics.toJSON();
     expect((json.responseLatencies as unknown[]).length).toBe(1);
+    // Verify token usage accumulation
+    const tokenUsages = json.tokenUsages as any[];
+    expect(tokenUsages.length).toBeGreaterThan(0);
+    expect(tokenUsages[0].promptTokens).toBe(3);
+    expect(tokenUsages[0].completionTokens).toBe(2);
+  });
+
+  it('throws on duplicate usageId', () => {
+    const registry = new LLMRegistry();
+    const t1 = new TrackedLLMClient({ inner: { async *streamChat() {} }, usageId: 'dup', modelName: 'm', metrics: new Metrics('m') });
+    const t2 = new TrackedLLMClient({ inner: { async *streamChat() {} }, usageId: 'dup', modelName: 'm', metrics: new Metrics('m') });
+    registry.add(t1);
+    expect(() => registry.add(t2)).toThrow(/already exists/);
   });
 
   it('notifies subscriber and ConversationStats can register', () => {

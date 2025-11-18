@@ -51,4 +51,13 @@ describe('Metrics', () => {
     expect(snap.accumulatedTokenUsage?.promptTokens).toBe(7);
     expect(snap.accumulatedTokenUsage?.completionTokens).toBe(10);
   });
+
+  it('tracks costs', () => {
+    const m = new Metrics('costly-model');
+    m.addCost(0.05);
+    m.addCost(0.02);
+    expect(m.accumulatedCost).toBeCloseTo(0.07);
+    const snap = m.getSnapshot();
+    expect(snap.accumulatedCost).toBeCloseTo(0.07);
+  });
 });
