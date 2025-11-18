@@ -413,14 +413,7 @@ export class ConnectionManager {
     for (const [key, value] of Object.entries(obj)) {
       normalized[key] = this.normalizeEventPayload(value);
     }
-    // Backward-compat: accept inbound 'type' or 'kind' ONLY for top-level event-like objects
-    if (typeof obj.type === 'string' && typeof normalized.kind !== 'string') {
-      const t = obj.type;
-      const eventTypeLike = ['Condensation', 'UserRejectObservation'];
-      if (/Event$/.test(t) || eventTypeLike.includes(t)) {
-        normalized.kind = t;
-      }
-    }
+    // No backward-compat normalization: events must provide 'kind'
     return normalized;
   }
 }

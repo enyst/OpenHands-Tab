@@ -127,7 +127,7 @@ describe('ConnectionManager', () => {
     expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });
 
-  it('normalizes events that use "type" (legacy) to canonical kind', async () => {
+  it('rejects events missing kind', async () => {
     events = { onStatus: vi.fn(), onEvent: vi.fn(), onError: vi.fn(), onConversationId: vi.fn() };
     const { ConnectionManager } = await importCM();
     (globalThis as any).fetch = makeFetchOk({ id: 'c-kind' });
@@ -143,7 +143,8 @@ describe('ConnectionManager', () => {
     };
 
     ws.message(JSON.stringify(payload));
-    expect(events.onEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: 'MessageEvent' }));
+    expect(events.onEvent).not.toHaveBeenCalled();
+    expect(events.onError).toHaveBeenCalled();
   });
 
   it('reconnects after close (exponential backoff)', async () => {

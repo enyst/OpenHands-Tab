@@ -146,7 +146,7 @@ export type { ToolContext, ToolHandler } from './tools';
 export const isEvent = (candidate: unknown): candidate is Event => {
   if (!candidate || typeof candidate !== 'object') return false;
   const obj = candidate as Record<string, unknown>;
-  const kind = typeof obj.kind === 'string' ? obj.kind : (typeof obj.type === 'string' ? obj.type : undefined);
+  const kind = typeof obj.kind === 'string' ? obj.kind : undefined;
   if (!kind) return false;
 
   switch (kind) {
@@ -179,13 +179,11 @@ export const isEvent = (candidate: unknown): candidate is Event => {
 export const isTextContent = (content: Content): content is TextContent => content.type === 'text';
 export const isImageContent = (content: Content): content is ImageContent => content.type === 'image';
 
-// Event kind guards (backward-compatible)
+// Event kind guards (kind-only)
 const eventDiscriminant = (e: unknown): string | undefined => {
-  if (typeof e !== 'object' || !e) return undefined;
-  const obj = e as { kind?: unknown; type?: unknown };
-  if (typeof obj.kind === 'string') return obj.kind;
-  if (typeof obj.type === 'string') return obj.type;
-  return undefined;
+  const obj = e as any;
+  const k = obj?.kind;
+  return typeof k === 'string' ? k : undefined;
 };
 
 export const isSystemPromptEvent = (event: Event): event is SystemPromptEvent => eventDiscriminant(event) === 'SystemPromptEvent';
