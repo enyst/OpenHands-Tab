@@ -22,7 +22,7 @@ import {
 describe('agent-sdk type guards', () => {
   it('validates MessageEvent with text content', () => {
     const payload: MessageEvent = {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'user',
       llm_message: {
         role: 'user',
@@ -37,7 +37,7 @@ describe('agent-sdk type guards', () => {
 
   it('accepts core agent events expected from the Python agent', () => {
     const action: ActionEvent = {
-      type: 'ActionEvent',
+      kind: 'ActionEvent',
       source: 'agent',
       thought: [{ type: 'text', text: 'running tool' }],
       action: { name: 'echo', parameters: ['hello'] },
@@ -52,13 +52,13 @@ describe('agent-sdk type guards', () => {
       reasoning_content: null,
     };
     const systemPrompt: SystemPromptEvent = {
-      type: 'SystemPromptEvent',
+      kind: 'SystemPromptEvent',
       source: 'agent',
       system_prompt: { type: 'text', text: 'You are OpenHands.' },
       tools: [{ name: 'bash', description: 'Execute shell commands' }],
     };
     const convoError: ConversationErrorEvent = {
-      type: 'ConversationErrorEvent',
+      kind: 'ConversationErrorEvent',
       source: 'environment',
       code: 'LLMBadRequestError',
     };
@@ -74,9 +74,9 @@ describe('agent-sdk type guards', () => {
   it('rejects invalid event structures', () => {
     expect(isEvent(null as any)).toBe(false);
     expect(isEvent({} as any)).toBe(false);
-    expect(isEvent({ type: 'MessageEvent' } as any)).toBe(false);
-    expect(isEvent({ type: 'MessageEvent', llm_message: null } as any)).toBe(false);
-    expect(isEvent({ type: 'ActionEvent', tool_name: 'bash' } as any)).toBe(false);
+    expect(isEvent({ kind: 'MessageEvent' } as any)).toBe(false);
+    expect(isEvent({ kind: 'MessageEvent', llm_message: null } as any)).toBe(false);
+    expect(isEvent({ kind: 'ActionEvent', tool_name: 'bash' } as any)).toBe(false);
   });
 
   it('validates bash stream payloads', () => {

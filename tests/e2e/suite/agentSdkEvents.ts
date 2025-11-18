@@ -16,7 +16,7 @@ export async function run(): Promise<void> {
   const events = [
     // SystemPromptEvent
     {
-      type: 'SystemPromptEvent',
+      kind: 'SystemPromptEvent',
       source: 'agent',
       system_prompt: { type: 'text', text: 'You are a helpful AI assistant' },
       tools: [
@@ -27,7 +27,7 @@ export async function run(): Promise<void> {
 
     // ActionEvent - with thought and action
     {
-      type: 'ActionEvent',
+      kind: 'ActionEvent',
       source: 'agent',
       thought: [
         { type: 'text', text: 'I need to check the current directory' }
@@ -47,7 +47,7 @@ export async function run(): Promise<void> {
 
     // ActionEvent - with HIGH security risk
     {
-      type: 'ActionEvent',
+      kind: 'ActionEvent',
       source: 'agent',
       thought: [
         { type: 'text', text: 'I will modify system files' }
@@ -66,7 +66,7 @@ export async function run(): Promise<void> {
 
     // ActionEvent - not executed (action is null)
     {
-      type: 'ActionEvent',
+      kind: 'ActionEvent',
       source: 'agent',
       thought: [
         { type: 'text', text: 'This action was rejected' }
@@ -84,7 +84,7 @@ export async function run(): Promise<void> {
 
     // ObservationEvent
     {
-      type: 'ObservationEvent',
+      kind: 'ObservationEvent',
       source: 'environment',
       observation: {
         content: 'total 48\ndrwxr-xr-x 12 user user 4096 Oct 21 10:30 .\ndrwxr-xr-x  3 user user 4096 Oct 20 15:20 ..',
@@ -97,7 +97,7 @@ export async function run(): Promise<void> {
 
     // UserRejectObservation
     {
-      type: 'UserRejectObservation',
+      kind: 'UserRejectObservation',
       source: 'user',
       rejection_reason: 'This command looks dangerous',
       tool_name: 'terminal',
@@ -107,7 +107,7 @@ export async function run(): Promise<void> {
 
     // MessageEvent - user message
     {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'user',
       llm_message: {
         role: 'user',
@@ -119,7 +119,7 @@ export async function run(): Promise<void> {
 
     // MessageEvent - assistant message with thinking
     {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'agent',
       llm_message: {
         role: 'assistant',
@@ -132,7 +132,7 @@ export async function run(): Promise<void> {
 
     // MessageEvent - system message
     {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'agent',
       llm_message: {
         role: 'system',
@@ -144,7 +144,7 @@ export async function run(): Promise<void> {
 
     // AgentErrorEvent
     {
-      type: 'AgentErrorEvent',
+      kind: 'AgentErrorEvent',
       source: 'agent',
       error: 'Failed to execute command: permission denied',
       tool_name: 'terminal',
@@ -153,13 +153,13 @@ export async function run(): Promise<void> {
 
     // PauseEvent
     {
-      type: 'PauseEvent',
+      kind: 'PauseEvent',
       source: 'user'
     },
 
     // Condensation
     {
-      type: 'Condensation',
+      kind: 'Condensation',
       source: 'agent',
       forgotten_event_ids: ['event_001', 'event_002', 'event_003'],
       summary: 'Condensed 3 events to save memory'
@@ -167,7 +167,7 @@ export async function run(): Promise<void> {
 
     // ConversationStateUpdateEvent (should be filtered out but test it anyway)
     {
-      type: 'ConversationStateUpdateEvent',
+      kind: 'ConversationStateUpdateEvent',
       source: 'agent',
       agent_status: 'running'
     }

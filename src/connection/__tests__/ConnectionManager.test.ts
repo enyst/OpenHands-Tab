@@ -118,7 +118,7 @@ describe('ConnectionManager', () => {
     ws.open();
 
     const payload = {
-      type: 'MessageEvent',
+      kind: 'MessageEvent',
       source: 'agent' as const,
       llm_message: { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'hi' }] }
     };
@@ -127,7 +127,7 @@ describe('ConnectionManager', () => {
     expect(events.onEvent).toHaveBeenCalledWith(payload as any);
   });
 
-  it('normalizes events that use "kind" instead of "type"', async () => {
+  it('rejects events missing kind', async () => {
     events = { onStatus: vi.fn(), onEvent: vi.fn(), onError: vi.fn(), onConversationId: vi.fn() };
     const { ConnectionManager } = await importCM();
     (globalThis as any).fetch = makeFetchOk({ id: 'c-kind' });
@@ -137,13 +137,14 @@ describe('ConnectionManager', () => {
     ws.open();
 
     const payload = {
-      kind: 'MessageEvent',
+      type: 'MessageEvent',
       source: 'agent' as const,
       llm_message: { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'normalized' }] }
     };
 
     ws.message(JSON.stringify(payload));
-    expect(events.onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'MessageEvent' }));
+    expect(events.onEvent).not.toHaveBeenCalled();
+    expect(events.onError).toHaveBeenCalled();
   });
 
   it('reconnects after close (exponential backoff)', async () => {

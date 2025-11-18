@@ -471,9 +471,6 @@ export class RemoteConversation extends EventEmitter {
     for (const [key, value] of Object.entries(obj)) {
       normalized[key] = this.normalizeEventPayload(value);
     }
-    if (typeof obj.kind === 'string' && typeof normalized.type !== 'string') {
-      normalized.type = obj.kind;
-    }
     return normalized;
   }
 }

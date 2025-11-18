@@ -319,7 +319,7 @@ function EventBlock({ event }: { event: Event }) {
   // Fallback for unknown events (should not happen with proper agent-sdk events)
   return (
     <div className="bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] p-3 rounded my-1">
-      <div className="font-semibold mb-1">Unknown Event: {event.type}</div>
+      <div className="font-semibold mb-1">Unknown Event: {event.kind}</div>
       <div className="font-mono text-sm overflow-auto">
         {JSON.stringify(event, null, 2)}
       </div>
@@ -699,7 +699,7 @@ export function App() {
           vscodeApi.postMessage({
             type: 'renderedEventsResponse',
             count: events.length,
-            eventTypes: events.map(e => e.event.type)
+            eventTypes: events.map(e => (e.event as any).kind ?? (e.event as any).type)
           });
           break;
         }

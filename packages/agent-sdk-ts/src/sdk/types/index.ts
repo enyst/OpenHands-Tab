@@ -31,14 +31,14 @@ export interface Message {
 
 export interface EventBase {
   id?: string;
-  type: string;
+  kind: string;
   timestamp?: string;
   source?: SourceType;
 }
 
 // SystemPromptEvent - shown in visualizer
 export interface SystemPromptEvent extends EventBase {
-  type: 'SystemPromptEvent';
+  kind: 'SystemPromptEvent';
   source: 'agent';
   system_prompt: TextContent;
   tools: Record<string, unknown>[]; // ChatCompletionToolParam serialized to JSON
@@ -46,7 +46,7 @@ export interface SystemPromptEvent extends EventBase {
 
 // ActionEvent - shown in visualizer
 export interface ActionEvent extends EventBase {
-  type: 'ActionEvent';
+  kind: 'ActionEvent';
   source: 'agent';
   thought: TextContent[];
   reasoning_content?: string | null;
@@ -60,7 +60,7 @@ export interface ActionEvent extends EventBase {
 
 // ObservationEvent - shown in visualizer
 export interface ObservationEvent extends EventBase {
-  type: 'ObservationEvent';
+  kind: 'ObservationEvent';
   source: 'environment';
   observation: Record<string, unknown>; // Observation schema serialized to JSON
   tool_name: string;
@@ -70,7 +70,7 @@ export interface ObservationEvent extends EventBase {
 
 // UserRejectObservation - shown in visualizer
 export interface UserRejectObservation extends EventBase {
-  type: 'UserRejectObservation';
+  kind: 'UserRejectObservation';
   source: 'environment';
   rejection_reason: string;
   tool_name: string;
@@ -80,7 +80,7 @@ export interface UserRejectObservation extends EventBase {
 
 // MessageEvent - shown in visualizer
 export interface MessageEvent extends EventBase {
-  type: 'MessageEvent';
+  kind: 'MessageEvent';
   source: SourceType;
   llm_message: Message;
   activated_microagents?: string[];
@@ -90,7 +90,7 @@ export interface MessageEvent extends EventBase {
 
 // AgentErrorEvent - shown in visualizer
 export interface AgentErrorEvent extends EventBase {
-  type: 'AgentErrorEvent';
+  kind: 'AgentErrorEvent';
   source: 'agent';
   error: string;
   tool_name: string;
@@ -98,7 +98,7 @@ export interface AgentErrorEvent extends EventBase {
 }
 
 export interface ConversationErrorEvent extends EventBase {
-  type: 'ConversationErrorEvent';
+  kind: 'ConversationErrorEvent';
   source: SourceType;
   code?: string;
   detail?: string;
@@ -106,13 +106,13 @@ export interface ConversationErrorEvent extends EventBase {
 
 // PauseEvent - shown in visualizer
 export interface PauseEvent extends EventBase {
-  type: 'PauseEvent';
+  kind: 'PauseEvent';
   source: 'user';
 }
 
 // Condensation - shown in visualizer
 export interface Condensation extends EventBase {
-  type: 'Condensation';
+  kind: 'Condensation';
   source: 'environment';
   forgotten_event_ids: string[];
   summary?: string | null;
@@ -121,7 +121,7 @@ export interface Condensation extends EventBase {
 
 // ConversationStateUpdateEvent - state tracking
 export interface ConversationStateUpdateEvent extends EventBase {
-  type: 'ConversationStateUpdateEvent';
+  kind: 'ConversationStateUpdateEvent';
   agent_status?: string;
   iteration?: number;
   key?: string;
@@ -146,9 +146,10 @@ export type { ToolContext, ToolHandler } from './tools';
 export const isEvent = (candidate: unknown): candidate is Event => {
   if (!candidate || typeof candidate !== 'object') return false;
   const obj = candidate as Record<string, unknown>;
-  if (typeof obj.type !== 'string') return false;
+  const kind = typeof obj.kind === 'string' ? obj.kind : undefined;
+  if (!kind) return false;
 
-  switch (obj.type) {
+  switch (kind) {
     case 'SystemPromptEvent':
       return !!obj.system_prompt && Array.isArray(obj.tools);
     case 'ActionEvent':
@@ -178,17 +179,24 @@ export const isEvent = (candidate: unknown): candidate is Event => {
 export const isTextContent = (content: Content): content is TextContent => content.type === 'text';
 export const isImageContent = (content: Content): content is ImageContent => content.type === 'image';
 
-// Event kind guards
-export const isSystemPromptEvent = (event: Event): event is SystemPromptEvent => event.type === 'SystemPromptEvent';
-export const isActionEvent = (event: Event): event is ActionEvent => event.type === 'ActionEvent';
-export const isObservationEvent = (event: Event): event is ObservationEvent => event.type === 'ObservationEvent';
-export const isUserRejectObservation = (event: Event): event is UserRejectObservation => event.type === 'UserRejectObservation';
-export const isMessageEvent = (event: Event): event is MessageEvent => event.type === 'MessageEvent';
-export const isAgentErrorEvent = (event: Event): event is AgentErrorEvent => event.type === 'AgentErrorEvent';
-export const isConversationErrorEvent = (event: Event): event is ConversationErrorEvent => event.type === 'ConversationErrorEvent';
-export const isPauseEvent = (event: Event): event is PauseEvent => event.type === 'PauseEvent';
-export const isCondensation = (event: Event): event is Condensation => event.type === 'Condensation';
-export const isConversationStateUpdateEvent = (event: Event): event is ConversationStateUpdateEvent => event.type === 'ConversationStateUpdateEvent';
+// Event kind guards (kind-only)
+const eventDiscriminant = (e: unknown): string | undefined => {
+  if (!e || typeof e !== 'object') return undefined;
+  if (!('kind' in e)) return undefined;
+  const k = (e as { kind?: unknown }).kind;
+  return typeof k === 'string' ? k : undefined;
+};
+
+export const isSystemPromptEvent = (event: Event): event is SystemPromptEvent => eventDiscriminant(event) === 'SystemPromptEvent';
+export const isActionEvent = (event: Event): event is ActionEvent => eventDiscriminant(event) === 'ActionEvent';
+export const isObservationEvent = (event: Event): event is ObservationEvent => eventDiscriminant(event) === 'ObservationEvent';
+export const isUserRejectObservation = (event: Event): event is UserRejectObservation => eventDiscriminant(event) === 'UserRejectObservation';
+export const isMessageEvent = (event: Event): event is MessageEvent => eventDiscriminant(event) === 'MessageEvent';
+export const isAgentErrorEvent = (event: Event): event is AgentErrorEvent => eventDiscriminant(event) === 'AgentErrorEvent';
+export const isConversationErrorEvent = (event: Event): event is ConversationErrorEvent => eventDiscriminant(event) === 'ConversationErrorEvent';
+export const isPauseEvent = (event: Event): event is PauseEvent => eventDiscriminant(event) === 'PauseEvent';
+export const isCondensation = (event: Event): event is Condensation => eventDiscriminant(event) === 'Condensation';
+export const isConversationStateUpdateEvent = (event: Event): event is ConversationStateUpdateEvent => eventDiscriminant(event) === 'ConversationStateUpdateEvent';
 
 export * from './settings';
 
