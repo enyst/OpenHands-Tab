@@ -232,12 +232,18 @@ export function activate(context: vscode.ExtensionContext) {
       });
       conversation.on('terminal', (event) => handleTerminalEvent(event));
       if (savedId) {
-        void conversation.restoreConversation(savedId);
+        conversation.restoreConversation(savedId).catch((err: unknown) => {
+          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
+        });
       }
     } else if (conversation) {
       conversation.setSettings(settings);
       if (savedId) {
-        void conversation.restoreConversation(savedId);
+        conversation.restoreConversation(savedId).catch((err: unknown) => {
+          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
+        });
       }
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
