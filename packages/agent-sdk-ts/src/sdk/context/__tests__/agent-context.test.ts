@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AgentContext } from '../agent-context';
 import { Skill } from '../skills';
 import type { Message } from '../../types';
