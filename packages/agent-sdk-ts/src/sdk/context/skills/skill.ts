@@ -118,16 +118,12 @@ export class Skill {
     // Use name from frontmatter if provided, otherwise use derived name
     const name = (metadata.name as string) ?? skillName;
 
-    // Get trigger keywords from metadata
-    let keywords = metadata.triggers as string[] | undefined;
-    if (!Array.isArray(keywords)) {
-      keywords = [];
-    }
-
-    // Validate triggers
-    if (metadata.triggers && !Array.isArray(metadata.triggers)) {
+    // Validate and parse trigger keywords from metadata
+    const triggerMetadata = metadata.triggers;
+    if (triggerMetadata && !Array.isArray(triggerMetadata)) {
       throw new SkillValidationError('Triggers must be a list of strings');
     }
+    let keywords: string[] = Array.isArray(triggerMetadata) ? [...triggerMetadata] : [];
 
     // Infer the trigger type:
     // 1. If inputs exist -> TaskTrigger
