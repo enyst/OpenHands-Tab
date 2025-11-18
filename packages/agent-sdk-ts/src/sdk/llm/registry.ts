@@ -53,7 +53,7 @@ export class TrackedLLMClient implements LLMClient {
 
   async *streamChat(request: import('./types').ChatCompletionRequest): AsyncGenerator<import('./types').LLMStreamChunk> {
     const start = Date.now();
-    let responseId = '';
+    const responseId = `${this.usageId}-${start}`;
     try {
       for await (const chunk of this.inner.streamChat(request)) {
         if (chunk.type === 'usage') {
@@ -69,7 +69,6 @@ export class TrackedLLMClient implements LLMClient {
         }
         if (chunk.type === 'finish') {
           const seconds = (Date.now() - start) / 1000;
-          responseId = responseId || `${this.usageId}-${start}`;
           this.metrics.addResponseLatency(seconds, responseId);
           this.onMetricsUpdate?.(this.usageId, this.metrics);
         }

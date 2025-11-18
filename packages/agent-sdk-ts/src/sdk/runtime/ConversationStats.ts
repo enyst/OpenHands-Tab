@@ -47,8 +47,7 @@ export class ConversationStats {
       llm.metrics.merge(this.usage_to_metrics[usageId]);
       this._restored_usage_ids.add(usageId);
     }
-    if (!(usageId in this.usage_to_metrics)) {
-      this.usage_to_metrics[usageId] = llm.metrics;
-    }
+    // Ensure we track the live metrics object
+    this.usage_to_metrics[usageId] = llm.metrics;
   }
 }
