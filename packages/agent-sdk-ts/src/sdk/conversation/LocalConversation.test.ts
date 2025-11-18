@@ -3,7 +3,7 @@ import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool } from '../.
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import { LocalConversation } from './LocalConversation';
 import type { Event, MessageEvent } from '../types';
-import { isActionEvent, isAgentErrorEvent, isMessageEvent, isObservationEvent } from '../types';
+import { isActionEvent, isAgentErrorEvent, isConversationErrorEvent, isMessageEvent, isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 
 class FakeLLM implements LLMClient {
@@ -118,7 +118,7 @@ describe('LocalConversation', () => {
     expect(error?.error).toContain('Unknown tool');
   });
 
-  it('captures tool execution failures as AgentErrorEvents', async () => {
+  it('captures tool execution failures as ConversationErrorEvents', async () => {
     const llm = new FakeLLM([
       [
         { type: 'tool_call_delta', id: 'tool_fail', name: 'task_tracker', arguments: '{"action":"complete"}' },
@@ -133,7 +133,7 @@ describe('LocalConversation', () => {
 
     await conversation.sendUserMessage('complete unknown task');
 
-    const error = events.find(isAgentErrorEvent);
-    expect(error?.error).toContain('id is required');
+    const error = events.find(isConversationErrorEvent);
+    expect(error?.detail).toContain('id is required');
   });
 });

@@ -298,6 +298,39 @@ applyStateUpdate(chunk) → updates ConversationState
 return { message, usage }
 ```
 
+### Agent (TS SDK)
+
+**Purpose**: Elevates `AgentOrchestrator` into a full agent loop that mirrors the Python SDK's local execution flow.
+
+**Key Responsibilities**:
+- Emit `SystemPromptEvent` up front with tool definitions
+- Manage the full step loop (LLM sampling → action selection → tool execution → observation)
+- Enforce confirmation policies (`never | always | risky`) and surface `PauseEvent` when waiting for approval
+- Pause/resume/cancel runs while keeping `ConversationState` and `EventLog` in sync
+- Execute registered tools against `LocalWorkspace` and emit `ObservationEvent` + tool `MessageEvent` payloads
+
+**Usage Example**:
+```typescript
+import { Agent, EventLog } from '@openhands/agent-sdk-ts';
+
+const agent = new Agent({
+  settings: {
+    llm: { model: 'gpt-4o-mini' },
+    agent: {},
+    conversation: { maxIterations: 10 },
+    confirmation: { policy: 'always' },
+    secrets: {},
+  },
+  tools: [/* ToolHandler instances */],
+  events: new EventLog(),
+  workspaceRoot: '/workspace',
+});
+
+await agent.run('List files');
+// -> ActionEvent + PauseEvent are emitted, then approve:
+await agent.approveAction();
+```
+
 ### EventLog
 
 **Purpose**: Maintains an ordered log of all events in a conversation.
