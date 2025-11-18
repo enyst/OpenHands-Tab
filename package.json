@@ -29,6 +29,7 @@
     "onView:openhands.quickActions"
   ],
   "contributes": {
+
     "commands": [
       {
         "command": "openhands.openTab",
@@ -67,6 +68,12 @@
       "type": "object",
       "title": "OpenHands Tab",
       "properties": {
+        "openhands.devBridge.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable webview→extension debug logging bridge (Output channel + file in extension log path)."
+        },
+
         "openhands.serverUrl": {
           "type": "string",
           "default": "",
