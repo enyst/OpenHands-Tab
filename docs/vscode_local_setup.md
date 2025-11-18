@@ -22,7 +22,7 @@
 >   - Windows: `%APPDATA%\Code\logs\<timestamp>\exthost\openhands.openhands-tab\`
 >
 > Production safety:
-> - The bridge is disabled by default for normal users; it only activates in Development/Test or if you opt-in via settings.
+> - The bridge is disabled by default for normal/production use; it only activates in Development/Test or if you opt-in via settings.
 
 This guide is for AI agents operating on a developer’s local machine. It assumes VS Code Desktop is installed and the `code` CLI is in PATH. The goal: run VS Code with the OpenHands Tab extension in development mode, refresh it when code changes, collect logs, and capture screenshots.
 
