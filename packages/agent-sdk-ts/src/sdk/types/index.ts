@@ -83,7 +83,6 @@ export interface MessageEvent extends EventBase {
   kind: 'MessageEvent';
   source: SourceType;
   llm_message: Message;
-  activated_microagents?: string[];
   activated_skills?: string[];
   extended_content?: TextContent[];
 }

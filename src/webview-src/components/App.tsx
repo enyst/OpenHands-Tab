@@ -271,9 +271,9 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
         </>
       )}
       {(() => {
-        const activated = event.activated_microagents ?? event.activated_skills;
+        const activated = event.activated_skills;
         if (!activated || activated.length === 0) return null;
-        const label = event.activated_microagents ? 'Activated Microagents' : 'Activated Skills';
+        const label = 'Activated Skills';
         return (
           <div className="mt-2 text-sm opacity-70">
             {label}: {activated.join(', ')}

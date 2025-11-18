@@ -1289,7 +1289,6 @@ type Event =
     kind: 'MessageEvent';
     source: 'agent' | 'user' | 'environment';
     llm_message: Message;
-    activated_microagents?: string[];
     activated_skills?: string[];
   }
   ```
