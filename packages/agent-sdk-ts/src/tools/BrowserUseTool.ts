@@ -16,7 +16,7 @@ const stubExecution = (name: string, args: Record<string, unknown>): BrowserUseR
 
 const navigateSchema = z.object({
   url: z.string().url().describe('The URL to navigate to'),
-  new_tab: booleanWithDefault(false).describe('Whether to open in a new tab. Default: False'),
+  new_tab: booleanWithDefault(false).describe('Whether to open in a new tab. Default: false'),
 });
 
 const clickSchema = z.object({
@@ -26,7 +26,7 @@ const clickSchema = z.object({
     .min(0)
     .describe('The index of the element to click (from browser_get_state).'),
   new_tab: booleanWithDefault(false).describe(
-    'Whether to open any resulting navigation in a new tab. Default: False',
+    'Whether to open any resulting navigation in a new tab. Default: false',
   ),
 });
 
@@ -41,12 +41,12 @@ const typeSchema = z.object({
 
 const getStateSchema = z.object({
   include_screenshot: booleanWithDefault(false).describe(
-    'Whether to include a screenshot of the current page. Default: False',
+    'Whether to include a screenshot of the current page. Default: false',
   ),
 });
 
 const getContentSchema = z.object({
-  extract_links: booleanWithDefault(false).describe('Whether to include links in the content (default: False).'),
+  extract_links: booleanWithDefault(false).describe('Whether to include links in the content (default: false).'),
   start_from_char: z
     .number()
     .int()
@@ -76,11 +76,11 @@ This tool allows you to navigate to any web page. You can optionally open the UR
 
 Parameters:
 - url: The URL to navigate to (required)
-- new_tab: Whether to open in a new tab (optional, default: False)
+- new_tab: Whether to open in a new tab (optional, default: false)
 
 Examples:
 - Navigate to Google: url="https://www.google.com"
-- Open GitHub in new tab: url="https://github.com", new_tab=True`;
+- Open GitHub in new tab: url="https://github.com", new_tab=true`;
 
 const BROWSER_CLICK_DESCRIPTION = `Click an element on the page by its index.
 
@@ -110,7 +110,7 @@ This tool returns the current page content with numbered interactive elements th
 click or type into. Use this frequently to understand what's available on the page.
 
 Parameters:
-- include_screenshot: Whether to include a screenshot (optional, default: False)`;
+- include_screenshot: Whether to include a screenshot (optional, default: false)`;
 
 const BROWSER_GET_CONTENT_DESCRIPTION = `Extract the main content of the current page in clean markdown format. It has been filtered to remove noise and advertising content.
 

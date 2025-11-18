@@ -104,6 +104,23 @@ describe('PlanningFileEditorTool', () => {
     const workspace = new LocalWorkspace(process.cwd());
     await expect(tool.execute({ ...args, path: 'README.md' }, { workspace })).rejects.toThrow();
   });
+
+  it('throws when str_replace target is not unique', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'repeat repeat' });
+    await tool.execute(createArgs, { workspace });
+    const replaceArgs = tool.validate({
+      command: 'str_replace',
+      path: 'PLAN.md',
+      old_str: 'repeat',
+      new_str: 'swap',
+    });
+    await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(
+      /old_str is not unique and matches multiple locations/,
+    );
+  });
 });
 
 describe('ZodTool parameter conversion', () => {

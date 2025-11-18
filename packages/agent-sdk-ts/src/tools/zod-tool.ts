@@ -26,13 +26,10 @@ export abstract class ZodTool<TArgs, TResult> implements ToolHandler<TArgs, TRes
   get parameters(): Record<string, unknown> {
     if (this.parameterSchema) return this.parameterSchema;
 
-    const { $schema, definitions, $ref, ...jsonSchema } = zodToJsonSchema(
-      this.schema,
-      `${this.name}_schema`,
-      {
-        refStrategy: 'none',
-      },
-    ) as Record<string, unknown>;
+    const { $schema, definitions, $ref, ...jsonSchema } = zodToJsonSchema(this.schema, {
+      name: `${this.name}_schema`,
+      $refStrategy: 'none',
+    }) as Record<string, unknown>;
 
     if (typeof $ref === 'string' && definitions && typeof definitions === 'object') {
       const definitionKey = $ref.replace('#/definitions/', '');

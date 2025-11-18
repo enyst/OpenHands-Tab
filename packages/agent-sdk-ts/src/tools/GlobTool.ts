@@ -37,7 +37,7 @@ const MAX_RESULTS = 100;
 
 const globToRegExp = (pattern: string): RegExp => {
   const escaped = pattern
-    .replace(/[.+^${}()|[\\]\\]/g, '\\$&')
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '.*')
     .replace(/\*/g, '[^/]*')
     .replace(/\?/g, '.');

@@ -36,7 +36,7 @@ const MAX_RESULTS = 100;
 
 const globToRegExp = (pattern: string): RegExp => {
   const escaped = pattern
-    .replace(/[.+^${}()|[\\]\\]/g, '\\$&')
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '.*')
     .replace(/\*/g, '[^/]*')
     .replace(/\?/g, '.');
@@ -82,11 +82,10 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
       } catch {
         // Ignore unreadable files
       }
-      if (matches.length > MAX_RESULTS) break;
     }
 
     const sorted = matches.sort((a, b) => b.mtime - a.mtime).map((item) => item.file);
-    const truncated = sorted.length > MAX_RESULTS;
+    const truncated = matches.length > MAX_RESULTS;
     const limited = truncated ? sorted.slice(0, MAX_RESULTS) : sorted;
 
     return {

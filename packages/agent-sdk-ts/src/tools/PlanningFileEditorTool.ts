@@ -153,8 +153,12 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
     if (args.command === 'str_replace') {
       const current = await fs.readFile(resolved, 'utf8');
       const oldStr = args.old_str ?? '';
-      if (!current.includes(oldStr)) {
+      const occurrences = current.split(oldStr).length - 1;
+      if (occurrences === 0) {
         throw new Error('old_str not found in target file');
+      }
+      if (occurrences > 1) {
+        throw new Error('old_str is not unique and matches multiple locations in the file');
       }
       const updated = current.replace(oldStr, args.new_str ?? '');
       await fs.writeFile(resolved, updated, 'utf8');
