@@ -247,7 +247,7 @@ export function loadSkillsFromDir(skillDir: string): {
 
   // Check for third-party rules: .cursorrules, AGENTS.md, etc
   const specialFiles: string[] = [];
-  for (const filename of Object.keys(Skill['PATH_TO_THIRD_PARTY_SKILL_NAME'])) {
+  for (const filename of Object.keys(Skill.PATH_TO_THIRD_PARTY_SKILL_NAME)) {
     for (const variant of [filename, filename.toLowerCase(), filename.toUpperCase()]) {
       const filePath = join(repoRoot, variant);
       if (existsSync(filePath)) {
