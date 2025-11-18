@@ -264,10 +264,10 @@ export class Agent extends EventEmitter {
   }
 
   private ensureSystemPrompt() {
-    const existing = this.events.list().find((event) => event.type === 'SystemPromptEvent');
+    const existing = this.events.list().find((event) => (event as any).kind === 'SystemPromptEvent');
     if (existing) return;
     this.events.push({
-      type: 'SystemPromptEvent',
+      kind: 'SystemPromptEvent',
       source: 'agent',
       system_prompt: { type: 'text', text: SYSTEM_PROMPT },
       tools: this.getToolDefinitionsForEvent(),

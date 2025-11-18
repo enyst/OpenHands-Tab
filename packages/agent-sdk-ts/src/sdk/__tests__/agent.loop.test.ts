@@ -42,7 +42,7 @@ describe('Agent loop control', () => {
     await agent.run('hi there');
 
     const events = log.list();
-    expect(events.some((event) => event.type === 'SystemPromptEvent')).toBe(true);
+    expect(events.some((event) => (event as any).kind === 'SystemPromptEvent')).toBe(true);
     const messages = events.filter(isMessageEvent);
     expect(messages.length).toBeGreaterThanOrEqual(2); // user + assistant
     expect(agent.state.snapshot.iteration).toBe(1);
@@ -105,7 +105,7 @@ describe('Agent loop control', () => {
     await agent.run('bad args');
 
     const events = log.list();
-    const agentErrors = events.filter((event) => event.type === 'AgentErrorEvent');
+    const agentErrors = events.filter((event) => (event as any).kind === 'AgentErrorEvent');
     expect(agentErrors).toHaveLength(1);
     expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_invalid');
     expect(events.some(isActionEvent)).toBe(false);
@@ -135,7 +135,7 @@ describe('Agent loop control', () => {
     await agent.run('bad args');
 
     const events = log.list();
-    const agentErrors = events.filter((event) => event.type === 'AgentErrorEvent');
+    const agentErrors = events.filter((event) => (event as any).kind === 'AgentErrorEvent');
     expect(agentErrors).toHaveLength(1);
     expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_primitive');
     expect(events.some(isActionEvent)).toBe(false);
