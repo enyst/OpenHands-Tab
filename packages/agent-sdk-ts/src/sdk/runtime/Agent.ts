@@ -115,7 +115,7 @@ export class Agent extends EventEmitter {
     const { actionEvent, toolCall } = this.pendingAction;
     this.pendingAction = undefined;
     this.events.push({
-      type: 'UserRejectObservation',
+      kind: 'UserRejectObservation',
       source: 'environment',
       rejection_reason: reason ?? 'User rejected the action',
       tool_name: actionEvent.tool_name,
