@@ -53,6 +53,7 @@ export class LocalConversation extends EventEmitter {
 
   setSettings(settings: OpenHandsSettings) {
     this.settings = settings;
+    // TODO: when settings change, should we just recreate the Agent
     this.agent = this.createAgent();
   }
 
