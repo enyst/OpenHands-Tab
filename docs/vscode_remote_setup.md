@@ -68,6 +68,9 @@ wget -O /tmp/code.deb "https://code.visualstudio.com/sha/download?build=stable&o
 apt-get install -y /tmp/code.deb
 ```
 
+> Note: During `apt-get install -y /tmp/code.deb`, the installer may prompt to add the Microsoft apt repository. In ephemeral/headless environments, choose "no" to avoid modifying system apt sources. Non-interactive tip: answer "no" when prompted.
+
+
 ### 2. Set Up VNC Authentication
 
 ```bash
@@ -149,6 +152,9 @@ echo $! > /tmp/code.pid
 - `--user-data-dir`: Isolated profile for testing
 - `--extensions-dir`: Separate extensions directory
 - `--no-sandbox`: Required for running as root (common in containers)
+
+> Note: The docs required Node.js 22+, but Debian packages installed Node 20 by default. If you see engine warnings, you can either proceed or install Node 22+ from NodeSource. For this environment, Node 20 + npm 9 worked for building the extension, despite warnings.
+
 - `--disable-gpu`: Prevents GPU-related issues in headless environments
 - `--extensionDevelopmentPath`: Loads the extension in development mode
 
