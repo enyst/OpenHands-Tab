@@ -289,8 +289,8 @@ export function ContextPicker({
             No matches
           </div>
         ) : (
-          <div className="p-2">
-            {filteredFiles.map((file, index) => {
+          <div className="p-2" role="listbox">
+            {filteredFiles.map((file) => {
               const isSelected = selectedFiles.includes(file);
               return (
                 <button
@@ -298,7 +298,7 @@ export function ContextPicker({
                   onClick={() => onToggleFile(file)}
                   role="option"
                   aria-label={file}
-                  aria-selected={index === 0 ? 'false' : 'false'}
+                  aria-selected={isSelected ? 'true' : 'false'}
                   className={`
                     w-full text-left px-3 py-2 rounded-lg mb-1
                     text-sm font-mono
@@ -381,6 +381,8 @@ export function SkillsPopover({
                 onClick={() => onOpenSkill(skill.path)}
                 role="option"
                 aria-label={skill.label}
+                // TODO: When keyboard navigation is implemented, track focused item
+                // and set aria-selected="true" for the active option
                 aria-selected="false"
                 className="
                   w-full text-left px-3 py-2 rounded-lg mb-1
