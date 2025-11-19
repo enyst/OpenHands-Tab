@@ -11,6 +11,27 @@ import {
   isTextContent,
 } from '@openhands/agent-sdk-ts';
 
+// Minimal VS Code API accessor (mirrors App.tsx logic)
+interface VscodeApi { postMessage: (message: unknown) => void }
+let vscodeApiInstance: VscodeApi | undefined;
+function getVscodeApi(): VscodeApi {
+  if (vscodeApiInstance) return vscodeApiInstance;
+  if (typeof window !== 'undefined') {
+    const g = window as any;
+    if (g.__OH_VSCODE_API__) {
+      vscodeApiInstance = g.__OH_VSCODE_API__ as VscodeApi;
+      return vscodeApiInstance;
+    }
+    if (typeof g.acquireVsCodeApi === 'function') {
+      vscodeApiInstance = g.acquireVsCodeApi();
+      try { g.__OH_VSCODE_API__ = vscodeApiInstance; } catch {}
+      return vscodeApiInstance as VscodeApi;
+    }
+  }
+  vscodeApiInstance = { postMessage: () => {} };
+  return vscodeApiInstance;
+}
+
 // Security risk badge component
 function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }) {
   const colors = {
@@ -258,11 +279,28 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
 
-  const textContent = message.content.filter(isTextContent).map((c) => c.text).join('\n');
+  const rawText = message.content.filter(isTextContent).map((c) => c.text).join('\n');
+  const CONTEXT_HEADER = 'User has selected the following files for you to read:';
+  function parseContextBlock(text: string): { main: string; files: string[] } {
+    const idx = text.lastIndexOf(CONTEXT_HEADER);
+    if (idx === -1) return { main: text, files: [] };
+    const before = text.slice(0, idx).trimEnd();
+    let after = text.slice(idx + CONTEXT_HEADER.length);
+    after = after.replace(/^\r?\n/, '');
+    const files = after.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+    return { main: before, files };
+  }
+  const { main: textContent, files: contextFiles } = parseContextBlock(rawText);
   const imageContent = message.content.filter((c) => c.type === 'image');
 
   const accentColor = isUser ? '#10B981' : isAssistant ? '#8B5CF6' : '#6B7280';
   const icon = isUser ? 'account' : isAssistant ? 'hubot' : 'info';
+
+  const handleOpenFile = (file: string) => {
+    const api = getVscodeApi();
+    api.postMessage({ type: 'openWorkspaceFile', path: file });
+  };
+
 
   return (
     <EventContainer accentColor={accentColor} bgOpacity={0.06} index={index}>
@@ -272,6 +310,8 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           style={{ backgroundColor: `${accentColor}20` }}
         >
           <span className={`codicon codicon-${icon} text-sm`} style={{ color: accentColor }} />
+
+
         </div>
 
         <div className="flex-1 min-w-0">
@@ -289,6 +329,31 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
               {textContent}
             </div>
           )}
+
+          {isUser && contextFiles.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <div className="mb-2 text-xs opacity-70 flex items-center gap-2">
+                <span className="codicon codicon-mention" />
+                <span>Selected files</span>
+              </div>
+              <div className="space-y-1">
+                {contextFiles.map((file) => (
+                  <button
+                    key={file}
+                    onClick={() => handleOpenFile(file)}
+                    className="w-full text-left px-3 py-2 rounded bg-white/5 hover:bg-white/10 transition flex items-center gap-2 font-mono text-xs"
+                    aria-label={`Open ${file}`}
+                    title={`Open ${file}`}
+                  >
+                    <span className="codicon codicon-file" />
+                    <span className="truncate flex-1">{file}</span>
+                    <span className="codicon codicon-go-to-file opacity-60" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
 
           {imageContent.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -312,6 +377,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
             <details className="mt-3 text-xs opacity-80">
               <summary className="cursor-pointer hover:opacity-100 font-medium mb-2">
                 Extended Thinking
+
               </summary>
               <div className="font-mono bg-black/20 rounded p-3 mt-2 leading-relaxed">
                 {message.reasoning_content}

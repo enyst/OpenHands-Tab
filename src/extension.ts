@@ -662,6 +662,33 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         }
         break;
       }
+      case 'openWorkspaceFile': {
+        const p = typeof (message as any).path === 'string' ? (message as any).path : undefined;
+        if (!p) break;
+        try {
+          const isAbs = path.isAbsolute(p);
+          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          let resolved: string | undefined;
+          if (!isAbs && wsRoot) {
+            const candidate = path.resolve(wsRoot, p);
+            const rel = path.relative(wsRoot, candidate);
+            if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+              resolved = candidate;
+            }
+          }
+          if (!resolved) {
+            resolved = path.resolve(p);
+          }
+          await fs.stat(resolved);
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
+          await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to open file: ${reason}`);
+        }
+        break;
+      }
+
       case 'requestHistory': {
         try {
           const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
