@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
 
 interface ConfirmationPromptProps {

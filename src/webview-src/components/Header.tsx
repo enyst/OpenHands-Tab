@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface HeaderProps {
   status: 'online' | 'offline' | 'connecting';
   mode: 'local' | 'remote';
