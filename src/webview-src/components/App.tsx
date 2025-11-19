@@ -378,12 +378,15 @@ export function App() {
 
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
-    setShowContextPicker(!showContextPicker);
     setShowSkillsPopover(false);
-    if (!showContextPicker) {
-      postMessage({ type: 'requestWorkspaceFiles' });
-    }
-  }, [postMessage, showContextPicker]);
+    setShowContextPicker((prev) => {
+      const willBeOpen = !prev;
+      if (willBeOpen) {
+        postMessage({ type: 'requestWorkspaceFiles' });
+      }
+      return willBeOpen;
+    });
+  }, [postMessage]);
 
   const handleToggleContextFile = useCallback((file: string) => {
     setSelectedContextFiles((prev) =>
@@ -393,12 +396,15 @@ export function App() {
 
   // Skills handlers
   const handleOpenSkills = useCallback(() => {
-    setShowSkillsPopover(!showSkillsPopover);
     setShowContextPicker(false);
-    if (!showSkillsPopover) {
-      postMessage({ type: 'requestSkills' });
-    }
-  }, [postMessage, showSkillsPopover]);
+    setShowSkillsPopover((prev) => {
+      const willBeOpen = !prev;
+      if (willBeOpen) {
+        postMessage({ type: 'requestSkills' });
+      }
+      return willBeOpen;
+    });
+  }, [postMessage]);
 
   const handleOpenSkill = useCallback((path: string) => {
     showStatusMessage('info', 'Opening skill…');
