@@ -12,12 +12,6 @@ import {
   isTextContent,
 } from '@openhands/agent-sdk-ts';
 
-interface EventBlockProps {
-  event: ActionEvent | ObservationEvent | AgentMessageEvent | SystemPromptEvent |
-         UserRejectObservation | AgentErrorEvent | ConversationErrorEvent | PauseEvent | Condensation;
-  index?: number;
-}
-
 // Security risk badge component
 function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }) {
   const colors = {
