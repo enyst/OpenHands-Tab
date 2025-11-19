@@ -295,6 +295,11 @@ export function App() {
             eventTypes: events.map(e => (e.event as any).kind ?? (e.event as any).type)
           });
           break;
+        case 'historyList': {
+          const list = Array.isArray((payload as any).conversations) ? (payload as any).conversations : [];
+          setHistory(list);
+          break;
+        }
       }
     };
 
@@ -323,9 +328,12 @@ export function App() {
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage]);
 
+  const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
+
   const handleOpenHistory = useCallback(() => {
     setShowHistory(true);
-  }, []);
+    postMessage({ type: 'requestHistory' });
+  }, [postMessage]);
 
   const handleOpenSettings = useCallback(() => {
     postMessage({ type: 'openSettingsPage' });
@@ -414,9 +422,9 @@ export function App() {
 
   // History handlers
   const handleSelectConversation = useCallback((id: string) => {
-    // TODO: Implement conversation restoration
     showStatusMessage('info', `Restoring conversation ${id.slice(0, 8)}…`);
-  }, [showStatusMessage]);
+    postMessage({ type: 'restoreConversation', id });
+  }, [postMessage, showStatusMessage]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -511,7 +519,7 @@ export function App() {
       <HistoryView
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
-        conversations={[]} // TODO: Implement conversation history storage
+        conversations={history}
         currentConversationId={conversationId}
         onSelectConversation={handleSelectConversation}
       />
