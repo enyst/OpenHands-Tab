@@ -739,7 +739,12 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         const id = typeof (message as any).id === 'string' ? (message as any).id : undefined;
         if (!id) break;
         try {
-          (conversation as any).restoreConversation?.(id);
+          const maybe = conversation?.restoreConversation?.(id);
+          void Promise.resolve(maybe).catch((err: unknown) => {
+            const reason = err instanceof Error ? err.message : String(err);
+            outputChannel?.appendLine(`[restore] ${reason}`);
+            void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
+          });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           outputChannel?.appendLine(`[restore] ${reason}`);
