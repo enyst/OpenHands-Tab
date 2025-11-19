@@ -14,30 +14,30 @@ describe('ConversationStats', () => {
     const llmA = { llm: { usageId: 'a', metrics: makeMetrics(1) } };
     const llmB = { llm: { usageId: 'b', metrics: makeMetrics(2) } };
 
-    stats.register_llm(llmA);
-    stats.register_llm(llmB);
+    stats.registerLlm(llmA);
+    stats.registerLlm(llmB);
 
-    expect(Object.keys(stats.usage_to_metrics)).toEqual(['a', 'b']);
+    expect(Object.keys(stats.usageToMetrics)).toEqual(['a', 'b']);
 
-    const combined = stats.get_combined_metrics().getSnapshot();
+    const combined = stats.getCombinedMetrics().getSnapshot();
     expect(combined.accumulatedTokenUsage?.promptTokens).toBe(3);
   });
 
   it('serializes and restores from JSON', () => {
     const stats = new ConversationStats();
-    stats.register_llm({ llm: { usageId: 'a', metrics: makeMetrics(3) } });
+    stats.registerLlm({ llm: { usageId: 'a', metrics: makeMetrics(3) } });
 
     const json = stats.toJSON();
     const restored = ConversationStats.fromJSON(json);
 
-    const m = restored.get_metrics_for_usage('a');
+    const m = restored.getMetricsForUsage('a');
     expect(m.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(3);
   });
 
   it('restores and merges metrics correctly on re-registration', () => {
     const stats = new ConversationStats();
     const m1 = makeMetrics(5);
-    stats.register_llm({ llm: { usageId: 'persistent', metrics: m1 } });
+    stats.registerLlm({ llm: { usageId: 'persistent', metrics: m1 } });
 
     // Simulate persistence round-trip
     const json = stats.toJSON();
@@ -49,7 +49,7 @@ describe('ConversationStats', () => {
 
     // Re-register the same usageId with a fresh metrics object
     const m2 = new Metrics('m'); // empty initially
-    newStats.register_llm({ llm: { usageId: 'persistent', metrics: m2 } });
+    newStats.registerLlm({ llm: { usageId: 'persistent', metrics: m2 } });
 
     // m2 should now contain the restored metrics (5 tokens)
     expect(m2.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(5);
@@ -58,12 +58,12 @@ describe('ConversationStats', () => {
     m2.addTokenUsage({ promptTokens: 2, completionTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, contextWindow: 0, responseId: 'new' });
 
     // The stats object should reflect the total (7 tokens)
-    const combined = newStats.get_combined_metrics();
+    const combined = newStats.getCombinedMetrics();
     expect(combined.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(7);
 
-    // Ensure we don't double-count if we register again (though register_llm is usually called once per client init)
+    // Ensure we don't double-count if we register again (though registerLlm is usually called once per client init)
     // But if we did:
-    newStats.register_llm({ llm: { usageId: 'persistent', metrics: m2 } });
+    newStats.registerLlm({ llm: { usageId: 'persistent', metrics: m2 } });
     // Should not merge again because _restored_usage_ids prevents it
     expect(m2.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(7);
   });

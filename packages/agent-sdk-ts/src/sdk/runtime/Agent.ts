@@ -313,8 +313,8 @@ export class Agent extends EventEmitter {
       onMetricsUpdate: (usageId, metrics) => {
         if (!this.conversationStats) return;
         // ensure entry exists and reference the same metrics
-        if (!this.conversationStats.usage_to_metrics[usageId]) {
-          this.conversationStats.usage_to_metrics[usageId] = metrics;
+        if (!this.conversationStats.usageToMetrics[usageId]) {
+          this.conversationStats.usageToMetrics[usageId] = metrics;
         }
         this.state.setValue('stats', this.conversationStats.toJSON());
       },

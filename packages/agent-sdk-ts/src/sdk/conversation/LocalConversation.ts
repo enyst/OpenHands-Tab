@@ -58,7 +58,7 @@ export class LocalConversation extends EventEmitter {
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();
     // connect registry to stats
-    this.llmRegistry.subscribe((event: RegistryEvent) => this.stats.register_llm(event));
+    this.llmRegistry.subscribe((event: RegistryEvent) => this.stats.registerLlm(event));
 
     this.agent = this.createAgent();
 
