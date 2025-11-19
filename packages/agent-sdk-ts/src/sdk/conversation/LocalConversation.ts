@@ -27,8 +27,8 @@ export class LocalConversation extends EventEmitter {
   private conversationId?: string;
   private settings: OpenHandsSettings;
   private readonly workspace: LocalWorkspace;
-  private readonly events: EventLog;
-  private readonly state: ConversationState;
+  private events: EventLog;
+  private state: ConversationState;
   private readonly secrets: SecretRegistry;
   private readonly lock = new AsyncLock();
   private readonly customLlmClient?: LLMClient;
@@ -71,9 +71,27 @@ export class LocalConversation extends EventEmitter {
   }
 
   startNewConversation(): Promise<string | undefined> {
-    this.conversationId = this.conversationId ?? `local-${Date.now().toString(36)}`;
+    // Create a brand-new conversation id and fresh runtime (EventLog/State/Agent)
+    this.conversationId = `local-${Date.now().toString(36)}`;
+
+    // Reset persistence so a new store is created for the new id (if configured)
+    this.persistence = undefined;
+
+    // Recreate logs/state
+    this.events = new EventLog();
+    this.state = new ConversationState({ eventLog: this.events });
+
+    // Forward new event stream to listeners
+    this.events.on((event) => this.emit('event', event));
+
+    // Recreate agent bound to the fresh state/log
+    this.agent = this.createAgent();
+
+    // Online and persistence wiring for new conversation
+    this.setStatus('online');
     this.initializePersistence();
     this.state.persistSnapshot();
+
     this.emit('conversationStarted', this.conversationId);
     return Promise.resolve(this.conversationId);
   }
