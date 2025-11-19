@@ -85,7 +85,6 @@ export class ConnectionManager {
       if (s?.llm.maxOutputTokens != null && s.llm.maxOutputTokens > 0) {
         llm.max_output_tokens = s.llm.maxOutputTokens;
       }
-      if (s?.llm.nativeToolCalling != null) llm.native_tool_calling = s.llm.nativeToolCalling;
       if (s?.llm.reasoningEffort != null) llm.reasoning_effort = s.llm.reasoningEffort;
       if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
       if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;

@@ -28,7 +28,6 @@ describe('ConnectionManager startNewConversation payload', () => {
       topK: 50,
       maxInputTokens: 10000,
       maxOutputTokens: 2048,
-      nativeToolCalling: true,
       reasoningEffort: 'medium',
     },
     agent: { enableSecurityAnalyzer: true },
@@ -85,7 +84,6 @@ describe('ConnectionManager startNewConversation payload', () => {
     expect(body.agent.llm.top_k).toBe(50);
     expect(body.agent.llm.max_input_tokens).toBe(10000);
     expect(body.agent.llm.max_output_tokens).toBe(2048);
-    expect(body.agent.llm.native_tool_calling).toBe(true);
     expect(body.agent.llm.reasoning_effort).toBe('medium');
     // regression: ensure filter_tools_regex is not sent
     expect(body.agent.filter_tools_regex).toBeUndefined();
