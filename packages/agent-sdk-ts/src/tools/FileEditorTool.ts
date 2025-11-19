@@ -1,6 +1,6 @@
 import path from 'path';
 import { Buffer } from 'buffer';
-import type { ToolContext, ToolHandler } from './types';
+import type { ToolContext, ToolDefinition } from './types';
 import { requireBoolean, requireObject, requireString } from './validation';
 
 export interface FileEditorArgs {
@@ -14,7 +14,7 @@ export interface FileEditorResult {
   bytesWritten: number;
 }
 
-export class FileEditorTool implements ToolHandler<FileEditorArgs, FileEditorResult> {
+export class FileEditorTool implements ToolDefinition<FileEditorArgs, FileEditorResult> {
   readonly name = 'file_editor';
 
   validate(input: unknown): FileEditorArgs {

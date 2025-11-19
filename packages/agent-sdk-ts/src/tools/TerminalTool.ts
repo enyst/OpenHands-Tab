@@ -1,5 +1,5 @@
 import { IntegratedTerminalRunner } from './IntegratedTerminalRunner';
-import type { ToolContext, ToolHandler } from './types';
+import type { ToolContext, ToolDefinition } from './types';
 import { requireObject, requireString, optionalString, optionalNumber } from './validation';
 
 export interface TerminalArgs {
@@ -14,7 +14,7 @@ export interface TerminalResult {
   exitCode: number;
 }
 
-export class TerminalTool implements ToolHandler<TerminalArgs, TerminalResult> {
+export class TerminalTool implements ToolDefinition<TerminalArgs, TerminalResult> {
   readonly name = 'terminal';
 
   validate(input: unknown): TerminalArgs {

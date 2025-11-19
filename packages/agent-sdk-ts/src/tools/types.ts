@@ -1,1 +1,1 @@
-export type { ToolContext, ToolHandler } from '../sdk/types/tools';
+export type { ToolContext, ToolDefinition } from '../sdk/types/tools';
