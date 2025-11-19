@@ -1,10 +1,12 @@
 import EventEmitter from 'events';
-import { Agent, AsyncLock, ConversationState, EventLog, FileStore, SecretRegistry } from '../runtime';
+import { Agent, AsyncLock, ConversationState, EventLog, FileStore, SecretRegistry, ConversationStats } from '../runtime';
 import type { LLMClient } from '../llm';
 import type { BashEvent, Event } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import { LLMRegistry } from '../llm';
+import type { RegistryEvent } from '../llm/registry';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime/persistence';
 import { AgentContext } from '../context';
@@ -37,6 +39,8 @@ export class LocalConversation extends EventEmitter {
   private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;
   private agent: Agent;
+  private readonly llmRegistry: LLMRegistry;
+  private readonly stats: ConversationStats;
 
   constructor(options: LocalConversationOptions) {
     super();
@@ -51,6 +55,11 @@ export class LocalConversation extends EventEmitter {
     this.tools = options.tools ?? [];
     this.secrets = new SecretRegistry();
     this.agentContext = options.agentContext;
+    this.llmRegistry = new LLMRegistry();
+    this.stats = new ConversationStats();
+    // connect registry to stats
+    this.llmRegistry.subscribe((event: RegistryEvent) => this.stats.register_llm(event));
+
     this.agent = this.createAgent();
 
     this.events.on((event) => this.emit('event', event));
@@ -92,6 +101,12 @@ export class LocalConversation extends EventEmitter {
       const snapshot = this.persistence?.readState();
       if (snapshot) {
         this.state.restore(snapshot);
+        const values: Record<string, unknown> = snapshot.values;
+        const rawStats = values['stats'];
+        if (rawStats) {
+          const restored = ConversationStats.fromJSON(rawStats);
+          this.stats.restore(restored);
+        }
       } else {
         this.state.loadEvents(events);
       }
@@ -153,6 +168,8 @@ export class LocalConversation extends EventEmitter {
       secrets: this.secrets,
       agentContext: this.agentContext,
       onTerminalEvent: (event) => this.emit('terminal', event),
+      registry: this.llmRegistry,
+      conversationStats: this.stats,
     });
   }
 

@@ -32,6 +32,8 @@ export interface AgentOptions {
   secrets?: SecretRegistry;
   agentContext?: AgentContext;
   onTerminalEvent?: (event: BashEvent) => void;
+  registry?: import('../llm').LLMRegistry;
+  conversationStats?: import('./ConversationStats').ConversationStats;
 }
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
@@ -50,6 +52,8 @@ export class Agent extends EventEmitter {
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> };
   private readonly agentContext?: AgentContext;
   private readonly activatedSkillNames: string[] = [];
+  private readonly registry?: import('../llm').LLMRegistry;
+  private readonly conversationStats?: import('./ConversationStats').ConversationStats;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -60,6 +64,8 @@ export class Agent extends EventEmitter {
     this.secrets = options.secrets ?? new SecretRegistry();
     const providedTools = options.tools ?? [];
     this.tools = new Map(providedTools.map((tool) => [tool.name, tool]));
+    this.registry = options.registry;
+    this.conversationStats = options.conversationStats;
     this.confirmation = {
       policy: options.settings?.confirmation?.policy ?? 'never',
       riskyThreshold: options.settings?.confirmation?.riskyThreshold ?? 'MEDIUM',
@@ -286,6 +292,7 @@ export class Agent extends EventEmitter {
     const s = this.options.settings;
     const config = {
       model: s.llm.model ?? '',
+      usageId: s.llm.usageId ?? undefined,
       baseUrl: s.llm.baseUrl ?? undefined,
       apiKey: s.secrets?.llmApiKey ?? undefined,
       apiVersion: s.llm.apiVersion ?? undefined,
@@ -297,8 +304,21 @@ export class Agent extends EventEmitter {
       maxOutputTokens: s.llm.maxOutputTokens ?? undefined,
       nativeToolCalling: s.llm.nativeToolCalling ?? undefined,
       reasoningEffort: s.llm.reasoningEffort ?? undefined,
+      inputCostPerToken: s.llm.inputCostPerToken ?? undefined,
+      outputCostPerToken: s.llm.outputCostPerToken ?? undefined,
     };
-    const factory = new LLMFactory(config, { secrets: this.secrets });
+    const factory = new LLMFactory(config, {
+      secrets: this.secrets,
+      registry: this.registry,
+      onMetricsUpdate: (usageId, metrics) => {
+        if (!this.conversationStats) return;
+        // ensure entry exists and reference the same metrics
+        if (!this.conversationStats.usage_to_metrics[usageId]) {
+          this.conversationStats.usage_to_metrics[usageId] = metrics;
+        }
+        this.state.setValue('stats', this.conversationStats.toJSON());
+      },
+    });
     return factory.createClient();
   }
 

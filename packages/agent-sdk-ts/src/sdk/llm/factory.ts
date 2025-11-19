@@ -3,19 +3,27 @@ import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
+import { LLMRegistry, TrackedLLMClient } from './registry';
+import { Metrics } from './metrics';
 
 export interface LLMFactoryOptions {
   secrets?: SecretRegistry;
   preferredApiKeys?: string | string[];
+  registry?: LLMRegistry;
+  onMetricsUpdate?: (usageId: string, metrics: Metrics) => void;
 }
 
 export class LLMFactory {
   private readonly credentialProvider: LLMCredentialProvider;
   private readonly preferredKeys?: string | string[];
+  private readonly registry?: LLMRegistry;
+  private readonly onMetricsUpdate?: (usageId: string, metrics: Metrics) => void;
 
   constructor(private readonly config: LLMConfiguration, options: LLMFactoryOptions = {}) {
     this.credentialProvider = new LLMCredentialProvider(options.secrets);
     this.preferredKeys = options.preferredApiKeys;
+    this.registry = options.registry;
+    this.onMetricsUpdate = options.onMetricsUpdate;
   }
 
   async createClient(): Promise<LLMClient> {
@@ -32,12 +40,17 @@ export class LLMFactory {
       throw new Error('Missing API key for LLM provider');
     }
 
-    if (this.config.provider === 'anthropic') {
-      return new AnthropicClient(this.config, apiKey);
+    const provider = this.config.provider ?? this.detectProviderFromBaseUrl();
+    const base = provider === 'anthropic' ? new AnthropicClient(this.config, apiKey) : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+
+    if (this.config.usageId) {
+      const metrics = new Metrics(this.config.model);
+      const tracked = new TrackedLLMClient({ inner: base, usageId: this.config.usageId, modelName: this.config.model, metrics, onMetricsUpdate: this.onMetricsUpdate });
+      this.registry?.add(tracked);
+      return tracked;
     }
 
-    const provider = this.config.provider ?? this.detectProviderFromBaseUrl();
-    return new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+    return base;
   }
 
   requestFromDefaults(messages: ChatCompletionRequest['messages'], systemPrompt: string): ChatCompletionRequest {
