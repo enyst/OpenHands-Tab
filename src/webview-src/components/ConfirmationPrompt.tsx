@@ -39,7 +39,12 @@ export function ConfirmationPrompt({
   if (pendingActions.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmation-title"
+    >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
@@ -58,7 +63,7 @@ export function ConfirmationPrompt({
               <span className="codicon codicon-shield text-xl text-brand-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Confirmation Required</h2>
+              <h2 id="confirmation-title" className="text-lg font-semibold">Confirmation Required</h2>
               <p className="text-xs opacity-60 mt-0.5">
                 The agent wants to perform {pendingActions.length} action{pendingActions.length !== 1 ? 's' : ''}
               </p>

@@ -75,6 +75,7 @@ export function HistoryView({
         className="fixed right-0 top-0 h-full w-full max-w-md bg-[var(--vscode-editor-background)] border-l border-white/10 shadow-2xl z-50 animate-slide-in-right flex flex-col"
         role="dialog"
         aria-label="Conversation History"
+        aria-modal="true"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">

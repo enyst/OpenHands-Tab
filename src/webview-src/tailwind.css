@@ -30,9 +30,11 @@
     @apply font-mono;
   }
 
-  /* Smooth scrolling */
-  * {
-    scroll-behavior: smooth;
+  /* Smooth scrolling (respect reduced motion) */
+  @media (prefers-reduced-motion: no-preference) {
+    * {
+      scroll-behavior: smooth;
+    }
   }
 }
 
