@@ -440,7 +440,7 @@ export function App() {
     setSelectedContextFiles([]);
     selectionRef.current = { start: 0, end: 0 };
     postMessage({ type: 'send', text: finalText });
-  }, [input, postMessage, selectedContextFiles, workspaceFiles]);
+  }, [input, postMessage, selectedContextFiles]);
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
