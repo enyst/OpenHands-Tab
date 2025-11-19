@@ -238,7 +238,9 @@ export function activate(context: vscode.ExtensionContext) {
             const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
             outputChannel?.appendLine(summary);
           }
-        } catch {}
+        } catch (e) {
+          outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
+        }
         void panel?.webview.postMessage({ type: 'event', event: ev });
       });
       conversation.on('error', (err) => {

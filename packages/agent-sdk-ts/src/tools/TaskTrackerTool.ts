@@ -167,12 +167,17 @@ export class TaskTrackerTool extends ZodTool<z.infer<typeof trackerSchema>, Task
     try {
       const raw = await fs.readFile(savePath, 'utf8');
       const json = JSON.parse(raw) as unknown;
-      if (Array.isArray(json)) {
-        return json.filter((t) => t && typeof t === 'object') as TaskItem[];
+      const parsed = z.array(taskItemSchema).safeParse(json);
+      if (parsed.success) {
+        return parsed.data;
       }
+      console.warn(`[TaskTrackerTool] Failed to parse TASKS.json: ${parsed.error.message}`);
       return [];
-    } catch {
-      return [];
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'ENOENT') {
+        return [];
+      }
+      throw error;
     }
   }
 

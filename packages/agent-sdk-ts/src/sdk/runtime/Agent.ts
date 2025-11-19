@@ -157,7 +157,9 @@ export class Agent extends EventEmitter {
           key: 'llm_request',
           value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
         } as Event);
-      } catch {}
+      } catch (error) {
+        void error; // ignore debug emission failures
+      }
       let response;
       try {
         response = await orchestrator.runChat(request);

@@ -67,7 +67,7 @@ const fileEditorSchema = z
       .int()
       .min(0)
       .optional()
-      .describe('Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.'),
+      .describe('Line number to insert `new_str` after. Line numbers are 1-based. Use `insert_line: 0` to insert at the beginning of the file.'),
     view_range: z
       .array(z.number().int())
       .length(2)
@@ -130,8 +130,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
           const ranged = applyViewRange(content, args.view_range);
           return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: ranged };
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          throw new Error(message);
+          throw error;
         }
       }
       case 'create': {
@@ -168,10 +167,13 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'undo_edit': {
-        return { command: 'undo_edit', path: resolved, prev_exist: await this.pathExists(resolved), old_content: null, new_content: null };
+        // Not implemented: surfacing as error to avoid implying a successful rollback
+        throw new Error('Undo support is not implemented in this SDK stub.');
       }
-      default:
-        throw new Error(`Unsupported command: ${String((args as any).command)}`);
+      default: {
+        const unreachable: never = args.command;
+        throw new Error(`Unsupported command: ${String(unreachable)}`);
+      }
     }
   }
 }
