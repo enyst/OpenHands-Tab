@@ -354,8 +354,15 @@ export function App() {
   }, [postMessage]);
 
   const handleSendMessage = useCallback(() => {
-    const text = input.trim();
-    if (!text) return;
+    const baseText = input.trim();
+    if (!baseText) return;
+
+    const files = selectedContextFiles.slice();
+    let finalText = baseText;
+    if (files.length > 0) {
+      const lines = files.map((f) => (workspaceFiles.includes(f) ? f : f));
+      finalText += `\n\nUser has selected the following files for you to read:\n${lines.join('\n')}`;
+    }
 
     setInput('');
     setShowContextPicker(false);
@@ -363,8 +370,8 @@ export function App() {
     setContextQuery('');
     setSelectedContextFiles([]);
     selectionRef.current = { start: 0, end: 0 };
-    postMessage({ type: 'send', text });
-  }, [input, postMessage]);
+    postMessage({ type: 'send', text: finalText });
+  }, [input, postMessage, selectedContextFiles, workspaceFiles]);
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
