@@ -232,7 +232,9 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
 }
 
 // Pause Event
-export function PauseEventBlock({ index }: { index?: number }) {
+export function PauseEventBlock({ event, index }: { event: PauseEvent; index?: number }) {
+  // Note: Currently PauseEvent doesn't contain displayable data,
+  // but we accept it for consistency and future-proofing
   return (
     <EventContainer accentColor="#EAB308" bgOpacity={0.1} index={index}>
       <div className="flex items-center gap-2">
