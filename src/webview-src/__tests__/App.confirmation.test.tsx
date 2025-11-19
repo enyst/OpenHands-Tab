@@ -53,9 +53,11 @@ describe('App - Confirmation Flow', () => {
     postToWindow({ type: 'event', event: mkAction() });
 
     const prompt = await q.findByText(/Confirmation Required/);
-    const container = prompt.closest('div') as HTMLElement;
-    expect(container).toBeInTheDocument();
-    const scope = within(container.parentElement as HTMLElement);
+    expect(prompt).toBeInTheDocument();
+    // Find the dialog container (the modal)
+    const dialog = prompt.closest('[role="dialog"]') as HTMLElement;
+    expect(dialog).toBeInTheDocument();
+    const scope = within(dialog);
     // Tool name is shown in the action details
     expect(scope.getAllByText(/terminal/i).length).toBeGreaterThanOrEqual(1);
     expect(scope.getByText(/HIGH RISK/)).toBeInTheDocument();
