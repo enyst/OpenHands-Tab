@@ -536,7 +536,7 @@ const agent = new Agent({
     confirmation: { policy: 'always' },
     secrets: {},
   },
-  tools: [/* ToolHandler instances */],
+  tools: [/* ToolDefinition instances */],
   events: new EventLog(),
   workspaceRoot: '/workspace',
 });

@@ -279,9 +279,9 @@ In Python, tools are modeled as `ToolDefinition[ActionT, ObservationT]` with a f
 
 ### TypeScript tool architecture today
 
-In TypeScript, the core tool abstraction is `ToolHandler<TArgs, TResult>` (see `src/sdk/types/tools.ts`):
+In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (see `src/sdk/types/tools.ts`):
 
-- `ToolHandler` defines:
+- `ToolDefinition` defines:
   - `name`, optional `description` and `parameters` (for schema)
   - `validate(input: unknown): TArgs` to coerce LLM arguments into a concrete args object
   - `execute(args: TArgs, context: ToolContext): Promise<TResult>` which performs the side effects and returns a result
@@ -298,7 +298,7 @@ In TypeScript, the core tool abstraction is `ToolHandler<TArgs, TResult>` (see `
 ### Gaps and intended direction
 
 - The TS runtime currently has **ActionEvent/ObservationEvent types but no first-class Action/Observation classes**. The Python stack uses Pydantic models for validation, kind resolution, and serialization; TS simply forwards validated args/results as plain JSON.
-- There is no `ToolDefinition`/`ToolExecutor` split in TS. `ToolHandler.execute` is both the definition and executor. This is enough for VS Code usage but diverges from Python, where the executor can be swapped or wrapped (e.g., for remote execution, observability, or sandboxing).
+- There is no `ToolDefinition`/`ToolExecutor` split in TS. `ToolDefinition.execute` is both the definition and executor. This is enough for VS Code usage but diverges from Python, where the executor can be swapped or wrapped (e.g., for remote execution, observability, or sandboxing).
 - The Python Agent works in terms of `ActionEvent`→`ToolExecutor`→`ObservationEvent`. TS mirrors the **event shapes** but shortcuts the intermediate typed models.
 
 **Practical parity goal for now:**
