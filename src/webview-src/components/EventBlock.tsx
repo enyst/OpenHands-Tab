@@ -273,7 +273,7 @@ export function CondensationBlock({ event, index }: { event: Condensation; index
   );
 }
 
-// Message Event (User/Assistant messages)
+// Message Event (User/Agent messages)
 export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; index?: number }) {
   const message = event.llm_message;
   const isUser = message.role === 'user';

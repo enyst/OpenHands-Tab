@@ -491,7 +491,7 @@ const response = await orchestrator.runChat({
   tools: [/* tool definitions */]
 });
 
-console.log(response.message); // Assistant's response
+console.log(response.message); // Agent's response
 console.log(response.usage);   // Token usage metrics
 ```
 
