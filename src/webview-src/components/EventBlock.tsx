@@ -230,7 +230,7 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
   );
 }
 
-// Condensation Event
+// Condensation Event - displays when conversation is summarized
 export function CondensationBlock({ event, index }: { event: Condensation; index?: number }) {
   return (
     <EventContainer accentColor="#9333EA" bgOpacity={0.06} index={index}>
