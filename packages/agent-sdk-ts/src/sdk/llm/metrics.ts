@@ -49,9 +49,10 @@ export class Metrics {
     const mbptA = obj['maxBudgetPerTask'];
     const mbptB = obj['max_budget_per_task'];
     if (typeof mbptA === 'number' || mbptA === null) {
-      m.maxBudgetPerTask = mbptA as number | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+      m.maxBudgetPerTask = mbptA;
     } else if (typeof mbptB === 'number' || mbptB === null) {
-      m.maxBudgetPerTask = mbptB as number | null; // eslint-disable-line @typescript-eslint/no-unnecessary-type-assertion
+      m.maxBudgetPerTask = mbptB;
+
     } else {
       m.maxBudgetPerTask = null;
     }
