@@ -439,7 +439,7 @@ export function App() {
     const files = selectedContextFiles.slice();
     let finalText = baseText;
     if (files.length > 0) {
-      const lines = files.map((f) => (workspaceFiles.includes(f) ? f : f));
+      const lines = files;
       finalText += `\n\nUser has selected the following files for you to read:\n${lines.join('\n')}`;
     }
 
