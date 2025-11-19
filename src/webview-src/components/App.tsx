@@ -275,7 +275,7 @@ export function App() {
             setPendingActions([]);
             setAgentStatus(undefined);
             eventId.current = 1;
-            setStatusBanner({ message: 'New conversation started', level: 'info' });
+            // No toast: UI clears and restored/started messages will render naturally
           }
           break;
         case 'workspaceFiles':
@@ -422,9 +422,9 @@ export function App() {
 
   // History handlers
   const handleSelectConversation = useCallback((id: string) => {
-    showStatusMessage('info', `Restoring conversation ${id.slice(0, 8)}…`);
+    // No toast on restore; the UI will be repopulated with restored events
     postMessage({ type: 'restoreConversation', id });
-  }, [postMessage, showStatusMessage]);
+  }, [postMessage]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
