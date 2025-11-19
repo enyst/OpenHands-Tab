@@ -28,7 +28,6 @@ import {
   UserRejectBlock,
   AgentErrorBlock,
   ConversationErrorBlock,
-  PauseEventBlock,
   CondensationBlock,
   MessageEventBlock,
 } from './EventBlock';
@@ -68,7 +67,7 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
   if (isMessageEvent(event)) return <MessageEventBlock event={event} index={index} />;
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} index={index} />;
   if (isConversationErrorEvent(event)) return <ConversationErrorBlock event={event} index={index} />;
-  if (isPauseEvent(event)) return <PauseEventBlock event={event} index={index} />;
+  if (isPauseEvent(event)) return null; // Pause events only show in status bar
   if (isCondensation(event)) return <CondensationBlock event={event} index={index} />;
 
   // Fallback for unknown events

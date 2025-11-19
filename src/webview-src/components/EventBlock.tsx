@@ -7,7 +7,6 @@ import {
   type UserRejectObservation,
   type AgentErrorEvent,
   type ConversationErrorEvent,
-  type PauseEvent,
   type Condensation,
   isTextContent,
 } from '@openhands/agent-sdk-ts';
@@ -227,20 +226,6 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
       {event.detail && (
         <div className="text-sm bg-black/20 rounded p-3">{event.detail}</div>
       )}
-    </EventContainer>
-  );
-}
-
-// Pause Event
-export function PauseEventBlock({ event, index }: { event: PauseEvent; index?: number }) {
-  // Note: Currently PauseEvent doesn't contain displayable data,
-  // but we accept it for consistency and future-proofing
-  return (
-    <EventContainer accentColor="#EAB308" bgOpacity={0.1} index={index}>
-      <div className="flex items-center gap-2">
-        <span className="codicon codicon-debug-pause text-lg" style={{ color: '#EAB308' }} />
-        <div className="font-semibold text-base">Conversation Paused</div>
-      </div>
     </EventContainer>
   );
 }
