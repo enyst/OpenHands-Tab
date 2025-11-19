@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
+import type { RefObject } from 'react';
 
 export function useCloseOnEscapeAndOutsideClick(
-  opts: { isOpen: boolean; onClose: () => void; ref: React.RefObject<HTMLElement>; delay?: number }
+  opts: { isOpen: boolean; onClose: () => void; ref: RefObject<HTMLElement | null>; delay?: number }
 ) {
   const { isOpen, onClose, ref, delay = 100 } = opts;
 
