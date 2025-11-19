@@ -148,6 +148,16 @@ export class Agent extends EventEmitter {
     while (!this.paused && !this.pendingAction && !this.cancelled && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
       const request = this.buildChatRequest();
+      // Emit a lightweight debug/state event so hosts can log what tools are actually sent
+      try {
+        const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
+        this.events.push({
+          kind: 'ConversationStateUpdateEvent',
+          source: 'agent',
+          key: 'llm_request',
+          value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
+        } as Event);
+      } catch {}
       let response;
       try {
         response = await orchestrator.runChat(request);

@@ -228,6 +228,17 @@ export function activate(context: vscode.ExtensionContext) {
       });
       conversation.on('event', (ev) => {
         outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+        // Friendly LLM request summary for debugging
+        try {
+          if ((ev as any)?.kind === 'ConversationStateUpdateEvent' && (ev as any)?.key === 'llm_request') {
+            const v = (ev as any)?.value ?? {};
+            const model = typeof v.model === 'string' ? v.model : undefined;
+            const names = Array.isArray(v.tools) ? v.tools.filter((n: unknown) => typeof n === 'string') : [];
+            const count = typeof v.tool_count === 'number' ? v.tool_count : names.length;
+            const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
+            outputChannel?.appendLine(summary);
+          }
+        } catch {}
         void panel?.webview.postMessage({ type: 'event', event: ev });
       });
       conversation.on('error', (err) => {
