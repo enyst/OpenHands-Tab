@@ -71,8 +71,8 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   stream: true,
   stream_options: { include_usage: true },
   temperature: config.temperature ?? undefined,
-  top_p: config.topP ?? undefined,
-  top_k: config.topK ?? undefined,
+  // Do not send top_p or top_k for OpenAI-compatible endpoints to avoid proxy/model rejections
+  // top_p and top_k intentionally omitted
   max_tokens: config.maxOutputTokens ?? undefined,
   reasoning_effort: config.reasoningEffort && config.reasoningEffort !== 'none' ? config.reasoningEffort : undefined,
   tools: config.nativeToolCalling ? request.tools : undefined,
@@ -237,7 +237,10 @@ export class OpenAICompatibleClient implements LLMClient {
     while (attempt <= this.retry.maxRetries) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), (this.config.timeoutSeconds ?? (DEFAULT_TIMEOUT_MS / 1000)) * 1000);
+        const effectiveSeconds = (typeof this.config.timeoutSeconds === 'number' && this.config.timeoutSeconds > 0)
+          ? this.config.timeoutSeconds
+          : (DEFAULT_TIMEOUT_MS / 1000);
+        const timeout = setTimeout(() => controller.abort(), effectiveSeconds * 1000);
         const response = await fetch(this.requestUrl(), {
           method: 'POST',
           headers: this.requestHeaders(),

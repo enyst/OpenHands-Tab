@@ -164,6 +164,10 @@ agent_logs/
 *.sqlite
 *.db
 
+
+# Local OpenHands data (conversations, logs, etc.)
+.openhands/
+
 # Secrets and configuration
 config.json
 secrets.json

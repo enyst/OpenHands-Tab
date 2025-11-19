@@ -15,8 +15,8 @@ describe('App render', () => {
   it('renders header, input, and toolbar controls', () => {
     render(<App />);
     expect(screen.getByText('OpenHands')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument();
-    expect(screen.getByLabelText('New Conversation')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Ask OpenHands anything...')).toBeInTheDocument();
+    expect(screen.getByLabelText('New')).toBeInTheDocument();
     expect(screen.getByLabelText('Add context')).toBeInTheDocument();
   });
 });
