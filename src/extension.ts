@@ -175,6 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   async function ensurePanelAndConnection() {
+    let panelJustCreated = false;
     if (!panel) {
       webviewReady = false; // Reset readiness flag for new panel
       panel = vscode.window.createWebviewPanel(
@@ -193,6 +194,7 @@ export function activate(context: vscode.ExtensionContext) {
         panel = undefined;
         webviewReady = false;
       }, null, context.subscriptions);
+      panelJustCreated = true;
     }
 
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
@@ -201,7 +203,8 @@ export function activate(context: vscode.ExtensionContext) {
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
-    const savedId = context.workspaceState.get<string>('openhands.conversationId');
+    const rawSavedId = context.workspaceState.get<string>('openhands.conversationId');
+    const savedId = panelJustCreated ? undefined : rawSavedId;
     const needsNewConversation = !conversation || conversationMode !== desiredMode;
 
     if (needsNewConversation) {
