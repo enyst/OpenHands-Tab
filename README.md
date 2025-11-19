@@ -32,7 +32,7 @@ The extension connects to an [OpenHands agent-server](https://github.com/All-Han
    npm install
    ```
 
-3. Set up the agent-sdk backend (see [agent-sdk documentation](https://github.com/All-Hands-AI/agent-sdk))
+3. Set up the agent-sdk backend (see [agent-sdk documentation](https://github.com/OpenHands/software-agent-sdk))
 
 ### Development
 
