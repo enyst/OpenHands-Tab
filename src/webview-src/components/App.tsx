@@ -64,6 +64,14 @@ function getVscodeApi(): VscodeApi {
 
 type RenderedEvent = { id: number; event: Event };
 
+type ConversationsList = Array<{
+  id: string;
+  title?: string;
+  firstMessage?: string;
+  timestamp: number;
+  messageCount?: number;
+}>;
+
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
  */
@@ -229,6 +237,7 @@ export function App() {
         conversationId?: string;
         files?: string[];
         skills?: { label: string; path: string }[];
+        conversations?: ConversationsList;
       };
 
       switch (payload?.type) {
@@ -299,7 +308,7 @@ export function App() {
           });
           break;
         case 'historyList': {
-          const list = Array.isArray((payload as any).conversations) ? (payload as any).conversations : [];
+          const list = Array.isArray(payload.conversations) ? payload.conversations : [];
           setHistory(list);
           break;
         }
