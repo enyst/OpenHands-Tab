@@ -16,6 +16,8 @@ interface InputAreaProps {
   onOpenAttachments?: () => void;
   // MCP (placeholder for future)
   onOpenMCP?: () => void;
+  // Selection tracking (for mention-style context)
+  onSelectionChange?: (start: number, end: number) => void;
 }
 
 export function InputArea({
@@ -30,6 +32,7 @@ export function InputArea({
   skillsCount = 0,
   onOpenAttachments,
   onOpenMCP,
+  onSelectionChange,
 }: InputAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -40,9 +43,21 @@ export function InputArea({
     if (!textarea) return;
 
     textarea.style.height = 'auto';
+
     const newHeight = Math.min(textarea.scrollHeight, 200); // Max 200px
     textarea.style.height = `${newHeight}px`;
   }, [value]);
+
+  const emitSelection = (el: HTMLTextAreaElement | null) => {
+    if (!el || !onSelectionChange) return;
+    try {
+      const start = (el as any).selectionStart as number | undefined;
+      const end = (el as any).selectionEnd as number | undefined;
+      if (typeof start === 'number' && typeof end === 'number') {
+        onSelectionChange(start, end);
+      }
+    } catch {}
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -79,9 +94,12 @@ export function InputArea({
             id="openhands-chat-input"
             ref={textareaRef}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => { onChange(e.target.value); emitSelection(e.currentTarget); }}
             onKeyDown={handleKeyDown}
-            onFocus={() => setIsFocused(true)}
+            onKeyUp={() => emitSelection(textareaRef.current)}
+            onClick={() => emitSelection(textareaRef.current)}
+            onSelect={() => emitSelection(textareaRef.current)}
+            onFocus={() => { setIsFocused(true); emitSelection(textareaRef.current); }}
             onBlur={() => setIsFocused(false)}
             disabled={disabled}
             placeholder={placeholder}

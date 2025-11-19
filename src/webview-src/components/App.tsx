@@ -135,6 +135,8 @@ export function App() {
   const [contextQuery, setContextQuery] = useState('');
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
   const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
+  const [isMentionActive, setIsMentionActive] = useState(false);
+  const mentionStartRef = useRef<number | null>(null);
 
   // Skills state
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
@@ -325,7 +327,83 @@ export function App() {
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
+
   }, [events.length]);
+
+  // Selection tracking from InputArea
+  const handleSelectionChange = useCallback((start: number, end: number) => {
+    selectionRef.current = { start, end };
+
+    // Update mention state based on current input and caret
+    const caret = end;
+    const before = input.slice(0, caret);
+    const at = before.lastIndexOf('@');
+    if (at === -1) {
+      if (isMentionActive) {
+        setIsMentionActive(false);
+        setShowContextPicker(false);
+        setContextQuery('');
+        mentionStartRef.current = null;
+      }
+      return;
+    }
+    const afterAt = before.slice(at + 1);
+    if (/\s/.test(afterAt)) {
+      if (isMentionActive) {
+        setIsMentionActive(false);
+        setShowContextPicker(false);
+        setContextQuery('');
+        mentionStartRef.current = null;
+      }
+      return;
+    }
+
+    // Activate mention mode
+    mentionStartRef.current = at;
+    setIsMentionActive(true);
+    setShowSkillsPopover(false);
+    if (!showContextPicker) {
+      postMessage({ type: 'requestWorkspaceFiles' });
+      setShowContextPicker(true);
+    }
+    setContextQuery(afterAt);
+  }, [input, isMentionActive, postMessage, showContextPicker]);
+
+  // Input change with mention detection
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value);
+    // Use latest caret from selectionRef
+    const caret = selectionRef.current.end;
+    const before = value.slice(0, caret);
+    const at = before.lastIndexOf('@');
+    if (at === -1) {
+      if (isMentionActive) {
+        setIsMentionActive(false);
+        setShowContextPicker(false);
+        setContextQuery('');
+        mentionStartRef.current = null;
+      }
+      return;
+    }
+    const afterAt = before.slice(at + 1);
+    if (/\s/.test(afterAt)) {
+      if (isMentionActive) {
+        setIsMentionActive(false);
+        setShowContextPicker(false);
+        setContextQuery('');
+        mentionStartRef.current = null;
+      }
+      return;
+    }
+    mentionStartRef.current = at;
+    setIsMentionActive(true);
+    setShowSkillsPopover(false);
+    if (!showContextPicker) {
+      postMessage({ type: 'requestWorkspaceFiles' });
+      setShowContextPicker(true);
+    }
+    setContextQuery(afterAt);
+  }, [isMentionActive, postMessage, showContextPicker]);
 
   // Handler functions
   const handleStartNewConversation = useCallback(() => {
@@ -414,10 +492,38 @@ export function App() {
   }, [postMessage]);
 
   const handleToggleContextFile = useCallback((file: string) => {
-    setSelectedContextFiles((prev) =>
-      prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]
-    );
-  }, []);
+    if (isMentionActive && mentionStartRef.current !== null) {
+      // Ensure file is in selected context
+      setSelectedContextFiles((prev) => (prev.includes(file) ? prev : [...prev, file]));
+
+      const caret = selectionRef.current.end;
+      const start = mentionStartRef.current;
+      const before = input.slice(0, start);
+      const after = input.slice(caret);
+      const inserted = `@${file} `;
+      const next = before + inserted + after;
+      setInput(next);
+
+      // Place caret after inserted mention
+      setTimeout(() => {
+        const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
+        if (textarea) {
+          const pos = (before + inserted).length;
+          try { textarea.setSelectionRange(pos, pos); } catch {}
+        }
+      }, 0);
+
+      // Close mention/context picker
+      setIsMentionActive(false);
+      setShowContextPicker(false);
+      setContextQuery('');
+      mentionStartRef.current = null;
+    } else {
+      setSelectedContextFiles((prev) =>
+        prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]
+      );
+    }
+  }, [input, isMentionActive]);
 
   // Skills handlers
   const handleOpenSkills = useCallback(() => {
@@ -491,13 +597,14 @@ export function App() {
       <div className="relative">
         <InputArea
           value={input}
-          onChange={setInput}
+          onChange={handleInputChange}
           onSubmit={handleSendMessage}
           disabled={status === 'offline'}
           onOpenContext={handleOpenContext}
           contextCount={selectedContextFiles.length}
           onOpenSkills={handleOpenSkills}
           skillsCount={skills.length}
+          onSelectionChange={handleSelectionChange}
         />
 
         {/* Context picker popover */}
