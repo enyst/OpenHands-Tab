@@ -277,7 +277,7 @@ export function CondensationBlock({ event, index }: { event: Condensation; index
 export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; index?: number }) {
   const message = event.llm_message;
   const isUser = message.role === 'user';
-  const isAssistant = message.role === 'assistant';
+  const isAgent = message.role === 'assistant';
 
   const rawText = message.content.filter(isTextContent).map((c) => c.text).join('\n');
   const CONTEXT_HEADER = 'User has selected the following files for you to read:';
@@ -293,8 +293,8 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const { main: textContent, files: contextFiles } = parseContextBlock(rawText);
   const imageContent = message.content.filter((c) => c.type === 'image');
 
-  const accentColor = isUser ? '#10B981' : isAssistant ? '#8B5CF6' : '#6B7280';
-  const icon = isUser ? 'account' : isAssistant ? 'hubot' : 'info';
+  const accentColor = isUser ? '#10B981' : isAgent ? '#8B5CF6' : '#6B7280';
+  const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
 
   const handleOpenFile = (file: string) => {
     const api = getVscodeApi();
