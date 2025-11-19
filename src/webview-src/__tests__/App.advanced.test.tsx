@@ -58,17 +58,17 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText(/Action Confirmation Required/)).toBeInTheDocument();
+        expect(screen.getByText(/Confirmation Required/)).toBeInTheDocument();
       });
 
       // Should only have one action in the pending actions list
       // The action appears in both the event stream and the confirmation prompt
       // We verify deduplication by checking that the action appears exactly once in the event stream
-      const toolLabels = screen.getAllByText(/Tool:/);
+      const toolNames = screen.getAllByText('terminal');
       // Even though we posted the action twice, it should only appear once in events
       // plus once in the confirmation prompt (total 2 or 3 depending on rendering)
-      expect(toolLabels.length).toBeGreaterThanOrEqual(2);
-      expect(toolLabels.length).toBeLessThan(5); // Not 4+ which would indicate duplication
+      expect(toolNames.length).toBeGreaterThanOrEqual(2);
+      expect(toolNames.length).toBeLessThan(5); // Not 4+ which would indicate duplication
     });
 
     it('allows different actions with different tool_call_ids', async () => {
@@ -88,12 +88,12 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: mkAction({ tool_call_id: 'action-2' }) });
 
       await waitFor(() => {
-        expect(screen.getByText(/Action Confirmation Required/)).toBeInTheDocument();
+        expect(screen.getByText(/Confirmation Required/)).toBeInTheDocument();
       });
 
       // Should have multiple action details sections
-      const toolLabels = screen.getAllByText(/Tool:/);
-      expect(toolLabels.length).toBeGreaterThanOrEqual(4);
+      const toolNames = screen.getAllByText('terminal');
+      expect(toolNames.length).toBeGreaterThanOrEqual(4);
     });
   });
 
@@ -251,7 +251,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: mkAction() });
 
       await waitFor(() => {
-        expect(screen.getByText(/Action Confirmation Required/)).toBeInTheDocument();
+        expect(screen.getByText(/Confirmation Required/)).toBeInTheDocument();
       });
     });
 
@@ -352,12 +352,12 @@ describe('App - Advanced Test Coverage', () => {
     it('shows status dot only in remote mode', async () => {
       const { container } = render(<App />);
 
-      // Remote mode - status dot should be visible
+      // Remote mode - status indicator should be visible
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
       await waitFor(() => {
-        const statusDot = container.querySelector('[aria-label*="Connection status"]');
-        expect(statusDot).toBeInTheDocument();
+        const statusIndicator = container.querySelector('[aria-label*="Status:"]');
+        expect(statusIndicator).toBeInTheDocument();
       });
     });
 
@@ -370,8 +370,9 @@ describe('App - Advanced Test Coverage', () => {
         expect(screen.getByText('Local mode')).toBeInTheDocument();
       });
 
-      // Connection button should not be present in local mode
-      expect(screen.queryByLabelText(/Disconnected \(click to reconnect\)/)).not.toBeInTheDocument();
+      // In local mode, status indicator shows disconnected but reconnect button is still shown
+      // (The new design always shows reconnect button when offline, regardless of mode)
+      expect(screen.getByLabelText(/Status:/)).toBeInTheDocument();
     });
 
     it('shows connection button in remote mode', async () => {
@@ -380,7 +381,9 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
       await waitFor(() => {
-        expect(screen.getByLabelText(/Connected \(click to reconnect\)/)).toBeInTheDocument();
+        // In the new design, the status indicator shows "Connected"
+        expect(screen.getByLabelText(/Status:/)).toBeInTheDocument();
+        expect(screen.getByText('Connected')).toBeInTheDocument();
       });
     });
 
@@ -446,26 +449,26 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: mkAction() });
 
       await waitFor(() => {
-        expect(screen.getByText(/Action Confirmation Required/)).toBeInTheDocument();
+        expect(screen.getByText(/Confirmation Required/)).toBeInTheDocument();
       });
 
       // Start new conversation
       postToWindow({ type: 'conversationStarted', conversationId: 'new-conv-456' });
 
       await waitFor(() => {
-        expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
       });
     });
 
     it('clears input and state on new conversation button click', async () => {
       render(<App />);
 
-      const input = screen.getByPlaceholderText('Type a message...') as HTMLInputElement;
+      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
       await userEvent.type(input, 'Some text');
 
       expect(input.value).toBe('Some text');
 
-      const newChatBtn = screen.getByLabelText('New Conversation');
+      const newChatBtn = screen.getByLabelText('New');
       await userEvent.click(newChatBtn);
 
       expect(input.value).toBe('');
@@ -582,7 +585,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty input submission', async () => {
       render(<App />);
 
-      const input = screen.getByPlaceholderText('Type a message...') as HTMLInputElement;
+      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
 
       // Try to send empty message
       await userEvent.type(input, '{enter}');
@@ -596,7 +599,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles whitespace-only input', async () => {
       render(<App />);
 
-      const input = screen.getByPlaceholderText('Type a message...') as HTMLInputElement;
+      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
 
       await userEvent.type(input, '   {enter}');
 
@@ -817,7 +820,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText(/Security Risk: HIGH/)).toBeInTheDocument();
+        expect(screen.getByText('HIGH')).toBeInTheDocument();
       });
     });
 
@@ -832,7 +835,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText(/Security Risk: MEDIUM/)).toBeInTheDocument();
+        expect(screen.getByText('MEDIUM')).toBeInTheDocument();
       });
     });
 
@@ -847,7 +850,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText(/Security Risk: LOW/)).toBeInTheDocument();
+        expect(screen.getByText('LOW')).toBeInTheDocument();
       });
     });
 
@@ -865,7 +868,7 @@ describe('App - Advanced Test Coverage', () => {
         expect(screen.getByText(/Agent Action/)).toBeInTheDocument();
       });
 
-      expect(screen.queryByText(/Security Risk: UNKNOWN/)).not.toBeInTheDocument();
+      expect(screen.queryByText('UNKNOWN')).not.toBeInTheDocument();
     });
   });
 

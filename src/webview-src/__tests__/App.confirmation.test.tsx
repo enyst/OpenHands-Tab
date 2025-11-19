@@ -52,13 +52,14 @@ describe('App - Confirmation Flow', () => {
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction() });
 
-    const prompt = await q.findByText(/Action Confirmation Required/);
+    const prompt = await q.findByText(/Confirmation Required/);
     const container = prompt.closest('div') as HTMLElement;
     expect(container).toBeInTheDocument();
     const scope = within(container.parentElement as HTMLElement);
-    expect(scope.getAllByText(/Tool:/).length).toBeGreaterThanOrEqual(1);
-    expect(scope.getByText(/Risk: HIGH/)).toBeInTheDocument();
-    expect(scope.getByText(/Thought:/)).toBeInTheDocument();
+    // Tool name is shown in the action details
+    expect(scope.getAllByText(/terminal/i).length).toBeGreaterThanOrEqual(1);
+    expect(scope.getByText(/HIGH RISK/)).toBeInTheDocument();
+    expect(scope.getByText(/Reasoning/)).toBeInTheDocument();
   });
 
   it('hides prompt when no actions are pending', async () => {
@@ -66,7 +67,7 @@ describe('App - Confirmation Flow', () => {
     setWaitingForConfirmation();
     // no action posted -> prompt should not render
     await waitFor(() => {
-      expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
     });
   });
 
@@ -75,7 +76,7 @@ describe('App - Confirmation Flow', () => {
     // Post action without setting WAITING_FOR_CONFIRMATION
     postToWindow({ type: 'event', event: mkAction() });
     await waitFor(() => {
-      expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
     });
   });
 
@@ -110,9 +111,9 @@ describe('App - Confirmation Flow', () => {
 
     const rejectBtn = (await screen.findAllByRole('button', { name: /reject/i }))[0];
     await userEvent.click(rejectBtn);
-    const input = await screen.findByPlaceholderText(/Reason for rejection/);
+    const input = await screen.findByPlaceholderText(/Reason for rejection \(optional\)/);
     await userEvent.type(input, 'Too risky');
-    const confirmReject = await screen.findByRole('button', { name: /confirm reject/i });
+    const confirmReject = await screen.findByRole('button', { name: /confirm rejection/i });
     await userEvent.click(confirmReject);
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'rejectAction', reason: 'Too risky' });
   });
@@ -124,7 +125,7 @@ describe('App - Confirmation Flow', () => {
 
     const rejectBtn = (await screen.findAllByRole('button', { name: /reject/i }))[0];
     await userEvent.click(rejectBtn);
-    const confirmReject = await screen.findByRole('button', { name: /confirm reject/i });
+    const confirmReject = await screen.findByRole('button', { name: /confirm rejection/i });
     await userEvent.click(confirmReject);
     await userEvent.click(confirmReject);
 
@@ -142,7 +143,7 @@ describe('App - Confirmation Flow', () => {
     // send observation for that tool_call_id; should clear prompt
     postToWindow({ type: 'event', event: { kind: 'ObservationEvent', source: 'environment', observation: { ok: true }, tool_name: 'terminal', tool_call_id: 'call-clear', action_id: 'a1' } });
     await waitFor(() => {
-      expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
     });
   });
 
@@ -152,12 +153,12 @@ describe('App - Confirmation Flow', () => {
     postToWindow({ type: 'event', event: mkAction({ tool_call_id: 'call-rej' }) });
     const rejectBtn = await screen.findByRole('button', { name: /reject/i });
     await userEvent.click(rejectBtn);
-    const confirmReject = await screen.findByRole('button', { name: /confirm reject/i });
+    const confirmReject = await screen.findByRole('button', { name: /confirm rejection/i });
     await userEvent.click(confirmReject);
 
     postToWindow({ type: 'event', event: { kind: 'UserRejectObservation', source: 'environment', rejection_reason: 'no', tool_name: 'terminal', tool_call_id: 'call-rej', action_id: 'a2' } });
     await waitFor(() => {
-      expect(screen.queryByText(/Action Confirmation Required/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
     });
   });
 
@@ -202,7 +203,7 @@ const approveBtn = await screen.findByRole('button', { name: /approve/i });
     const q = within(res.baseElement);
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction() });
-    expect(await q.findByText(/Action Details:/)).toBeInTheDocument();
+    expect(await q.findByText(/View details/)).toBeInTheDocument();
     // Use getAllBy to avoid ambiguity (tool name appears in multiple places)
     expect(q.getAllByText(/terminal/i).length).toBeGreaterThan(0);
   });

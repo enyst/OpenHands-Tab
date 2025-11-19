@@ -444,6 +444,7 @@ export function App() {
           pendingActions={pendingActions}
           onApprove={handleApprove}
           onReject={handleReject}
+          isSubmitting={isSubmitting}
         />
       )}
 

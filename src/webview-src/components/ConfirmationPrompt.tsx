@@ -5,12 +5,14 @@ interface ConfirmationPromptProps {
   pendingActions: ActionEvent[];
   onApprove: () => void;
   onReject: (reason?: string) => void;
+  isSubmitting?: boolean;
 }
 
 export function ConfirmationPrompt({
   pendingActions,
   onApprove,
   onReject,
+  isSubmitting = false,
 }: ConfirmationPromptProps) {
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
@@ -138,7 +140,7 @@ export function ConfirmationPrompt({
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Explain why you're rejecting this action..."
+                placeholder="Reason for rejection (optional)"
                 rows={3}
                 className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/50"
                 autoFocus
@@ -163,13 +165,15 @@ export function ConfirmationPrompt({
               <>
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-medium transition-colors"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReject}
-                  className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm font-medium transition-colors border border-red-500/30"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm font-medium transition-colors border border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Confirm Rejection
                 </button>
@@ -178,14 +182,16 @@ export function ConfirmationPrompt({
               <>
                 <button
                   onClick={handleReject}
-                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-medium transition-colors"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="codicon codicon-close mr-2" />
                   Reject
                 </button>
                 <button
                   onClick={handleApprove}
-                  className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-all hover:shadow-glow-sm flex items-center gap-2"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-all hover:shadow-glow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="codicon codicon-check" />
                   Approve & Continue

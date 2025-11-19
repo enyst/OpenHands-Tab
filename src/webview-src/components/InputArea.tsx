@@ -76,6 +76,7 @@ export function InputArea({
         >
           {/* Textarea */}
           <textarea
+            id="openhands-chat-input"
             ref={textareaRef}
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -290,7 +291,7 @@ export function ContextPicker({
       <div className="overflow-y-auto max-h-64">
         {filteredFiles.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm opacity-60">
-            {searchQuery ? 'No files match your search' : 'No files available'}
+            No matches
           </div>
         ) : (
           <div className="p-2">
@@ -396,7 +397,7 @@ export function SkillsPopover({
       <div className="overflow-y-auto max-h-64">
         {skills.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm opacity-60">
-            No skills available
+            No skills found
           </div>
         ) : (
           <div className="p-2">

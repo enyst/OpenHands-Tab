@@ -27,7 +27,7 @@ describe('App actions post messages to extension', () => {
 
   it('New Chat posts command startNewConversation', async () => {
     render(<App />);
-    await userEvent.click(screen.getAllByLabelText(/new conversation/i)[0]);
+    await userEvent.click(screen.getAllByLabelText(/new/i)[0]);
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'startNewConversation' });
   });
 
