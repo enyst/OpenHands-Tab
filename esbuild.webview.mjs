@@ -6,5 +6,6 @@ await esbuild.build({
   bundle: true,
   sourcemap: true,
   format: 'esm',
+  jsx: 'automatic',
   loader: { '.css': 'css', '.png': 'file' },
 });

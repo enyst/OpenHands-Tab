@@ -44,9 +44,17 @@ function getVscodeApi(): VscodeApi {
     return vscodeApiInstance;
   }
 
-  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
-    vscodeApiInstance = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
-    return vscodeApiInstance;
+  if (typeof window !== 'undefined') {
+    const g = window as any;
+    if (g.__OH_VSCODE_API__) {
+      vscodeApiInstance = g.__OH_VSCODE_API__ as VscodeApi;
+      return vscodeApiInstance;
+    }
+    if (typeof g.acquireVsCodeApi === 'function') {
+      vscodeApiInstance = g.acquireVsCodeApi();
+      try { g.__OH_VSCODE_API__ = vscodeApiInstance; } catch {}
+      return vscodeApiInstance;
+    }
   }
 
   // Fallback for non-vscode environments (e.g., tests)

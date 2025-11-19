@@ -617,6 +617,12 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       case 'webviewReady':
         // Webview has mounted and is ready to receive messages
         webviewReady = true;
+        // Re-send current status so the webview can enable UI immediately
+        void panel.webview.postMessage({
+          type: 'status',
+          status: conversation?.getStatus() ?? 'offline',
+          mode: conversationMode,
+        });
         break;
       case 'openSettingsPage':
         await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');

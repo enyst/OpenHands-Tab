@@ -8,9 +8,9 @@ import { App } from './components/App';
 // --- Webview instrumentation: bridge console/errors/network to extension host ---
 (function initInstrumentation() {
   try {
-    const vscode = (globalThis as any).acquireVsCodeApi?.();
+    const vscode = (globalThis as any).__OH_VSCODE_API__ as any;
     const post = (payload: any) => {
-      try { vscode?.postMessage(payload); } catch {}
+      try { (globalThis as any).__OH_VSCODE_API__?.postMessage(payload); } catch {}
     };
 
     // Signal readiness (in case the host waits on it)
