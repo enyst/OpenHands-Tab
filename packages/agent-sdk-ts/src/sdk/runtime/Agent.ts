@@ -193,27 +193,48 @@ export class Agent extends EventEmitter {
 
       let toolExecutionFailed = false;
       for (const toolCall of toolCalls) {
-        const parsedArgs = this.parseToolArgs(toolCall);
-        if (!parsedArgs) {
-          toolExecutionFailed = true;
-          break;
+        // Log raw tool call for debugging visibility
+        try {
+          this.events.push({
+            kind: 'ConversationStateUpdateEvent',
+            source: 'agent',
+            key: 'llm_tool_call_raw',
+            value: {
+              id: toolCall.id,
+              name: toolCall.function?.name ?? '',
+              arguments: toolCall.function?.arguments ?? '',
+            },
+          } as Event);
+        } catch {}
+
+        const parsed = this.parseToolArgs(toolCall);
+        let args: Record<string, unknown> | null = null;
+        let securityRisk: SecurityRisk | undefined;
+        if (parsed) {
+          args = parsed.args;
+          securityRisk = parsed.securityRisk;
         }
-        const { args, securityRisk } = parsedArgs;
+
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
         if (this.requiresConfirmation(recordedAction)) {
-          this.pendingAction = { toolCall, actionEvent: recordedAction, args };
+          this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
           this.state.setStatus('WAITING_FOR_CONFIRMATION');
           this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
           return lastAssistantMessage;
         }
 
-        try {
-          await this.executeTool(toolCall, recordedAction, args);
-        } catch {
+        if (parsed) {
+          try {
+            await this.executeTool(toolCall, recordedAction, args ?? {});
+          } catch {
+            toolExecutionFailed = true;
+            // Continue processing other tool calls but mark this iteration as failed
+          }
+        } else {
+          // Parsing failed: we already emitted AgentErrorEvent inside parseToolArgs
           toolExecutionFailed = true;
-          break;
         }
       }
 
@@ -411,7 +432,7 @@ export class Agent extends EventEmitter {
   private createActionEvent(
     message: Message,
     toolCall: ToolCall,
-    args: Record<string, unknown>,
+    args: Record<string, unknown> | null,
     securityRisk?: SecurityRisk,
   ): ActionEvent {
     const thought = message.content.filter(isTextContent);
