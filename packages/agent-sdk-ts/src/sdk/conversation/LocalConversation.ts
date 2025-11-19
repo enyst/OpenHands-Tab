@@ -125,6 +125,9 @@ export class LocalConversation extends EventEmitter {
       this.events.attachPersistence(store);
       this.state.attachPersistence(store);
 
+      // Notify UI first so it clears any previous render before we stream restored events
+      this.emit('conversationStarted', id);
+
       const loadedEvents = store.readEvents();
       if (loadedEvents.length) {
         this.events.replay(loadedEvents);
@@ -135,8 +138,6 @@ export class LocalConversation extends EventEmitter {
       } else {
         this.state.loadEvents(loadedEvents);
       }
-
-      this.emit('conversationStarted', id);
     } catch (error) {
       this.emit('error', error);
       throw error;
