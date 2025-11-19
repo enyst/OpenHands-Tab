@@ -132,6 +132,9 @@ export function App() {
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
   const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
 
+  // History state
+  const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
+
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
@@ -328,8 +331,6 @@ export function App() {
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage]);
 
-  const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
-
   const handleOpenHistory = useCallback(() => {
     setShowHistory(true);
     postMessage({ type: 'requestHistory' });
@@ -480,7 +481,7 @@ export function App() {
           onOpenContext={handleOpenContext}
           contextCount={selectedContextFiles.length}
           onOpenSkills={handleOpenSkills}
-          skillsCount={0}
+          skillsCount={skills.length}
         />
 
         {/* Context picker popover */}

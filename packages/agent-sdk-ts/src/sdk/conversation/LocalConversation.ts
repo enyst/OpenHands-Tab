@@ -120,7 +120,7 @@ export class LocalConversation extends EventEmitter {
       const rootDir = this.persistenceDir
         ? (path.isAbsolute(this.persistenceDir) ? this.persistenceDir : path.join(this.workspace.root, this.persistenceDir))
         : this.workspace.root;
-      const store = new FileStore({ rootDir, conversationId: this.conversationId! });
+      const store = new FileStore({ rootDir, conversationId: id });
       this.persistence = store;
       this.events.attachPersistence(store);
       this.state.attachPersistence(store);

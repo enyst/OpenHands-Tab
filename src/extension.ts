@@ -639,6 +639,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       }
       case 'requestSkills': {
         const skills = await listSkillFiles();
+        outputChannel?.appendLine(`[skills] Found ${skills.length} skill(s)`);
         void panel.webview.postMessage({ type: 'skillsList', skills });
         break;
       }
