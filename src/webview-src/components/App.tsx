@@ -48,18 +48,18 @@ function getVscodeApi(): VscodeApi {
     const g = window as any;
     if (g.__OH_VSCODE_API__) {
       vscodeApiInstance = g.__OH_VSCODE_API__ as VscodeApi;
-      return vscodeApiInstance;
+      return vscodeApiInstance as VscodeApi;
     }
     if (typeof g.acquireVsCodeApi === 'function') {
       vscodeApiInstance = g.acquireVsCodeApi();
       try { g.__OH_VSCODE_API__ = vscodeApiInstance; } catch {}
-      return vscodeApiInstance;
+      return vscodeApiInstance as VscodeApi;
     }
   }
 
   // Fallback for non-vscode environments (e.g., tests)
   vscodeApiInstance = { postMessage: () => { /* noop for tests */ } };
-  return vscodeApiInstance;
+  return vscodeApiInstance as VscodeApi;
 }
 
 type RenderedEvent = { id: number; event: Event };
