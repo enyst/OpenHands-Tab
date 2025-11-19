@@ -3,7 +3,7 @@ import { Agent, AsyncLock, ConversationState, EventLog, FileStore, SecretRegistr
 import type { LLMClient } from '../llm';
 import type { BashEvent, Event } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
-import type { ToolHandler } from '../types/tools';
+import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime/persistence';
@@ -16,7 +16,7 @@ export interface LocalConversationOptions {
   conversationId?: string;
   workspaceRoot?: string;
   llmClient?: LLMClient;
-  tools?: ToolHandler<unknown, unknown>[];
+  tools?: ToolDefinition<unknown, unknown>[];
   persistenceDir?: string;
   persistence?: ConversationPersistence;
   agentContext?: AgentContext;
@@ -32,7 +32,7 @@ export class LocalConversation extends EventEmitter {
   private readonly secrets: SecretRegistry;
   private readonly lock = new AsyncLock();
   private readonly customLlmClient?: LLMClient;
-  private readonly tools: ToolHandler<unknown, unknown>[];
+  private readonly tools: ToolDefinition<unknown, unknown>[];
   private readonly persistenceDir?: string;
   private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;

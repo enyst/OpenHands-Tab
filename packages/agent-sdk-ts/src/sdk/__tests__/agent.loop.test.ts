@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
-import type { ToolHandler } from '../types/tools';
+import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 
 class MockLLM implements LLMClient {
@@ -50,7 +50,7 @@ describe('Agent loop control', () => {
 
   it('honors confirmation policy and executes tool on approval', async () => {
     const log = new EventLog();
-    const tool: ToolHandler<{ value: string }, { echoed: string }> = {
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
       name: 'echo',
       validate: (input) => ({ value: (input as { value: string }).value }),
       execute: async (args) => ({ echoed: args.value }),
@@ -84,7 +84,7 @@ describe('Agent loop control', () => {
 
   it('records agent error when tool arguments are not objects', async () => {
     const log = new EventLog();
-    const tool: ToolHandler<Record<string, unknown>, { echoed: boolean }> = {
+    const tool: ToolDefinition<Record<string, unknown>, { echoed: boolean }> = {
       name: 'echo',
       validate: (input) => input,
       execute: async (args) => ({ echoed: Boolean(args.value) }),
@@ -114,7 +114,7 @@ describe('Agent loop control', () => {
 
   it('handles JSON primitives in tool arguments by emitting agent error', async () => {
     const log = new EventLog();
-    const tool: ToolHandler<Record<string, unknown>, { echoed: boolean }> = {
+    const tool: ToolDefinition<Record<string, unknown>, { echoed: boolean }> = {
       name: 'echo',
       validate: (input) => input,
       execute: async (args) => ({ echoed: Boolean(args.value) }),

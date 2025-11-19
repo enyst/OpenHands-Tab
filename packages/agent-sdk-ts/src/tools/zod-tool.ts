@@ -1,14 +1,14 @@
 import { z, type ZodTypeAny } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { LLMToolDefinition } from '../sdk/llm';
-import type { ToolContext, ToolHandler } from './types';
+import type { ToolContext, ToolDefinition } from './types';
 
 export interface ToolMetadata {
   description: string;
   parameters: Record<string, unknown>;
 }
 
-export abstract class ZodTool<TArgs, TResult> implements ToolHandler<TArgs, TResult> {
+export abstract class ZodTool<TArgs, TResult> implements ToolDefinition<TArgs, TResult> {
   abstract readonly name: string;
   abstract readonly schema: ZodTypeAny;
   abstract readonly description: string;

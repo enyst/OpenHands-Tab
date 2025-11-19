@@ -9,7 +9,7 @@ import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import { isTextContent, isMessageEvent, isSystemPromptEvent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
-import type { ToolHandler } from '../types/tools';
+import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
@@ -26,7 +26,7 @@ export interface AgentOptions {
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   llmClient?: LLMClient;
-  tools?: ToolHandler<unknown, unknown>[];
+  tools?: ToolDefinition<unknown, unknown>[];
   events?: EventLog;
   state?: ConversationState;
   secrets?: SecretRegistry;
@@ -41,7 +41,7 @@ export class Agent extends EventEmitter {
   private readonly events: EventLog;
   readonly state: ConversationState;
   private readonly secrets: SecretRegistry;
-  private readonly tools: Map<string, ToolHandler<unknown, unknown>>;
+  private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
   private readonly confirmation: ConfirmationPolicy;
   private readonly lock = new AsyncLock();
   private orchestratorPromise?: Promise<AgentOrchestrator>;

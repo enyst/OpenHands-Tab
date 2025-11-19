@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { ToolContext, ToolHandler } from './types';
+import type { ToolContext, ToolDefinition } from './types';
 import { requireBoolean, requireObject, requireString, optionalString } from './validation';
 
 interface TaskRecord {
@@ -21,7 +21,7 @@ export interface TaskTrackerResult {
   tasks: TaskRecord[];
 }
 
-export class TaskTrackerTool implements ToolHandler<TaskTrackerArgs, TaskTrackerResult> {
+export class TaskTrackerTool implements ToolDefinition<TaskTrackerArgs, TaskTrackerResult> {
   readonly name = 'task_tracker';
   private readonly tasks: Map<string, TaskRecord> = new Map();
 

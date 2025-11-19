@@ -139,7 +139,7 @@ export type Event =
   | Condensation
   | ConversationStateUpdateEvent;
 
-export type { ToolContext, ToolHandler } from './tools';
+export type { ToolContext, ToolDefinition } from './tools';
 
 // Event-level guard
 export const isEvent = (candidate: unknown): candidate is Event => {

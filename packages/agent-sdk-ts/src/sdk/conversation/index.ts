@@ -1,5 +1,5 @@
 import type { OpenHandsSettings } from '../types/settings';
-import type { ToolHandler } from '../types/tools';
+import type { ToolDefinition } from '../types/tools';
 import { LocalConversation } from './LocalConversation';
 import { RemoteConversation } from './RemoteConversation';
 
@@ -12,7 +12,7 @@ export interface ConversationFactoryOptions {
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   conversationId?: string;
-  tools?: ToolHandler<unknown, unknown>[];
+  tools?: ToolDefinition<unknown, unknown>[];
   persistenceDir?: string;
 }
 
