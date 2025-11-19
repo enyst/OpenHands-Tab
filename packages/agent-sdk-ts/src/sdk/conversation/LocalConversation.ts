@@ -6,7 +6,7 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { ToolHandler } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import path from 'path';
-import type { ConversationPersistence } from '../runtime/persistence';
+import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -97,22 +97,45 @@ export class LocalConversation extends EventEmitter {
   }
 
   restoreConversation(id: string) {
+    // Switch to a new runtime bound to the requested conversation id
     this.conversationId = id;
+
+    // If no persistence config exists at all, surface info and start fresh
     if (!this.persistenceDir && !this.persistence) {
       this.emit('error', new Error('Persistence is not configured; starting fresh session'));
       this.emit('conversationStarted', id);
       return;
     }
+
     try {
-      this.initializePersistence();
-      const events = this.persistence?.readEvents() ?? [];
-      this.events.replay(events);
-      const snapshot = this.persistence?.readState();
+      // Fresh log/state and agent, and clear previous persistence
+      this.persistence = undefined;
+      this.events = new EventLog();
+      this.state = new ConversationState({ eventLog: this.events });
+      this.events.on((event) => this.emit('event', event));
+      this.agent = this.createAgent();
+      this.setStatus('online');
+
+      // Wire persistence for this id and load
+      const rootDir = this.persistenceDir
+        ? (path.isAbsolute(this.persistenceDir) ? this.persistenceDir : path.join(this.workspace.root, this.persistenceDir))
+        : this.workspace.root;
+      const store = new FileStore({ rootDir, conversationId: this.conversationId! });
+      this.persistence = store;
+      this.events.attachPersistence(store);
+      this.state.attachPersistence(store);
+
+      const loadedEvents = store.readEvents();
+      if (loadedEvents.length) {
+        this.events.replay(loadedEvents);
+      }
+      const snapshot = store.readState();
       if (snapshot) {
         this.state.restore(snapshot);
       } else {
-        this.state.loadEvents(events);
+        this.state.loadEvents(loadedEvents);
       }
+
       this.emit('conversationStarted', id);
     } catch (error) {
       this.emit('error', error);
