@@ -5,7 +5,7 @@ import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
 
 export interface FileEditorResult {
-  command: 'view' | 'create' | 'str_replace' | 'insert' | 'undo_edit';
+  command: 'view' | 'create' | 'str_replace' | 'insert';
   path?: string;
   prev_exist?: boolean;
   old_content?: string | null;
@@ -17,7 +17,7 @@ const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing 
 * If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists non-hidden files and directories up to 2 levels deep
 * The \`create\` command cannot be used if the specified \`path\` already exists as a file
 * If a \`command\` generates a long output, it will be truncated and marked with \`<response clipped>\`
-* The \`undo_edit\` command will revert the last edit made to the file at \`path\`
+* The \`\` command will revert the last edit made to the file at \`path\`
 * This tool can be used for creating and editing files in plain-text format.
 
 
@@ -47,8 +47,8 @@ Remember: when making multiple file edits in a row to the same file, you should 
 const fileEditorSchema = z
   .object({
     command: z
-      .enum(['view', 'create', 'str_replace', 'insert', 'undo_edit'])
-      .describe('The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.'),
+      .enum(['view', 'create', 'str_replace', 'insert'])
+      .describe('The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`.'),
     path: z.string().describe('Absolute path to file or directory.'),
     file_text: z
       .string()
@@ -99,6 +99,18 @@ const applyViewRange = (content: string, viewRange?: number[]): string => {
   return slice.join('\n');
 };
 
+const addLineNumbers = (content: string): string => {
+  const lines = content.split(/\r?\n/);
+  return lines.map((line, idx) => `${idx + 1}\t${line}`).join('\n');
+};
+
+const truncateContent = (content: string, limit = 500): string => {
+  if (content.length <= limit * 2) return content;
+  const head = content.slice(0, limit);
+  const tail = content.slice(-limit);
+  return `${head}\n<response clipped>\n${tail}`;
+};
+
 export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, FileEditorResult> {
   readonly name = 'file_editor';
   readonly description = TOOL_DESCRIPTION;
@@ -128,7 +140,9 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
           }
           const content = await ws.readFile(args.path, 'utf8');
           const ranged = applyViewRange(content, args.view_range);
-          return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: ranged };
+          const numbered = addLineNumbers(ranged);
+          const truncated = truncateContent(numbered);
+          return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: truncated };
         } catch (error) {
           throw error;
         }
@@ -165,10 +179,6 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         const updated = lines.join('\n');
         await ws.writeFile(args.path, updated);
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
-      }
-      case 'undo_edit': {
-        // Not implemented: surfacing as error to avoid implying a successful rollback
-        throw new Error('Undo support is not implemented in this SDK stub.');
       }
       default: {
         const unreachable: never = args.command;

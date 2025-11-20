@@ -1224,7 +1224,7 @@ console.log(result.content);  // Response body
 **File**: `src/tools/PlanningFileEditorTool.ts`
 
 **Capabilities**:
-- Mirrors Python planning file editor schema (view/create/str_replace/insert/undo_edit commands)
+- Mirrors Python planning file editor schema (view/create/str_replace/insert commands)
 - Enforces write operations against `PLAN.md` while allowing read access to other files
 - Supports simple view ranges and inline replacement/insert helpers for plan content
 

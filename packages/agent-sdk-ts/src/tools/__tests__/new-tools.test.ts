@@ -145,6 +145,33 @@ describe('PlanningFileEditorTool', () => {
     );
   });
 
+  it('views PLAN.md with line numbers and truncation', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+
+    const longContent = Array.from({ length: 2000 }, (_, i) => `plan-line-${i + 1}`).join('\n');
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: longContent });
+    await tool.execute(createArgs, { workspace });
+
+    const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
+    const view = await tool.execute(viewArgs, { workspace });
+
+    expect(view.command).toBe('view');
+    expect(view.content).toBeDefined();
+    const viewed = view.content ?? '';
+
+    // Starts with cat -n style numbering
+    expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
+
+    // Truncation marker present for long content
+    expect(viewed).toContain('<response clipped>');
+
+    const [head, , tail] = viewed.split('\n<response clipped>\n');
+    expect(head.length).toBeLessThanOrEqual(500 + 20);
+    expect(tail.length).toBeLessThanOrEqual(500 + 20);
+  });
+
   it('rejects create when file already exists', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);

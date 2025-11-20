@@ -49,7 +49,34 @@ describe('FileEditorTool', () => {
     const saved = await workspace.readFile('note.txt');
     expect(saved).toContain('first line');
   });
-});
+
+  it('views files with line numbers and truncation', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const longContent = Array.from({ length: 2000 }, (_, i) => `line-${i + 1}`).join('\n');
+    const createArgs = tool.validate({ command: 'create', path: 'note.txt', file_text: longContent });
+    await tool.execute(createArgs, { workspace });
+
+    const viewArgs = tool.validate({ command: 'view', path: 'note.txt', view_range: [1, -1] });
+    const viewResult = await tool.execute(viewArgs, { workspace });
+
+    expect(viewResult.command).toBe('view');
+    expect(viewResult.new_content).toBeDefined();
+    const viewed = viewResult.new_content ?? '';
+
+    // Starts with cat -n style numbering
+    expect(viewed.startsWith('1\tline-1')).toBe(true);
+
+    // Truncation marker present for long content
+    expect(viewed).toContain('<response clipped>');
+
+    const [head, , tail] = viewed.split('\n<response clipped>\n');
+    expect(head.length).toBeLessThanOrEqual(500 + 20); // small slop for line boundaries
+    expect(tail.length).toBeLessThanOrEqual(500 + 20);
+  });
+
 
 describe('TaskTrackerTool', () => {
   it('plans and views tasks', async () => {
