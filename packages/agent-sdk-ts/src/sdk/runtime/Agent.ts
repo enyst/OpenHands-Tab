@@ -205,7 +205,9 @@ export class Agent extends EventEmitter {
               arguments: toolCall.function?.arguments ?? '',
             },
           } as Event);
-        } catch {}
+        } catch {
+          // Swallow errors from logging tool call metadata; tool execution will still proceed.
+        }
 
         const parsed = this.parseToolArgs(toolCall);
         let args: Record<string, unknown> | null = null;

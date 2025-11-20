@@ -119,7 +119,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     try {
       await fs.stat(absPath);
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -130,21 +130,17 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
 
     switch (args.command) {
       case 'view': {
-        try {
-          const stat = await fs.stat(resolved);
-          if (stat.isDirectory()) {
-            const entries = await ws.list(args.path);
-            const listing = entries.map((entry) => `${entry.isDirectory ? 'd' : 'f'} ${entry.path}`).join('\n');
-            return { command: 'view', path: resolved, prev_exist: true, old_content: null, new_content: listing };
-          }
-          const content = await ws.readFile(args.path, 'utf8');
-          const ranged = applyViewRange(content, args.view_range);
-          const numbered = addLineNumbers(ranged);
-          const truncated = truncateContent(numbered);
-          return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: truncated };
-        } catch (error) {
-          throw error;
+        const stat = await fs.stat(resolved);
+        if (stat.isDirectory()) {
+          const entries = await ws.list(args.path);
+          const listing = entries.map((entry) => `${entry.isDirectory ? 'd' : 'f'} ${entry.path}`).join('\n');
+          return { command: 'view', path: resolved, prev_exist: true, old_content: null, new_content: listing };
         }
+        const content = await ws.readFile(args.path, 'utf8');
+        const ranged = applyViewRange(content, args.view_range);
+        const numbered = addLineNumbers(ranged);
+        const truncated = truncateContent(numbered);
+        return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: truncated };
       }
       case 'create': {
         const exists = await this.pathExists(resolved);
