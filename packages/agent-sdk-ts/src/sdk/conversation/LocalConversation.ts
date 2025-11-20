@@ -154,8 +154,15 @@ export class LocalConversation extends EventEmitter {
         this.state.loadEvents(loadedEvents);
       }
     } catch (error) {
-      this.emit('error', error);
-      throw error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.emit('error', err);
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'environment',
+        detail: err.message,
+        code: 'restore_failed',
+      } as Event);
+      throw err;
     }
   }
 

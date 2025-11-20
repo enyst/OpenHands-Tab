@@ -108,7 +108,11 @@ describe('Agent loop control', () => {
     const agentErrors = events.filter((event) => event.kind === 'AgentErrorEvent');
     expect(agentErrors).toHaveLength(1);
     expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_invalid');
-    expect(events.some(isActionEvent)).toBe(false);
+
+    const actions = events.filter(isActionEvent);
+    expect(actions).toHaveLength(1);
+    expect((actions[0] as { tool_call_id?: string }).tool_call_id).toBe('call_invalid');
+
     expect(events.some(isObservationEvent)).toBe(false);
   });
 
@@ -138,7 +142,11 @@ describe('Agent loop control', () => {
     const agentErrors = events.filter((event) => event.kind === 'AgentErrorEvent');
     expect(agentErrors).toHaveLength(1);
     expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_primitive');
-    expect(events.some(isActionEvent)).toBe(false);
+
+    const actions = events.filter(isActionEvent);
+    expect(actions).toHaveLength(1);
+    expect((actions[0] as { tool_call_id?: string }).tool_call_id).toBe('call_primitive');
+
     expect(events.some(isObservationEvent)).toBe(false);
   });
 });

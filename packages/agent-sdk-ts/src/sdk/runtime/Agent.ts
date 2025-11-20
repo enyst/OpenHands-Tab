@@ -148,6 +148,18 @@ export class Agent extends EventEmitter {
     while (!this.paused && !this.pendingAction && !this.cancelled && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
       const request = this.buildChatRequest();
+      // Emit a lightweight debug/state event so hosts can log what tools are actually sent
+      try {
+        const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
+        this.events.push({
+          kind: 'ConversationStateUpdateEvent',
+          source: 'agent',
+          key: 'llm_request',
+          value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
+        } as Event);
+      } catch (error) {
+        void error; // ignore debug emission failures
+      }
       let response;
       try {
         response = await orchestrator.runChat(request);
@@ -181,27 +193,46 @@ export class Agent extends EventEmitter {
 
       let toolExecutionFailed = false;
       for (const toolCall of toolCalls) {
-        const parsedArgs = this.parseToolArgs(toolCall);
-        if (!parsedArgs) {
-          toolExecutionFailed = true;
-          break;
+        // Log raw tool call for debugging visibility
+        try {
+          this.events.push({
+            kind: 'ConversationStateUpdateEvent',
+            source: 'agent',
+            key: 'llm_tool_call_raw',
+            value: {
+              id: toolCall.id,
+              name: toolCall.function?.name ?? '',
+              arguments: toolCall.function?.arguments ?? '',
+            },
+          } as Event);
+        } catch {
+          // Swallow errors from logging tool call metadata; tool execution will still proceed.
         }
-        const { args, securityRisk } = parsedArgs;
+
+        const parsed = this.parseToolArgs(toolCall);
+        const args = parsed?.args ?? null;
+        const securityRisk = parsed?.securityRisk;
+
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
+        if (!parsed) {
+          toolExecutionFailed = true;
+          continue;
+        }
+
         if (this.requiresConfirmation(recordedAction)) {
-          this.pendingAction = { toolCall, actionEvent: recordedAction, args };
+          this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
           this.state.setStatus('WAITING_FOR_CONFIRMATION');
           this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
           return lastAssistantMessage;
         }
 
         try {
-          await this.executeTool(toolCall, recordedAction, args);
+          await this.executeTool(toolCall, recordedAction, args ?? {});
         } catch {
           toolExecutionFailed = true;
-          break;
+          // Continue processing other tool calls but mark this iteration as failed
         }
       }
 
@@ -302,7 +333,6 @@ export class Agent extends EventEmitter {
       topK: s.llm.topK ?? undefined,
       maxInputTokens: s.llm.maxInputTokens ?? undefined,
       maxOutputTokens: s.llm.maxOutputTokens ?? undefined,
-      nativeToolCalling: s.llm.nativeToolCalling ?? undefined,
       reasoningEffort: s.llm.reasoningEffort ?? undefined,
       inputCostPerToken: s.llm.inputCostPerToken ?? undefined,
       outputCostPerToken: s.llm.outputCostPerToken ?? undefined,
@@ -400,7 +430,7 @@ export class Agent extends EventEmitter {
   private createActionEvent(
     message: Message,
     toolCall: ToolCall,
-    args: Record<string, unknown>,
+    args: Record<string, unknown> | null,
     securityRisk?: SecurityRisk,
   ): ActionEvent {
     const thought = message.content.filter(isTextContent);

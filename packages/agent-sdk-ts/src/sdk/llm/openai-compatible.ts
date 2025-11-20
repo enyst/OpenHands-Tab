@@ -75,8 +75,8 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   // top_p and top_k intentionally omitted
   max_tokens: config.maxOutputTokens ?? undefined,
   reasoning_effort: config.reasoningEffort && config.reasoningEffort !== 'none' ? config.reasoningEffort : undefined,
-  tools: config.nativeToolCalling ? request.tools : undefined,
-  tool_choice: config.nativeToolCalling && request.tools?.length ? 'auto' : undefined,
+  tools: request.tools,
+  tool_choice: request.tools?.length ? 'auto' : undefined,
 });
 
 const defaultBaseUrls: Record<string, string> = {

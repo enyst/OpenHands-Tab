@@ -228,6 +228,26 @@ export function activate(context: vscode.ExtensionContext) {
       });
       conversation.on('event', (ev) => {
         outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+        // Friendly LLM request summary for debugging
+        try {
+          const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
+          if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_request') {
+            const raw = evAny.value as {
+              model?: unknown;
+              tools?: unknown;
+              tool_count?: unknown;
+            } | undefined;
+            const model = typeof raw?.model === 'string' ? raw.model : undefined;
+            const names = Array.isArray(raw?.tools)
+              ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
+              : [];
+            const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
+            const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
+            outputChannel?.appendLine(summary);
+          }
+        } catch (e) {
+          outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
+        }
         void panel?.webview.postMessage({ type: 'event', event: ev });
       });
       conversation.on('error', (err) => {

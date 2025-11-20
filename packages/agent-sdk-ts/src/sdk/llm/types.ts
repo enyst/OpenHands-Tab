@@ -24,7 +24,6 @@ export interface LLMConfiguration {
   topK?: number | null;
   maxInputTokens?: number | null;
   maxOutputTokens?: number | null;
-  nativeToolCalling?: boolean | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
   headers?: Record<string, string>;
   /** Cost per input token in USD (or base currency). */

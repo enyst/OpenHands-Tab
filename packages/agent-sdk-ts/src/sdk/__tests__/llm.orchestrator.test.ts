@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 describe('OpenAICompatibleClient streaming', () => {
-  const baseConfig: LLMConfiguration = { model: 'gpt-4o-mini', provider: 'openai', nativeToolCalling: true };
+  const baseConfig: LLMConfiguration = { model: 'gpt-4o-mini', provider: 'openai' };
 
   const buildRequest = (): ChatCompletionRequest => ({
     systemPrompt: 'you are a test harness',
