@@ -210,15 +210,16 @@ export class Agent extends EventEmitter {
         }
 
         const parsed = this.parseToolArgs(toolCall);
-        let args: Record<string, unknown> | null = null;
-        let securityRisk: SecurityRisk | undefined;
-        if (parsed) {
-          args = parsed.args;
-          securityRisk = parsed.securityRisk;
-        }
+        const args = parsed?.args ?? null;
+        const securityRisk = parsed?.securityRisk;
 
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
+
+        if (!parsed) {
+          toolExecutionFailed = true;
+          continue;
+        }
 
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
@@ -227,16 +228,11 @@ export class Agent extends EventEmitter {
           return lastAssistantMessage;
         }
 
-        if (parsed) {
-          try {
-            await this.executeTool(toolCall, recordedAction, args ?? {});
-          } catch {
-            toolExecutionFailed = true;
-            // Continue processing other tool calls but mark this iteration as failed
-          }
-        } else {
-          // Parsing failed: we already emitted AgentErrorEvent inside parseToolArgs
+        try {
+          await this.executeTool(toolCall, recordedAction, args ?? {});
+        } catch {
           toolExecutionFailed = true;
+          // Continue processing other tool calls but mark this iteration as failed
         }
       }
 

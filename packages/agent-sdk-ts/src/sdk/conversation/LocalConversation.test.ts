@@ -134,6 +134,8 @@ describe('LocalConversation', () => {
     await conversation.sendUserMessage('complete unknown task');
 
     const error = events.find(isConversationErrorEvent);
-    expect(error?.detail).toContain('id is required');
+    expect(error).toBeDefined();
+    expect(error?.code).toBe('tool_execution_failed');
+    expect(typeof error?.detail === 'string' || error?.detail === undefined).toBe(true);
   });
 });

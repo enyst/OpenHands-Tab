@@ -82,14 +82,16 @@ describe('FileEditorTool', () => {
 
 describe('TaskTrackerTool', () => {
   it('plans and views tasks', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
     const tool = new TaskTrackerTool();
-    const ws = new LocalWorkspace(process.cwd());
-    const planned = await tool.execute(tool.validate({ command: 'plan', task_list: [{ title: 'Do work', status: 'todo' }] }), {
-      workspace: ws,
-    });
+    const planned = await tool.execute(
+      tool.validate({ command: 'plan', task_list: [{ title: 'Do work', status: 'todo' }] }),
+      { workspace },
+    );
     expect(planned.command).toBe('plan');
 
-    const viewed = await tool.execute(tool.validate({ command: 'view' }), { workspace: ws });
+    const viewed = await tool.execute(tool.validate({ command: 'view' }), { workspace });
     expect(viewed.task_list.length).toBeGreaterThan(0);
     expect(viewed.task_list[0].title).toBe('Do work');
   });
