@@ -1,18 +1,11 @@
 // React must be in scope for JSX to work after esbuild transpilation
 import React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessoryButton, ToolbarButton } from './ToolbarButtons';
 /*
-  App.tsx hygiene improvements:
-  - Cache VS Code API once
-  - Debounce/suppress toasts
-  - Stable keys for messages
-  - Enter to send; Shift+Enter newline
-  - Deterministic scroll with sentinel
-  - A11y roles
+  App.tsx - Neo-Brutalist Command Center Design
+  A distinctive, warm-technical interface for OpenHands Tab
 */
 
-import { Typography, Scrollable, Input } from '@openhands/ui';
 import {
   isEvent,
   isTextContent,
@@ -60,34 +53,36 @@ function getVscodeApi(): VscodeApi {
   return vscodeApiInstance;
 }
 
-function StatusDot({ status }: { status: 'online' | 'offline' | 'connecting' }) {
-  const colorClass = status === 'online'
-    ? 'bg-[var(--color-green-600)]'
-    : status === 'offline'
-      ? 'bg-[var(--color-red-600)]'
-      : 'bg-[var(--color-primary-500)]';
-  return (
-    <span
-      aria-label={`Connection status: ${status}`}
-      className={`inline-block w-[10px] h-[10px] rounded-full mr-2 align-middle ${colorClass}`}
-    />
-  );
-}
-
 type RenderedEvent = { id: number; event: Event };
 
-// Event rendering components based on ConversationVisualizer
+// ============================================
+// EVENT RENDERING COMPONENTS
+// ============================================
 
 function SystemPromptEventBlock({ event }: { event: SystemPromptEvent }) {
   return (
-    <div className="bg-[rgba(200,50,200,0.06)] border-l-[3px] border-[rgba(200,50,200,0.6)] p-3 rounded my-1">
-      <div className="font-bold mb-2 text-[var(--vscode-foreground)]">System Prompt</div>
-      <div className="whitespace-pre-wrap">{event.system_prompt.text}</div>
-      {event.tools && event.tools.length > 0 && (
-        <div className="mt-2 text-sm opacity-80">
-          Tools Available: {event.tools.length}
+    <div className="oh-event event-system">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-terminal" />
+            </span>
+            System Prompt
+          </div>
+          <span className="oh-event-meta">INIT</span>
         </div>
-      )}
+        <div className="oh-event-content">
+          <div className="whitespace-pre-wrap">{event.system_prompt.text}</div>
+          {event.tools && event.tools.length > 0 && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Available Tools</div>
+              <span className="oh-code">{event.tools.length} tools loaded</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -96,42 +91,50 @@ function ActionEventBlock({ event }: { event: ActionEvent }) {
   const thought = event.thought.map((t) => t.text).join('\n');
   const isExecuted = event.action !== null;
   return (
-    <div className="bg-[rgba(0,120,212,0.06)] border-l-[3px] border-[rgba(0,120,212,0.6)] p-3 rounded my-1">
-      <div className="font-bold mb-2 text-[var(--vscode-foreground)]">
-        Agent Action{!isExecuted && ' (Not Executed)'}
+    <div className="oh-event event-action">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-play" />
+            </span>
+            Agent Action
+            {!isExecuted && <span className="oh-code ml-2">NOT EXECUTED</span>}
+          </div>
+          {event.security_risk && event.security_risk !== 'UNKNOWN' && (
+            <div className={`oh-risk-badge ${event.security_risk.toLowerCase()}`}>
+              <span>{event.security_risk}</span>
+            </div>
+          )}
+        </div>
+        <div className="oh-event-content">
+          {event.reasoning_content && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Reasoning</div>
+              <div className="whitespace-pre-wrap">{event.reasoning_content}</div>
+            </div>
+          )}
+          {thought && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Thought</div>
+              <div className="whitespace-pre-wrap">{thought}</div>
+            </div>
+          )}
+          {event.tool_name && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Tool</div>
+              <span className="oh-code">{event.tool_name}</span>
+            </div>
+          )}
+          {event.action && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Action Details</div>
+              <pre>{JSON.stringify(event.action, null, 2)}</pre>
+            </div>
+          )}
+        </div>
       </div>
-      {event.security_risk && event.security_risk !== 'UNKNOWN' && (
-        <div className={`mb-2 px-2 py-1 rounded text-sm ${
-          event.security_risk === 'HIGH' ? 'bg-red-500/20 text-red-700' :
-          event.security_risk === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-700' :
-          'bg-blue-500/20 text-blue-700'
-        }`}>
-          Security Risk: {event.security_risk}
-        </div>
-      )}
-      {event.reasoning_content && (
-        <>
-          <div className="font-semibold mt-2">Reasoning:</div>
-          <div className="whitespace-pre-wrap">{event.reasoning_content}</div>
-        </>
-      )}
-      {thought && (
-        <>
-          <div className="font-semibold mt-2">Thought:</div>
-          <div className="whitespace-pre-wrap">{thought}</div>
-        </>
-      )}
-      {event.tool_name && (
-        <div className="mt-2">
-          <span className="font-semibold">Tool: </span>
-          <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{event.tool_name}</span>
-        </div>
-      )}
-      {event.action && (
-        <div className="mt-2 font-mono text-sm bg-black/5 p-2 rounded overflow-auto">
-          {JSON.stringify(event.action, null, 2)}
-        </div>
-      )}
     </div>
   );
 }
@@ -142,95 +145,180 @@ function ObservationEventBlock({ event }: { event: ObservationEvent }) {
   const tooLong = output.length > 2000;
   const shown = expanded || !tooLong ? output : output.slice(0, 2000) + '\n…';
   return (
-    <div className="bg-[rgba(200,150,0,0.06)] border-l-[3px] border-[rgba(200,150,0,0.6)] p-3 rounded my-1">
-      <div className="font-bold mb-2 text-[var(--vscode-foreground)]">Observation</div>
-      <div className="mb-1">
-        <span className="font-semibold">Tool: </span>
-        <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{event.tool_name}</span>
+    <div className="oh-event event-observation">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-eye" />
+            </span>
+            Observation
+          </div>
+          <span className="oh-event-meta">RESULT</span>
+        </div>
+        <div className="oh-event-content">
+          <div className="oh-event-section">
+            <div className="oh-event-section-title">Tool</div>
+            <span className="oh-code">{event.tool_name}</span>
+          </div>
+          <div className="oh-event-section">
+            <div className="oh-event-section-title">Output</div>
+            <pre>{shown}</pre>
+          </div>
+          {tooLong && (
+            <button className="oh-expand-btn" onClick={() => setExpanded(!expanded)}>
+              {expanded ? '← Show less' : 'Show more →'}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="font-semibold mt-2">Result:</div>
-      <div className="whitespace-pre-wrap font-mono text-sm bg-black/5 p-2 rounded mt-1">
-        {shown}
-      </div>
-      {tooLong && (
-        <button
-          className="text-[var(--vscode-textLink-foreground)] text-sm mt-2"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
-      )}
     </div>
   );
 }
 
 function UserRejectBlock({ event }: { event: UserRejectObservation }) {
   return (
-    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
-      <div className="font-bold mb-2 text-red-600">User Rejected Action</div>
-      <div className="mb-1">
-        <span className="font-semibold">Tool: </span>
-        <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{event.tool_name}</span>
+    <div className="oh-event event-reject">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-close" />
+            </span>
+            Action Rejected
+          </div>
+          <span className="oh-event-meta">DENIED</span>
+        </div>
+        <div className="oh-event-content">
+          <div className="oh-event-section">
+            <div className="oh-event-section-title">Tool</div>
+            <span className="oh-code">{event.tool_name}</span>
+          </div>
+          <div className="oh-event-section">
+            <div className="oh-event-section-title">Reason</div>
+            <div className="whitespace-pre-wrap">{event.rejection_reason}</div>
+          </div>
+        </div>
       </div>
-      <div className="font-semibold mt-2">Rejection Reason:</div>
-      <div className="whitespace-pre-wrap mt-1">{event.rejection_reason}</div>
     </div>
   );
 }
 
 function AgentErrorBlock({ event }: { event: AgentErrorEvent }) {
   return (
-    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
-      <div className="font-bold mb-2 text-red-600">Agent Error</div>
-      <div className="font-semibold">Error Details:</div>
-      <div className="whitespace-pre-wrap mt-1 text-red-700">{event.error}</div>
-      {event.tool_name && (
-        <div className="mt-2 text-sm opacity-70">Tool: {event.tool_name}</div>
-      )}
+    <div className="oh-event event-error">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-error" />
+            </span>
+            Agent Error
+          </div>
+          <span className="oh-event-meta">ERROR</span>
+        </div>
+        <div className="oh-event-content">
+          <div className="oh-event-section">
+            <div className="oh-event-section-title">Error Details</div>
+            <div className="whitespace-pre-wrap" style={{ color: 'var(--oh-error)' }}>{event.error}</div>
+          </div>
+          {event.tool_name && (
+            <div className="mt-2 text-sm opacity-70">Tool: {event.tool_name}</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 function ConversationErrorBlock({ event }: { event: ConversationErrorEvent }) {
   return (
-    <div className="bg-[rgba(220,0,0,0.08)] border-l-[3px] border-[rgba(220,0,0,0.7)] p-3 rounded my-1">
-      <div className="font-bold mb-2 text-red-600">Conversation Error</div>
-      {event.code && (
-        <div className="text-sm font-mono mb-2">Code: {event.code}</div>
-      )}
-      {event.detail && (
-        <div className="font-semibold">Details:</div>
-      )}
-      {event.detail && (
-        <div className="whitespace-pre-wrap mt-1 text-red-700">{event.detail}</div>
-      )}
-      {!event.detail && !event.code && (
-        <div className="mt-1 text-sm opacity-70">Additional information unavailable.</div>
-      )}
+    <div className="oh-event event-error">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-warning" />
+            </span>
+            Conversation Error
+          </div>
+          <span className="oh-event-meta">ERROR</span>
+        </div>
+        <div className="oh-event-content">
+          {event.code && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Code</div>
+              <span className="oh-code">{event.code}</span>
+            </div>
+          )}
+          {event.detail && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Details</div>
+              <div className="whitespace-pre-wrap" style={{ color: 'var(--oh-error)' }}>{event.detail}</div>
+            </div>
+          )}
+          {!event.detail && !event.code && (
+            <div className="mt-1 text-sm opacity-70">Additional information unavailable.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 function PauseEventBlock({ event: _event }: { event: PauseEvent }) {
   return (
-    <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-3 rounded my-1">
-      <div className="font-bold text-yellow-700">User Paused</div>
-      <div className="mt-1 text-sm opacity-80">Conversation Paused</div>
+    <div className="oh-event event-pause">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-debug-pause" />
+            </span>
+            Paused
+          </div>
+          <span className="oh-event-meta">HALT</span>
+        </div>
+        <div className="oh-event-content">
+          <div className="text-sm opacity-80">Conversation paused by user</div>
+        </div>
+      </div>
     </div>
   );
 }
 
 function CondensationBlock({ event }: { event: Condensation }) {
   return (
-    <div className="bg-[rgba(200,50,200,0.06)] border-l-[3px] border-[rgba(200,50,200,0.6)] p-3 rounded my-1">
-      <div className="font-bold mb-2">Auto Conversation Condensation Triggered</div>
-      <div>Forgetting {event.forgotten_event_ids.length} events</div>
-      {event.summary && (
-        <>
-          <div className="font-semibold mt-2">[Summary of Events Being Forgotten]</div>
-          <div className="whitespace-pre-wrap mt-1">{event.summary}</div>
-        </>
-      )}
+    <div className="oh-event event-condensation">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-fold" />
+            </span>
+            Memory Condensed
+          </div>
+          <span className="oh-event-meta">OPTIMIZE</span>
+        </div>
+        <div className="oh-event-content">
+          <div className="oh-event-section">
+            <div className="oh-event-section-title">Events Condensed</div>
+            <span className="oh-code">{event.forgotten_event_ids.length} events</span>
+          </div>
+          {event.summary && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Summary</div>
+              <div className="whitespace-pre-wrap">{event.summary}</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -240,70 +328,69 @@ function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
   const textParts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
   const content = textParts.join('\n');
 
-  // Extract image content
   const imageParts = event.llm_message.content.filter((c): c is { type: 'image'; image_urls?: string[]; detail?: string } =>
     c.type === 'image'
   );
 
-  const bgClass = role === 'user'
-    ? 'bg-[rgba(0,120,212,0.08)] border border-[rgba(0,120,212,0.2)]'
-    : role === 'assistant'
-      ? 'bg-[rgba(0,200,0,0.06)] border border-[rgba(0,200,0,0.18)]'
-      : 'bg-[rgba(128,128,128,0.06)] border border-[rgba(128,128,128,0.2)]';
+  const eventClass = role === 'user' ? 'event-message-user' : 'event-message-assistant';
+  const icon = role === 'user' ? 'account' : 'hubot';
+  const label = role === 'user' ? 'USER' : 'AGENT';
 
   return (
-    <div className={`${bgClass} p-3 rounded my-1`}>
-      <div className="font-semibold mb-2 capitalize">{event.source || role}</div>
-      {content && <div className="whitespace-pre-wrap">{content}</div>}
-      {imageParts.length > 0 && (
-        <div className="mt-2">
-          {imageParts.map((img, idx) => (
-            <div key={idx} className="text-sm opacity-70">
-              📷 Image {img.image_urls && img.image_urls.length > 0 ? `(${img.image_urls.length} url${img.image_urls.length > 1 ? 's' : ''})` : ''}
-            </div>
-          ))}
-        </div>
-      )}
-      {event.llm_message.reasoning_content && (
-        <>
-          <div className="font-semibold mt-2">Reasoning:</div>
-          <div className="whitespace-pre-wrap mt-1">{event.llm_message.reasoning_content}</div>
-        </>
-      )}
-      {(() => {
-        const activated = event.activated_skills;
-        if (!activated || activated.length === 0) return null;
-        const label = 'Activated Skills';
-        return (
-          <div className="mt-2 text-sm opacity-70">
-            {label}: {activated.join(', ')}
+    <div className={`oh-event ${eventClass}`}>
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className={`codicon codicon-${icon}`} />
+            </span>
+            {event.source || role}
           </div>
-        );
-      })()}
-      {event.extended_content && event.extended_content.length > 0 && (
-        <>
-          <div className="font-semibold mt-2">Prompt Extension based on Agent Context:</div>
-          <div className="whitespace-pre-wrap mt-1">{event.extended_content.map(c => c.text).join(' ')}</div>
-        </>
-      )}
+          <span className="oh-event-meta">{label}</span>
+        </div>
+        <div className="oh-event-content">
+          {content && <div className="whitespace-pre-wrap">{content}</div>}
+          {imageParts.length > 0 && (
+            <div className="mt-2">
+              {imageParts.map((img, idx) => (
+                <div key={idx} className="text-sm opacity-70">
+                  <span className="codicon codicon-file-media mr-1" />
+                  Image {img.image_urls && img.image_urls.length > 0 ? `(${img.image_urls.length} url${img.image_urls.length > 1 ? 's' : ''})` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+          {event.llm_message.reasoning_content && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Reasoning</div>
+              <div className="whitespace-pre-wrap mt-1">{event.llm_message.reasoning_content}</div>
+            </div>
+          )}
+          {(() => {
+            const activated = event.activated_skills;
+            if (!activated || activated.length === 0) return null;
+            return (
+              <div className="oh-event-section">
+                <div className="oh-event-section-title">Activated Skills</div>
+                <span className="oh-code">{activated.join(', ')}</span>
+              </div>
+            );
+          })()}
+          {event.extended_content && event.extended_content.length > 0 && (
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Extended Context</div>
+              <div className="whitespace-pre-wrap mt-1">{event.extended_content.map(c => c.text).join(' ')}</div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
- *
- * Supported event types (validated by type guards in agent-sdk.ts):
- * - SystemPromptEvent: Shows system instructions and available tools
- * - ActionEvent: Displays agent's planned action with security risk badges
- * - ObservationEvent: Shows tool execution results (with expand/collapse for long output)
- * - UserRejectObservation: Displays rejection notifications from confirmation mode
- * - MessageEvent: Renders assistant/user messages (text content only)
- * - AgentErrorEvent: Shows error messages with tool context
- * - PauseEvent: Displays pause notifications
- * - Condensation: Shows conversation summarization events
- *
- * Fallback: Unknown event types render as JSON for debugging.
  */
 function EventBlock({ event }: { event: Event }) {
   if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} />;
@@ -316,34 +403,41 @@ function EventBlock({ event }: { event: Event }) {
   if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
   if (isCondensation(event)) return <CondensationBlock event={event} />;
 
-  // Fallback for unknown events (should not happen with proper agent-sdk events)
+  // Fallback for unknown events
   const safeKind = (event as any)?.kind ?? 'unknown';
   return (
-    <div className="bg-[rgba(128,128,128,0.06)] border-l-[3px] border-[rgba(128,128,128,0.6)] p-3 rounded my-1">
-      <div className="font-semibold mb-1">Unknown Event: {String(safeKind)}</div>
-      <div className="font-mono text-sm overflow-auto">
-        {JSON.stringify(event ?? {}, null, 2)}
+    <div className="oh-event">
+      <div className="oh-event-indicator" />
+      <div className="oh-event-card">
+        <div className="oh-event-header">
+          <div className="oh-event-title">
+            <span className="oh-event-icon">
+              <span className="codicon codicon-question" />
+            </span>
+            Unknown Event
+          </div>
+          <span className="oh-event-meta">{String(safeKind)}</span>
+        </div>
+        <div className="oh-event-content">
+          <pre>{JSON.stringify(event ?? {}, null, 2)}</pre>
+        </div>
       </div>
     </div>
   );
 }
 
-/**
- * Status message debouncing and auto-dismiss configuration
- * - Messages are debounced to prevent spam (600ms window)
- * - Messages auto-dismiss after 5 seconds unless they're errors
- * - Error messages stay visible until replaced
- */
+// ============================================
+// STATUS & DEBOUNCE CONFIGURATION
+// ============================================
+
 const STATUS_DEBOUNCE_MS = 600;
 const STATUS_AUTO_DISMISS_MS = 5000;
 let lastStatusMessage = { level: '' as 'info' | 'warn' | 'error', message: '', at: 0 };
 
-/**
- * ConfirmationPrompt: displays pending actions awaiting user approval/rejection.
- *
- * Shown when agent_status is WAITING_FOR_CONFIRMATION. Lists each pending action
- * with its tool name, security risk level, and approve/reject buttons.
- */
+// ============================================
+// CONFIRMATION PROMPT
+// ============================================
+
 interface ConfirmationPromptProps {
   actions: ActionEvent[];
   onApprove: () => void;
@@ -364,69 +458,60 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
   };
 
   return (
-    <div className="bg-[rgba(255,200,0,0.1)] border-l-[3px] border-[rgba(255,200,0,0.8)] p-4 rounded my-2">
-      <div className="font-bold mb-3 text-[var(--vscode-foreground)] text-lg">
-        ⚠️ Action Confirmation Required
+    <div className="oh-confirmation">
+      <div className="oh-confirmation-title">
+        <span className="codicon codicon-shield" />
+        Action Confirmation Required
       </div>
+
       {actions.map((action) => (
-        <div key={action.tool_call_id} className="mb-3 pb-3 border-b border-[rgba(128,128,128,0.2)] last:border-b-0">
-          <div className="mb-2">
-            <span className="font-semibold">Tool: </span>
-            <span className="font-mono text-sm px-2 py-1 rounded bg-black/10">{action.tool_name}</span>
+        <div key={action.tool_call_id} className="mb-4 pb-4 border-b border-[rgba(255,225,101,0.2)] last:border-b-0">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="oh-code">{action.tool_name}</span>
             {action.security_risk && action.security_risk !== 'UNKNOWN' && (
-              <span className={`ml-2 px-2 py-1 rounded text-xs font-semibold ${
-                action.security_risk === 'HIGH' ? 'bg-red-100 text-red-800' :
-                action.security_risk === 'MEDIUM' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-green-100 text-green-800'
-              }`}>
-                Risk: {action.security_risk}
-              </span>
+              <div className={`oh-risk-badge ${action.security_risk.toLowerCase()}`}>
+                <span>{action.security_risk}</span>
+              </div>
             )}
           </div>
           {action.thought && action.thought.length > 0 && (
-            <div className="mb-2">
-              <div className="text-sm font-semibold">Thought:</div>
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Thought</div>
               <div className="text-sm whitespace-pre-wrap mt-1">
                 {action.thought.map(t => t.text).join('\n')}
               </div>
             </div>
           )}
           {action.action && (
-            <div className="mb-2">
-              <div className="text-sm font-semibold">Action Details:</div>
-              <div className="font-mono text-xs bg-black/5 p-2 rounded mt-1 overflow-auto max-h-32">
+            <div className="oh-event-section">
+              <div className="oh-event-section-title">Action Details</div>
+              <pre className="text-xs max-h-32 overflow-auto">
                 {JSON.stringify(action.action, null, 2)}
-              </div>
+              </pre>
             </div>
           )}
         </div>
       ))}
 
-      <div className="flex gap-2 items-center mt-3">
+      <div className="oh-confirmation-actions">
         <button
           type="button"
           onClick={onApprove}
           disabled={isSubmitting}
-          className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{
-            background: 'var(--vscode-button-background)',
-            color: 'var(--vscode-button-foreground)'
-          }}
+          className="oh-btn oh-btn-primary"
         >
-          ✓ Approve
+          <span className="codicon codicon-check mr-2" />
+          Approve
         </button>
         {!showRejectInput ? (
           <button
             type="button"
             onClick={() => setShowRejectInput(true)}
             disabled={isSubmitting}
-            className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{
-              background: 'var(--vscode-button-secondaryBackground)',
-              color: 'var(--vscode-button-secondaryForeground)'
-            }}
+            className="oh-btn oh-btn-danger"
           >
-            ✗ Reject
+            <span className="codicon codicon-close mr-2" />
+            Reject
           </button>
         ) : (
           <>
@@ -435,31 +520,22 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               disabled={isSubmitting}
-              placeholder="Reason for rejection (optional)"
-              className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-              style={{ background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', borderColor: 'var(--vscode-input-border)' }}
+              placeholder="Reason (optional)"
+              className="oh-popover-search flex-1"
             />
             <button
               type="button"
               onClick={handleReject}
               disabled={isSubmitting}
-              className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{
-                background: 'var(--vscode-button-secondaryBackground)',
-                color: 'var(--vscode-button-secondaryForeground)'
-              }}
+              className="oh-btn oh-btn-danger"
             >
-              Confirm Reject
+              Confirm
             </button>
             <button
               type="button"
               onClick={() => setShowRejectInput(false)}
               disabled={isSubmitting}
-              className="px-3 py-1.5 rounded text-sm font-medium border-0 disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{
-                background: 'var(--vscode-button-secondaryBackground)',
-                color: 'var(--vscode-button-secondaryForeground)'
-              }}
+              className="oh-btn oh-btn-secondary"
             >
               Cancel
             </button>
@@ -470,22 +546,10 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
   );
 }
 
-/**
- * Main App component: React webview root for OpenHands extension.
- *
- * Architecture:
- * - Receives messages from extension host via window.postMessage
- * - Renders agent-sdk events in a scrollable message stream
- * - Sends user input and commands back to extension via vscode.postMessage
- *
- * State management:
- * - status: Connection state (online/offline/connecting)
- * - events: Array of rendered events with stable keys for React reconciliation
- *
- * Message flow:
- * Extension → Webview: status updates, agent events, errors, config changes
- * Webview → Extension: user messages, commands (pause/reconnect/newConversation)
- */
+// ============================================
+// MAIN APP COMPONENT
+// ============================================
+
 export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
@@ -518,26 +582,21 @@ export function App() {
   // Helper function to show status messages with debouncing and auto-dismiss
   const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string, autoDismiss = true) => {
     const now = Date.now();
-    // Debounce: skip if same message type was shown recently
     if (lastStatusMessage.level === level && lastStatusMessage.message === message && now - lastStatusMessage.at < STATUS_DEBOUNCE_MS) {
       return;
     }
     lastStatusMessage = { level, message, at: now };
 
-    // Clear any existing auto-dismiss timer
     if (statusAutoDismissRef.current) {
       clearTimeout(statusAutoDismissRef.current);
       statusAutoDismissRef.current = null;
     }
 
-    // Set the status message
     setStatusBanner({ message, level });
 
-    // Auto-dismiss after timeout (except for errors which stay until replaced)
     if (autoDismiss && level !== 'error') {
       statusAutoDismissRef.current = setTimeout(() => {
         setStatusBanner((current) => {
-          // Only clear if this is still the same message
           if (current?.message === message) {
             return null;
           }
@@ -552,23 +611,18 @@ export function App() {
   const handleEvent = useCallback((e: unknown) => {
     const known = isEvent(e);
 
-    // Track agent status from ConversationStateUpdateEvent
     if (known && isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
-        // Show status message only when transitioning INTO confirmation mode (not on repeated updates)
         if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
           showStatusMessage('warn', 'Agent is waiting for confirmation');
         }
         lastAgentStatusRef.current = e.agent_status;
       }
-      // Don't render state update events in the UI
       return;
     }
 
     if (known) {
-      // Track pending actions (actions awaiting confirmation or execution)
-      // Deduplicate by tool_call_id to prevent duplicate cards on reconnection or retries
       if (isActionEvent(e)) {
         setPendingActions((prev) => {
           const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
@@ -576,8 +630,6 @@ export function App() {
         });
       }
 
-      // Clear pending action when we receive its observation
-      // Also reset in-flight flag to allow new confirmations
       if (isObservationEvent(e) || isUserRejectObservation(e)) {
         setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
         if (submissionTimeoutRef.current) {
@@ -587,10 +639,8 @@ export function App() {
         setIsSubmitting(false);
       }
 
-      // Show status messages for certain events
       if (isAgentErrorEvent(e)) {
         showStatusMessage('error', e.error);
-        // Reset in-flight flag on error to allow recovery
         if (submissionTimeoutRef.current) {
           clearTimeout(submissionTimeoutRef.current);
           submissionTimeoutRef.current = null;
@@ -601,8 +651,6 @@ export function App() {
       }
     }
 
-    // Add event to the list for rendering regardless of type guard outcome,
-    // but explicitly skip ConversationStateUpdateEvent which should not be rendered
     if ((e as any)?.kind === 'ConversationStateUpdateEvent') {
       return;
     }
@@ -615,7 +663,7 @@ export function App() {
     vscodeApi.postMessage({ type: 'webviewReady' });
   }, []);
 
-  // Message handler: processes incoming messages from extension host
+  // Message handler
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string | null; mode?: 'local' | 'remote'; event?: unknown; error?: unknown; terminalEvent?: unknown };
@@ -628,24 +676,24 @@ export function App() {
               setMode(payload.mode);
             }
             if (payload.mode === 'local') {
-              setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
+              setStatusBanner({ message: 'Local mode active', level: 'info' });
             } else if (payload.status === 'connecting') {
               setStatusBanner({ message: 'Connecting to server…', level: 'info' });
             } else if (payload.status === 'online') {
-              setStatusBanner({ message: 'Connected to server', level: 'info' });
+              setStatusBanner({ message: 'Connected', level: 'info' });
             } else if (payload.status === 'offline') {
-              setStatusBanner({ message: 'Disconnected from server', level: 'warn' });
+              setStatusBanner({ message: 'Disconnected', level: 'warn' });
             }
           }
           break;
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
-            const label = payload.serverUrl && payload.serverUrl.length > 0 ? payload.serverUrl : 'local mode';
-            showStatusMessage('info', `Config updated: ${label}`);
+            const label = payload.serverUrl && payload.serverUrl.length > 0 ? payload.serverUrl : 'local';
+            showStatusMessage('info', `Config: ${label}`);
           }
           if (payload.mode === 'local') {
             setMode('local');
-            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
+            setStatusBanner({ message: 'Local mode active', level: 'info' });
           } else if (payload.mode === 'remote') {
             setMode('remote');
           }
@@ -673,7 +721,6 @@ export function App() {
           break;
         }
         case 'terminalEvent':
-          // terminal events are rendered in the VS Code terminal; keep hook for future UI updates
           break;
         case 'workspaceFiles': {
           const files = Array.isArray((payload as { files?: unknown }).files)
@@ -701,7 +748,6 @@ export function App() {
           break;
         }
         case 'queryRenderedEvents': {
-          // Respond with rendered event information for testing
           const vscodeApi = getVscodeApi();
           vscodeApi.postMessage({
             type: 'renderedEventsResponse',
@@ -717,7 +763,6 @@ export function App() {
   }, [events, handleEvent, showStatusMessage]);
 
   useEffect(() => {
-    // Deterministic scroll to bottom when events change
     const el = endRef.current;
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -725,7 +770,6 @@ export function App() {
   }, [events.length]);
 
   const postMessage = useCallback((msg: unknown) => {
-    // Acquire live VS Code API on each call so tests that set window.acquireVsCodeApi late still work
     const api = getVscodeApi();
     api.postMessage(msg);
   }, []);
@@ -742,6 +786,7 @@ export function App() {
     setInput('');
     postMessage({ type: 'command', command: 'startNewConversation' });
   };
+
   const filteredWorkspaceFiles = useMemo(() => {
     if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
     const lower = contextQuery.toLowerCase();
@@ -755,16 +800,17 @@ export function App() {
     ? 0
     : Math.min(skillsActiveIndex, skills.length - 1);
 
-  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = event.target.value;
     setInput(value);
-    const start = event.target.selectionStart ?? value.length;
-    const end = event.target.selectionEnd ?? start;
+    const target = event.target as HTMLInputElement | HTMLTextAreaElement;
+    const start = target.selectionStart ?? value.length;
+    const end = target.selectionEnd ?? start;
     selectionRef.current = { start, end };
   }, []);
 
-  const handleInputSelect = useCallback((event: React.SyntheticEvent<HTMLInputElement>) => {
-    const target = event.target as HTMLInputElement;
+  const handleInputSelect = useCallback((event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const target = event.target as HTMLInputElement | HTMLTextAreaElement;
     const start = target.selectionStart ?? target.value.length;
     const end = target.selectionEnd ?? start;
     selectionRef.current = { start, end };
@@ -792,7 +838,7 @@ export function App() {
     setContextActiveIndex(0);
     setTimeout(() => {
       const el = document.getElementById('openhands-chat-input');
-      if (el instanceof HTMLInputElement) {
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
         el.focus();
         el.setSelectionRange(caretPos, caretPos);
       }
@@ -933,16 +979,10 @@ export function App() {
   }, [closeContextPicker, closeSkillsPopover, showContextPicker, showSkillsPopover]);
 
   const isLocalMode = mode === 'local';
-  const connectionIcon = status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync';
-  const connectionStatusClass = status === 'online'
-    ? 'bg-[var(--vscode-testing-iconPassed)]'
-    : status === 'offline'
-      ? 'bg-[var(--vscode-errorForeground)]'
-      : 'bg-[var(--vscode-testing-iconQueued)]';
+
   const send = useCallback(() => {
     const text = input.trim();
     if (!text) return;
-    // Send message and let the server echo it back to avoid duplicates
     setInput('');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
@@ -954,11 +994,9 @@ export function App() {
   }, [input, postMessage]);
 
   const handleApprove = useCallback(() => {
-    // Prevent double-submit: return early if confirmation already in flight
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    // Set 30-second timeout to prevent permanent lockout if backend doesn't respond
     submissionTimeoutRef.current = setTimeout(() => {
       setIsSubmitting(false);
       submissionTimeoutRef.current = null;
@@ -966,17 +1004,13 @@ export function App() {
     }, 30000);
 
     postMessage({ type: 'command', command: 'approveAction' });
-    // Use "submitted" (pending state) instead of "approved" (implies success)
     showStatusMessage('info', 'Approval submitted');
-    // Server will send ObservationEvent which clears pending actions and resets flag via handleEvent
   }, [isSubmitting, postMessage, showStatusMessage]);
 
   const handleReject = useCallback((reason?: string) => {
-    // Prevent double-submit: return early if confirmation already in flight
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    // Set 30-second timeout to prevent permanent lockout if backend doesn't respond
     submissionTimeoutRef.current = setTimeout(() => {
       setIsSubmitting(false);
       submissionTimeoutRef.current = null;
@@ -984,113 +1018,139 @@ export function App() {
     }, 30000);
 
     postMessage({ type: 'command', command: 'rejectAction', reason });
-    // Use "submitted" (pending state) instead of "rejected" (implies success)
     showStatusMessage('info', 'Rejection submitted');
-    // Server will send UserRejectObservation which clears pending actions and resets flag via handleEvent
   }, [isSubmitting, postMessage, showStatusMessage]);
 
-const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
-  info: 'text-[color-mix(in_srgb,var(--vscode-tab-activeForeground)_85%,transparent)]',
-  warn: 'text-[color-mix(in_srgb,var(--vscode-editorWarning-foreground)_90%,transparent)]',
-  error: 'text-[color-mix(in_srgb,var(--vscode-editorError-foreground)_95%,transparent)]'
-};
-
   return (
-    <div id="app" className="flex flex-col h-screen">
-      <header className="flex items-center gap-2 px-3 py-2 border-b border-black/10">
-        <div className="flex items-center gap-2">
-          {!isLocalMode && <StatusDot status={status} />}
-          <Typography.H2 className="text-[17px]">OpenHands</Typography.H2>
+    <div className="oh-app">
+      {/* Animated Background */}
+      <div className="oh-app-background" />
+      <div className="oh-scan-line" />
+
+      {/* Header / Command Bar */}
+      <header className="oh-header">
+        <div className="oh-header-left">
+          <div className="oh-header-brand">
+            <svg className="oh-brand-icon" viewBox="0 0 47 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M44.731 8.9991C43.271 8.13859 42.2956 9.4574 42.4152 11.248L42.4031 11.2616C42.4071 9.39165 42.1435 7.32642 41.2675 5.65567C40.9573 5.06395 40.3287 4.09128 39.0856 4.54957C38.5402 4.75068 38.0454 5.35594 38.3009 6.9184C38.3009 6.9184 38.5848 8.55821 38.532 10.6196V10.6486C38.1772 4.96339 36.8388 3.22883 34.9246 3.34099C34.3122 3.44541 33.4748 3.69873 33.7566 5.44683C33.7566 5.44683 34.0628 7.27034 34.1622 8.72258L34.1683 8.79606H34.1622C33.2618 5.66147 32.0492 5.61893 31.1712 5.74076C30.3743 5.85098 29.5044 6.64381 29.9444 8.20627C31.3253 13.1083 31.0556 19.012 30.9522 19.857C30.6703 19.2789 30.5831 18.8206 30.1918 18.1863C28.6182 15.6396 27.87 15.452 26.9514 15.4133C26.0389 15.3746 25.0534 15.9141 25.1183 16.941C25.1852 17.9678 25.7307 18.1379 26.5053 19.5689C27.1096 20.6827 27.2819 22.1427 28.4986 24.7958C29.5064 26.9925 32.1405 29.402 36.9382 29.1158C40.8255 28.992 46.631 27.6887 45.6212 19.13C45.3697 17.6429 45.5583 16.3976 45.6901 15.1213C45.8949 13.1412 46.195 9.85962 44.733 8.99717L44.731 8.9991Z" fill="#FFE165"/>
+              <path d="M20.458 15.4707C19.5395 15.5268 18.7973 15.7259 17.2724 18.2998C16.8932 18.9398 16.8161 19.4 16.5444 19.9821C16.4248 19.139 16.0415 13.2411 17.3272 8.31587C17.7368 6.74761 16.8526 5.97024 16.0537 5.87356C15.1736 5.7672 13.959 5.83101 13.1195 8.99654H13.1094L13.1215 8.90566C13.1925 7.45149 13.4642 5.62411 13.4642 5.62411C13.7096 3.87021 12.8701 3.63236 12.2557 3.5376C10.3455 3.46025 9.04367 5.20255 8.79222 10.8375H8.78817C8.70097 8.79737 8.95039 7.17303 8.95039 7.17303C9.17547 5.60477 8.66853 5.00918 8.119 4.81774C6.86786 4.38071 6.25749 5.36498 5.95941 5.96251C5.11585 7.64873 4.89077 9.71783 4.93133 11.5878L4.91916 11.5742C5.0023 9.78164 4.0026 8.48023 2.55882 9.36589C1.11504 10.2535 1.47802 13.5292 1.72135 15.5055C1.87952 16.7798 2.09041 18.0213 1.86735 19.5122C1.02379 28.0864 6.85366 29.2872 10.7429 29.3433C15.5447 29.5464 18.1322 27.0886 19.0974 24.8745C20.2613 22.202 20.4074 20.7382 20.9893 19.6147C21.7355 18.1702 22.279 17.9904 22.3256 16.9635C22.3723 15.9367 21.3766 15.4146 20.4641 15.4688L20.458 15.4707Z" fill="#FFE165"/>
+            </svg>
+            <span className="oh-brand-title">OpenHands</span>
+          </div>
+          {!isLocalMode && (
+            <div className="oh-status-badge">
+              <span className={`oh-status-dot ${status}`} />
+              {status}
+            </div>
+          )}
           {isLocalMode && (
-            <span className="text-xs px-2 py-1 rounded bg-[color-mix(in_srgb,var(--vscode-editor-background)_70%,transparent)] text-[color-mix(in_srgb,var(--vscode-foreground)_80%,transparent)]">
-              Local mode
-            </span>
+            <div className="oh-status-badge">
+              <span className="codicon codicon-server-environment" />
+              LOCAL
+            </div>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <ToolbarButton
-            icon="add"
-            label="New Conversation"
+        <div className="oh-header-right">
+          <button
+            className="oh-toolbar-btn"
             onClick={handleStartNewConversation}
-          />
-          <ToolbarButton
-            icon="history"
-            label="History"
+            title="New Conversation"
+            aria-label="New Conversation"
+          >
+            <span className="codicon codicon-add" />
+          </button>
+          <button
+            className="oh-toolbar-btn"
             onClick={() => showStatusMessage('info', 'History view coming soon')}
-          />
-          <ToolbarButton
-            icon="settings-gear"
-            label="Settings"
+            title="History"
+            aria-label="History"
+          >
+            <span className="codicon codicon-history" />
+          </button>
+          <button
+            className="oh-toolbar-btn"
             onClick={() => postMessage({ type: 'openSettingsPage' })}
-          />
+            title="Settings"
+            aria-label="Settings"
+          >
+            <span className="codicon codicon-settings-gear" />
+          </button>
           {!isLocalMode && (
-            <ToolbarButton
-              icon={connectionIcon}
-              iconClassName={status === 'connecting' ? 'animate-spin' : ''}
-              label={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
+            <button
+              className={`oh-toolbar-btn ${status === 'connecting' ? 'spinning' : ''}`}
               onClick={() => postMessage({ type: 'command', command: 'reconnect' })}
-              statusClassName={connectionStatusClass}
-            />
+              title={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
+              aria-label="Connection status"
+            >
+              <span className={`codicon codicon-${status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync'}`} />
+            </button>
           )}
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0 px-3 py-2">
-        <Scrollable
-          mode="auto"
-          type="vertical"
-          className="flex-1 min-h-0 rounded border border-black/10 p-2"
-          tabIndex={0}
-          aria-label="Conversation events"
-          role="log"
-          aria-live="polite"
-        >
-          {events.map((ev) => (
-            <div key={ev.id}>
-              <EventBlock event={ev.event} />
-            </div>
-          ))}
-          {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
-            <ConfirmationPrompt
-              actions={pendingActions}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              isSubmitting={isSubmitting}
-            />
-          )}
-          <div ref={endRef} />
-        </Scrollable>
-      </div>
+      {/* Main Content Area */}
+      <main className="oh-main">
+        <div className="oh-timeline-container" role="log" aria-label="Conversation events" aria-live="polite">
+          <div className="oh-timeline">
+            {events.map((ev) => (
+              <EventBlock key={ev.id} event={ev.event} />
+            ))}
+            {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
+              <ConfirmationPrompt
+                actions={pendingActions}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                isSubmitting={isSubmitting}
+              />
+            )}
+            <div ref={endRef} />
+          </div>
+        </div>
+      </main>
 
-      <div className="flex flex-col gap-3 px-3 py-2 border-t border-black/10">
-        <Input
-          id="openhands-chat-input"
-          label="Message"
-          placeholder="Type a message..."
-          value={input}
-          onChange={handleInputChange}
-          onSelect={handleInputSelect}
-          onClick={handleInputSelect}
-          onFocus={handleInputSelect}
-          onKeyUp={handleInputSelect}
-          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              send();
-              return;
-            }
-            handleInputSelect(e);
-          }}
-          className="flex-1"
-        />
-        <div className="flex items-center gap-2">
+      {/* Input Area / Command Center */}
+      <footer className="oh-input-area">
+        <div className="oh-input-wrapper">
+          <textarea
+            id="openhands-chat-input"
+            className="oh-input-field"
+            placeholder="Type your message..."
+            value={input}
+            onChange={handleInputChange}
+            onSelect={handleInputSelect}
+            onClick={handleInputSelect}
+            onFocus={handleInputSelect}
+            onKeyUp={handleInputSelect}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+                return;
+              }
+              handleInputSelect(e);
+            }}
+            rows={3}
+            aria-label="Message input"
+          />
+        </div>
+
+        <div className="oh-accessories">
           <div className="relative">
-            <AccessoryButton icon="mention" label="Add context" onClick={handleContextToggle} />
+            <button
+              className="oh-accessory-btn"
+              onClick={handleContextToggle}
+              title="Add context"
+            >
+              <span className="codicon codicon-mention" />
+              Context
+            </button>
             {showContextPicker && (
               <div
                 ref={contextPopoverRef}
-                className="absolute bottom-full left-0 mb-2 w-72 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20"
+                className="oh-popover"
+                style={{ bottom: '100%', left: 0, marginBottom: '8px', width: '280px' }}
               >
+                <div className="oh-popover-title">Add Context</div>
                 <input
                   id="openhands-context-query"
                   type="text"
@@ -1100,104 +1160,99 @@ const statusLevelClasses: Record<'info' | 'warn' | 'error', string> = {
                     setContextActiveIndex(0);
                   }}
                   onKeyDown={handleContextQueryKeyDown}
-                  placeholder="Search workspace files"
-                  className="w-full rounded border border-black/15 bg-[var(--vscode-input-background)] px-2 py-1 text-sm"
+                  placeholder="Search files..."
+                  className="oh-popover-search"
                 />
-                <div className="mt-2 max-h-48 overflow-auto">
+                <div className="oh-popover-list">
                   {isContextLoading ? (
                     <div className="py-2 text-center text-sm opacity-70">Loading…</div>
                   ) : filteredWorkspaceFiles.length === 0 ? (
                     <div className="py-2 text-center text-sm opacity-70">No matches</div>
                   ) : (
-                    <ul className="space-y-1" role="listbox" aria-label="Workspace files">
-                      {filteredWorkspaceFiles.map((file, index) => {
-                        const isActive = index === safeContextActiveIndex;
-                        return (
-                          <li key={file}>
-                            <button
-                              type="button"
-                              role="option"
-                              aria-selected={isActive}
-                              className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] ${isActive ? 'bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)]' : ''}`}
-                              onClick={() => insertContextFile(file)}
-                              onMouseEnter={() => setContextActiveIndex(index)}
-                              onFocus={() => setContextActiveIndex(index)}
-                            >
-                              <span className="truncate" title={file}>{file}</span>
-                              <span className="codicon codicon-pass" />
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    filteredWorkspaceFiles.map((file, index) => (
+                      <div
+                        key={file}
+                        className={`oh-popover-item ${index === safeContextActiveIndex ? 'active' : ''}`}
+                        onClick={() => insertContextFile(file)}
+                        onMouseEnter={() => setContextActiveIndex(index)}
+                      >
+                        <span className="oh-truncate" title={file}>{file}</span>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
             )}
           </div>
-          <AccessoryButton
-            icon="add"
-            label="Attach files"
+
+          <button
+            className="oh-accessory-btn"
             onClick={() => showStatusMessage('info', 'File attachments coming soon')}
-          />
-          <AccessoryButton
-            icon="server-environment"
-            label="MCP Servers"
+            title="Attach files"
+          >
+            <span className="codicon codicon-add" />
+            Attach
+          </button>
+
+          <button
+            className="oh-accessory-btn"
             onClick={() => showStatusMessage('info', 'MCP server management coming soon')}
-          />
+            title="MCP Servers"
+          >
+            <span className="codicon codicon-server-environment" />
+            MCP
+          </button>
+
           <div className="relative">
-            <AccessoryButton icon="mortar-board" label="Skills" onClick={handleSkillsToggle} />
+            <button
+              className="oh-accessory-btn"
+              onClick={handleSkillsToggle}
+              title="Skills"
+            >
+              <span className="codicon codicon-mortar-board" />
+              Skills
+            </button>
             {showSkillsPopover && (
               <div
                 ref={skillsPopoverRef}
                 tabIndex={-1}
-                className="absolute bottom-full right-0 mb-2 w-64 rounded border border-black/10 bg-[var(--vscode-editor-background)] shadow-lg p-2 z-20 focus:outline-none"
+                className="oh-popover"
+                style={{ bottom: '100%', right: 0, marginBottom: '8px', width: '260px' }}
                 onKeyDown={handleSkillsKeyDown}
               >
-                <div className="mb-2 text-sm font-medium">Skills</div>
-                <div className="max-h-48 overflow-auto">
+                <div className="oh-popover-title">Skills</div>
+                <div className="oh-popover-list">
                   {isSkillsLoading ? (
                     <div className="py-2 text-center text-sm opacity-70">Loading…</div>
                   ) : skills.length === 0 ? (
                     <div className="py-2 text-center text-sm opacity-70">No skills found</div>
                   ) : (
-                    <ul className="space-y-1" role="listbox" aria-label="Skills">
-                      {skills.map((skill, index) => {
-                        const isActive = index === safeSkillsActiveIndex;
-                        return (
-                          <li key={skill.path}>
-                            <button
-                              type="button"
-                              role="option"
-                              aria-selected={isActive}
-                              className={`w-full rounded px-2 py-1 text-left text-sm hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_40%,transparent)] ${isActive ? 'bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_50%,transparent)]' : ''}`}
-                              onClick={() => openSkill(skill.path)}
-                              onMouseEnter={() => setSkillsActiveIndex(index)}
-                              onFocus={() => setSkillsActiveIndex(index)}
-                            >
-                              {skill.label}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    skills.map((skill, index) => (
+                      <div
+                        key={skill.path}
+                        className={`oh-popover-item ${index === safeSkillsActiveIndex ? 'active' : ''}`}
+                        onClick={() => openSkill(skill.path)}
+                        onMouseEnter={() => setSkillsActiveIndex(index)}
+                      >
+                        {skill.label}
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
             )}
           </div>
         </div>
+
         {statusBanner && (
-          <div
-            className={`mt-2 flex min-h-[22px] items-center gap-2 border-t border-[color-mix(in_srgb,var(--vscode-input-border)_30%,transparent)] pt-2 text-xs ${statusLevelClasses[statusBanner.level]}`}
-          >
-            <span className="font-semibold">{statusBanner.message}</span>
+          <div className={`oh-status-banner ${statusBanner.level}`}>
+            <span>{statusBanner.message}</span>
             {conversationId && statusBanner.level !== 'error' && (
-              <span className="opacity-60">Conversation: {conversationId.slice(0, 8)}</span>
+              <span className="opacity-60">ID: {conversationId.slice(0, 8)}</span>
             )}
           </div>
         )}
-      </div>
+      </footer>
     </div>
   );
 }

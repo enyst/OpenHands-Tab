@@ -1,3 +1,4 @@
 @import "./tailwind.gen.css";
 @import "./vendor/openhands-ui-tokens-plain.css";
 @import "@openhands/ui/styles";
+@import "./redesign.css";
