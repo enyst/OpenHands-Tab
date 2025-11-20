@@ -1,4 +1,7 @@
-# OpenHands-Tab
+# OpenHands-Tab (prototype)
+
+<img width="1706" height="952" alt="image" src="https://github.com/user-attachments/assets/9e430fe1-ba13-42d7-8c90-211cdf028abc" />
+
 
 A VS Code extension and TypeScript SDK intended to run in VS Code for building AI agents with OpenHands.
 
