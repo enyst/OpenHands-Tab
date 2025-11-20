@@ -230,11 +230,18 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
         // Friendly LLM request summary for debugging
         try {
-          if ((ev as any)?.kind === 'ConversationStateUpdateEvent' && (ev as any)?.key === 'llm_request') {
-            const v = (ev as any)?.value ?? {};
-            const model = typeof v.model === 'string' ? v.model : undefined;
-            const names = Array.isArray(v.tools) ? v.tools.filter((n: unknown) => typeof n === 'string') : [];
-            const count = typeof v.tool_count === 'number' ? v.tool_count : names.length;
+          const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
+          if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_request') {
+            const raw = evAny.value as {
+              model?: unknown;
+              tools?: unknown;
+              tool_count?: unknown;
+            } | undefined;
+            const model = typeof raw?.model === 'string' ? raw.model : undefined;
+            const names = Array.isArray(raw?.tools)
+              ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
+              : [];
+            const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
             const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
             outputChannel?.appendLine(summary);
           }
