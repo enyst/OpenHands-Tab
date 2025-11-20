@@ -36,21 +36,31 @@ interface VscodeApi {
 }
 
 // Cache the VS Code API - it can only be acquired once per webview
-let vscodeApiInstance: VscodeApi | undefined;
+// Store on window to survive hot module reloading
+declare global {
+  interface Window {
+    __vscodeApi?: VscodeApi;
+  }
+}
 
 function getVscodeApi(): VscodeApi {
-  if (vscodeApiInstance) {
-    return vscodeApiInstance;
+  // Check if already cached on window (survives HMR)
+  if (typeof window !== 'undefined' && window.__vscodeApi) {
+    return window.__vscodeApi;
   }
 
   if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
-    vscodeApiInstance = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
-    return vscodeApiInstance;
+    const api = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
+    window.__vscodeApi = api;
+    return api;
   }
 
   // Fallback for non-vscode environments (e.g., tests)
-  vscodeApiInstance = { postMessage: () => { /* noop for tests */ } };
-  return vscodeApiInstance;
+  const fallback: VscodeApi = { postMessage: () => { /* noop for tests */ } };
+  if (typeof window !== 'undefined') {
+    window.__vscodeApi = fallback;
+  }
+  return fallback;
 }
 
 type RenderedEvent = { id: number; event: Event };
