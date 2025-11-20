@@ -17,7 +17,6 @@ const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing 
 * If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists non-hidden files and directories up to 2 levels deep
 * The \`create\` command cannot be used if the specified \`path\` already exists as a file
 * If a \`command\` generates a long output, it will be truncated and marked with \`<response clipped>\`
-* The \`\` command will revert the last edit made to the file at \`path\`
 * This tool can be used for creating and editing files in plain-text format.
 
 
