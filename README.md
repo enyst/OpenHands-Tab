@@ -1,4 +1,4 @@
-# OpenHands-Tab (prototype)
+# OpenHands-Tab prototype
 
 <img width="1706" height="952" alt="image" src="https://github.com/user-attachments/assets/9e430fe1-ba13-42d7-8c90-211cdf028abc" />
 
@@ -43,7 +43,7 @@ The extension can work directly on VS Code, or can connect to an [OpenHands agen
 2. Press `F5` to launch a new Extension Development Host
 3. The extension will be available in the new VSCode window
 
-### Monorepo layout & SDK builds
+### Monorepo layout & SDK
 
 This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript SDK that lives in `packages/agent-sdk-ts` and is published as `@openhands/agent-sdk-ts`.
 
@@ -66,7 +66,7 @@ npm run lint -w @openhands/agent-sdk-ts
 
 > 💡 If you edit `packages/agent-sdk-ts`, rerun `npm run build -w @openhands/agent-sdk-ts` (or `npm run build`) before launching the extension so the bundled `node_modules/@openhands/agent-sdk-ts/dist` reflects your latest changes.
 
-### The @openhands/agent-sdk-ts Package
+### @openhands/agent-sdk-ts Package
 
 The SDK provides a TypeScript implementation used by the VS Code extension for building OpenHands agents. It is intended to run inside the VS Code environment. It includes:
 
@@ -91,7 +91,7 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - Streaming LLM clients for Anthropic and OpenAI-compatible APIs
 - Factory pattern for creating LLM clients with proper configuration
 - Token usage tracking and caching support
-- Credential management with secure storage
+- Credentials use VS Code secure storage
 
 **Tool System**:
 - `TerminalTool` - Execute shell commands (cwd, timeoutMs). Returns stdout/stderr/exitCode.
@@ -126,14 +126,14 @@ If you are an AI, read:
   - [vscode_remote_setup](docs/vscode_remote_setup.md)
 
 
-### (Optional) Backend Server: OpenHands Agent Server (V1, agent-sdk)
+### (Optional) OpenHands Agent Server (V1, agent-sdk)
 
-The extension can work with the V1 server bundled with All-Hands-AI/agent-sdk. Clone and run the server locally with uv.
+The extension can work with the V1 server bundled with OpenHands/agent-sdk. Clone and run the server locally with uv.
 
 Quick start:
 ```bash
 # 1) Clone the V1 SDK (if not already present)
-git clone https://github.com/All-Hands-AI/agent-sdk.git
+git clone https://github.com/OpenHands/agent-sdk.git
 cd agent-sdk
 
 # 2) Setup (requires uv >= 0.8.13)
@@ -159,7 +159,7 @@ Notes:
 #### Using the Extension
 
 - In VS Code, ensure the setting `openhands.serverUrl` points to your server (default `http://localhost:3000`).
-- Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”, and chat.
+- Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”.
 
 #### Optional: Session API Key
 
