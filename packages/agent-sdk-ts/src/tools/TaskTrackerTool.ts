@@ -153,10 +153,18 @@ const taskItemSchema = z.object({
   status: z.enum(['todo', 'in_progress', 'done']).default('todo').describe("The current status of the task. One of 'todo', 'in_progress', or 'done'."),
 });
 
-const trackerSchema = z.object({
-  command: z.enum(['view', 'plan']).default('view').describe('The command to execute. `view` shows the current task list. `plan` creates or updates the task list based on provided requirements and progress. Always `view` the current list before making changes.'),
-  task_list: z.array(taskItemSchema).default([]).describe('The full task list. Required parameter of `plan` command.'),
-});
+const trackerSchema = z
+  .object({
+    command: z
+      .enum(['view', 'plan'])
+      .default('view')
+      .describe('The command to execute. `view` shows the current task list. `plan` creates or updates the task list based on provided requirements and progress. Always `view` the current list before making changes.'),
+    task_list: z
+      .array(taskItemSchema)
+      .default([])
+      .describe('The full task list. Required parameter of `plan` command.'),
+  })
+  .strict();
 
 export class TaskTrackerTool extends ZodTool<z.infer<typeof trackerSchema>, TaskTrackerResult> {
   readonly name = 'task_tracker';
