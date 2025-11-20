@@ -1,6 +1,10 @@
 import { useRef } from 'react';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 
+// --- Constants ---
+
+const PROMPT_PREVIEW_MAX_LENGTH = 100;
+
 // --- Types ---
 
 interface Conversation {
@@ -49,10 +53,10 @@ function getPromptPreview(firstMessage?: string): string | null {
   if (!firstMessage) {
     return null;
   }
-  if (firstMessage.length <= 100) {
+  if (firstMessage.length <= PROMPT_PREVIEW_MAX_LENGTH) {
     return firstMessage;
   }
-  return `${firstMessage.slice(0, 100)}…`;
+  return `${firstMessage.slice(0, PROMPT_PREVIEW_MAX_LENGTH)}…`;
 }
 
 /**
