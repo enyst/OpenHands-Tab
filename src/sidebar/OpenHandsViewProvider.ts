@@ -16,24 +16,9 @@ export class OpenHandsViewProvider implements vscode.TreeDataProvider<OpenHandsT
     return element;
   }
 
-  getChildren(element?: OpenHandsTreeItem): Thenable<OpenHandsTreeItem[]> {
-    if (element) {
-      return Promise.resolve([]);
-    }
-
-    // Provide quick entry points to the webview and extension settings.
-    const items: OpenHandsTreeItem[] = [
-      new OpenHandsTreeItem('Open Conversation Tab', {
-        command: 'openhands.openTab',
-        title: 'OpenHands: Open Tab',
-      }, 'comment-discussion'),
-      new OpenHandsTreeItem('Extension Settings', {
-        command: 'workbench.action.openSettings',
-        title: 'Open OpenHands Settings',
-        arguments: ['@ext:openhands.openhands-tab'],
-      }, 'gear'),
-    ];
-
-    return Promise.resolve(items);
+  getChildren(_element?: OpenHandsTreeItem): Thenable<OpenHandsTreeItem[]> {
+    // Return empty - clicking the sidebar icon triggers onDidChangeVisibility
+    // which opens the OpenHands Tab directly
+    return Promise.resolve([]);
   }
 }
