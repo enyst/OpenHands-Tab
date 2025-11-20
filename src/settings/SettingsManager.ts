@@ -52,7 +52,6 @@ export class SettingsManager {
       topK: this.adapter.get<number | null>('openhands.llm.topK', DEFAULTS.llm.topK) ?? DEFAULTS.llm.topK,
       maxInputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxInputTokens', null) ?? undefined),
       maxOutputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxOutputTokens', null) ?? undefined),
-      nativeToolCalling: this.adapter.get<boolean | null>('openhands.llm.nativeToolCalling', DEFAULTS.llm.nativeToolCalling) ?? DEFAULTS.llm.nativeToolCalling,
       reasoningEffort: this.adapter.get<'low' | 'medium' | 'high' | 'none' | null>('openhands.llm.reasoningEffort', DEFAULTS.llm.reasoningEffort) ?? DEFAULTS.llm.reasoningEffort,
     };
     const agent: AgentSettings = {
@@ -93,7 +92,6 @@ export class SettingsManager {
       if (partial.llm.topK !== undefined) ops.push(this.adapter.update('openhands.llm.topK', partial.llm.topK, target));
       if (partial.llm.maxInputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxInputTokens', partial.llm.maxInputTokens, target));
       if (partial.llm.maxOutputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxOutputTokens', partial.llm.maxOutputTokens, target));
-      if (partial.llm.nativeToolCalling !== undefined) ops.push(this.adapter.update('openhands.llm.nativeToolCalling', partial.llm.nativeToolCalling, target));
       if (partial.llm.reasoningEffort !== undefined) ops.push(this.adapter.update('openhands.llm.reasoningEffort', partial.llm.reasoningEffort, target));
     }
 

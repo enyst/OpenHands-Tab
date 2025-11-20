@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
 
-export type PlanningCommand = 'view' | 'create' | 'str_replace' | 'insert' | 'undo_edit';
+export type PlanningCommand = 'view' | 'create' | 'str_replace' | 'insert';
 
 export interface PlanningFileEditorResult {
   command: PlanningCommand;
@@ -16,8 +16,8 @@ export interface PlanningFileEditorResult {
 const planningSchema = z
   .object({
     command: z
-      .enum(['view', 'create', 'str_replace', 'insert', 'undo_edit'])
-      .describe('Allowed options: `view`, `create`, `str_replace`, `insert`, `undo_edit`.'),
+      .enum(['view', 'create', 'str_replace', 'insert'])
+      .describe('Allowed options: `view`, `create`, `str_replace`, `insert`.'),
     path: z.string().describe('Absolute path to file or directory.'),
     file_text: z
       .string()
@@ -69,7 +69,6 @@ const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing 
 * If "path" is a text file, "view" displays the result of applying cat -n. If "path" is a directory, "view" lists non-hidden files and directories up to 2 levels deep
 * The "create" command cannot be used if the specified "path" already exists as a file
 * If a "command" generates a long output, it will be truncated and marked with <response clipped>
-* The "undo_edit" command will revert the last edit made to the file at "path"
 * This tool can be used for creating and editing files in plain-text format.
 
 
@@ -99,7 +98,7 @@ IMPORTANT RESTRICTION FOR PLANNING AGENT:
 * You can VIEW any file in the workspace using the 'view' command
 * You can ONLY EDIT the PLAN.md file (all other edit operations will be rejected)
 * PLAN.md is automatically initialized with section headers at the workspace root
-* All editing commands (create, str_replace, insert, undo_edit) are restricted to PLAN.md only
+* All editing commands (create, str_replace, insert) are restricted to PLAN.md only
 * The PLAN.md file already contains the required section structure - you just need to fill in the content`;
 
 const PLAN_BASENAME = 'PLAN.md';
@@ -110,6 +109,18 @@ const applyViewRange = (content: string, viewRange?: number[]): string => {
   const lines = content.split(/\r?\n/);
   const slice = lines.slice(start - 1, end === -1 ? undefined : end);
   return slice.join('\n');
+};
+
+const addLineNumbers = (content: string): string => {
+  const lines = content.split(/\r?\n/);
+  return lines.map((line, idx) => `${idx + 1}\t${line}`).join('\n');
+};
+
+const truncateContent = (content: string, limit = 500): string => {
+  if (content.length <= limit * 2) return content;
+  const head = content.slice(0, limit);
+  const tail = content.slice(-limit);
+  return `${head}\n<response clipped>\n${tail}`;
 };
 
 export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchema>, PlanningFileEditorResult> {
@@ -137,7 +148,10 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
           return { command: 'view', path: resolved, content: listing };
         }
         const content = await fs.readFile(resolved, 'utf8');
-        return { command: 'view', path: resolved, content: applyViewRange(content, args.view_range) };
+        const ranged = applyViewRange(content, args.view_range);
+        const numbered = addLineNumbers(ranged);
+        const truncated = truncateContent(numbered);
+        return { command: 'view', path: resolved, content: truncated };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return { command: 'view', path: resolved, message };
@@ -188,7 +202,7 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
       return { command: 'insert', path: resolved, content: updated };
     }
 
-    return { command: 'undo_edit', path: resolved, message: 'Undo support is not implemented in this SDK stub.' };
+    throw new Error(`Unsupported command: ${String(args.command)}`);
   }
 }
 

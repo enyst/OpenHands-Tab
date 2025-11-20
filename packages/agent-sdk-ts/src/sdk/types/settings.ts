@@ -9,7 +9,6 @@ export type LLMSettings = {
   topK?: number | null;
   maxInputTokens?: number | null;
   maxOutputTokens?: number | null;
-  nativeToolCalling?: boolean | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
   inputCostPerToken?: number | null;
   outputCostPerToken?: number | null;

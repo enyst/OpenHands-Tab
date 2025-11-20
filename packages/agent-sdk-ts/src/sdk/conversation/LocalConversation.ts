@@ -58,7 +58,7 @@ export class LocalConversation extends EventEmitter {
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();
     // connect registry to stats
-    this.llmRegistry.subscribe((event: RegistryEvent) => this.stats.register_llm(event));
+    this.llmRegistry.subscribe((event: RegistryEvent) => this.stats.registerLlm(event));
 
     this.agent = this.createAgent();
 
@@ -154,8 +154,15 @@ export class LocalConversation extends EventEmitter {
         this.state.loadEvents(loadedEvents);
       }
     } catch (error) {
-      this.emit('error', error);
-      throw error;
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.emit('error', err);
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'environment',
+        detail: err.message,
+        code: 'restore_failed',
+      } as Event);
+      throw err;
     }
   }
 

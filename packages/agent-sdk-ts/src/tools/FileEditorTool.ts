@@ -1,54 +1,184 @@
+import fs from 'fs/promises';
 import path from 'path';
-import { Buffer } from 'buffer';
-import type { ToolContext, ToolDefinition } from './types';
-import { requireBoolean, requireObject, requireString } from './validation';
-
-export interface FileEditorArgs {
-  path: string;
-  content: string;
-  append?: boolean;
-}
+import { z } from 'zod';
+import type { ToolContext } from './types';
+import { ZodTool } from './zod-tool';
 
 export interface FileEditorResult {
-  path: string;
-  bytesWritten: number;
+  command: 'view' | 'create' | 'str_replace' | 'insert';
+  path?: string;
+  prev_exist?: boolean;
+  old_content?: string | null;
+  new_content?: string | null;
 }
 
-export class FileEditorTool implements ToolDefinition<FileEditorArgs, FileEditorResult> {
-  readonly name = 'file_editor';
+const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing files in plain-text format
+* State is persistent across command calls and discussions with the user
+* If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists non-hidden files and directories up to 2 levels deep
+* The \`create\` command cannot be used if the specified \`path\` already exists as a file
+* If a \`command\` generates a long output, it will be truncated and marked with \`<response clipped>\`
+* This tool can be used for creating and editing files in plain-text format.
 
-  validate(input: unknown): FileEditorArgs {
-    const obj = requireObject(input, 'file editor args');
-    const filePath = requireString(obj.path, 'path');
-    const rawContent = obj.content;
-    if (rawContent !== undefined && typeof rawContent !== 'string') {
-      throw new Error('content must be a string');
+
+Before using this tool:
+1. Use the view tool to understand the file's contents and context
+2. Verify the directory path is correct (only applicable when creating new files):
+   - Use the view tool to verify the parent directory exists and is the correct location
+
+When making edits:
+   - Ensure the edit results in idiomatic, correct code
+   - Do not leave the code in a broken state
+   - Always use absolute file paths (starting with /)
+
+CRITICAL REQUIREMENTS FOR USING THIS TOOL:
+
+1. EXACT MATCHING: The \`old_str\` parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if \`old_str\` matches multiple locations or doesn't match exactly with the file content.
+
+2. UNIQUENESS: The \`old_str\` must uniquely identify a single instance in the file:
+   - Include sufficient context before and after the change point (3-5 lines recommended)
+   - If not unique, the replacement will not be performed
+
+3. REPLACEMENT: The \`new_str\` parameter should contain the edited lines that replace the \`old_str\`. Both strings must be different.
+
+Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
+`;
+
+const fileEditorSchema = z
+  .object({
+    command: z
+      .enum(['view', 'create', 'str_replace', 'insert'])
+      .describe('The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`.'),
+    path: z.string().describe('Absolute path to file or directory.'),
+    file_text: z
+      .string()
+      .optional()
+      .describe('Required parameter of `create` command, with the content of the file to be created.'),
+    old_str: z
+      .string()
+      .optional()
+      .describe('Required parameter of `str_replace` command containing the string in `path` to replace.'),
+    new_str: z
+      .string()
+      .optional()
+      .describe('Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing the string to insert.'),
+    insert_line: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Line number to insert `new_str` after. Line numbers are 1-based. Use `insert_line: 0` to insert at the beginning of the file.'),
+    view_range: z
+      .array(z.number().int())
+      .length(2)
+      .optional()
+      .describe('Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file.'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.command === 'create' && value.file_text === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'file_text is required for create', path: ['file_text'] });
     }
-    const content = rawContent ?? '';
-    const append = obj.append === undefined ? false : requireBoolean(obj.append, 'append');
-    return { path: filePath, content, append };
+    if (value.command === 'str_replace' && value.old_str === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'old_str is required for str_replace', path: ['old_str'] });
+    }
+    if (value.command === 'insert') {
+      if (value.new_str === undefined) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'new_str is required for insert', path: ['new_str'] });
+      }
+      if (value.insert_line === undefined) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'insert_line is required for insert', path: ['insert_line'] });
+      }
+    }
+  });
+
+const applyViewRange = (content: string, viewRange?: number[]): string => {
+  if (!viewRange || viewRange.length !== 2) return content;
+  const [start, end] = viewRange;
+  const lines = content.split(/\r?\n/);
+  const slice = lines.slice(start - 1, end === -1 ? undefined : end);
+  return slice.join('\n');
+};
+
+const addLineNumbers = (content: string): string => {
+  const lines = content.split(/\r?\n/);
+  return lines.map((line, idx) => `${idx + 1}\t${line}`).join('\n');
+};
+
+const truncateContent = (content: string, limit = 500): string => {
+  if (content.length <= limit * 2) return content;
+  const head = content.slice(0, limit);
+  const tail = content.slice(-limit);
+  return `${head}\n<response clipped>\n${tail}`;
+};
+
+export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, FileEditorResult> {
+  readonly name = 'file_editor';
+  readonly description = TOOL_DESCRIPTION;
+  readonly schema = fileEditorSchema;
+
+  private async pathExists(absPath: string): Promise<boolean> {
+    try {
+      await fs.stat(absPath);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  async execute(args: FileEditorArgs, context: ToolContext): Promise<FileEditorResult> {
-    const resolved = context.workspace.resolvePath(args.path);
-    const dir = path.dirname(resolved);
-    await context.workspace.ensureDirectory(dir);
+  async execute(args: z.infer<typeof fileEditorSchema>, context: ToolContext): Promise<FileEditorResult> {
+    const ws = context.workspace;
+    const resolved = ws.resolvePath(args.path);
 
-    const writeMethod = args.append
-      ? context.workspace
-          .readFile(args.path)
-          .catch((err: unknown) => {
-            if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === 'ENOENT') {
-              return '';
-            }
-            const error = err instanceof Error ? err : new Error(String(err));
-            return Promise.reject(error);
-          })
-      : Promise.resolve('');
-    const existing = await writeMethod;
-    const newContent = args.append ? `${existing}${existing ? '\n' : ''}${args.content}` : args.content;
-    await context.workspace.writeFile(args.path, newContent);
-
-    return { path: resolved, bytesWritten: Buffer.byteLength(newContent) };
+    switch (args.command) {
+      case 'view': {
+        const stat = await fs.stat(resolved);
+        if (stat.isDirectory()) {
+          const entries = await ws.list(args.path);
+          const listing = entries.map((entry) => `${entry.isDirectory ? 'd' : 'f'} ${entry.path}`).join('\n');
+          return { command: 'view', path: resolved, prev_exist: true, old_content: null, new_content: listing };
+        }
+        const content = await ws.readFile(args.path, 'utf8');
+        const ranged = applyViewRange(content, args.view_range);
+        const numbered = addLineNumbers(ranged);
+        const truncated = truncateContent(numbered);
+        return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: truncated };
+      }
+      case 'create': {
+        const exists = await this.pathExists(resolved);
+        if (exists) {
+          throw new Error('create failed: file already exists');
+        }
+        await context.workspace.ensureDirectory(path.dirname(resolved));
+        await ws.writeFile(args.path, args.file_text ?? '');
+        return { command: 'create', path: resolved, prev_exist: false, old_content: null, new_content: args.file_text ?? '' };
+      }
+      case 'str_replace': {
+        const prev = await ws.readFile(args.path, 'utf8');
+        const oldStr = args.old_str ?? '';
+        const occurrences = oldStr ? prev.split(oldStr).length - 1 : 0;
+        if (occurrences === 0) {
+          throw new Error('old_str not found in target file');
+        }
+        if (occurrences > 1) {
+          throw new Error('old_str is not unique and matches multiple locations in the file');
+        }
+        const updated = prev.replace(oldStr, args.new_str ?? '');
+        await ws.writeFile(args.path, updated);
+        return { command: 'str_replace', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
+      }
+      case 'insert': {
+        const prev = await ws.readFile(args.path, 'utf8');
+        const lines = prev.split(/\r?\n/);
+        const insertion = args.new_str ?? '';
+        const index = Math.min(args.insert_line ?? 0, lines.length);
+        lines.splice(index, 0, insertion);
+        const updated = lines.join('\n');
+        await ws.writeFile(args.path, updated);
+        return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
+      }
+      default: {
+        const unreachable: never = args.command;
+        throw new Error(`Unsupported command: ${String(unreachable)}`);
+      }
+    }
   }
 }
