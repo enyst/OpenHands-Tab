@@ -69,11 +69,15 @@ async function listWorkspaceFiles(limit = 500): Promise<string[]> {
     return [];
   }
   try {
-    const uris = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**,**/dist/**,**/out/**,**/build/**,**/.venv/**}', limit);
+    // Exclude common directories, build artifacts, and all dotfiles/dotdirs
+    const excludePattern = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/__pycache__/**,**/coverage/**,**/tmp/**,**/temp/**,**/.*}';
+    const uris = await vscode.workspace.findFiles('**/*', excludePattern, limit);
     const unique = new Set<string>();
     for (const uri of uris) {
       const relative = vscode.workspace.asRelativePath(uri, false);
-      if (relative) unique.add(relative);
+      if (relative) {
+        unique.add(relative);
+      }
     }
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   } catch (err) {
