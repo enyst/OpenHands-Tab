@@ -293,7 +293,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const { main: textContent, files: contextFiles } = parseContextBlock(rawText);
   const imageContent = message.content.filter((c) => c.type === 'image');
 
-  const accentColor = isUser ? '#10B981' : isAgent ? '#8B5CF6' : '#6B7280';
+  const accentColor = isUser ? '#3B82F6' : isAgent ? '#D97706' : '#6B7280';
   const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
 
   const handleOpenFile = (file: string) => {
