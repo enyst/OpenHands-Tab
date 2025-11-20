@@ -167,7 +167,9 @@ describe('PlanningFileEditorTool', () => {
     // Truncation marker present for long content
     expect(viewed).toContain('<response clipped>');
 
-    const [head, , tail] = viewed.split('\n<response clipped>\n');
+    const parts = viewed.split('\n<response clipped>\n');
+    expect(parts.length).toBe(2);
+    const [head, tail] = parts;
     expect(head.length).toBeLessThanOrEqual(500 + 20);
     expect(tail.length).toBeLessThanOrEqual(500 + 20);
   });

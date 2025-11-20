@@ -202,6 +202,7 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
       return { command: 'insert', path: resolved, content: updated };
     }
 
+    throw new Error(`Unsupported command: ${String(args.command)}`);
   }
 }
 
