@@ -192,12 +192,14 @@ describe('Open tab behavior', () => {
     expect(__getLastConversation()).toBeTruthy();
   });
 
-  it('restores saved conversation id when available', async () => {
+  it('does not auto-restore saved conversation on first panel open', async () => {
+    // Intentionally does not restore on first open - users may return after weeks
+    // and won't remember what the conversation was about
     (mockContext.workspaceState.get as Mock).mockReturnValue('saved-convo');
     await vscode.commands.executeCommand('openhands.openTab');
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
-    expect(conv?.restoreConversation).toHaveBeenCalledWith('saved-convo');
+    expect(conv?.restoreConversation).not.toHaveBeenCalled();
   });
 });
 
