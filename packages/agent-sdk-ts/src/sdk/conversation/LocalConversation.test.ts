@@ -52,7 +52,12 @@ describe('LocalConversation', () => {
     const llm = new FakeLLM([
       [
         { type: 'text', text: 'Working' },
-        { type: 'tool_call_delta', id: 'tool_1', name: 'task_tracker', arguments: '{"action":"list"}' },
+        {
+          type: 'tool_call_delta',
+          id: 'tool_1',
+          name: 'task_tracker',
+          arguments: '{"command":"view"}',
+        },
         { type: 'finish' },
       ],
       [{ type: 'text', text: 'Tasks listed' }, { type: 'finish' }],
