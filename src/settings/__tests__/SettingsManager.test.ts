@@ -109,7 +109,6 @@ describe('SettingsManager', () => {
         topK: 50,
         maxInputTokens: 4096,
         maxOutputTokens: 2048,
-        nativeToolCalling: true,
         reasoningEffort: 'high'
       }
     });
@@ -122,7 +121,6 @@ describe('SettingsManager', () => {
     expect(s.llm.topK).toBe(50);
     expect(s.llm.maxInputTokens).toBe(4096);
     expect(s.llm.maxOutputTokens).toBe(2048);
-    expect(s.llm.nativeToolCalling).toBe(true);
     expect(s.llm.reasoningEffort).toBe('high');
   });
 

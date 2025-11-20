@@ -1,4 +1,4 @@
-import type { ToolContext, ToolHandler } from './types';
+import type { ToolContext, ToolDefinition } from './types';
 import { requireObject, requireString, optionalString, optionalNumber } from './validation';
 
 export interface BrowserArgs {
@@ -16,7 +16,7 @@ export interface BrowserResult {
 
 const DEFAULT_MAX_BYTES = 256 * 1024;
 
-export class BrowserTool implements ToolHandler<BrowserArgs, BrowserResult> {
+export class BrowserTool implements ToolDefinition<BrowserArgs, BrowserResult> {
   readonly name = 'browser';
 
   validate(input: unknown): BrowserArgs {

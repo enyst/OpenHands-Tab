@@ -84,7 +84,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
-    expect(await screen.findByText(/Tools Available: 3/)).toBeInTheDocument();
+    expect(await screen.findByText(/3 tools available/)).toBeInTheDocument();
   });
 
   it('renders ActionEvent', async () => {
@@ -132,14 +132,15 @@ describe('Agent-SDK event rendering', () => {
     expect(await screen.findByText(/This command appears to be potentially harmful to the system/)).toBeInTheDocument();
   });
 
-  it('renders PauseEvent', async () => {
+  it('renders PauseEvent in status bar only', async () => {
     render(<App />);
     const ev = {
       kind: 'PauseEvent',
       source: 'user' as const
     } as any;
     postToWindow({ type: 'event', event: ev });
-    expect(await screen.findByText(/User Paused/)).toBeInTheDocument();
+    // PauseEvent shows in status bar, not in event stream
+    expect(await screen.findByText(/Conversation paused/)).toBeInTheDocument();
   });
 
   it('renders Condensation', async () => {

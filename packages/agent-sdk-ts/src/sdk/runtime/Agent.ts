@@ -9,7 +9,7 @@ import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import { isTextContent, isMessageEvent, isSystemPromptEvent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
-import type { ToolHandler } from '../types/tools';
+import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
@@ -26,12 +26,14 @@ export interface AgentOptions {
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   llmClient?: LLMClient;
-  tools?: ToolHandler<unknown, unknown>[];
+  tools?: ToolDefinition<unknown, unknown>[];
   events?: EventLog;
   state?: ConversationState;
   secrets?: SecretRegistry;
   agentContext?: AgentContext;
   onTerminalEvent?: (event: BashEvent) => void;
+  registry?: import('../llm').LLMRegistry;
+  conversationStats?: import('./ConversationStats').ConversationStats;
 }
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
@@ -41,7 +43,7 @@ export class Agent extends EventEmitter {
   private readonly events: EventLog;
   readonly state: ConversationState;
   private readonly secrets: SecretRegistry;
-  private readonly tools: Map<string, ToolHandler<unknown, unknown>>;
+  private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
   private readonly confirmation: ConfirmationPolicy;
   private readonly lock = new AsyncLock();
   private orchestratorPromise?: Promise<AgentOrchestrator>;
@@ -50,6 +52,8 @@ export class Agent extends EventEmitter {
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> };
   private readonly agentContext?: AgentContext;
   private readonly activatedSkillNames: string[] = [];
+  private readonly registry?: import('../llm').LLMRegistry;
+  private readonly conversationStats?: import('./ConversationStats').ConversationStats;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -60,6 +64,8 @@ export class Agent extends EventEmitter {
     this.secrets = options.secrets ?? new SecretRegistry();
     const providedTools = options.tools ?? [];
     this.tools = new Map(providedTools.map((tool) => [tool.name, tool]));
+    this.registry = options.registry;
+    this.conversationStats = options.conversationStats;
     this.confirmation = {
       policy: options.settings?.confirmation?.policy ?? 'never',
       riskyThreshold: options.settings?.confirmation?.riskyThreshold ?? 'MEDIUM',
@@ -142,6 +148,18 @@ export class Agent extends EventEmitter {
     while (!this.paused && !this.pendingAction && !this.cancelled && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
       const request = this.buildChatRequest();
+      // Emit a lightweight debug/state event so hosts can log what tools are actually sent
+      try {
+        const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
+        this.events.push({
+          kind: 'ConversationStateUpdateEvent',
+          source: 'agent',
+          key: 'llm_request',
+          value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
+        } as Event);
+      } catch (error) {
+        void error; // ignore debug emission failures
+      }
       let response;
       try {
         response = await orchestrator.runChat(request);
@@ -175,27 +193,46 @@ export class Agent extends EventEmitter {
 
       let toolExecutionFailed = false;
       for (const toolCall of toolCalls) {
-        const parsedArgs = this.parseToolArgs(toolCall);
-        if (!parsedArgs) {
-          toolExecutionFailed = true;
-          break;
+        // Log raw tool call for debugging visibility
+        try {
+          this.events.push({
+            kind: 'ConversationStateUpdateEvent',
+            source: 'agent',
+            key: 'llm_tool_call_raw',
+            value: {
+              id: toolCall.id,
+              name: toolCall.function?.name ?? '',
+              arguments: toolCall.function?.arguments ?? '',
+            },
+          } as Event);
+        } catch {
+          // Swallow errors from logging tool call metadata; tool execution will still proceed.
         }
-        const { args, securityRisk } = parsedArgs;
+
+        const parsed = this.parseToolArgs(toolCall);
+        const args = parsed?.args ?? null;
+        const securityRisk = parsed?.securityRisk;
+
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
+        if (!parsed) {
+          toolExecutionFailed = true;
+          continue;
+        }
+
         if (this.requiresConfirmation(recordedAction)) {
-          this.pendingAction = { toolCall, actionEvent: recordedAction, args };
+          this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
           this.state.setStatus('WAITING_FOR_CONFIRMATION');
           this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
           return lastAssistantMessage;
         }
 
         try {
-          await this.executeTool(toolCall, recordedAction, args);
+          await this.executeTool(toolCall, recordedAction, args ?? {});
         } catch {
           toolExecutionFailed = true;
-          break;
+          // Continue processing other tool calls but mark this iteration as failed
         }
       }
 
@@ -286,6 +323,7 @@ export class Agent extends EventEmitter {
     const s = this.options.settings;
     const config = {
       model: s.llm.model ?? '',
+      usageId: s.llm.usageId ?? undefined,
       baseUrl: s.llm.baseUrl ?? undefined,
       apiKey: s.secrets?.llmApiKey ?? undefined,
       apiVersion: s.llm.apiVersion ?? undefined,
@@ -295,10 +333,22 @@ export class Agent extends EventEmitter {
       topK: s.llm.topK ?? undefined,
       maxInputTokens: s.llm.maxInputTokens ?? undefined,
       maxOutputTokens: s.llm.maxOutputTokens ?? undefined,
-      nativeToolCalling: s.llm.nativeToolCalling ?? undefined,
       reasoningEffort: s.llm.reasoningEffort ?? undefined,
+      inputCostPerToken: s.llm.inputCostPerToken ?? undefined,
+      outputCostPerToken: s.llm.outputCostPerToken ?? undefined,
     };
-    const factory = new LLMFactory(config, { secrets: this.secrets });
+    const factory = new LLMFactory(config, {
+      secrets: this.secrets,
+      registry: this.registry,
+      onMetricsUpdate: (usageId, metrics) => {
+        if (!this.conversationStats) return;
+        // ensure entry exists and reference the same metrics
+        if (!this.conversationStats.usageToMetrics[usageId]) {
+          this.conversationStats.usageToMetrics[usageId] = metrics;
+        }
+        this.state.setValue('stats', this.conversationStats.toJSON());
+      },
+    });
     return factory.createClient();
   }
 
@@ -380,7 +430,7 @@ export class Agent extends EventEmitter {
   private createActionEvent(
     message: Message,
     toolCall: ToolCall,
-    args: Record<string, unknown>,
+    args: Record<string, unknown> | null,
     securityRisk?: SecurityRisk,
   ): ActionEvent {
     const thought = message.content.filter(isTextContent);

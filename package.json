@@ -164,11 +164,7 @@
           "type": "number",
           "markdownDescription": "Max output tokens. Leave empty to use default."
         },
-        "openhands.llm.nativeToolCalling": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "Enable model-native tool calling if supported."
-        },
+
         "openhands.llm.reasoningEffort": {
           "type": "string",
           "enum": [

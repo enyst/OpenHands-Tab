@@ -111,7 +111,6 @@ export class RemoteConversation extends EventEmitter {
         if (typeof s?.llm.maxOutputTokens === 'number' && s.llm.maxOutputTokens > 0) {
           llm.max_output_tokens = Math.trunc(s.llm.maxOutputTokens);
         }
-        if (s?.llm.nativeToolCalling !== undefined) llm.native_tool_calling = s.llm.nativeToolCalling;
         if (s?.llm.reasoningEffort !== undefined) llm.reasoning_effort = s.llm.reasoningEffort;
         if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
         if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;

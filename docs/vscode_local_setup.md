@@ -54,7 +54,7 @@ For each common action, here are both the Visual (UI) steps and equivalent CLI t
 
 - Start Extension Development Host
   - Visual: Open folder → Run and Debug → "Run OH-Tab" (F5)
-  - CLI: code --extensionDevelopmentPath="$(pwd)"
+  - CLI: code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 
 - Rebuild extension (backend + webview)
   - Visual: Terminal → Run Task → "npm: compile" (or use F5 which runs preLaunchTask)
@@ -111,14 +111,15 @@ Note on Webview DevTools from CLI
 ### B. From terminal using the code CLI
 ```bash
 # From the repo root
-code --extensionDevelopmentPath="$(pwd)"
+code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 ```
 Optional isolation (separate profile and extensions dir):
 ```bash
 code \
+  "$(pwd)" \
+  --extensionDevelopmentPath="$(pwd)" \
   --user-data-dir=/tmp/vscode-profile \
-  --extensions-dir=/tmp/vscode-extensions \
-  --extensionDevelopmentPath="$(pwd)"
+  --extensions-dir=/tmp/vscode-extensions
 ```
 
 ## Refreshing After Code Changes

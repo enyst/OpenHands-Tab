@@ -14,6 +14,7 @@ export interface LLMToolDefinition {
 export interface LLMConfiguration {
   provider?: LLMProvider;
   model: string;
+  usageId?: string | null;
   baseUrl?: string | null;
   apiKey?: string;
   apiVersion?: string | null;
@@ -23,9 +24,12 @@ export interface LLMConfiguration {
   topK?: number | null;
   maxInputTokens?: number | null;
   maxOutputTokens?: number | null;
-  nativeToolCalling?: boolean | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
   headers?: Record<string, string>;
+  /** Cost per input token in USD (or base currency). */
+  inputCostPerToken?: number | null;
+  /** Cost per output token in USD (or base currency). */
+  outputCostPerToken?: number | null;
 }
 
 export interface ChatCompletionRequest {

@@ -8,7 +8,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   isEvent,
-  isTextContent,
   isSystemPromptEvent,
   isActionEvent,
   isObservationEvent,
@@ -19,6 +18,7 @@ import {
   isPauseEvent,
   isCondensation,
   isConversationStateUpdateEvent,
+  isTextContent,
   type Event,
   type ActionEvent,
   type ObservationEvent,
@@ -64,6 +64,14 @@ function getVscodeApi(): VscodeApi {
 }
 
 type RenderedEvent = { id: number; event: Event };
+
+type ConversationsList = Array<{
+  id: string;
+  title?: string;
+  firstMessage?: string;
+  timestamp: number;
+  messageCount?: number;
+}>;
 
 // ============================================
 // EVENT RENDERING COMPONENTS
@@ -561,35 +569,62 @@ function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: Conf
 // ============================================
 
 export function App() {
+  // Connection state
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
+  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+
+  // Events and conversation state
   const [events, setEvents] = useState<RenderedEvent[]>([]);
   const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
   const eventId = useRef(1);
-  const endRef = useRef<HTMLDivElement | null>(null);
-  const lastAgentStatusRef = useRef<string | undefined>(undefined);
+
+  // Input state
+  const [input, setInput] = useState('');
+  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+
+  // UI state
+  const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>(
+    { message: 'Initializing…', level: 'info' }
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Context picker state
   const [showContextPicker, setShowContextPicker] = useState(false);
   const [contextQuery, setContextQuery] = useState('');
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
-  const [isContextLoading, setIsContextLoading] = useState(false);
-  const [workspaceFilesRequested, setWorkspaceFilesRequested] = useState(false);
+  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
   const [contextActiveIndex, setContextActiveIndex] = useState(0);
+  const [workspaceFilesRequested, setWorkspaceFilesRequested] = useState(false);
+  const [isContextLoading, setIsContextLoading] = useState(false);
+
+  // Skills state
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
   const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
-  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
-  const [skillsRequested, setSkillsRequested] = useState(false);
   const [skillsActiveIndex, setSkillsActiveIndex] = useState(0);
-  const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-  const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>({ message: 'Initializing…', level: 'info' });
+  const [skillsRequested, setSkillsRequested] = useState(false);
+  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
+
+  // History state
+  const [history, setHistory] = useState<ConversationsList>([]);
+
+  // Refs
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusAutoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextPopoverRef = useRef<HTMLDivElement | null>(null);
   const skillsPopoverRef = useRef<HTMLDivElement | null>(null);
-  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
 
-  // Helper function to show status messages with debouncing and auto-dismiss
+  // Post message helper
+  const postMessage = useCallback((msg: unknown) => {
+    const api = getVscodeApi();
+    api.postMessage(msg);
+  }, []);
+
+  // Show status message with debouncing and auto-dismiss
   const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string, autoDismiss = true) => {
     const now = Date.now();
     if (lastStatusMessage.level === level && lastStatusMessage.message === message && now - lastStatusMessage.at < STATUS_DEBOUNCE_MS) {
@@ -617,7 +652,7 @@ export function App() {
     }
   }, []);
 
-  // Define callback functions before useEffects that depend on them
+  // Handle incoming events
   const handleEvent = useCallback((e: unknown) => {
     const known = isEvent(e);
 
@@ -633,6 +668,7 @@ export function App() {
     }
 
     if (known) {
+      // Track pending actions
       if (isActionEvent(e)) {
         setPendingActions((prev) => {
           const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
@@ -640,6 +676,7 @@ export function App() {
         });
       }
 
+      // Clear pending action when we receive its observation
       if (isObservationEvent(e) || isUserRejectObservation(e)) {
         setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
         if (submissionTimeoutRef.current) {
@@ -661,9 +698,11 @@ export function App() {
       }
     }
 
+    // Add event to the list for rendering
     if ((e as any)?.kind === 'ConversationStateUpdateEvent') {
       return;
     }
+
     setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
   }, [showStatusMessage]);
 
@@ -676,7 +715,18 @@ export function App() {
   // Message handler
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      const payload = event.data as { type?: string; status?: 'online' | 'offline' | 'connecting'; serverUrl?: string | null; mode?: 'local' | 'remote'; event?: unknown; error?: unknown; terminalEvent?: unknown };
+      const payload = event.data as {
+        type?: string;
+        status?: 'online' | 'offline' | 'connecting';
+        serverUrl?: string | null;
+        mode?: 'local' | 'remote';
+        event?: unknown;
+        error?: unknown;
+        conversationId?: string;
+        files?: string[];
+        skills?: { label: string; path: string }[];
+        conversations?: ConversationsList;
+      };
 
       switch (payload?.type) {
         case 'status':
@@ -718,29 +768,21 @@ export function App() {
             setStatusBanner({ message: 'An unknown error occurred', level: 'error' });
           }
           break;
-        case 'conversationStarted': {
-          const id = (payload as { conversationId?: unknown }).conversationId;
-          if (typeof id === 'string') {
-            setConversationId(id);
+        case 'conversationStarted':
+          if (typeof payload.conversationId === 'string') {
+            setConversationId(payload.conversationId);
             setEvents([]);
             setPendingActions([]);
             setAgentStatus(undefined);
             eventId.current = 1;
-            setStatusBanner({ message: 'New conversation started', level: 'info' });
           }
           break;
-        }
-        case 'terminalEvent':
+        case 'workspaceFiles':
+          if (Array.isArray(payload.files)) {
+            setWorkspaceFiles(payload.files.filter((f): f is string => typeof f === 'string'));
+            setIsContextLoading(false);
+          }
           break;
-        case 'workspaceFiles': {
-          const files = Array.isArray((payload as { files?: unknown }).files)
-            ? (payload as { files: unknown[] }).files.filter((f): f is string => typeof f === 'string')
-            : [];
-          setWorkspaceFiles(files);
-          setIsContextLoading(false);
-          setContextActiveIndex(0);
-          break;
-        }
         case 'skillsList': {
           const payloadSkills = (payload as { skills?: unknown }).skills;
           const entries = Array.isArray(payloadSkills)
@@ -766,12 +808,20 @@ export function App() {
           });
           break;
         }
+        case 'historyList': {
+          const list = Array.isArray(payload.conversations) ? payload.conversations : [];
+          setHistory(list);
+          setShowHistory(true);
+          break;
+        }
       }
     };
+
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [events, handleEvent, showStatusMessage]);
+  }, [events, handleEvent, postMessage, showStatusMessage]);
 
+  // Auto-scroll to bottom when events change
   useEffect(() => {
     const el = endRef.current;
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
@@ -779,14 +829,18 @@ export function App() {
     }
   }, [events.length]);
 
-  const postMessage = useCallback((msg: unknown) => {
-    const api = getVscodeApi();
-    api.postMessage(msg);
-  }, []);
+  // Filtered workspace files for context picker
+  const filteredWorkspaceFiles = useMemo(() => {
+    if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
+    const lower = contextQuery.toLowerCase();
+    return workspaceFiles.filter((file) => file.toLowerCase().includes(lower)).slice(0, 20);
+  }, [contextQuery, workspaceFiles]);
 
-  const [input, setInput] = useState('');
+  const safeContextActiveIndex = Math.min(contextActiveIndex, Math.max(0, filteredWorkspaceFiles.length - 1));
+  const safeSkillsActiveIndex = Math.min(skillsActiveIndex, Math.max(0, skills.length - 1));
 
-  const handleStartNewConversation = () => {
+  // Handler functions
+  const handleStartNewConversation = useCallback(() => {
     setStatusBanner({ message: 'Starting new conversation…', level: 'info' });
     setConversationId(undefined);
     setEvents([]);
@@ -794,21 +848,13 @@ export function App() {
     setAgentStatus(undefined);
     eventId.current = 1;
     setInput('');
+    setSelectedContextFiles([]);
     postMessage({ type: 'command', command: 'startNewConversation' });
-  };
+  }, [postMessage]);
 
-  const filteredWorkspaceFiles = useMemo(() => {
-    if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
-    const lower = contextQuery.toLowerCase();
-    return workspaceFiles.filter((file) => file.toLowerCase().includes(lower)).slice(0, 20);
-  }, [contextQuery, workspaceFiles]);
-
-  const safeContextActiveIndex = filteredWorkspaceFiles.length === 0
-    ? 0
-    : Math.min(contextActiveIndex, filteredWorkspaceFiles.length - 1);
-  const safeSkillsActiveIndex = skills.length === 0
-    ? 0
-    : Math.min(skillsActiveIndex, skills.length - 1);
+  const handleOpenHistory = useCallback(() => {
+    postMessage({ type: 'requestHistory' });
+  }, [postMessage]);
 
   const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = event.target.value;
@@ -827,19 +873,16 @@ export function App() {
   }, []);
 
   const insertContextFile = useCallback((file: string) => {
-    const current = input;
-    const { start, end } = selectionRef.current;
-    const safeStart = Math.min(start, current.length);
-    const safeEnd = Math.min(end, current.length);
-    const beforeCursor = current.slice(0, safeStart);
-    const afterCursor = current.slice(safeEnd);
-    const needsLeadingSpace = beforeCursor.length > 0 && !/\s$/.test(beforeCursor);
-    const before = needsLeadingSpace ? `${beforeCursor} ` : beforeCursor;
-    const mention = `@${file}`;
-    const needsTrailingSpace = afterCursor.length === 0 || !/^\s/.test(afterCursor);
-    const after = needsTrailingSpace ? ` ${afterCursor}` : afterCursor;
-    const newValue = `${before}${mention}${after}`;
-    const caretPos = before.length + mention.length + (needsTrailingSpace ? 1 : 0);
+    const { start } = selectionRef.current;
+    const before = input.slice(0, start);
+    const after = input.slice(start);
+    const mention = `@${file} `;
+    const newValue = before + mention + after;
+    const caretPos = before.length + mention.length;
+
+    if (!selectedContextFiles.includes(file)) {
+      setSelectedContextFiles((prev) => [...prev, file]);
+    }
 
     selectionRef.current = { start: caretPos, end: caretPos };
     setInput(newValue);
@@ -853,7 +896,7 @@ export function App() {
         el.setSelectionRange(caretPos, caretPos);
       }
     }, 0);
-  }, [input]);
+  }, [input, selectedContextFiles]);
 
   const handleContextQueryKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showContextPicker) return;
@@ -993,15 +1036,22 @@ export function App() {
   const send = useCallback(() => {
     const text = input.trim();
     if (!text) return;
+
+    const files = selectedContextFiles.slice();
+    let finalText = text;
+    if (files.length > 0) {
+      const lines = files;
+      finalText += `\n\nUser has selected the following files for you to read:\n${lines.join('\n')}`;
+    }
+
     setInput('');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
     setContextQuery('');
-    setContextActiveIndex(0);
-    setSkillsActiveIndex(0);
+    setSelectedContextFiles([]);
     selectionRef.current = { start: 0, end: 0 };
-    postMessage({ type: 'send', text });
-  }, [input, postMessage]);
+    postMessage({ type: 'send', text: finalText });
+  }, [input, postMessage, selectedContextFiles]);
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
@@ -1030,6 +1080,11 @@ export function App() {
     postMessage({ type: 'command', command: 'rejectAction', reason });
     showStatusMessage('info', 'Rejection submitted');
   }, [isSubmitting, postMessage, showStatusMessage]);
+
+  const handleSelectConversation = useCallback((id: string) => {
+    setShowHistory(false);
+    postMessage({ type: 'restoreConversation', id });
+  }, [postMessage]);
 
   return (
     <div className="oh-app">
@@ -1071,7 +1126,7 @@ export function App() {
           </button>
           <button
             className="oh-toolbar-btn"
-            onClick={() => showStatusMessage('info', 'History view coming soon')}
+            onClick={handleOpenHistory}
             title="History"
             aria-label="History"
           >
@@ -1263,6 +1318,41 @@ export function App() {
           </div>
         )}
       </footer>
+
+      {/* History Panel */}
+      {showHistory && (
+        <div className="oh-history-overlay" onClick={() => setShowHistory(false)}>
+          <div className="oh-history-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="oh-history-header">
+              <h3>Conversation History</h3>
+              <button onClick={() => setShowHistory(false)} className="oh-toolbar-btn">
+                <span className="codicon codicon-close" />
+              </button>
+            </div>
+            <div className="oh-history-list">
+              {history.length === 0 ? (
+                <div className="py-4 text-center text-sm opacity-70">No conversations yet</div>
+              ) : (
+                history.map((conv) => (
+                  <div
+                    key={conv.id}
+                    className={`oh-history-item ${conv.id === conversationId ? 'active' : ''}`}
+                    onClick={() => handleSelectConversation(conv.id)}
+                  >
+                    <div className="oh-history-item-title">
+                      {conv.title || conv.firstMessage?.slice(0, 50) || 'Untitled'}
+                    </div>
+                    <div className="oh-history-item-meta">
+                      {new Date(conv.timestamp).toLocaleDateString()}
+                      {conv.messageCount && ` · ${conv.messageCount} messages`}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

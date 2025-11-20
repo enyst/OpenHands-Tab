@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
+import { FileStore } from '@openhands/agent-sdk-ts';
 import {
   Conversation,
   type ConversationInstance,
@@ -174,6 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
   };
 
   async function ensurePanelAndConnection() {
+    let panelJustCreated = false;
     if (!panel) {
       webviewReady = false; // Reset readiness flag for new panel
       panel = vscode.window.createWebviewPanel(
@@ -192,6 +194,7 @@ export function activate(context: vscode.ExtensionContext) {
         panel = undefined;
         webviewReady = false;
       }, null, context.subscriptions);
+      panelJustCreated = true;
     }
 
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
@@ -200,7 +203,8 @@ export function activate(context: vscode.ExtensionContext) {
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
-    const savedId = context.workspaceState.get<string>('openhands.conversationId');
+    const rawSavedId = context.workspaceState.get<string>('openhands.conversationId');
+    const savedId = panelJustCreated ? undefined : rawSavedId;
     const needsNewConversation = !conversation || conversationMode !== desiredMode;
 
     if (needsNewConversation) {
@@ -211,6 +215,7 @@ export function activate(context: vscode.ExtensionContext) {
         workspaceRoot,
         conversationId: savedId,
         tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
+        persistenceDir: settings.serverUrl ? undefined : '.openhands/conversations',
       };
 
       conversation = Conversation(conversationOptions);
@@ -223,6 +228,26 @@ export function activate(context: vscode.ExtensionContext) {
       });
       conversation.on('event', (ev) => {
         outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+        // Friendly LLM request summary for debugging
+        try {
+          const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
+          if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_request') {
+            const raw = evAny.value as {
+              model?: unknown;
+              tools?: unknown;
+              tool_count?: unknown;
+            } | undefined;
+            const model = typeof raw?.model === 'string' ? raw.model : undefined;
+            const names = Array.isArray(raw?.tools)
+              ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
+              : [];
+            const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
+            const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
+            outputChannel?.appendLine(summary);
+          }
+        } catch (e) {
+          outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
+        }
         void panel?.webview.postMessage({ type: 'event', event: ev });
       });
       conversation.on('error', (err) => {
@@ -617,6 +642,12 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       case 'webviewReady':
         // Webview has mounted and is ready to receive messages
         webviewReady = true;
+        // Re-send current status so the webview can enable UI immediately
+        void panel.webview.postMessage({
+          type: 'status',
+          status: conversation?.getStatus() ?? 'offline',
+          mode: conversationMode,
+        });
         break;
       case 'openSettingsPage':
         await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
@@ -631,6 +662,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       }
       case 'requestSkills': {
         const skills = await listSkillFiles();
+        outputChannel?.appendLine(`[skills] Found ${skills.length} skill(s)`);
         void panel.webview.postMessage({ type: 'skillsList', skills });
         break;
       }
@@ -650,6 +682,93 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           void vscode.window.showErrorMessage(`Failed to open skill file: ${reason}`);
+        }
+        break;
+      }
+      case 'openWorkspaceFile': {
+        const p = typeof (message as any).path === 'string' ? (message as any).path : undefined;
+        if (!p) break;
+        try {
+          const isAbs = path.isAbsolute(p);
+          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          let resolved: string | undefined;
+          if (!isAbs && wsRoot) {
+            const candidate = path.resolve(wsRoot, p);
+            const rel = path.relative(wsRoot, candidate);
+            if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+              resolved = candidate;
+            }
+          }
+          if (!resolved) {
+            resolved = path.resolve(p);
+          }
+          await fs.stat(resolved);
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
+          await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to open file: ${reason}`);
+        }
+        break;
+      }
+
+      case 'requestHistory': {
+        try {
+          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+          const convRoot = path.join(root, '.openhands', 'conversations');
+          let ids: string[] = [];
+          try {
+            ids = FileStore.listConversations(convRoot);
+          } catch {
+            ids = [];
+          }
+          const conversations = await Promise.all(ids.map(async (id) => {
+            try {
+              const statePath = path.join(convRoot, id, 'state.json');
+              const eventsPath = path.join(convRoot, id, 'events.jsonl');
+              const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
+              const timestamp = stat?.mtimeMs ?? Date.now();
+              // Try to read first user message for preview
+              let firstMessage: string | undefined;
+              try {
+                const content = await fs.readFile(eventsPath, 'utf8');
+                const line = content.split('\n').find((l) => l.includes('"MessageEvent"'));
+                if (line) {
+                  const ev = JSON.parse(line);
+                  const msg = ev?.llm_message;
+                  if (msg?.role === 'user' && Array.isArray(msg?.content)) {
+                    const text = msg.content.find((c: any) => c?.type === 'text')?.text;
+                    if (typeof text === 'string') firstMessage = text;
+                  }
+                }
+              } catch {}
+              return { id, timestamp: Math.floor(timestamp), firstMessage };
+            } catch {
+              return { id, timestamp: Date.now() };
+            }
+          }));
+          void panel.webview.postMessage({ type: 'historyList', conversations });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          outputChannel?.appendLine(`[history] ${reason}`);
+          void panel.webview.postMessage({ type: 'historyList', conversations: [] });
+        }
+        break;
+      }
+      case 'restoreConversation': {
+        const id = typeof (message as any).id === 'string' ? (message as any).id : undefined;
+        if (!id) break;
+        try {
+          const maybe = conversation?.restoreConversation?.(id);
+          void Promise.resolve(maybe).catch((err: unknown) => {
+            const reason = err instanceof Error ? err.message : String(err);
+            outputChannel?.appendLine(`[restore] ${reason}`);
+            void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          outputChannel?.appendLine(`[restore] ${reason}`);
+          void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
         }
         break;
       }

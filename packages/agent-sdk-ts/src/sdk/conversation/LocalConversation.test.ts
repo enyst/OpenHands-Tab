@@ -52,7 +52,12 @@ describe('LocalConversation', () => {
     const llm = new FakeLLM([
       [
         { type: 'text', text: 'Working' },
-        { type: 'tool_call_delta', id: 'tool_1', name: 'task_tracker', arguments: '{"action":"list"}' },
+        {
+          type: 'tool_call_delta',
+          id: 'tool_1',
+          name: 'task_tracker',
+          arguments: '{"command":"view"}',
+        },
         { type: 'finish' },
       ],
       [{ type: 'text', text: 'Tasks listed' }, { type: 'finish' }],
@@ -118,10 +123,15 @@ describe('LocalConversation', () => {
     expect(error?.error).toContain('Unknown tool');
   });
 
-  it('captures tool execution failures as ConversationErrorEvents', async () => {
+  it('captures tool validation failures as AgentErrorEvents', async () => {
     const llm = new FakeLLM([
       [
-        { type: 'tool_call_delta', id: 'tool_fail', name: 'task_tracker', arguments: '{"action":"complete"}' },
+        {
+          type: 'tool_call_delta',
+          id: 'tool_fail',
+          name: 'task_tracker',
+          arguments: '{"command":"view","action":"complete"}',
+        },
         { type: 'finish' },
       ],
       [{ type: 'text', text: 'Done' }, { type: 'finish' }],
@@ -133,7 +143,14 @@ describe('LocalConversation', () => {
 
     await conversation.sendUserMessage('complete unknown task');
 
-    const error = events.find(isConversationErrorEvent);
-    expect(error?.detail).toContain('id is required');
+    const agentError = events.find(isAgentErrorEvent);
+    expect(agentError).toBeDefined();
+    expect(agentError?.tool_name).toBe('task_tracker');
+    expect(agentError?.tool_call_id).toBe('tool_fail');
+    expect(agentError?.error).toContain('Unrecognized key');
+
+    // In this scenario, the failure happens at validation time, so no ConversationErrorEvent is expected.
+    const conversationError = events.find(isConversationErrorEvent);
+    expect(conversationError).toBeUndefined();
   });
 });

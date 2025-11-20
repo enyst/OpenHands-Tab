@@ -1,4 +1,7 @@
-# OpenHands-Tab
+# OpenHands-Tab prototype
+
+<img width="1706" height="952" alt="image" src="https://github.com/user-attachments/assets/9e430fe1-ba13-42d7-8c90-211cdf028abc" />
+
 
 A VS Code extension and TypeScript SDK intended to run in VS Code for building AI agents with OpenHands.
 
@@ -8,7 +11,7 @@ This repository provides two complementary components:
 1. **@openhands/agent-sdk-ts** - A TypeScript SDK used by the extension for LLM orchestration, tool execution, and state management (VS Code environment)
 2. **OpenHands Tab VS Code Extension** - A native VS Code interface for interacting with OpenHands agents directly in your IDE
 
-The extension connects to an [OpenHands agent-server](https://github.com/All-Hands-AI/agent-sdk) backend and provides a rich, integrated development experience with real-time streaming, file editing, terminal integration, and more.
+The extension can work directly on VS Code, or can connect to an [OpenHands agent-server](https://github.com/All-Hands-AI/agent-sdk) backend.
 
 ## Getting Started
 
@@ -32,7 +35,7 @@ The extension connects to an [OpenHands agent-server](https://github.com/All-Han
    npm install
    ```
 
-3. Set up the agent-sdk backend (see [agent-sdk documentation](https://github.com/All-Hands-AI/agent-sdk))
+3. (Optional) Set up the agent-sdk backend (see [agent-sdk documentation](https://github.com/OpenHands/software-agent-sdk))
 
 ### Development
 
@@ -40,7 +43,7 @@ The extension connects to an [OpenHands agent-server](https://github.com/All-Han
 2. Press `F5` to launch a new Extension Development Host
 3. The extension will be available in the new VSCode window
 
-### Monorepo layout & SDK builds
+### Monorepo layout & SDK
 
 This repository is an npm workspace. The VS Code extension (root package) depends on the shared TypeScript SDK that lives in `packages/agent-sdk-ts` and is published as `@openhands/agent-sdk-ts`.
 
@@ -63,9 +66,9 @@ npm run lint -w @openhands/agent-sdk-ts
 
 > 💡 If you edit `packages/agent-sdk-ts`, rerun `npm run build -w @openhands/agent-sdk-ts` (or `npm run build`) before launching the extension so the bundled `node_modules/@openhands/agent-sdk-ts/dist` reflects your latest changes.
 
-### The @openhands/agent-sdk-ts Package
+### @openhands/agent-sdk-ts Package
 
-The SDK provides a TypeScript implementation used by the VS Code extension for building OpenHands agents. It is intended to run inside the VS Code environment and is not supported for standalone use. It includes:
+The SDK provides a TypeScript implementation used by the VS Code extension for building OpenHands agents. It is intended to run inside the VS Code environment. It includes:
 
 **Conversation Layer** (Primary API):
 - `Conversation()` - Factory function that creates local or remote conversation instances
@@ -88,7 +91,7 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - Streaming LLM clients for Anthropic and OpenAI-compatible APIs
 - Factory pattern for creating LLM clients with proper configuration
 - Token usage tracking and caching support
-- Credential management with secure storage
+- Credentials use VS Code secure storage
 
 **Tool System**:
 - `TerminalTool` - Execute shell commands (cwd, timeoutMs). Returns stdout/stderr/exitCode.
@@ -111,20 +114,26 @@ The SDK provides a TypeScript implementation used by the VS Code extension for b
 - Support for all event types (MessageEvent, ActionEvent, ObservationEvent, etc.)
 
 **Testing**:
-- Unit tests with Vitest and @testing-library/react
+- Unit tests with Vitest
 - E2E tests with Mocha and @vscode/test-electron
-- Coverage thresholds: 60% statements, 50% branches, 60% functions, 60% lines
 
-See [AGENTS.md](AGENTS.md) for contribution guidelines, [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) for detailed SDK documentation, and [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) for architecture details.
+If you are an AI, read:
+- [AGENTS.md](AGENTS.md) for repository guidelines
+- [agent-sdk-ts AGENTS.md](packages/agent-sdk-ts/AGENTS.md) for detailed SDK documentation, and
+- [agent-sdk-architecture.md](docs/agent-sdk-architecture.md) for architecture details.
+- (Optional, only if the task is working with VSCode):
+  - [vscode_local_setup](docs/vscode_local_setup.md)
+  - [vscode_remote_setup](docs/vscode_remote_setup.md)
 
-### Backend Prerequisite: OpenHands Agent Server (V1, agent-sdk)
 
-This extension targets the V1 server bundled with All-Hands-AI/agent-sdk. Clone and run the server locally with uv.
+### (Optional) OpenHands Agent Server (V1, agent-sdk)
+
+The extension can work with the V1 server bundled with OpenHands/agent-sdk. Clone and run the server locally with uv.
 
 Quick start:
 ```bash
 # 1) Clone the V1 SDK (if not already present)
-git clone https://github.com/All-Hands-AI/agent-sdk.git
+git clone https://github.com/OpenHands/agent-sdk.git
 cd agent-sdk
 
 # 2) Setup (requires uv >= 0.8.13)
@@ -147,35 +156,18 @@ Notes:
 - LLM configuration: export LITELLM_API_KEY or OPENAI_API_KEY in the VS Code
   environment; the extension forwards one of these for starting conversations.
 
-### Using the Extension
+#### Using the Extension
 
 - In VS Code, ensure the setting `openhands.serverUrl` points to your server (default `http://localhost:3000`).
-- Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”, and chat.
+- Launch the extension (F5), run “OpenHands: Open Tab”, then “OpenHands: Start New Conversation”.
 
-### Optional: Session API Key
+#### Optional: Session API Key
 
 If your agent-server requires a session API key:
 - HTTP: `X-Session-API-Key: <key>`
 - WebSocket: `?session_api_key=<key>` on the WS URL
 - Provide `SESSION_API_KEY` in the VS Code environment to let the extension attach it automatically
-
-### Remote Host Usage (this environment)
-
-- We also run agent-server bound to 0.0.0.0 on the exposed host:
-  - https://<your-dev-host-1>
-  - Optional second instance: https://<your-dev-host-2>
-- Set `openhands.serverUrl` to one of the above, e.g.:
-  - https://<your-dev-host-1>
-- The WebSocket endpoint and HTTP endpoints remain the same relative to the base URL (see [docs/PRD.md](docs/PRD.md) section 5).
-
-### Run with Session API Key (optional)
-
-If your agent-server requires a session API key:
-
-1) Provide `SESSION_API_KEY` to the VS Code Extension Host environment. Examples:
-- macOS/Linux (launching dev host):
-  - `SESSION_API_KEY=sk_xxx code .`
-- VS Code launch.json (add env):
+- For example, VS Code launch.json:
   ```json
   {
     "name": "Run Extension",
@@ -184,12 +176,11 @@ If your agent-server requires a session API key:
     "runtimeExecutable": "${execPath}",
     "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
     "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-    "preLaunchTask": "npm: compile",
     "env": { "SESSION_API_KEY": "sk_xxx" }
   }
   ```
 
-2) The extension will automatically:
+The extension will automatically:
 - Add `X-Session-API-Key: <key>` to HTTP requests
 - Append `?session_api_key=<key>` to the WebSocket URL
 
@@ -199,13 +190,12 @@ Detailed documentation is available in the [docs/](docs/) directory:
 
 - **[AGENTS.md](AGENTS.md)** - Contribution guidelines for AI agents
 - **[agent-sdk-architecture.md](docs/agent-sdk-architecture.md)** - SDK architecture documentation
+- **[packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md)** - SDK-specific development guidelines and architecture
 - **[e2e_testing.md](docs/e2e_testing.md)** - End-to-end testing guide
 - **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - Implementation phases and progress
 - **[LINTING.md](docs/LINTING.md)** - Linting guidelines and configuration
-- **[packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md)** - SDK-specific development guidelines and architecture
 - **[packages/agent-sdk-ts/docs/python-parity.md](packages/agent-sdk-ts/docs/python-parity.md)** - Python SDK alignment documentation
 - **[PRD.md](docs/PRD.md)** - Product requirements and architecture overview
 - **[settings_prd.md](docs/settings_prd.md)** - Settings system architecture and LLM configuration
 - **[vscode_local_setup.md](docs/vscode_local_setup.md)** - Local VS Code setup for development
-- **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents
-- **Bash Events** - Live terminal integration is now handled by `LocalConversation` in local mode.
+- **[vscode_remote_setup.md](docs/vscode_remote_setup.md)** - Headless VS Code setup for AI agents.

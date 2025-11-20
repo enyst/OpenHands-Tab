@@ -23,8 +23,8 @@ describe('TerminalTool', () => {
     created.push(dir);
     const tool = new TerminalTool();
     const result = await tool.execute(tool.validate({ command: 'echo hello' }), { workspace });
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toBe('hello');
+    expect(result.exit_code).toBe(0);
+    expect((result.stdout ?? '').trim()).toBe('hello');
   });
 
   it('times out long-running commands', async () => {
@@ -32,9 +32,9 @@ describe('TerminalTool', () => {
     created.push(dir);
     const tool = new TerminalTool();
     const start = Date.now();
-    const result = await tool.execute(tool.validate({ command: 'sleep 2', timeoutMs: 200 }), { workspace });
+    const result = await tool.execute(tool.validate({ command: 'sleep 2', timeout: 0.2 }), { workspace });
     expect(Date.now() - start).toBeLessThan(2000);
-    expect(result.exitCode).not.toBe(0);
+    expect(result.exit_code).not.toBe(0);
   });
 });
 
@@ -43,27 +43,57 @@ describe('FileEditorTool', () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
     const tool = new FileEditorTool();
-    const args = tool.validate({ path: 'note.txt', content: 'first line' });
+    const args = tool.validate({ command: 'create', path: 'note.txt', file_text: 'first line' });
     const result = await tool.execute(args, { workspace });
-    expect(result.bytesWritten).toBeGreaterThan(0);
+    expect(result.command).toBe('create');
     const saved = await workspace.readFile('note.txt');
     expect(saved).toContain('first line');
+  });
+
+  it('views files with line numbers and truncation', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const longContent = Array.from({ length: 2000 }, (_, i) => `line-${i + 1}`).join('\n');
+    const createArgs = tool.validate({ command: 'create', path: 'note.txt', file_text: longContent });
+    await tool.execute(createArgs, { workspace });
+
+    const viewArgs = tool.validate({ command: 'view', path: 'note.txt', view_range: [1, -1] });
+    const viewResult = await tool.execute(viewArgs, { workspace });
+
+    expect(viewResult.command).toBe('view');
+    expect(viewResult.new_content).toBeDefined();
+    const viewed = viewResult.new_content ?? '';
+
+    // Starts with cat -n style numbering
+    expect(viewed.startsWith('1\tline-1')).toBe(true);
+
+    // Truncation marker present for long content
+    expect(viewed).toContain('<response clipped>');
+
+    const parts = viewed.split('\n<response clipped>\n');
+    expect(parts.length).toBe(2);
+    const [head, tail] = parts;
+    expect(head.length).toBeLessThanOrEqual(500 + 20); // small slop for line boundaries
+    expect(tail.length).toBeLessThanOrEqual(500 + 20);
   });
 });
 
 describe('TaskTrackerTool', () => {
-  it('creates and completes tasks', async () => {
+  it('plans and views tasks', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
     const tool = new TaskTrackerTool();
-    const createdTasks = await tool.execute(tool.validate({ action: 'create', title: 'Do work' }), {
-      workspace: new LocalWorkspace(process.cwd()),
-    });
-    expect(createdTasks.tasks).toHaveLength(1);
-    const taskId = createdTasks.tasks[0].id;
+    const planned = await tool.execute(
+      tool.validate({ command: 'plan', task_list: [{ title: 'Do work', status: 'todo' }] }),
+      { workspace },
+    );
+    expect(planned.command).toBe('plan');
 
-    const updated = await tool.execute(tool.validate({ action: 'complete', id: taskId }), {
-      workspace: new LocalWorkspace(process.cwd()),
-    });
-    expect(updated.tasks[0].completed).toBe(true);
+    const viewed = await tool.execute(tool.validate({ command: 'view' }), { workspace });
+    expect(viewed.task_list.length).toBeGreaterThan(0);
+    expect(viewed.task_list[0].title).toBe('Do work');
   });
 });
 

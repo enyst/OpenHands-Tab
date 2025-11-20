@@ -9,7 +9,7 @@ export interface ToolContext {
   secrets?: SecretRegistry;
 }
 
-export interface ToolHandler<TArgs, TResult> {
+export interface ToolDefinition<TArgs, TResult> {
   name: string;
   description?: string;
   parameters?: Record<string, unknown>;

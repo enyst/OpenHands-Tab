@@ -27,25 +27,37 @@ describe('App actions post messages to extension', () => {
 
   it('New Chat posts command startNewConversation', async () => {
     render(<App />);
-    await userEvent.click(screen.getAllByLabelText(/new conversation/i)[0]);
+    await userEvent.click(screen.getAllByLabelText(/new/i)[0]);
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'startNewConversation' });
   });
 
   it('Pressing Enter posts send with typed text and closes context picker', async () => {
     render(<App />);
+
+    // Set status to online so input is enabled
+    await act(async () => {
+      window.postMessage({ type: 'status', status: 'online', mode: 'remote' }, '*');
+    });
+
     await userEvent.click(screen.getAllByLabelText('Add context')[0]);
-    expect(await screen.findByPlaceholderText('Search workspace files')).toBeInTheDocument();
+    expect(await screen.findByPlaceholderText('Search files...')).toBeInTheDocument();
 
     const input = document.getElementById('openhands-chat-input');
     expect(input).toBeTruthy();
     await userEvent.type(input as HTMLInputElement, 'hello{enter}');
 
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'hello' });
-    expect(screen.queryByPlaceholderText('Search workspace files')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
   });
 
   it('sending a message closes the skills popover', async () => {
     render(<App />);
+
+    // Set status to online so input is enabled
+    await act(async () => {
+      window.postMessage({ type: 'status', status: 'online', mode: 'remote' }, '*');
+    });
+
     await userEvent.click(screen.getAllByLabelText('Skills')[0]);
 
     await act(async () => {
