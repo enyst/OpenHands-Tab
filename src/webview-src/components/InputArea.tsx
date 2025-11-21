@@ -264,10 +264,10 @@ export function ContextPicker({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-16 left-4 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/20 rounded-xl shadow-2xl overflow-hidden animate-scale-in z-50"
+      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10 bg-white/5">
+      <div className="px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2 mb-2">
           <span className="codicon codicon-mention text-brand-400" />
           <h3 className="font-semibold text-sm">Add Context Files</h3>
@@ -277,7 +277,7 @@ export function ContextPicker({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search files..."
-          className="w-full px-3 py-2 bg-black/20 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50"
           autoFocus
         />
       </div>
@@ -289,7 +289,7 @@ export function ContextPicker({
             No matches
           </div>
         ) : (
-          <div className="p-2" role="listbox">
+          <div className="p-2 space-y-1" role="listbox">
             {filteredFiles.map((file) => {
               const isSelected = selectedFiles.includes(file);
               return (
@@ -300,7 +300,7 @@ export function ContextPicker({
                   aria-label={file}
                   aria-selected={isSelected ? 'true' : 'false'}
                   className={`
-                    w-full text-left px-3 py-2 rounded-lg mb-1
+                    w-full text-left px-3 py-2 rounded-lg
                     text-sm font-mono
                     transition-colors duration-150
                     flex items-center gap-2
@@ -357,10 +357,10 @@ export function SkillsPopover({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-16 left-4 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/20 rounded-xl shadow-2xl overflow-hidden animate-scale-in z-50"
+      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10 bg-white/5">
+      <div className="px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
           <span className="codicon codicon-mortar-board text-brand-400" />
           <h3 className="font-semibold text-sm">Available Skills</h3>
@@ -374,7 +374,7 @@ export function SkillsPopover({
             No skills found
           </div>
         ) : (
-          <div className="p-2" role="listbox" aria-label="Skills">
+          <div className="p-2 space-y-1" role="listbox" aria-label="Skills">
             {skills.map((skill) => (
               <button
                 key={skill.path}
@@ -385,7 +385,7 @@ export function SkillsPopover({
                 // and set aria-selected="true" for the active option
                 aria-selected="false"
                 className="
-                  w-full text-left px-3 py-2 rounded-lg mb-1
+                  w-full text-left px-3 py-2 rounded-lg
                   text-sm
                   transition-colors duration-150
                   hover:bg-white/10
