@@ -362,7 +362,7 @@ describe('App - Advanced Test Coverage', () => {
       });
     });
 
-    it('hides connection button in local mode', async () => {
+    it('hides connection status in local mode', async () => {
       render(<App />);
 
       postToWindow({ type: 'status', status: 'offline', mode: 'local' });
@@ -371,9 +371,8 @@ describe('App - Advanced Test Coverage', () => {
         expect(screen.getByText('Local Mode')).toBeInTheDocument();
       });
 
-      // In local mode, status indicator shows disconnected but reconnect button is still shown
-      // (The new design always shows reconnect button when offline, regardless of mode)
-      expect(screen.getByLabelText(/Status:/)).toBeInTheDocument();
+      // In local mode, status indicator is hidden - only the server selector shows "Local Mode"
+      expect(screen.queryByLabelText(/Status:/)).not.toBeInTheDocument();
     });
 
     it('shows connection button in remote mode', async () => {

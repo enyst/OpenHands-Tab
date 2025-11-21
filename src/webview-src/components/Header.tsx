@@ -1,11 +1,20 @@
+import { useState } from 'react';
+import { ServerSelector, type SavedServer } from './ServerSelector';
+
 interface HeaderProps {
   status: 'online' | 'offline' | 'connecting';
   mode: 'local' | 'remote';
   conversationId?: string;
+  currentServerUrl?: string;
+  servers: SavedServer[];
   onNewConversation: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
   onReconnect: () => void;
+  onSelectServer: (url: string) => void;
+  onAddServer: (server: SavedServer) => void;
+  onRemoveServer: (url: string) => void;
+  onSwitchToLocal: () => void;
 }
 
 function StatusIndicator({ status }: { status: 'online' | 'offline' | 'connecting' }) {
@@ -130,11 +139,32 @@ export function Header({
   status,
   mode,
   conversationId,
+  currentServerUrl,
+  servers,
   onNewConversation,
   onOpenHistory,
   onOpenSettings,
   onReconnect,
+  onSelectServer,
+  onAddServer,
+  onRemoveServer,
+  onSwitchToLocal,
 }: HeaderProps) {
+  const [showServerSelector, setShowServerSelector] = useState(false);
+
+  const getServerDisplayName = () => {
+    if (mode === 'local') return 'Local Mode';
+    if (!currentServerUrl) return 'No Server';
+    const server = servers.find(s => s.url === currentServerUrl);
+    if (server?.label) return server.label;
+    try {
+      const url = new URL(currentServerUrl);
+      return url.hostname + (url.port ? ':' + url.port : '');
+    } catch {
+      return currentServerUrl;
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--vscode-editor-background)]/95 backdrop-blur-sm">
       <div className="flex items-center justify-between px-4 py-3 gap-4">
@@ -154,13 +184,41 @@ export function Header({
             </div>
           </div>
 
-          <StatusIndicator status={status} />
+          {/* Server selector button - shows current server/mode */}
+          <div className="relative">
+            <button
+              onClick={() => setShowServerSelector(!showServerSelector)}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 rounded-full
+                text-xs font-medium
+                transition-all duration-200
+                hover:bg-white/10
+                ${mode === 'local'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                  : 'glass-effect'}
+              `}
+              title="Select server"
+            >
+              <span className={`codicon codicon-${mode === 'local' ? 'device-desktop' : 'cloud'}`} />
+              <span className="max-w-24 truncate">{getServerDisplayName()}</span>
+              <span className="codicon codicon-chevron-down text-[10px] opacity-60" />
+            </button>
 
-          {mode === 'local' && (
-            <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
-              Local Mode
-            </span>
-          )}
+            <ServerSelector
+              isOpen={showServerSelector}
+              onClose={() => setShowServerSelector(false)}
+              servers={servers}
+              currentServerUrl={currentServerUrl}
+              mode={mode}
+              onSelectServer={onSelectServer}
+              onAddServer={onAddServer}
+              onRemoveServer={onRemoveServer}
+              onSwitchToLocal={onSwitchToLocal}
+            />
+          </div>
+
+          {/* Status indicator - only show for remote mode */}
+          {mode === 'remote' && <StatusIndicator status={status} />}
         </div>
 
         {/* Right side - Actions */}

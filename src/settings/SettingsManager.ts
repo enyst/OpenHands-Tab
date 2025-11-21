@@ -1,10 +1,16 @@
 import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
 
+export interface SavedServer {
+  url: string;
+  label?: string;
+}
+
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
+  servers: SavedServer[];
   secrets: {
     sessionApiKey?: string;
     llmApiKey?: string;
@@ -15,6 +21,7 @@ export type OpenHandsSettings = ServerSettings & {
 
 const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
+  servers: [],
   llm: { usageId: 'default-llm', model: 'claude-sonnet-4-20250514' },
   agent: { enableSecurityAnalyzer: false },
   conversation: { maxIterations: 50 },
@@ -40,6 +47,7 @@ export class SettingsManager {
     const serverUrl = normalizeServerUrl(
       this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl
     );
+    const servers = this.adapter.get<SavedServer[]>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers;
     const llm: LLMSettings = {
       // Only return explicitly configured usageId/model so ConnectionManager can omit them when undefined
       usageId: this.adapter.getExplicit<string>('openhands.llm.usageId'),
@@ -71,7 +79,7 @@ export class SettingsManager {
       awsAccessKeyId: await this.adapter.getSecret('openhands.awsAccessKeyId'),
       awsSecretAccessKey: await this.adapter.getSecret('openhands.awsSecretAccessKey'),
     };
-    return { serverUrl, llm, agent, conversation, confirmation, secrets };
+    return { serverUrl, servers, llm, agent, conversation, confirmation, secrets };
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
@@ -79,6 +87,10 @@ export class SettingsManager {
 
     if (partial.serverUrl !== undefined) {
       ops.push(this.adapter.update('openhands.serverUrl', partial.serverUrl ?? '', target));
+    }
+
+    if (partial.servers !== undefined) {
+      ops.push(this.adapter.update('openhands.servers', partial.servers, target));
     }
 
     if (partial.llm) {

@@ -640,10 +640,10 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
   return async (msg: unknown) => {
     // Type guard for message structure
     if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown; level?: unknown; args?: unknown; message?: unknown; stack?: unknown; phase?: unknown; id?: unknown; method?: unknown; url?: unknown; status?: unknown; ok?: unknown };
+    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown; level?: unknown; args?: unknown; message?: unknown; stack?: unknown; phase?: unknown; id?: unknown; method?: unknown; url?: unknown; status?: unknown; ok?: unknown; server?: unknown };
 
     switch (message.type) {
-      case 'webviewReady':
+      case 'webviewReady': {
         // Webview has mounted and is ready to receive messages
         webviewReady = true;
         // Re-send current status so the webview can enable UI immediately
@@ -652,7 +652,15 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
           status: conversation?.getStatus() ?? 'offline',
           mode: conversationMode,
         });
+        // Send initial server list
+        const initSettings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+        void panel.webview.postMessage({
+          type: 'serverListUpdated',
+          servers: initSettings.servers,
+          serverUrl: initSettings.serverUrl ?? ''
+        });
         break;
+      }
       case 'openSettingsPage':
         await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
         break;
@@ -779,6 +787,77 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
       case 'getConfig': {
         const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
         void panel.webview.postMessage({ type: 'config', serverUrl: settings.serverUrl ?? null, mode: conversationMode });
+        break;
+      }
+      case 'selectServer': {
+        const url = typeof message.url === 'string' ? message.url : '';
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        const currentSettings = await settingsMgr.get();
+
+        // Add to servers list if not already present
+        const serverExists = currentSettings.servers.some(s => s.url === url);
+        if (!serverExists && url) {
+          await settingsMgr.update({
+            servers: [...currentSettings.servers, { url }],
+            serverUrl: url
+          });
+        } else {
+          await settingsMgr.update({ serverUrl: url });
+        }
+
+        // This will trigger the config change listener which handles reconnection
+        break;
+      }
+      case 'addServer': {
+        const server = message.server as { url: string; label?: string } | undefined;
+        if (!server?.url) break;
+
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        const currentSettings = await settingsMgr.get();
+
+        // Check if server already exists
+        const exists = currentSettings.servers.some(s => s.url === server.url);
+        if (!exists) {
+          const newServers = [...currentSettings.servers, server];
+          await settingsMgr.update({ servers: newServers });
+
+          // Send updated list to webview
+          void panel.webview.postMessage({
+            type: 'serverListUpdated',
+            servers: newServers,
+            serverUrl: currentSettings.serverUrl ?? ''
+          });
+        }
+        break;
+      }
+      case 'removeServer': {
+        const url = typeof message.url === 'string' ? message.url : '';
+        if (!url) break;
+
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        const currentSettings = await settingsMgr.get();
+
+        const newServers = currentSettings.servers.filter(s => s.url !== url);
+        await settingsMgr.update({ servers: newServers });
+
+        // If the removed server was active, switch to local
+        if (currentSettings.serverUrl === url) {
+          await settingsMgr.update({ serverUrl: '' });
+        }
+
+        // Send updated list to webview
+        const updatedSettings = await settingsMgr.get();
+        void panel.webview.postMessage({
+          type: 'serverListUpdated',
+          servers: newServers,
+          serverUrl: updatedSettings.serverUrl ?? ''
+        });
+        break;
+      }
+      case 'switchToLocal': {
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        await settingsMgr.update({ serverUrl: '' });
+        // This will trigger the config change listener which handles mode switch
         break;
       }
       case 'send':
