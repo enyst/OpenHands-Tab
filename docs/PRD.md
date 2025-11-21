@@ -78,7 +78,7 @@ A VS Code extension that provides a tab to interact with OpenHands agents, suppo
 ## 6. External Dependencies & Protocol
 
 ### Agent-Server (Remote Mode)
-- Default URL: http://localhost:3000
+- Default URL: `http://localhost:3000`
 - WebSocket: `/sockets/events/{conversation_id}`
 - HTTP endpoints:
   - POST `/api/conversations` - create
