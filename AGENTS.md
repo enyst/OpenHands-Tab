@@ -34,6 +34,7 @@ code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 OpenHands-Tab/
 ├── src/                          # Extension source
 │   ├── extension.ts              # VS Code entry point
+│   ├── __tests__/                # Unit tests (Vitest)
 │   ├── connection/               # ConnectionManager
 │   ├── session/                  # ConversationManager
 │   ├── settings/                 # SettingsManager, adapters
