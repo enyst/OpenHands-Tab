@@ -1,4 +1,4 @@
-# OpenHands-Tab
+# OpenHands-Tab Prototype
 
 <img width="1706" height="952" alt="image" src="https://github.com/user-attachments/assets/9e430fe1-ba13-42d7-8c90-211cdf028abc" />
 
