@@ -45,18 +45,35 @@ export function ServerSelector({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const [newLabel, setNewLabel] = useState('');
+  const [urlError, setUrlError] = useState<string | null>(null);
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: popoverRef, delay: 100 });
 
   if (!isOpen) return null;
 
   const handleAddServer = () => {
-    if (newUrl.trim()) {
-      onAddServer({ url: newUrl.trim(), label: newLabel.trim() || undefined });
-      setNewUrl('');
-      setNewLabel('');
-      setShowAddForm(false);
+    const trimmedUrl = newUrl.trim();
+    if (!trimmedUrl) return;
+
+    // Validate URL format
+    try {
+      new URL(trimmedUrl);
+    } catch {
+      setUrlError('Invalid URL format');
+      return;
     }
+
+    // Check for duplicates
+    if (servers.some(s => s.url === trimmedUrl)) {
+      setUrlError('Server already exists');
+      return;
+    }
+
+    setUrlError(null);
+    onAddServer({ url: trimmedUrl, label: newLabel.trim() || undefined });
+    setNewUrl('');
+    setNewLabel('');
+    setShowAddForm(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -66,7 +83,15 @@ export function ServerSelector({
       setShowAddForm(false);
       setNewUrl('');
       setNewLabel('');
+      setUrlError(null);
     }
+  };
+
+  const handleCancelAdd = () => {
+    setShowAddForm(false);
+    setNewUrl('');
+    setNewLabel('');
+    setUrlError(null);
   };
 
   // Check if current server is selected (handles both empty string and undefined as "none")
@@ -177,12 +202,20 @@ export function ServerSelector({
             <input
               type="text"
               value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
+              onChange={(e) => {
+                setNewUrl(e.target.value);
+                setUrlError(null);
+              }}
               onKeyDown={handleKeyDown}
               placeholder="https://server-url..."
               autoFocus
-              className="w-full px-3 py-2 text-sm bg-black/20 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+              className={`w-full px-3 py-2 text-sm bg-black/20 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/50 ${
+                urlError ? 'border-red-500/50' : 'border-white/10'
+              }`}
             />
+            {urlError && (
+              <div className="text-xs text-red-400">{urlError}</div>
+            )}
             <input
               type="text"
               value={newLabel}
@@ -200,11 +233,7 @@ export function ServerSelector({
                 Add
               </button>
               <button
-                onClick={() => {
-                  setShowAddForm(false);
-                  setNewUrl('');
-                  setNewLabel('');
-                }}
+                onClick={handleCancelAdd}
                 className="px-3 py-1.5 text-sm bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
               >
                 Cancel
