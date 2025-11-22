@@ -637,6 +637,9 @@ function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webvie
  * avoiding CORS and CSP limitations.
  */
 function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
+  // Create SettingsManager once and capture in closure for efficiency
+  const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+
   return async (msg: unknown) => {
     // Type guard for message structure
     if (!msg || typeof msg !== 'object') return;
@@ -653,7 +656,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
           mode: conversationMode,
         });
         // Send initial server list
-        const initSettings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+        const initSettings = await settingsMgr.get();
         void panel.webview.postMessage({
           type: 'serverListUpdated',
           servers: initSettings.servers,
@@ -785,13 +788,12 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'getConfig': {
-        const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
+        const settings = await settingsMgr.get();
         void panel.webview.postMessage({ type: 'config', serverUrl: settings.serverUrl ?? null, mode: conversationMode });
         break;
       }
       case 'selectServer': {
         const url = typeof message.url === 'string' ? message.url : '';
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const currentSettings = await settingsMgr.get();
 
         // Add to servers list if not already present
@@ -812,7 +814,6 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         const server = message.server as { url: string; label?: string } | undefined;
         if (!server?.url) break;
 
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const currentSettings = await settingsMgr.get();
 
         // Check if server already exists
@@ -834,7 +835,6 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         const url = typeof message.url === 'string' ? message.url : '';
         if (!url) break;
 
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const currentSettings = await settingsMgr.get();
 
         const newServers = currentSettings.servers.filter(s => s.url !== url);
@@ -855,7 +855,6 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'switchToLocal': {
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         await settingsMgr.update({ serverUrl: '' });
         // This will trigger the config change listener which handles mode switch
         break;
