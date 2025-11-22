@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 
+// Re-export for convenience - canonical definition is in SettingsManager
 export interface SavedServer {
   url: string;
   label?: string;
@@ -16,6 +17,17 @@ interface ServerSelectorProps {
   onAddServer: (server: SavedServer) => void;
   onRemoveServer: (url: string) => void;
   onSwitchToLocal: () => void;
+}
+
+// Helper to extract display name from server - exported for reuse in Header
+export function getServerDisplayLabel(server: SavedServer): string {
+  if (server.label) return server.label;
+  try {
+    const url = new URL(server.url);
+    return url.hostname + (url.port ? ':' + url.port : '');
+  } catch {
+    return server.url;
+  }
 }
 
 export function ServerSelector({
@@ -57,15 +69,9 @@ export function ServerSelector({
     }
   };
 
-  const getDisplayLabel = (server: SavedServer) => {
-    if (server.label) return server.label;
-    try {
-      const url = new URL(server.url);
-      return url.hostname + (url.port ? ':' + url.port : '');
-    } catch {
-      return server.url;
-    }
-  };
+  // Check if current server is selected (handles both empty string and undefined as "none")
+  const isServerSelected = (serverUrl: string) =>
+    mode === 'remote' && currentServerUrl === serverUrl;
 
   return (
     <div
@@ -113,49 +119,53 @@ export function ServerSelector({
           </div>
         ) : (
           <div className="p-2 space-y-1" role="listbox" aria-label="Servers">
-            {servers.map((server) => (
-              <div
-                key={server.url}
-                className={`
-                  flex items-center gap-2 px-3 py-2 rounded-lg
-                  text-sm
-                  transition-colors duration-150
-                  hover:bg-white/10
-                  ${mode === 'remote' && currentServerUrl === server.url ? 'bg-brand-500/20 text-brand-300' : ''}
-                `}
-              >
-                <button
-                  onClick={() => {
-                    onSelectServer(server.url);
-                    onClose();
-                  }}
-                  className="flex-1 text-left flex items-center gap-2"
-                  role="option"
-                  aria-selected={mode === 'remote' && currentServerUrl === server.url}
+            {servers.map((server) => {
+              const selected = isServerSelected(server.url);
+              const displayLabel = getServerDisplayLabel(server);
+              return (
+                <div
+                  key={server.url}
+                  className={`
+                    flex items-center gap-2 px-3 py-2 rounded-lg
+                    text-sm
+                    transition-colors duration-150
+                    hover:bg-white/10
+                    ${selected ? 'bg-brand-500/20 text-brand-300' : ''}
+                  `}
                 >
-                  <span className="codicon codicon-cloud" />
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate">{getDisplayLabel(server)}</div>
-                    {server.label && (
-                      <div className="text-xs opacity-50 truncate">{server.url}</div>
+                  <button
+                    onClick={() => {
+                      onSelectServer(server.url);
+                      onClose();
+                    }}
+                    className="flex-1 text-left flex items-center gap-2"
+                    role="option"
+                    aria-selected={selected}
+                  >
+                    <span className="codicon codicon-cloud" />
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{displayLabel}</div>
+                      {server.label && (
+                        <div className="text-xs opacity-50 truncate">{server.url}</div>
+                      )}
+                    </div>
+                    {selected && (
+                      <span className="codicon codicon-check text-brand-400" />
                     )}
-                  </div>
-                  {mode === 'remote' && currentServerUrl === server.url && (
-                    <span className="codicon codicon-check text-brand-400" />
-                  )}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveServer(server.url);
-                  }}
-                  className="p-1 rounded hover:bg-red-500/20 hover:text-red-400 opacity-50 hover:opacity-100 transition-all"
-                  aria-label={`Remove ${getDisplayLabel(server)}`}
-                >
-                  <span className="codicon codicon-trash text-xs" />
-                </button>
-              </div>
-            ))}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveServer(server.url);
+                    }}
+                    className="p-1 rounded hover:bg-red-500/20 hover:text-red-400 opacity-50 hover:opacity-100 transition-all"
+                    aria-label={`Remove ${displayLabel}`}
+                  >
+                    <span className="codicon codicon-trash text-xs" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

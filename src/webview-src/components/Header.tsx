@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ServerSelector, type SavedServer } from './ServerSelector';
+import { ServerSelector, getServerDisplayLabel, type SavedServer } from './ServerSelector';
 
 interface HeaderProps {
   status: 'online' | 'offline' | 'connecting';
@@ -152,11 +152,13 @@ export function Header({
 }: HeaderProps) {
   const [showServerSelector, setShowServerSelector] = useState(false);
 
+  // Get display name using shared helper for consistency
   const getServerDisplayName = () => {
     if (mode === 'local') return 'Local Mode';
     if (!currentServerUrl) return 'No Server';
     const server = servers.find(s => s.url === currentServerUrl);
-    if (server?.label) return server.label;
+    if (server) return getServerDisplayLabel(server);
+    // Fallback for URL not in servers list
     try {
       const url = new URL(currentServerUrl);
       return url.hostname + (url.port ? ':' + url.port : '');
