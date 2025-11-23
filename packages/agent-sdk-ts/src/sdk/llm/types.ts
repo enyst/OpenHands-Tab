@@ -77,7 +77,10 @@ export const DEFAULT_TIMEOUT_MS = 60_000;
 
 export interface ToolCallAccumulator {
   complete: ToolCall[];
-  applyDelta(delta: { id: string; name?: string; arguments?: string }): ToolCall[];
+  applyDelta(delta: { index: number; id?: string; name?: string; arguments?: string }): {
+    accumulated: ToolCall[];
+    current: { id: string; name: string; argumentsDelta: string };
+  };
 }
 
 export const reduceTextContent = (message: Message): string =>

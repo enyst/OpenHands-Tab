@@ -115,22 +115,33 @@ const parseSseLines = async function* (response: Response): AsyncGenerator<strin
 
 class OpenAIToolCallAccumulator implements ToolCallAccumulator {
   complete = [] as ToolCallAccumulator['complete'];
-  private readonly partial = new Map<string, { id: string; name?: string; arguments: string }>();
+  // Track by index since that's always present in streaming, but store the real id
+  private readonly partial = new Map<number, { id: string; name?: string; arguments: string }>();
 
-  applyDelta(delta: { id: string; name?: string; arguments?: string }): ToolCallAccumulator['complete'] {
-    const existing = this.partial.get(delta.id) ?? { id: delta.id, name: delta.name, arguments: '' };
-    this.partial.set(delta.id, {
-      id: delta.id,
-      name: delta.name ?? existing.name,
-      arguments: `${existing.arguments}${delta.arguments ?? ''}`,
-    });
+  applyDelta(delta: { index: number; id?: string; name?: string; arguments?: string }): { accumulated: ToolCallAccumulator['complete']; current: { id: string; name: string; argumentsDelta: string } } {
+    const existing = this.partial.get(delta.index);
+    const id = delta.id ?? existing?.id ?? `tool_call_${delta.index}`;
+    const updated = {
+      id,
+      name: delta.name ?? existing?.name,
+      arguments: `${existing?.arguments ?? ''}${delta.arguments ?? ''}`,
+    };
+    this.partial.set(delta.index, updated);
 
     this.complete = Array.from(this.partial.values()).map((value) => ({
       id: value.id,
       type: 'function',
       function: { name: value.name ?? '', arguments: value.arguments },
     }));
-    return this.complete;
+
+    return {
+      accumulated: this.complete,
+      current: {
+        id,
+        name: updated.name ?? '',
+        argumentsDelta: delta.arguments ?? '',
+      },
+    };
   }
 }
 
@@ -153,21 +164,20 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
 
   if (Array.isArray(delta.tool_calls)) {
     for (const call of delta.tool_calls) {
-      const toolId = call.id ?? call.index?.toString() ?? 'tool_call';
-      const acc = accumulator.applyDelta({
-        id: toolId,
+      const index = call.index ?? 0;
+      const result = accumulator.applyDelta({
+        index,
+        id: call.id,
         name: call.function?.name,
         arguments: call.function?.arguments,
       });
-      const current = acc.find((item) => item.id === toolId);
-      if (current) {
-        deltas.push({
-          type: 'tool_call_delta',
-          id: current.id,
-          name: current.function.name,
-          arguments: current.function.arguments,
-        });
-      }
+      // Yield only the delta, not accumulated arguments (orchestrator will accumulate)
+      deltas.push({
+        type: 'tool_call_delta',
+        id: result.current.id,
+        name: result.current.name,
+        arguments: result.current.argumentsDelta,
+      });
     }
   }
 
