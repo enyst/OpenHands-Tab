@@ -79,6 +79,19 @@
           "default": "",
           "markdownDescription": "OpenHands agent-server base URL. Leave blank to run in local mode."
         },
+        "openhands.servers": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string" },
+              "label": { "type": "string" }
+            },
+            "required": ["url"]
+          },
+          "markdownDescription": "List of saved OpenHands server URLs with optional labels."
+        },
         "openhands.conversation.maxIterations": {
           "type": "number",
           "default": 50,

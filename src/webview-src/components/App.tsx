@@ -136,6 +136,10 @@ export function App() {
   // History state
   const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
 
+  // Server selection state
+  const [servers, setServers] = useState<{ url: string; label?: string }[]>([]);
+  const [currentServerUrl, setCurrentServerUrl] = useState<string | undefined>(undefined);
+
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
@@ -231,6 +235,7 @@ export function App() {
         files?: string[];
         skills?: { label: string; path: string }[];
         conversations?: ConversationsList;
+        servers?: { url: string; label?: string }[];
       };
 
       switch (payload?.type) {
@@ -253,14 +258,25 @@ export function App() {
           break;
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
-            const label = payload.serverUrl && payload.serverUrl.length > 0 ? payload.serverUrl : 'local mode';
+            const url = payload.serverUrl || undefined;
+            setCurrentServerUrl(url);
+            const label = url || 'local mode';
             showStatusMessage('info', `Config updated: ${label}`);
           }
           if (payload.mode === 'local') {
             setMode('local');
+            setCurrentServerUrl(undefined);
             setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
           } else if (payload.mode === 'remote') {
             setMode('remote');
+          }
+          break;
+        case 'serverListUpdated':
+          if (Array.isArray(payload.servers)) {
+            setServers(payload.servers);
+          }
+          if (typeof payload.serverUrl === 'string') {
+            setCurrentServerUrl(payload.serverUrl || undefined);
           }
           break;
         case 'event':
@@ -540,6 +556,23 @@ export function App() {
     postMessage({ type: 'restoreConversation', id });
   }, [postMessage]);
 
+  // Server selection handlers
+  const handleSelectServer = useCallback((url: string) => {
+    postMessage({ type: 'selectServer', url });
+  }, [postMessage]);
+
+  const handleAddServer = useCallback((server: { url: string; label?: string }) => {
+    postMessage({ type: 'addServer', server });
+  }, [postMessage]);
+
+  const handleRemoveServer = useCallback((url: string) => {
+    postMessage({ type: 'removeServer', url });
+  }, [postMessage]);
+
+  const handleSwitchToLocal = useCallback(() => {
+    postMessage({ type: 'switchToLocal' });
+  }, [postMessage]);
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
@@ -547,10 +580,16 @@ export function App() {
         status={status}
         mode={mode}
         conversationId={conversationId}
+        currentServerUrl={currentServerUrl}
+        servers={servers}
         onNewConversation={handleStartNewConversation}
         onOpenHistory={handleOpenHistory}
         onOpenSettings={handleOpenSettings}
         onReconnect={handleReconnect}
+        onSelectServer={handleSelectServer}
+        onAddServer={handleAddServer}
+        onRemoveServer={handleRemoveServer}
+        onSwitchToLocal={handleSwitchToLocal}
       />
 
       {/* Main conversation area */}
