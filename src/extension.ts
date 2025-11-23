@@ -254,11 +254,30 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel?.appendLine(`[status] ${s}`);
         void panel?.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
       });
+      let isStreaming = false;
       conversation.on('event', (ev) => {
-        outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+        const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
+
+        // Skip verbose llm_stream logging - only log start/end
+        if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_stream') {
+          if (!isStreaming) {
+            isStreaming = true;
+            outputChannel?.appendLine('[llm] Streaming started...');
+          }
+          // Don't log each chunk - too verbose
+        } else {
+          // Log all other events
+          outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+
+          // End streaming when we get a message event
+          if (evAny.kind === 'MessageEvent' && isStreaming) {
+            isStreaming = false;
+            outputChannel?.appendLine('[llm] Streaming complete');
+          }
+        }
+
         // Friendly LLM request summary for debugging
         try {
-          const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
           if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_request') {
             const raw = evAny.value as {
               model?: unknown;
