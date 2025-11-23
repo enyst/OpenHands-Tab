@@ -807,7 +807,13 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
           await settingsMgr.update({ serverUrl: url });
         }
 
-        // This will trigger the config change listener which handles reconnection
+        // Notify webview of updated selection so Header/ServerSelector stay in sync
+        const updated = await settingsMgr.get();
+        void panel.webview.postMessage({
+          type: 'serverListUpdated',
+          servers: updated.servers,
+          serverUrl: updated.serverUrl ?? ''
+        });
         break;
       }
       case 'addServer': {
@@ -837,26 +843,33 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
 
         const currentSettings = await settingsMgr.get();
 
+        // Combine updates into one atomic operation
         const newServers = currentSettings.servers.filter(s => s.url !== url);
-        await settingsMgr.update({ servers: newServers });
+        const newServerUrl = currentSettings.serverUrl === url ? '' : currentSettings.serverUrl;
 
-        // If the removed server was active, switch to local
-        if (currentSettings.serverUrl === url) {
-          await settingsMgr.update({ serverUrl: '' });
-        }
+        await settingsMgr.update({
+          servers: newServers,
+          ...(currentSettings.serverUrl === url ? { serverUrl: '' } : {})
+        });
 
         // Send updated list to webview
-        const updatedSettings = await settingsMgr.get();
         void panel.webview.postMessage({
           type: 'serverListUpdated',
           servers: newServers,
-          serverUrl: updatedSettings.serverUrl ?? ''
+          serverUrl: newServerUrl ?? ''
         });
         break;
       }
       case 'switchToLocal': {
         await settingsMgr.update({ serverUrl: '' });
-        // This will trigger the config change listener which handles mode switch
+
+        // Notify webview so it can clear currentServerUrl and reflect local mode immediately
+        const updated = await settingsMgr.get();
+        void panel.webview.postMessage({
+          type: 'serverListUpdated',
+          servers: updated.servers,
+          serverUrl: ''
+        });
         break;
       }
       case 'send':
