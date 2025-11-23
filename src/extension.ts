@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { SettingsManager } from './settings/SettingsManager';
+import { SettingsManager, type SavedServer } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { FileStore } from '@openhands/agent-sdk-ts';
 import {
@@ -17,6 +17,30 @@ import {
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
 import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
+
+// Discriminated union for webview → extension messages
+type WebviewMessage =
+  | { type: 'webviewReady' }
+  | { type: 'openSettingsPage' }
+  | { type: 'openSettings' }
+  | { type: 'requestWorkspaceFiles' }
+  | { type: 'requestSkills' }
+  | { type: 'openSkill'; path: string }
+  | { type: 'openWorkspaceFile'; path: string }
+  | { type: 'requestHistory' }
+  | { type: 'restoreConversation'; id: string }
+  | { type: 'getConfig' }
+  | { type: 'selectServer'; url: string }
+  | { type: 'addServer'; server: SavedServer }
+  | { type: 'removeServer'; url: string }
+  | { type: 'switchToLocal' }
+  | { type: 'send'; text: string }
+  | { type: 'command'; command: string; reason?: string }
+  | { type: 'renderedEventsResponse'; count: number; eventTypes: string[] }
+  | { type: 'webviewConsole'; level: string; args: unknown[] }
+  | { type: 'webviewError'; message: string; stack?: string }
+  | { type: 'webviewNetwork'; phase: string; id: string; method: string; url: string; status?: number; ok?: boolean }
+  | { type: 'webviewWebSocket'; phase: string; url: string; code?: number; reason?: string };
 
 let panel: vscode.WebviewPanel | undefined;
 let conversation: ConversationInstance | undefined;
@@ -642,8 +666,8 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
 
   return async (msg: unknown) => {
     // Type guard for message structure
-    if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown; level?: unknown; args?: unknown; message?: unknown; stack?: unknown; phase?: unknown; id?: unknown; method?: unknown; url?: unknown; status?: unknown; ok?: unknown; server?: unknown };
+    if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
+    const message = msg as WebviewMessage;
 
     switch (message.type) {
       case 'webviewReady': {
@@ -682,7 +706,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'openSkill': {
-        const skillPath = typeof message.path === 'string' ? message.path : undefined;
+        const skillPath = message.path;
         if (!skillPath) break;
         try {
           const skillsRoot = path.resolve(os.homedir(), '.openhands', 'skills');
@@ -701,7 +725,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'openWorkspaceFile': {
-        const p = typeof (message as any).path === 'string' ? (message as any).path : undefined;
+        const p = message.path;
         if (!p) break;
         try {
           const isAbs = path.isAbsolute(p);
@@ -771,7 +795,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'restoreConversation': {
-        const id = typeof (message as any).id === 'string' ? (message as any).id : undefined;
+        const id = message.id;
         if (!id) break;
         try {
           const maybe = conversation?.restoreConversation?.(id);
@@ -793,7 +817,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'selectServer': {
-        const url = typeof message.url === 'string' ? message.url : '';
+        const url = message.url;
         const currentSettings = await settingsMgr.get();
 
         // Add to servers list if not already present
@@ -817,7 +841,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'addServer': {
-        const server = message.server as { url: string; label?: string } | undefined;
+        const server = message.server;
         if (!server?.url) break;
 
         const currentSettings = await settingsMgr.get();
@@ -838,7 +862,7 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'removeServer': {
-        const url = typeof message.url === 'string' ? message.url : '';
+        const url = message.url;
         if (!url) break;
 
         const currentSettings = await settingsMgr.get();
@@ -873,81 +897,60 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
         break;
       }
       case 'send':
-        if (typeof message.text === 'string') {
-          await conversation?.sendUserMessage(message.text);
-        }
+        await conversation?.sendUserMessage(message.text);
         break;
       case 'command':
-        if (typeof message.command === 'string') {
-          switch (message.command) {
-            case 'reconnect':
-              conversation?.reconnect();
-              break;
-            case 'pause':
-              await conversation?.pause();
-              break;
-            case 'startNewConversation': {
-              await conversation?.startNewConversation();
-              break;
-            }
-            case 'approveAction':
-              await conversation?.approveAction();
-              break;
-            case 'rejectAction':
-              await conversation?.rejectAction(typeof message.reason === 'string' ? message.reason : undefined);
-              break;
-            default:
-              console.warn(`Unknown command received from webview: ${message.command}`);
-              break;
-          }
+        switch (message.command) {
+          case 'reconnect':
+            conversation?.reconnect();
+            break;
+          case 'pause':
+            await conversation?.pause();
+            break;
+          case 'startNewConversation':
+            await conversation?.startNewConversation();
+            break;
+          case 'approveAction':
+            await conversation?.approveAction();
+            break;
+          case 'rejectAction':
+            await conversation?.rejectAction(message.reason);
+            break;
+          default:
+            console.warn(`Unknown command received from webview: ${message.command}`);
+            break;
         }
         break;
       case 'renderedEventsResponse':
-        if (typeof message.count === 'number' && Array.isArray(message.eventTypes)) {
-          // Store the response from webview for testing/diagnostics
-          renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
-        }
+        // Store the response from webview for testing/diagnostics
+        renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes };
         break;
       case 'webviewConsole': {
         if (!devBridgeEnabled) break;
-        const level = (typeof message.level === 'string' ? message.level : 'log') as 'log' | 'warn' | 'error';
-        const args = Array.isArray(message.args) ? message.args : [];
-        outputChannel?.appendLine(`[webview ${level}] ${args.join(' ')}`);
-        fileLog(`[console.${level}] ${args.join(' ')}`);
+        outputChannel?.appendLine(`[webview ${message.level}] ${message.args.join(' ')}`);
+        fileLog(`[console.${message.level}] ${message.args.join(' ')}`);
         break;
       }
       case 'webviewError': {
         if (!devBridgeEnabled) break;
-        const m = typeof message.message === 'string' ? message.message : 'error';
-        const s = typeof message.stack === 'string' ? message.stack : '';
-        outputChannel?.appendLine(`[webview error] ${m}`);
-        if (s) outputChannel?.appendLine(s);
-        fileLog(`[error] ${m}${s ? `\n${s}` : ''}`);
+        outputChannel?.appendLine(`[webview error] ${message.message}`);
+        if (message.stack) outputChannel?.appendLine(message.stack);
+        fileLog(`[error] ${message.message}${message.stack ? `\n${message.stack}` : ''}`);
         break;
       }
       case 'webviewNetwork': {
         if (!devBridgeEnabled) break;
-        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
-        const id = typeof message.id === 'string' ? message.id : '';
-        const method = typeof message.method === 'string' ? message.method : '';
-        const url = typeof message.url === 'string' ? message.url : '';
-        const status = typeof message.status === 'number' ? message.status : undefined;
-        const ok = typeof message.ok === 'boolean' ? message.ok : undefined;
-        const line = `[webview net] ${phase} id=${id} ${method} ${url}${status !== undefined ? ` status=${status} ok=${ok}` : ''}`;
+        const line = `[webview net] ${message.phase} id=${message.id} ${message.method} ${message.url}${message.status !== undefined ? ` status=${message.status} ok=${message.ok}` : ''}`;
         outputChannel?.appendLine(line);
         fileLog(line);
         break;
       }
       case 'webviewWebSocket': {
         if (!devBridgeEnabled) break;
-        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
-        const url = typeof message.url === 'string' ? message.url : '';
-        const code = (message as any).code as number | undefined;
-        const reason = typeof (message as any).reason === 'string' ? (message as any).reason : undefined;
-        const parts = [`[webview ws] ${phase}`];
-        if (url) parts.push(`url=${url}`);
-        if (code !== undefined) parts.push(`code=${code}`);
-        if (reason) parts.push(`reason=${reason}`);
+        const parts = [`[webview ws] ${message.phase}`];
+        if (message.url) parts.push(`url=${message.url}`);
+        if (message.code !== undefined) parts.push(`code=${message.code}`);
+        if (message.reason) parts.push(`reason=${message.reason}`);
         outputChannel?.appendLine(parts.join(' '));
         fileLog(parts.join(' '));
         break;
