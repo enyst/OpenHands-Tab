@@ -56,6 +56,8 @@ function getVscodeApi(): VscodeApi {
 
 type RenderedEvent = { id: number; event: Event };
 
+const isRenderableEvent = (event: Event) => !isConversationStateUpdateEvent(event);
+
 type ConversationsList = Array<{
   id: string;
   title?: string;
@@ -221,21 +223,21 @@ export function App() {
   }, [showStatusMessage]);
 
   const handleRenderableEvent = useCallback((event: Event) => {
-    if (isConversationStateUpdateEvent(event)) return;
+    if (!isRenderableEvent(event)) return;
 
     setEvents((ev) => [...ev, { id: eventId.current++, event }]);
   }, []);
 
   // Handle incoming events
-  const handleEvent = useCallback((e: unknown) => {
-    if (!isEvent(e)) return;
+  const handleEvent = useCallback((incomingEvent: unknown) => {
+    if (!isEvent(incomingEvent)) return;
 
-    const isConversationStateEvent = handleConversationStateUpdate(e);
-    if (isConversationStateEvent) return;
+    const event = incomingEvent;
+    if (handleConversationStateUpdate(event)) return;
 
-    handleStreamingResetOnTerminalEvent(e);
-    handlePendingActions(e);
-    handleRenderableEvent(e);
+    handleStreamingResetOnTerminalEvent(event);
+    handlePendingActions(event);
+    handleRenderableEvent(event);
   }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingResetOnTerminalEvent]);
 
   // Signal webview is ready on mount
