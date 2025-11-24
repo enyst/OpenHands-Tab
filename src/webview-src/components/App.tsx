@@ -163,74 +163,80 @@ export function App() {
     setStatusBanner({ message, level });
   }, []);
 
-  // Handle incoming events
-  const handleEvent = useCallback((e: unknown) => {
-    const known = isEvent(e);
+  const handleConversationStateUpdate = useCallback((event: Event) => {
+    if (!isConversationStateUpdateEvent(event)) return false;
 
-    // Track agent status and streaming from ConversationStateUpdateEvent
-    if (known && isConversationStateUpdateEvent(e)) {
-      if (e.agent_status) {
-        setAgentStatus(e.agent_status);
-        if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
-          showStatusMessage('warn', 'Agent is waiting for confirmation');
-        }
-        lastAgentStatusRef.current = e.agent_status;
+    if (event.agent_status) {
+      setAgentStatus(event.agent_status);
+      if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
+        showStatusMessage('warn', 'Agent is waiting for confirmation');
       }
-      // Handle streaming LLM content
-      if (e.key === 'llm_stream' && typeof e.value === 'string') {
-        setStreamingContent(e.value);
-      }
-      return; // Don't render state update events
+      lastAgentStatusRef.current = event.agent_status;
     }
 
-    // Clear streaming when we get the final message or action from agent
-    // (LLM may respond with tool calls only, no text content)
-    if (known && isMessageEvent(e)) {
-      if (e.llm_message.role === 'assistant') {
-        setStreamingContent(null);
-      }
+    if (event.key === 'llm_stream' && typeof event.value === 'string') {
+      setStreamingContent(event.value);
     }
-    if (known && isActionEvent(e) && e.source === 'agent') {
+
+    return true;
+  }, [showStatusMessage]);
+
+  const handleStreamingResetOnTerminalEvent = useCallback((event: Event) => {
+    if (isMessageEvent(event) && event.llm_message.role === 'assistant') {
       setStreamingContent(null);
     }
 
-    if (known) {
-      // Track pending actions
-      if (isActionEvent(e)) {
-        setPendingActions((prev) => {
-          const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-          return exists ? prev : [...prev, e];
-        });
-      }
+    if (isActionEvent(event) && event.source === 'agent') {
+      setStreamingContent(null);
+    }
+  }, []);
 
-      // Clear pending action when we receive its observation
-      if (isObservationEvent(e) || isUserRejectObservation(e)) {
-        setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      }
-
-      // Show status messages for certain events
-      if (isAgentErrorEvent(e)) {
-        showStatusMessage('error', e.error);
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      } else if (isPauseEvent(e)) {
-        showStatusMessage('warn', 'Conversation paused');
-      }
+  const handlePendingActions = useCallback((event: Event) => {
+    if (isActionEvent(event)) {
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
+        return exists ? prev : [...prev, event];
+      });
     }
 
-    // Add event to the list for rendering
-    if ((e as any)?.kind !== 'ConversationStateUpdateEvent') {
-      setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
+    if (isObservationEvent(event) || isUserRejectObservation(event)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== event.tool_call_id));
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
+    }
+
+    if (isAgentErrorEvent(event)) {
+      showStatusMessage('error', event.error);
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
+    } else if (isPauseEvent(event)) {
+      showStatusMessage('warn', 'Conversation paused');
     }
   }, [showStatusMessage]);
+
+  const handleRenderableEvent = useCallback((event: Event) => {
+    if (isConversationStateUpdateEvent(event)) return;
+
+    setEvents((ev) => [...ev, { id: eventId.current++, event }]);
+  }, []);
+
+  // Handle incoming events
+  const handleEvent = useCallback((e: unknown) => {
+    if (!isEvent(e)) return;
+
+    const isConversationStateEvent = handleConversationStateUpdate(e);
+    if (isConversationStateEvent) return;
+
+    handleStreamingResetOnTerminalEvent(e);
+    handlePendingActions(e);
+    handleRenderableEvent(e);
+  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingResetOnTerminalEvent]);
 
   // Signal webview is ready on mount
   useEffect(() => {
