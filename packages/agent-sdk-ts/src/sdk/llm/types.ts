@@ -75,9 +75,23 @@ export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
 
 export const DEFAULT_TIMEOUT_MS = 60_000;
 
+/**
+ * Result from applying a tool call delta to the accumulator.
+ * - `accumulated`: Full current state of all tool calls (use for terminal state)
+ * - `current`: Just this delta normalized to stable id/name (use for streaming)
+ */
+export interface ToolCallDeltaResult {
+  accumulated: ToolCall[];
+  current: { id: string; name: string; argumentsDelta: string };
+}
+
+/**
+ * Accumulates streaming tool call deltas into complete tool calls.
+ * Internal interface - not a stable public API.
+ */
 export interface ToolCallAccumulator {
   complete: ToolCall[];
-  applyDelta(delta: { id: string; name?: string; arguments?: string }): ToolCall[];
+  applyDelta(delta: { index: number; id?: string; name?: string; arguments?: string }): ToolCallDeltaResult;
 }
 
 export const reduceTextContent = (message: Message): string =>
