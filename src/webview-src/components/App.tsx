@@ -14,6 +14,7 @@ import {
   type Event,
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
+import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 
 // Component imports
 import { Header } from './Header';
@@ -147,6 +148,7 @@ export function App() {
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
+  const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Post message helper
@@ -165,6 +167,7 @@ export function App() {
     setStatusBanner({ message, level });
   }, []);
 
+
   const handleConversationStateUpdate = useCallback((event: Event) => {
     if (!isConversationStateUpdateEvent(event)) return false;
 
@@ -176,20 +179,15 @@ export function App() {
       lastAgentStatusRef.current = event.agent_status;
     }
 
-    if (event.key === 'llm_stream' && typeof event.value === 'string') {
-      setStreamingContent(event.value);
-    }
-
     return true;
   }, [showStatusMessage]);
 
-  const handleStreamingResetOnTerminalEvent = useCallback((event: Event) => {
-    if (isMessageEvent(event) && event.llm_message.role === 'assistant') {
-      setStreamingContent(null);
-    }
+  const handleStreamingUpdate = useCallback((event: Event) => {
+    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, event);
+    streamingStateRef.current = streamingUpdate.state;
 
-    if (isActionEvent(event) && event.source === 'agent') {
-      setStreamingContent(null);
+    if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
+      setStreamingContent(streamingUpdate.state.content);
     }
   }, []);
 
@@ -233,12 +231,12 @@ export function App() {
     if (!isEvent(incomingEvent)) return;
 
     const event = incomingEvent;
+    handleStreamingUpdate(event);
     if (handleConversationStateUpdate(event)) return;
 
-    handleStreamingResetOnTerminalEvent(event);
     handlePendingActions(event);
     handleRenderableEvent(event);
-  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingResetOnTerminalEvent]);
+  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingUpdate]);
 
   // Signal webview is ready on mount
   useEffect(() => {
@@ -305,7 +303,9 @@ export function App() {
           }
           break;
         case 'event':
-          handleEvent(payload.event);
+          if (isEvent(payload.event)) {
+            handleEvent(payload.event);
+          }
           break;
         case 'error':
           if (typeof payload.error === 'string') {
