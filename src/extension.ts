@@ -269,8 +269,8 @@ export function activate(context: vscode.ExtensionContext) {
           // Log all other events
           outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
 
-          // End streaming when we get a message event
-          if (evAny.kind === 'MessageEvent' && isStreaming) {
+          // End streaming when we get a message event from the agent
+          if (evAny.kind === 'MessageEvent' && isStreaming && (ev as { source?: string }).source === 'agent') {
             isStreaming = false;
             outputChannel?.appendLine('[llm] Streaming complete');
           }
