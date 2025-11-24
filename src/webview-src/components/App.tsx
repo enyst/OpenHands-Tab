@@ -166,17 +166,15 @@ export function App() {
   }, []);
 
   // Handle incoming events
-  const handleEvent = useCallback((e: unknown) => {
+  const handleEvent = useCallback((e: Event) => {
     const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, e);
     streamingStateRef.current = streamingUpdate.state;
     if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
       setStreamingContent(streamingUpdate.state.content);
     }
 
-    const known = isEvent(e);
-
     // Track agent status and streaming from ConversationStateUpdateEvent
-    if (known && isConversationStateUpdateEvent(e)) {
+    if (isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
         if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
@@ -187,41 +185,39 @@ export function App() {
       return; // Don't render state update events
     }
 
-    if (known) {
-      // Track pending actions
-      if (isActionEvent(e)) {
-        setPendingActions((prev) => {
-          const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-          return exists ? prev : [...prev, e];
-        });
-      }
+    // Track pending actions
+    if (isActionEvent(e)) {
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
+        return exists ? prev : [...prev, e];
+      });
+    }
 
-      // Clear pending action when we receive its observation
-      if (isObservationEvent(e) || isUserRejectObservation(e)) {
-        setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
+    // Clear pending action when we receive its observation
+    if (isObservationEvent(e) || isUserRejectObservation(e)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
       }
+      setIsSubmitting(false);
+    }
 
-      // Show status messages for certain events
-      if (isAgentErrorEvent(e)) {
-        showStatusMessage('error', e.error);
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      } else if (isPauseEvent(e)) {
-        showStatusMessage('warn', 'Conversation paused');
+    // Show status messages for certain events
+    if (isAgentErrorEvent(e)) {
+      showStatusMessage('error', e.error);
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
       }
+      setIsSubmitting(false);
+    } else if (isPauseEvent(e)) {
+      showStatusMessage('warn', 'Conversation paused');
     }
 
     // Add event to the list for rendering
     if ((e as any)?.kind !== 'ConversationStateUpdateEvent') {
-      setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
+      setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
     }
   }, [showStatusMessage]);
 
@@ -290,7 +286,9 @@ export function App() {
           }
           break;
         case 'event':
-          handleEvent(payload.event);
+          if (isEvent(payload.event)) {
+            handleEvent(payload.event);
+          }
           break;
         case 'error':
           if (typeof payload.error === 'string') {
