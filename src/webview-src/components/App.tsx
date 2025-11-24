@@ -186,8 +186,7 @@ export function App() {
     // Clear streaming when we get the final message or action from agent
     // (LLM may respond with tool calls only, no text content)
     if (known && isMessageEvent(e)) {
-      const msgRole = (e as any)?.llm_message?.role;
-      if (msgRole === 'assistant') {
+      if (e.llm_message.role === 'assistant') {
         setStreamingContent(null);
       }
     }
