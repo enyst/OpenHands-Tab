@@ -423,3 +423,42 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     </EventContainer>
   );
 }
+
+// Streaming Message Block - displays incrementally arriving LLM content
+export function StreamingMessageBlock({ content }: { content: string }) {
+  const accentColor = AGENT_ACCENT_COLOR;
+
+  return (
+    <div
+      className="relative rounded-lg p-4 my-3 shadow-event border-l-[3px] transition-all duration-300"
+      style={{
+        borderLeftColor: accentColor,
+        backgroundColor: `${accentColor}06`,
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center mt-0.5 flex-shrink-0"
+          style={{ backgroundColor: `${accentColor}20` }}
+        >
+          <span className="codicon codicon-hubot text-sm" style={{ color: accentColor }} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="font-semibold text-sm">Assistant</div>
+            <div className="flex items-center gap-1">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" style={{ color: accentColor }} />
+              <span className="text-xs opacity-50">streaming...</span>
+            </div>
+          </div>
+
+          <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+            {content}
+            <span className="inline-block w-0.5 h-4 ml-0.5 animate-pulse" style={{ backgroundColor: accentColor }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -30,6 +30,7 @@ import {
   ConversationErrorBlock,
   CondensationBlock,
   MessageEventBlock,
+  StreamingMessageBlock,
 } from './EventBlock';
 
 interface VscodeApi {
@@ -108,6 +109,7 @@ export function App() {
   const [events, setEvents] = useState<RenderedEvent[]>([]);
   const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const eventId = useRef(1);
 
   // Input state
@@ -165,7 +167,7 @@ export function App() {
   const handleEvent = useCallback((e: unknown) => {
     const known = isEvent(e);
 
-    // Track agent status from ConversationStateUpdateEvent
+    // Track agent status and streaming from ConversationStateUpdateEvent
     if (known && isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
@@ -174,7 +176,22 @@ export function App() {
         }
         lastAgentStatusRef.current = e.agent_status;
       }
+      // Handle streaming LLM content
+      if (e.key === 'llm_stream' && typeof e.value === 'string') {
+        setStreamingContent(e.value);
+      }
       return; // Don't render state update events
+    }
+
+    // Clear streaming when we get the final message or action from agent
+    // (LLM may respond with tool calls only, no text content)
+    if (known && isMessageEvent(e)) {
+      if (e.llm_message.role === 'assistant') {
+        setStreamingContent(null);
+      }
+    }
+    if (known && isActionEvent(e) && e.source === 'agent') {
+      setStreamingContent(null);
     }
 
     if (known) {
@@ -295,6 +312,7 @@ export function App() {
             setEvents([]);
             setPendingActions([]);
             setAgentStatus(undefined);
+            setStreamingContent(null);
             eventId.current = 1;
             // No toast: UI clears and restored/started messages will render naturally
           }
@@ -328,14 +346,13 @@ export function App() {
     return () => window.removeEventListener('message', handler);
   }, [events, handleEvent, postMessage, showStatusMessage]);
 
-  // Auto-scroll to bottom when events change
+  // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
     const el = endRef.current;
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-
-  }, [events.length]);
+  }, [events.length, streamingContent]);
 
   // Selection tracking from InputArea
   const handleSelectionChange = useCallback((start: number, end: number) => {
@@ -419,6 +436,7 @@ export function App() {
     setEvents([]);
     setPendingActions([]);
     setAgentStatus(undefined);
+    setStreamingContent(null);
     eventId.current = 1;
     setInput('');
     setSelectedContextFiles([]);
@@ -573,6 +591,9 @@ export function App() {
     postMessage({ type: 'switchToLocal' });
   }, [postMessage]);
 
+  // Derived state: conversation is empty when no events and no streaming
+  const isEmptyConversation = events.length === 0 && streamingContent === null;
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
@@ -594,7 +615,7 @@ export function App() {
 
       {/* Main conversation area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {events.length === 0 ? (
+        {isEmptyConversation ? (
           <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
             <div className="text-6xl mb-4">🙌</div>
             <h2 className="text-xl font-semibold mb-2">Welcome to OpenHands</h2>
@@ -608,6 +629,9 @@ export function App() {
             {events.map((ev, index) => (
               <EventBlock key={ev.id} event={ev.event} index={index} />
             ))}
+            {streamingContent !== null && (
+              <StreamingMessageBlock content={streamingContent} />
+            )}
             <div ref={endRef} />
           </>
         )}
