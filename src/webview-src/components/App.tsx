@@ -167,7 +167,6 @@ export function App() {
     setStatusBanner({ message, level });
   }, []);
 
-
   const handleConversationStateUpdate = useCallback((event: Event) => {
     if (!isConversationStateUpdateEvent(event)) return false;
 
