@@ -236,9 +236,11 @@ export class OpenAICompatibleClient implements LLMClient {
         for (const item of mapped) {
           yield item;
         }
-      } catch (error) {
-        yield { type: 'finish', finishReason: (error as Error).message };
-        break;
+      } catch {
+        // Skip malformed chunks rather than terminating entire stream.
+        // Proxies or providers may occasionally send bad data; we prefer
+        // resilience over failing fast since partial responses are still useful.
+        continue;
       }
     }
   }
