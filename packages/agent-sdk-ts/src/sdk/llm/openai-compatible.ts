@@ -164,9 +164,12 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
 
   if (Array.isArray(delta.tool_calls)) {
     for (const call of delta.tool_calls) {
-      const index = call.index ?? 0;
+      // Index should always be present per OpenAI spec; skip malformed deltas
+      if (typeof call.index !== 'number') {
+        continue;
+      }
       const result = accumulator.applyDelta({
-        index,
+        index: call.index,
         id: call.id,
         name: call.function?.name,
         arguments: call.function?.arguments,
