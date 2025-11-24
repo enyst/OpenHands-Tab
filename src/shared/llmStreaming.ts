@@ -1,4 +1,5 @@
 import {
+  type Event,
   isActionEvent,
   isAgentErrorEvent,
   isConversationErrorEvent,
@@ -42,7 +43,7 @@ export interface LlmStreamingUpdateResult {
  * - A ConversationStateUpdateEvent with `key === 'llm_stream'` but non-string value clears
  *   streaming content and resets the phase to idle.
  */
-export function reduceLlmStreamingState(current: LlmStreamingState, event: unknown): LlmStreamingUpdateResult {
+export function reduceLlmStreamingState(current: LlmStreamingState, event: Event): LlmStreamingUpdateResult {
   let next = current;
   let started = false;
   let completed = false;
