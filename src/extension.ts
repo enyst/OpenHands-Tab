@@ -17,6 +17,7 @@ import {
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
 import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
+import { initialLlmStreamingState, reduceLlmStreamingState } from './shared/llmStreaming';
 
 // Discriminated union for webview → extension messages
 type WebviewMessage =
@@ -254,29 +255,24 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel?.appendLine(`[status] ${s}`);
         void panel?.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
       });
-      let isStreaming = false;
+      let streamingState = initialLlmStreamingState;
       conversation.on('event', (ev) => {
         const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
 
-        // Skip verbose llm_stream logging - only log start/end
-        if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_stream') {
-          if (!isStreaming) {
-            isStreaming = true;
-            outputChannel?.appendLine('[llm] Streaming started...');
-          }
-          // Don't log each chunk - too verbose
-        } else {
-          // Log all other events
-          outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+        const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
+        streamingState = streamingUpdate.state;
+        const isLlmStreamUpdate = evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_stream';
 
-          // End streaming when we get a message or action event from the agent
-          // (LLM may respond with tool calls only, no text content)
-          const isAgentResponse = (evAny.kind === 'MessageEvent' || evAny.kind === 'ActionEvent')
-            && (ev as { source?: string }).source === 'agent';
-          if (isStreaming && isAgentResponse) {
-            isStreaming = false;
-            outputChannel?.appendLine('[llm] Streaming complete');
-          }
+        if (streamingUpdate.started) {
+          outputChannel?.appendLine('[llm] Streaming started...');
+        }
+
+        if (!isLlmStreamUpdate) {
+          outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+        }
+
+        if (streamingUpdate.completed) {
+          outputChannel?.appendLine('[llm] Streaming complete');
         }
 
         // Friendly LLM request summary for debugging

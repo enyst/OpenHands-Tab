@@ -14,6 +14,7 @@ import {
   type Event,
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
+import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 
 // Component imports
 import { Header } from './Header';
@@ -145,6 +146,7 @@ export function App() {
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
+  const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Post message helper
@@ -164,11 +166,15 @@ export function App() {
   }, []);
 
   // Handle incoming events
-  const handleEvent = useCallback((e: unknown) => {
-    const known = isEvent(e);
+  const handleEvent = useCallback((e: Event) => {
+    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, e);
+    streamingStateRef.current = streamingUpdate.state;
+    if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
+      setStreamingContent(streamingUpdate.state.content);
+    }
 
     // Track agent status and streaming from ConversationStateUpdateEvent
-    if (known && isConversationStateUpdateEvent(e)) {
+    if (isConversationStateUpdateEvent(e)) {
       if (e.agent_status) {
         setAgentStatus(e.agent_status);
         if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
@@ -176,59 +182,42 @@ export function App() {
         }
         lastAgentStatusRef.current = e.agent_status;
       }
-      // Handle streaming LLM content
-      if (e.key === 'llm_stream' && typeof e.value === 'string') {
-        setStreamingContent(e.value);
-      }
       return; // Don't render state update events
     }
 
-    // Clear streaming when we get the final message or action from agent
-    // (LLM may respond with tool calls only, no text content)
-    if (known && isMessageEvent(e)) {
-      if (e.llm_message.role === 'assistant') {
-        setStreamingContent(null);
-      }
-    }
-    if (known && isActionEvent(e) && e.source === 'agent') {
-      setStreamingContent(null);
+    // Track pending actions
+    if (isActionEvent(e)) {
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
+        return exists ? prev : [...prev, e];
+      });
     }
 
-    if (known) {
-      // Track pending actions
-      if (isActionEvent(e)) {
-        setPendingActions((prev) => {
-          const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-          return exists ? prev : [...prev, e];
-        });
+    // Clear pending action when we receive its observation
+    if (isObservationEvent(e) || isUserRejectObservation(e)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
       }
+      setIsSubmitting(false);
+    }
 
-      // Clear pending action when we receive its observation
-      if (isObservationEvent(e) || isUserRejectObservation(e)) {
-        setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
+    // Show status messages for certain events
+    if (isAgentErrorEvent(e)) {
+      showStatusMessage('error', e.error);
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
       }
-
-      // Show status messages for certain events
-      if (isAgentErrorEvent(e)) {
-        showStatusMessage('error', e.error);
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      } else if (isPauseEvent(e)) {
-        showStatusMessage('warn', 'Conversation paused');
-      }
+      setIsSubmitting(false);
+    } else if (isPauseEvent(e)) {
+      showStatusMessage('warn', 'Conversation paused');
     }
 
     // Add event to the list for rendering
     if ((e as any)?.kind !== 'ConversationStateUpdateEvent') {
-      setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
+      setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
     }
   }, [showStatusMessage]);
 
@@ -297,7 +286,9 @@ export function App() {
           }
           break;
         case 'event':
-          handleEvent(payload.event);
+          if (isEvent(payload.event)) {
+            handleEvent(payload.event);
+          }
           break;
         case 'error':
           if (typeof payload.error === 'string') {
