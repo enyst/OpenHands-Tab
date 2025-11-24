@@ -592,7 +592,7 @@ export function App() {
   }, [postMessage]);
 
   // Derived state: conversation is empty when no events and no streaming
-  const isEmptyConversation = events.length === 0 && !streamingContent;
+  const isEmptyConversation = events.length === 0 && streamingContent === null;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -629,7 +629,7 @@ export function App() {
             {events.map((ev, index) => (
               <EventBlock key={ev.id} event={ev.event} index={index} />
             ))}
-            {streamingContent && (
+            {streamingContent !== null && (
               <StreamingMessageBlock content={streamingContent} />
             )}
             <div ref={endRef} />
