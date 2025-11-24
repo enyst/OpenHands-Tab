@@ -120,6 +120,7 @@ class OpenAIToolCallAccumulator implements ToolCallAccumulator {
 
   applyDelta(delta: { index: number; id?: string; name?: string; arguments?: string }): { accumulated: ToolCallAccumulator['complete']; current: { id: string; name: string; argumentsDelta: string } } {
     const existing = this.partial.get(delta.index);
+    // OpenAI only sends id in first delta; fall back to synthetic id so orchestrator can track calls
     const id = delta.id ?? existing?.id ?? `tool_call_${delta.index}`;
     const updated = {
       id,
