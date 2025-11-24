@@ -177,9 +177,8 @@ export function App() {
         lastAgentStatusRef.current = e.agent_status;
       }
       // Handle streaming LLM content
-      const evAny = e as { key?: string; value?: unknown };
-      if (evAny.key === 'llm_stream' && typeof evAny.value === 'string') {
-        setStreamingContent(evAny.value);
+      if (e.key === 'llm_stream' && typeof e.value === 'string') {
+        setStreamingContent(e.value);
       }
       return; // Don't render state update events
     }
