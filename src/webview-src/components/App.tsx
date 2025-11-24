@@ -190,7 +190,7 @@ export function App() {
         setStreamingContent(null);
       }
     }
-    if (known && isActionEvent(e)) {
+    if (known && isActionEvent(e) && e.source === 'agent') {
       setStreamingContent(null);
     }
 
@@ -591,6 +591,9 @@ export function App() {
     postMessage({ type: 'switchToLocal' });
   }, [postMessage]);
 
+  // Derived state: conversation is empty when no events and no streaming
+  const isEmptyConversation = events.length === 0 && !streamingContent;
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
@@ -612,7 +615,7 @@ export function App() {
 
       {/* Main conversation area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {events.length === 0 && !streamingContent ? (
+        {isEmptyConversation ? (
           <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
             <div className="text-6xl mb-4">🙌</div>
             <h2 className="text-xl font-semibold mb-2">Welcome to OpenHands</h2>
