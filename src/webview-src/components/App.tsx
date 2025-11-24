@@ -14,6 +14,7 @@ import {
   type Event,
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
+import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 
 // Component imports
 import { Header } from './Header';
@@ -145,6 +146,7 @@ export function App() {
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
+  const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Post message helper
@@ -165,6 +167,12 @@ export function App() {
 
   // Handle incoming events
   const handleEvent = useCallback((e: unknown) => {
+    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, e);
+    streamingStateRef.current = streamingUpdate.state;
+    if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
+      setStreamingContent(streamingUpdate.state.content);
+    }
+
     const known = isEvent(e);
 
     // Track agent status and streaming from ConversationStateUpdateEvent
@@ -176,22 +184,7 @@ export function App() {
         }
         lastAgentStatusRef.current = e.agent_status;
       }
-      // Handle streaming LLM content
-      if (e.key === 'llm_stream' && typeof e.value === 'string') {
-        setStreamingContent(e.value);
-      }
       return; // Don't render state update events
-    }
-
-    // Clear streaming when we get the final message or action from agent
-    // (LLM may respond with tool calls only, no text content)
-    if (known && isMessageEvent(e)) {
-      if (e.llm_message.role === 'assistant') {
-        setStreamingContent(null);
-      }
-    }
-    if (known && isActionEvent(e) && e.source === 'agent') {
-      setStreamingContent(null);
     }
 
     if (known) {
