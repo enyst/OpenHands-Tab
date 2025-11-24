@@ -50,9 +50,8 @@ export function reduceLlmStreamingState(current: LlmStreamingState, event: unkno
 
   if (isConversationStateUpdateEvent(event) && event.key === 'llm_stream') {
     const nextContent = typeof event.value === 'string' ? event.value : null;
-    const shouldStream = typeof event.value === 'string';
     next = {
-      phase: shouldStream ? 'streaming' : 'idle',
+      phase: nextContent !== null ? 'streaming' : 'idle',
       content: nextContent,
     };
     started = current.phase === 'idle' && next.phase === 'streaming';
