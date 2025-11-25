@@ -191,29 +191,25 @@ export function App() {
   }, []);
 
   const handlePendingActions = useCallback((event: Event) => {
+    const clearSubmissionState = () => {
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
+      setIsSubmitting(false);
+    };
+
     if (isActionEvent(event)) {
       setPendingActions((prev) => {
         const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
         return exists ? prev : [...prev, event];
       });
-    }
-
-    if (isObservationEvent(event) || isUserRejectObservation(event)) {
+    } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
       setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== event.tool_call_id));
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
-      }
-      setIsSubmitting(false);
-    }
-
-    if (isAgentErrorEvent(event)) {
+      clearSubmissionState();
+    } else if (isAgentErrorEvent(event)) {
       showStatusMessage('error', event.error);
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
-      }
-      setIsSubmitting(false);
+      clearSubmissionState();
     } else if (isPauseEvent(event)) {
       showStatusMessage('warn', 'Conversation paused');
     }
