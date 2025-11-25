@@ -34,7 +34,7 @@ npm run watch
 When only specific tests are relevant (e.g., during reviews):
 
 ```bash
-npm test -- src/webview-src/__tests__/event.handlers.test.tsx
+npx vitest run src/webview-src/__tests__/event.handlers.test.tsx
 ```
 
 
