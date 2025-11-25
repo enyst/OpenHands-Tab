@@ -199,7 +199,7 @@ export class Agent extends EventEmitter {
           // Truncate excessively long arguments and redact common sensitive fields
           let safeArgs = rawArgs;
           try {
-            const parsed = JSON.parse(rawArgs);
+            const parsed: unknown = JSON.parse(rawArgs);
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
               const redacted: Record<string, unknown> = {};
               const sensitive = /^(api[-_]?key|token|secret|password|authorization)$/i;
