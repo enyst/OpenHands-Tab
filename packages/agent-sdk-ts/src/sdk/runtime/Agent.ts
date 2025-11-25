@@ -217,18 +217,6 @@ export class Agent extends EventEmitter {
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
         if (!parsed) {
-          // Send a tool message with the parse error to satisfy protocol
-          const toolMessage: MessageEvent = {
-            kind: 'MessageEvent',
-            source: 'environment',
-            llm_message: {
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              name: toolCall.function.name,
-              content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid tool arguments' }) }],
-            },
-          };
-          this.events.push(toolMessage);
           toolExecutionFailed = true;
           continue;
         }
@@ -417,13 +405,26 @@ export class Agent extends EventEmitter {
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
+      const errText = `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`;
       this.events.push({
         kind: 'AgentErrorEvent',
         source: 'agent',
-        error: `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`,
+        error: errText,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
       } as Event);
+      // Also send a tool message back to satisfy protocol
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
+        },
+      };
+      this.events.push(toolMessage);
       return undefined;
     }
   }
