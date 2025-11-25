@@ -195,6 +195,25 @@ export class Agent extends EventEmitter {
       for (const toolCall of toolCalls) {
         // Log raw tool call for debugging visibility
         try {
+          const rawArgs = toolCall.function?.arguments ?? '';
+          // Truncate excessively long arguments and redact common sensitive fields
+          let safeArgs = rawArgs;
+          try {
+            const parsed = JSON.parse(rawArgs);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              const redacted: Record<string, unknown> = {};
+              const sensitive = /^(api[-_]?key|token|secret|password|authorization)$/i;
+              for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+                redacted[k] = sensitive.test(k) ? '[REDACTED]' : v;
+              }
+              safeArgs = JSON.stringify(redacted);
+            }
+          } catch {
+            // Not JSON; fall back to raw string
+          }
+          if (typeof safeArgs === 'string' && safeArgs.length > 2000) {
+            safeArgs = safeArgs.slice(0, 2000) + '…(truncated)';
+          }
           this.events.push({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
@@ -202,7 +221,7 @@ export class Agent extends EventEmitter {
             value: {
               id: toolCall.id,
               name: toolCall.function?.name ?? '',
-              arguments: toolCall.function?.arguments ?? '',
+              arguments: safeArgs,
             },
           } as Event);
         } catch {
@@ -510,7 +529,7 @@ export class Agent extends EventEmitter {
         },
       };
       this.events.push(toolMessage);
-      return;
+      throw new Error(errText);
     }
 
     try {
