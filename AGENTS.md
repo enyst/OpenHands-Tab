@@ -40,6 +40,8 @@ npx vitest run src/webview-src/__tests__/event.handlers.test.tsx
 
 # Launch extension in VS Code
 # Press F5 in VS Code, or:
+```bash
+code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 ```
 
 ## Tooling
