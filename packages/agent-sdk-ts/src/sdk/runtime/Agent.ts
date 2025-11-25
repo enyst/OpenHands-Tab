@@ -217,6 +217,18 @@ export class Agent extends EventEmitter {
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
         if (!parsed) {
+          // Send a tool message with the parse error to satisfy protocol
+          const toolMessage: MessageEvent = {
+            kind: 'MessageEvent',
+            source: 'environment',
+            llm_message: {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              name: toolCall.function.name,
+              content: [{ type: 'text', text: JSON.stringify({ error: 'Invalid tool arguments' }) }],
+            },
+          };
+          this.events.push(toolMessage);
           toolExecutionFailed = true;
           continue;
         }
@@ -458,6 +470,18 @@ export class Agent extends EventEmitter {
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
       } as Event);
+      // Still send a tool message back to satisfy protocol requirements
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` }) }],
+        },
+      };
+      this.events.push(toolMessage);
       return;
     }
 
@@ -505,12 +529,25 @@ export class Agent extends EventEmitter {
       };
       this.events.push(toolMessage);
     } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
       this.events.push({
         kind: 'ConversationErrorEvent',
         source: 'environment',
-        detail: e instanceof Error ? e.message : String(e),
+        detail,
         code: 'tool_execution_failed',
       } as Event);
+      // Still send a tool message back to satisfy protocol requirements
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: detail }) }],
+        },
+      };
+      this.events.push(toolMessage);
       throw e;
     }
   }
