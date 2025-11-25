@@ -2,11 +2,17 @@
 
 Essential information for working with this codebase.
 
+## Prerequisites
+
+- Node.js 22 LTS (npm >= 10)
+- VS Code >= 1.104
+
+
 ## Quick Commands
 
 ```bash
 # Install
-npm install
+npm ci
 
 # Build everything (SDK + extension + webview)
 npm run build
@@ -23,13 +29,29 @@ npm run typecheck
 # Development watch mode
 npm run watch
 
+### Targeted tests
+
+When only specific tests are relevant (e.g., during reviews):
+
+```bash
+npx vitest run src/webview-src/__tests__/event.handlers.test.tsx
+```
+
+
 # Launch extension in VS Code
 # Press F5 in VS Code, or:
+```bash
 code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 ```
 
-## Project Structure
+## Tooling
 
+If tooling is missing in your environment:
+
+- Install Node 22 (e.g., with nvm: `nvm install 22 && nvm use 22`, or via tarball)
+- Ensure `node` and `npm` are on PATH
+
+## Project Structure
 ```
 OpenHands-Tab/
 ├── src/                          # Extension source
