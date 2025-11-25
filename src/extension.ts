@@ -261,7 +261,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
         streamingState = streamingUpdate.state;
-        const isLlmStreamUpdate = evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_stream';
+        const isLlmStreamUpdate = evAny.kind === 'ConversationStateUpdateEvent' && (evAny.key === 'llm_stream' || evAny.key === 'llm_tool_call');
 
         if (streamingUpdate.started) {
           outputChannel?.appendLine('[llm] Streaming started...');

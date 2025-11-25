@@ -195,6 +195,25 @@ export class Agent extends EventEmitter {
       for (const toolCall of toolCalls) {
         // Log raw tool call for debugging visibility
         try {
+          const rawArgs = toolCall.function?.arguments ?? '';
+          // Truncate excessively long arguments and redact common sensitive fields
+          let safeArgs = rawArgs;
+          try {
+            const parsed: unknown = JSON.parse(rawArgs);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+              const redacted: Record<string, unknown> = {};
+              const sensitive = /^(api[-_]?key|token|secret|password|authorization)$/i;
+              for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+                redacted[k] = sensitive.test(k) ? '[REDACTED]' : v;
+              }
+              safeArgs = JSON.stringify(redacted);
+            }
+          } catch {
+            // Not JSON; fall back to raw string
+          }
+          if (typeof safeArgs === 'string' && safeArgs.length > 2000) {
+            safeArgs = safeArgs.slice(0, 2000) + '…(truncated)';
+          }
           this.events.push({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
@@ -202,7 +221,7 @@ export class Agent extends EventEmitter {
             value: {
               id: toolCall.id,
               name: toolCall.function?.name ?? '',
-              arguments: toolCall.function?.arguments ?? '',
+              arguments: safeArgs,
             },
           } as Event);
         } catch {
@@ -405,13 +424,26 @@ export class Agent extends EventEmitter {
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
+      const errText = `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`;
       this.events.push({
         kind: 'AgentErrorEvent',
         source: 'agent',
-        error: `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`,
+        error: errText,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
       } as Event);
+      // Also send a tool message back to satisfy protocol
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
+        },
+      };
+      this.events.push(toolMessage);
       return undefined;
     }
   }
@@ -458,6 +490,18 @@ export class Agent extends EventEmitter {
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
       } as Event);
+      // Still send a tool message back to satisfy protocol requirements
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` }) }],
+        },
+      };
+      this.events.push(toolMessage);
       return;
     }
 
@@ -465,14 +509,27 @@ export class Agent extends EventEmitter {
     try {
       validated = tool.validate(args);
     } catch (e) {
+      const errText = `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`;
       this.events.push({
         kind: 'AgentErrorEvent',
         source: 'agent',
-        error: `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`,
+        error: errText,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
       } as Event);
-      return;
+      // Send tool response back to LLM with error content
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
+        },
+      };
+      this.events.push(toolMessage);
+      throw new Error(errText);
     }
 
     try {
@@ -505,12 +562,27 @@ export class Agent extends EventEmitter {
       };
       this.events.push(toolMessage);
     } catch (e) {
+      const errText = e instanceof Error ? e.message : String(e);
+      // Treat execution failures as agent-visible errors so the LLM can self-correct
       this.events.push({
-        kind: 'ConversationErrorEvent',
-        source: 'environment',
-        detail: e instanceof Error ? e.message : String(e),
-        code: 'tool_execution_failed',
+        kind: 'AgentErrorEvent',
+        source: 'agent',
+        error: errText,
+        tool_name: toolCall.function.name,
+        tool_call_id: toolCall.id,
       } as Event);
+      // Send tool response back with the error content
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
+        },
+      };
+      this.events.push(toolMessage);
       throw e;
     }
   }
