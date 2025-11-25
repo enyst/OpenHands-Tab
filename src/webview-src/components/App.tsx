@@ -57,6 +57,8 @@ function getVscodeApi(): VscodeApi {
 
 type RenderedEvent = { id: number; event: Event };
 
+const isRenderableEvent = (event: Event) => !isConversationStateUpdateEvent(event);
+
 type ConversationsList = Array<{
   id: string;
   title?: string;
@@ -165,61 +167,71 @@ export function App() {
     setStatusBanner({ message, level });
   }, []);
 
-  // Handle incoming events
-  const handleEvent = useCallback((e: Event) => {
-    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, e);
+  const handleConversationStateUpdate = useCallback((event: Event) => {
+    if (!isConversationStateUpdateEvent(event)) return false;
+
+    if (event.agent_status) {
+      setAgentStatus(event.agent_status);
+      if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
+        showStatusMessage('warn', 'Agent is waiting for confirmation');
+      }
+      lastAgentStatusRef.current = event.agent_status;
+    }
+
+    return true;
+  }, [showStatusMessage]);
+
+  const handleStreamingUpdate = useCallback((event: Event) => {
+    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, event);
     streamingStateRef.current = streamingUpdate.state;
+
     if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
       setStreamingContent(streamingUpdate.state.content);
     }
+  }, []);
 
-    // Track agent status and streaming from ConversationStateUpdateEvent
-    if (isConversationStateUpdateEvent(e)) {
-      if (e.agent_status) {
-        setAgentStatus(e.agent_status);
-        if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
-          showStatusMessage('warn', 'Agent is waiting for confirmation');
-        }
-        lastAgentStatusRef.current = e.agent_status;
+  const handlePendingActions = useCallback((event: Event) => {
+    const clearSubmissionState = () => {
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
       }
-      return; // Don't render state update events
-    }
+      setIsSubmitting(false);
+    };
 
-    // Track pending actions
-    if (isActionEvent(e)) {
+    if (isActionEvent(event)) {
       setPendingActions((prev) => {
-        const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-        return exists ? prev : [...prev, e];
+        const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
+        return exists ? prev : [...prev, event];
       });
-    }
-
-    // Clear pending action when we receive its observation
-    if (isObservationEvent(e) || isUserRejectObservation(e)) {
-      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
-      }
-      setIsSubmitting(false);
-    }
-
-    // Show status messages for certain events
-    if (isAgentErrorEvent(e)) {
-      showStatusMessage('error', e.error);
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
-      }
-      setIsSubmitting(false);
-    } else if (isPauseEvent(e)) {
+    } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== event.tool_call_id));
+      clearSubmissionState();
+    } else if (isAgentErrorEvent(event)) {
+      showStatusMessage('error', event.error);
+      clearSubmissionState();
+    } else if (isPauseEvent(event)) {
       showStatusMessage('warn', 'Conversation paused');
     }
-
-    // Add event to the list for rendering
-    if ((e as any)?.kind !== 'ConversationStateUpdateEvent') {
-      setEvents((ev) => [...ev, { id: eventId.current++, event: e }]);
-    }
   }, [showStatusMessage]);
+
+  const handleRenderableEvent = useCallback((event: Event) => {
+    if (!isRenderableEvent(event)) return;
+
+    setEvents((ev) => [...ev, { id: eventId.current++, event }]);
+  }, []);
+
+  // Handle incoming events
+  const handleEvent = useCallback((incomingEvent: unknown) => {
+    if (!isEvent(incomingEvent)) return;
+
+    const event = incomingEvent;
+    handleStreamingUpdate(event);
+    if (handleConversationStateUpdate(event)) return;
+
+    handlePendingActions(event);
+    handleRenderableEvent(event);
+  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingUpdate]);
 
   // Signal webview is ready on mount
   useEffect(() => {
