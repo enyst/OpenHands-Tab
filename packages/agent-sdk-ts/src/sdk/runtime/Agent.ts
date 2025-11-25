@@ -490,13 +490,26 @@ export class Agent extends EventEmitter {
     try {
       validated = tool.validate(args);
     } catch (e) {
+      const errText = `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`;
       this.events.push({
         kind: 'AgentErrorEvent',
         source: 'agent',
-        error: `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`,
+        error: errText,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
       } as Event);
+      // Send tool response back to LLM with error content
+      const toolMessage: MessageEvent = {
+        kind: 'MessageEvent',
+        source: 'environment',
+        llm_message: {
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
+        },
+      };
+      this.events.push(toolMessage);
       return;
     }
 
@@ -530,14 +543,16 @@ export class Agent extends EventEmitter {
       };
       this.events.push(toolMessage);
     } catch (e) {
-      const detail = e instanceof Error ? e.message : String(e);
+      const errText = e instanceof Error ? e.message : String(e);
+      // Treat execution failures as agent-visible errors so the LLM can self-correct
       this.events.push({
-        kind: 'ConversationErrorEvent',
-        source: 'environment',
-        detail,
-        code: 'tool_execution_failed',
+        kind: 'AgentErrorEvent',
+        source: 'agent',
+        error: errText,
+        tool_name: toolCall.function.name,
+        tool_call_id: toolCall.id,
       } as Event);
-      // Still send a tool message back to satisfy protocol requirements
+      // Send tool response back with the error content
       const toolMessage: MessageEvent = {
         kind: 'MessageEvent',
         source: 'environment',
@@ -545,7 +560,7 @@ export class Agent extends EventEmitter {
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify({ error: detail }) }],
+          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
         },
       };
       this.events.push(toolMessage);
