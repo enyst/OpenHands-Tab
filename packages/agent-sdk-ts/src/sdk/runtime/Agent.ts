@@ -58,6 +58,59 @@ function deepTruncate(value: unknown): unknown {
   return value;
 }
 
+
+// Redaction utilities for tool-call argument logging
+const SENSITIVE_KEYS = new Set([
+  'apiKey', 'api_key', 'apikey',
+  'token', 'access_token', 'accessToken', 'refresh_token',
+  'authorization', 'authorization_header', 'auth',
+  'password', 'pass', 'pwd',
+  'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
+  'awsAccessKeyId', 'awsSecretAccessKey',
+  'sessionApiKey', 'session_api_key', 'x_api_key',
+]);
+function redactObject(input: unknown): unknown {
+  if (Array.isArray(input)) return input.map((v) => redactObject(v));
+  if (input && typeof input === 'object') {
+    const src = input as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (SENSITIVE_KEYS.has(k.toString())) {
+        out[k] = '***';
+      } else if (typeof v === 'object') {
+        out[k] = redactObject(v);
+      } else if (typeof v === 'string') {
+        out[k] = redactStringHeuristics(v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+  if (typeof input === 'string') return redactStringHeuristics(input);
+  return input;
+}
+function redactStringHeuristics(text: string): string {
+  let t = text;
+  // Authorization: Bearer xxx
+  t = t.replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._\-]+/gi, '$1***');
+  // Common key=value or key: value patterns
+  const keyPattern = /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
+  t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, p1, _p2) => `${p1}: ***`);
+  // Query param style ...?api_key=xxx&
+  t = t.replace(new RegExp(`([?&])${keyPattern.source}=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=***`);
+  return t;
+}
+function redactAndTruncateArgs(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    const redacted = redactObject(parsed);
+    return truncateString(JSON.stringify(redacted));
+  } catch {
+    return truncateString(redactStringHeuristics(raw));
+  }
+}
+
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
   private readonly events: EventLog;
@@ -216,7 +269,7 @@ export class Agent extends EventEmitter {
         // Log raw tool call for debugging visibility
         try {
           const rawArgs = toolCall.function?.arguments ?? '';
-          const safeArgs = typeof rawArgs === 'string' ? truncateString(rawArgs) : rawArgs;
+          const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : rawArgs;
           this.events.push({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
