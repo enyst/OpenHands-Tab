@@ -91,11 +91,11 @@ describe('Agent tool call logging redaction', () => {
     expect(typeof rawArgs).toBe('string');
 
     const loggedArgs = JSON.parse(rawArgs as string);
-    expect(loggedArgs.config.apiKey).toBe('[REDACTED]');
-    expect(loggedArgs.config.nested.token).toBe('[REDACTED]');
+    expect(loggedArgs.config.apiKey).toBe('***');
+    expect(loggedArgs.config.nested.token).toBe('***');
     expect(loggedArgs.config.nested.keep).toBe('public');
-    expect(loggedArgs.servers[0].password).toBe('[REDACTED]');
-    expect(loggedArgs.servers[1].headers.authorization).toBe('[REDACTED]');
+    expect(loggedArgs.servers[0].password).toBe('***');
+    expect(loggedArgs.servers[1].headers.authorization).toBe('***');
     expect(loggedArgs.safe).toBe('value');
   });
 });
