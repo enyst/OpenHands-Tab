@@ -60,7 +60,7 @@ describe('Agent truncates tool logs and observations', () => {
     const tool: ToolDefinition<{ foo: string }, { deep: { s: string }, arr: string[] }> = {
       name: 'makeLong',
       validate: (input) => input as { foo: string },
-      execute: async (_args) => ({ deep: { s: LONG }, arr: [LONG, 'ok'] }),
+      execute: async () => ({ deep: { s: LONG }, arr: [LONG, 'ok'] }),
     };
 
     const llm = new MockLLM([
