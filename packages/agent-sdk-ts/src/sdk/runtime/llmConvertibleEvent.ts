@@ -1,17 +1,14 @@
-import type { AgentErrorEvent, MessageEvent, ToolCall } from '../types';
+import type { AgentErrorEvent, LlmConvertibleEvent, MessageEvent, ToolCall } from '../types';
 
-export interface LlmConvertibleEvent {
-  toLlmMessage(): MessageEvent;
-}
-
-export interface ToolCallErrorEvent extends AgentErrorEvent, LlmConvertibleEvent {}
-
-export const createToolCallErrorEvent = (toolCall: ToolCall, error: string): ToolCallErrorEvent => {
+export const createToolCallErrorEvent = (
+  toolCall: ToolCall,
+  error: string,
+): AgentErrorEvent & LlmConvertibleEvent => {
   const message = error ?? 'Unknown tool error';
   const toolName = toolCall.function.name;
   const toolCallId = toolCall.id;
 
-  return {
+  const llmConvertible: AgentErrorEvent & LlmConvertibleEvent = {
     kind: 'AgentErrorEvent',
     source: 'agent',
     error: message,
@@ -30,4 +27,6 @@ export const createToolCallErrorEvent = (toolCall: ToolCall, error: string): Too
       };
     },
   };
+
+  return llmConvertible;
 };

@@ -13,7 +13,7 @@ import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
-import type { LlmConvertibleEvent } from './llmConvertibleEvent';
+import type { LlmConvertibleEvent } from '../types';
 import { createToolCallErrorEvent } from './llmConvertibleEvent';
 
 export type AgentRunInput = string | Message;
