@@ -39,6 +39,25 @@ export interface AgentOptions {
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
 
+// Simple utility to cap logged/tool result sizes
+const TRUNCATE_LIMIT = 2000;
+const ELLIPSIS = '…(truncated)';
+function truncateString(input: string): string {
+  return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
+}
+function deepTruncate(value: unknown): unknown {
+  if (typeof value === 'string') return truncateString(value);
+  if (Array.isArray(value)) return value.map((v) => deepTruncate(v));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = deepTruncate(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
   private readonly events: EventLog;
@@ -197,24 +216,7 @@ export class Agent extends EventEmitter {
         // Log raw tool call for debugging visibility
         try {
           const rawArgs = toolCall.function?.arguments ?? '';
-          // Truncate excessively long arguments and redact common sensitive fields
-          let safeArgs = rawArgs;
-          try {
-            const parsed: unknown = JSON.parse(rawArgs);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              const redacted: Record<string, unknown> = {};
-              const sensitive = /^(api[-_]?key|token|secret|password|authorization)$/i;
-              for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-                redacted[k] = sensitive.test(k) ? '[REDACTED]' : v;
-              }
-              safeArgs = JSON.stringify(redacted);
-            }
-          } catch {
-            // Not JSON; fall back to raw string
-          }
-          if (typeof safeArgs === 'string' && safeArgs.length > 2000) {
-            safeArgs = safeArgs.slice(0, 2000) + '…(truncated)';
-          }
+          const safeArgs = typeof rawArgs === 'string' ? truncateString(rawArgs) : rawArgs;
           this.events.push({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
@@ -497,7 +499,7 @@ export class Agent extends EventEmitter {
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: result as Record<string, unknown>,
+        observation: deepTruncate(result) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
@@ -511,7 +513,7 @@ export class Agent extends EventEmitter {
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify(result) }],
+          content: [{ type: 'text', text: truncateString(JSON.stringify(result)) }],
         },
       };
       this.events.push(toolMessage);
