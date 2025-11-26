@@ -87,10 +87,6 @@ export interface MessageEvent extends EventBase {
   extended_content?: TextContent[];
 }
 
-export interface LlmConvertibleEvent {
-  toLlmMessage(): MessageEvent;
-}
-
 // AgentErrorEvent - shown in visualizer
 export interface AgentErrorEvent extends EventBase {
   kind: 'AgentErrorEvent';
@@ -98,7 +94,6 @@ export interface AgentErrorEvent extends EventBase {
   error: string;
   tool_name: string;
   tool_call_id: string;
-  toLlmMessage?: () => MessageEvent;
 }
 
 export interface ConversationErrorEvent extends EventBase {

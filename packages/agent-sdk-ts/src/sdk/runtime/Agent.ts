@@ -7,14 +7,13 @@ import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
 import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
-import { isTextContent, isMessageEvent, isSystemPromptEvent, type SecurityRisk } from '../types';
+import { isMessageEvent, isSystemPromptEvent, isTextContent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
-import type { LlmConvertibleEvent } from '../types';
-import { createToolCallErrorEvent } from './llmConvertibleEvent';
+import { createToolCallErrorEvents } from './toolCallErrorEvents';
 
 export type AgentRunInput = string | Message;
 
@@ -415,14 +414,10 @@ export class Agent extends EventEmitter {
     this.events.push(event);
   }
 
-  private pushLlmConvertibleEvent(event: Event & LlmConvertibleEvent): void {
-    this.events.push(event);
-    this.events.push(event.toLlmMessage());
-  }
-
   private emitToolError(toolCall: ToolCall, error: string): void {
-    const errorEvent = createToolCallErrorEvent(toolCall, error);
-    this.pushLlmConvertibleEvent(errorEvent);
+    const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, error);
+    this.events.push(agentErrorEvent);
+    this.events.push(toolMessageEvent);
   }
 
   private parseToolArgs(toolCall: ToolCall): { args: Record<string, unknown>; securityRisk?: SecurityRisk } | undefined {
