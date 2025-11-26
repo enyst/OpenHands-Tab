@@ -4,7 +4,7 @@ export const createToolCallErrorEvents = (
   toolCall: ToolCall,
   error: string,
 ): { agentErrorEvent: AgentErrorEvent; toolMessageEvent: MessageEvent } => {
-  const message = error ?? 'Unknown tool error';
+  const message = error || 'Unknown tool error';
   const toolName = toolCall.function.name;
   const toolCallId = toolCall.id;
 
