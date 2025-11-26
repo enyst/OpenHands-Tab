@@ -40,6 +40,80 @@ export interface AgentOptions {
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
 const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
+// Simple utility to cap logged/tool result sizes
+const TRUNCATE_LIMIT = 2000;
+const ELLIPSIS = '…(truncated)';
+function truncateString(input: string): string {
+  return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
+}
+function deepTruncate(value: unknown): unknown {
+  if (typeof value === 'string') return truncateString(value);
+  if (Array.isArray(value)) return value.map((v) => deepTruncate(v));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = deepTruncate(v);
+    }
+    return out;
+  }
+  return value;
+}
+
+
+// Redaction utilities for tool-call argument logging
+const SENSITIVE_KEYS = new Set([
+  'apiKey', 'api_key', 'apikey',
+  'token', 'access_token', 'accessToken', 'refresh_token',
+  'authorization', 'authorization_header', 'auth',
+  'password', 'pass', 'pwd',
+  'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
+  'awsAccessKeyId', 'awsSecretAccessKey',
+  'sessionApiKey', 'session_api_key', 'x_api_key',
+]);
+function redactObject(input: unknown): unknown {
+  if (Array.isArray(input)) return input.map((v) => redactObject(v));
+  if (input && typeof input === 'object') {
+    const src = input as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (SENSITIVE_KEYS.has(k.toString())) {
+        out[k] = '***';
+      } else if (typeof v === 'object') {
+        out[k] = redactObject(v);
+      } else if (typeof v === 'string') {
+        out[k] = redactStringHeuristics(v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+  if (typeof input === 'string') return redactStringHeuristics(input);
+  return input;
+}
+function redactStringHeuristics(text: string): string {
+  let t = text;
+  // Authorization header
+  t = t.replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
+  // Standalone Bearer tokens
+  t = t.replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
+  // Common key=value or key: value patterns
+  const keyPattern = /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
+  t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, p1, _p2) => `${p1}: ***`);
+  // Query param style ...?api_key=xxx&
+  t = t.replace(new RegExp(`([?&])${keyPattern.source}=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=***`);
+  return t;
+}
+function redactAndTruncateArgs(raw: string): string {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const redacted = redactObject(parsed);
+    return truncateString(JSON.stringify(redacted));
+  } catch {
+    return truncateString(redactStringHeuristics(raw));
+  }
+}
+
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
   private readonly events: EventLog;
@@ -207,24 +281,7 @@ export class Agent extends EventEmitter {
         // Log raw tool call for debugging visibility
         try {
           const rawArgs = toolCall.function?.arguments ?? '';
-          // Truncate excessively long arguments and redact common sensitive fields
-          let safeArgs = rawArgs;
-          try {
-            const parsed: unknown = JSON.parse(rawArgs);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              const redacted: Record<string, unknown> = {};
-              const sensitive = /^(api[-_]?key|token|secret|password|authorization)$/i;
-              for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-                redacted[k] = sensitive.test(k) ? '[REDACTED]' : v;
-              }
-              safeArgs = JSON.stringify(redacted);
-            }
-          } catch {
-            // Not JSON; fall back to raw string
-          }
-          if (typeof safeArgs === 'string' && safeArgs.length > 2000) {
-            safeArgs = safeArgs.slice(0, 2000) + '…(truncated)';
-          }
+          const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : rawArgs;
           this.events.push({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
@@ -518,7 +575,7 @@ export class Agent extends EventEmitter {
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: result as Record<string, unknown>,
+        observation: deepTruncate(result) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
@@ -532,7 +589,7 @@ export class Agent extends EventEmitter {
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify(result) }],
+          content: [{ type: 'text', text: truncateString(JSON.stringify(result)) }],
         },
       };
       this.events.push(toolMessage);
