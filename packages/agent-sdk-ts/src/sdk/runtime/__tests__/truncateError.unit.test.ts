@@ -7,6 +7,12 @@ describe('truncateError', () => {
     expect(truncateError('anything', -5)).toBe('');
   });
 
+  it('returns default message for empty or whitespace-only input', () => {
+    expect(truncateError('')).toBe('Unknown tool error');
+    expect(truncateError('   ')).toBe('Unknown tool error');
+    expect(truncateError('\n\t')).toBe('Unknown tool error');
+  });
+
   it('does not append suffix when max < suffix length; caps hard at max', () => {
     const input = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     // suffix length is 12; choose max smaller than suffix length
