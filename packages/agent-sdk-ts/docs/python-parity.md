@@ -14,7 +14,7 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - Tool-call argument redaction (llm_tool_call_raw and logs)
   - Python: Secrets masking is applied to tool observations (e.g., Terminal) via SecretRegistry.mask_secrets_in_output; broader recursive argument redaction is not centrally enforced for tool-call argument logging.
-  - TypeScript: Agent redacts recursively with heuristics, masking known keys (apiKey, token, password, client_secret, etc.) to "***" and masking Authorization: Bearer tokens in strings. See src/sdk/runtime/Agent.ts redactObject/redactStringHeuristics and tests Agent.redaction.test.ts and Agent.tool-call-redaction.test.ts.
+  - TypeScript: Agent redacts recursively with heuristics, masking known keys (apiKey, token, password, client_secret, etc.) to "***" and masking Authorization: Bearer tokens in strings. See src/sdk/runtime/Agent.ts redactObject/redactStringHeuristics and tests: `Agent.redaction.test.ts` and `Agent.tool-call-redaction.test.ts`.
   - Status: TS adds stronger argument redaction for logs; Python focuses on observation output masking. Parity gap: centralized recursive argument redaction in Python or aligned policy documentation.
 
 - security_risk on ActionEvent
