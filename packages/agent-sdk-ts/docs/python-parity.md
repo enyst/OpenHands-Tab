@@ -19,7 +19,7 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - security_risk on ActionEvent
   - Python: ActionEvent always has security_risk (defaults to UNKNOWN if omitted). See tests/cross/test_remote_conversation_live_server.py and tests/sdk/agent/test_extract_security_risk.py.
-  - TypeScript: security_risk is optional; parseToolArgs pops security_risk from arguments and returns undefined when missing/invalid. See src/sdk/runtime/Agent.ts parseToolArgs/parseSecurityRisk and tests Agent.security-risk.test.ts.
+  - TypeScript: security_risk is optional; parseToolArgs pops security_risk from arguments and returns undefined when missing/invalid. See src/sdk/runtime/Agent.ts parseToolArgs/parseSecurityRisk and tests: `Agent.security-risk.test.ts`.
   - Status: Divergence. Consider adding defaulting to UNKNOWN in TS when integrating with agent-server, or clearly documenting optionality in TS-only flows.
 
 - tool_call_id propagation
