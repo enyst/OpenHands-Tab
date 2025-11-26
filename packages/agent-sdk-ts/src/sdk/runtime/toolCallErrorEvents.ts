@@ -2,11 +2,15 @@ import type { AgentErrorEvent, MessageEvent, ToolCall } from '../types';
 
 export const truncateError = (input: string, max: number = 4096): string => {
   const suffix = ' (truncated)';
-  // Normalize whitespace
   const normalized = (input || 'Unknown tool error').replace(/\s+/g, ' ').trim();
+  if (max <= 0) return '';
   if (normalized.length <= max) return normalized;
-  const head = normalized.slice(0, Math.max(0, max - suffix.length));
-  return head + suffix;
+  const headLen = max - suffix.length;
+  if (headLen <= 0) {
+    // Not enough room for suffix; hard cap to max without suffix
+    return normalized.slice(0, max);
+  }
+  return normalized.slice(0, headLen) + suffix;
 };
 
 export const createToolCallErrorEvents = (
