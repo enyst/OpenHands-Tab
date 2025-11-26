@@ -57,6 +57,7 @@ describe('Agent tool call error handling', () => {
     const errors = events.filter(isAgentErrorEvent);
     expect(errors).toHaveLength(1);
     expect(errors[0].tool_call_id).toBe('call_bad_args');
+    expect(errors[0].error).toContain('Error validating args');
 
     const toolMessages = events.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages).toHaveLength(1);
@@ -64,7 +65,9 @@ describe('Agent tool call error handling', () => {
     expect(toolMessages[0].llm_message.name).toBe('echo');
 
     const textContent = toolMessages[0].llm_message.content[0] as TextContent;
-    expect(JSON.parse(textContent.text)).toMatchObject({ error: expect.stringContaining('Invalid tool arguments') });
+    // Python SDK sends plain text, not JSON
+    expect(textContent.text).toContain('Error validating args');
+    expect(textContent.text).toContain('echo');
   });
 
   it('emits tool messages when an unknown tool is requested', async () => {
@@ -88,11 +91,18 @@ describe('Agent tool call error handling', () => {
     const errors = events.filter(isAgentErrorEvent);
     expect(errors).toHaveLength(1);
     expect(errors[0].tool_call_id).toBe('call_missing');
+    expect(errors[0].error).toContain('not found');
+    expect(errors[0].error).toContain('does_not_exist');
 
     const toolMessages = events.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages).toHaveLength(1);
     expect(toolMessages[0].llm_message.tool_call_id).toBe('call_missing');
     expect(toolMessages[0].llm_message.name).toBe('does_not_exist');
+
+    const textContent = toolMessages[0].llm_message.content[0] as TextContent;
+    // Python SDK sends plain text matching error message
+    expect(textContent.text).toContain('not found');
+    expect(textContent.text).toContain('does_not_exist');
 
     expect(agent.state.snapshot.status).toBe('IDLE');
   });
@@ -122,17 +132,24 @@ describe('Agent tool call error handling', () => {
     });
 
     await agent.run('validate');
-    await expect(agent.approveAction()).rejects.toThrow('Tool validation failed: validation exploded');
+    await expect(agent.approveAction()).rejects.toThrow('Error validating args');
 
     const events = log.list();
     const errors = events.filter(isAgentErrorEvent);
     expect(errors).toHaveLength(1);
     expect(errors[0].tool_call_id).toBe('call_validation');
+    expect(errors[0].error).toContain('Error validating args');
+    expect(errors[0].error).toContain('validation exploded');
 
     const toolMessages = events.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages).toHaveLength(1);
     expect(toolMessages[0].llm_message.tool_call_id).toBe('call_validation');
     expect(toolMessages[0].llm_message.name).toBe('echo');
+
+    const textContent = toolMessages[0].llm_message.content[0] as TextContent;
+    // Python SDK sends plain text matching error message
+    expect(textContent.text).toContain('Error validating args');
+    expect(textContent.text).toContain('validation exploded');
   });
 
   it('propagates execution failures while emitting tool messages', async () => {
@@ -166,10 +183,15 @@ describe('Agent tool call error handling', () => {
     const errors = events.filter(isAgentErrorEvent);
     expect(errors).toHaveLength(1);
     expect(errors[0].tool_call_id).toBe('call_execution');
+    expect(errors[0].error).toContain('execution exploded');
 
     const toolMessages = events.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages).toHaveLength(1);
     expect(toolMessages[0].llm_message.tool_call_id).toBe('call_execution');
     expect(toolMessages[0].llm_message.name).toBe('echo');
+
+    const textContent = toolMessages[0].llm_message.content[0] as TextContent;
+    // Python SDK sends plain text matching error message
+    expect(textContent.text).toContain('execution exploded');
   });
 });

@@ -446,7 +446,7 @@ export class Agent extends EventEmitter {
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
-      const errText = `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`;
+      const errText = `Error validating args ${raw} for tool '${toolCall.function.name}': ${e instanceof Error ? e.message : String(e)}`;
       this.emitToolError(toolCall, errText);
       return undefined;
     }
@@ -492,7 +492,8 @@ export class Agent extends EventEmitter {
   private async executeTool(toolCall: ToolCall, actionEvent: ActionEvent, args: Record<string, unknown>): Promise<void> {
     const tool = this.tools.get(toolCall.function.name);
     if (!tool) {
-      const errText = `Unknown tool: ${toolCall.function.name}`;
+      const available = Array.from(this.tools.keys());
+      const errText = `Tool '${toolCall.function.name}' not found. Available: ${JSON.stringify(available)}`;
       this.emitToolError(toolCall, errText);
       throw new Error(errText);
     }
@@ -501,7 +502,7 @@ export class Agent extends EventEmitter {
     try {
       validated = tool.validate(args);
     } catch (e) {
-      const errText = `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`;
+      const errText = `Error validating args ${toolCall.function.arguments} for tool '${tool.name}': ${e instanceof Error ? e.message : String(e)}`;
       this.emitToolError(toolCall, errText);
       throw new Error(errText);
     }
