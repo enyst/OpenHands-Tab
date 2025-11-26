@@ -38,27 +38,82 @@ export interface AgentOptions {
 }
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
-const SENSITIVE_FIELD_PATTERN = /^(api[-_]?key|token|secret|password|authorization)$/i;
+const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
-// Tool call arguments are parsed from JSON and therefore are expected to be plain
-// objects/arrays without circular references. Redaction is kept simple and purely
-// structural to avoid carrying unreachable circular-reference handling.
-const redactSensitiveFields = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => redactSensitiveFields(entry));
-  }
-
+// Simple utility to cap logged/tool result sizes
+const TRUNCATE_LIMIT = 2000;
+const ELLIPSIS = '…(truncated)';
+function truncateString(input: string): string {
+  return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
+}
+function deepTruncate(value: unknown): unknown {
+  if (typeof value === 'string') return truncateString(value);
+  if (Array.isArray(value)) return value.map((v) => deepTruncate(v));
   if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-        key,
-        SENSITIVE_FIELD_PATTERN.test(key) ? '[REDACTED]' : redactSensitiveFields(entry),
-      ]),
-    );
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = deepTruncate(v);
+    }
+    return out;
   }
-
   return value;
-};
+}
+
+
+// Redaction utilities for tool-call argument logging
+const SENSITIVE_KEYS = new Set([
+  'apiKey', 'api_key', 'apikey',
+  'token', 'access_token', 'accessToken', 'refresh_token',
+  'authorization', 'authorization_header', 'auth',
+  'password', 'pass', 'pwd',
+  'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
+  'awsAccessKeyId', 'awsSecretAccessKey',
+  'sessionApiKey', 'session_api_key', 'x_api_key',
+]);
+function redactObject(input: unknown): unknown {
+  if (Array.isArray(input)) return input.map((v) => redactObject(v));
+  if (input && typeof input === 'object') {
+    const src = input as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(src)) {
+      if (SENSITIVE_KEYS.has(k.toString())) {
+        out[k] = '***';
+      } else if (typeof v === 'object') {
+        out[k] = redactObject(v);
+      } else if (typeof v === 'string') {
+        out[k] = redactStringHeuristics(v);
+      } else {
+        out[k] = v;
+      }
+    }
+    return out;
+  }
+  if (typeof input === 'string') return redactStringHeuristics(input);
+  return input;
+}
+function redactStringHeuristics(text: string): string {
+  let t = text;
+  // Authorization header
+  t = t.replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
+  // Standalone Bearer tokens
+  t = t.replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
+  // Common key=value or key: value patterns
+  const keyPattern = /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
+  t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, p1, _p2) => `${p1}: ***`);
+  // Query param style ...?api_key=xxx&
+  t = t.replace(new RegExp(`([?&])${keyPattern.source}=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=***`);
+  return t;
+}
+function redactAndTruncateArgs(raw: string): string {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const redacted = redactObject(parsed);
+    return truncateString(JSON.stringify(redacted));
+  } catch {
+    return truncateString(redactStringHeuristics(raw));
+  }
+}
+
 
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
@@ -76,6 +131,7 @@ export class Agent extends EventEmitter {
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
+  private readonly debug: boolean;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -94,6 +150,7 @@ export class Agent extends EventEmitter {
       confirmUnknown: options.settings?.confirmation?.confirmUnknown ?? true,
     };
     this.agentContext = options.agentContext;
+    this.debug = options.settings?.agent?.debug ?? false;
 
     this.events.on((event) => this.emit('event', event));
   }
@@ -180,7 +237,14 @@ export class Agent extends EventEmitter {
           value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
         } as Event);
       } catch (error) {
-        void error; // ignore debug emission failures
+        if (this.debug) {
+          console.warn('[Agent] Failed to emit llm_request debug event:', error);
+          this.events.push({
+            kind: 'ConversationErrorEvent',
+            source: 'agent',
+            detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
+          } as Event);
+        }
       }
       let response;
       try {
@@ -218,20 +282,7 @@ export class Agent extends EventEmitter {
         // Log raw tool call for debugging visibility
         try {
           const rawArgs = toolCall.function?.arguments ?? '';
-          // Truncate excessively long arguments and redact common sensitive fields
-          let safeArgs = rawArgs;
-          try {
-            const parsed: unknown = JSON.parse(rawArgs);
-            if (parsed && typeof parsed === 'object') {
-              const redacted = redactSensitiveFields(parsed);
-              safeArgs = JSON.stringify(redacted);
-            }
-          } catch {
-            // Not JSON; fall back to raw string
-          }
-          if (typeof safeArgs === 'string' && safeArgs.length > 2000) {
-            safeArgs = safeArgs.slice(0, 2000) + '…(truncated)';
-          }
+          const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : rawArgs;
           this.events.push({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
@@ -242,21 +293,26 @@ export class Agent extends EventEmitter {
               arguments: safeArgs,
             },
           } as Event);
-        } catch {
-          // Swallow errors from logging tool call metadata; tool execution will still proceed.
+        } catch (error) {
+          if (this.debug) {
+            console.warn('[Agent] Failed to emit tool_call_raw debug event:', error);
+            this.events.push({
+              kind: 'ConversationErrorEvent',
+              source: 'agent',
+              detail: `Debug event emission failed for tool call: ${error instanceof Error ? error.message : String(error)}`,
+            } as Event);
+          }
         }
 
         const parsed = this.parseToolArgs(toolCall);
-        const args = parsed?.args ?? null;
-        const securityRisk = parsed?.securityRisk;
-
-        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
-        const recordedAction = this.events.push(actionEvent) as ActionEvent;
-
         if (!parsed) {
           toolExecutionFailed = true;
           continue;
         }
+        const { args, securityRisk } = parsed;
+
+        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
+        const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
@@ -444,14 +500,20 @@ export class Agent extends EventEmitter {
       const parsed: unknown = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const { security_risk, ...rest } = parsed as Record<string, unknown>;
-        return { args: rest, securityRisk: security_risk as SecurityRisk | undefined };
+        return { args: rest, securityRisk: this.parseSecurityRisk(security_risk) };
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
-      const errText = `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`;
+      const errText = `Error validating args ${raw} for tool '${toolCall.function.name}': ${e instanceof Error ? e.message : String(e)}`;
       this.emitToolError(toolCall, errText);
       return undefined;
     }
+  }
+
+  private parseSecurityRisk(value: unknown): SecurityRisk | undefined {
+    if (typeof value !== 'string') return undefined;
+    const normalized = value.toUpperCase() as SecurityRisk;
+    return SECURITY_RISK_ORDER.includes(normalized) ? normalized : undefined;
   }
 
   private requiresConfirmation(action: ActionEvent): boolean {
@@ -460,9 +522,8 @@ export class Agent extends EventEmitter {
     if (policy === 'always') return true;
     const risk = action.security_risk;
     if (!risk) return this.confirmation.confirmUnknown ?? true;
-    const order: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
     const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
-    return order.indexOf(risk) >= order.indexOf(threshold);
+    return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
   }
 
   private createActionEvent(
@@ -489,7 +550,8 @@ export class Agent extends EventEmitter {
   private async executeTool(toolCall: ToolCall, actionEvent: ActionEvent, args: Record<string, unknown>): Promise<void> {
     const tool = this.tools.get(toolCall.function.name);
     if (!tool) {
-      const errText = `Unknown tool: ${toolCall.function.name}`;
+      const available = Array.from(this.tools.keys());
+      const errText = `Tool '${toolCall.function.name}' not found. Available: ${JSON.stringify(available)}`;
       this.emitToolError(toolCall, errText);
       throw new Error(errText);
     }
@@ -498,7 +560,7 @@ export class Agent extends EventEmitter {
     try {
       validated = tool.validate(args);
     } catch (e) {
-      const errText = `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`;
+      const errText = `Error validating args ${toolCall.function.arguments} for tool '${tool.name}': ${e instanceof Error ? e.message : String(e)}`;
       this.emitToolError(toolCall, errText);
       throw new Error(errText);
     }
@@ -514,7 +576,7 @@ export class Agent extends EventEmitter {
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: result as Record<string, unknown>,
+        observation: deepTruncate(result) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
@@ -528,7 +590,7 @@ export class Agent extends EventEmitter {
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify(result) }],
+          content: [{ type: 'text', text: truncateString(JSON.stringify(result)) }],
         },
       };
       this.events.push(toolMessage);
