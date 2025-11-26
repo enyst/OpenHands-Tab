@@ -7,12 +7,13 @@ import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
 import { LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
-import { isTextContent, isMessageEvent, isSystemPromptEvent, type SecurityRisk } from '../types';
+import { isMessageEvent, isSystemPromptEvent, isTextContent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
+import { createToolCallErrorEvents } from './toolCallErrorEvents';
 
 export type AgentRunInput = string | Message;
 
@@ -413,6 +414,12 @@ export class Agent extends EventEmitter {
     this.events.push(event);
   }
 
+  private emitToolError(toolCall: ToolCall, error: string): void {
+    const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, error);
+    this.events.push(agentErrorEvent);
+    this.events.push(toolMessageEvent);
+  }
+
   private parseToolArgs(toolCall: ToolCall): { args: Record<string, unknown>; securityRisk?: SecurityRisk } | undefined {
     const raw = toolCall.function.arguments;
     if (!raw) return { args: {} };
@@ -425,25 +432,7 @@ export class Agent extends EventEmitter {
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
       const errText = `Invalid tool arguments: ${e instanceof Error ? e.message : String(e)}`;
-      this.events.push({
-        kind: 'AgentErrorEvent',
-        source: 'agent',
-        error: errText,
-        tool_name: toolCall.function.name,
-        tool_call_id: toolCall.id,
-      } as Event);
-      // Also send a tool message back to satisfy protocol
-      const toolMessage: MessageEvent = {
-        kind: 'MessageEvent',
-        source: 'environment',
-        llm_message: {
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
-        },
-      };
-      this.events.push(toolMessage);
+      this.emitToolError(toolCall, errText);
       return undefined;
     }
   }
@@ -483,26 +472,9 @@ export class Agent extends EventEmitter {
   private async executeTool(toolCall: ToolCall, actionEvent: ActionEvent, args: Record<string, unknown>): Promise<void> {
     const tool = this.tools.get(toolCall.function.name);
     if (!tool) {
-      this.events.push({
-        kind: 'AgentErrorEvent',
-        source: 'agent',
-        error: `Unknown tool: ${toolCall.function.name}`,
-        tool_name: toolCall.function.name,
-        tool_call_id: toolCall.id,
-      } as Event);
-      // Still send a tool message back to satisfy protocol requirements
-      const toolMessage: MessageEvent = {
-        kind: 'MessageEvent',
-        source: 'environment',
-        llm_message: {
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` }) }],
-        },
-      };
-      this.events.push(toolMessage);
-      return;
+      const errText = `Unknown tool: ${toolCall.function.name}`;
+      this.emitToolError(toolCall, errText);
+      throw new Error(errText);
     }
 
     let validated;
@@ -510,25 +482,7 @@ export class Agent extends EventEmitter {
       validated = tool.validate(args);
     } catch (e) {
       const errText = `Tool validation failed: ${e instanceof Error ? e.message : String(e)}`;
-      this.events.push({
-        kind: 'AgentErrorEvent',
-        source: 'agent',
-        error: errText,
-        tool_name: toolCall.function.name,
-        tool_call_id: toolCall.id,
-      } as Event);
-      // Send tool response back to LLM with error content
-      const toolMessage: MessageEvent = {
-        kind: 'MessageEvent',
-        source: 'environment',
-        llm_message: {
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
-        },
-      };
-      this.events.push(toolMessage);
+      this.emitToolError(toolCall, errText);
       throw new Error(errText);
     }
 
@@ -564,25 +518,7 @@ export class Agent extends EventEmitter {
     } catch (e) {
       const errText = e instanceof Error ? e.message : String(e);
       // Treat execution failures as agent-visible errors so the LLM can self-correct
-      this.events.push({
-        kind: 'AgentErrorEvent',
-        source: 'agent',
-        error: errText,
-        tool_name: toolCall.function.name,
-        tool_call_id: toolCall.id,
-      } as Event);
-      // Send tool response back with the error content
-      const toolMessage: MessageEvent = {
-        kind: 'MessageEvent',
-        source: 'environment',
-        llm_message: {
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
-          content: [{ type: 'text', text: JSON.stringify({ error: errText }) }],
-        },
-      };
-      this.events.push(toolMessage);
+      this.emitToolError(toolCall, errText);
       throw e;
     }
   }
