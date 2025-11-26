@@ -15,8 +15,8 @@ describe('toolCallErrorEvents truncation and normalization', () => {
 
     expect(agentErrorEvent.error).toBe('line1 line2 with spaces line3');
 
-    const payload = JSON.parse((toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text);
-    expect(payload.error).toBe('line1 line2 with spaces line3');
+    const text = (toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text;
+    expect(text).toBe('line1 line2 with spaces line3');
   });
 
   it('caps long error messages at exactly 4096 chars and appends suffix', () => {
@@ -28,8 +28,7 @@ describe('toolCallErrorEvents truncation and normalization', () => {
     expect(err.length).toBe(4096);
     expect(err.endsWith('(truncated)')).toBe(true);
 
-    const payload = JSON.parse((toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text);
-    const toolErr: string = payload.error;
+    const toolErr = (toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text;
     expect(toolErr.length).toBe(4096);
     expect(toolErr.endsWith('(truncated)')).toBe(true);
   });

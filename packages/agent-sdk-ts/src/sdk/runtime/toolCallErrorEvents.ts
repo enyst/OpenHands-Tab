@@ -30,6 +30,8 @@ export const createToolCallErrorEvents = (
     tool_call_id: toolCallId,
   };
 
+  // IMPORTANT: keep tool message content as raw text to match python agent-sdk behavior.
+  // Do NOT JSON-encode here; the LLM expects the same plain text the Python SDK sends.
   const toolMessageEvent: MessageEvent = {
     kind: 'MessageEvent',
     source: 'environment',
@@ -37,7 +39,7 @@ export const createToolCallErrorEvents = (
       role: 'tool',
       tool_call_id: toolCallId,
       name: toolName,
-      content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+      content: [{ type: 'text', text: message }],
     },
   };
 
