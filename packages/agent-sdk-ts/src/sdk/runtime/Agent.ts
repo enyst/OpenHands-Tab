@@ -55,6 +55,7 @@ export class Agent extends EventEmitter {
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
+  private readonly debug: boolean;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -73,6 +74,7 @@ export class Agent extends EventEmitter {
       confirmUnknown: options.settings?.confirmation?.confirmUnknown ?? true,
     };
     this.agentContext = options.agentContext;
+    this.debug = options.settings?.agent?.debug ?? false;
 
     this.events.on((event) => this.emit('event', event));
   }
@@ -159,7 +161,14 @@ export class Agent extends EventEmitter {
           value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
         } as Event);
       } catch (error) {
-        void error; // ignore debug emission failures
+        if (this.debug) {
+          console.warn('[Agent] Failed to emit llm_request debug event:', error);
+          this.events.push({
+            kind: 'ConversationErrorEvent',
+            source: 'agent',
+            detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
+          } as Event);
+        }
       }
       let response;
       try {
@@ -225,8 +234,15 @@ export class Agent extends EventEmitter {
               arguments: safeArgs,
             },
           } as Event);
-        } catch {
-          // Swallow errors from logging tool call metadata; tool execution will still proceed.
+        } catch (error) {
+          if (this.debug) {
+            console.warn('[Agent] Failed to emit tool_call_raw debug event:', error);
+            this.events.push({
+              kind: 'ConversationErrorEvent',
+              source: 'agent',
+              detail: `Debug event emission failed for tool call: ${error instanceof Error ? error.message : String(error)}`,
+            } as Event);
+          }
         }
 
         const parsed = this.parseToolArgs(toolCall);
