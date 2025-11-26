@@ -164,7 +164,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Enable dev bridge only for Development/Test extension modes or with user setting
   const mode = context.extensionMode;
-  const isDevOrTest = mode === vscode.ExtensionMode.Development || mode === vscode.ExtensionMode.Test;
+  const extensionMode = vscode.ExtensionMode;
+  const isDevOrTest =
+    (extensionMode?.Development !== undefined &&
+      (mode === extensionMode.Development || mode === extensionMode.Test)) ||
+    false;
   const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
   devBridgeEnabled = isDevOrTest || enableFromSetting;
   void initFileLogger(context);
