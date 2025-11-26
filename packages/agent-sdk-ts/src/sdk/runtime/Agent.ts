@@ -247,16 +247,14 @@ export class Agent extends EventEmitter {
         }
 
         const parsed = this.parseToolArgs(toolCall);
-        const args = parsed?.args ?? null;
-        const securityRisk = parsed?.securityRisk;
-
-        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
-        const recordedAction = this.events.push(actionEvent) as ActionEvent;
-
         if (!parsed) {
           toolExecutionFailed = true;
           continue;
         }
+        const { args, securityRisk } = parsed;
+
+        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
+        const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
