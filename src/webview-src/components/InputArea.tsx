@@ -51,13 +51,11 @@ export function InputArea({
 
   const emitSelection = (el: HTMLTextAreaElement | null) => {
     if (!el || !onSelectionChange) return;
-    try {
-      const start = (el as any).selectionStart as number | undefined;
-      const end = (el as any).selectionEnd as number | undefined;
-      if (typeof start === 'number' && typeof end === 'number') {
-        onSelectionChange(start, end);
-      }
-    } catch {}
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    if (typeof start === 'number' && typeof end === 'number') {
+      onSelectionChange(start, end);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

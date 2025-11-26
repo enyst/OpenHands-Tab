@@ -3,13 +3,15 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './components/App';
+import { getVscodeApi } from './shared/vscodeApi';
 // Global CSS now linked via HTML (media/index.css). No CSS imports here.
 
 // --- Webview instrumentation: bridge console/errors/network to extension host ---
 (function initInstrumentation() {
   try {
-    const post = (payload: any) => {
-      try { (globalThis as any).__OH_VSCODE_API__?.postMessage(payload); } catch {}
+    const api = getVscodeApi();
+    const post = (payload: unknown) => {
+      try { api.postMessage(payload); } catch {}
     };
 
     // Signal readiness (in case the host waits on it)
@@ -18,8 +20,8 @@ import { App } from './components/App';
     // Console bridge
     const levels: Array<'log' | 'warn' | 'error'> = ['log', 'warn', 'error'];
     levels.forEach((level) => {
-      const orig = (console as any)[level]?.bind(console);
-      (console as any)[level] = (...args: unknown[]) => {
+      const orig = console[level]?.bind(console);
+      console[level] = (...args: unknown[]) => {
         try { post({ type: 'webviewConsole', level, args: args.map(String) }); } catch {}
         try { orig?.(...args); } catch {}
       };
@@ -27,7 +29,7 @@ import { App } from './components/App';
 
     // Uncaught errors
     window.addEventListener('error', (e) => {
-      post({ type: 'webviewError', message: e.message, stack: (e as any).error?.stack });
+      post({ type: 'webviewError', message: e.message, stack: e.error instanceof Error ? e.error.stack : undefined });
     });
     window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
       post({ type: 'webviewError', message: 'unhandledrejection', stack: String(e.reason) });
@@ -35,15 +37,21 @@ import { App } from './components/App';
 
     // fetch wrapper
     const origFetch = window.fetch.bind(window);
-    type FetchParams = Parameters<typeof window.fetch>;
-    (window as any).fetch = async (...args: FetchParams) => {
+    const wrappedFetch: typeof window.fetch = async (...args) => {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       try {
         const [input, init] = args;
-        const method = ((init as any)?.method) || ((input as any)?.method) || 'GET';
-        const url = (typeof input === 'string' || input instanceof URL) ? String(input) : (((input as any)?.url) ?? String(input));
+        const method =
+          (init && 'method' in init && typeof init.method === 'string' && init.method) ||
+          (input instanceof Request && typeof input.method === 'string' ? input.method : 'GET');
+        const url =
+          typeof input === 'string' || input instanceof URL
+            ? String(input)
+            : input instanceof Request && typeof input.url === 'string'
+              ? input.url
+              : '[unknown]';
         post({ type: 'webviewNetwork', phase: 'request', id, method, url });
-        const res: Response = await origFetch(input as any, init as any);
+        const res = await origFetch(...args);
         post({ type: 'webviewNetwork', phase: 'response', id, status: res.status, ok: res.ok });
         return res;
       } catch (err) {
@@ -51,20 +59,24 @@ import { App } from './components/App';
         throw err;
       }
     };
+    window.fetch = wrappedFetch;
 
     // WebSocket wrapper (basic lifecycle logging)
-    const OrigWS = (window as any).WebSocket;
-    (window as any).WebSocket = function(url: string | URL, protocols?: string | string[]) {
-      const ws = new OrigWS(url, protocols);
-      try { post({ type: 'webviewWebSocket', phase: 'created', url: String(url) }); } catch {}
-      try {
-        ws.addEventListener('open', () => post({ type: 'webviewWebSocket', phase: 'open', url: String(url) }));
-        ws.addEventListener('close', (e: CloseEvent) => post({ type: 'webviewWebSocket', phase: 'close', code: e.code, reason: e.reason }));
-        ws.addEventListener('error', () => post({ type: 'webviewWebSocket', phase: 'error' }));
-      } catch {}
-      return ws;
-    } as any;
-    (window as any).WebSocket.prototype = OrigWS.prototype;
+    const OrigWS = window.WebSocket;
+    class InstrumentedWebSocket extends OrigWS {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        try { post({ type: 'webviewWebSocket', phase: 'created', url: String(url) }); } catch {}
+        try {
+          this.addEventListener('open', () => post({ type: 'webviewWebSocket', phase: 'open', url: String(url) }));
+          this.addEventListener('close', (e: CloseEvent) =>
+            post({ type: 'webviewWebSocket', phase: 'close', code: e.code, reason: e.reason })
+          );
+          this.addEventListener('error', () => post({ type: 'webviewWebSocket', phase: 'error' }));
+        } catch {}
+      }
+    }
+    window.WebSocket = InstrumentedWebSocket as typeof window.WebSocket;
   } catch {}
 })();
 // --- End instrumentation ---
