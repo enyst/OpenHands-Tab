@@ -2,6 +2,50 @@
 
 This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@openhands/agent-sdk-ts` (VS Code-focused SDK). It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
 
+
+## Current parity snapshot (2025-11-26)
+
+This section summarizes concrete behavior alignment between Python agent-sdk and TypeScript @openhands/agent-sdk-ts observed today, with pointers to code/tests and gaps to close.
+
+- Tool error messages (MessageEvent with role="tool")
+  - Python: events_to_messages converts AgentErrorEvent to a tool Message with plain text error content. No JSON encoding. See tests/sdk/event/test_events_to_messages.py::test_agent_error_event.
+  - TypeScript: createToolCallErrorEvents emits a tool MessageEvent with plain text error content (not JSON). See src/sdk/runtime/toolCallErrorEvents.ts.
+  - Truncation: TS caps error text at 4096 chars and appends " (truncated)"; Python does not enforce a 4096 cap in conversion (viewer utilities may truncate for display). Status: content format aligned (plain text); truncation policy diverges.
+
+- Tool-call argument redaction (llm_tool_call_raw and logs)
+  - Python: Secrets masking is applied to tool observations (e.g., Terminal) via SecretRegistry.mask_secrets_in_output; broader recursive argument redaction is not centrally enforced for tool-call argument logging.
+  - TypeScript: Agent redacts recursively with heuristics, masking known keys (apiKey, token, password, client_secret, etc.) to "***" and masking Authorization: Bearer tokens in strings. See src/sdk/runtime/Agent.ts redactObject/redactStringHeuristics and tests Agent.redaction.test.ts and Agent.tool-call-redaction.test.ts.
+  - Status: TS adds stronger argument redaction for logs; Python focuses on observation output masking. Parity gap: centralized recursive argument redaction in Python or aligned policy documentation.
+
+- security_risk on ActionEvent
+  - Python: ActionEvent always has security_risk (defaults to UNKNOWN if omitted). See tests/cross/test_remote_conversation_live_server.py and tests/sdk/agent/test_extract_security_risk.py.
+  - TypeScript: security_risk is optional; parseToolArgs pops security_risk from arguments and returns undefined when missing/invalid. See src/sdk/runtime/Agent.ts parseToolArgs/parseSecurityRisk and tests Agent.security-risk.test.ts.
+  - Status: Divergence. Consider adding defaulting to UNKNOWN in TS when integrating with agent-server, or clearly documenting optionality in TS-only flows.
+
+- tool_call_id propagation
+  - Python: tool_call_id is preserved across ActionEvent, ObservationEvent, AgentErrorEvent, and tool MessageEvent. See tests/sdk/event/test_events_to_messages.py and cross tests.
+  - TypeScript: tool_call_id is populated consistently in ActionEvent/ObservationEvent and in error/tool messages. See src/sdk/runtime/Agent.ts and toolCallErrorEvents.ts and tests Agent.tool-errors.test.ts.
+  - Status: Aligned.
+
+- AgentErrorEvent shape
+  - Python: includes error (text), tool_name, tool_call_id. See tests/sdk/event/test_event_serialization.py and test_events_to_messages.py.
+  - TypeScript: same fields present. See src/sdk/types/index.ts and toolCallErrorEvents.ts. Status: Aligned.
+
+- Message roles and conversion
+  - Python: LLMConvertibleEvent.events_to_messages builds system/user/assistant/tool messages; tool responses set role="tool" and include tool_call_id/name; agent errors become role="tool" messages with the error text. See tests/sdk/event/test_events_to_messages.py.
+  - TypeScript: Agent pushes MessageEvents with role="tool" for observations and errors; assistant messages carry tool_calls; schemas mirror Python. See src/sdk/runtime/Agent.ts and tests.
+  - Status: Aligned for core paths used by VS Code extension.
+
+- Persistence and EventLog
+  - Python: File-backed EventLog, deterministic IDs, resume-from-disk via ConversationState.create, FIFO locks, etc.
+  - TypeScript: In-memory EventLog and state. Already documented below; gap remains.
+
+Actionable gaps to consider next
+- Decide on unified error text truncation policy (keep TS 4096 cap or match Python behavior). If keeping TS cap, document rationale and ensure consumers expect plain text possibly truncated.
+- Define cross-SDK policy for tool-call argument redaction; either port TS recursive redaction to Python (central helper) or scope TS to observation-only to match Python. Document effective guarantees for logs/telemetry.
+- security_risk defaulting: consider default UNKNOWN in TS when interoperating with agent-server to match Python expectations; otherwise ensure server tolerates undefined in TS-local contexts.
+- Longer term: remote workspace, persisted EventLog/ConversationState, analyzers/condensers to approach Python feature parity.
+
 ## Workspace layer
 
 ### Python shape
