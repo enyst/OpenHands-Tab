@@ -24,7 +24,7 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - tool_call_id propagation
   - Python: tool_call_id is preserved across ActionEvent, ObservationEvent, AgentErrorEvent, and tool MessageEvent. See tests/sdk/event/test_events_to_messages.py and cross tests.
-  - TypeScript: tool_call_id is populated consistently in ActionEvent/ObservationEvent and in error/tool messages. See src/sdk/runtime/Agent.ts and toolCallErrorEvents.ts and tests Agent.tool-errors.test.ts.
+  - TypeScript: tool_call_id is populated consistently in ActionEvent/ObservationEvent and in error/tool messages. See src/sdk/runtime/Agent.ts and toolCallErrorEvents.ts and tests: `Agent.tool-errors.test.ts`.
   - Status: Aligned.
 
 - AgentErrorEvent shape
