@@ -93,6 +93,8 @@ describe('Agent tool call error handling', () => {
     expect(toolMessages).toHaveLength(1);
     expect(toolMessages[0].llm_message.tool_call_id).toBe('call_missing');
     expect(toolMessages[0].llm_message.name).toBe('does_not_exist');
+
+    expect(agent.state.snapshot.status).toBe('IDLE');
   });
 
   it('propagates validation failures while emitting tool messages', async () => {
