@@ -472,8 +472,9 @@ export class Agent extends EventEmitter {
   private async executeTool(toolCall: ToolCall, actionEvent: ActionEvent, args: Record<string, unknown>): Promise<void> {
     const tool = this.tools.get(toolCall.function.name);
     if (!tool) {
-      this.emitToolError(toolCall, `Unknown tool: ${toolCall.function.name}`);
-      return;
+      const errText = `Unknown tool: ${toolCall.function.name}`;
+      this.emitToolError(toolCall, errText);
+      throw new Error(errText);
     }
 
     let validated;
