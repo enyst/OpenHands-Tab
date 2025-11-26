@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
 import { Agent, EventLog } from '..';
 import { isConversationStateUpdateEvent } from '../../types';
@@ -27,7 +27,22 @@ const baseSettings: OpenHandsSettings = {
   secrets: {},
 };
 
-const createWorkspaceRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-redaction-'));
+const workspaceRoots: string[] = [];
+
+const createWorkspaceRoot = (): string => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-redaction-'));
+  workspaceRoots.push(root);
+  return root;
+};
+
+afterEach(() => {
+  while (workspaceRoots.length > 0) {
+    const root = workspaceRoots.pop();
+    if (root) {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
 
 describe('Agent tool call logging redaction', () => {
   it('redacts nested sensitive values when logging tool calls', async () => {
