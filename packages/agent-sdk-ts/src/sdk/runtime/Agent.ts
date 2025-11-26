@@ -40,20 +40,19 @@ export interface AgentOptions {
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
 const SENSITIVE_FIELD_PATTERN = /^(api[-_]?key|token|secret|password|authorization)$/i;
 
-const redactSensitiveFields = (value: unknown, visited = new WeakSet<object>()): unknown => {
+// Tool call arguments are parsed from JSON and therefore are expected to be plain
+// objects/arrays without circular references. Redaction is kept simple and purely
+// structural to avoid carrying unreachable circular-reference handling.
+const redactSensitiveFields = (value: unknown): unknown => {
   if (Array.isArray(value)) {
-    if (visited.has(value)) return '[CIRCULAR]';
-    visited.add(value);
-    return value.map((entry) => redactSensitiveFields(entry, visited));
+    return value.map((entry) => redactSensitiveFields(entry));
   }
 
   if (value && typeof value === 'object') {
-    if (visited.has(value)) return '[CIRCULAR]';
-    visited.add(value);
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
         key,
-        SENSITIVE_FIELD_PATTERN.test(key) ? '[REDACTED]' : redactSensitiveFields(entry, visited),
+        SENSITIVE_FIELD_PATTERN.test(key) ? '[REDACTED]' : redactSensitiveFields(entry),
       ]),
     );
   }
