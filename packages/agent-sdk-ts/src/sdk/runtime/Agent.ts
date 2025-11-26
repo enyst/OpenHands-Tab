@@ -105,7 +105,7 @@ function redactStringHeuristics(text: string): string {
 }
 function redactAndTruncateArgs(raw: string): string {
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     const redacted = redactObject(parsed);
     return truncateString(JSON.stringify(redacted));
   } catch {
