@@ -114,6 +114,7 @@ function redactAndTruncateArgs(raw: string): string {
   }
 }
 
+
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
   private readonly events: EventLog;
