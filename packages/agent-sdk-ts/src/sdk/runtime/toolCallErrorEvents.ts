@@ -23,7 +23,7 @@ export const createToolCallErrorEvents = (
       role: 'tool',
       tool_call_id: toolCallId,
       name: toolName,
-      content: [{ type: 'text', text: JSON.stringify({ error: message }) }],
+      content: [{ type: 'text', text: message }],
     },
   };
 

@@ -97,7 +97,7 @@ describe('LocalConversation', () => {
     await conversation.sendUserMessage('do something');
 
     const errors = events.filter(isAgentErrorEvent);
-    expect(errors.some((e) => e.error.includes('Invalid tool arguments'))).toBe(true);
+    expect(errors.some((e) => e.error.includes('Error validating args'))).toBe(true);
     const finalAssistant = events
       .filter((e): e is MessageEvent => isMessageEvent(e) && e.source === 'agent')
       .pop();
@@ -120,7 +120,7 @@ describe('LocalConversation', () => {
     await conversation.sendUserMessage('call bad tool');
 
     const error = events.find(isAgentErrorEvent);
-    expect(error?.error).toContain('Unknown tool');
+    expect(error?.error).toContain('not found');
   });
 
   it('captures tool validation failures as AgentErrorEvents', async () => {
