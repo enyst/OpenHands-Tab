@@ -38,6 +38,24 @@ export interface AgentOptions {
 }
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
+const SENSITIVE_FIELD_PATTERN = /^(api[-_]?key|token|secret|password|authorization)$/i;
+
+const redactSensitiveFields = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactSensitiveFields(entry));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
+        key,
+        SENSITIVE_FIELD_PATTERN.test(key) ? '[REDACTED]' : redactSensitiveFields(entry),
+      ]),
+    );
+  }
+
+  return value;
+};
 
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
@@ -201,12 +219,8 @@ export class Agent extends EventEmitter {
           let safeArgs = rawArgs;
           try {
             const parsed: unknown = JSON.parse(rawArgs);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-              const redacted: Record<string, unknown> = {};
-              const sensitive = /^(api[-_]?key|token|secret|password|authorization)$/i;
-              for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-                redacted[k] = sensitive.test(k) ? '[REDACTED]' : v;
-              }
+            if (parsed && typeof parsed === 'object') {
+              const redacted = redactSensitiveFields(parsed);
               safeArgs = JSON.stringify(redacted);
             }
           } catch {
