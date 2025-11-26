@@ -20,6 +20,7 @@ export type ServerSettings = {
 
 export type AgentSettings = {
   enableSecurityAnalyzer?: boolean;
+  debug?: boolean;
 };
 
 export type ConversationSettings = {

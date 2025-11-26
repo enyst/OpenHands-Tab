@@ -41,10 +41,7 @@ const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside 
 const SENSITIVE_FIELD_PATTERN = /^(api[-_]?key|token|secret|password|authorization)$/i;
 
 const redactSensitiveFields = (value: unknown): unknown => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => redactSensitiveFields(entry));
-  }
-
+  if (Array.isArray(value)) return value.map(redactSensitiveFields);
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
@@ -53,9 +50,10 @@ const redactSensitiveFields = (value: unknown): unknown => {
       ]),
     );
   }
-
   return value;
 };
+
+const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
@@ -73,6 +71,7 @@ export class Agent extends EventEmitter {
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
+  private readonly debug: boolean;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -91,6 +90,7 @@ export class Agent extends EventEmitter {
       confirmUnknown: options.settings?.confirmation?.confirmUnknown ?? true,
     };
     this.agentContext = options.agentContext;
+    this.debug = options.settings?.agent?.debug ?? false;
 
     this.events.on((event) => this.emit('event', event));
   }
@@ -177,7 +177,14 @@ export class Agent extends EventEmitter {
           value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
         } as Event);
       } catch (error) {
-        void error; // ignore debug emission failures
+        if (this.debug) {
+          console.warn('[Agent] Failed to emit llm_request debug event:', error);
+          this.events.push({
+            kind: 'ConversationErrorEvent',
+            source: 'agent',
+            detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
+          } as Event);
+        }
       }
       let response;
       try {
@@ -239,21 +246,26 @@ export class Agent extends EventEmitter {
               arguments: safeArgs,
             },
           } as Event);
-        } catch {
-          // Swallow errors from logging tool call metadata; tool execution will still proceed.
+        } catch (error) {
+          if (this.debug) {
+            console.warn('[Agent] Failed to emit tool_call_raw debug event:', error);
+            this.events.push({
+              kind: 'ConversationErrorEvent',
+              source: 'agent',
+              detail: `Debug event emission failed for tool call: ${error instanceof Error ? error.message : String(error)}`,
+            } as Event);
+          }
         }
 
         const parsed = this.parseToolArgs(toolCall);
-        const args = parsed?.args ?? null;
-        const securityRisk = parsed?.securityRisk;
-
-        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
-        const recordedAction = this.events.push(actionEvent) as ActionEvent;
-
         if (!parsed) {
           toolExecutionFailed = true;
           continue;
         }
+        const { args, securityRisk } = parsed;
+
+        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
+        const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
@@ -441,7 +453,7 @@ export class Agent extends EventEmitter {
       const parsed: unknown = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const { security_risk, ...rest } = parsed as Record<string, unknown>;
-        return { args: rest, securityRisk: security_risk as SecurityRisk | undefined };
+        return { args: rest, securityRisk: this.parseSecurityRisk(security_risk) };
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
@@ -451,15 +463,20 @@ export class Agent extends EventEmitter {
     }
   }
 
+  private parseSecurityRisk(value: unknown): SecurityRisk | undefined {
+    if (typeof value !== 'string') return undefined;
+    const normalized = value.toUpperCase() as SecurityRisk;
+    return SECURITY_RISK_ORDER.includes(normalized) ? normalized : undefined;
+  }
+
   private requiresConfirmation(action: ActionEvent): boolean {
     const policy = this.confirmation.policy ?? 'never';
     if (policy === 'never') return false;
     if (policy === 'always') return true;
     const risk = action.security_risk;
     if (!risk) return this.confirmation.confirmUnknown ?? true;
-    const order: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
     const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
-    return order.indexOf(risk) >= order.indexOf(threshold);
+    return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
   }
 
   private createActionEvent(
