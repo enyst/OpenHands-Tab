@@ -38,6 +38,7 @@ export interface AgentOptions {
 }
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
+const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 export class Agent extends EventEmitter {
   private readonly workspace: LocalWorkspace;
@@ -427,7 +428,7 @@ export class Agent extends EventEmitter {
       const parsed: unknown = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const { security_risk, ...rest } = parsed as Record<string, unknown>;
-        return { args: rest, securityRisk: security_risk as SecurityRisk | undefined };
+        return { args: rest, securityRisk: this.parseSecurityRisk(security_risk) };
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
@@ -437,15 +438,20 @@ export class Agent extends EventEmitter {
     }
   }
 
+  private parseSecurityRisk(value: unknown): SecurityRisk | undefined {
+    if (typeof value !== 'string') return undefined;
+    const normalized = value.toUpperCase() as SecurityRisk;
+    return SECURITY_RISK_ORDER.includes(normalized) ? normalized : undefined;
+  }
+
   private requiresConfirmation(action: ActionEvent): boolean {
     const policy = this.confirmation.policy ?? 'never';
     if (policy === 'never') return false;
     if (policy === 'always') return true;
     const risk = action.security_risk;
     if (!risk) return this.confirmation.confirmUnknown ?? true;
-    const order: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
     const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
-    return order.indexOf(risk) >= order.indexOf(threshold);
+    return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
   }
 
   private createActionEvent(
