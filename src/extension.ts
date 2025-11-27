@@ -14,6 +14,9 @@ import {
   TerminalTool,
   type BashEvent,
   type Event,
+  isEvent,
+  isMessageEvent,
+  isTextContent,
   isBashCommand,
   isBashExit,
   isBashOutput,
@@ -797,13 +800,13 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
                   const content = await fs.readFile(eventsPath, 'utf8');
                   const line = content.split('\n').find((l) => l.includes('"MessageEvent"'));
                   if (line) {
-                    const ev = JSON.parse(line) as {
-                      llm_message?: { role?: unknown; content?: Array<{ type?: unknown; text?: unknown }> };
-                    };
-                    const msg = ev?.llm_message;
-                    if (msg?.role === 'user' && Array.isArray(msg.content)) {
-                      const text = msg.content.find((c) => c?.type === 'text')?.text;
-                      if (typeof text === 'string') firstMessage = text;
+                    const parsed: unknown = JSON.parse(line);
+                    if (isEvent(parsed) && isMessageEvent(parsed)) {
+                      const msg = parsed.llm_message;
+                      if (msg.role === 'user') {
+                        const textPart = msg.content.find(isTextContent);
+                        if (textPart) firstMessage = textPart.text;
+                      }
                     }
                   }
                 } catch {}
