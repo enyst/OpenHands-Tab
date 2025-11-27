@@ -12,6 +12,11 @@ import {
   FileEditorTool,
   TaskTrackerTool,
   TerminalTool,
+  type BashEvent,
+  type Event,
+  isEvent,
+  isMessageEvent,
+  isTextContent,
   isBashCommand,
   isBashExit,
   isBashOutput,
@@ -53,7 +58,7 @@ let outputChannel: vscode.OutputChannel | undefined;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
-const sentTestEvents: unknown[] = [];
+const sentTestEvents: Event[] = [];
 
 // Dev logging/instrumentation toggle and file sink
 let devBridgeEnabled = false;
@@ -67,11 +72,13 @@ async function initFileLogger(context: vscode.ExtensionContext) {
     webviewLogFile = undefined;
   }
 }
-function fileLog(line: string) {
-  if (!devBridgeEnabled || !webviewLogFile) return;
-  const ts = new Date().toISOString();
-  fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch(() => {});
-}
+  function fileLog(line: string) {
+    if (!devBridgeEnabled || !webviewLogFile) return;
+    const ts = new Date().toISOString();
+    fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch((err: unknown) => {
+      console.warn('[OpenHands] Failed to append to webview log', err);
+    });
+  }
 
 const createDefaultLocalTools = () => [
   new TerminalTool(),
@@ -80,14 +87,20 @@ const createDefaultLocalTools = () => [
   new BrowserTool(),
 ];
 
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    return `<unserializable: ${reason}>`;
+  /* eslint-disable @typescript-eslint/no-unsafe-return */
+  function safeStringify(value: unknown): string {
+    try {
+      const rendered = JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
+      if (typeof rendered === 'string') {
+        return rendered;
+      }
+      return '<unserializable: undefined>';
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return `<unserializable: ${reason}>`;
+    }
   }
-}
+  /* eslint-enable @typescript-eslint/no-unsafe-return */
 
 async function listWorkspaceFiles(limit = 500): Promise<string[]> {
   if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
@@ -133,16 +146,11 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
 
 export function activate(context: vscode.ExtensionContext) {
   try {
-    const factory = (vscode.window as typeof vscode.window & { createOutputChannel?: typeof vscode.window.createOutputChannel }).createOutputChannel;
-    if (factory) {
-      const channel = factory('OpenHands', { log: true } as any);
-      if (channel) {
-        outputChannel = channel;
-        context.subscriptions.push(channel);
-        channel.show?.(true);
-        channel.appendLine?.('[OpenHands] Logging channel initialized');
-      }
-    }
+    const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
+    outputChannel = channel;
+    context.subscriptions.push(channel);
+    channel.show(true);
+    channel.appendLine('[OpenHands] Logging channel initialized');
   } catch (err) {
     console.warn('[OpenHands] Failed to create output channel:', err);
     outputChannel = undefined;
@@ -158,15 +166,17 @@ export function activate(context: vscode.ExtensionContext) {
   }));
 
   // Enable dev bridge only for Development/Test extension modes or with user setting
-  const ExtMode = (vscode as any).ExtensionMode;
-  const mode = (context as any).extensionMode;
-  const isDevOrTest = !!(ExtMode && (mode === ExtMode.Development || mode === ExtMode.Test));
+  const mode = context.extensionMode;
+  const extensionMode = vscode.ExtensionMode;
+  const isDevOrTest =
+    (extensionMode?.Development !== undefined &&
+      (mode === extensionMode.Development || mode === extensionMode.Test)) ||
+    false;
   const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
   devBridgeEnabled = isDevOrTest || enableFromSetting;
   void initFileLogger(context);
 
-
-  const handleTerminalEvent = (event: any) => {
+  const handleTerminalEvent = (event: BashEvent) => {
     receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
     if (receivedTerminalEvents.length > MAX_TERMINAL_EVENTS) {
       receivedTerminalEvents.shift();
@@ -251,20 +261,19 @@ export function activate(context: vscode.ExtensionContext) {
       conversationMode = desiredMode;
 
       conversation.removeAllListeners();
-      conversation.on('status', (s) => {
-        outputChannel?.appendLine(`[status] ${s}`);
-        void panel?.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
-      });
-      let streamingState = initialLlmStreamingState;
-      conversation.on('event', (ev) => {
-        const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
+        conversation.on('status', (s: string) => {
+          outputChannel?.appendLine(`[status] ${s}`);
+          void panel?.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
+        });
+        let streamingState = initialLlmStreamingState;
+        conversation.on('event', (ev: Event) => {
+          const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
+          streamingState = streamingUpdate.state;
+          const isStateUpdate = ev.kind === 'ConversationStateUpdateEvent';
+          const isLlmStreamUpdate = isStateUpdate && (ev.key === 'llm_stream' || ev.key === 'llm_tool_call');
 
-        const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
-        streamingState = streamingUpdate.state;
-        const isLlmStreamUpdate = evAny.kind === 'ConversationStateUpdateEvent' && (evAny.key === 'llm_stream' || evAny.key === 'llm_tool_call');
-
-        if (streamingUpdate.started) {
-          outputChannel?.appendLine('[llm] Streaming started...');
+          if (streamingUpdate.started) {
+            outputChannel?.appendLine('[llm] Streaming started...');
         }
 
         if (!isLlmStreamUpdate) {
@@ -275,17 +284,17 @@ export function activate(context: vscode.ExtensionContext) {
           outputChannel?.appendLine('[llm] Streaming complete');
         }
 
-        // Friendly LLM request summary for debugging
-        try {
-          if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_request') {
-            const raw = evAny.value as {
-              model?: unknown;
-              tools?: unknown;
-              tool_count?: unknown;
-            } | undefined;
-            const model = typeof raw?.model === 'string' ? raw.model : undefined;
-            const names = Array.isArray(raw?.tools)
-              ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
+          // Friendly LLM request summary for debugging
+          try {
+            if (isStateUpdate && ev.key === 'llm_request') {
+              const raw = ev.value as {
+                model?: unknown;
+                tools?: unknown;
+                tool_count?: unknown;
+              } | undefined;
+              const model = typeof raw?.model === 'string' ? raw.model : undefined;
+              const names = Array.isArray(raw?.tools)
+                ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
               : [];
             const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
             const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
@@ -304,14 +313,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
         void panel?.webview.postMessage({ type: 'error', error: rendered });
       });
-      conversation.on('conversationStarted', (id) => {
-        outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
-        void context.workspaceState.update('openhands.conversationId', id);
-        if (id) {
-          void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });
-        }
-      });
-      conversation.on('terminal', (event) => handleTerminalEvent(event));
+        conversation.on('conversationStarted', (id: string | undefined) => {
+          outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
+          void context.workspaceState.update('openhands.conversationId', id);
+          if (id) {
+            void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });
+          }
+        });
+        conversation.on('terminal', (event: BashEvent) => handleTerminalEvent(event));
       if (savedId) {
         try {
           const maybe = conversation.restoreConversation(savedId);
@@ -375,20 +384,20 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Test command to send mock events to webview for E2E testing
-  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: unknown) => {
-    if (!panel) {
-      await ensurePanelAndConnection();
-    }
-    sentTestEvents.push(event);
-    void panel?.webview.postMessage({ type: 'event', event });
+    const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: Event) => {
+      if (!panel) {
+        await ensurePanelAndConnection();
+      }
+      sentTestEvents.push(event);
+      void panel?.webview.postMessage({ type: 'event', event });
     return { sent: true };
   });
 
   // Query rendered events from webview for E2E testing
-  const queryRenderedEvents = vscode.commands.registerCommand('openhands._queryRenderedEvents', async () => {
-    if (!panel) {
-      return { count: 0, eventTypes: [] };
-    }
+    const queryRenderedEvents = vscode.commands.registerCommand('openhands._queryRenderedEvents', async () => {
+      if (!panel) {
+        return { count: 0, eventTypes: [] };
+      }
 
     // Clear previous response and request from webview
     renderedEventsInfo = undefined;
@@ -403,11 +412,11 @@ export function activate(context: vscode.ExtensionContext) {
       await new Promise((r) => setTimeout(r, 50));
     }
 
-    // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
-    const filtered = sentTestEvents.filter((e) => !((e as any)?.kind === 'ConversationStateUpdateEvent'));
-    const types = filtered.map((e) => (e && typeof e === 'object' && 'kind' in (e as any)) ? (e as any).kind : 'unknown');
-    return { count: types.length, eventTypes: types };
-  });
+      // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
+      const filtered = sentTestEvents.filter((e) => e.kind !== 'ConversationStateUpdateEvent');
+      const types = filtered.map((e) => e.kind ?? 'unknown');
+      return { count: types.length, eventTypes: types };
+    });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensurePanelAndConnection();
@@ -782,23 +791,25 @@ function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.Webvie
           const conversations = await Promise.all(ids.map(async (id) => {
             try {
               const statePath = path.join(convRoot, id, 'state.json');
-              const eventsPath = path.join(convRoot, id, 'events.jsonl');
-              const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
-              const timestamp = stat?.mtimeMs ?? Date.now();
-              // Try to read first user message for preview
-              let firstMessage: string | undefined;
-              try {
-                const content = await fs.readFile(eventsPath, 'utf8');
-                const line = content.split('\n').find((l) => l.includes('"MessageEvent"'));
-                if (line) {
-                  const ev = JSON.parse(line);
-                  const msg = ev?.llm_message;
-                  if (msg?.role === 'user' && Array.isArray(msg?.content)) {
-                    const text = msg.content.find((c: any) => c?.type === 'text')?.text;
-                    if (typeof text === 'string') firstMessage = text;
+                const eventsPath = path.join(convRoot, id, 'events.jsonl');
+                const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
+                const timestamp = stat?.mtimeMs ?? Date.now();
+                // Try to read first user message for preview
+                let firstMessage: string | undefined;
+                try {
+                  const content = await fs.readFile(eventsPath, 'utf8');
+                  const line = content.split('\n').find((l) => l.includes('"MessageEvent"'));
+                  if (line) {
+                    const parsed: unknown = JSON.parse(line);
+                    if (isEvent(parsed) && isMessageEvent(parsed)) {
+                      const msg = parsed.llm_message;
+                      if (msg.role === 'user') {
+                        const textPart = msg.content.find(isTextContent);
+                        if (textPart) firstMessage = textPart.text;
+                      }
+                    }
                   }
-                }
-              } catch {}
+                } catch {}
               return { id, timestamp: Math.floor(timestamp), firstMessage };
             } catch {
               return { id, timestamp: Date.now() };

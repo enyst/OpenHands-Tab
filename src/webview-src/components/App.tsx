@@ -15,6 +15,7 @@ import {
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
+import { getVscodeApi } from '../shared/vscodeApi';
 
 // Component imports
 import { Header } from './Header';
@@ -33,27 +34,6 @@ import {
   MessageEventBlock,
   StreamingMessageBlock,
 } from './EventBlock';
-
-interface VscodeApi {
-  postMessage: (message: unknown) => void;
-}
-
-// Cache the VS Code API - it can only be acquired once per webview
-let vscodeApiInstance: VscodeApi | null = null;
-
-function getVscodeApi(): VscodeApi {
-  if (vscodeApiInstance) return vscodeApiInstance;
-
-  let api: any = undefined;
-  if (typeof window !== 'undefined') {
-    const g = window as any;
-    api = g.__OH_VSCODE_API__ ?? (typeof g.acquireVsCodeApi === 'function' ? g.acquireVsCodeApi?.() : undefined);
-  }
-  const safe: VscodeApi = api ?? { postMessage: () => { /* noop for tests */ } };
-  vscodeApiInstance = safe;
-  try { (window as any).__OH_VSCODE_API__ = safe; } catch {}
-  return safe;
-}
 
 type RenderedEvent = { id: number; event: Event };
 
@@ -82,7 +62,7 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
   if (isCondensation(event)) return <CondensationBlock event={event} index={index} />;
 
   // Fallback for unknown events
-  const safeKind = (event as any)?.kind ?? 'unknown';
+  const safeKind = 'kind' in event && typeof event.kind === 'string' ? event.kind : 'unknown';
   return (
     <div className="bg-white/5 border-l-[3px] border-gray-500 p-4 rounded-lg my-3">
       <div className="font-semibold mb-2">Unknown Event: {String(safeKind)}</div>
@@ -330,13 +310,21 @@ export function App() {
             setSkills(payload.skills);
           }
           break;
-        case 'queryRenderedEvents':
+        case 'queryRenderedEvents': {
+          const eventTypes = events.map(({ event }) => {
+            if ('kind' in event && typeof event.kind === 'string') return event.kind;
+            if ('type' in event && typeof (event as { type?: unknown }).type === 'string') {
+              return (event as { type: string }).type;
+            }
+            return 'unknown';
+          });
           postMessage({
             type: 'renderedEventsResponse',
             count: events.length,
-            eventTypes: events.map(e => (e.event as any).kind ?? (e.event as any).type)
+            eventTypes
           });
           break;
+        }
         case 'historyList': {
           const list = Array.isArray(payload.conversations) ? payload.conversations : [];
           setHistory(list);

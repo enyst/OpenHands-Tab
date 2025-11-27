@@ -10,32 +10,12 @@ import {
   type Condensation,
   isTextContent,
 } from '@openhands/agent-sdk-ts';
+import { getVscodeApi } from '../shared/vscodeApi';
 
 // Message accent colors
 const USER_ACCENT_COLOR = '#3B82F6';
 const AGENT_ACCENT_COLOR = '#D97706';
 const DEFAULT_ACCENT_COLOR = '#6B7280';
-
-// Minimal VS Code API accessor (mirrors App.tsx logic)
-interface VscodeApi { postMessage: (message: unknown) => void }
-let vscodeApiInstance: VscodeApi | undefined;
-function getVscodeApi(): VscodeApi {
-  if (vscodeApiInstance) return vscodeApiInstance;
-  if (typeof window !== 'undefined') {
-    const g = window as any;
-    if (g.__OH_VSCODE_API__) {
-      vscodeApiInstance = g.__OH_VSCODE_API__ as VscodeApi;
-      return vscodeApiInstance;
-    }
-    if (typeof g.acquireVsCodeApi === 'function') {
-      vscodeApiInstance = g.acquireVsCodeApi();
-      try { g.__OH_VSCODE_API__ = vscodeApiInstance; } catch {}
-      return vscodeApiInstance as VscodeApi;
-    }
-  }
-  vscodeApiInstance = { postMessage: () => {} };
-  return vscodeApiInstance;
-}
 
 // Security risk badge component
 function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }) {
