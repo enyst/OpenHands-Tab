@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
 import type {
@@ -211,6 +211,25 @@ describe('Agent-SDK event rendering', () => {
     expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
     fireEvent.click(toggle);
     expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();
+  });
+
+
+  it('suppresses tool role message events', async () => {
+    render(<App />);
+    const toolEvent: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'environment',
+      llm_message: {
+        role: 'tool',
+        content: [{ type: 'text', text: 'Internal tool payload' }],
+        name: 'file_editor',
+        tool_call_id: 'call_tool_1',
+      },
+    } as any;
+    postToWindow({ type: 'event', event: toolEvent });
+    await waitFor(() => {
+      expect(screen.queryByText(/Internal tool payload/)).toBeNull();
+    });
   });
 
 });

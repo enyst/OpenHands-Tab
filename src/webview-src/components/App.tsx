@@ -55,7 +55,10 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
   if (isActionEvent(event)) return <ActionEventBlock event={event} index={index} />;
   if (isObservationEvent(event)) return <ObservationEventBlock event={event} index={index} />;
   if (isUserRejectObservation(event)) return <UserRejectBlock event={event} index={index} />;
-  if (isMessageEvent(event)) return <MessageEventBlock event={event} index={index} />;
+  if (isMessageEvent(event)) {
+    if (event.llm_message?.role === 'tool') return null;
+    return <MessageEventBlock event={event} index={index} />;
+  }
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} index={index} />;
   if (isConversationErrorEvent(event)) return <ConversationErrorBlock event={event} index={index} />;
   if (isPauseEvent(event)) return null; // Pause events only show in status bar
