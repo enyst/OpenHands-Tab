@@ -208,7 +208,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: observationEvent });
     await screen.findByText(/Agent read/);
-    const toggle = await screen.findByRole('button', { name: /Show raw payload/i });
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
     expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
     fireEvent.click(toggle);
     expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();

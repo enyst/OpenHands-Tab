@@ -358,7 +358,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const shouldShowRaw = !isFileEditorObservation || isExpanded;
   const showToggle = isFileEditorObservation || isTruncated;
   const toggleLabel = isFileEditorObservation
-    ? isExpanded ? 'Hide raw payload' : 'Show raw payload'
+    ? isExpanded ? 'Hide tool result' : 'Show tool result'
     : isExpanded ? 'Show less' : 'Show more';
 
   return (
@@ -367,6 +367,16 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
         <span className="codicon codicon-eye text-lg" style={{ color: '#F59E0B' }} />
         <div className="font-semibold text-base">Tool Result</div>
         <span className="font-mono text-sm text-brand-400">{event.tool_name}</span>
+        {showToggle && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-auto text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+            aria-label={toggleLabel}
+            title={toggleLabel}
+          >
+            <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
+          </button>
+        )}
       </div>
 
       {fileEditorSummary && <div className="mb-3">{fileEditorSummary}</div>}
@@ -380,16 +390,6 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
             {observationString}
           </pre>
         </div>
-      )}
-
-      {showToggle && (
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="mt-2 text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
-        >
-          <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
-          {toggleLabel}
-        </button>
       )}
     </EventContainer>
   );
