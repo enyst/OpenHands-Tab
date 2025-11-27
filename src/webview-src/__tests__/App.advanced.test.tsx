@@ -874,8 +874,8 @@ describe('App - Advanced Test Coverage', () => {
 
       postToWindow({ type: 'event', event: observation });
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show more/i })).toBeInTheDocument();
       });
     });
 
@@ -894,18 +894,18 @@ describe('App - Advanced Test Coverage', () => {
 
       postToWindow({ type: 'event', event: observation });
 
-      const showMoreBtn = await screen.findByText(/Show more/);
+      const showMoreBtn = await screen.findByRole('button', { name: /Show more/i });
       await userEvent.click(showMoreBtn);
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show less/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show less/i })).toBeInTheDocument();
       });
 
-      const showLessBtn = screen.getByText(/Show less/);
+      const showLessBtn = await screen.findByRole('button', { name: /Show less/i });
       await userEvent.click(showLessBtn);
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show more/i })).toBeInTheDocument();
       });
     });
   });

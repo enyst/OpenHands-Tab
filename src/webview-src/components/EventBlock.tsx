@@ -317,6 +317,7 @@ export function SystemPromptEventBlock({ event, index }: { event: SystemPromptEv
           title={toggleLabel}
         >
           <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
+          <span>{isExpanded ? 'Hide' : 'Show'}</span>
         </button>
       </div>
       {isExpanded && (
@@ -453,9 +454,10 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="mt-2 text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+          aria-label={footerToggleLabel}
+          title={footerToggleLabel}
         >
           <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
-          {footerToggleLabel}
         </button>
       )}
 
