@@ -8,7 +8,6 @@ import { FileStore } from '@openhands/agent-sdk-ts';
 import {
   Conversation,
   type ConversationInstance,
-  BrowserTool,
   FileEditorTool,
   TaskTrackerTool,
   TerminalTool,
@@ -84,7 +83,6 @@ const createDefaultLocalTools = () => [
   new TerminalTool(),
   new FileEditorTool(),
   new TaskTrackerTool(),
-  new BrowserTool(),
 ];
 
   /* eslint-disable @typescript-eslint/no-unsafe-return */
