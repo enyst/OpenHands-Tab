@@ -298,20 +298,35 @@ function EventContainer({
 
 // System Prompt Event
 export function SystemPromptEventBlock({ event, index }: { event: SystemPromptEvent; index?: number }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const toggleLabel = isExpanded ? 'Hide system prompt' : 'Show system prompt';
+
   return (
     <EventContainer accentColor="#9333EA" index={index}>
       <div className="flex items-center gap-2 mb-3">
         <span className="codicon codicon-gear text-lg" style={{ color: '#9333EA' }} />
-        <div className="font-semibold text-base">System Configuration</div>
+        <div className="font-semibold text-base">System Prompt</div>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="ml-auto text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+        >
+          <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
+        </button>
       </div>
-      <div className="whitespace-pre-wrap text-sm leading-relaxed opacity-90 font-mono">
-        {event.system_prompt.text}
-      </div>
-      {event.tools && event.tools.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-white/10 text-xs opacity-70 flex items-center gap-2">
-          <span className="codicon codicon-tools" />
-          <span>{event.tools.length} tools available</span>
-        </div>
+      {isExpanded && (
+        <>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed opacity-90 font-mono">
+            {event.system_prompt.text}
+          </div>
+          {event.tools && event.tools.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white/10 text-xs opacity-70 flex items-center gap-2">
+              <span className="codicon codicon-tools" />
+              <span>{event.tools.length} tools available</span>
+            </div>
+          )}
+        </>
       )}
     </EventContainer>
   );

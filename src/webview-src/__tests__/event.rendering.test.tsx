@@ -84,6 +84,8 @@ describe('Agent-SDK event rendering', () => {
       tools: [{ name: 'bash' }, { name: 'read' }, { name: 'write' }]
     } as any;
     postToWindow({ type: 'event', event: ev });
+    const toggle = await screen.findByRole('button', { name: /Show system prompt/i });
+    fireEvent.click(toggle);
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
     expect(await screen.findByText(/3 tools available/)).toBeInTheDocument();
   });
