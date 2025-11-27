@@ -11,13 +11,18 @@ type GlobalWithApi = typeof globalThis & {
 
 let cachedApi: VscodeApi | null = null;
 const noopPostMessage = (_message: unknown) => undefined;
+const fallbackApi: VscodeApi = {
+  postMessage: noopPostMessage,
+  getState: () => undefined,
+  setState: <T>(state: T) => state,
+};
 
 export function getVscodeApi(): VscodeApi {
   if (cachedApi) return cachedApi;
 
   if (typeof globalThis !== 'undefined') {
     const g = globalThis as GlobalWithApi;
-    cachedApi = g.__OH_VSCODE_API__ ?? g.acquireVsCodeApi?.() ?? { postMessage: noopPostMessage };
+    cachedApi = g.__OH_VSCODE_API__ ?? g.acquireVsCodeApi?.() ?? fallbackApi;
     try {
       g.__OH_VSCODE_API__ = cachedApi;
     } catch {
@@ -26,6 +31,6 @@ export function getVscodeApi(): VscodeApi {
     return cachedApi;
   }
 
-  cachedApi = { postMessage: noopPostMessage };
+  cachedApi = fallbackApi;
   return cachedApi;
 }
