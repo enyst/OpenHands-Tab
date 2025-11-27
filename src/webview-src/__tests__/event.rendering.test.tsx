@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
 import type {
@@ -154,4 +154,64 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Forgetting 5 events/)).toBeInTheDocument();
   });
+
+  it('renders friendly summaries for file_editor events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Checking the README' }],
+      action: { command: 'view', path: '/tmp/README.md', view_range: [1, 5] },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_1',
+      tool_call: { id: 'call_file_editor_1', type: 'function' as const, function: { name: 'file_editor', arguments: '{}' } },
+      llm_response_id: 'resp_file_editor_1',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to read/)).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'view',
+        path: '/tmp/README.md',
+        prev_exist: true,
+        old_content: 'SECRET FILE CONTENT',
+        new_content: '1\tSECRET FILE CONTENT',
+      },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_1',
+      action_id: 'action_file_editor_1',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/Agent read/)).toBeInTheDocument();
+    expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
+  });
+
+  it('allows viewing raw file_editor payloads on demand', async () => {
+    render(<App />);
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'view',
+        path: '/tmp/README.md',
+        prev_exist: true,
+        old_content: 'SECRET FILE CONTENT',
+        new_content: '1\tSECRET FILE CONTENT',
+      },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_2',
+      action_id: 'action_file_editor_2',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    await screen.findByText(/Agent read/);
+    const toggle = await screen.findByRole('button', { name: /Show raw payload/i });
+    expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
+    fireEvent.click(toggle);
+    expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();
+  });
+
 });
+
