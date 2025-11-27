@@ -21,15 +21,19 @@ const isFileEditorCommand = (value: unknown): value is FileEditorCommand =>
 
 const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
 const getNumber = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
-const getBoolean = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
-const getCharCount = (value: unknown): number | undefined => (typeof value === 'string' ? value.length : undefined);
+
+const isLineRangeTuple = (value: unknown): value is readonly [number, number] =>
+  Array.isArray(value) && value.length === 2;
 
 const parseLineRange = (value: unknown): LineRange | undefined => {
-  if (!Array.isArray(value) || value.length !== 2) return undefined;
+  if (!isLineRangeTuple(value)) return undefined;
   const [start, end] = value;
   if (typeof start !== 'number' || typeof end !== 'number') return undefined;
   return [start, end];
 };
+
+const getBoolean = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
+const getCharCount = (value: unknown): number | undefined => (typeof value === 'string' ? value.length : undefined);
 
 const formatLineRange = (range?: LineRange): string | undefined => {
   if (!range) return undefined;
@@ -79,7 +83,7 @@ function InlineFileReference({ path }: { path?: string }) {
   );
 }
 
-const TerminalCommandPreview = ({ command }: { command?: string }) => {
+const TerminalCommandPreview = ({ command }: { command?: string }): React.ReactElement | null => {
   if (!command) return null;
   return (
     <pre className="text-xs font-mono bg-black/20 rounded p-2 overflow-x-auto">
@@ -88,7 +92,7 @@ const TerminalCommandPreview = ({ command }: { command?: string }) => {
   );
 };
 
-function FileEditorActionSummary({ action }: { action: JsonRecord | null }): JSX.Element | null {
+function FileEditorActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
   if (!action) return null;
   const command = getString(action.command);
   if (!isFileEditorCommand(command)) return null;
@@ -161,7 +165,7 @@ function FileEditorActionSummary({ action }: { action: JsonRecord | null }): JSX
   }
 }
 
-function FileEditorObservationSummary({ observation }: { observation: JsonRecord }): JSX.Element | null {
+function FileEditorObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
   const command = getString(observation.command);
   if (!isFileEditorCommand(command)) return null;
   const path = getString(observation.path);
@@ -214,7 +218,7 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
   }
 }
 
-function TerminalActionSummary({ action }: { action: JsonRecord | null }): JSX.Element | null {
+function TerminalActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
   if (!action) return null;
   const command = getString(action.command);
   return (
@@ -225,7 +229,7 @@ function TerminalActionSummary({ action }: { action: JsonRecord | null }): JSX.E
   );
 }
 
-function TerminalObservationSummary({ observation }: { observation: JsonRecord }): JSX.Element | null {
+function TerminalObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
   const exitCodeNumber = getNumber(observation.exit_code);
   const exitCodeText = exitCodeNumber !== undefined ? exitCodeNumber.toString() : getString(observation.exit_code) ?? 'unknown';
   const command = getString(observation.command);
