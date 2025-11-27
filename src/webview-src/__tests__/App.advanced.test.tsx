@@ -867,7 +867,7 @@ describe('App - Advanced Test Coverage', () => {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
-        tool_name: 'terminal',
+        tool_name: 'custom-tool',
         tool_call_id: 'obs-1',
         action_id: 'action-1'
       };
@@ -887,7 +887,7 @@ describe('App - Advanced Test Coverage', () => {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
-        tool_name: 'terminal',
+        tool_name: 'custom-tool',
         tool_call_id: 'obs-2',
         action_id: 'action-2'
       };
