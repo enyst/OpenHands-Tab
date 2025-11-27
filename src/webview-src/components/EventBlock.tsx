@@ -79,6 +79,15 @@ function InlineFileReference({ path }: { path?: string }) {
   );
 }
 
+const TerminalCommandPreview = ({ command }: { command?: string }) => {
+  if (!command) return null;
+  return (
+    <pre className="text-xs font-mono bg-black/20 rounded p-2 overflow-x-auto">
+      {command}
+    </pre>
+  );
+};
+
 function FileEditorActionSummary({ action }: { action: JsonRecord | null }): JSX.Element | null {
   if (!action) return null;
   const command = getString(action.command);
@@ -205,6 +214,29 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
   }
 }
 
+function TerminalActionSummary({ action }: { action: JsonRecord | null }): JSX.Element | null {
+  if (!action) return null;
+  const command = getString(action.command);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The agent wants to execute a terminal command.</p>
+      <TerminalCommandPreview command={command} />
+    </div>
+  );
+}
+
+function TerminalObservationSummary({ observation }: { observation: JsonRecord }): JSX.Element | null {
+  const exitCodeNumber = getNumber(observation.exit_code);
+  const exitCodeText = exitCodeNumber !== undefined ? exitCodeNumber.toString() : getString(observation.exit_code) ?? 'unknown';
+  const command = getString(observation.command);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The terminal command finished with code {exitCodeText}.</p>
+      <TerminalCommandPreview command={command} />
+    </div>
+  );
+}
+
 // Message accent colors
 const USER_ACCENT_COLOR = '#3B82F6';
 const AGENT_ACCENT_COLOR = '#D97706';
@@ -290,8 +322,13 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
   const thought = event.thought.map((t) => t.text).join('\n');
   const isExecuted = event.action !== null;
   const [isExpanded, setIsExpanded] = useState(false);
-  const isFileEditorAction = event.tool_name === 'file_editor';
-  const fileEditorSummary = isFileEditorAction ? <FileEditorActionSummary action={event.action} /> : null;
+  const actionSummary = isExecuted
+    ? event.tool_name === 'file_editor'
+      ? <FileEditorActionSummary action={event.action} />
+      : event.tool_name === 'terminal'
+        ? <TerminalActionSummary action={event.action} />
+        : null
+    : null;
 
   return (
     <EventContainer accentColor="#3B82F6" index={index}>
@@ -334,7 +371,7 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
               <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
             </button>
           </div>
-          {fileEditorSummary && <div className="mt-2">{fileEditorSummary}</div>}
+          {actionSummary && <div className="mt-2">{actionSummary}</div>}
           {isExpanded && (
             <pre className="text-xs font-mono bg-black/20 rounded p-3 overflow-x-auto animate-slide-down">
               {JSON.stringify(event.action, null, 2)}
@@ -351,15 +388,17 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const [isExpanded, setIsExpanded] = useState(false);
   const observationString = JSON.stringify(event.observation, null, 2);
   const isTruncated = observationString.length > 2000;
-  const fileEditorSummary = event.tool_name === 'file_editor' ? (
-    <FileEditorObservationSummary observation={event.observation} />
-  ) : null;
-  const isFileEditorObservation = event.tool_name === 'file_editor' && fileEditorSummary !== null;
-  const shouldShowRaw = !isFileEditorObservation || isExpanded;
-  const showToggle = isFileEditorObservation || isTruncated;
-  const toggleLabel = isFileEditorObservation
-    ? isExpanded ? 'Hide tool result' : 'Show tool result'
-    : isExpanded ? 'Show less' : 'Show more';
+  const observationSummary = event.tool_name === 'file_editor'
+    ? <FileEditorObservationSummary observation={event.observation} />
+    : event.tool_name === 'terminal'
+      ? <TerminalObservationSummary observation={event.observation} />
+      : null;
+  const hasSummary = observationSummary !== null;
+  const shouldShowRaw = !hasSummary || isExpanded;
+  const showHeaderToggle = hasSummary;
+  const showFooterToggle = !hasSummary && isTruncated;
+  const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
+  const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
 
   return (
     <EventContainer accentColor="#F59E0B" bgOpacity={0.06} index={index}>
@@ -367,30 +406,40 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
         <span className="codicon codicon-eye text-lg" style={{ color: '#F59E0B' }} />
         <div className="font-semibold text-base">Tool Result</div>
         <span className="font-mono text-sm text-brand-400">{event.tool_name}</span>
-        {showToggle && (
+        {showHeaderToggle && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
             className="ml-auto text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
-            aria-label={toggleLabel}
-            title={toggleLabel}
+            aria-label={headerToggleLabel}
+            title={headerToggleLabel}
           >
             <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
           </button>
         )}
       </div>
 
-      {fileEditorSummary && <div className="mb-3">{fileEditorSummary}</div>}
+      {observationSummary && <div className="mb-3">{observationSummary}</div>}
 
       {shouldShowRaw && (
         <div className="relative">
           <pre
             className={`text-xs font-mono bg-black/20 rounded p-3 overflow-x-auto leading-relaxed
-                        ${!isFileEditorObservation && !isExpanded && isTruncated ? 'max-h-40 overflow-hidden' : ''}`}
+                        ${!hasSummary && !isExpanded && isTruncated ? 'max-h-40 overflow-hidden' : ''}`}
           >
             {observationString}
           </pre>
         </div>
       )}
+      {showFooterToggle && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+        >
+          <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
+          {footerToggleLabel}
+        </button>
+      )}
+
     </EventContainer>
   );
 }

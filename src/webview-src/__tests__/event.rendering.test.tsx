@@ -102,7 +102,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/I will check the directory structure now/)).toBeInTheDocument();
-    expect(await screen.findByText(/terminal/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/terminal/)).length).toBeGreaterThan(0);
   });
 
   it('renders ObservationEvent', async () => {
@@ -116,6 +116,8 @@ describe('Agent-SDK event rendering', () => {
       action_id: 'action_obs_1'
     } as any;
     postToWindow({ type: 'event', event: ev });
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    fireEvent.click(toggle);
     expect(await screen.findByText(/Directory listing output from bash execution/)).toBeInTheDocument();
   });
 
@@ -213,6 +215,38 @@ describe('Agent-SDK event rendering', () => {
     fireEvent.click(toggle);
     expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();
   });
+  it('renders friendly summaries for terminal events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Running ls' }],
+      action: { command: 'ls -la' },
+      tool_name: 'terminal',
+      tool_call_id: 'call_terminal_action',
+      tool_call: { id: 'call_terminal_action', type: 'function' as const, function: { name: 'terminal', arguments: '{"command":"ls -la"}' } },
+      llm_response_id: 'resp_terminal_action',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to execute a terminal command/i)).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'ls -la',
+        exit_code: 0,
+        stdout: 'README.md',
+      },
+      tool_name: 'terminal',
+      tool_call_id: 'call_terminal_action',
+      action_id: 'action_terminal_action',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/finished with code 0/i)).toBeInTheDocument();
+  });
+
+
 
 
   it('suppresses tool role message events', async () => {
