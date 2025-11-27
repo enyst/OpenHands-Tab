@@ -86,7 +86,7 @@ describe('reduceLlmStreamingState', () => {
     expect(fromConversationError.state.phase).toBe('idle');
   });
 
-  it('emits only the incremental portion for subsequent responses', () => {
+  it('updates content when new stream data arrives', () => {
     const first = reduceLlmStreamingState(initialLlmStreamingState, {
       kind: 'ConversationStateUpdateEvent',
       key: 'llm_stream',
@@ -107,30 +107,6 @@ describe('reduceLlmStreamingState', () => {
       key: 'llm_stream',
       value: 'HelloWorld',
     });
-    expect(second.state.content).toBe('World');
-  });
-
-  it('resets offset when global stream shrinks', () => {
-    const first = reduceLlmStreamingState(initialLlmStreamingState, {
-      kind: 'ConversationStateUpdateEvent',
-      key: 'llm_stream',
-      value: 'Hello there',
-    });
-    expect(first.state.content).toBe('Hello there');
-
-    const completed = reduceLlmStreamingState(first.state, {
-      kind: 'MessageEvent',
-      source: 'agent',
-      llm_message: { role: 'assistant', content: [] },
-    });
-    expect(completed.state.phase).toBe('idle');
-
-    const second = reduceLlmStreamingState(completed.state, {
-      kind: 'ConversationStateUpdateEvent',
-      key: 'llm_stream',
-      value: 'Hi',
-    });
-    expect(second.state.content).toBe('Hi');
-    expect(second.started).toBe(true);
+    expect(second.state.content).toBe('HelloWorld');
   });
 });
