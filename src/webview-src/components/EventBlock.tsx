@@ -233,17 +233,20 @@ function EventContainer({
   bgOpacity = 0.04,
   className = '',
   index = 0,
+  dataTestId,
 }: {
   children: React.ReactNode;
   accentColor: string;
   bgOpacity?: number;
   className?: string;
   index?: number;
+  dataTestId?: string;
 }) {
   const animationDelay = `${index * 50}ms`;
 
   return (
     <div
+      data-testid={dataTestId}
       className={`
         relative rounded-lg p-4 my-3 shadow-event
         border-l-[3px] transition-all duration-300 hover:shadow-lg
@@ -494,7 +497,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
   return (
-    <EventContainer accentColor={accentColor} bgOpacity={0.06} index={index}>
+    <EventContainer accentColor={accentColor} bgOpacity={0.06} index={index} dataTestId="message-event">
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center mt-0.5 flex-shrink-0"

@@ -56,7 +56,18 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
   if (isObservationEvent(event)) return <ObservationEventBlock event={event} index={index} />;
   if (isUserRejectObservation(event)) return <UserRejectBlock event={event} index={index} />;
   if (isMessageEvent(event)) {
-    if (event.llm_message?.role === 'tool') return null;
+    const message = event.llm_message;
+    if (message?.role === 'tool') return null;
+    const hasRenderableContent = Array.isArray(message?.content)
+      ? message.content.some((item) => {
+          if (item.type === 'text') return item.text.trim().length > 0;
+          return true;
+        })
+      : false;
+    const hasToolCalls = Array.isArray(message?.tool_calls) && message.tool_calls.length > 0;
+    if (message?.role === 'assistant' && hasToolCalls && !hasRenderableContent) {
+      return null;
+    }
     return <MessageEventBlock event={event} index={index} />;
   }
   if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} index={index} />;

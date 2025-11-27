@@ -232,5 +232,27 @@ describe('Agent-SDK event rendering', () => {
     });
   });
 
-});
+  it('hides assistant tool-call placeholder messages', async () => {
+    render(<App />);
+    const assistantToolCall: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: '   ' }],
+        tool_calls: [
+          {
+            id: 'tool_call_1',
+            type: 'function',
+            function: { name: 'terminal', arguments: '{"command":"ls"}' },
+          },
+        ],
+      },
+    } as any;
+    postToWindow({ type: 'event', event: assistantToolCall });
+    await waitFor(() => {
+      expect(screen.queryAllByTestId('message-event')).toHaveLength(0);
+    });
+  });
 
+});
