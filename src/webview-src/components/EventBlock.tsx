@@ -493,6 +493,9 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
   const accentColor = isUser ? USER_ACCENT_COLOR : isAgent ? AGENT_ACCENT_COLOR : DEFAULT_ACCENT_COLOR;
   const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
+  const roleLabel = message.role === 'assistant'
+    ? 'Agent'
+    : message.role.charAt(0).toUpperCase() + message.role.slice(1);
 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
@@ -510,7 +513,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="font-semibold text-sm capitalize">{message.role}</div>
+            <div className="font-semibold text-sm">{roleLabel}</div>
             {message.created_at && (
               <div className="text-xs opacity-50">
                 {new Date(message.created_at).toLocaleTimeString()}
@@ -635,7 +638,7 @@ export function StreamingMessageBlock({ content }: { content: string }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="font-semibold text-sm">Assistant</div>
+            <div className="font-semibold text-sm">Agent</div>
             <div className="flex items-center gap-1">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" style={{ color: accentColor }} />
               <span className="text-xs opacity-50">streaming...</span>
