@@ -867,15 +867,15 @@ describe('App - Advanced Test Coverage', () => {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
-        tool_name: 'terminal',
+        tool_name: 'custom-tool',
         tool_call_id: 'obs-1',
         action_id: 'action-1'
       };
 
       postToWindow({ type: 'event', event: observation });
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show more/i })).toBeInTheDocument();
       });
     });
 
@@ -887,25 +887,25 @@ describe('App - Advanced Test Coverage', () => {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
-        tool_name: 'terminal',
+        tool_name: 'custom-tool',
         tool_call_id: 'obs-2',
         action_id: 'action-2'
       };
 
       postToWindow({ type: 'event', event: observation });
 
-      const showMoreBtn = await screen.findByText(/Show more/);
+      const showMoreBtn = await screen.findByRole('button', { name: /Show more/i });
       await userEvent.click(showMoreBtn);
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show less/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show less/i })).toBeInTheDocument();
       });
 
-      const showLessBtn = screen.getByText(/Show less/);
+      const showLessBtn = await screen.findByRole('button', { name: /Show less/i });
       await userEvent.click(showLessBtn);
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show more/i })).toBeInTheDocument();
       });
     });
   });

@@ -8,7 +8,6 @@ import { FileStore } from '@openhands/agent-sdk-ts';
 import {
   Conversation,
   type ConversationInstance,
-  BrowserTool,
   FileEditorTool,
   TaskTrackerTool,
   TerminalTool,
@@ -84,7 +83,6 @@ const createDefaultLocalTools = () => [
   new TerminalTool(),
   new FileEditorTool(),
   new TaskTrackerTool(),
-  new BrowserTool(),
 ];
 
   /* eslint-disable @typescript-eslint/no-unsafe-return */
@@ -315,6 +313,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
         conversation.on('conversationStarted', (id: string | undefined) => {
           outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
+          streamingState = initialLlmStreamingState;
           void context.workspaceState.update('openhands.conversationId', id);
           if (id) {
             void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });

@@ -37,7 +37,8 @@ describe('LocalWorkspace', () => {
       const { workspace, dir } = await makeWorkspace((value) => created.push(value));
       const result = await workspace.runCommand('pwd');
       expect(result.exitCode).toBe(0);
-      expect(result.stdout.trim()).toBe(dir);
+      const realDir = await fs.promises.realpath(dir);
+      expect(result.stdout.trim()).toBe(realDir);
     });
   });
 });

@@ -12,6 +12,235 @@ import {
 } from '@openhands/agent-sdk-ts';
 import { getVscodeApi } from '../shared/vscodeApi';
 
+type FileEditorCommand = 'view' | 'create' | 'str_replace' | 'insert';
+type JsonRecord = Record<string, unknown>;
+type LineRange = [number, number];
+
+const isFileEditorCommand = (value: unknown): value is FileEditorCommand =>
+  value === 'view' || value === 'create' || value === 'str_replace' || value === 'insert';
+
+const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
+const getNumber = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
+
+const isLineRangeTuple = (value: unknown): value is readonly [number, number] =>
+  Array.isArray(value) && value.length === 2;
+
+const parseLineRange = (value: unknown): LineRange | undefined => {
+  if (!isLineRangeTuple(value)) return undefined;
+  const [start, end] = value;
+  if (typeof start !== 'number' || typeof end !== 'number') return undefined;
+  return [start, end];
+};
+
+const getBoolean = (value: unknown): boolean | undefined => (typeof value === 'boolean' ? value : undefined);
+const getCharCount = (value: unknown): number | undefined => (typeof value === 'string' ? value.length : undefined);
+
+const formatLineRange = (range?: LineRange): string | undefined => {
+  if (!range) return undefined;
+  const [start, end] = range;
+  if (start <= 0) return undefined;
+  if (end === -1) return 'lines ' + start.toLocaleString() + '–end';
+  if (end === start) return 'line ' + start.toLocaleString();
+  return 'lines ' + start.toLocaleString() + '–' + end.toLocaleString();
+};
+
+const formatCharCount = (count?: number): string | undefined => {
+  if (count === undefined) return undefined;
+  const unit = count === 1 ? 'character' : 'characters';
+  return count.toLocaleString() + ' ' + unit;
+};
+
+const formatSizeDelta = (previous?: number, next?: number): string | undefined => {
+  if (previous === undefined || next === undefined) return undefined;
+  const delta = next - previous;
+  if (delta === 0) return 'File size unchanged.';
+  const unit = Math.abs(delta) === 1 ? 'character' : 'characters';
+  const sign = delta > 0 ? '+' : '';
+  return 'File size changed by ' + sign + delta.toLocaleString() + ' ' + unit + '.';
+};
+
+const openWorkspaceFile = (path: string) => {
+  const api = getVscodeApi();
+  api.postMessage({ type: 'openWorkspaceFile', path });
+};
+
+function InlineFileReference({ path }: { path?: string }) {
+  if (!path) {
+    return <span className="font-mono text-xs text-white/70">this path</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => openWorkspaceFile(path)}
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 text-xs font-mono text-brand-300 align-middle max-w-full"
+      aria-label={`Open ${path}`}
+      title={`Open ${path}`}
+    >
+      <span className="codicon codicon-file" />
+      <span className="truncate max-w-[16rem]">{path}</span>
+      <span className="codicon codicon-go-to-file opacity-60" />
+    </button>
+  );
+}
+
+const TerminalCommandPreview = ({ command }: { command?: string }): React.ReactElement | null => {
+  if (!command) return null;
+  return (
+    <pre className="text-xs font-mono bg-black/20 rounded p-2 overflow-x-auto">
+      {command}
+    </pre>
+  );
+};
+
+function FileEditorActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const command = getString(action.command);
+  if (!isFileEditorCommand(command)) return null;
+  const path = getString(action.path);
+
+  switch (command) {
+    case 'view': {
+      const rangeText = formatLineRange(parseLineRange(action.view_range));
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            The agent wants to read{' '}
+            <InlineFileReference path={path} />.
+          </p>
+          {rangeText && <p className="text-xs opacity-70">Requested {rangeText}.</p>}
+        </div>
+      );
+    }
+    case 'create': {
+      const planned = formatCharCount(getCharCount(action.file_text));
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            The agent wants to create{' '}
+            <InlineFileReference path={path} />.
+          </p>
+          {planned && <p className="text-xs opacity-70">They plan to write {planned}.</p>}
+        </div>
+      );
+    }
+    case 'insert': {
+      const planned = formatCharCount(getCharCount(action.new_str));
+      const insertLine = getNumber(action.insert_line);
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            The agent wants to insert text into{' '}
+            <InlineFileReference path={path} />
+            {typeof insertLine === 'number' && (
+              <>
+                {' '}
+                {insertLine === 0 ? 'at the top of the file' : `after line ${insertLine.toLocaleString()}`}
+              </>
+            )}
+            .
+          </p>
+          {planned && <p className="text-xs opacity-70">They plan to insert {planned}.</p>}
+        </div>
+      );
+    }
+    case 'str_replace': {
+      const removed = getCharCount(action.old_str);
+      const replacementLength = getCharCount(action.new_str) ?? 0;
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            The agent wants to replace text inside{' '}
+            <InlineFileReference path={path} />.
+          </p>
+          {removed !== undefined && (
+            <p className="text-xs opacity-70">
+              Replacing {formatCharCount(removed)} with {formatCharCount(replacementLength)}.
+            </p>
+          )}
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+function FileEditorObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+  const command = getString(observation.command);
+  if (!isFileEditorCommand(command)) return null;
+  const path = getString(observation.path);
+  const prevExist = getBoolean(observation.prev_exist);
+  const rawOld = observation.old_content;
+  const rawNew = observation.new_content;
+  const oldLength = typeof rawOld === 'string' ? rawOld.length : undefined;
+  const newLength = typeof rawNew === 'string' ? rawNew.length : undefined;
+
+  switch (command) {
+    case 'view': {
+      const listedDirectory = rawOld === null && typeof rawNew === 'string';
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            Agent {listedDirectory ? 'listed the contents of' : 'read'}{' '}
+            <InlineFileReference path={path} />.
+          </p>
+        </div>
+      );
+    }
+    case 'create': {
+      const sizeText = formatCharCount(newLength);
+      const verb = prevExist === true ? 'overwrote' : 'created';
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            Agent {verb}{' '}
+            <InlineFileReference path={path} />.
+          </p>
+          {sizeText && <p className="text-xs opacity-70">File now contains {sizeText}.</p>}
+        </div>
+      );
+    }
+    case 'insert':
+    case 'str_replace': {
+      const detail = formatSizeDelta(oldLength, newLength);
+      return (
+        <div className="text-sm leading-relaxed space-y-1">
+          <p>
+            Agent {command === 'insert' ? 'inserted text into' : 'replaced text in'}{' '}
+            <InlineFileReference path={path} />.
+          </p>
+          {detail && <p className="text-xs opacity-70">{detail}</p>}
+        </div>
+      );
+    }
+    default:
+      return null;
+  }
+}
+
+function TerminalActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const command = getString(action.command);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The agent wants to execute a terminal command.</p>
+      <TerminalCommandPreview command={command} />
+    </div>
+  );
+}
+
+function TerminalObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+  const exitCodeNumber = getNumber(observation.exit_code);
+  const exitCodeText = exitCodeNumber !== undefined ? exitCodeNumber.toString() : getString(observation.exit_code) ?? 'unknown';
+  const command = getString(observation.command);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The terminal command finished with code {exitCodeText}.</p>
+      <TerminalCommandPreview command={command} />
+    </div>
+  );
+}
+
 // Message accent colors
 const USER_ACCENT_COLOR = '#3B82F6';
 const AGENT_ACCENT_COLOR = '#D97706';
@@ -40,17 +269,20 @@ function EventContainer({
   bgOpacity = 0.04,
   className = '',
   index = 0,
+  dataTestId,
 }: {
   children: React.ReactNode;
   accentColor: string;
   bgOpacity?: number;
   className?: string;
   index?: number;
+  dataTestId?: string;
 }) {
   const animationDelay = `${index * 50}ms`;
 
   return (
     <div
+      data-testid={dataTestId}
       className={`
         relative rounded-lg p-4 my-3 shadow-event
         border-l-[3px] transition-all duration-300 hover:shadow-lg
@@ -70,20 +302,36 @@ function EventContainer({
 
 // System Prompt Event
 export function SystemPromptEventBlock({ event, index }: { event: SystemPromptEvent; index?: number }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const toggleLabel = isExpanded ? 'Hide system prompt' : 'Show system prompt';
+
   return (
     <EventContainer accentColor="#9333EA" index={index}>
       <div className="flex items-center gap-2 mb-3">
         <span className="codicon codicon-gear text-lg" style={{ color: '#9333EA' }} />
-        <div className="font-semibold text-base">System Configuration</div>
+        <div className="font-semibold text-base">System Prompt</div>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="ml-auto text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+          aria-label={toggleLabel}
+          title={toggleLabel}
+        >
+          <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
+          <span>{isExpanded ? 'Hide' : 'Show'}</span>
+        </button>
       </div>
-      <div className="whitespace-pre-wrap text-sm leading-relaxed opacity-90 font-mono">
-        {event.system_prompt.text}
-      </div>
-      {event.tools && event.tools.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-white/10 text-xs opacity-70 flex items-center gap-2">
-          <span className="codicon codicon-tools" />
-          <span>{event.tools.length} tools available</span>
-        </div>
+      {isExpanded && (
+        <>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed opacity-90 font-mono">
+            {event.system_prompt.text}
+          </div>
+          {event.tools && event.tools.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white/10 text-xs opacity-70 flex items-center gap-2">
+              <span className="codicon codicon-tools" />
+              <span>{event.tools.length} tools available</span>
+            </div>
+          )}
+        </>
       )}
     </EventContainer>
   );
@@ -94,6 +342,13 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
   const thought = event.thought.map((t) => t.text).join('\n');
   const isExecuted = event.action !== null;
   const [isExpanded, setIsExpanded] = useState(false);
+  const actionSummary = isExecuted
+    ? event.tool_name === 'file_editor'
+      ? <FileEditorActionSummary action={event.action} />
+      : event.tool_name === 'terminal'
+        ? <TerminalActionSummary action={event.action} />
+        : null
+    : null;
 
   return (
     <EventContainer accentColor="#3B82F6" index={index}>
@@ -136,6 +391,7 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
               <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
             </button>
           </div>
+          {actionSummary && <div className="mt-2">{actionSummary}</div>}
           {isExpanded && (
             <pre className="text-xs font-mono bg-black/20 rounded p-3 overflow-x-auto animate-slide-down">
               {JSON.stringify(event.action, null, 2)}
@@ -152,6 +408,17 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const [isExpanded, setIsExpanded] = useState(false);
   const observationString = JSON.stringify(event.observation, null, 2);
   const isTruncated = observationString.length > 2000;
+  const observationSummary = event.tool_name === 'file_editor'
+    ? <FileEditorObservationSummary observation={event.observation} />
+    : event.tool_name === 'terminal'
+      ? <TerminalObservationSummary observation={event.observation} />
+      : null;
+  const hasSummary = observationSummary !== null;
+  const shouldShowRaw = !hasSummary || isExpanded;
+  const showHeaderToggle = hasSummary;
+  const showFooterToggle = !hasSummary && isTruncated;
+  const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
+  const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
 
   return (
     <EventContainer accentColor="#F59E0B" bgOpacity={0.06} index={index}>
@@ -159,25 +426,41 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
         <span className="codicon codicon-eye text-lg" style={{ color: '#F59E0B' }} />
         <div className="font-semibold text-base">Tool Result</div>
         <span className="font-mono text-sm text-brand-400">{event.tool_name}</span>
-      </div>
-
-      <div className="relative">
-        <pre
-          className={`text-xs font-mono bg-black/20 rounded p-3 overflow-x-auto leading-relaxed
-                      ${!isExpanded && isTruncated ? 'max-h-40 overflow-hidden' : ''}`}
-        >
-          {observationString}
-        </pre>
-        {isTruncated && (
+        {showHeaderToggle && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="mt-2 text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+            className="ml-auto text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+            aria-label={headerToggleLabel}
+            title={headerToggleLabel}
           >
             <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
-            {isExpanded ? 'Show less' : 'Show more'}
           </button>
         )}
       </div>
+
+      {observationSummary && <div className="mb-3">{observationSummary}</div>}
+
+      {shouldShowRaw && (
+        <div className="relative">
+          <pre
+            className={`text-xs font-mono bg-black/20 rounded p-3 overflow-x-auto leading-relaxed
+                        ${!hasSummary && !isExpanded && isTruncated ? 'max-h-40 overflow-hidden' : ''}`}
+          >
+            {observationString}
+          </pre>
+        </div>
+      )}
+      {showFooterToggle && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-2 text-xs text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+          aria-label={footerToggleLabel}
+          title={footerToggleLabel}
+        >
+          <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'}`} />
+        </button>
+      )}
+
     </EventContainer>
   );
 }
@@ -280,15 +563,14 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
   const accentColor = isUser ? USER_ACCENT_COLOR : isAgent ? AGENT_ACCENT_COLOR : DEFAULT_ACCENT_COLOR;
   const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
+  const roleLabel = message.role === 'assistant'
+    ? 'Agent'
+    : message.role.charAt(0).toUpperCase() + message.role.slice(1);
 
-  const handleOpenFile = (file: string) => {
-    const api = getVscodeApi();
-    api.postMessage({ type: 'openWorkspaceFile', path: file });
-  };
-
+  const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
   return (
-    <EventContainer accentColor={accentColor} bgOpacity={0.06} index={index}>
+    <EventContainer accentColor={accentColor} bgOpacity={0.06} index={index} dataTestId="message-event">
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center mt-0.5 flex-shrink-0"
@@ -301,7 +583,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="font-semibold text-sm capitalize">{message.role}</div>
+            <div className="font-semibold text-sm">{roleLabel}</div>
             {message.created_at && (
               <div className="text-xs opacity-50">
                 {new Date(message.created_at).toLocaleTimeString()}
@@ -426,7 +708,7 @@ export function StreamingMessageBlock({ content }: { content: string }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="font-semibold text-sm">Assistant</div>
+            <div className="font-semibold text-sm">Agent</div>
             <div className="flex items-center gap-1">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse" style={{ color: accentColor }} />
               <span className="text-xs opacity-50">streaming...</span>

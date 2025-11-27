@@ -50,15 +50,19 @@ export function reduceLlmStreamingState(current: LlmStreamingState, event: Event
   let contentUpdated = false;
 
   if (isConversationStateUpdateEvent(event) && event.key === 'llm_stream') {
-    const nextContent = typeof event.value === 'string' ? event.value : null;
-    next = {
-      phase: nextContent !== null ? 'streaming' : 'idle',
-      content: nextContent,
-    };
-    started = current.phase === 'idle' && next.phase === 'streaming';
-    contentUpdated = true;
-    // If streaming content is explicitly cleared, mark as complete as well
-    completed = current.phase === 'streaming' && next.phase === 'idle';
+    if (typeof event.value === 'string') {
+      next = {
+        phase: 'streaming',
+        content: event.value,
+      };
+      started = current.phase === 'idle';
+      contentUpdated = true;
+      return { state: next, started, completed, contentUpdated };
+    }
+
+    next = initialLlmStreamingState;
+    completed = current.phase === 'streaming';
+    contentUpdated = current.content !== null;
     return { state: next, started, completed, contentUpdated };
   }
 
@@ -69,11 +73,14 @@ export function reduceLlmStreamingState(current: LlmStreamingState, event: Event
       (isMessageEvent(event) && event.llm_message.role === 'assistant') ||
       (isActionEvent(event) && event.source === 'agent'))
   ) {
-    next = { phase: 'idle', content: null };
+    next = initialLlmStreamingState;
     completed = true;
   }
 
   return { state: next, started, completed, contentUpdated };
 }
 
-export const initialLlmStreamingState: LlmStreamingState = { phase: 'idle', content: null };
+export const initialLlmStreamingState: LlmStreamingState = {
+  phase: 'idle',
+  content: null,
+};

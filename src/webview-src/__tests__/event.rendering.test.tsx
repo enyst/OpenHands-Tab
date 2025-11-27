@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
 import type {
@@ -29,6 +29,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('Hello world')).toBeInTheDocument();
+    expect(await screen.findByText('Agent')).toBeInTheDocument();
   });
 
   it('renders user messages correctly', async () => {
@@ -83,6 +84,8 @@ describe('Agent-SDK event rendering', () => {
       tools: [{ name: 'bash' }, { name: 'read' }, { name: 'write' }]
     } as any;
     postToWindow({ type: 'event', event: ev });
+    const toggle = await screen.findByRole('button', { name: /Show system prompt/i });
+    fireEvent.click(toggle);
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
     expect(await screen.findByText(/3 tools available/)).toBeInTheDocument();
   });
@@ -101,7 +104,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/I will check the directory structure now/)).toBeInTheDocument();
-    expect(await screen.findByText(/terminal/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/terminal/)).length).toBeGreaterThan(0);
   });
 
   it('renders ObservationEvent', async () => {
@@ -115,6 +118,8 @@ describe('Agent-SDK event rendering', () => {
       action_id: 'action_obs_1'
     } as any;
     postToWindow({ type: 'event', event: ev });
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    fireEvent.click(toggle);
     expect(await screen.findByText(/Directory listing output from bash execution/)).toBeInTheDocument();
   });
 
@@ -154,4 +159,137 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Forgetting 5 events/)).toBeInTheDocument();
   });
+
+  it('renders friendly summaries for file_editor events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Checking the README' }],
+      action: { command: 'view', path: '/tmp/README.md', view_range: [1, 5] },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_1',
+      tool_call: { id: 'call_file_editor_1', type: 'function' as const, function: { name: 'file_editor', arguments: '{}' } },
+      llm_response_id: 'resp_file_editor_1',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to read/)).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'view',
+        path: '/tmp/README.md',
+        prev_exist: true,
+        old_content: 'SECRET FILE CONTENT',
+        new_content: '1\tSECRET FILE CONTENT',
+      },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_1',
+      action_id: 'action_file_editor_1',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/Agent read/)).toBeInTheDocument();
+    expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
+  });
+
+  it('allows viewing raw file_editor payloads on demand', async () => {
+    render(<App />);
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'view',
+        path: '/tmp/README.md',
+        prev_exist: true,
+        old_content: 'SECRET FILE CONTENT',
+        new_content: '1\tSECRET FILE CONTENT',
+      },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_2',
+      action_id: 'action_file_editor_2',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    await screen.findByText(/Agent read/);
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
+    fireEvent.click(toggle);
+    expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();
+  });
+  it('renders friendly summaries for terminal events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Running ls' }],
+      action: { command: 'ls -la' },
+      tool_name: 'terminal',
+      tool_call_id: 'call_terminal_action',
+      tool_call: { id: 'call_terminal_action', type: 'function' as const, function: { name: 'terminal', arguments: '{"command":"ls -la"}' } },
+      llm_response_id: 'resp_terminal_action',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to execute a terminal command/i)).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'ls -la',
+        exit_code: 0,
+        stdout: 'README.md',
+      },
+      tool_name: 'terminal',
+      tool_call_id: 'call_terminal_action',
+      action_id: 'action_terminal_action',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/finished with code 0/i)).toBeInTheDocument();
+  });
+
+
+
+
+  it('suppresses tool role message events', async () => {
+    render(<App />);
+    const toolEvent: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'environment',
+      llm_message: {
+        role: 'tool',
+        content: [{ type: 'text', text: 'Internal tool payload' }],
+        name: 'file_editor',
+        tool_call_id: 'call_tool_1',
+      },
+    } as any;
+    postToWindow({ type: 'event', event: toolEvent });
+    await waitFor(() => {
+      expect(screen.queryByText(/Internal tool payload/)).toBeNull();
+    });
+  });
+
+  it('hides assistant tool-call placeholder messages', async () => {
+    render(<App />);
+    const assistantToolCall: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: '   ' }],
+        tool_calls: [
+          {
+            id: 'tool_call_1',
+            type: 'function',
+            function: { name: 'terminal', arguments: '{"command":"ls"}' },
+          },
+        ],
+      },
+    } as any;
+    postToWindow({ type: 'event', event: assistantToolCall });
+    await waitFor(() => {
+      expect(screen.queryAllByTestId('message-event')).toHaveLength(0);
+    });
+  });
+
 });
