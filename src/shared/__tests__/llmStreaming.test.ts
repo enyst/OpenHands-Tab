@@ -85,4 +85,29 @@ describe('reduceLlmStreamingState', () => {
     expect(fromConversationError.completed).toBe(true);
     expect(fromConversationError.state.phase).toBe('idle');
   });
+
+  it('emits only the incremental portion for subsequent responses', () => {
+    const first = reduceLlmStreamingState(initialLlmStreamingState, {
+      kind: 'ConversationStateUpdateEvent',
+      key: 'llm_stream',
+      value: 'Hello',
+    });
+    expect(first.state.content).toBe('Hello');
+
+    const assistantMessage: MessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: { role: 'assistant', content: [] },
+    };
+    const completed = reduceLlmStreamingState(first.state, assistantMessage);
+    expect(completed.state.phase).toBe('idle');
+
+    const second = reduceLlmStreamingState(completed.state, {
+      kind: 'ConversationStateUpdateEvent',
+      key: 'llm_stream',
+      value: 'HelloWorld',
+    });
+    expect(second.state.content).toBe('World');
+  });
 });
+

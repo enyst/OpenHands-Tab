@@ -12,6 +12,14 @@ export type LlmStreamingPhase = 'idle' | 'streaming';
 export interface LlmStreamingState {
   phase: LlmStreamingPhase;
   content: string | null;
+  /**
+   * Offset into the agent's cumulative llm_stream text where the current response began.
+   */
+  sessionStartOffset: number;
+  /**
+   * Length of the cumulative llm_stream text as of the latest update we processed.
+   */
+  lastGlobalLength: number;
 }
 
 export interface LlmStreamingUpdateResult {
@@ -50,15 +58,29 @@ export function reduceLlmStreamingState(current: LlmStreamingState, event: Event
   let contentUpdated = false;
 
   if (isConversationStateUpdateEvent(event) && event.key === 'llm_stream') {
-    const nextContent = typeof event.value === 'string' ? event.value : null;
+    if (typeof event.value === 'string') {
+      const globalValue = event.value;
+      const globalLength = globalValue.length;
+      const sessionStartOffset = current.phase === 'idle' ? current.lastGlobalLength : current.sessionStartOffset;
+      next = {
+        phase: 'streaming',
+        content: globalValue.slice(sessionStartOffset),
+        sessionStartOffset,
+        lastGlobalLength: globalLength,
+      };
+      started = current.phase === 'idle';
+      contentUpdated = true;
+      return { state: next, started, completed, contentUpdated };
+    }
+
     next = {
-      phase: nextContent !== null ? 'streaming' : 'idle',
-      content: nextContent,
+      phase: 'idle',
+      content: null,
+      sessionStartOffset: current.lastGlobalLength,
+      lastGlobalLength: current.lastGlobalLength,
     };
-    started = current.phase === 'idle' && next.phase === 'streaming';
-    contentUpdated = true;
-    // If streaming content is explicitly cleared, mark as complete as well
-    completed = current.phase === 'streaming' && next.phase === 'idle';
+    completed = current.phase === 'streaming';
+    contentUpdated = current.content !== null;
     return { state: next, started, completed, contentUpdated };
   }
 
@@ -69,11 +91,21 @@ export function reduceLlmStreamingState(current: LlmStreamingState, event: Event
       (isMessageEvent(event) && event.llm_message.role === 'assistant') ||
       (isActionEvent(event) && event.source === 'agent'))
   ) {
-    next = { phase: 'idle', content: null };
+    next = {
+      phase: 'idle',
+      content: null,
+      sessionStartOffset: current.lastGlobalLength,
+      lastGlobalLength: current.lastGlobalLength,
+    };
     completed = true;
   }
 
   return { state: next, started, completed, contentUpdated };
 }
 
-export const initialLlmStreamingState: LlmStreamingState = { phase: 'idle', content: null };
+export const initialLlmStreamingState: LlmStreamingState = {
+  phase: 'idle',
+  content: null,
+  sessionStartOffset: 0,
+  lastGlobalLength: 0,
+};
