@@ -313,6 +313,7 @@ export function activate(context: vscode.ExtensionContext) {
       });
         conversation.on('conversationStarted', (id: string | undefined) => {
           outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
+          streamingState = initialLlmStreamingState;
           void context.workspaceState.update('openhands.conversationId', id);
           if (id) {
             void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });

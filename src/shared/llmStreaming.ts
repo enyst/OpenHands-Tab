@@ -61,14 +61,20 @@ export function reduceLlmStreamingState(current: LlmStreamingState, event: Event
     if (typeof event.value === 'string') {
       const globalValue = event.value;
       const globalLength = globalValue.length;
-      const sessionStartOffset = current.phase === 'idle' ? current.lastGlobalLength : current.sessionStartOffset;
+      const hasShrunk = globalLength < current.lastGlobalLength;
+      const sessionStartOffset = hasShrunk
+        ? 0
+        : current.phase === 'idle'
+          ? current.lastGlobalLength
+          : current.sessionStartOffset;
+      const boundedOffset = Math.min(sessionStartOffset, globalLength);
       next = {
         phase: 'streaming',
-        content: globalValue.slice(sessionStartOffset),
-        sessionStartOffset,
+        content: globalValue.slice(boundedOffset),
+        sessionStartOffset: boundedOffset,
         lastGlobalLength: globalLength,
       };
-      started = current.phase === 'idle';
+      started = current.phase === 'idle' || hasShrunk;
       contentUpdated = true;
       return { state: next, started, completed, contentUpdated };
     }
