@@ -69,4 +69,44 @@ describe('Agent redacts sensitive tool-call arguments in llm_tool_call_raw', () 
     // Authorization header value should be masked
     expect(parsed.headers.Authorization).toContain('Bearer ***');
   });
+
+  it('masks nested secrets and token-like strings without requiring key names', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<{ any: string }, { ok: boolean }> = {
+      name: 'noop',
+      validate: (input) => (input as unknown) as { any: string },
+      execute: async () => ({ ok: true }),
+    };
+
+    const args = {
+      note: 'Encountered sk-abc123SECRETvalue while testing',
+      nested: {
+        description: 'bearer TOKENVALUE and ghp_abcdefghijklmnopqrstu',
+        list: ['pat_token_value_123456', 'safe'],
+      },
+      headers: 'Authorization: Bearer AnotherToken',
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Using tool' },
+      { type: 'tool_call_delta', id: 'c1', name: 'noop', arguments: JSON.stringify(args) },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/tmp', llmClient: llm, tools: [tool] });
+    await agent.run('go');
+
+    const updates = log
+      .list()
+      .filter((e) => e.kind === 'ConversationStateUpdateEvent' && (e as any).key === 'llm_tool_call_raw');
+
+    expect(updates.length).toBeGreaterThan(0);
+    const parsed = JSON.parse((updates[0] as any).value.arguments as string);
+
+    expect(parsed.note).toBe('Encountered *** while testing');
+    expect(parsed.nested.description).toBe('bearer *** and ***');
+    expect(parsed.nested.list[0]).toBe('***');
+    expect(parsed.nested.list[1]).toBe('safe');
+    expect(parsed.headers).toBe('Authorization: Bearer ***');
+  });
 });

@@ -97,6 +97,15 @@ function redactStringHeuristics(text: string): string {
   t = t.replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
   // Standalone Bearer tokens
   t = t.replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
+  // Common token prefixes that may appear without key labels
+  const tokenPatterns = [
+    /sk-[A-Za-z0-9]{12,}/gi,
+    /ghp_[A-Za-z0-9]{12,}/gi,
+    /pat_[A-Za-z0-9_]{12,}/gi,
+  ];
+  tokenPatterns.forEach((pattern) => {
+    t = t.replace(pattern, '***');
+  });
   // Common key=value or key: value patterns
   const keyPattern = /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
   t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, p1, _p2) => `${p1}: ***`);
