@@ -24,6 +24,7 @@ const baseSettings: OpenHandsSettings = {
 };
 
 const LONG = 'x'.repeat(2500);
+const LONG_STDOUT = 'o'.repeat(5000);
 
 describe('Agent truncates tool logs and observations', () => {
   it('truncates llm_tool_call_raw arguments value', async () => {
@@ -81,6 +82,37 @@ describe('Agent truncates tool logs and observations', () => {
     expect(s.endsWith('…(truncated)')).toBe(true);
 
     const toolMsg = events.filter(isMessageEvent).find((m) => m.llm_message.role === 'tool');
+    expect(toolMsg).toBeTruthy();
+    const txt = toolMsg!.llm_message.content.find((c) => c.type === 'text') as { type: 'text'; text: string };
+    expect(txt.text.length).toBeLessThanOrEqual(2015);
+    expect(txt.text.endsWith('…(truncated)')).toBe(true);
+  });
+
+  it('truncates large stdout results in ObservationEvent and tool message', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<{ command: string }, { stdout: string; exitCode: number }> = {
+      name: 'terminal',
+      validate: (input) => input as { command: string },
+      execute: async () => ({ stdout: LONG_STDOUT, exitCode: 0 }),
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Using tool' },
+      { type: 'tool_call_delta', id: 'c3', name: 'terminal', arguments: JSON.stringify({ command: 'echo' }) },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({ settings: baseSettings, events: log, workspaceRoot: '/tmp', llmClient: llm, tools: [tool] });
+    await agent.run('go');
+
+    const events = log.list();
+    const obs = events.find((event) => isObservationEvent(event) && event.tool_name === 'terminal');
+    expect(obs).toBeTruthy();
+    const stdout = (obs!.observation as any).stdout as string;
+    expect(stdout.length).toBeLessThanOrEqual(2015);
+    expect(stdout.endsWith('…(truncated)')).toBe(true);
+
+    const toolMsg = events.filter(isMessageEvent).find((m) => m.llm_message.tool_call_id === 'c3');
     expect(toolMsg).toBeTruthy();
     const txt = toolMsg!.llm_message.content.find((c) => c.type === 'text') as { type: 'text'; text: string };
     expect(txt.text.length).toBeLessThanOrEqual(2015);
