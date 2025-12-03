@@ -39,7 +39,7 @@ npm run build
 
 - **OpenHands: Configure** - Set up server URL, LLM settings, API keys
 - **OpenHands: Set API Key** - Quick API key configuration
-- Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/All-Hands-AI/agent-sdk)
+- Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
 ## Documentation
 
