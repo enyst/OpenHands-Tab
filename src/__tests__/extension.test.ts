@@ -72,12 +72,12 @@ vi.mock('@openhands/agent-sdk-ts', () => {
       emitter.emit('status', 'online');
       return emitter.conversationId;
     });
-    emitter.sendUserMessage = vi.fn(async () => {});
+    emitter.sendUserMessage = vi.fn(async () => { });
     emitter.reconnect = vi.fn(() => emitter.emit('status', 'connecting'));
-    emitter.pause = vi.fn(async () => {});
-    emitter.resume = vi.fn(async () => {});
-    emitter.approveAction = vi.fn(async () => {});
-    emitter.rejectAction = vi.fn(async () => {});
+    emitter.pause = vi.fn(async () => { });
+    emitter.resume = vi.fn(async () => { });
+    emitter.approveAction = vi.fn(async () => { });
+    emitter.rejectAction = vi.fn(async () => { });
     emitter.disconnect = vi.fn(() => { emitter.status = 'offline'; });
     lastConversation = emitter;
     return emitter;
@@ -203,7 +203,7 @@ describe('Open tab behavior', () => {
   });
 });
 
-  describe('Command handlers', () => {
+describe('Command handlers', () => {
   let mockContext: any;
   let extension: any;
   let mockPanel: any;
@@ -269,7 +269,7 @@ describe('Open tab behavior', () => {
   });
 });
 
-  describe('Settings and modes', () => {
+describe('Settings and modes', () => {
   let mockContext: any;
   let extension: any;
   let mockPanel: any;
@@ -298,30 +298,16 @@ describe('Open tab behavior', () => {
     extension?.deactivate?.();
   });
 
-  it('sends configUpdated with remote mode', async () => {
+  it('configure command opens VS Code settings', async () => {
     mockSettings.serverUrl = 'http://updated:3000';
     extension = await import('../extension');
     await extension.activate(mockContext);
 
-    (vscode.window.showInputBox as Mock)
-      .mockResolvedValueOnce('http://updated:3000')
-      .mockResolvedValueOnce('default-llm')
-      .mockResolvedValueOnce('claude-3-5-sonnet')
-      .mockResolvedValueOnce('')
-      .mockResolvedValueOnce('test-key')
-      .mockResolvedValueOnce('50')
-      .mockResolvedValueOnce('');
-
-    (vscode.window.showQuickPick as Mock)
-      .mockResolvedValueOnce('No')
-      .mockResolvedValueOnce('never');
-
     await vscode.commands.executeCommand('openhands.configure');
-    expect(mockPanel.webview.postMessage).toHaveBeenCalledWith({
-      type: 'configUpdated',
-      serverUrl: 'http://updated:3000',
-      mode: 'remote',
-    });
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'workbench.action.openSettings',
+      '@ext:openhands.openhands-tab'
+    );
   });
 
   it('creates a local-mode conversation when serverUrl is empty', async () => {
