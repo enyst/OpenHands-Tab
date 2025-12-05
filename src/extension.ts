@@ -438,9 +438,8 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      await settingsMgr.update({
-        secrets: { llmApiKey: llmApiKey || undefined }
-      }, 'workspace');
+      // Secrets are stored in VS Code SecretStorage, not workspace settings
+      await settingsMgr.update({ secrets: { llmApiKey: llmApiKey || undefined } });
 
       vscode.window.showInformationMessage('LLM API Key saved securely.');
 
