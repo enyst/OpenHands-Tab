@@ -60,9 +60,9 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
     if (message?.role === 'tool') return null;
     const hasRenderableContent = Array.isArray(message?.content)
       ? message.content.some((item) => {
-          if (item.type === 'text') return item.text.trim().length > 0;
-          return true;
-        })
+        if (item.type === 'text') return item.text.trim().length > 0;
+        return true;
+      })
       : false;
     const hasToolCalls = Array.isArray(message?.tool_calls) && message.tool_calls.length > 0;
     if (message?.role === 'assistant' && hasToolCalls && !hasRenderableContent) {
@@ -359,25 +359,13 @@ export function App() {
     }
   }, [events.length, streamingContent]);
 
-  // Selection tracking from InputArea
-  const handleSelectionChange = useCallback((start: number, end: number) => {
-    selectionRef.current = { start, end };
-
-    // Update mention state based on current input and caret
-    const caret = end;
-    const before = input.slice(0, caret);
+  // Shared mention detection logic
+  const updateMentionState = useCallback((text: string, caret: number) => {
+    const before = text.slice(0, caret);
     const at = before.lastIndexOf('@');
-    if (at === -1) {
-      if (isMentionActive) {
-        setIsMentionActive(false);
-        setShowContextPicker(false);
-        setContextQuery('');
-        mentionStartRef.current = null;
-      }
-      return;
-    }
-    const afterAt = before.slice(at + 1);
-    if (/\s/.test(afterAt)) {
+
+    // Clear mention if no @ or whitespace after @
+    if (at === -1 || /\s/.test(before.slice(at + 1))) {
       if (isMentionActive) {
         setIsMentionActive(false);
         setShowContextPicker(false);
@@ -388,42 +376,7 @@ export function App() {
     }
 
     // Activate mention mode
-    mentionStartRef.current = at;
-    setIsMentionActive(true);
-    setShowSkillsPopover(false);
-    if (!showContextPicker) {
-      postMessage({ type: 'requestWorkspaceFiles' });
-      setShowContextPicker(true);
-    }
-    setContextQuery(afterAt);
-  }, [input, isMentionActive, postMessage, showContextPicker]);
-
-  // Input change with mention detection
-  const handleInputChange = useCallback((value: string) => {
-    setInput(value);
-    // Use latest caret from selectionRef
-    const caret = selectionRef.current.end;
-    const before = value.slice(0, caret);
-    const at = before.lastIndexOf('@');
-    if (at === -1) {
-      if (isMentionActive) {
-        setIsMentionActive(false);
-        setShowContextPicker(false);
-        setContextQuery('');
-        mentionStartRef.current = null;
-      }
-      return;
-    }
     const afterAt = before.slice(at + 1);
-    if (/\s/.test(afterAt)) {
-      if (isMentionActive) {
-        setIsMentionActive(false);
-        setShowContextPicker(false);
-        setContextQuery('');
-        mentionStartRef.current = null;
-      }
-      return;
-    }
     mentionStartRef.current = at;
     setIsMentionActive(true);
     setShowSkillsPopover(false);
@@ -433,6 +386,18 @@ export function App() {
     }
     setContextQuery(afterAt);
   }, [isMentionActive, postMessage, showContextPicker]);
+
+  // Selection tracking from InputArea
+  const handleSelectionChange = useCallback((start: number, end: number) => {
+    selectionRef.current = { start, end };
+    updateMentionState(input, end);
+  }, [input, updateMentionState]);
+
+  // Input change with mention detection
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value);
+    updateMentionState(value, selectionRef.current.end);
+  }, [updateMentionState]);
 
   // Handler functions
   const handleStartNewConversation = useCallback(() => {
@@ -539,7 +504,7 @@ export function App() {
         const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
         if (textarea) {
           const pos = (before + inserted).length;
-          try { textarea.setSelectionRange(pos, pos); } catch {}
+          try { textarea.setSelectionRange(pos, pos); } catch { }
         }
       }, 0);
 
