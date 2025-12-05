@@ -1,3 +1,19 @@
+/**
+ * EventBlock.tsx - Render components for agent SDK events
+ *
+ * This file provides React components for rendering various event types from
+ * the OpenHands agent conversation:
+ *
+ * - SystemPromptEventBlock: Initial system instructions
+ * - ActionEventBlock: Agent tool invocations (file_editor, terminal)
+ * - ObservationEventBlock: Tool execution results
+ * - MessageEventBlock: User and agent chat messages
+ * - UserRejectBlock: When user rejects an action
+ * - AgentErrorBlock / ConversationErrorBlock: Error displays
+ * - CondensationBlock: Conversation summarization events
+ * - StreamingMessageBlock: Live LLM response streaming
+ */
+
 import { useState } from 'react';
 import {
   type ActionEvent,
@@ -12,9 +28,17 @@ import {
 } from '@openhands/agent-sdk-ts';
 import { getVscodeApi } from '../shared/vscodeApi';
 
+// ============================================================================
+// Type Definitions
+// ============================================================================
+
 type FileEditorCommand = 'view' | 'create' | 'str_replace' | 'insert';
 type JsonRecord = Record<string, unknown>;
 type LineRange = [number, number];
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
 
 const isFileEditorCommand = (value: unknown): value is FileEditorCommand =>
   value === 'view' || value === 'create' || value === 'str_replace' || value === 'insert';
@@ -92,6 +116,11 @@ const TerminalCommandPreview = ({ command }: { command?: string }): React.ReactE
   );
 };
 
+// ============================================================================
+// Tool Action/Observation Summaries
+// ============================================================================
+
+/** Renders human-readable summary for file_editor actions */
 function FileEditorActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
   if (!action) return null;
   const command = getString(action.command);
@@ -241,10 +270,21 @@ function TerminalObservationSummary({ observation }: { observation: JsonRecord }
   );
 }
 
-// Message accent colors
-const USER_ACCENT_COLOR = '#3B82F6';
-const AGENT_ACCENT_COLOR = '#D97706';
-const DEFAULT_ACCENT_COLOR = '#6B7280';
+// ============================================================================
+// Shared Components
+// ============================================================================
+
+/**
+ * Event color tokens - CSS custom properties defined in tailwind.css
+ * This ensures a single source of truth for theming.
+ */
+const USER_ACCENT_COLOR = 'var(--event-user)';
+const AGENT_ACCENT_COLOR = 'var(--event-agent)';
+const DEFAULT_ACCENT_COLOR = 'var(--event-default)';
+const ERROR_ACCENT_COLOR = 'var(--event-error)';
+const SYSTEM_ACCENT_COLOR = 'var(--event-system)';
+const ACTION_ACCENT_COLOR = 'var(--event-action)';
+const OBSERVATION_ACCENT_COLOR = 'var(--event-observation)';
 
 // Security risk badge component
 function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }) {
@@ -279,6 +319,8 @@ function EventContainer({
   dataTestId?: string;
 }) {
   const animationDelay = `${index * 50}ms`;
+  // Use color-mix() to apply opacity to CSS variable colors
+  const bgOpacityPercent = Math.round(bgOpacity * 100);
 
   return (
     <div
@@ -291,7 +333,7 @@ function EventContainer({
       `}
       style={{
         borderLeftColor: accentColor,
-        backgroundColor: `${accentColor}${Math.floor(bgOpacity * 255).toString(16).padStart(2, '0')}`,
+        backgroundColor: `color-mix(in srgb, ${accentColor} ${bgOpacityPercent}%, transparent)`,
         animationDelay,
       }}
     >
@@ -300,15 +342,21 @@ function EventContainer({
   );
 }
 
-// System Prompt Event
+// ============================================================================
+// Event Block Components
+// ============================================================================
+
+/**
+ * Renders system prompt - expandable view of initial agent instructions.
+ */
 export function SystemPromptEventBlock({ event, index }: { event: SystemPromptEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const toggleLabel = isExpanded ? 'Hide system prompt' : 'Show system prompt';
 
   return (
-    <EventContainer accentColor="#9333EA" index={index}>
+    <EventContainer accentColor={SYSTEM_ACCENT_COLOR} index={index}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="codicon codicon-gear text-lg" style={{ color: '#9333EA' }} />
+        <span className="codicon codicon-gear text-lg" style={{ color: SYSTEM_ACCENT_COLOR }} />
         <div className="font-semibold text-base">System Prompt</div>
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -337,7 +385,9 @@ export function SystemPromptEventBlock({ event, index }: { event: SystemPromptEv
   );
 }
 
-// Action Event
+/**
+ * Renders agent action - shows thought process, tool invocation, and security risk.
+ */
 export function ActionEventBlock({ event, index }: { event: ActionEvent; index?: number }) {
   const thought = event.thought.map((t) => t.text).join('\n');
   const isExecuted = event.action !== null;
@@ -351,10 +401,10 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
     : null;
 
   return (
-    <EventContainer accentColor="#3B82F6" index={index}>
+    <EventContainer accentColor={ACTION_ACCENT_COLOR} index={index}>
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <span className="codicon codicon-play text-lg" style={{ color: '#3B82F6' }} />
+          <span className="codicon codicon-play text-lg" style={{ color: ACTION_ACCENT_COLOR }} />
           <div className="font-semibold text-base">Agent Action</div>
         </div>
         {event.security_risk && event.security_risk !== 'UNKNOWN' && (
@@ -403,7 +453,9 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
   );
 }
 
-// Observation Event
+/**
+ * Renders tool result - shows observation with summary and expandable raw data.
+ */
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const observationString = JSON.stringify(event.observation, null, 2);
@@ -421,9 +473,9 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
 
   return (
-    <EventContainer accentColor="#F59E0B" bgOpacity={0.06} index={index}>
+    <EventContainer accentColor={OBSERVATION_ACCENT_COLOR} bgOpacity={0.06} index={index}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="codicon codicon-eye text-lg" style={{ color: '#F59E0B' }} />
+        <span className="codicon codicon-eye text-lg" style={{ color: OBSERVATION_ACCENT_COLOR }} />
         <div className="font-semibold text-base">Tool Result</div>
         <span className="font-mono text-sm text-brand-400">{event.tool_name}</span>
         {showHeaderToggle && (
@@ -465,12 +517,12 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   );
 }
 
-// User Reject Event
+/** Renders user rejection of an agent action with optional reason. */
 export function UserRejectBlock({ event, index }: { event: UserRejectObservation; index?: number }) {
   return (
-    <EventContainer accentColor="#DC2626" bgOpacity={0.08} index={index}>
+    <EventContainer accentColor={ERROR_ACCENT_COLOR} bgOpacity={0.08} index={index}>
       <div className="flex items-center gap-2 mb-2">
-        <span className="codicon codicon-error text-lg" style={{ color: '#DC2626' }} />
+        <span className="codicon codicon-error text-lg" style={{ color: ERROR_ACCENT_COLOR }} />
         <div className="font-semibold text-base">Action Rejected</div>
       </div>
       <div className="text-sm">
@@ -483,12 +535,12 @@ export function UserRejectBlock({ event, index }: { event: UserRejectObservation
   );
 }
 
-// Agent Error Event
+/** Renders agent error events with tool context. */
 export function AgentErrorBlock({ event, index }: { event: AgentErrorEvent; index?: number }) {
   return (
-    <EventContainer accentColor="#DC2626" bgOpacity={0.08} index={index}>
+    <EventContainer accentColor={ERROR_ACCENT_COLOR} bgOpacity={0.08} index={index}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="codicon codicon-warning text-lg" style={{ color: '#DC2626' }} />
+        <span className="codicon codicon-warning text-lg" style={{ color: ERROR_ACCENT_COLOR }} />
         <div className="font-semibold text-base">Error</div>
         {event.tool_name && (
           <span className="font-mono text-xs opacity-70">{event.tool_name}</span>
@@ -501,12 +553,12 @@ export function AgentErrorBlock({ event, index }: { event: AgentErrorEvent; inde
   );
 }
 
-// Conversation Error Event
+/** Renders conversation-level errors (connection, auth, etc). */
 export function ConversationErrorBlock({ event, index }: { event: ConversationErrorEvent; index?: number }) {
   return (
-    <EventContainer accentColor="#DC2626" bgOpacity={0.08} index={index}>
+    <EventContainer accentColor={ERROR_ACCENT_COLOR} bgOpacity={0.08} index={index}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="codicon codicon-issues text-lg" style={{ color: '#DC2626' }} />
+        <span className="codicon codicon-issues text-lg" style={{ color: ERROR_ACCENT_COLOR }} />
         <div className="font-semibold text-base">Conversation Error</div>
       </div>
       {event.code && (
@@ -519,12 +571,12 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
   );
 }
 
-// Condensation Event - displays when conversation is summarized
+/** Renders condensation event when conversation history is summarized. */
 export function CondensationBlock({ event, index }: { event: Condensation; index?: number }) {
   return (
-    <EventContainer accentColor="#9333EA" bgOpacity={0.06} index={index}>
+    <EventContainer accentColor={SYSTEM_ACCENT_COLOR} bgOpacity={0.06} index={index}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="codicon codicon-archive text-lg" style={{ color: '#9333EA' }} />
+        <span className="codicon codicon-archive text-lg" style={{ color: SYSTEM_ACCENT_COLOR }} />
         <div className="font-semibold text-base">Conversation Summarized</div>
       </div>
       <div className="text-sm opacity-90">
@@ -541,7 +593,10 @@ export function CondensationBlock({ event, index }: { event: Condensation; index
   );
 }
 
-// Message Event (User/Agent messages)
+/**
+ * Renders chat messages - user and agent messages with context files,
+ * images, skills, and extended thinking/content sections.
+ */
 export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; index?: number }) {
   const message = event.llm_message;
   const isUser = message.role === 'user';
@@ -686,7 +741,10 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   );
 }
 
-// Streaming Message Block - displays incrementally arriving LLM content
+/**
+ * Renders live streaming content while agent is generating response.
+ * Shows animated cursor and "streaming..." indicator.
+ */
 export function StreamingMessageBlock({ content }: { content: string }) {
   const accentColor = AGENT_ACCENT_COLOR;
 
@@ -695,7 +753,7 @@ export function StreamingMessageBlock({ content }: { content: string }) {
       className="relative rounded-lg p-4 my-3 shadow-event border-l-[3px] transition-all duration-300"
       style={{
         borderLeftColor: accentColor,
-        backgroundColor: `${accentColor}06`,
+        backgroundColor: `color-mix(in srgb, ${accentColor} 6%, transparent)`,
       }}
     >
       <div className="flex items-start gap-3">

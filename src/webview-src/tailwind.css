@@ -5,6 +5,17 @@
 
 /* Custom base styles for Technical Warmth design */
 @layer base {
+  /* Event color tokens - single source of truth for EventBlock.tsx */
+  :root {
+    --event-system: #9333EA;      /* Purple - system prompts, condensation */
+    --event-action: #3B82F6;      /* Blue - agent actions */
+    --event-observation: #F59E0B; /* Amber - tool results */
+    --event-error: #DC2626;       /* Red - errors, rejections */
+    --event-user: #3B82F6;        /* Blue - user messages */
+    --event-agent: #D97706;       /* Amber - agent messages */
+    --event-default: #6B7280;     /* Gray - fallback */
+  }
+
   body {
     @apply font-sans;
     background: var(--vscode-editor-background);
