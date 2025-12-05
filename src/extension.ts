@@ -85,6 +85,11 @@ const createDefaultLocalTools = () => [
   new TaskTrackerTool(),
 ];
 
+/** Render an error for logging/display (handles Error objects and unknown values) */
+function renderError(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+}
+
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 function safeStringify(value: unknown): string {
   try {
@@ -304,7 +309,7 @@ export function activate(context: vscode.ExtensionContext) {
         void panel?.webview.postMessage({ type: 'event', event: ev });
       });
       conversation.on('error', (err) => {
-        const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+        const rendered = renderError(err);
         outputChannel?.appendLine(`[error] ${rendered}`);
         if (err instanceof Error && err.stack) {
           outputChannel?.appendLine(err.stack);
@@ -320,34 +325,22 @@ export function activate(context: vscode.ExtensionContext) {
         }
       });
       conversation.on('terminal', (event: BashEvent) => handleTerminalEvent(event));
-      if (savedId) {
-        try {
-          const maybe = conversation.restoreConversation(savedId);
-          void Promise.resolve(maybe).catch((err: unknown) => {
-            const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-            outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-          });
-        } catch (err) {
-          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-          outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-        }
-      }
     } else if (conversation) {
       conversation.setSettings(settings);
-      if (savedId) {
-        try {
-          const maybe = conversation.restoreConversation(savedId);
-          void Promise.resolve(maybe).catch((err: unknown) => {
-            const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-            outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-          });
-        } catch (err) {
-          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-          outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-        }
-      }
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
+    }
+
+    // Restore conversation if needed (after either branch)
+    if (savedId && conversation) {
+      try {
+        const maybe = conversation.restoreConversation(savedId);
+        void Promise.resolve(maybe).catch((err: unknown) => {
+          outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
+        });
+      } catch (err) {
+        outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
+      }
     }
 
     void panel?.webview.postMessage({
