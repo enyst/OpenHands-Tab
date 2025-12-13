@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
+import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 
 const decoder = new TextDecoder();
 
@@ -80,9 +81,9 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
 });
 
 const defaultBaseUrls: Record<string, string> = {
-  openai: 'https://api.openai.com/v1',
-  openrouter: 'https://openrouter.ai/api/v1',
-  litellm_proxy: 'http://localhost:4000',
+  openai: DEFAULT_PROVIDER_BASE_URLS.openai,
+  openrouter: DEFAULT_PROVIDER_BASE_URLS.openrouter,
+  litellm_proxy: DEFAULT_PROVIDER_BASE_URLS.litellm_proxy,
 };
 
 const parseSseLines = async function* (response: Response): AsyncGenerator<string> {

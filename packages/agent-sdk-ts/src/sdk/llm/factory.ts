@@ -1,10 +1,11 @@
 import { LLMCredentialProvider } from './credentials';
 import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
-import type { ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
+import type { ChatCompletionRequest, LLMClient, LLMConfiguration } from './types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient } from './registry';
 import { Metrics } from './metrics';
+import { detectProviderFromBaseUrl } from './provider';
 
 export interface LLMFactoryOptions {
   secrets?: SecretRegistry;
@@ -40,7 +41,7 @@ export class LLMFactory {
       throw new Error('Missing API key for LLM provider');
     }
 
-    const provider = this.config.provider ?? this.detectProviderFromBaseUrl();
+    const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
     const base = provider === 'anthropic' ? new AnthropicClient(this.config, apiKey) : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
 
     if (this.config.usageId) {
@@ -55,12 +56,6 @@ export class LLMFactory {
 
   requestFromDefaults(messages: ChatCompletionRequest['messages'], systemPrompt: string): ChatCompletionRequest {
     return { systemPrompt, messages };
-  }
-
-  private detectProviderFromBaseUrl(): LLMProvider {
-    if (this.config.baseUrl?.includes('openrouter.ai')) return 'openrouter';
-    if (this.config.baseUrl?.includes('litellm')) return 'litellm_proxy';
-    return 'openai';
   }
 
   private getDefaultApiKeyName(): string {

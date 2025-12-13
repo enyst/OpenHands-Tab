@@ -5,7 +5,7 @@ import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
-import { LLMFactory } from '../llm';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import { isMessageEvent, isSystemPromptEvent, isTextContent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
@@ -39,12 +39,6 @@ export interface AgentOptions {
 
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
 const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
-
-const DEFAULT_PROVIDER_BASE_URLS: Record<string, string> = {
-  openai: 'https://api.openai.com/v1',
-  openrouter: 'https://openrouter.ai/api/v1',
-  litellm_proxy: 'http://localhost:4000',
-};
 
 // Simple utility to cap logged/tool result sizes
 const TRUNCATE_LIMIT = 2000;
@@ -491,13 +485,8 @@ export class Agent extends EventEmitter {
     const code = this.classifyConversationError(message);
     const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
     const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
-    const detectedProvider =
-      configuredBaseUrl?.includes('openrouter.ai')
-        ? 'openrouter'
-        : configuredBaseUrl?.includes('litellm')
-          ? 'litellm_proxy'
-          : 'openai';
-    const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[detectedProvider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
+    const provider = detectProviderFromBaseUrl(configuredBaseUrl);
+    const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
     const hasInlineApiKey = Boolean(this.options.settings?.secrets?.llmApiKey);
     const mode = this.options.settings?.serverUrl ? 'remote' : 'local';
     const serverUrl = toOptionalNonEmptyString(this.options.settings?.serverUrl);
@@ -505,6 +494,7 @@ export class Agent extends EventEmitter {
     const contextParts = [
       `mode=${mode}`,
       `llm.model=${model ?? '(unset)'}`,
+      `llm.provider=${provider}`,
       `llm.baseUrl=${configuredBaseUrl ?? '(default)'}`,
       `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
       `llm.apiKey=${hasInlineApiKey ? 'set' : 'unset'}`,
