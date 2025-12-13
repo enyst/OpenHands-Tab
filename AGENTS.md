@@ -114,6 +114,43 @@ When editing `packages/agent-sdk-ts`, rebuild before launching extension:
 npm run build -w @openhands/agent-sdk-ts
 ```
 
+## Integrating with Beads (dependency-aware task planning)
+
+Beads provides a lightweight, dependency-aware issue database and a CLI (`bd`) for selecting "ready work," setting priorities, and tracking status. It complements MCP Agent Mail's messaging, audit trail, and file-reservation signals. Project: [steveyegge/beads](https://github.com/steveyegge/beads)
+
+Recommended conventions
+- **Single source of truth**: Use **Beads** for task status/priority/dependencies; use **Agent Mail** for conversation, decisions, and attachments (audit).
+- **Shared identifiers**: Use the Beads issue id (e.g., `oh-tab-123`) as the Mail `thread_id` and prefix message subjects with `[oh-tab-123]`.
+- **Reservations**: When starting a `oh-tab-###` task, call `file_reservation_paths(...)` for the affected paths; include the issue id in the `reason` and release on completion.
+
+Typical flow (agents)
+1) **Pick ready work** (Beads)
+   - `bd ready --json` → choose one item (highest priority, no blockers)
+2) **Reserve edit surface** (Mail)
+   - `file_reservation_paths(project_key, agent_name, ["src/**"], ttl_seconds=3600, exclusive=true, reason="oh-tab-123")`
+3) **Announce start** (Mail)
+   - `send_message(..., thread_id="oh-tab-123", subject="[oh-tab-123] Start: <short title>", ack_required=true)`
+4) **Work and update**
+   - Reply in-thread with progress and attach artifacts/images; keep the discussion in one thread per issue id
+5) **Complete and release**
+   - `bd close oh-tab-123 --reason "Completed"` (Beads is status authority)
+   - `release_file_reservations(project_key, agent_name, paths=["src/**"])`
+   - Final Mail reply: `[oh-tab-123] Completed` with summary and links
+
+Mapping cheat-sheet
+- **Mail `thread_id`** ↔ `oh-tab-###`
+- **Mail subject**: `[oh-tab-###] …`
+- **File reservation `reason`**: `oh-tab-###`
+- **Commit messages (optional)**: include `oh-tab-###` for traceability
+
+Event mirroring (optional automation)
+- On `bd update --status blocked`, send a high-importance Mail message in thread `oh-tab-###` describing the blocker.
+- On Mail "ACK overdue" for a critical decision, add a Beads label (e.g., `needs-ack`) or bump priority to surface it in `bd ready`.
+
+Pitfalls to avoid
+- Don't create or manage tasks in Mail; treat Beads as the single task queue.
+- Always include `oh-tab-###` in message `thread_id` to avoid ID drift across tools.
+
 ## Further Reading
 
 - [docs/PRD.md](docs/PRD.md) - Product requirements
