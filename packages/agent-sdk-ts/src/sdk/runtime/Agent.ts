@@ -40,6 +40,12 @@ export interface AgentOptions {
 const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
 const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
+const DEFAULT_PROVIDER_BASE_URLS: Record<string, string> = {
+  openai: 'https://api.openai.com/v1',
+  openrouter: 'https://openrouter.ai/api/v1',
+  litellm_proxy: 'http://localhost:4000',
+};
+
 // Simple utility to cap logged/tool result sizes
 const TRUNCATE_LIMIT = 2000;
 const ELLIPSIS = '…(truncated)';
@@ -57,6 +63,27 @@ function deepTruncate(value: unknown): unknown {
     return out;
   }
   return value;
+}
+
+function toOptionalNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
+  if (error instanceof Error) {
+    const base = error.message || error.name || 'Error';
+    const anyErr = error as Error & { cause?: unknown };
+    if (!anyErr.cause || maxDepth <= 0) return base;
+    return `${base}; caused by: ${stringifyErrorWithCause(anyErr.cause, maxDepth - 1)}`;
+  }
+  if (typeof error === 'string') return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
 }
 
 
@@ -234,13 +261,7 @@ export class Agent extends EventEmitter {
     try {
       orchestrator = await this.getOrchestrator();
     } catch (error) {
-      // Orchestrator creation can fail before the main loop begins (e.g., missing LLM API key).
-      // Surface this as an event instead of throwing so hosts can render/report it.
-      this.events.push({
-        kind: 'ConversationErrorEvent',
-        source: 'agent',
-        detail: error instanceof Error ? error.message : String(error),
-      } as Event);
+      this.events.push(this.toConversationErrorEvent(error));
       this.state.setStatus('IDLE');
       // Allow a future retry after settings/secrets are updated.
       this.orchestratorPromise = undefined;
@@ -274,11 +295,7 @@ export class Agent extends EventEmitter {
       try {
         response = await orchestrator.runChat(request);
       } catch (error) {
-        this.events.push({
-          kind: 'ConversationErrorEvent',
-          source: 'agent',
-          detail: error instanceof Error ? error.message : String(error),
-        } as Event);
+        this.events.push(this.toConversationErrorEvent(error));
         this.state.setStatus('IDLE');
         break;
       }
@@ -467,6 +484,42 @@ export class Agent extends EventEmitter {
       },
     });
     return factory.createClient();
+  }
+
+  private toConversationErrorEvent(error: unknown): Event {
+    const message = stringifyErrorWithCause(error);
+    const code = this.classifyConversationError(message);
+    const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
+    const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
+    const detectedProvider =
+      configuredBaseUrl?.includes('openrouter.ai')
+        ? 'openrouter'
+        : configuredBaseUrl?.includes('litellm')
+          ? 'litellm_proxy'
+          : 'openai';
+    const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[detectedProvider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
+    const hasInlineApiKey = Boolean(this.options.settings?.secrets?.llmApiKey);
+    const mode = this.options.settings?.serverUrl ? 'remote' : 'local';
+    const serverUrl = toOptionalNonEmptyString(this.options.settings?.serverUrl);
+
+    const contextParts = [
+      `mode=${mode}`,
+      `llm.model=${model ?? '(unset)'}`,
+      `llm.baseUrl=${configuredBaseUrl ?? '(default)'}`,
+      `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
+      `llm.apiKey=${hasInlineApiKey ? 'set' : 'unset'}`,
+    ];
+    if (serverUrl) contextParts.push(`serverUrl=${serverUrl}`);
+
+    const detail = `${message} (${contextParts.join(', ')})`;
+    return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail } as Event;
+  }
+
+  private classifyConversationError(message: string): string | undefined {
+    if (message.includes('Missing API key for LLM provider')) return 'missing_llm_api_key';
+    if (message.includes('LLM model is not configured')) return 'llm_model_not_configured';
+    if (message.startsWith('LLM request failed')) return 'llm_request_failed';
+    return undefined;
   }
 
   private ensureSystemPrompt() {
