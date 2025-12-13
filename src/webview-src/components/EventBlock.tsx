@@ -565,7 +565,14 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
         <div className="text-xs font-mono mb-2 opacity-70">Code: {event.code}</div>
       )}
       {event.detail && (
-        <div className="text-sm bg-black/20 rounded p-3 font-mono whitespace-pre-wrap break-words">{event.detail}</div>
+        <details className="text-xs opacity-80">
+          <summary className="cursor-pointer hover:opacity-100 font-medium">
+            Details
+          </summary>
+          <div className="mt-2 text-sm bg-black/20 rounded p-3 font-mono whitespace-pre-wrap break-words">
+            {event.detail}
+          </div>
+        </details>
       )}
     </EventContainer>
   );
