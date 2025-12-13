@@ -29,7 +29,7 @@ const DEFAULTS: OpenHandsSettings = {
   secrets: {}
 };
 
-const normalizeServerUrl = (value: string | null | undefined): string | undefined => {
+const normalizeNonEmptyString = (value: string | null | undefined): string | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || undefined;
 };
@@ -44,14 +44,21 @@ export class SettingsManager {
   constructor(private adapter: SettingsAdapter) {}
 
   async get(): Promise<OpenHandsSettings> {
-    const serverUrl = normalizeServerUrl(
+    const serverUrl = normalizeNonEmptyString(
       this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl
     );
+    const isRemote = !!serverUrl;
     const servers = this.adapter.get<SavedServer[]>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers;
+    const model = normalizeNonEmptyString(
+      isRemote
+        ? this.adapter.getExplicit<string>('openhands.llm.model')
+        : (this.adapter.get<string | null>('openhands.llm.model', DEFAULTS.llm.model) ?? DEFAULTS.llm.model)
+    );
     const llm: LLMSettings = {
-      // Only return explicitly configured usageId/model so ConnectionManager can omit them when undefined
-      usageId: this.adapter.getExplicit<string>('openhands.llm.usageId'),
-      model: this.adapter.getExplicit<string>('openhands.llm.model'),
+      // In remote mode, omit usageId/model unless explicitly configured.
+      // In local mode, we must provide a model so the local Agent can create an LLM client.
+      usageId: normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId')),
+      model,
       baseUrl: this.adapter.get<string | null>('openhands.llm.baseUrl', DEFAULTS.llm.baseUrl) ?? DEFAULTS.llm.baseUrl,
       apiVersion: this.adapter.get<string | null>('openhands.llm.apiVersion', DEFAULTS.llm.apiVersion) ?? DEFAULTS.llm.apiVersion,
       timeout: this.adapter.get<number | null>('openhands.llm.timeout', DEFAULTS.llm.timeout) ?? DEFAULTS.llm.timeout,
