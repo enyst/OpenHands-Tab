@@ -27,7 +27,16 @@ describe('SettingsManager', () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBeUndefined();
     expect(s.llm.usageId).toBeUndefined();
+    // Local mode requires a default model for the local Agent to run.
+    expect(s.llm.model).toBe('claude-sonnet-4-20250514');
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
+  });
+
+  it('omits model by default in remote mode', async () => {
+    await mgr.update({ serverUrl: 'http://example:1234' });
+    const s = await mgr.get();
+    expect(s.serverUrl).toBe('http://example:1234');
+    expect(s.llm.model).toBeUndefined();
   });
 
   it('updates and persists config and secrets', async () => {
