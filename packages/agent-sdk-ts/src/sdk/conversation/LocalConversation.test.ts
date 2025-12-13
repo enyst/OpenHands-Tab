@@ -153,4 +153,37 @@ describe('LocalConversation', () => {
     const conversationError = events.find(isConversationErrorEvent);
     expect(conversationError).toBeUndefined();
   });
+
+  it('emits ConversationErrorEvent when no LLM API key is available', async () => {
+    const envKeys = [
+      'OPENAI_API_KEY',
+      'OPENROUTER_API_KEY',
+      'LITELLM_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'LLM_API_KEY',
+    ];
+    const previous = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+    for (const key of envKeys) delete process.env[key];
+
+    try {
+      const conversation = new LocalConversation({ settings: baseSettings, tools: createDefaultTools() });
+      const events: Event[] = [];
+      conversation.on('event', (e: Event) => events.push(e));
+
+      await conversation.sendUserMessage('hi');
+
+      const error = events.find(isConversationErrorEvent);
+      expect(error).toBeDefined();
+      expect(error?.detail).toContain('Missing API key for LLM provider');
+    } finally {
+      for (const key of envKeys) {
+        const value = previous[key];
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+  });
 });

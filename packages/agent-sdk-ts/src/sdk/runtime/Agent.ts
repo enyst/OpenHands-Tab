@@ -230,7 +230,22 @@ export class Agent extends EventEmitter {
     }
 
     const maxIterations = this.clampMaxIterations();
-    const orchestrator = await this.getOrchestrator();
+    let orchestrator: AgentOrchestrator;
+    try {
+      orchestrator = await this.getOrchestrator();
+    } catch (error) {
+      // Orchestrator creation can fail before the main loop begins (e.g., missing LLM API key).
+      // Surface this as an event instead of throwing so hosts can render/report it.
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'agent',
+        detail: error instanceof Error ? error.message : String(error),
+      } as Event);
+      this.state.setStatus('IDLE');
+      // Allow a future retry after settings/secrets are updated.
+      this.orchestratorPromise = undefined;
+      return undefined;
+    }
     let lastAssistantMessage: Message | undefined;
 
     while (!this.paused && !this.pendingAction && !this.cancelled && this.state.snapshot.iteration < maxIterations) {
