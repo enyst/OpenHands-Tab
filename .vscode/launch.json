@@ -16,6 +16,19 @@
       "preLaunchTask": "npm: compile"
     },
     {
+      "type": "extensionHost",
+      "request": "launch",
+      "name": "Run OH-Tab (normal profile)",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "preLaunchTask": "npm: compile"
+    },
+    {
       "name": "OH-Tab-Tests",
       "type": "extensionHost",
       "request": "launch",
