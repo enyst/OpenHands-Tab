@@ -2,6 +2,8 @@
 
 Goal: migrate the chat UI from an editor `WebviewPanel` to a sidebar `WebviewView` (sidebar-only), without regressing local/remote mode, history restore, terminal streaming, or tests.
 
+Status: COMPLETED in PR #200 (commit `a987ed9`).
+
 Decision (locked in):
 - The chat UI will live only in the sidebar as a `WebviewView`.
 - The editor `WebviewPanel` implementation will be removed (no user-facing “open in editor” option).
@@ -17,23 +19,23 @@ Related docs:
 
 ---
 
-## 0) Current Behavior (baseline)
+## 0) Pre-migration baseline (historical)
 
-Today we have two separate UI surfaces:
+Before the migration (pre-#200), we had two separate UI surfaces:
 
 1) **Sidebar container + tree view**
    - `package.json` contributes an activity bar container `openhands` with a tree view `openhands.quickActions`.
 2) **Editor tab webview panel**
    - `openhands.openTab` creates a `WebviewPanel` (`src/extension.ts`) which hosts the React webview.
 
-The “double open” happens because the extension currently auto-runs `openhands.openTab` whenever the sidebar tree view becomes visible:
+The “double open” happened because the extension auto-ran `openhands.openTab` whenever the sidebar tree view became visible:
 - `src/extension.ts` registers a `TreeView` and `onDidChangeVisibility` calls `openhands.openTab`.
 
-The chat runtime (Conversation + event wiring) is currently tightly coupled to `panel.webview`:
+The chat runtime (Conversation + event wiring) was tightly coupled to `panel.webview`:
 - `ensurePanelAndConnection()` creates the panel, creates/refreshes the Conversation, and forwards Conversation events/status/errors to `panel.webview.postMessage(...)`.
 - `onWebviewMessage(context, panel)` assumes a `WebviewPanel` and posts all replies back through `panel.webview.postMessage(...)`.
 
-Today the webview also sends a `webviewReady` handshake (currently from both `src/webview-src/webview.tsx` instrumentation and `src/webview-src/components/App.tsx`). The extension host responds by re-sending `status` and `serverListUpdated`. This is sufficient for a panel, but not enough for a `WebviewView` that can be hidden/disposed while the agent continues running.
+The webview sent a `webviewReady` handshake. The extension host responded by re-sending `status` and `serverListUpdated`. This was sufficient for a panel, but not enough for a `WebviewView` that can be hidden/disposed while the agent continues running.
 
 ---
 

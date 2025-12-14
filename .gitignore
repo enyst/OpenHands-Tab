@@ -178,3 +178,13 @@ src/webview-src/tailwind.gen.css
 
 # E2E logs
 e2e_logs*.zip
+
+# Local agent tooling (Codex/Claude/Cursor/etc.)
+.beads/
+.claude/
+.codex/
+.mcp.json
+*.mcp.json
+.vscode/mcp.json
+opencode.json
+summary.md

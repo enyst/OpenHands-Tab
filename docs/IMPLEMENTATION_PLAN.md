@@ -139,9 +139,15 @@ Completed features:
 ## Phase 7 — WebviewPanel → WebviewView (Sidebar) Migration
 Goal: Make the chat UI live in the sidebar as a `WebviewView` (sidebar-only) and remove the editor `WebviewPanel`.
 
-Status: IN PROGRESS (implementation + tests)
+Status: COMPLETED
 
 Plan: `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`
+
+Implementation:
+- Chat UI moved to a sidebar `WebviewView` (`openhands.chat`)
+- Removed editor `WebviewPanel` and legacy `openhands.openTab` / quick-actions view
+- Added event backlog + `webviewReady` catch-up for hide/show lifecycle
+- Updated unit + e2e tests and docs for the new command surface
 
 ## Phase 8 — Remaining Webview UX Gaps (from PRD)
 Goal: Close the remaining “Not Yet Implemented” items and polish the webview UX without regressing local/remote parity.
