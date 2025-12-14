@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 
 // --- Constants ---
@@ -159,6 +159,29 @@ function EmptyState() {
 }
 
 /**
+ * Renders the empty state when no conversations match the search query.
+ */
+function NoResultsState({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center px-8">
+      <span className="codicon codicon-search text-4xl mb-4 text-stone-600" />
+      <p className="text-sm text-stone-300">No matches</p>
+      <p className="text-xs mt-2 text-stone-500">
+        Nothing matched <span className="font-mono text-stone-400">{query}</span>
+      </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="mt-4 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-300 hover:bg-white/[0.08] hover:text-stone-100 transition-all"
+      >
+        <span className="codicon codicon-clear-all" />
+        Clear search
+      </button>
+    </div>
+  );
+}
+
+/**
  * Main history view component that displays a list of past conversations
  * in a slide-in side panel.
  */
@@ -170,13 +193,36 @@ export function HistoryView({
   onSelectConversation,
 }: HistoryViewProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState('');
 
   // Close on Escape key or click outside (with delay to avoid immediate close on open)
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
 
-  if (!isOpen) return null;
+  const sortedConversations = useMemo(
+    () => [...conversations].sort((a, b) => b.timestamp - a.timestamp),
+    [conversations]
+  );
+  const filteredConversations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return sortedConversations;
+    }
+    return sortedConversations.filter((conversation) => {
+      const haystack = [
+        conversation.title,
+        conversation.firstMessage,
+        conversation.id,
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [sortedConversations, query]);
 
-  const sortedConversations = [...conversations].sort((a, b) => b.timestamp - a.timestamp);
+  const hasAnyQuery = query.length > 0;
+
+  if (!isOpen) return null;
 
   return (
     <>
@@ -214,13 +260,46 @@ export function HistoryView({
           </button>
         </div>
 
+        {/* Search */}
+        <div className="px-6 pt-4">
+          <div className="relative">
+            <span className="codicon codicon-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && hasAnyQuery) {
+                  e.stopPropagation();
+                  setQuery('');
+                }
+              }}
+              placeholder="Search history…"
+              className="w-full pl-9 pr-9 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0"
+              aria-label="Search conversation history"
+            />
+            {hasAnyQuery && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md text-stone-400 hover:text-stone-200 hover:bg-white/[0.06] flex items-center justify-center transition-all"
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <span className="codicon codicon-close" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {sortedConversations.length === 0 ? (
             <EmptyState />
+          ) : filteredConversations.length === 0 ? (
+            <NoResultsState query={query.trim()} onClear={() => setQuery('')} />
           ) : (
             <div className="space-y-2">
-              {sortedConversations.map((conversation, index) => (
+              {filteredConversations.map((conversation, index) => (
                 <ConversationItem
                   key={conversation.id}
                   conversation={conversation}
@@ -239,7 +318,9 @@ export function HistoryView({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
           <p className="text-xs text-stone-500 text-center">
-            {sortedConversations.length} conversation{sortedConversations.length !== 1 ? 's' : ''}
+            {query.trim()
+              ? `${filteredConversations.length} of ${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`
+              : `${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </div>

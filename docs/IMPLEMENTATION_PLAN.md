@@ -157,7 +157,7 @@ Status: TODO
 Backlog (webview-facing):
 - Attach files UX (the “+” affordance currently isn’t backed by a concrete flow)
 - MCP server selection UI (if/when MCP integration lands)
-- History UX improvements (search/pagination/empty states, depending on backend shape)
+- History UX improvements (search implemented in PR #203; pagination TBD)
 - Mid-conversation LLM switching UX (may require conversation boundary semantics)
 
 ## Notes
