@@ -97,35 +97,37 @@ function ConversationItem({
     <button
       onClick={onSelect}
       className={`
-        w-full text-left p-4 rounded-lg
+        w-full text-left p-4 rounded-xl
         transition-all duration-200
-        border border-transparent
-        hover:border-brand-500/30 hover:bg-white/5
-        focus:outline-none focus:ring-2 focus:ring-brand-500/50
-        ${isActive ? 'bg-brand-500/10 border-brand-500/30' : 'bg-white/5'}
+        border
+        hover:bg-white/[0.04]
+        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+        ${isActive
+          ? 'bg-brand-500/10 border-brand-500/25 hover:bg-brand-500/15'
+          : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}
         animate-slide-up
       `}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
       {/* Title Row */}
       <div className="flex items-start justify-between gap-3 mb-1">
-        <div className="font-medium text-sm line-clamp-2 flex-1 text-[var(--vscode-foreground)]">
+        <div className={`font-medium text-sm line-clamp-2 flex-1 ${isActive ? 'text-brand-200' : 'text-stone-200'}`}>
           {displayTitle}
         </div>
         {isActive && (
-          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-400 mt-1" />
+          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-400 mt-1 animate-pulse" />
         )}
       </div>
 
       {/* Prompt Preview */}
       {promptPreview && (
-        <div className="text-xs opacity-60 line-clamp-2 mb-2">
+        <div className="text-xs text-stone-500 line-clamp-2 mb-2">
           {promptPreview}
         </div>
       )}
 
       {/* Metadata Row */}
-      <div className="flex items-center gap-3 text-xs opacity-50">
+      <div className="flex items-center gap-3 text-xs text-stone-500">
         <span className="flex items-center gap-1">
           <span className="codicon codicon-clock" />
           {timeAgo}
@@ -146,10 +148,10 @@ function ConversationItem({
  */
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-8 opacity-60">
-      <span className="codicon codicon-inbox text-4xl mb-4 opacity-40" />
-      <p className="text-sm">No conversation history yet</p>
-      <p className="text-xs mt-2 opacity-70">
+    <div className="flex flex-col items-center justify-center h-full text-center px-8">
+      <span className="codicon codicon-inbox text-4xl mb-4 text-stone-600" />
+      <p className="text-sm text-stone-400">No conversation history yet</p>
+      <p className="text-xs mt-2 text-stone-500">
         Start a new conversation to begin
       </p>
     </div>
@@ -180,27 +182,32 @@ export function HistoryView({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 animate-fade-in"
+        className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 animate-fade-in"
         aria-hidden="true"
       />
 
       {/* Side Panel */}
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 h-full w-full max-w-md bg-[var(--vscode-editor-background)] border-l border-white/10 shadow-2xl z-50 animate-slide-in-right flex flex-col"
+        className="fixed right-0 top-0 h-full w-full max-w-md border-l border-white/[0.06] shadow-2xl z-50 animate-slide-in-right flex flex-col"
+        style={{
+          background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
+        }}
         role="dialog"
         aria-label="Conversation History"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <span className="codicon codicon-history text-xl text-brand-400" />
-            <h2 className="text-lg font-semibold">History</h2>
+            <div className="w-8 h-8 rounded-lg bg-brand-500/15 flex items-center justify-center">
+              <span className="codicon codicon-history text-base text-brand-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-stone-100">History</h2>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            className="h-8 w-8 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-200 hover:bg-white/[0.08] flex items-center justify-center transition-all"
             aria-label="Close history"
           >
             <span className="codicon codicon-close" />
@@ -230,8 +237,8 @@ export function HistoryView({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 bg-white/5">
-          <p className="text-xs opacity-60 text-center">
+        <div className="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
+          <p className="text-xs text-stone-500 text-center">
             {sortedConversations.length} conversation{sortedConversations.length !== 1 ? 's' : ''}
           </p>
         </div>

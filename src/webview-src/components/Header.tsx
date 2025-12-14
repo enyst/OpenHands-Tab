@@ -20,19 +20,25 @@ interface HeaderProps {
 function StatusIndicator({ status }: { status: 'online' | 'offline' | 'connecting' }) {
   const statusConfig = {
     online: {
-      color: '#059669',
+      color: '#34D399',
+      bgColor: 'bg-emerald-500/10',
+      borderColor: 'border-emerald-500/20',
       label: 'Connected',
       icon: 'pass',
       animate: false,
     },
     offline: {
-      color: '#DC2626',
+      color: '#F87171',
+      bgColor: 'bg-red-500/10',
+      borderColor: 'border-red-500/20',
       label: 'Disconnected',
       icon: 'error',
       animate: false,
     },
     connecting: {
-      color: '#3B82F6',
+      color: '#E8A642',
+      bgColor: 'bg-amber-500/10',
+      borderColor: 'border-amber-500/20',
       label: 'Connecting',
       icon: 'sync',
       animate: true,
@@ -42,13 +48,13 @@ function StatusIndicator({ status }: { status: 'online' | 'offline' | 'connectin
   const config = statusConfig[status];
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-effect">
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${config.bgColor} border ${config.borderColor}`}>
       <div
-        className={`w-2 h-2 rounded-full ${config.animate ? 'animate-pulse-glow' : ''}`}
+        className={`w-2 h-2 rounded-full ${config.animate ? 'animate-pulse' : ''}`}
         style={{ backgroundColor: config.color }}
         aria-label={`Status: ${config.label}`}
       />
-      <span className="text-xs font-medium opacity-90">{config.label}</span>
+      <span className="text-xs font-medium text-stone-300">{config.label}</span>
     </div>
   );
 }
@@ -68,16 +74,16 @@ function HeaderButton({
 }) {
   const baseClasses = `
     relative inline-flex items-center justify-center
-    h-9 px-3 rounded-lg
+    h-9 px-3.5 rounded-lg
     text-sm font-medium
     transition-all duration-200
-    focus:outline-none focus:ring-2 focus:ring-brand-500/50
+    focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
     disabled:opacity-40 disabled:cursor-not-allowed
   `;
 
   const variantClasses = variant === 'primary'
-    ? 'bg-brand-500/20 text-brand-300 hover:bg-brand-500/30 hover:shadow-glow-sm'
-    : 'bg-white/5 hover:bg-white/10 hover:shadow-sm';
+    ? 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:shadow-glow-sm hover:border-brand-500/40'
+    : 'bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]';
 
   return (
     <button
@@ -88,7 +94,7 @@ function HeaderButton({
       aria-label={label}
       title={label}
     >
-      <span className={`codicon codicon-${icon} mr-2`} />
+      <span className={`codicon codicon-${icon} mr-2 text-sm`} />
       <span>{label}</span>
     </button>
   );
@@ -115,10 +121,11 @@ function IconButton({
       className={`
         relative inline-flex items-center justify-center
         h-9 w-9 rounded-lg
-        bg-white/5 hover:bg-white/10
+        bg-white/[0.04] border border-white/[0.06]
+        text-stone-400 hover:text-stone-200
         transition-all duration-200
-        hover:shadow-sm hover:scale-105
-        focus:outline-none focus:ring-2 focus:ring-brand-500/50
+        hover:bg-white/[0.08] hover:border-white/[0.1]
+        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
         disabled:opacity-40 disabled:cursor-not-allowed
       `}
       aria-label={label}
@@ -168,18 +175,18 @@ export function Header({
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[var(--vscode-editor-background)]/95 backdrop-blur-sm">
+    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[var(--vscode-editor-background)]/95 backdrop-blur-md">
       <div className="flex items-center justify-between px-4 py-3 gap-4">
         {/* Left side - Logo & Status */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <div className="text-2xl" aria-label="OpenHands">
               🙌
             </div>
             <div>
-              <div className="font-semibold text-base leading-tight">OpenHands</div>
+              <div className="font-semibold text-base leading-tight text-stone-100">OpenHands</div>
               {conversationId && (
-                <div className="text-xs opacity-50 font-mono leading-tight">
+                <div className="text-xs text-stone-500 font-mono leading-tight">
                   {conversationId.slice(0, 8)}
                 </div>
               )}
@@ -191,19 +198,18 @@ export function Header({
             <button
               onClick={() => setShowServerSelector(!showServerSelector)}
               className={`
-                flex items-center gap-2 px-3 py-1.5 rounded-full
+                flex items-center gap-2 px-3 py-1.5 rounded-lg
                 text-xs font-medium
                 transition-all duration-200
-                hover:bg-white/10
                 ${mode === 'local'
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                  : 'glass-effect'}
+                  ? 'bg-teal-500/15 text-teal-300 border border-teal-500/25 hover:bg-teal-500/20'
+                  : 'bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]'}
               `}
               title="Select server"
             >
               <span className={`codicon codicon-${mode === 'local' ? 'device-desktop' : 'cloud'}`} />
               <span className="max-w-24 truncate">{getServerDisplayName()}</span>
-              <span className="codicon codicon-chevron-down text-[10px] opacity-60" />
+              <span className="codicon codicon-chevron-down text-[10px] opacity-50" />
             </button>
 
             <ServerSelector
@@ -232,7 +238,7 @@ export function Header({
             variant="primary"
           />
 
-          <div className="w-px h-6 bg-white/10" />
+          <div className="w-px h-6 bg-white/[0.08]" />
 
           <IconButton
             icon="history"
@@ -251,12 +257,12 @@ export function Header({
               icon="sync"
               label="Reconnect"
               onClick={onReconnect}
-              statusDot={{ color: '#DC2626' }}
+              statusDot={{ color: '#F87171' }}
             />
           )}
 
           {status === 'connecting' && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 text-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm">
               <span className="codicon codicon-sync animate-spin" />
               <span>Connecting...</span>
             </div>
