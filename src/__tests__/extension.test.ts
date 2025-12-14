@@ -336,6 +336,8 @@ describe('Settings and modes', () => {
     });
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    // Test 1: Basic command and stdout
     conv?.emit('terminal', {
       id: 'bash-1',
       type: 'BashCommand',
@@ -355,10 +357,77 @@ describe('Settings and modes', () => {
       stderr: null,
     });
 
+    // Test 2: Stderr output
+    conv?.emit('terminal', {
+      id: 'bash-3',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:02.000Z',
+      command_id: 'tc-2',
+      order: 0,
+      command: 'command_with_error',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-4',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:03.000Z',
+      command_id: 'tc-2',
+      order: 1,
+      exit_code: 1,
+      stdout: null,
+      stderr: 'Error: command not found\n',
+    });
+
+    // Test 3: Newline normalization (mixed \n and \r\n)
+    conv?.emit('terminal', {
+      id: 'bash-5',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:04.000Z',
+      command_id: 'tc-3',
+      order: 0,
+      command: 'echo "hello\r\nworld\n"',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-6',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:05.000Z',
+      command_id: 'tc-3',
+      order: 1,
+      exit_code: 0,
+      stdout: 'hello\r\nworld\n', // Input with mixed newlines
+      stderr: null,
+    });
+
+    // Test 4: Output chunking (very large string)
+    const largeOutput = 'a'.repeat(20_000); // Larger than PTY_WRITE_CHUNK_SIZE (16KB)
+    conv?.emit('terminal', {
+      id: 'bash-7',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:06.000Z',
+      command_id: 'tc-4',
+      order: 0,
+      command: 'echo_large_output',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-8',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:07.000Z',
+      command_id: 'tc-4',
+      order: 1,
+      exit_code: 0,
+      stdout: largeOutput,
+      stderr: null,
+    });
+
     expect(vscode.window.createTerminal).toHaveBeenCalledWith(expect.objectContaining({ name: 'OpenHands' }));
-    expect(writes.join('')).toContain('$ pwd && ls -la');
-    expect(writes.join('')).toContain('/test/workspace');
-  });
+    expect(writes.join('')).toContain('$ pwd && ls -la\r\n'); // Command output includes a newline
+    expect(writes.join('')).toContain('/test/workspace\r\n');
+    expect(writes.join('')).toContain('$ command_with_error\r\n');
+    expect(writes.join('')).toContain('Error: command not found\r\n');
+    expect(writes.join('')).toContain('$ echo "hello\r\nworld\n"\r\n');
+    expect(writes.join('')).toContain('hello\r\nworld\r\n');
+    expect(writes.join('')).toContain('$ echo_large_output\r\n');
+    expect(writes.join('')).toContain(largeOutput);
+
 });
 
 describe('Deactivation', () => {
