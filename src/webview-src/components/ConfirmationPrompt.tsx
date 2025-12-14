@@ -46,7 +46,7 @@ export function ConfirmationPrompt({
       aria-labelledby="confirmation-title"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" aria-hidden="true" />
 
       {/* Modal */}
       <div
@@ -141,10 +141,11 @@ export function ConfirmationPrompt({
           {/* Rejection reason input */}
           {showRejectInput && (
             <div className="mt-4 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl animate-slide-down">
-              <label className="block text-sm font-medium text-stone-300 mb-2">
+              <label htmlFor="reject-reason" className="block text-sm font-medium text-stone-300 mb-2">
                 Reason for rejection (optional):
               </label>
               <textarea
+                id="reject-reason"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Reason for rejection (optional)"
