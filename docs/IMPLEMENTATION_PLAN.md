@@ -40,14 +40,13 @@ Run:
 - npm run test (passing)
 - npm run typecheck (passing)
 
-## Phase 2 — Webview React Bootstrap + @openhands/ui
-Goal: Convert the webview to React and adopt base UI components.
+## Phase 2 — Webview React + Tailwind
+Goal: Convert the webview to React and establish baseline UI styling.
 
 Status: COMPLETED
 
 Changes done:
 - Installed runtime deps: react@^19, react-dom@^19
-- Installed @openhands/ui and imported its styles via `src/webview-src/index.css`
 - Added esbuild with `build:webview`; bundles `src/webview-src/webview.tsx` → `media/webview.js` and CSS → `media/index.css`
 - Updated extension HTML to mount React app at #app
 - Implemented React `<App />` shell (header, event list, input area)
@@ -109,7 +108,7 @@ Manual verification completed:
 Implementation notes:
 - media/webview.js and index.css generated via build process
 - All styling uses Tailwind CSS 4.x (compiled to tailwind.gen.css, bundled to media/index.css)
-- Webview uses React 19 with @openhands/ui components
+- Webview uses React 19 with custom components
 - Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
 
 - TODO: Consider removing media/*.map from git if source maps are not needed in repo
@@ -132,7 +131,7 @@ Implementation:
 Completed features:
 - Full event visualization including MessageEvent, ActionEvent, ObservationEvent, SystemPromptEvent, AgentErrorEvent, PauseEvent, Condensation
 - In-webview status banner for status changes and errors
-- React-based UI with @openhands/ui components
+- React-based UI with custom components
 - Tailwind CSS 4.x styling
 - Type-safe event handling with agent-sdk type guards
 
