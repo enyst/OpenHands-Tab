@@ -52,6 +52,7 @@ export const window = {
   showInputBox: vi.fn(),
   showQuickPick: vi.fn(),
   createTerminal: vi.fn(),
+  onDidCloseTerminal: vi.fn(() => ({ dispose: vi.fn() })),
   registerTreeDataProvider: vi.fn(() => ({ dispose: vi.fn() })),
   createTreeView: vi.fn(() => ({
     onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),

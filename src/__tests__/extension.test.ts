@@ -310,6 +310,94 @@ describe('Settings and modes', () => {
     );
   });
 
+  it('recreates the terminal after user closes it', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.openTab');
+
+    const writes: string[] = [];
+    let terminalInstance: any;
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+      terminalInstance = { show: vi.fn(), dispose: vi.fn() };
+      return terminalInstance;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-1',
+      order: 0,
+      command: 'first_command',
+    });
+    expect(vscode.window.createTerminal).toHaveBeenCalledTimes(1);
+
+    const closeHandler = (vscode.window.onDidCloseTerminal as Mock).mock.calls[0]?.[0];
+    closeHandler?.(terminalInstance);
+
+    conv?.emit('terminal', {
+      id: 'bash-2',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:01.000Z',
+      command_id: 'tc-2',
+      order: 0,
+      command: 'second_command',
+    });
+
+    expect(vscode.window.createTerminal).toHaveBeenCalledTimes(2);
+    const joined = writes.join('');
+    expect(joined).toContain('$ first_command');
+    expect(joined).toContain('$ second_command');
+  });
+
+  it('handles ANSI sequences and emoji across chunk boundary', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.openTab');
+
+    const writes: string[] = [];
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    const coloredOutput = '\x1b[31m' + 'red'.repeat(5500) + '\x1b[0m' + '🚀'.repeat(100);
+
+    conv?.emit('terminal', {
+      id: 'bash-9',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:08.000Z',
+      command_id: 'tc-5',
+      order: 0,
+      command: 'echo_colored_emoji',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-10',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:09.000Z',
+      command_id: 'tc-5',
+      order: 1,
+      exit_code: 0,
+      stdout: coloredOutput,
+      stderr: null,
+    });
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ echo_colored_emoji\r\n');
+    expect(joined).toContain(coloredOutput);
+    expect(joined).toContain('\x1b[31m');
+    expect(joined).toContain('\x1b[0m');
+  });
+
   it('creates a local-mode conversation when serverUrl is empty', async () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
@@ -319,7 +407,118 @@ describe('Settings and modes', () => {
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
     expect(conv?.mode).toBe('local');
   });
+
+  it('streams BashEvents into the OpenHands terminal log in local mode', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.openTab');
+
+    const writes: string[] = [];
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    // Test 1: Basic command and stdout
+    conv?.emit('terminal', {
+      id: 'bash-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-1',
+      order: 0,
+      command: 'pwd && ls -la',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-2',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:01.000Z',
+      command_id: 'tc-1',
+      order: 1,
+      exit_code: 0,
+      stdout: '/test/workspace\n',
+      stderr: null,
+    });
+
+    // Test 2: Stderr output
+    conv?.emit('terminal', {
+      id: 'bash-3',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:02.000Z',
+      command_id: 'tc-2',
+      order: 0,
+      command: 'command_with_error',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-4',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:03.000Z',
+      command_id: 'tc-2',
+      order: 1,
+      exit_code: 1,
+      stdout: null,
+      stderr: 'Error: command not found\n',
+    });
+
+    // Test 3: Newline normalization (mixed \n and \r\n)
+    conv?.emit('terminal', {
+      id: 'bash-5',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:04.000Z',
+      command_id: 'tc-3',
+      order: 0,
+      command: 'echo "hello\r\nworld\n"',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-6',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:05.000Z',
+      command_id: 'tc-3',
+      order: 1,
+      exit_code: 0,
+      stdout: 'hello\r\nworld\n', // Input with mixed newlines
+      stderr: null,
+    });
+
+    // Test 4: Output chunking (very large string)
+    const largeOutput = 'a'.repeat(20_000); // Larger than PTY_WRITE_CHUNK_SIZE (16KB)
+    conv?.emit('terminal', {
+      id: 'bash-7',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:06.000Z',
+      command_id: 'tc-4',
+      order: 0,
+      command: 'echo_large_output',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-8',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:07.000Z',
+      command_id: 'tc-4',
+      order: 1,
+      exit_code: 0,
+      stdout: largeOutput,
+      stderr: null,
+    });
+
+    expect(vscode.window.createTerminal).toHaveBeenCalledWith(expect.objectContaining({ name: 'OpenHands' }));
+    expect(writes.join('')).toContain('$ pwd && ls -la\r\n'); // Command output includes a newline
+    expect(writes.join('')).toContain('/test/workspace\r\n');
+    expect(writes.join('')).toContain('$ command_with_error\r\n');
+    expect(writes.join('')).toContain('Error: command not found\r\n');
+    expect(writes.join('')).toContain('$ echo "hello\r\nworld\r\n"\r\n');
+    expect(writes.join('')).toContain('hello\r\nworld\r\n');
+    expect(writes.join('')).toContain('$ echo_large_output\r\n');
+    expect(writes.join('')).toContain(largeOutput);
+
+  });
 });
+
 
 describe('Deactivation', () => {
   it('disconnects the conversation and disposes panel/terminal', async () => {
