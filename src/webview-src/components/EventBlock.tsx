@@ -685,7 +685,48 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     const files = after.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
     return { main: before, files };
   }
-  const { main: textContent, files: contextFiles } = parseContextBlock(rawText);
+  const { main: withoutContext, files: contextFiles } = parseContextBlock(rawText);
+
+  const ATTACHMENT_BEGIN = '----- BEGIN ATTACHMENT:';
+  const ATTACHMENT_END = '----- END ATTACHMENT:';
+  const stripTrailingDashes = (value: string) => value.replace(/\s*-{5,}\s*$/, '').trim();
+
+  function parseAttachmentBlocks(text: string): { main: string; attachments: Array<{ label: string; content: string }> } {
+    const attachments: Array<{ label: string; content: string }> = [];
+    const parts: string[] = [];
+    let cursor = 0;
+
+    while (true) {
+      const beginIdx = text.indexOf(ATTACHMENT_BEGIN, cursor);
+      if (beginIdx === -1) break;
+      parts.push(text.slice(cursor, beginIdx));
+
+      const beginLineEnd = text.indexOf('\n', beginIdx);
+      if (beginLineEnd === -1) {
+        cursor = beginIdx;
+        break;
+      }
+      const beginLine = text.slice(beginIdx, beginLineEnd).trim();
+      let label = stripTrailingDashes(beginLine.slice(ATTACHMENT_BEGIN.length).trim());
+      if (!label) label = 'Attachment';
+
+      const endIdx = text.indexOf(ATTACHMENT_END, beginLineEnd);
+      if (endIdx === -1) {
+        cursor = beginIdx;
+        break;
+      }
+      const endLineEnd = text.indexOf('\n', endIdx);
+      const content = text.slice(beginLineEnd + 1, endIdx).trimEnd();
+
+      attachments.push({ label, content });
+      cursor = endLineEnd === -1 ? text.length : endLineEnd + 1;
+    }
+
+    parts.push(text.slice(cursor));
+    return { main: parts.join('').trim(), attachments };
+  }
+
+  const { main: textContent, attachments } = parseAttachmentBlocks(withoutContext);
   const imageContent = message.content.filter((c) => c.type === 'image');
 
   const accentColor = isUser ? USER_ACCENT_COLOR : isAgent ? AGENT_ACCENT_COLOR : DEFAULT_ACCENT_COLOR;
@@ -722,6 +763,28 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           {textContent && (
             <div className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
               {textContent}
+            </div>
+          )}
+
+          {attachments.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-white/[0.06]">
+              <div className="mb-2 text-xs text-stone-500 flex items-center gap-2">
+                <span className="codicon codicon-file text-brand-400/60" />
+                <span>Attachments</span>
+              </div>
+              <div className="space-y-2">
+                {attachments.map((a, idx) => (
+                  <details key={`${a.label}-${idx}`} className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2">
+                    <summary className="cursor-pointer text-xs text-stone-400 hover:text-stone-300 font-mono flex items-center gap-2 transition-colors">
+                      <span className="codicon codicon-file text-brand-400/60" />
+                      <span className="truncate">{a.label}</span>
+                    </summary>
+                    <pre className="mt-2 font-mono bg-black/20 border border-white/[0.04] rounded-lg p-3 leading-relaxed text-stone-400 text-xs overflow-auto whitespace-pre-wrap break-words">
+                      {a.content}
+                    </pre>
+                  </details>
+                ))}
+              </div>
             </div>
           )}
 

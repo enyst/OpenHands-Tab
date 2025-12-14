@@ -118,6 +118,9 @@ export function App() {
   const [input, setInput] = useState('');
   const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
 
+  // Attachments state
+  const [attachments, setAttachments] = useState<Array<{ uri: string; label: string; sizeBytes?: number }>>([]);
+
   // UI state
   const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>(
     { message: 'Initializing…', level: 'info' }
@@ -270,6 +273,7 @@ export function App() {
         skills?: { label: string; path: string }[];
         conversations?: ConversationsList;
         servers?: { url: string; label?: string }[];
+        attachments?: Array<{ uri: string; label: string; sizeBytes?: number }>;
       };
 
       switch (payload?.type) {
@@ -311,6 +315,21 @@ export function App() {
           }
           if (typeof payload.serverUrl === 'string') {
             setCurrentServerUrl(payload.serverUrl || undefined);
+          }
+          break;
+        case 'attachmentsSelected':
+          if (Array.isArray(payload.attachments)) {
+            setAttachments((prev) => {
+              const existing = new Set(prev.map((a) => a.uri));
+              const next = [...prev];
+              for (const a of payload.attachments ?? []) {
+                if (!a || typeof a.uri !== 'string' || typeof a.label !== 'string') continue;
+                if (existing.has(a.uri)) continue;
+                next.push(a);
+                existing.add(a.uri);
+              }
+              return next;
+            });
           }
           break;
         case 'event':
@@ -439,6 +458,7 @@ export function App() {
     eventId.current = 1;
     setInput('');
     setSelectedContextFiles([]);
+    setAttachments([]);
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage]);
 
@@ -456,24 +476,23 @@ export function App() {
   }, [postMessage]);
 
   const handleSendMessage = useCallback(() => {
-    const baseText = input.trim();
-    if (!baseText) return;
-
-    const files = selectedContextFiles.slice();
-    let finalText = baseText;
-    if (files.length > 0) {
-      const lines = files;
-      finalText += `\n\nUser has selected the following files for you to read:\n${lines.join('\n')}`;
-    }
+    const text = input.trim();
+    if (!text) return;
 
     setInput('');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
     setContextQuery('');
     setSelectedContextFiles([]);
+    setAttachments([]);
     selectionRef.current = { start: 0, end: 0 };
-    postMessage({ type: 'send', text: finalText });
-  }, [input, postMessage, selectedContextFiles]);
+    postMessage({
+      type: 'send',
+      text,
+      contextFiles: selectedContextFiles.slice(),
+      attachments: attachments.map((a) => a.uri),
+    });
+  }, [attachments, input, postMessage, selectedContextFiles]);
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
@@ -514,6 +533,19 @@ export function App() {
       return willBeOpen;
     });
   }, [postMessage]);
+
+  // Attachments handlers
+  const handleOpenAttachments = useCallback(() => {
+    postMessage({ type: 'selectAttachments' });
+  }, [postMessage]);
+
+  const handleOpenAttachment = useCallback((uri: string) => {
+    postMessage({ type: 'openAttachment', uri });
+  }, [postMessage]);
+
+  const handleRemoveAttachment = useCallback((uri: string) => {
+    setAttachments((prev) => prev.filter((a) => a.uri !== uri));
+  }, []);
 
   const handleToggleContextFile = useCallback((file: string) => {
     if (isMentionActive && mentionStartRef.current !== null) {
@@ -661,6 +693,10 @@ export function App() {
           contextCount={selectedContextFiles.length}
           onOpenSkills={handleOpenSkills}
           skillsCount={skills.length}
+          onOpenAttachments={handleOpenAttachments}
+          attachments={attachments}
+          onOpenAttachment={handleOpenAttachment}
+          onRemoveAttachment={handleRemoveAttachment}
           onSelectionChange={handleSelectionChange}
         />
 

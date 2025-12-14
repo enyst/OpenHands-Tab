@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+import { TextDecoder } from 'util';
 import { SettingsManager, type SavedServer } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { FileStore } from '@openhands/agent-sdk-ts';
@@ -39,7 +40,9 @@ type WebviewMessage =
   | { type: 'addServer'; server: SavedServer }
   | { type: 'removeServer'; url: string }
   | { type: 'switchToLocal' }
-  | { type: 'send'; text: string }
+  | { type: 'selectAttachments' }
+  | { type: 'openAttachment'; uri: string }
+  | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
   | { type: 'command'; command: string; reason?: string }
   | { type: 'renderedEventsResponse'; count: number; eventTypes: string[] }
   | { type: 'webviewConsole'; level: string; args: unknown[] }
@@ -60,6 +63,8 @@ let outputChannel: vscode.OutputChannel | undefined;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
+const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
+const MAX_ATTACHMENT_TOTAL_BYTES = 500 * 1024;
 type BufferedConversationEvent = { seq: number; event: Event };
 const conversationEventBacklog: Array<BufferedConversationEvent | undefined> = [];
 let conversationEventBacklogStart = 0;
@@ -119,6 +124,66 @@ function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
     const item = conversationEventBacklog[idx];
     if (item) yield item;
   }
+}
+
+function isProbablyBinary(bytes: Uint8Array): boolean {
+  // Heuristic: treat NUL bytes as binary.
+  for (let i = 0; i < bytes.length; i += 1) {
+    if (bytes[i] === 0) return true;
+  }
+  return false;
+}
+
+function toAttachmentLabel(uri: vscode.Uri): string {
+  try {
+    const rel = vscode.workspace.asRelativePath(uri, false);
+    if (rel && rel !== uri.fsPath) return rel;
+  } catch {}
+  return path.basename(uri.fsPath);
+}
+
+async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<string> {
+  if (attachmentUris.length === 0) return '';
+
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  const blocks: string[] = [];
+  let totalIncluded = 0;
+
+  for (const uri of attachmentUris) {
+    const label = toAttachmentLabel(uri);
+    const begin = `----- BEGIN ATTACHMENT: ${label} -----`;
+    const end = `----- END ATTACHMENT: ${label} -----`;
+
+    try {
+      const bytes = await vscode.workspace.fs.readFile(uri);
+      const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+
+      if (isProbablyBinary(buf)) {
+        blocks.push(`\n\n${begin}\n(attachment skipped: binary file)\n${end}`);
+        continue;
+      }
+
+      const remaining = MAX_ATTACHMENT_TOTAL_BYTES - totalIncluded;
+      if (remaining <= 0) {
+        blocks.push(`\n\n${begin}\n(attachment skipped: total attachment size limit reached)\n${end}`);
+        continue;
+      }
+
+      const maxForThis = Math.min(MAX_ATTACHMENT_BYTES_PER_FILE, remaining);
+      const truncated = buf.length > maxForThis;
+      const slice = buf.slice(0, maxForThis);
+      totalIncluded += slice.length;
+
+      const meta = truncated ? `(truncated: first ${slice.length} bytes of ${buf.length} bytes)\n` : '';
+      const text = decoder.decode(slice);
+      blocks.push(`\n\n${begin}\n${meta}${text}\n${end}`);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      blocks.push(`\n\n${begin}\n(attachment skipped: ${reason})\n${end}`);
+    }
+  }
+
+  return blocks.join('');
 }
 
 function flushConversationEventBacklog(params: {
@@ -1020,8 +1085,73 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
         });
         break;
       }
+      case 'selectAttachments': {
+        try {
+          const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+          const picked = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: true,
+            defaultUri,
+            openLabel: 'Attach',
+          });
+          if (!picked || picked.length === 0) break;
+
+          const attachments = await Promise.all(
+            picked.map(async (uri) => {
+              const label = toAttachmentLabel(uri);
+              let sizeBytes: number | undefined;
+              try {
+                const stat = await vscode.workspace.fs.stat(uri);
+                sizeBytes = stat.size;
+              } catch {}
+              return { uri: uri.toString(), label, sizeBytes };
+            })
+          );
+          void host.postMessage({ type: 'attachmentsSelected', attachments });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to select attachments: ${reason}`);
+        }
+        break;
+      }
+      case 'openAttachment': {
+        const raw = message.uri;
+        if (!raw) break;
+        try {
+          const uri = vscode.Uri.parse(raw, true);
+          const document = await vscode.workspace.openTextDocument(uri);
+          await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to open attachment: ${reason}`);
+        }
+        break;
+      }
       case 'send':
-        await conversation?.sendUserMessage(message.text);
+        if (!conversation) break;
+        {
+          const baseText = message.text;
+          const contextFiles = Array.isArray(message.contextFiles)
+            ? message.contextFiles.filter((f): f is string => typeof f === 'string' && f.length > 0)
+            : [];
+          const attachmentUris = Array.isArray(message.attachments)
+            ? message.attachments
+              .filter((u): u is string => typeof u === 'string' && u.length > 0)
+              .map((u) => vscode.Uri.parse(u, true))
+            : [];
+
+          const attachmentsText = await buildAttachmentBlocks(attachmentUris);
+
+          let finalText = baseText;
+          if (attachmentsText) {
+            finalText += attachmentsText;
+          }
+          if (contextFiles.length > 0) {
+            finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
+          }
+          await conversation.sendUserMessage(finalText);
+        }
         break;
       case 'command':
         switch (message.command) {
