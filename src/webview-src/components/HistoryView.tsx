@@ -198,9 +198,10 @@ export function HistoryView({
   // Close on Escape key or click outside (with delay to avoid immediate close on open)
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
 
-  if (!isOpen) return null;
-
-  const sortedConversations = [...conversations].sort((a, b) => b.timestamp - a.timestamp);
+  const sortedConversations = useMemo(
+    () => [...conversations].sort((a, b) => b.timestamp - a.timestamp),
+    [conversations]
+  );
   const filteredConversations = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
@@ -218,6 +219,8 @@ export function HistoryView({
       return haystack.includes(normalizedQuery);
     });
   }, [sortedConversations, query]);
+
+  if (!isOpen) return null;
 
   return (
     <>
