@@ -61,7 +61,9 @@ const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Tr
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
 type BufferedConversationEvent = { seq: number; event: Event };
-const conversationEventBacklog: BufferedConversationEvent[] = [];
+const conversationEventBacklog: Array<BufferedConversationEvent | undefined> = [];
+let conversationEventBacklogStart = 0;
+let conversationEventBacklogSize = 0;
 let conversationEventSeq = 0;
 let activeConversationId: string | undefined;
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
@@ -92,16 +94,31 @@ function fileLog(line: string) {
 function resetConversationEventBacklog(conversationId: string | undefined) {
   activeConversationId = conversationId;
   conversationEventSeq = 0;
+  conversationEventBacklogStart = 0;
+  conversationEventBacklogSize = 0;
   conversationEventBacklog.length = 0;
 }
 
 function bufferConversationEvent(event: Event): number {
   conversationEventSeq += 1;
-  conversationEventBacklog.push({ seq: conversationEventSeq, event });
-  if (conversationEventBacklog.length > MAX_EVENT_BACKLOG) {
-    conversationEventBacklog.shift();
+  const item: BufferedConversationEvent = { seq: conversationEventSeq, event };
+  if (conversationEventBacklogSize < MAX_EVENT_BACKLOG) {
+    const idx = (conversationEventBacklogStart + conversationEventBacklogSize) % MAX_EVENT_BACKLOG;
+    conversationEventBacklog[idx] = item;
+    conversationEventBacklogSize += 1;
+  } else {
+    conversationEventBacklog[conversationEventBacklogStart] = item;
+    conversationEventBacklogStart = (conversationEventBacklogStart + 1) % MAX_EVENT_BACKLOG;
   }
   return conversationEventSeq;
+}
+
+function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
+  for (let i = 0; i < conversationEventBacklogSize; i += 1) {
+    const idx = (conversationEventBacklogStart + i) % MAX_EVENT_BACKLOG;
+    const item = conversationEventBacklog[idx];
+    if (item) yield item;
+  }
 }
 
 function flushConversationEventBacklog(params: {
@@ -114,8 +131,8 @@ function flushConversationEventBacklog(params: {
     return;
   }
 
-  const earliestSeq = conversationEventBacklog[0]?.seq;
-  const latestSeq = conversationEventBacklog[conversationEventBacklog.length - 1]?.seq;
+  const earliestSeq = conversationEventBacklogSize > 0 ? conversationEventSeq - conversationEventBacklogSize + 1 : undefined;
+  const latestSeq = conversationEventBacklogSize > 0 ? conversationEventSeq : undefined;
   const lastSeenSeq = params.clientLastSeenSeq;
 
   const lastSeenIsValid = typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq);
@@ -124,7 +141,7 @@ function flushConversationEventBacklog(params: {
 
   if (needsFullReplay) {
     void params.postMessage({ type: 'conversationStarted', conversationId: currentConversationId });
-    for (const item of conversationEventBacklog) {
+    for (const item of iterConversationEventBacklog()) {
       void params.postMessage({ type: 'event', seq: item.seq, event: item.event });
     }
     return;
@@ -134,7 +151,7 @@ function flushConversationEventBacklog(params: {
     return;
   }
 
-  for (const item of conversationEventBacklog) {
+  for (const item of iterConversationEventBacklog()) {
     if (item.seq > lastSeenSeq) {
       void params.postMessage({ type: 'event', seq: item.seq, event: item.event });
     }
@@ -338,7 +355,9 @@ export function activate(context: vscode.ExtensionContext) {
     onResolved: (view) => {
       chatView = view;
       chatWebviewReady = false;
-      void ensureConversationAndConnection({ uiJustCreated: true });
+      void ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
+        outputChannel?.appendLine(`[error] ensureConversationAndConnection failed: ${renderError(err)}`);
+      });
     },
     onDisposed: () => {
       chatView = undefined;
@@ -555,8 +574,14 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   const open = vscode.commands.registerCommand('openhands.open', async () => {
-    await vscode.commands.executeCommand('workbench.view.extension.openhands');
-    chatView?.show?.(true);
+    try {
+      // VS Code auto-creates a focus command for views: `<viewId>.focus`
+      await vscode.commands.executeCommand('openhands.chat.focus');
+    } catch {
+      // Fallback: open the container and reveal the view if already resolved
+      await vscode.commands.executeCommand('workbench.view.extension.openhands');
+      chatView?.show?.(true);
+    }
     await ensureConversationAndConnection();
   });
 
@@ -573,7 +598,7 @@ export function activate(context: vscode.ExtensionContext) {
       },
       eventBacklog: {
         activeConversationId,
-        size: conversationEventBacklog.length,
+        size: conversationEventBacklogSize,
         latestSeq: conversationEventSeq,
       },
       hasConversation: !!conversation,
@@ -737,6 +762,8 @@ export function deactivate() {
   chatLastSeenSeq = undefined;
   activeConversationId = undefined;
   conversationEventSeq = 0;
+  conversationEventBacklogStart = 0;
+  conversationEventBacklogSize = 0;
   conversationEventBacklog.length = 0;
   receivedTerminalEvents.length = 0;
 }
@@ -976,7 +1003,7 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
 
         await settingsMgr.update({
           servers: newServers,
-          ...(currentSettings.serverUrl === url ? { serverUrl: '' } : {}),
+          serverUrl: newServerUrl,
         });
 
         void host.postMessage({

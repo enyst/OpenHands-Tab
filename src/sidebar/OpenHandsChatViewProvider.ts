@@ -15,11 +15,15 @@ export class OpenHandsChatViewProvider implements vscode.WebviewViewProvider {
     private readonly handlers: OpenHandsChatViewHandlers
   ) {}
 
-  resolveWebviewView(webviewView: vscode.WebviewView): void {
+  private disposeViewDisposables(): void {
     this.viewDisposables.forEach((d) => {
-      d.dispose();
+      try { d.dispose(); } catch { }
     });
     this.viewDisposables = [];
+  }
+
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.disposeViewDisposables();
 
     webviewView.webview.options = {
       enableScripts: true,
@@ -30,7 +34,12 @@ export class OpenHandsChatViewProvider implements vscode.WebviewViewProvider {
 
     const messageHandler = this.handlers.createMessageHandler(webviewView);
     this.viewDisposables.push(webviewView.webview.onDidReceiveMessage(messageHandler));
-    this.viewDisposables.push(webviewView.onDidDispose(() => this.handlers.onDisposed()));
+    this.viewDisposables.push(
+      webviewView.onDidDispose(() => {
+        this.disposeViewDisposables();
+        this.handlers.onDisposed();
+      })
+    );
 
     this.handlers.onResolved(webviewView);
   }
