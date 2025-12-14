@@ -39,6 +39,11 @@ type RenderedEvent = { id: number; event: Event };
 
 const isRenderableEvent = (event: Event) => !isConversationStateUpdateEvent(event);
 
+type WebviewPersistedState = {
+  conversationId?: string;
+  lastSeenSeq?: number;
+};
+
 type ConversationsList = Array<{
   id: string;
   title?: string;
@@ -230,7 +235,23 @@ export function App() {
   // Signal webview is ready on mount
   useEffect(() => {
     const vscodeApi = getVscodeApi();
-    vscodeApi.postMessage({ type: 'webviewReady' });
+    const sendReady = () => {
+      const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
+      const payload: { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number } = { type: 'webviewReady' };
+      if (typeof state.conversationId === 'string') payload.conversationId = state.conversationId;
+      if (typeof state.lastSeenSeq === 'number') payload.lastSeenSeq = state.lastSeenSeq;
+      vscodeApi.postMessage(payload);
+    };
+
+    sendReady();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendReady();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
   // Message handler: processes incoming messages from extension host
@@ -242,6 +263,7 @@ export function App() {
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
         event?: unknown;
+        seq?: unknown;
         error?: unknown;
         conversationId?: string;
         files?: string[];
@@ -294,6 +316,11 @@ export function App() {
         case 'event':
           if (isEvent(payload.event)) {
             handleEvent(payload.event);
+            if (typeof payload.seq === 'number') {
+              const api = getVscodeApi();
+              const prev = api.getState?.<WebviewPersistedState>() ?? {};
+              api.setState?.({ ...prev, lastSeenSeq: payload.seq });
+            }
           }
           break;
         case 'error':
@@ -312,6 +339,8 @@ export function App() {
             setStreamingContent(null);
             eventId.current = 1;
             // No toast: UI clears and restored/started messages will render naturally
+            const api = getVscodeApi();
+            api.setState?.({ conversationId: payload.conversationId, lastSeenSeq: 0 });
           }
           break;
         case 'workspaceFiles':
