@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
@@ -11,6 +11,10 @@ describe('App actions post messages to extension', () => {
     mockApi.postMessage.mockClear();
     // @ts-expect-error define VS Code API mock on window
     window.acquireVsCodeApi = () => mockApi;
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('Settings posts openSettingsPage', async () => {
@@ -31,6 +35,13 @@ describe('App actions post messages to extension', () => {
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'startNewConversation' });
   });
 
+  it('Attachments posts selectAttachments', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+    await userEvent.click(screen.getByLabelText('Attachments'));
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'selectAttachments' });
+  });
+
   it('Pressing Enter posts send with typed text and closes context picker', async () => {
     render(<App />);
 
@@ -46,7 +57,7 @@ describe('App actions post messages to extension', () => {
     expect(input).toBeTruthy();
     await userEvent.type(input as HTMLInputElement, 'hello{enter}');
 
-    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'hello' });
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'hello', contextFiles: [], attachments: [] });
     expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
   });
 
@@ -76,7 +87,7 @@ describe('App actions post messages to extension', () => {
     expect(input).toBeTruthy();
     await userEvent.type(input as HTMLInputElement, 'ping{enter}');
 
-    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'ping' });
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'ping', contextFiles: [], attachments: [] });
     expect(screen.queryByRole('listbox', { name: 'Skills' })).not.toBeInTheDocument();
   });
 });

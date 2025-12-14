@@ -34,6 +34,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Security risk indicators (LOW/MEDIUM/HIGH)
 - Conversation persistence to disk
 - Conversation history view
+- Attach files UI (inline text attachments)
 - Workspace file context (@mentions)
 - Skills support (~/.openhands/skills/)
 - Terminal integration (local mode)
@@ -41,10 +42,11 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Event rendering for all event types
 
 ### Not Yet Implemented
-- **Attach files UI** - "+" button placeholder exists but has no backend
-- **MCP server selection** - placeholder in UI, not functional
 - **Mid-conversation LLM switching** - must start new conversation to change model
-- **Full conversation history backend** - basic list implemented, search/pagination TODO
+- **Full conversation history backend** - list + search implemented, pagination TODO
+
+**Deferred (requires human approval)**
+- **MCP integration / MCP server selection** - UI placeholders exist but are intentionally deferred; not a priority; do not work on this without explicit approval from a human maintainer
 
 ## 5. Architecture Overview
 
@@ -216,8 +218,8 @@ src/
 - Title and prompt preview
 
 ### TODO: Future Enhancements
-- **Attach Files** - file upload to agent context
-- **MCP Integration** - MCP server selection
+- **Attach Files (images/binary)** - richer attachment support beyond text
+- **MCP Integration** - DEFERRED until further notice; requires explicit human approval to work on
 - **Mid-Conversation Model Switch** - change LLM without new conversation
 - **Advanced History** - search, pagination, export
 

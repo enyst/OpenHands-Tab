@@ -13,8 +13,11 @@ interface InputAreaProps {
   // Skills
   onOpenSkills: () => void;
   skillsCount?: number;
-  // Attachments (placeholder for future)
+  // Attachments
   onOpenAttachments?: () => void;
+  attachments?: Array<{ uri: string; label: string }>;
+  onOpenAttachment?: (uri: string) => void;
+  onRemoveAttachment?: (uri: string) => void;
   // MCP (placeholder for future)
   onOpenMCP?: () => void;
   // Selection tracking (for mention-style context)
@@ -32,6 +35,9 @@ export function InputArea({
   onOpenSkills,
   skillsCount = 0,
   onOpenAttachments,
+  attachments = [],
+  onOpenAttachment,
+  onRemoveAttachment,
   onOpenMCP,
   onSelectionChange,
 }: InputAreaProps) {
@@ -166,7 +172,7 @@ export function InputArea({
               icon="file"
               label="Attachments"
               onClick={onOpenAttachments}
-              comingSoon
+              badge={attachments.length > 0 ? attachments.length : undefined}
             />
           )}
 
@@ -186,6 +192,40 @@ export function InputArea({
             <span className="font-mono text-stone-400">Enter</span> to send, <span className="font-mono text-stone-400">Shift+Enter</span> for new line
           </div>
         </div>
+
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {attachments.map((a) => (
+              <div
+                key={a.uri}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs text-stone-400"
+              >
+                <button
+                  type="button"
+                  onClick={() => onOpenAttachment?.(a.uri)}
+                  className="inline-flex items-center gap-2 min-w-0 hover:text-stone-300 transition-colors"
+                  aria-label={`Open attachment ${a.label}`}
+                  title={a.label}
+                >
+                  <span className="codicon codicon-file text-brand-400/60" />
+                  <span className="truncate">{a.label}</span>
+                </button>
+
+                {onRemoveAttachment && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAttachment(a.uri)}
+                    className="text-stone-500 hover:text-stone-300 transition-colors"
+                    aria-label={`Remove attachment ${a.label}`}
+                    title="Remove"
+                  >
+                    <span className="codicon codicon-close" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

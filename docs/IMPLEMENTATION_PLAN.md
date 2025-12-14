@@ -155,7 +155,6 @@ Goal: Close the remaining “Not Yet Implemented” items and polish the webview
 Status: TODO
 
 Backlog (webview-facing):
-- Attach files UX (the “+” affordance currently isn’t backed by a concrete flow)
 - MCP server selection UI (if/when MCP integration lands)
 - History UX improvements (search implemented in PR #203; pagination TBD)
 - Mid-conversation LLM switching UX (may require conversation boundary semantics)
