@@ -46,6 +46,9 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - **Mid-conversation LLM switching** - must start new conversation to change model
 - **Full conversation history backend** - list + search implemented, pagination TODO
 
+**Deferred (requires human approval)**
+- **MCP integration / MCP server selection** - not a priority; do not work on this without explicit approval from a human maintainer
+
 ## 5. Architecture Overview
 
 ### Extension Host
@@ -217,7 +220,7 @@ src/
 
 ### TODO: Future Enhancements
 - **Attach Files (images/binary)** - richer attachment support beyond text
-- **MCP Integration** - MCP server selection
+- **MCP Integration** - DEFERRED until further notice; requires explicit human approval to work on
 - **Mid-Conversation Model Switch** - change LLM without new conversation
 - **Advanced History** - search, pagination, export
 
