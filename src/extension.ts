@@ -59,6 +59,8 @@ const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Tr
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
 const sentTestEvents: Event[] = [];
+// Track which command_ids have already printed an exit summary to avoid duplicates
+const printedExitFor = new Set<string>();
 
 // Dev logging/instrumentation toggle and file sink
 let devBridgeEnabled = false;
@@ -83,10 +85,13 @@ function fileLog(line: string) {
 const normalizeTerminalNewlines = (text: string): string => text.replace(/\r?\n/g, '\r\n');
 
 class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
+  private static readonly PTY_WRITE_CHUNK_SIZE = 16_000;
+
   private readonly writeEmitter = new vscode.EventEmitter<string>();
   private readonly closeEmitter = new vscode.EventEmitter<void>();
   private closed = false;
   private showedInputHint = false;
+  private lastEndedWithNewline = true;
 
   readonly onDidWrite = this.writeEmitter.event;
   readonly onDidClose = this.closeEmitter.event;
@@ -103,6 +108,12 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
     this.closeEmitter.dispose();
   }
 
+  isClosed(): boolean { return this.closed; }
+
+  ensureNewline(): void {
+    if (!this.lastEndedWithNewline) this.write('\n');
+  }
+
   handleInput(_data: string): void {
     if (this.closed || this.showedInputHint) return;
     this.showedInputHint = true;
@@ -112,13 +123,48 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
     this.writeLine('');
   }
 
+  private emitChunk(chunk: string): void {
+    if (!chunk) return;
+    this.writeEmitter.fire(chunk);
+    this.lastEndedWithNewline = /\n$/.test(chunk);
+  }
+
   write(text: string): void {
     if (this.closed) return;
     const normalized = normalizeTerminalNewlines(text);
-    // Avoid very large single writes which can fail or lag the terminal renderer.
-    const chunkSize = 16_000;
-    for (let i = 0; i < normalized.length; i += chunkSize) {
-      this.writeEmitter.fire(normalized.slice(i, i + chunkSize));
+
+    const max = OpenHandsTerminalLogPseudoterminal.PTY_WRITE_CHUNK_SIZE;
+    let start = 0;
+    while (start < normalized.length) {
+      let end = Math.min(start + max, normalized.length);
+
+      // Prefer to split on newline boundaries if possible
+      const slice = normalized.slice(start, end);
+      const lastNl = slice.lastIndexOf('\n');
+      if (lastNl > 0 && start + lastNl + 1 < normalized.length) {
+        end = start + lastNl + 1;
+      }
+
+      // Avoid splitting surrogate pairs
+      const prevChar = normalized.charCodeAt(end - 1);
+      if (prevChar >= 0xd800 && prevChar <= 0xdbff && end < normalized.length) {
+        end -= 1;
+      }
+
+      // Avoid cutting off an ANSI escape sequence at the end of the chunk (best-effort)
+      // If the chunk tail contains a ESC (\x1b) without a known terminator, backtrack to that ESC
+      const tail = normalized.slice(start, end);
+      const escIdx = Math.max(tail.lastIndexOf('\u001b['), tail.lastIndexOf('\u001b'));
+      if (escIdx >= 0) {
+        const afterEsc = tail.slice(escIdx);
+        const hasTerminator = /[A-~a-~]/.test(afterEsc.slice(2)); // CSI typically ends with @-~
+        if (!hasTerminator && escIdx > 0) {
+          end = start + escIdx;
+        }
+      }
+
+      this.emitChunk(normalized.slice(start, end));
+      start = end;
     }
   }
 
@@ -138,13 +184,32 @@ function renderError(err: unknown): string {
   return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 }
 
+function shouldRedactKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return (
+    k.includes('api_key') ||
+    k === 'apikey' ||
+    k === 'authorization' ||
+    k === 'auth' ||
+    k.endsWith('token') ||
+    k.includes('secret') ||
+    k === 'llmapikey' ||
+    k === 'sessionapikey'
+  );
+}
+
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 function safeStringify(value: unknown): string {
   try {
-    const rendered = JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
-    if (typeof rendered === 'string') {
-      return rendered;
-    }
+    const rendered = JSON.stringify(
+      value,
+      (key, val) => {
+        if (typeof val === 'bigint') return val.toString();
+        if (typeof key === 'string' && shouldRedactKey(key)) return '[REDACTED]';
+        return val;
+      }
+    );
+    if (typeof rendered === 'string') return rendered;
     return '<unserializable: undefined>';
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
@@ -239,7 +304,8 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    if (!terminal || !terminalLogPty) {
+    // Recreate terminal if not present or if the PTY has been closed
+    if (!terminal || !terminalLogPty || terminalLogPty.isClosed?.()) {
       try {
         terminalLogPty = new OpenHandsTerminalLogPseudoterminal();
         terminal = vscode.window.createTerminal({ name: 'OpenHands', pty: terminalLogPty });
@@ -254,13 +320,25 @@ export function activate(context: vscode.ExtensionContext) {
 
     try {
       if (isBashCommand(event)) {
-        terminalLogPty.writeLine('');
+        // Add a spacer only if previous output didn't end with a newline
+        terminalLogPty.ensureNewline?.();
         terminalLogPty.writeLine(`$ ${event.command}`);
+        if (event.command_id) printedExitFor.delete(event.command_id);
       } else if (isBashOutput(event)) {
         if (event.stdout) terminalLogPty.write(event.stdout);
         if (event.stderr) terminalLogPty.write(event.stderr);
+        // Defensive: if exit_code is provided on output but no BashExit arrives, synthesize a footer once
+        const cid = (event as any).command_id as string | undefined;
+        const code = (event as any).exit_code as number | undefined;
+        if (cid && typeof code === 'number' && !printedExitFor.has(cid)) {
+          terminalLogPty.ensureNewline?.();
+          terminalLogPty.writeLine(`[Process exited with code ${code}]`);
+          printedExitFor.add(cid);
+        }
       } else if (isBashExit(event)) {
+        terminalLogPty.ensureNewline?.();
         terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
+        if ((event as any).command_id) printedExitFor.add((event as any).command_id);
       }
     } catch (e) {
       console.error('[Terminal] Failed to write terminal event:', e);
@@ -513,6 +591,16 @@ export function activate(context: vscode.ExtensionContext) {
     conversation?.reconnect();
   });
 
+  // Clear terminal references when the user closes the OpenHands terminal
+  context.subscriptions.push(
+    vscode.window.onDidCloseTerminal((t) => {
+      if (t === terminal) {
+        terminal = undefined;
+        terminalLogPty = undefined;
+      }
+    })
+  );
+
   const pause = vscode.commands.registerCommand('openhands.pauseCurrentRun', async () => {
     await ensurePanelAndConnection();
     await conversation?.pause();
@@ -528,6 +616,15 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration(async (e) => {
       if (e.affectsConfiguration('openhands.serverUrl')) {
         try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch { }
+        // If switching away from local mode, dispose any lingering log terminal
+        const cfg = vscode.workspace.getConfiguration();
+        const nextUrl = cfg.get<string>('openhands.serverUrl');
+        const nextMode: 'local' | 'remote' = nextUrl ? 'remote' : 'local';
+        if (conversationMode === 'local' && nextMode === 'remote') {
+          try { terminal?.dispose(); } catch { }
+          terminal = undefined;
+          terminalLogPty = undefined;
+        }
         conversation = undefined;
         await ensurePanelAndConnection();
       }
