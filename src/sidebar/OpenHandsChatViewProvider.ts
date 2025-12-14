@@ -17,7 +17,9 @@ export class OpenHandsChatViewProvider implements vscode.WebviewViewProvider {
 
   private disposeViewDisposables(): void {
     this.viewDisposables.forEach((d) => {
-      try { d.dispose(); } catch { }
+      try { d.dispose(); } catch (err) {
+        console.warn('[OpenHands] Failed to dispose a view disposable:', err);
+      }
     });
     this.viewDisposables = [];
   }

@@ -760,11 +760,7 @@ export function deactivate() {
   chatWebviewReady = false;
   chatLastConversationId = undefined;
   chatLastSeenSeq = undefined;
-  activeConversationId = undefined;
-  conversationEventSeq = 0;
-  conversationEventBacklogStart = 0;
-  conversationEventBacklogSize = 0;
-  conversationEventBacklog.length = 0;
+  resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
 }
 
