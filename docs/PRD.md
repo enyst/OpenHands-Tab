@@ -42,12 +42,11 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Event rendering for all event types
 
 ### Not Yet Implemented
-- **MCP server selection** - placeholder in UI, not functional
 - **Mid-conversation LLM switching** - must start new conversation to change model
 - **Full conversation history backend** - list + search implemented, pagination TODO
 
 **Deferred (requires human approval)**
-- **MCP integration / MCP server selection** - not a priority; do not work on this without explicit approval from a human maintainer
+- **MCP integration / MCP server selection** - UI placeholders exist but are intentionally deferred; not a priority; do not work on this without explicit approval from a human maintainer
 
 ## 5. Architecture Overview
 
