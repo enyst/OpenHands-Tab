@@ -20,10 +20,8 @@ import {
   isBashExit,
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
-import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
 import { OpenHandsChatViewProvider } from './sidebar/OpenHandsChatViewProvider';
 import { initialLlmStreamingState, reduceLlmStreamingState } from './shared/llmStreaming';
-import { getWebviewHtml } from './webview/getWebviewHtml';
 
 // Discriminated union for webview → extension messages
 type WebviewMessage =
@@ -49,14 +47,12 @@ type WebviewMessage =
   | { type: 'webviewNetwork'; phase: string; id: string; method: string; url: string; status?: number; ok?: boolean }
   | { type: 'webviewWebSocket'; phase: string; url: string; code?: number; reason?: string };
 
-let panel: vscode.WebviewPanel | undefined;
 let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;
 let conversationMode: 'local' | 'remote' = 'remote';
 let terminal: vscode.Terminal | undefined;
 let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
-let webviewReady = false; // Track if webview is ready to receive messages
 let chatWebviewReady = false; // Track if chat WebviewView is ready
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
@@ -334,24 +330,15 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel = undefined;
   }
 
-  const sidebarProvider = new OpenHandsViewProvider();
-  const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
-  context.subscriptions.push(treeView);
-  context.subscriptions.push(treeView.onDidChangeVisibility((event) => {
-    if (event.visible) {
-      void vscode.commands.executeCommand('openhands.openTab');
-    }
-  }));
-
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
       createWebviewMessageHandler(context, {
-        kind: 'chat',
         postMessage: (message) => view.webview.postMessage(message),
       }),
     onResolved: (view) => {
       chatView = view;
       chatWebviewReady = false;
+      void ensureConversationAndConnection({ uiJustCreated: true });
     },
     onDisposed: () => {
       chatView = undefined;
@@ -383,7 +370,6 @@ export function activate(context: vscode.ExtensionContext) {
       receivedTerminalEvents.shift();
     }
 
-    void panel?.webview.postMessage({ type: 'terminalEvent', event });
     if (chatView && chatWebviewReady && chatView.visible) {
       void chatView.webview.postMessage({ type: 'terminalEvent', event });
     }
@@ -435,39 +421,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  async function ensurePanelAndConnection() {
-	    let panelJustCreated = false;
-	    if (!panel) {
-	      webviewReady = false; // Reset readiness flag for new panel
-	      const currentPanel = vscode.window.createWebviewPanel(
-	        'openhandsTab',
-	        'OpenHands Tab',
-	        vscode.ViewColumn.Beside,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-	          localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
-	        }
-	      );
-	      panel = currentPanel;
-	      currentPanel.webview.html = getWebviewHtml(context, currentPanel.webview);
-	      currentPanel.webview.onDidReceiveMessage(
-	        createWebviewMessageHandler(context, {
-	          kind: 'panel',
-	          postMessage: (message) => currentPanel.webview.postMessage(message),
-	        }),
-	        undefined,
-	        context.subscriptions
-	      );
-	      currentPanel.onDidDispose(() => {
-	        if (panel === currentPanel) {
-	          panel = undefined;
-	        }
-	        webviewReady = false;
-	      }, null, context.subscriptions);
-	      panelJustCreated = true;
-	    }
-
+  async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean }) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -475,11 +429,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const rawSavedId = context.workspaceState.get<string>('openhands.conversationId');
-    const savedId = panelJustCreated ? undefined : rawSavedId;
+    const savedId = options?.uiJustCreated ? undefined : rawSavedId;
     const needsNewConversation = !conversation || conversationMode !== desiredMode;
 
     if (needsNewConversation) {
-      try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch { }
+      try {
+        conversation?.removeAllListeners();
+        conversation?.disconnect();
+      } catch {}
+
       const conversationOptions = {
         serverUrl: settings.serverUrl ?? undefined,
         settings,
@@ -495,12 +453,11 @@ export function activate(context: vscode.ExtensionContext) {
       conversation.removeAllListeners();
       conversation.on('status', (s: string) => {
         outputChannel?.appendLine(`[status] ${s}`);
-        const payload = { type: 'status', status: s, mode: conversationMode };
-        void panel?.webview.postMessage(payload);
         if (chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage(payload);
+          void chatView.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
         }
       });
+
       let streamingState = initialLlmStreamingState;
       conversation.on('event', (ev: Event) => {
         const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
@@ -520,7 +477,6 @@ export function activate(context: vscode.ExtensionContext) {
           outputChannel?.appendLine('[llm] Streaming complete');
         }
 
-        // Friendly LLM request summary for debugging
         try {
           if (isStateUpdate && ev.key === 'llm_request') {
             const raw = ev.value as {
@@ -539,127 +495,117 @@ export function activate(context: vscode.ExtensionContext) {
         } catch (e) {
           outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
         }
+
         const shouldBufferForReplay = !isLlmStreamUpdate;
         const seq = shouldBufferForReplay ? bufferConversationEvent(ev) : undefined;
         const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event: ev };
         if (typeof seq === 'number') payload.seq = seq;
 
-        void panel?.webview.postMessage(payload);
         if (chatView && chatWebviewReady && chatView.visible) {
           void chatView.webview.postMessage(payload);
         }
       });
+
       conversation.on('error', (err) => {
         const rendered = renderError(err);
         outputChannel?.appendLine(`[error] ${rendered}`);
         if (err instanceof Error && err.stack) {
           outputChannel?.appendLine(err.stack);
         }
-        const payload = { type: 'error', error: rendered };
-        void panel?.webview.postMessage(payload);
         if (chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage(payload);
+          void chatView.webview.postMessage({ type: 'error', error: rendered });
         }
       });
+
       conversation.on('conversationStarted', (id: string | undefined) => {
         outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
         streamingState = initialLlmStreamingState;
         resetConversationEventBacklog(id);
         void context.workspaceState.update('openhands.conversationId', id);
-        if (id) {
-          const payload = { type: 'conversationStarted', conversationId: id };
-          void panel?.webview.postMessage(payload);
-          if (chatView && chatWebviewReady && chatView.visible) {
-            void chatView.webview.postMessage(payload);
-          }
+        if (id && chatView && chatWebviewReady && chatView.visible) {
+          void chatView.webview.postMessage({ type: 'conversationStarted', conversationId: id });
         }
       });
+
       conversation.on('terminal', (event: BashEvent) => handleTerminalEvent(event));
+
+      if (savedId && conversation) {
+        try {
+          const maybe = conversation.restoreConversation(savedId);
+          void Promise.resolve(maybe).catch((err: unknown) => {
+            outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
+          });
+        } catch (err) {
+          outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
+        }
+      }
     } else if (conversation) {
       conversation.setSettings(settings);
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
     }
 
-    // Restore conversation if needed (after either branch)
-    if (savedId && conversation) {
-      try {
-        const maybe = conversation.restoreConversation(savedId);
-        void Promise.resolve(maybe).catch((err: unknown) => {
-          outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
-        });
-      } catch (err) {
-        outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
-      }
-    }
-
-    const statusPayload = {
-      type: 'status',
-      status: conversation?.getStatus() ?? 'offline',
-      mode: conversationMode,
-    };
-    void panel?.webview.postMessage(statusPayload);
     if (chatView && chatWebviewReady && chatView.visible) {
-      void chatView.webview.postMessage(statusPayload);
+      void chatView.webview.postMessage({
+        type: 'status',
+        status: conversation?.getStatus() ?? 'offline',
+        mode: conversationMode,
+      });
     }
-
-    panel?.reveal();
   }
 
-  const openTab = vscode.commands.registerCommand('openhands.openTab', async () => {
-    await ensurePanelAndConnection();
+  const open = vscode.commands.registerCommand('openhands.open', async () => {
+    await vscode.commands.executeCommand('workbench.view.extension.openhands');
+    chatView?.show?.(true);
+    await ensureConversationAndConnection();
   });
 
   // Diagnostics command for E2E tests and troubleshooting
   const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? '';
-	  const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
-	    const diag = {
-	      hasPanel: !!panel,
-	      webviewReady,
-	      chat: {
-	        hasView: !!chatView,
-	        visible: chatView?.visible ?? false,
-	        webviewReady: chatWebviewReady,
-	        clientConversationId: chatLastConversationId,
-	        clientLastSeenSeq: chatLastSeenSeq,
-	      },
-	      eventBacklog: {
-	        activeConversationId,
-	        size: conversationEventBacklog.length,
-	        latestSeq: conversationEventSeq,
-	      },
-	      hasConversation: !!conversation,
-	      conversationId: conversation?.getConversationId(),
-	      status: conversation?.getStatus(),
-	      mode: conversationMode,
-	      serverUrl: getServerUrl(),
+  const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
+    return {
+      chat: {
+        hasView: !!chatView,
+        visible: chatView?.visible ?? false,
+        webviewReady: chatWebviewReady,
+        clientConversationId: chatLastConversationId,
+        clientLastSeenSeq: chatLastSeenSeq,
+      },
+      eventBacklog: {
+        activeConversationId,
+        size: conversationEventBacklog.length,
+        latestSeq: conversationEventSeq,
+      },
+      hasConversation: !!conversation,
+      conversationId: conversation?.getConversationId(),
+      status: conversation?.getStatus(),
+      mode: conversationMode,
+      serverUrl: getServerUrl(),
       terminal: {
         hasTerminal: !!terminal,
         received: receivedTerminalEvents.length,
       },
     };
-    return diag;
   });
 
   // Test command to send mock events to webview for E2E testing
   const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: Event) => {
-    if (!panel) {
-      await ensurePanelAndConnection();
-    }
     sentTestEvents.push(event);
-    void panel?.webview.postMessage({ type: 'event', event });
+    if (chatView) {
+      void chatView.webview.postMessage({ type: 'event', event });
+    }
     return { sent: true };
   });
 
   // Query rendered events from webview for E2E testing
   const queryRenderedEvents = vscode.commands.registerCommand('openhands._queryRenderedEvents', async () => {
-    if (!panel) {
+    if (!chatView) {
       return { count: 0, eventTypes: [] };
     }
 
     // Clear previous response and request from webview
     renderedEventsInfo = undefined;
-    panel.webview.postMessage({ type: 'queryRenderedEvents' });
+    void chatView.webview.postMessage({ type: 'queryRenderedEvents' });
 
     // Wait for response (with timeout)
     const deadline = Date.now() + 5000;
@@ -677,7 +623,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
-    await ensurePanelAndConnection();
+    await ensureConversationAndConnection();
     await conversation?.startNewConversation();
   });
 
@@ -719,12 +665,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
-    // Ensure a visible, initialized panel for reconnect. If one exists, dispose to force re-creation.
-    if (panel) {
-      try { panel.dispose(); } catch { }
-      panel = undefined;
-    }
-    await ensurePanelAndConnection();
+    await ensureConversationAndConnection();
     conversation?.reconnect();
   });
 
@@ -739,12 +680,12 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const pause = vscode.commands.registerCommand('openhands.pauseCurrentRun', async () => {
-    await ensurePanelAndConnection();
+    await ensureConversationAndConnection();
     await conversation?.pause();
   });
 
   const resume = vscode.commands.registerCommand('openhands.resumeCurrentRun', async () => {
-    await ensurePanelAndConnection();
+    await ensureConversationAndConnection();
     await conversation?.resume();
   });
 
@@ -763,13 +704,13 @@ export function activate(context: vscode.ExtensionContext) {
           terminalLogPty = undefined;
         }
         conversation = undefined;
-        await ensurePanelAndConnection();
+        await ensureConversationAndConnection();
       }
     })
   );
 
   context.subscriptions.push(
-    openTab,
+    open,
     diag,
     sendTestEvent,
     queryRenderedEvents,
@@ -785,14 +726,18 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   try { conversation?.disconnect(); } catch { }
   try { terminal?.dispose(); } catch { }
-  try { panel?.dispose?.(); } catch { }
   // Reset module state to ensure clean slate for tests and re-activation
-  panel = undefined;
+  chatView = undefined;
   conversation = undefined;
   terminal = undefined;
   terminalLogPty = undefined;
   renderedEventsInfo = undefined;
-  webviewReady = false;
+  chatWebviewReady = false;
+  chatLastConversationId = undefined;
+  chatLastSeenSeq = undefined;
+  activeConversationId = undefined;
+  conversationEventSeq = 0;
+  conversationEventBacklog.length = 0;
   receivedTerminalEvents.length = 0;
 }
 
@@ -817,7 +762,6 @@ export function deactivate() {
  * avoiding CORS and CSP limitations.
  */
 type WebviewHost = {
-  kind: 'panel' | 'chat';
   postMessage: (message: unknown) => Thenable<boolean>;
 };
 
@@ -830,13 +774,9 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
 
     switch (message.type) {
       case 'webviewReady': {
-        if (host.kind === 'panel') {
-          webviewReady = true;
-        } else {
-          chatWebviewReady = true;
-          chatLastConversationId = message.conversationId;
-          chatLastSeenSeq = message.lastSeenSeq;
-        }
+        chatWebviewReady = true;
+        chatLastConversationId = message.conversationId;
+        chatLastSeenSeq = message.lastSeenSeq;
 
         void host.postMessage({
           type: 'status',
@@ -851,13 +791,11 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
           serverUrl: initSettings.serverUrl ?? '',
         });
 
-        if (host.kind === 'chat') {
-          flushConversationEventBacklog({
-            postMessage: host.postMessage,
-            clientConversationId: message.conversationId,
-            clientLastSeenSeq: message.lastSeenSeq,
-          });
-        }
+        flushConversationEventBacklog({
+          postMessage: host.postMessage,
+          clientConversationId: message.conversationId,
+          clientLastSeenSeq: message.lastSeenSeq,
+        });
 
         break;
       }
