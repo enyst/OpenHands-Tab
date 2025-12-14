@@ -23,8 +23,6 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 
 ## 4. Current Implementation Status
 
-Note: the current implementation opens chat in an editor `WebviewPanel` (“OpenHands: Open Tab”). Migration to a sidebar `WebviewView` is planned in `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`.
-
 ### Implemented Features ✓
 - Activity bar icon and sidebar container
 - Chat webview with streaming events and message rendering
@@ -101,7 +99,7 @@ Note: the current implementation opens chat in an editor `WebviewPanel` (“Open
 ## 7. Functional Requirements
 
 ### Commands
-- **OpenHands: Open** - opens the chat UI (currently exposed as “OpenHands: Open Tab” until the sidebar migration lands)
+- **OpenHands: Open** - reveals/focuses the chat sidebar view
 - **OpenHands: Start New Conversation** - starts fresh conversation
 - **OpenHands: Configure** - multi-step configuration wizard
 - **OpenHands: Set API Key** - quick API key setup

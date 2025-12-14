@@ -139,7 +139,7 @@ Completed features:
 ## Phase 7 — WebviewPanel → WebviewView (Sidebar) Migration
 Goal: Make the chat UI live in the sidebar as a `WebviewView` (sidebar-only) and remove the editor `WebviewPanel`.
 
-Status: PLANNED (see dedicated plan)
+Status: IN PROGRESS (implementation + tests)
 
 Plan: `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`
 
