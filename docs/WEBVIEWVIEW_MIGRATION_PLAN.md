@@ -5,6 +5,8 @@ Goal: migrate the chat UI from an editor `WebviewPanel` to a sidebar `WebviewVie
 Decision (locked in):
 - The chat UI will live only in the sidebar as a `WebviewView`.
 - The editor `WebviewPanel` implementation will be removed (no user-facing “open in editor” option).
+- Remove the sidebar tree view `openhands.quickActions` (no separate “quick actions” view).
+- Replace `openhands.openTab` with a clean command id (e.g. `openhands.open`) and delete `openhands.openTab` (no legacy alias).
 
 This plan is written for parallel execution by multiple agents (implementation + review + testing).
 
@@ -41,7 +43,7 @@ What “clicking the OpenHands icon” should do is now straightforward: it shou
 
 End-state UX (no double-open, no editor tab):
 - Chat UI is a single sidebar `WebviewView` (e.g. `openhands.chat`).
-- The sidebar tree view (“quick actions”) can remain (or be removed later), but it must not auto-open any editor UI surface.
+- The OpenHands view container contains only the chat view; any “quick actions” should move into the chat header (or live only in the command palette).
 
 ### Notes: `WebviewView` constraints
 
@@ -49,10 +51,8 @@ End-state UX (no double-open, no editor tab):
 - The extension should provide one “open” command whose job is to focus/reveal the view (and nothing else).
 
 Recommended command surface:
-- `OpenHands: Open` (focuses the sidebar chat view; keep `openhands.openTab` as a legacy command id if desired, but it should no longer open an editor tab)
-
-Decision needed (still open, but orthogonal to “sidebar-only chat”):
-- Keep `openhands.quickActions` tree view long-term, or replace it with the webview view?
+- `OpenHands: Open` (command id `openhands.open`) reveals the OpenHands view container and focuses `openhands.chat`.
+- `openhands.openTab` is removed as part of the migration (clean command surface; no alias).
 
 ---
 
@@ -164,15 +164,15 @@ Suggested PR boundary:
 **Goal:** There is exactly one chat UI surface: the sidebar `WebviewView`.
 
 Tasks:
-- Commands / contributions:
-  - Update the user-facing command title to remove “Tab” wording (e.g. `OpenHands: Open`).
-  - Keep the existing `openhands.openTab` command id as an alias if we want backward compatibility, but it should focus the sidebar view.
+- Commands / contributions (cleanliness goal):
+  - Add `openhands.open` (“OpenHands: Open”) to reveal/focus the sidebar chat view.
+  - Delete `openhands.openTab` (breaking change; update docs/tests accordingly).
 - Remove editor tab creation:
   - Delete `vscode.window.createWebviewPanel(...)` usage and `panel` module state.
   - Remove any editor-tab-only code paths (including tests that assume a panel exists).
 - Change the current auto-open behavior:
   - Remove `treeView.onDidChangeVisibility -> openTab`.
-  - If the tree view remains, it should be “quick actions only”, not a trigger for opening any additional UI surface.
+  - Remove the `openhands.quickActions` tree view contribution and its `OpenHandsViewProvider` scaffolding.
 
 Acceptance criteria:
 - Clicking the activity bar icon opens the container; the chat UI is in the sidebar view and no editor tab is created.
@@ -225,5 +225,4 @@ Try to keep PRs small and sequential:
 
 ## 5) Open Questions
 
-1) Do we keep the sidebar tree view long-term, or replace it entirely with the webview view?
-2) When a user runs `OpenHands: Open`, should it also auto-focus the chat view (vs. just reveal the container)?
+1) When a user runs `OpenHands: Open`, should it also auto-focus the chat view (vs. just reveal the container)?

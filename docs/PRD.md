@@ -26,7 +26,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 Note: the current implementation opens chat in an editor `WebviewPanel` (“OpenHands: Open Tab”). Migration to a sidebar `WebviewView` is planned in `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`.
 
 ### Implemented Features ✓
-- Activity bar icon with quick actions
+- Activity bar icon and sidebar container
 - Chat webview with streaming events and message rendering
 - Local mode: full agent execution via SDK (Conversation API)
 - Remote mode: WebSocket connection to agent-server with auto-reconnect
@@ -144,7 +144,7 @@ Note: the current implementation opens chat in an editor `WebviewPanel` (“Open
 
 ### Activity Bar
 - OpenHands icon opens the OpenHands view container (chat lives in the sidebar)
-- Quick actions: Open, Settings
+- No separate “quick actions” view; actions are available in the chat header and via the command palette
 
 ### Chat View Layout
 - **Header**: connection status, settings button, history button
@@ -206,7 +206,7 @@ src/
 - Terminal integration for command output
 
 ### Activity Bar ✓ Complete
-- Custom icon and quick actions
+- Custom icon and sidebar container
 
 ### Chat Toolbar ✓ Complete
 - New Conversation, Settings, Connection status
