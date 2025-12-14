@@ -212,10 +212,10 @@ Manual QA checklist (Extension Development Host):
 ## 4) Suggested Parallel Workstream Breakdown (multi-agent)
 
 If we want to parallelize safely:
-- **Workstream A (Extension API + contributions):** `package.json` views/activation/settings/commands.
-- **Workstream B (Bridge refactor):** refactor `ensurePanelAndConnection` + `onWebviewMessage` toward a view-only bridge.
-- **Workstream C (Backlog + lifecycle):** webviewReady rehydration + hidden/visible message strategy.
-- **Workstream D (Tests + QA):** unit test updates + manual verification notes.
+- **Extension API + contributions:** `package.json` views/activation/settings/commands.
+- **Bridge refactor:** refactor `ensurePanelAndConnection` + `onWebviewMessage` toward a view-only bridge.
+- **Backlog + lifecycle:** webviewReady rehydration + hidden/visible message strategy.
+- **Tests + QA:** unit test updates + manual verification notes.
 
 Try to keep PRs small and sequential:
 1) Phase 1
