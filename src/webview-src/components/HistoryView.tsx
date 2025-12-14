@@ -201,20 +201,23 @@ export function HistoryView({
   if (!isOpen) return null;
 
   const sortedConversations = [...conversations].sort((a, b) => b.timestamp - a.timestamp);
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredConversations = normalizedQuery
-    ? sortedConversations.filter((conversation) => {
+  const filteredConversations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return sortedConversations;
+    }
+    return sortedConversations.filter((conversation) => {
       const haystack = [
         conversation.title,
         conversation.firstMessage,
         conversation.id,
       ]
-        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+        .filter(Boolean)
         .join('\n')
         .toLowerCase();
       return haystack.includes(normalizedQuery);
-    })
-    : sortedConversations;
+    });
+  }, [sortedConversations, query]);
 
   return (
     <>
