@@ -220,6 +220,8 @@ export function HistoryView({
     });
   }, [sortedConversations, query]);
 
+  const hasAnyQuery = query.length > 0;
+
   if (!isOpen) return null;
 
   return (
@@ -266,7 +268,7 @@ export function HistoryView({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Escape' && query.trim()) {
+                if (e.key === 'Escape' && hasAnyQuery) {
                   e.stopPropagation();
                   setQuery('');
                 }
@@ -275,7 +277,7 @@ export function HistoryView({
               className="w-full pl-9 pr-9 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0"
               aria-label="Search conversation history"
             />
-            {query.trim() && (
+            {hasAnyQuery && (
               <button
                 type="button"
                 onClick={() => setQuery('')}
