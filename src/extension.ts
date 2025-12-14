@@ -138,8 +138,19 @@ function toAttachmentLabel(uri: vscode.Uri): string {
   try {
     const rel = vscode.workspace.asRelativePath(uri, false);
     if (rel && rel !== uri.fsPath) return rel;
-  } catch {}
+  } catch (err) {
+    console.warn('[OpenHands] Failed to compute relative attachment label', err);
+  }
   return path.basename(uri.fsPath);
+}
+
+function safeParseUri(raw: string): vscode.Uri | undefined {
+  try {
+    return vscode.Uri.parse(raw, true);
+  } catch (err) {
+    console.warn('[OpenHands] Skipping invalid URI', err);
+    return undefined;
+  }
 }
 
 async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<string> {
@@ -156,9 +167,8 @@ async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<stri
 
     try {
       const bytes = await vscode.workspace.fs.readFile(uri);
-      const buf = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
 
-      if (isProbablyBinary(buf)) {
+      if (isProbablyBinary(bytes)) {
         blocks.push(`\n\n${begin}\n(attachment skipped: binary file)\n${end}`);
         continue;
       }
@@ -170,11 +180,11 @@ async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<stri
       }
 
       const maxForThis = Math.min(MAX_ATTACHMENT_BYTES_PER_FILE, remaining);
-      const truncated = buf.length > maxForThis;
-      const slice = buf.slice(0, maxForThis);
+      const truncated = bytes.length > maxForThis;
+      const slice = bytes.slice(0, maxForThis);
       totalIncluded += slice.length;
 
-      const meta = truncated ? `(truncated: first ${slice.length} bytes of ${buf.length} bytes)\n` : '';
+      const meta = truncated ? `(truncated: first ${slice.length} bytes of ${bytes.length} bytes)\n` : '';
       const text = decoder.decode(slice);
       blocks.push(`\n\n${begin}\n${meta}${text}\n${end}`);
     } catch (err) {
@@ -1104,7 +1114,9 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
               try {
                 const stat = await vscode.workspace.fs.stat(uri);
                 sizeBytes = stat.size;
-              } catch {}
+              } catch (err) {
+                console.warn('[OpenHands] Failed to stat attachment', err);
+              }
               return { uri: uri.toString(), label, sizeBytes };
             })
           );
@@ -1138,7 +1150,8 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
           const attachmentUris = Array.isArray(message.attachments)
             ? message.attachments
               .filter((u): u is string => typeof u === 'string' && u.length > 0)
-              .map((u) => vscode.Uri.parse(u, true))
+              .map((u) => safeParseUri(u))
+              .filter((u): u is vscode.Uri => u !== undefined)
             : [];
 
           const attachmentsText = await buildAttachmentBlocks(attachmentUris);

@@ -710,7 +710,8 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       let label = stripTrailingDashes(beginLine.slice(ATTACHMENT_BEGIN.length).trim());
       if (!label) label = 'Attachment';
 
-      const endIdx = text.indexOf(ATTACHMENT_END, beginLineEnd);
+      const endToken = `${ATTACHMENT_END} ${label}`;
+      const endIdx = text.indexOf(endToken, beginLineEnd);
       if (endIdx === -1) {
         cursor = beginIdx;
         break;
