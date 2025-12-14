@@ -516,8 +516,8 @@ describe('Settings and modes', () => {
     expect(writes.join('')).toContain('$ echo_large_output\r\n');
     expect(writes.join('')).toContain(largeOutput);
 
-});
   });
+});
 
 
 describe('Deactivation', () => {
