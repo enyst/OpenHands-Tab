@@ -74,18 +74,23 @@ export function InputArea({
   };
 
   return (
-    <div className="sticky bottom-0 z-30 border-t border-white/10 bg-[var(--vscode-editor-background)]/95 backdrop-blur-sm">
+    <div className="sticky bottom-0 z-30 border-t border-white/[0.06] bg-[var(--vscode-editor-background)]/95 backdrop-blur-md">
       <div className="px-4 py-4">
         {/* Main input container */}
         <div
           className={`
             relative rounded-xl overflow-hidden
-            transition-all duration-300
-            ${isFocused ? 'shadow-glow ring-2 ring-brand-500/30' : 'shadow-event'}
-            ${disabled ? 'opacity-60 cursor-not-allowed' : ''}
+            transition-all duration-200
+            border
+            ${isFocused
+              ? 'shadow-glow border-brand-500/30 ring-1 ring-brand-500/20'
+              : 'shadow-event border-white/[0.06]'}
+            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           `}
           style={{
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%)',
+            background: isFocused
+              ? 'linear-gradient(135deg, rgba(232, 166, 66, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%)'
+              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%)',
           }}
         >
           {/* Textarea */}
@@ -106,10 +111,10 @@ export function InputArea({
             className={`
               w-full px-4 py-3 pr-14
               bg-transparent
-              text-sm leading-relaxed
+              text-sm leading-relaxed text-stone-200
               resize-none
               focus:outline-none
-              placeholder:opacity-50
+              placeholder:text-stone-500
               disabled:cursor-not-allowed
             `}
             style={{
@@ -127,10 +132,10 @@ export function InputArea({
               h-9 w-9 rounded-lg
               flex items-center justify-center
               transition-all duration-200
-              focus:outline-none focus:ring-2 focus:ring-brand-500/50
+              focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
               ${value.trim() && !disabled
-                ? 'bg-brand-500 text-white hover:bg-brand-600 hover:shadow-glow-sm hover:scale-105'
-                : 'bg-white/10 text-white/40 cursor-not-allowed'
+                ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
+                : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'
               }
             `}
             aria-label="Send message"
@@ -177,8 +182,8 @@ export function InputArea({
           <div className="flex-1" />
 
           {/* Hint text */}
-          <div className="text-xs opacity-40 hidden sm:block">
-            <span className="font-mono">Enter</span> to send, <span className="font-mono">Shift+Enter</span> for new line
+          <div className="text-xs text-stone-500 hidden sm:block">
+            <span className="font-mono text-stone-400">Enter</span> to send, <span className="font-mono text-stone-400">Shift+Enter</span> for new line
           </div>
         </div>
       </div>
@@ -204,10 +209,11 @@ function AccessoryButton({ icon, label, onClick, badge, comingSoon }: AccessoryB
         px-3 py-2 rounded-lg
         text-xs font-medium
         transition-all duration-200
-        focus:outline-none focus:ring-2 focus:ring-brand-500/50
+        border
+        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
         ${comingSoon
-          ? 'bg-white/5 text-white/30 cursor-not-allowed'
-          : 'bg-white/5 hover:bg-white/10 hover:shadow-sm hover:scale-105'
+          ? 'bg-white/[0.02] text-stone-600 border-white/[0.03] cursor-not-allowed'
+          : 'bg-white/[0.04] text-stone-400 border-white/[0.06] hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]'
         }
       `}
       aria-label={label}
@@ -217,13 +223,13 @@ function AccessoryButton({ icon, label, onClick, badge, comingSoon }: AccessoryB
       <span>{label}</span>
 
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-brand-500 text-white text-[10px] font-semibold flex items-center justify-center">
+        <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm">
           {badge}
         </span>
       )}
 
       {comingSoon && (
-        <span className="text-[10px] opacity-60 italic">soon</span>
+        <span className="text-[10px] text-stone-600 italic">soon</span>
       )}
     </button>
   );
@@ -262,20 +268,23 @@ export function ContextPicker({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+      style={{
+        background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
+      }}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2 mb-2">
           <span className="codicon codicon-mention text-brand-400" />
-          <h3 className="font-semibold text-sm">Add Context Files</h3>
+          <h3 className="font-semibold text-sm text-stone-200">Add Context Files</h3>
         </div>
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search files..."
-          className="w-full px-3 py-2 bg-black/30 border border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+          className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/30"
           autoFocus
         />
       </div>
@@ -283,11 +292,11 @@ export function ContextPicker({
       {/* File list */}
       <div className="overflow-y-auto max-h-64">
         {filteredFiles.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm opacity-60">
+          <div className="px-4 py-8 text-center text-sm text-stone-500">
             No matches
           </div>
         ) : (
-          <div className="p-2 space-y-1" role="listbox">
+          <div className="p-2 space-y-0.5" role="listbox">
             {filteredFiles.map((file) => {
               const isSelected = selectedFiles.includes(file);
               return (
@@ -300,15 +309,15 @@ export function ContextPicker({
                   className={`
                     w-full text-left px-3 py-2 rounded-lg
                     text-sm font-mono
-                    transition-colors duration-150
+                    transition-all duration-150
                     flex items-center gap-2
                     ${isSelected
-                      ? 'bg-brand-500/20 text-brand-300'
-                      : 'hover:bg-white/5'
+                      ? 'bg-brand-500/15 text-brand-300 border border-brand-500/20'
+                      : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300 border border-transparent'
                     }
                   `}
                 >
-                  <span className={`codicon codicon-${isSelected ? 'check' : 'file'}`} />
+                  <span className={`codicon codicon-${isSelected ? 'check' : 'file'} ${isSelected ? 'text-brand-400' : 'text-stone-500'}`} />
                   <span className="truncate flex-1">{file}</span>
                 </button>
               );
@@ -319,7 +328,7 @@ export function ContextPicker({
 
       {/* Footer */}
       {selectedFiles.length > 0 && (
-        <div className="px-4 py-2 border-t border-white/10 bg-white/5 text-xs opacity-70">
+        <div className="px-4 py-2 border-t border-white/[0.06] bg-brand-500/5 text-xs text-brand-300">
           {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} selected
         </div>
       )}
@@ -355,44 +364,46 @@ export function SkillsPopover({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+      style={{
+        background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
+      }}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-white/10">
+      <div className="px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
-          <span className="codicon codicon-mortar-board text-brand-400" />
-          <h3 className="font-semibold text-sm">Available Skills</h3>
+          <span className="codicon codicon-mortar-board text-violet-400" />
+          <h3 className="font-semibold text-sm text-stone-200">Available Skills</h3>
         </div>
       </div>
 
       {/* Skills list */}
       <div className="overflow-y-auto max-h-64">
         {skills.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm opacity-60">
+          <div className="px-4 py-8 text-center text-sm text-stone-500">
             No skills found
           </div>
         ) : (
-          <div className="p-2 space-y-1" role="listbox" aria-label="Skills">
+          <div className="p-2 space-y-0.5" role="listbox" aria-label="Skills">
             {skills.map((skill) => (
               <button
                 key={skill.path}
                 onClick={() => onOpenSkill(skill.path)}
                 role="option"
                 aria-label={skill.label}
-                // TODO: When keyboard navigation is implemented, track focused item
-                // and set aria-selected="true" for the active option
                 aria-selected="false"
                 className="
                   w-full text-left px-3 py-2 rounded-lg
-                  text-sm
-                  transition-colors duration-150
-                  hover:bg-white/10
+                  text-sm text-stone-400
+                  transition-all duration-150
+                  hover:bg-white/[0.04] hover:text-stone-300
                   flex items-center gap-2
+                  group
                 "
               >
-                <span className="codicon codicon-file-code" />
+                <span className="codicon codicon-file-code text-violet-400/70" />
                 <span className="flex-1 truncate">{skill.label}</span>
-                <span className="codicon codicon-arrow-right opacity-40" />
+                <span className="codicon codicon-arrow-right text-stone-600 group-hover:text-stone-400 transition-colors" />
               </button>
             ))}
           </div>

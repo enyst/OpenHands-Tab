@@ -586,13 +586,17 @@ export function App() {
       {/* Main conversation area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {isEmptyConversation ? (
-          <div className="flex flex-col items-center justify-center h-full text-center opacity-60">
-            <div className="text-6xl mb-4">🙌</div>
-            <h2 className="text-xl font-semibold mb-2">Welcome to OpenHands</h2>
-            <p className="text-sm opacity-80 max-w-md">
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <div className="text-6xl mb-6">🙌</div>
+            <h2 className="text-2xl font-semibold mb-3 text-stone-100">Welcome to OpenHands</h2>
+            <p className="text-sm text-stone-400 max-w-md leading-relaxed">
               Start a conversation to collaborate with your AI coding assistant.
               Ask questions, request implementations, or get help with your code.
             </p>
+            <div className="mt-6 flex items-center gap-2 text-xs text-stone-500">
+              <span className="codicon codicon-lightbulb text-brand-400" />
+              <span>Type a message below to get started</span>
+            </div>
           </div>
         ) : (
           <>
