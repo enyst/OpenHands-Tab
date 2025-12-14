@@ -33,7 +33,7 @@ npm run build
 
 1. Open the project in VS Code
 2. Press F5 to launch Extension Development Host
-3. Run "OpenHands: Open Tab" command
+3. Click the OpenHands icon in the Activity Bar (or run "OpenHands: Open") to reveal the chat sidebar view
 
 ### Configuration
 

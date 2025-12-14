@@ -11,7 +11,7 @@ const userDataDir = path.join(os.tmpdir(), `vscode-test-${Date.now()}`);
 describe('OpenHands-Tab E2E', function () {
   this.timeout(180000);
 
-  it('opens the tab and executes commands', async () => {
+  it('opens the chat view and executes commands', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const cliPath = resolveCliPathFromVSCodeExecutablePath(vscodeExecutablePath);
     const extensionDevelopmentPath = path.resolve(__dirname, '../../..');

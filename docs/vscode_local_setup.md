@@ -136,7 +136,7 @@ code \
 ## Configuration for the Agent
 In the Dev Host window, use the commands:
 - OpenHands: Configure — set server URL (leave blank for local mode)
-- OpenHands: Open Tab — opens the main tab
+- OpenHands: Open — reveals the chat sidebar view
 - OpenHands: Start New Conversation — starts a new conversation
 
 ## Logs and Diagnostics

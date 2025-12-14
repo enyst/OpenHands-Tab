@@ -14,9 +14,6 @@ import { getVscodeApi } from './shared/vscodeApi';
       try { api.postMessage(payload); } catch {}
     };
 
-    // Signal readiness (in case the host waits on it)
-    post({ type: 'webviewReady' });
-
     // Console bridge
     const levels: Array<'log' | 'warn' | 'error'> = ['log', 'warn', 'error'];
     levels.forEach((level) => {

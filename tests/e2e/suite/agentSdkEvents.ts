@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
 
 export async function run(): Promise<void> {
-  // Ensure panel is created
-  await vscode.commands.executeCommand('openhands.openTab');
+  // Ensure chat view is created
+  await vscode.commands.executeCommand('openhands.open');
 
-  // Wait until panel and webview are ready
+  // Wait until view and webview are ready
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    if (diag?.hasPanel && diag?.webviewReady) break;
+    if (diag?.chat?.hasView && diag?.chat?.webviewReady) break;
     await new Promise((r) => setTimeout(r, 200));
   }
 

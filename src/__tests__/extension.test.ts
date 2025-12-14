@@ -142,37 +142,67 @@ describe('Extension Activation', () => {
     expect(vscode.commands.registerCommand).toHaveBeenCalled();
   });
 
-  it('does not create a conversation until the tab opens', async () => {
+  it('does not create a conversation until the chat view resolves', async () => {
     const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
     await extension.activate(mockContext);
     expect(__getLastConversation()).toBeNull();
   });
 });
 
-describe('Open tab behavior', () => {
+function createMockWebviewView() {
+  const view: any = {
+    visible: true,
+    show: vi.fn(),
+    webview: {
+      html: '',
+      options: {},
+      postMessage: vi.fn(),
+      onDidReceiveMessage: vi.fn((handler: Function) => {
+        view._messageHandler = handler;
+        return { dispose: vi.fn() };
+      }),
+      asWebviewUri: vi.fn((uri: any) => uri),
+      cspSource: 'vscode-webview:',
+    },
+    onDidDispose: vi.fn((handler: Function) => {
+      view._disposeHandler = handler;
+      return { dispose: vi.fn() };
+    }),
+    _messageHandler: null as Function | null,
+    _disposeHandler: null as Function | null,
+  };
+
+  return view;
+}
+
+async function resolveChatView(mockContext: any) {
+  const provider = (vscode.window.registerWebviewViewProvider as Mock).mock.calls.find(
+    (call) => call[0] === 'openhands.chat'
+  )?.[1];
+  expect(provider).toBeTruthy();
+
+  const view = createMockWebviewView();
+  provider.resolveWebviewView(view);
+
+  // ensureConversationAndConnection() is async and invoked without await
+  const deadline = Date.now() + 2000;
+  while (Date.now() < deadline) {
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    if (__getLastConversation()) break;
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  return view;
+}
+
+describe('Chat view behavior', () => {
   let mockContext: any;
   let extension: any;
-  let mockPanel: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
     mockSettings = structuredClone(defaultMockSettings);
-
-    mockPanel = {
-      webview: {
-        html: '',
-        postMessage: vi.fn(),
-        onDidReceiveMessage: vi.fn((handler: Function) => ({ dispose: vi.fn() })),
-        asWebviewUri: vi.fn((uri: any) => uri),
-        cspSource: 'vscode-webview:',
-      },
-      onDidDispose: vi.fn((handler: Function) => { mockPanel._disposeHandler = handler; return { dispose: vi.fn() }; }),
-      reveal: vi.fn(),
-      _disposeHandler: null as Function | null,
-    };
-
-    (vscode.window.createWebviewPanel as Mock).mockReturnValue(mockPanel);
 
     mockContext = createMockContext();
     extension = await import('../extension');
@@ -183,20 +213,19 @@ describe('Open tab behavior', () => {
     extension?.deactivate?.();
   });
 
-  it('creates the panel and conversation on first open', async () => {
+  it('creates the conversation when the chat view resolves', async () => {
     const { Conversation, __getLastConversation } = await import('@openhands/agent-sdk-ts');
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
-    expect(vscode.window.createWebviewPanel).toHaveBeenCalled();
     expect(Conversation).toHaveBeenCalled();
     expect(__getLastConversation()).toBeTruthy();
   });
 
-  it('does not auto-restore saved conversation on first panel open', async () => {
+  it('does not auto-restore saved conversation on first chat view resolve', async () => {
     // Intentionally does not restore on first open - users may return after weeks
     // and won't remember what the conversation was about
     (mockContext.workspaceState.get as Mock).mockReturnValue('saved-convo');
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
     expect(conv?.restoreConversation).not.toHaveBeenCalled();
@@ -206,32 +235,18 @@ describe('Open tab behavior', () => {
 describe('Command handlers', () => {
   let mockContext: any;
   let extension: any;
-  let mockPanel: any;
   let conversationInstance: any;
+  let chatView: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
     mockSettings = structuredClone(defaultMockSettings);
 
-    mockPanel = {
-      webview: {
-        html: '',
-        postMessage: vi.fn(),
-        onDidReceiveMessage: vi.fn((handler: Function) => ({ dispose: vi.fn() })),
-        asWebviewUri: vi.fn((uri: any) => uri),
-        cspSource: 'vscode-webview:',
-      },
-      onDidDispose: vi.fn((handler: Function) => ({ dispose: vi.fn() })),
-      reveal: vi.fn(),
-    };
-
-    (vscode.window.createWebviewPanel as Mock).mockReturnValue(mockPanel);
-
     mockContext = createMockContext();
     extension = await import('../extension');
     await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.openTab');
+    chatView = await resolveChatView(mockContext);
 
     const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
     conversationInstance = __getLastConversation();
@@ -257,7 +272,8 @@ describe('Command handlers', () => {
   });
 
   it('forwards webview send/command messages to conversation', async () => {
-    const handler = (mockPanel.webview.onDidReceiveMessage as Mock).mock.calls[0][0];
+    const handler = chatView._messageHandler;
+    expect(handler).toBeTypeOf('function');
 
     await handler({ type: 'send', text: 'hello' });
     await handler({ type: 'command', command: 'approveAction' });
@@ -272,25 +288,11 @@ describe('Command handlers', () => {
 describe('Settings and modes', () => {
   let mockContext: any;
   let extension: any;
-  let mockPanel: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
     mockSettings = structuredClone(defaultMockSettings);
-    mockPanel = {
-      webview: {
-        html: '',
-        postMessage: vi.fn(),
-        onDidReceiveMessage: vi.fn((handler: Function) => ({ dispose: vi.fn() })),
-        asWebviewUri: vi.fn((uri: any) => uri),
-        cspSource: 'vscode-webview:',
-      },
-      onDidDispose: vi.fn((handler: Function) => ({ dispose: vi.fn() })),
-      reveal: vi.fn(),
-    };
-
-    (vscode.window.createWebviewPanel as Mock).mockReturnValue(mockPanel);
     mockContext = createMockContext();
   });
 
@@ -314,7 +316,7 @@ describe('Settings and modes', () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
     await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
     const writes: string[] = [];
     let terminalInstance: any;
@@ -359,7 +361,7 @@ describe('Settings and modes', () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
     await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
     const writes: string[] = [];
     (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
@@ -402,7 +404,7 @@ describe('Settings and modes', () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
     await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
     expect(conv?.mode).toBe('local');
@@ -412,7 +414,7 @@ describe('Settings and modes', () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
     await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
     const writes: string[] = [];
     (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
@@ -521,13 +523,13 @@ describe('Settings and modes', () => {
 
 
 describe('Deactivation', () => {
-  it('disconnects the conversation and disposes panel/terminal', async () => {
+  it('disconnects the conversation and disposes terminal', async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
     const mockContext = createMockContext();
     const extension = await import('../extension');
     await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.openTab');
+    await resolveChatView(mockContext);
 
     extension.deactivate();
 

@@ -3,7 +3,7 @@
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
   "version": "0.0.4",
-  "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
+  "description": "A VS Code extension to interact with OpenHands agents in a dedicated sidebar chat view",
   "license": "MIT",
   "workspaces": [
     "packages/*"
@@ -20,20 +20,21 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onCommand:openhands.openTab",
+    "onCommand:openhands.open",
     "onCommand:openhands.startNewConversation",
     "onCommand:openhands.configure",
+    "onCommand:openhands.setApiKey",
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
     "onCommand:openhands.resumeCurrentRun",
-    "onView:openhands.quickActions"
+    "onView:openhands.chat"
   ],
   "contributes": {
 
     "commands": [
       {
-        "command": "openhands.openTab",
-        "title": "OpenHands: Open Tab"
+        "command": "openhands.open",
+        "title": "OpenHands: Open"
       },
       {
         "command": "openhands.startNewConversation",
@@ -203,9 +204,9 @@
     "views": {
       "openhands": [
         {
-          "id": "openhands.quickActions",
-          "name": "OpenHands",
-          "type": "tree"
+          "id": "openhands.chat",
+          "name": "Chat",
+          "type": "webview"
         }
       ]
     }
@@ -217,7 +218,7 @@
     "watch": "tsc -w -p . & npx tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --watch & node --watch esbuild.webview.mjs",
     "vscode:prepublish": "npm run build",
     "package": "node scripts/run-vsce-package.js",
-    "e2e": "npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
+    "e2e": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
     "test": "npm test -w @openhands/agent-sdk-ts && vitest run --dir src",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
