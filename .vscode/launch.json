@@ -4,7 +4,7 @@
     {
       "type": "extensionHost",
       "request": "launch",
-      "name": "Run OH-Tab",
+      "name": "Run OH-Tab (isolated profile)",
       "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
