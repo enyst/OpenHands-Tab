@@ -234,6 +234,23 @@ export function HistoryView({
     setVisibleCount(HISTORY_PAGE_SIZE);
   };
 
+  const footerText = useMemo(() => {
+    const trimmedQuery = query.trim();
+    const totalConversations = sortedConversations.length;
+    const visible = visibleConversations.length;
+
+    if (trimmedQuery) {
+      const matchWord = filteredConversations.length === 1 ? 'match' : 'matches';
+      return `Showing ${visible} of ${filteredConversations.length} ${matchWord} (${totalConversations} total)`;
+    }
+
+    const conversationWord = totalConversations === 1 ? 'conversation' : 'conversations';
+    if (canLoadMore) {
+      return `Showing ${visible} of ${totalConversations} ${conversationWord}`;
+    }
+    return `${totalConversations} ${conversationWord}`;
+  }, [canLoadMore, filteredConversations.length, query, sortedConversations.length, visibleConversations.length]);
+
   if (!isOpen) return null;
 
   return (
@@ -343,11 +360,7 @@ export function HistoryView({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
           <p className="text-xs text-stone-500 text-center">
-            {query.trim()
-              ? `Showing ${visibleConversations.length} of ${filteredConversations.length} match${filteredConversations.length !== 1 ? 'es' : ''} (${sortedConversations.length} total)`
-              : canLoadMore
-                ? `Showing ${visibleConversations.length} of ${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`
-                : `${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`}
+            {footerText}
           </p>
         </div>
       </div>
