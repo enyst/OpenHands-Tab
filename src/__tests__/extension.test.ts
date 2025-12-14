@@ -319,6 +319,46 @@ describe('Settings and modes', () => {
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
     expect(conv?.mode).toBe('local');
   });
+
+  it('streams BashEvents into the OpenHands terminal log in local mode', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.openTab');
+
+    const writes: string[] = [];
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    conv?.emit('terminal', {
+      id: 'bash-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-1',
+      order: 0,
+      command: 'pwd && ls -la',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-2',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:01.000Z',
+      command_id: 'tc-1',
+      order: 1,
+      exit_code: 0,
+      stdout: '/test/workspace\n',
+      stderr: null,
+    });
+
+    expect(vscode.window.createTerminal).toHaveBeenCalledWith(expect.objectContaining({ name: 'OpenHands' }));
+    expect(writes.join('')).toContain('$ pwd && ls -la');
+    expect(writes.join('')).toContain('/test/workspace');
+  });
 });
 
 describe('Deactivation', () => {

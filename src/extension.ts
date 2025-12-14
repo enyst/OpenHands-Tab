@@ -51,6 +51,7 @@ let panel: vscode.WebviewPanel | undefined;
 let conversation: ConversationInstance | undefined;
 let conversationMode: 'local' | 'remote' = 'remote';
 let terminal: vscode.Terminal | undefined;
+let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
 let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
 let webviewReady = false; // Track if webview is ready to receive messages
 let outputChannel: vscode.OutputChannel | undefined;
@@ -77,6 +78,53 @@ function fileLog(line: string) {
   fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch((err: unknown) => {
     console.warn('[OpenHands] Failed to append to webview log', err);
   });
+}
+
+const normalizeTerminalNewlines = (text: string): string => text.replace(/\r?\n/g, '\r\n');
+
+class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
+  private readonly writeEmitter = new vscode.EventEmitter<string>();
+  private readonly closeEmitter = new vscode.EventEmitter<void>();
+  private closed = false;
+  private showedInputHint = false;
+
+  readonly onDidWrite = this.writeEmitter.event;
+  readonly onDidClose = this.closeEmitter.event;
+
+  open(): void {
+    this.writeLine('[OpenHands] Terminal log (read-only)');
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.closeEmitter.fire();
+    this.writeEmitter.dispose();
+    this.closeEmitter.dispose();
+  }
+
+  handleInput(_data: string): void {
+    if (this.closed || this.showedInputHint) return;
+    this.showedInputHint = true;
+    this.writeLine('');
+    this.writeLine('[OpenHands] This terminal is read-only.');
+    this.writeLine('[OpenHands] Use a normal VS Code terminal for manual commands.');
+    this.writeLine('');
+  }
+
+  write(text: string): void {
+    if (this.closed) return;
+    const normalized = normalizeTerminalNewlines(text);
+    // Avoid very large single writes which can fail or lag the terminal renderer.
+    const chunkSize = 16_000;
+    for (let i = 0; i < normalized.length; i += chunkSize) {
+      this.writeEmitter.fire(normalized.slice(i, i + chunkSize));
+    }
+  }
+
+  writeLine(line: string): void {
+    this.write(`${line}\n`);
+  }
 }
 
 const createDefaultLocalTools = () => [
@@ -191,25 +239,28 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    if (!terminal) {
+    if (!terminal || !terminalLogPty) {
       try {
-        terminal = vscode.window.createTerminal({ name: 'OpenHands' });
+        terminalLogPty = new OpenHandsTerminalLogPseudoterminal();
+        terminal = vscode.window.createTerminal({ name: 'OpenHands', pty: terminalLogPty });
         terminal.show(true);
       } catch (e) {
-        console.error('[Terminal] Failed to create terminal:', e);
+        console.error('[Terminal] Failed to create terminal log:', e);
+        terminal = undefined;
+        terminalLogPty = undefined;
         return;
       }
     }
 
     try {
       if (isBashCommand(event)) {
-        terminal.sendText(`$ ${event.command}`, false);
-        terminal.sendText('');
+        terminalLogPty.writeLine('');
+        terminalLogPty.writeLine(`$ ${event.command}`);
       } else if (isBashOutput(event)) {
-        if (event.stdout) terminal.sendText(event.stdout, false);
-        if (event.stderr) terminal.sendText(event.stderr, false);
+        if (event.stdout) terminalLogPty.write(event.stdout);
+        if (event.stderr) terminalLogPty.write(event.stderr);
       } else if (isBashExit(event)) {
-        terminal.sendText(`[Process exited with code ${event.exit_code}]`);
+        terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
       }
     } catch (e) {
       console.error('[Terminal] Failed to write terminal event:', e);
@@ -505,6 +556,7 @@ export function deactivate() {
   panel = undefined;
   conversation = undefined;
   terminal = undefined;
+  terminalLogPty = undefined;
   renderedEventsInfo = undefined;
   webviewReady = false;
   receivedTerminalEvents.length = 0;
