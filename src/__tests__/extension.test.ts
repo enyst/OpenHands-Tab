@@ -310,6 +310,94 @@ describe('Settings and modes', () => {
     );
   });
 
+  it('recreates the terminal after user closes it', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.openTab');
+
+    const writes: string[] = [];
+    let terminalInstance: any;
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+      terminalInstance = { show: vi.fn(), dispose: vi.fn() };
+      return terminalInstance;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-1',
+      order: 0,
+      command: 'first_command',
+    });
+    expect(vscode.window.createTerminal).toHaveBeenCalledTimes(1);
+
+    const closeHandler = (vscode.window.onDidCloseTerminal as Mock).mock.calls[0]?.[0];
+    closeHandler?.(terminalInstance);
+
+    conv?.emit('terminal', {
+      id: 'bash-2',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:01.000Z',
+      command_id: 'tc-2',
+      order: 0,
+      command: 'second_command',
+    });
+
+    expect(vscode.window.createTerminal).toHaveBeenCalledTimes(2);
+    const joined = writes.join('');
+    expect(joined).toContain('$ first_command');
+    expect(joined).toContain('$ second_command');
+  });
+
+  it('handles ANSI sequences and emoji across chunk boundary', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.openTab');
+
+    const writes: string[] = [];
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    const coloredOutput = '\x1b[31m' + 'red'.repeat(5500) + '\x1b[0m' + '🚀'.repeat(100);
+
+    conv?.emit('terminal', {
+      id: 'bash-9',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:08.000Z',
+      command_id: 'tc-5',
+      order: 0,
+      command: 'echo_colored_emoji',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-10',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:09.000Z',
+      command_id: 'tc-5',
+      order: 1,
+      exit_code: 0,
+      stdout: coloredOutput,
+      stderr: null,
+    });
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ echo_colored_emoji\r\n');
+    expect(joined).toContain(coloredOutput);
+    expect(joined).toContain('\x1b[31m');
+    expect(joined).toContain('\x1b[0m');
+  });
+
   it('creates a local-mode conversation when serverUrl is empty', async () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
