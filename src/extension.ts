@@ -151,13 +151,12 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
         end -= 1;
       }
 
-      // Avoid cutting off an ANSI escape sequence at the end of the chunk (best-effort)
-      // If the chunk tail contains a ESC (\x1b) without a known terminator, backtrack to that ESC
+      // Avoid cutting off an ANSI CSI sequence (ESC [ ... terminator @-~) at the end of the chunk (best-effort)
       const tail = normalized.slice(start, end);
-      const escIdx = Math.max(tail.lastIndexOf('\u001b['), tail.lastIndexOf('\u001b'));
+      const escIdx = tail.lastIndexOf('\u001b[');
       if (escIdx >= 0) {
-        const afterEsc = tail.slice(escIdx);
-        const hasTerminator = /[A-~a-~]/.test(afterEsc.slice(2)); // CSI typically ends with @-~
+        const afterCsi = tail.slice(escIdx + 2); // after ESC [
+        const hasTerminator = /[@-~]/.test(afterCsi); // CSI typically ends with a byte in @-~
         if (!hasTerminator && escIdx > 0) {
           end = start + escIdx;
         }
@@ -328,8 +327,8 @@ export function activate(context: vscode.ExtensionContext) {
         if (event.stdout) terminalLogPty.write(event.stdout);
         if (event.stderr) terminalLogPty.write(event.stderr);
         // Defensive: if exit_code is provided on output but no BashExit arrives, synthesize a footer once
-        const cid = (event as any).command_id as string | undefined;
-        const code = (event as any).exit_code as number | undefined;
+        const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
+        const code = 'exit_code' in event ? (event as { exit_code?: number }).exit_code : undefined;
         if (cid && typeof code === 'number' && !printedExitFor.has(cid)) {
           terminalLogPty.ensureNewline?.();
           terminalLogPty.writeLine(`[Process exited with code ${code}]`);
@@ -338,7 +337,9 @@ export function activate(context: vscode.ExtensionContext) {
       } else if (isBashExit(event)) {
         terminalLogPty.ensureNewline?.();
         terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
-        if ((event as any).command_id) printedExitFor.add((event as any).command_id);
+        if ('command_id' in event && (event as { command_id?: string }).command_id) {
+          printedExitFor.add((event as { command_id?: string }).command_id as string);
+        }
       }
     } catch (e) {
       console.error('[Terminal] Failed to write terminal event:', e);
