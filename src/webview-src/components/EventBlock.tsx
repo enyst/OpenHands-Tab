@@ -292,6 +292,10 @@ const SYSTEM_ACCENT_COLOR = 'var(--event-system)';
 const ACTION_ACCENT_COLOR = 'var(--event-action)';
 const OBSERVATION_ACCENT_COLOR = 'var(--event-observation)';
 
+/** Mix a CSS color with transparency - use instead of appending hex alpha to CSS vars */
+const withAlpha = (color: string, percent: number) =>
+  `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+
 // Security risk badge component with refined styling
 function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }) {
   const styles = {
@@ -358,7 +362,7 @@ function EventContainer({
       {/* Subtle top highlight for depth */}
       <div
         className="absolute inset-x-0 top-0 h-px rounded-t-xl"
-        style={{ background: `linear-gradient(90deg, ${accentColor}20, transparent 50%)` }}
+        style={{ background: `linear-gradient(90deg, ${withAlpha(accentColor, 12)}, transparent 50%)` }}
       />
       {children}
     </div>
@@ -381,7 +385,7 @@ export function SystemPromptEventBlock({ event, index }: { event: SystemPromptEv
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `${SYSTEM_ACCENT_COLOR}15` }}
+          style={{ backgroundColor: withAlpha(SYSTEM_ACCENT_COLOR, 9) }}
         >
           <span className="codicon codicon-gear text-sm" style={{ color: SYSTEM_ACCENT_COLOR }} />
         </div>
@@ -434,7 +438,7 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
         <div className="flex items-center gap-2.5">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${ACTION_ACCENT_COLOR}15` }}
+            style={{ backgroundColor: withAlpha(ACTION_ACCENT_COLOR, 9) }}
           >
             <span className="codicon codicon-play text-sm" style={{ color: ACTION_ACCENT_COLOR }} />
           </div>
@@ -510,7 +514,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `${OBSERVATION_ACCENT_COLOR}15` }}
+          style={{ backgroundColor: withAlpha(OBSERVATION_ACCENT_COLOR, 9) }}
         >
           <span className="codicon codicon-eye text-sm" style={{ color: OBSERVATION_ACCENT_COLOR }} />
         </div>
@@ -565,7 +569,7 @@ export function UserRejectBlock({ event, index }: { event: UserRejectObservation
       <div className="flex items-center gap-2.5 mb-2">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `${ERROR_ACCENT_COLOR}15` }}
+          style={{ backgroundColor: withAlpha(ERROR_ACCENT_COLOR, 9) }}
         >
           <span className="codicon codicon-close text-sm" style={{ color: ERROR_ACCENT_COLOR }} />
         </div>
@@ -588,7 +592,7 @@ export function AgentErrorBlock({ event, index }: { event: AgentErrorEvent; inde
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `${ERROR_ACCENT_COLOR}15` }}
+          style={{ backgroundColor: withAlpha(ERROR_ACCENT_COLOR, 9) }}
         >
           <span className="codicon codicon-warning text-sm" style={{ color: ERROR_ACCENT_COLOR }} />
         </div>
@@ -611,7 +615,7 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `${ERROR_ACCENT_COLOR}15` }}
+          style={{ backgroundColor: withAlpha(ERROR_ACCENT_COLOR, 9) }}
         >
           <span className="codicon codicon-issues text-sm" style={{ color: ERROR_ACCENT_COLOR }} />
         </div>
@@ -641,7 +645,7 @@ export function CondensationBlock({ event, index }: { event: Condensation; index
       <div className="flex items-center gap-2.5 mb-3">
         <div
           className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: `${SYSTEM_ACCENT_COLOR}15` }}
+          style={{ backgroundColor: withAlpha(SYSTEM_ACCENT_COLOR, 9) }}
         >
           <span className="codicon codicon-archive text-sm" style={{ color: SYSTEM_ACCENT_COLOR }} />
         </div>
@@ -700,7 +704,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 flex-shrink-0"
-          style={{ backgroundColor: `${accentColor}18` }}
+          style={{ backgroundColor: withAlpha(accentColor, 10) }}
         >
           <span className={`codicon codicon-${icon} text-sm`} style={{ color: accentColor }} />
         </div>
@@ -826,13 +830,13 @@ export function StreamingMessageBlock({ content }: { content: string }) {
       {/* Subtle top highlight */}
       <div
         className="absolute inset-x-0 top-0 h-px rounded-t-xl"
-        style={{ background: `linear-gradient(90deg, ${accentColor}20, transparent 50%)` }}
+        style={{ background: `linear-gradient(90deg, ${withAlpha(accentColor, 12)}, transparent 50%)` }}
       />
 
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 flex-shrink-0 animate-pulse-glow"
-          style={{ backgroundColor: `${accentColor}18` }}
+          style={{ backgroundColor: withAlpha(accentColor, 10) }}
         >
           <span className="codicon codicon-hubot text-sm" style={{ color: accentColor }} />
         </div>

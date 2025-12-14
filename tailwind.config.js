@@ -93,10 +93,6 @@ module.exports = {
           '0%, 100%': { boxShadow: '0 0 8px rgba(232, 166, 66, 0.2)' },
           '50%': { boxShadow: '0 0 20px rgba(232, 166, 66, 0.5)' },
         },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
-        },
       },
       backdropBlur: {
         xs: '2px',
