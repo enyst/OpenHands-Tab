@@ -4,6 +4,7 @@ import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideCli
 // --- Constants ---
 
 const PROMPT_PREVIEW_MAX_LENGTH = 100;
+const HISTORY_PAGE_SIZE = 30;
 
 // --- Types ---
 
@@ -194,6 +195,7 @@ export function HistoryView({
 }: HistoryViewProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(HISTORY_PAGE_SIZE);
 
   // Close on Escape key or click outside (with delay to avoid immediate close on open)
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
@@ -221,6 +223,16 @@ export function HistoryView({
   }, [sortedConversations, query]);
 
   const hasAnyQuery = query.length > 0;
+  const visibleConversations = useMemo(
+    () => filteredConversations.slice(0, visibleCount),
+    [filteredConversations, visibleCount]
+  );
+  const canLoadMore = visibleConversations.length < filteredConversations.length;
+
+  const updateQuery = (next: string) => {
+    setQuery(next);
+    setVisibleCount(HISTORY_PAGE_SIZE);
+  };
 
   if (!isOpen) return null;
 
@@ -266,11 +278,11 @@ export function HistoryView({
             <span className="codicon codicon-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => updateQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape' && hasAnyQuery) {
                   e.stopPropagation();
-                  setQuery('');
+                  updateQuery('');
                 }
               }}
               placeholder="Search history…"
@@ -280,7 +292,7 @@ export function HistoryView({
             {hasAnyQuery && (
               <button
                 type="button"
-                onClick={() => setQuery('')}
+                onClick={() => updateQuery('')}
                 className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md text-stone-400 hover:text-stone-200 hover:bg-white/[0.06] flex items-center justify-center transition-all"
                 aria-label="Clear search"
                 title="Clear search"
@@ -296,10 +308,10 @@ export function HistoryView({
           {sortedConversations.length === 0 ? (
             <EmptyState />
           ) : filteredConversations.length === 0 ? (
-            <NoResultsState query={query.trim()} onClear={() => setQuery('')} />
+            <NoResultsState query={query.trim()} onClear={() => updateQuery('')} />
           ) : (
             <div className="space-y-2">
-              {filteredConversations.map((conversation, index) => (
+              {visibleConversations.map((conversation, index) => (
                 <ConversationItem
                   key={conversation.id}
                   conversation={conversation}
@@ -311,6 +323,19 @@ export function HistoryView({
                   }}
                 />
               ))}
+
+              {canLoadMore && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + HISTORY_PAGE_SIZE)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-stone-300 hover:bg-white/[0.06] hover:text-stone-100 hover:border-white/[0.1] transition-all"
+                    aria-label="Load more conversations"
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -319,8 +344,10 @@ export function HistoryView({
         <div className="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
           <p className="text-xs text-stone-500 text-center">
             {query.trim()
-              ? `${filteredConversations.length} of ${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`
-              : `${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`}
+              ? `Showing ${visibleConversations.length} of ${filteredConversations.length} match${filteredConversations.length !== 1 ? 'es' : ''} (${sortedConversations.length} total)`
+              : canLoadMore
+                ? `Showing ${visibleConversations.length} of ${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`
+                : `${sortedConversations.length} conversation${sortedConversations.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </div>

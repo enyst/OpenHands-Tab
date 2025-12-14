@@ -40,7 +40,7 @@ describe('HistoryView', () => {
 
     expect(screen.getByText('Fix sidebar issue')).toBeInTheDocument();
     expect(screen.queryByText('Conversation (def45)')).not.toBeInTheDocument();
-    expect(screen.getByText('1 of 2 conversations')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 1 match (2 total)')).toBeInTheDocument();
   });
 
   it('shows no-results state and clears search', () => {
@@ -111,5 +111,35 @@ describe('HistoryView', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('paginates conversations with Load more', () => {
+    const onClose = vi.fn();
+    const onSelectConversation = vi.fn();
+
+    const conversations = Array.from({ length: 31 }, (_, idx) => {
+      const n = idx + 1;
+      return { id: `conv-${n}`, title: `Conversation ${n}`, timestamp: n };
+    });
+
+    render(
+      <HistoryView
+        isOpen
+        onClose={onClose}
+        conversations={conversations}
+        onSelectConversation={onSelectConversation}
+      />
+    );
+
+    act(() => { vi.advanceTimersByTime(150); });
+
+    expect(screen.getByText('Showing 30 of 31 conversations')).toBeInTheDocument();
+    expect(screen.queryByText('Conversation 1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load more conversations' }));
+
+    expect(screen.getByText('Conversation 1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load more conversations' })).not.toBeInTheDocument();
+    expect(screen.getByText('31 conversations')).toBeInTheDocument();
   });
 });
