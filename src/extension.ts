@@ -589,7 +589,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Test command to send mock events to webview for E2E testing
-  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: Event) => {
+  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
     sentTestEvents.push(event);
     if (chatView) {
       void chatView.webview.postMessage({ type: 'event', event });

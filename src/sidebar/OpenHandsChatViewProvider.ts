@@ -16,7 +16,9 @@ export class OpenHandsChatViewProvider implements vscode.WebviewViewProvider {
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
-    this.viewDisposables.forEach((d) => d.dispose());
+    this.viewDisposables.forEach((d) => {
+      d.dispose();
+    });
     this.viewDisposables = [];
 
     webviewView.webview.options = {
