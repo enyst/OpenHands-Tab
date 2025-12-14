@@ -423,12 +423,14 @@ describe('Settings and modes', () => {
     expect(writes.join('')).toContain('/test/workspace\r\n');
     expect(writes.join('')).toContain('$ command_with_error\r\n');
     expect(writes.join('')).toContain('Error: command not found\r\n');
-    expect(writes.join('')).toContain('$ echo "hello\r\nworld\n"\r\n');
+    expect(writes.join('')).toContain('$ echo "hello\r\nworld\r\n"\r\n');
     expect(writes.join('')).toContain('hello\r\nworld\r\n');
     expect(writes.join('')).toContain('$ echo_large_output\r\n');
     expect(writes.join('')).toContain(largeOutput);
 
 });
+  });
+
 
 describe('Deactivation', () => {
   it('disconnects the conversation and disposes panel/terminal', async () => {
