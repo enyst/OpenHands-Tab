@@ -33,7 +33,8 @@ npm run build
 
 1. Open the project in VS Code
 2. Press F5 to launch Extension Development Host
-3. Run "OpenHands: Open Tab" command
+3. Run "OpenHands: Open Tab" command (opens the chat webview in the editor)
+   - Sidebar `WebviewView` migration plan: `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`
 
 ### Configuration
 

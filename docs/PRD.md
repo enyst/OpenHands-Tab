@@ -1,11 +1,11 @@
 # OpenHands-Tab VS Code Extension
 
 ## 1. Goal
-A VS Code extension that provides a tab to interact with OpenHands agents, supporting both local execution (in VS Code) and remote execution (via agent-server). The extension streams events in real time, supports action confirmation, and reflects file changes in the workspace.
+A VS Code extension that provides a sidebar chat view to interact with OpenHands agents, supporting both local execution (in VS Code) and remote execution (via agent-server). The extension streams events in real time, supports action confirmation, and reflects file changes in the workspace.
 
 ## 2. Scope
 - In scope
-  - VS Code extension with a dedicated tab (Webview) for chat and agent interaction
+  - VS Code extension with a dedicated sidebar view (`WebviewView`) for chat and agent interaction
   - Local mode: run agent directly in VS Code using the SDK
   - Remote mode: connect to OpenHands agent-server via WebSocket/HTTP
   - Real-time streaming of agent events (messages, tool runs, logs)
@@ -23,6 +23,8 @@ A VS Code extension that provides a tab to interact with OpenHands agents, suppo
 
 ## 4. Current Implementation Status
 
+Note: the current implementation opens chat in an editor `WebviewPanel` (“OpenHands: Open Tab”). Migration to a sidebar `WebviewView` is planned in `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`.
+
 ### Implemented Features ✓
 - Activity bar icon with quick actions
 - Chat webview with streaming events and message rendering
@@ -33,11 +35,11 @@ A VS Code extension that provides a tab to interact with OpenHands agents, suppo
 - Action confirmation with Approve/Reject UI
 - Security risk indicators (LOW/MEDIUM/HIGH)
 - Conversation persistence to disk
-- Conversation history view with search
+- Conversation history view
 - Workspace file context (@mentions)
 - Skills support (~/.openhands/skills/)
 - Terminal integration (local mode)
-- Toast notifications for status and errors
+- Status banner for status and errors
 - Event rendering for all event types
 
 ### Not Yet Implemented
@@ -99,7 +101,7 @@ A VS Code extension that provides a tab to interact with OpenHands agents, suppo
 ## 7. Functional Requirements
 
 ### Commands
-- **OpenHands: Open Tab** - opens the webview
+- **OpenHands: Open** - opens the chat UI (currently exposed as “OpenHands: Open Tab” until the sidebar migration lands)
 - **OpenHands: Start New Conversation** - starts fresh conversation
 - **OpenHands: Configure** - multi-step configuration wizard
 - **OpenHands: Set API Key** - quick API key setup
@@ -141,10 +143,10 @@ A VS Code extension that provides a tab to interact with OpenHands agents, suppo
 ## 9. UX Overview
 
 ### Activity Bar
-- OpenHands icon opens chat tab
-- Quick actions: Open Tab, Settings
+- OpenHands icon opens the OpenHands view container (chat lives in the sidebar)
+- Quick actions: Open, Settings
 
-### Chat Tab Layout
+### Chat View Layout
 - **Header**: connection status, settings button, history button
 - **Main**: message list with streaming events
 - **Bottom**: input area with context picker (@), skills button

@@ -31,9 +31,9 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
    - Press F5 to run “Extension Development Host”
 4) In the Dev Host window
    - Run “OpenHands: Configure” → ensure server URL is http://localhost:3000
-   - Run “OpenHands: Open Tab”
+   - Run “OpenHands: Open Tab” (opens the chat webview in the editor)
    - Run "OpenHands: Start New Conversation"
-   - Type a message and verify assistant/tool events stream in the tab
+   - Type a message and verify assistant/tool events stream in the webview
 
 ### Option B: Automated E2E Tests with @vscode/test-electron
 
@@ -70,7 +70,7 @@ import { runTests } from '@vscode/test-electron';
 describe('OpenHands-Tab E2E', function() {
   this.timeout(120000);
 
-  it('opens the tab and renders HTML', async () => {
+  it('opens the chat webview and renders HTML', async () => {
     // VS Code launches with extension loaded
     // Test suite verifies commands, webview, etc.
   });
@@ -91,7 +91,7 @@ describe('OpenHands-Tab E2E', function() {
 - Inject `SESSION_API_KEY` environment variable if required
 
 **Test Stability:**
-- Start with smoke tests (activation + command execution + panel created)
+- Start with smoke tests (activation + command execution + webview panel created)
 - Add network-dependent assertions once the server contract is stable
 - Use timeouts appropriately for async operations
 
@@ -99,7 +99,7 @@ describe('OpenHands-Tab E2E', function() {
 
 Whether testing manually or automated, verify:
 - ✅ VS Code launches with the extension
-- ✅ Command "OpenHands: Open Tab" succeeds and a panel appears
+- ✅ Command "OpenHands: Open Tab" succeeds and the chat webview appears
 - ✅ Command "OpenHands: Start New Conversation" succeeds (HTTP 201)
 - ✅ WebSocket connects (status shows online) and events stream when you send a message
 

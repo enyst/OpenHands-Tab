@@ -203,7 +203,7 @@ Once connected to the desktop via noVNC:
 1. You should see VS Code running with Fluxbox window manager
 2. Run command: **"OpenHands: Configure"**
    - Set server URL (default: `http://localhost:3000`)
-3. Run command: **"OpenHands: Open Tab"**
+3. Run command: **"OpenHands: Open Tab"** (opens the chat webview in the editor)
 4. Run command: **"OpenHands: Start New Conversation"**
 5. Type a message and verify the extension works
 

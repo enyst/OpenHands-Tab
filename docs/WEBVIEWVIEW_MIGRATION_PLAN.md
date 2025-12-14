@@ -1,8 +1,17 @@
 # OpenHands Tab — WebviewPanel → WebviewView (Sidebar) Migration Plan
 
-Goal: migrate the chat UI from an editor `WebviewPanel` to a sidebar `WebviewView` (while keeping the option to open in the editor if we want), without regressing local/remote mode, history restore, terminal streaming, or tests.
+Goal: migrate the chat UI from an editor `WebviewPanel` to a sidebar `WebviewView` (sidebar-only), without regressing local/remote mode, history restore, terminal streaming, or tests.
+
+Decision (locked in):
+- The chat UI will live only in the sidebar as a `WebviewView`.
+- The editor `WebviewPanel` implementation will be removed (no user-facing “open in editor” option).
 
 This plan is written for parallel execution by multiple agents (implementation + review + testing).
+
+Related docs:
+- `docs/IMPLEMENTATION_PLAN.md` (webview build-out status + next milestones)
+- `docs/PRD.md` (requirements + feature status)
+- `docs/vscode_local_setup.md` (local dev + webview debugging tips)
 
 ---
 
@@ -22,30 +31,27 @@ The chat runtime (Conversation + event wiring) is currently tightly coupled to `
 - `ensurePanelAndConnection()` creates the panel, creates/refreshes the Conversation, and forwards Conversation events/status/errors to `panel.webview.postMessage(...)`.
 - `onWebviewMessage(context, panel)` assumes a `WebviewPanel` and posts all replies back through `panel.webview.postMessage(...)`.
 
+Today the webview also sends a `webviewReady` handshake (currently from both `src/webview-src/webview.tsx` instrumentation and `src/webview-src/components/App.tsx`). The extension host responds by re-sending `status` and `serverListUpdated`. This is sufficient for a panel, but not enough for a `WebviewView` that can be hidden/disposed while the agent continues running.
+
 ---
 
 ## 1) Desired End-State (UX)
 
-We need to decide what “clicking the OpenHands icon” should do, and where the chat UI should live.
+What “clicking the OpenHands icon” should do is now straightforward: it should reveal the OpenHands view container and the chat `WebviewView`.
 
-Recommended UX (min confusion / no double-open):
-- **Default:** chat UI opens in the **sidebar** as a `WebviewView`.
-- **Optional:** a command allows opening the same UI in the **editor** as a `WebviewPanel` (useful for larger screen / multi-monitor).
-- The sidebar tree view (“quick actions”) can remain (or be removed later), but it should not automatically open a second UI surface.
+End-state UX (no double-open, no editor tab):
+- Chat UI is a single sidebar `WebviewView` (e.g. `openhands.chat`).
+- The sidebar tree view (“quick actions”) can remain (or be removed later), but it must not auto-open any editor UI surface.
 
-### Note: Webview placement constraints (Active vs Beside)
+### Notes: `WebviewView` constraints
 
-- A `WebviewPanel` always lives in the **editor area** (editor groups/columns). `ViewColumn.Active` opens in the currently active editor group; `ViewColumn.Beside` opens in a new group to the side (roughly “split editor and put it next to what you’re doing”).
-- A `WebviewView` always lives in a **contributed view container** (sidebar/panel). There is no `ViewColumn` equivalent; you can show/hide the view, but it will not become an editor tab.
+- A `WebviewView` lives in a contributed view container (sidebar). There is no `ViewColumn` equivalent.
+- The extension should provide one “open” command whose job is to focus/reveal the view (and nothing else).
 
-We can support this with:
-- A setting: `openhands.ui.location = "sidebar" | "editor"` (default `"sidebar"`).
-- Commands:
-  - `OpenHands: Open` (respects setting)
-  - `OpenHands: Open in Sidebar`
-  - `OpenHands: Open in Editor`
+Recommended command surface:
+- `OpenHands: Open` (focuses the sidebar chat view; keep `openhands.openTab` as a legacy command id if desired, but it should no longer open an editor tab)
 
-Decision needed before Phase 3:
+Decision needed (still open, but orthogonal to “sidebar-only chat”):
 - Keep `openhands.quickActions` tree view long-term, or replace it with the webview view?
 
 ---
@@ -54,7 +60,7 @@ Decision needed before Phase 3:
 
 ### “Behavior parity” definition
 
-For this migration, “parity” means: regardless of whether the UI is hosted as a sidebar `WebviewView` or editor `WebviewPanel`, users can still:
+For this migration, “parity” means: after moving the UI into the sidebar `WebviewView`, users can still:
 - send messages and see streaming responses
 - see tool execution events (terminal, file edits, etc.)
 - see and act on pending actions (approvals/rejections)
@@ -62,8 +68,7 @@ For this migration, “parity” means: regardless of whether the UI is hosted a
 - see connection/status/config updates and errors
 
 Non-parity differences we accept (by design):
-- **where** the UI appears (sidebar vs editor)
-- whether we allow both surfaces simultaneously (decision in Open Questions)
+- No editor-hosted chat UI (the chat lives in the sidebar only)
 
 ### Why `WebviewView` is not a drop-in replacement
 
@@ -82,7 +87,7 @@ So we need a robust “rehydration” path:
 
 To avoid duplicating events when the webview is retained (or missing events when it wasn’t), use a simple sequence protocol:
 - In the extension host, assign a monotonic `seq` to each forwarded Conversation event and store the last N in a ring buffer (include the current `conversationId`).
-- Have the webview send `webviewReady` with optional fields:
+- Extend the existing `webviewReady` handshake to optionally include:
   - `conversationId?: string`
   - `lastSeenSeq?: number`
   (Persist these in the webview via `acquireVsCodeApi().setState(...)`.)
@@ -90,6 +95,12 @@ To avoid duplicating events when the webview is retained (or missing events when
   - always send `status` + `serverListUpdated`
   - if `conversationId` mismatches or `lastSeenSeq` is missing/out of range: send `conversationStarted` + the full buffer
   - else: send only buffered events with `seq > lastSeenSeq`
+
+Implementation notes:
+- Treat `webviewReady` as idempotent (it may fire more than once per render lifecycle today).
+- Decide which `ConversationStateUpdateEvent`s to buffer:
+  - buffer `agent_status` updates (needed to rehydrate confirmation/pause UI)
+  - consider dropping `llm_stream` / `llm_tool_call` deltas from the backlog (noisy); users will still see the final `MessageEvent`/tool events when the view is shown again
 
 This is the main “state restore nuance” required to achieve parity with `WebviewPanel` behavior.
 
@@ -121,21 +132,17 @@ Suggested PR boundary:
 
 ---
 
-### Phase 2 — Decouple UI wiring from WebviewPanel (introduce a WebviewHost)
-**Goal:** Make the Conversation <-> UI message bridge work with either a panel or a view.
+### Phase 2 — Refactor the message bridge for `WebviewView` lifecycle
+**Goal:** Make the Conversation <-> UI message bridge robust for a sidebar `WebviewView` (hidden/disposed/re-resolved) and remove hard coupling to `panel.webview`.
 
 Key refactor:
-- Introduce a minimal `WebviewHost` abstraction:
-  - `webview: vscode.Webview`
-  - `show(preserveFocus?: boolean): void` (panel.reveal() vs view.show())
-  - optional: `onDidDispose` handler
-  - optional: `visible` (view has it; panel has `visible`)
+- Replace `panel`-centric wiring with a `WebviewView`-centric host:
+  - store the latest `vscode.WebviewView` reference (or just its `webview`)
+  - centralize `postMessage(...)` behind a single helper that no-ops when the view is absent
 
 Refactor steps:
-- Replace global `panel` with `uiHost?: WebviewHost`.
-- Rename `ensurePanelAndConnection()` → `ensureUiHostAndConnection(target: 'panel' | 'view' | 'auto')`.
-- Replace direct `panel.webview.postMessage(...)` with `postToWebview(...)` helper.
-- Refactor `onWebviewMessage(context, panel)` to accept `(context, host)` or `(context, webview, postFn)`.
+- Introduce `ensureChatViewAndConnection()` (or similar) that ensures the Conversation exists and the sidebar view is ready to receive messages.
+- Update `onWebviewMessage(...)` to take `webview: vscode.Webview` (not a `WebviewPanel`) and reuse it for both panel-less message handling and tests.
 
 Event delivery resilience (required for WebviewView):
 - Add an **event backlog buffer** in the extension host (ring buffer, e.g. last 500–2000 events) with a monotonic `seq` id.
@@ -146,38 +153,32 @@ Event delivery resilience (required for WebviewView):
   - “catch-up” events using the `lastSeenSeq` protocol above
 
 Acceptance criteria:
-- Both the existing editor panel and the new sidebar view can:
-  - send messages
-  - receive event stream
-  - render status/config
+- The sidebar chat view can send messages, receive the event stream, and rehydrate after being hidden/disposed.
 
 Suggested PR boundary:
-- “Refactor message bridge to support WebviewView”.
+- “Refactor message bridge for WebviewView”.
 
 ---
 
-### Phase 3 — Remove “double open” and add the user-facing choice
-**Goal:** Clicking the OpenHands icon no longer opens two surfaces; user controls where chat opens.
+### Phase 3 — Remove editor `WebviewPanel` and stop “double open”
+**Goal:** There is exactly one chat UI surface: the sidebar `WebviewView`.
 
 Tasks:
-- Add setting `openhands.ui.location` with enum:
-  - `"sidebar"` (default)
-  - `"editor"`
-- Commands:
-  - Update `openhands.openTab` to behave like `OpenHands: Open` (respects setting)
-  - Add explicit commands:
-    - `openhands.openInSidebar`
-    - `openhands.openInEditor`
+- Commands / contributions:
+  - Update the user-facing command title to remove “Tab” wording (e.g. `OpenHands: Open`).
+  - Keep the existing `openhands.openTab` command id as an alias if we want backward compatibility, but it should focus the sidebar view.
+- Remove editor tab creation:
+  - Delete `vscode.window.createWebviewPanel(...)` usage and `panel` module state.
+  - Remove any editor-tab-only code paths (including tests that assume a panel exists).
 - Change the current auto-open behavior:
-  - Remove `treeView.onDidChangeVisibility -> openTab`, OR gate it behind a setting (default off).
-  - If the tree view remains, it should be “quick actions only”, not a trigger for opening a second UI.
+  - Remove `treeView.onDidChangeVisibility -> openTab`.
+  - If the tree view remains, it should be “quick actions only”, not a trigger for opening any additional UI surface.
 
 Acceptance criteria:
-- Clicking the activity bar icon opens the container; **only one** chat surface appears by default.
-- The other surface is accessible via explicit command.
+- Clicking the activity bar icon opens the container; the chat UI is in the sidebar view and no editor tab is created.
 
 Suggested PR boundary:
-- “Sidebar chat is default; stop auto-opening editor tab”.
+- “Sidebar chat only; remove editor panel”.
 
 ---
 
@@ -210,7 +211,7 @@ Manual QA checklist (Extension Development Host):
 
 If we want to parallelize safely:
 - **Workstream A (Extension API + contributions):** `package.json` views/activation/settings/commands.
-- **Workstream B (Bridge refactor):** `WebviewHost` abstraction + refactor `ensurePanelAndConnection` + `onWebviewMessage`.
+- **Workstream B (Bridge refactor):** refactor `ensurePanelAndConnection` + `onWebviewMessage` toward a view-only bridge.
 - **Workstream C (Backlog + lifecycle):** webviewReady rehydration + hidden/visible message strategy.
 - **Workstream D (Tests + QA):** unit test updates + manual verification notes.
 
@@ -222,9 +223,7 @@ Try to keep PRs small and sequential:
 
 ---
 
-## 5) Open Questions (capture before coding Phase 3)
+## 5) Open Questions
 
 1) Do we keep the sidebar tree view long-term, or replace it entirely with the webview view?
-2) Do we support “both” simultaneously (sidebar + editor), or is it always one-at-a-time?
-3) What is the default: sidebar or editor?
-4) Should the editor tab be opened “Beside” or in the active group when using the editor mode?
+2) When a user runs `OpenHands: Open`, should it also auto-focus the chat view (vs. just reveal the container)?
