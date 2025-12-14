@@ -107,7 +107,7 @@ export function ConfirmationPrompt({
                         `}
                       >
                         <span className={`codicon codicon-${action.security_risk === 'HIGH' ? 'shield' : 'warning'} text-[10px]`} />
-                        {action.security_risk}
+                        {action.security_risk} RISK
                       </span>
                     )}
                   </div>
@@ -147,7 +147,7 @@ export function ConfirmationPrompt({
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Explain why you're rejecting this action..."
+                placeholder="Reason for rejection (optional)"
                 rows={3}
                 className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/30"
                 autoFocus

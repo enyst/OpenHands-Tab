@@ -649,7 +649,7 @@ export function CondensationBlock({ event, index }: { event: Condensation; index
       </div>
       <div className="text-sm">
         <div className="mb-2 text-stone-400">
-          <span className="text-stone-500">Forgetting</span> {event.forgotten_event_ids.length} <span className="text-stone-500">events</span>
+          Forgetting {event.forgotten_event_ids.length} events
         </div>
         {event.summary && (
           <div className="bg-black/20 border border-white/[0.04] rounded-lg p-3 leading-relaxed italic text-stone-300">
