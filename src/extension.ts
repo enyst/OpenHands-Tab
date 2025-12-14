@@ -21,7 +21,9 @@ import {
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
 import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
+import { OpenHandsChatViewProvider } from './sidebar/OpenHandsChatViewProvider';
 import { initialLlmStreamingState, reduceLlmStreamingState } from './shared/llmStreaming';
+import { getWebviewHtml } from './webview/getWebviewHtml';
 
 // Discriminated union for webview → extension messages
 type WebviewMessage =
@@ -279,6 +281,13 @@ export function activate(context: vscode.ExtensionContext) {
       void vscode.commands.executeCommand('openhands.openTab');
     }
   }));
+
+  const chatViewProvider = new OpenHandsChatViewProvider(context);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('openhands.chat', chatViewProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    })
+  );
 
   // Enable dev bridge only for Development/Test extension modes or with user setting
   const mode = context.extensionMode;
@@ -658,36 +667,6 @@ export function deactivate() {
   renderedEventsInfo = undefined;
   webviewReady = false;
   receivedTerminalEvents.length = 0;
-}
-
-function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
-  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
-  const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'index.css'));
-  const codiconStylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'));
-  const version = Date.now().toString();
-  const csp = [
-    `default-src 'none'`,
-    `img-src ${webview.cspSource} data:`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `font-src ${webview.cspSource}`,
-    `script-src ${webview.cspSource}`,
-  ].join('; ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="${stylesUri.toString()}?v=${version}" rel="stylesheet" />
-  <link href="${codiconStylesUri.toString()}?v=${version}" rel="stylesheet" />
-  <title>OpenHands Tab</title>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="${scriptUri.toString()}?v=${version}"></script>
-</body>
-</html>`;
 }
 
 /**
