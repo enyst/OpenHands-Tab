@@ -4,7 +4,7 @@ This folder contains minimal E2E scaffolding using @vscode/test-electron.
 
 ## Test Files
 
-- **openTab.test.ts**: orchestrates a VS Code instance and runs the suite entry.
+- **open.test.ts**: orchestrates a VS Code instance and runs the suite entry.
 - **diagnostics.test.ts**: tests the diagnostics command.
 - **agentSdkEvents.test.ts**: tests agent-sdk event rendering in the webview.
 - **suite/index.ts**: called by the VS Code runner; triggers extension commands.
