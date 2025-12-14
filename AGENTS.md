@@ -135,8 +135,8 @@ npm run build -w @openhands/agent-sdk-ts
 
 ## Agent Mail (MCP) quick commands
 
-- Server endpoint: `http://127.0.0.1:8765/mcp/` (from `/Users/enyst/repos/mcp_agent_mail`; start with `scripts/run_server_with_token.sh` or `uv run python -m mcp_agent_mail.cli serve-http`).
-- Projects use absolute paths, e.g. `project_key="/Users/enyst/repos/oh-tab"`.
+- Server endpoint: `http://127.0.0.1:8765/mcp/` (from `<path-to-mcp-agent-mail-repo>`; start with `scripts/run_server_with_token.sh` or `uv run python -m mcp_agent_mail.cli serve-http`).
+- Projects use absolute paths, e.g. `project_key="$(pwd)"` or `project_key="<absolute-path-to-your-project>"`.
 - Register/refresh identity: `register_agent(project_key, program, model, name, task_description?, attachments_policy?)`.
 - Inbox: `fetch_inbox(project_key, agent_name, include_bodies?, limit?)`; ack with `acknowledge_message(project_key, agent_name, message_id)`.
 - Send mail: `send_message(project_key, sender_name, to[], subject, body_md, thread_id?, ack_required?, importance?, attachments?)`.
