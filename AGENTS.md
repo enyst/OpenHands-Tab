@@ -107,12 +107,42 @@ git commit -m 'Subject' -m 'Body paragraph'
 
 Do not use literal `\n` in commit messages.
 
+## Pull Requests (required checklist)
+
+Before opening or updating a PR:
+- Run the basics: `npm test`, `npm run typecheck`, `npm run lint`
+- If you changed extension/webview/runtime behavior: `npm run e2e`
+- If you changed build tooling or packaging: `npm run build`
+- Ensure GitHub CI checks are green on the PR
+
+Reviews (do not merge without review):
+- Ask an active agent/human in this project for review (via Agent Mail or GitHub).
+- If nobody is available, do **not** merge. Leave the PR open and do other work; re-check Mail later for reviewers.
+- Wait for the two GitHub AI reviewers to finish before merging:
+  - **CodeRabbitAI**: check its first comment for “pending” or “rate limit exceeded”.
+    - If pending: wait.
+    - If rate limited: after the cooldown, re-trigger by pushing a small change or commenting `@coderabbitai review` on the PR.
+  - **Gemini-code-assist**: generally considered “done” once it has posted two top-level comments, but also review its inline comment threads.
+- Always read review threads in “Files changed” (both bots leave inline comments).
+- Merge only after you have an explicit approval and all review threads are resolved/addressed.
+
 ## SDK Package
 
 When editing `packages/agent-sdk-ts`, rebuild before launching extension:
 ```bash
 npm run build -w @openhands/agent-sdk-ts
 ```
+
+## Agent Mail (MCP) quick commands
+
+- Server endpoint: `http://127.0.0.1:8765/mcp/` (from `<path-to-mcp-agent-mail-repo>`; start with `scripts/run_server_with_token.sh` or `uv run python -m mcp_agent_mail.cli serve-http`).
+- Projects use absolute paths, e.g. `project_key="$(pwd)"` or `project_key="<absolute-path-to-your-project>"`.
+- Register/refresh identity: `register_agent(project_key, program, model, name, task_description?, attachments_policy?)`.
+- Inbox: `fetch_inbox(project_key, agent_name, include_bodies?, limit?)`; ack with `acknowledge_message(project_key, agent_name, message_id)`.
+- Send mail: `send_message(project_key, sender_name, to[], subject, body_md, thread_id?, ack_required?, importance?, attachments?)`.
+- File leases: `file_reservation_paths(project_key, agent_name, paths[], ttl_seconds?, exclusive?, reason?)`; release with `release_file_reservations(...)` or renew via `renew_file_reservations(...)`.
+- Discover tooling/agents: `resource://projects`, `resource://project/{slug}`, `resource://tooling/directory` (via `resources/read`).
+
 
 ## Integrating with Beads (dependency-aware task planning)
 
