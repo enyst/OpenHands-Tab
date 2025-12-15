@@ -160,7 +160,7 @@ export async function run(): Promise<void> {
     // Condensation
     {
       kind: 'Condensation',
-      source: 'agent',
+      source: 'environment',
       forgotten_event_ids: ['event_001', 'event_002', 'event_003'],
       summary: 'Condensed 3 events to save memory'
     },
