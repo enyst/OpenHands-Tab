@@ -99,6 +99,7 @@ let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 let conversationStoreRoot: string | undefined;
 let lastKnownLlmModel: string | null = null;
+let verboseEventLogging = false;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
@@ -580,11 +581,38 @@ function shouldRedactKey(key: string): boolean {
     k === 'apikey' ||
     k === 'authorization' ||
     k === 'auth' ||
+    k.includes('accesskey') ||
     k.endsWith('token') ||
     k.includes('secret') ||
     k === 'llmapikey' ||
     k === 'sessionapikey'
   );
+}
+
+const REDACTED = '[REDACTED]';
+
+function redactStringHeuristics(text: string): string {
+  let t = text;
+
+  // Authorization / Bearer patterns
+  t = t.replace(/(Authorization\s*:\s*Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
+  t = t.replace(/(Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
+
+  // Common token prefixes
+  t = t.replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gi, REDACTED);
+  t = t.replace(/\bgh[pousr]_[A-Za-z0-9]{12,}\b/gi, REDACTED);
+  t = t.replace(/\bgithub_pat_[A-Za-z0-9_]{12,}\b/gi, REDACTED);
+
+  // AWS access key ids (AKIA..., ASIA...)
+  t = t.replace(/\b(AKIA|ASIA)[0-9A-Z]{16}\b/g, REDACTED);
+
+  // Common key=value or key: value patterns
+  const keyPattern =
+    /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret|aws[_-]?access[_-]?key[_-]?id|aws[_-]?secret[_-]?access[_-]?key)/gi;
+  t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, key) => `${key}: ${REDACTED}`);
+  t = t.replace(new RegExp(`([?&])(${keyPattern.source})=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=${REDACTED}`);
+
+  return t;
 }
 
 /* eslint-disable @typescript-eslint/no-unsafe-return */
@@ -594,7 +622,8 @@ function safeStringify(value: unknown): string {
       value,
       (key, val) => {
         if (typeof val === 'bigint') return val.toString();
-        if (typeof key === 'string' && shouldRedactKey(key)) return '[REDACTED]';
+        if (typeof key === 'string' && shouldRedactKey(key)) return REDACTED;
+        if (typeof val === 'string') return redactStringHeuristics(val);
         return val;
       }
     );
@@ -822,6 +851,10 @@ export function activate(context: vscode.ExtensionContext) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
     lastKnownLlmModel = settings.llm.model ?? null;
+
+    const cfg = vscode.workspace.getConfiguration();
+    verboseEventLogging = Boolean(settings.agent?.debug) || Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
@@ -890,7 +923,12 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         if (!isLlmStreamUpdate) {
-          outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+          const isErrorLike = ev.kind === 'ConversationErrorEvent' || ev.kind === 'AgentErrorEvent';
+          if (verboseEventLogging || isErrorLike) {
+            outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
+          } else {
+            outputChannel?.appendLine(`[event] ${ev.kind}`);
+          }
         }
 
         if (streamingUpdate.completed) {
@@ -1177,6 +1215,15 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save API Key',
   });
 
+  const setSessionApiKey = registerSecretCommand('openhands.setSessionApiKey', {
+    title: 'Session API Key',
+    secretKey: 'sessionApiKey',
+    prompt: 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Session API Key saved securely.',
+    clearedMessage: 'Session API Key cleared.',
+    errorPrefix: 'Failed to save Session API Key',
+  });
+
   const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
     title: 'GitHub Token',
     secretKey: 'githubToken',
@@ -1268,11 +1315,18 @@ export function activate(context: vscode.ExtensionContext) {
 
       if (e.affectsConfiguration('openhands.terminal.renderProgress')) {
         // Recreate on next terminal event so it picks up updated rendering behavior.
-        try { terminalLogPty?.ensureNewline?.(); } catch { }
-        try { terminal?.dispose(); } catch { }
+        try { terminalLogPty?.ensureNewline?.(); } catch {}
+        try { terminal?.dispose(); } catch {}
         terminal = undefined;
         terminalLogPty = undefined;
         return;
+      }
+
+      if (e.affectsConfiguration('openhands.agent.debug') || e.affectsConfiguration('openhands.devBridge.enabled')) {
+        const cfg = vscode.workspace.getConfiguration();
+        const debug = cfg.get<boolean>('openhands.agent.debug') ?? false;
+        const devBridgeEnabled = cfg.get<boolean>('openhands.devBridge.enabled') ?? false;
+        verboseEventLogging = debug || devBridgeEnabled;
       }
 
       if (e.affectsConfiguration('openhands.llm')) {
@@ -1300,6 +1354,7 @@ export function activate(context: vscode.ExtensionContext) {
     startNew,
     configure,
     setApiKey,
+    setSessionApiKey,
     setGithubToken,
     setCustomSecret1,
     setCustomSecret2,

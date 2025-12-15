@@ -26,10 +26,12 @@ describe('SettingsManager', () => {
   it('returns defaults when unset', async () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBeUndefined();
-    expect(s.llm.usageId).toBeUndefined();
+    expect(s.llm.usageId).toBe('default-llm');
+    expect(s.llm.provider).toBe('anthropic');
     // Local mode requires a default model for the local Agent to run.
     expect(s.llm.model).toBe('claude-sonnet-4-20250514');
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
+    expect(s.agent.debug).toBe(false);
   });
 
   it('omits model by default in remote mode', async () => {
@@ -42,8 +44,15 @@ describe('SettingsManager', () => {
   it('updates and persists config and secrets', async () => {
     await mgr.update({
       serverUrl: 'http://example:1234',
-      llm: { usageId: 'my-usage', model: 'foo', baseUrl: 'https://api.example.com' },
-      agent: { enableSecurityAnalyzer: true },
+      llm: {
+        usageId: 'my-usage',
+        provider: 'openrouter',
+        model: 'foo',
+        baseUrl: 'https://api.example.com',
+        inputCostPerToken: 0.000001,
+        outputCostPerToken: 0.000002,
+      },
+      agent: { enableSecurityAnalyzer: true, debug: true },
       conversation: { maxIterations: 42 },
       confirmation: { policy: 'risky', riskyThreshold: 'MEDIUM', confirmUnknown: false },
       secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
@@ -51,9 +60,13 @@ describe('SettingsManager', () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
     expect(s.llm.usageId).toBe('my-usage');
+    expect(s.llm.provider).toBe('openrouter');
     expect(s.llm.model).toBe('foo');
     expect(s.llm.baseUrl).toBe('https://api.example.com');
+    expect(s.llm.inputCostPerToken).toBe(0.000001);
+    expect(s.llm.outputCostPerToken).toBe(0.000002);
     expect(s.agent.enableSecurityAnalyzer).toBe(true);
+    expect(s.agent.debug).toBe(true);
     expect(s.conversation.maxIterations).toBe(42);
     expect(s.confirmation.policy).toBe('risky');
     expect(s.confirmation.riskyThreshold).toBe('MEDIUM');
@@ -167,7 +180,9 @@ describe('SettingsManager', () => {
         topK: 50,
         maxInputTokens: 4096,
         maxOutputTokens: 2048,
-        reasoningEffort: 'high'
+        reasoningEffort: 'high',
+        inputCostPerToken: 0.000001,
+        outputCostPerToken: 0.000002,
       }
     });
 
@@ -180,6 +195,8 @@ describe('SettingsManager', () => {
     expect(s.llm.maxInputTokens).toBe(4096);
     expect(s.llm.maxOutputTokens).toBe(2048);
     expect(s.llm.reasoningEffort).toBe('high');
+    expect(s.llm.inputCostPerToken).toBe(0.000001);
+    expect(s.llm.outputCostPerToken).toBe(0.000002);
   });
 
   it('handles sanitizePositiveInteger with invalid inputs', async () => {
@@ -215,6 +232,7 @@ describe('SettingsManager', () => {
     const nullKeys = new Set([
       'openhands.serverUrl',
       'openhands.agent.enableSecurityAnalyzer',
+      'openhands.agent.debug',
       'openhands.conversation.maxIterations',
       'openhands.confirmation.policy',
       'openhands.confirmation.risky.threshold',
@@ -229,9 +247,10 @@ describe('SettingsManager', () => {
 
     expect(s.serverUrl).toBeUndefined();
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
+    expect(s.agent.debug).toBe(false);
     expect(s.conversation.maxIterations).toBe(50);
     expect(s.confirmation.policy).toBe('never');
-    expect(s.confirmation.riskyThreshold).toBe('HIGH');
+    expect(s.confirmation.riskyThreshold).toBe('MEDIUM');
     expect(s.confirmation.confirmUnknown).toBe(true);
   });
 

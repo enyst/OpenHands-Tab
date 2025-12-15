@@ -24,6 +24,7 @@
     "onCommand:openhands.startNewConversation",
     "onCommand:openhands.configure",
     "onCommand:openhands.setApiKey",
+    "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setCustomSecret1",
     "onCommand:openhands.setCustomSecret2",
@@ -50,6 +51,10 @@
       {
         "command": "openhands.setApiKey",
         "title": "OpenHands: Set API Key"
+      },
+      {
+        "command": "openhands.setSessionApiKey",
+        "title": "OpenHands: Set Session API Key"
       },
       {
         "command": "openhands.setGithubToken",
@@ -117,6 +122,12 @@
           },
           "markdownDescription": "List of saved OpenHands server URLs with optional labels."
         },
+        "openhands.secrets.sessionApiKey": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your Session API Key securely:**\n\n[🔑 Configure Session API Key](command:openhands.setSessionApiKey)\n\n_(Stored in secure system keychain, not in settings.json. Used to authenticate to agent-server.)_"
+        },
         "openhands.conversation.maxIterations": {
           "type": "number",
           "default": 50,
@@ -149,7 +160,7 @@
             "MEDIUM",
             "HIGH"
           ],
-          "default": "HIGH",
+          "default": "MEDIUM",
           "markdownDescription": "Risk threshold for ConfirmRisky policy. Actions at or above this require confirmation."
         },
         "openhands.confirmation.risky.confirmUnknown": {
@@ -162,53 +173,41 @@
           "default": false,
           "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
         },
-        "openhands.llm.usageId": {
-          "type": "string",
-          "default": "default-llm",
-          "markdownDescription": "Preferred usage_id for LLM config sent to agent-server. If unset, server defaults apply."
+        "openhands.agent.debug": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable local-mode debug events (e.g., llm_request/tool_call_raw)."
         },
         "openhands.llm.model": {
           "type": "string",
           "default": "claude-sonnet-4-20250514",
           "markdownDescription": "Default model name for LLM requests."
         },
+        "openhands.llm.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "anthropic",
+            "openai",
+            "openrouter",
+            "litellm_proxy"
+          ],
+          "default": "auto",
+          "markdownDescription": "LLM provider selection. Use `auto` to infer from `openhands.llm.baseUrl` when set; otherwise local mode defaults to Anthropic."
+        },
         "openhands.llm.baseUrl": {
           "type": "string",
           "markdownDescription": "Optional LLM base URL override. Leave empty to use provider default."
+        },
+        "openhands.llm.apiVersion": {
+          "type": "string",
+          "markdownDescription": "Optional LLM API version (e.g., Azure). Leave empty if not applicable."
         },
         "openhands.llm.apiKey": {
           "type": "string",
           "default": "",
           "editPresentation": "singlelineText",
           "markdownDescription": "**To set your LLM API Key securely:**\n\n[🔑 Configure API Key](command:openhands.setApiKey)\n\n_(API keys are stored in secure system keychain, not in settings.json)_"
-        },
-        "openhands.secrets.githubToken": {
-          "type": "string",
-          "default": "",
-          "editPresentation": "singlelineText",
-          "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
-        },
-        "openhands.secrets.customSecret1": {
-          "type": "string",
-          "default": "",
-          "editPresentation": "singlelineText",
-          "markdownDescription": "**To set your custom secret 1 securely:**\n\n[🔑 Configure Custom Secret 1](command:openhands.setCustomSecret1)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
-        },
-        "openhands.secrets.customSecret2": {
-          "type": "string",
-          "default": "",
-          "editPresentation": "singlelineText",
-          "markdownDescription": "**To set your custom secret 2 securely:**\n\n[🔑 Configure Custom Secret 2](command:openhands.setCustomSecret2)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
-        },
-        "openhands.secrets.customSecret3": {
-          "type": "string",
-          "default": "",
-          "editPresentation": "singlelineText",
-          "markdownDescription": "**To set your custom secret 3 securely:**\n\n[🔑 Configure Custom Secret 3](command:openhands.setCustomSecret3)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
-        },
-        "openhands.llm.apiVersion": {
-          "type": "string",
-          "markdownDescription": "Optional LLM API version (e.g., Azure). Leave empty if not applicable."
         },
         "openhands.llm.timeout": {
           "type": "number",
@@ -246,6 +245,43 @@
           ],
           "default": "none",
           "markdownDescription": "Reasoning effort for supported models."
+        },
+        "openhands.llm.inputCostPerToken": {
+          "type": "number",
+          "markdownDescription": "Optional cost per input token (USD) for usage stats."
+        },
+        "openhands.llm.outputCostPerToken": {
+          "type": "number",
+          "markdownDescription": "Optional cost per output token (USD) for usage stats."
+        },
+        "openhands.llm.usageId": {
+          "type": "string",
+          "default": "default-llm",
+          "markdownDescription": "Optional usage_id for local-mode LLM metrics tracking. In remote mode, only applies if explicitly set."
+        },
+        "openhands.secrets.githubToken": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret1": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 1 securely:**\n\n[🔑 Configure Custom Secret 1](command:openhands.setCustomSecret1)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret2": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 2 securely:**\n\n[🔑 Configure Custom Secret 2](command:openhands.setCustomSecret2)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret3": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 3 securely:**\n\n[🔑 Configure Custom Secret 3](command:openhands.setCustomSecret3)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
         }
       }
     },
