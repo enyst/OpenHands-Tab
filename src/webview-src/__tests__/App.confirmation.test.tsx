@@ -64,6 +64,27 @@ describe('App - Confirmation Flow', () => {
     expect(scope.getByText(/Reasoning/)).toBeInTheDocument();
   });
 
+  it('renders file access summary and opens the requested path', async () => {
+    await renderAppAndWaitReady();
+    setWaitingForConfirmation();
+
+    const requestedPath = '/tmp/outside.txt';
+    postToWindow({
+      type: 'event',
+      event: mkAction({
+        tool_name: 'file_editor',
+        action: { command: 'view', path: requestedPath },
+        security_risk: undefined,
+      }),
+    });
+
+    expect(await screen.findByText(/File Access/i)).toBeInTheDocument();
+    expect(screen.getByText('READ')).toBeInTheDocument();
+    const pathButton = screen.getByRole('button', { name: requestedPath });
+    await userEvent.click(pathButton);
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openWorkspaceFile', path: requestedPath });
+  });
+
   it('hides prompt when no actions are pending', async () => {
     await renderAppAndWaitReady();
     setWaitingForConfirmation();

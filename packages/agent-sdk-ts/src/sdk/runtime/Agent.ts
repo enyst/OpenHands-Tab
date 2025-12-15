@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import { randomUUID } from 'crypto';
+import path from 'path';
 import { AgentOrchestrator } from './AgentOrchestrator';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
@@ -157,6 +158,7 @@ export class Agent extends EventEmitter {
   private paused = false;
   private cancelled = false;
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> };
+  private pendingWorkspaceAccess?: { paths: string[] };
   private readonly agentContext?: AgentContext;
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
@@ -237,6 +239,7 @@ export class Agent extends EventEmitter {
   cancel(): void {
     this.cancelled = true;
     this.pendingAction = undefined;
+    this.pendingWorkspaceAccess = undefined;
     this.state.setStatus('CANCELLED');
   }
 
@@ -244,7 +247,14 @@ export class Agent extends EventEmitter {
     if (!this.pendingAction) return;
     await this.lock.acquire(async () => {
       const pending = this.pendingAction!;
+      const pendingWorkspaceAccess = this.pendingWorkspaceAccess;
       this.pendingAction = undefined;
+      this.pendingWorkspaceAccess = undefined;
+      if (pendingWorkspaceAccess) {
+        for (const p of pendingWorkspaceAccess.paths) {
+          this.workspace.allowPath(p);
+        }
+      }
       this.state.setStatus('RUNNING');
       await this.executeTool(pending.toolCall, pending.actionEvent, pending.args);
       await this.runLoop();
@@ -255,6 +265,7 @@ export class Agent extends EventEmitter {
     if (!this.pendingAction) return;
     const { actionEvent, toolCall } = this.pendingAction;
     this.pendingAction = undefined;
+    this.pendingWorkspaceAccess = undefined;
     this.events.push({
       kind: 'UserRejectObservation',
       source: 'environment',
@@ -369,6 +380,15 @@ export class Agent extends EventEmitter {
 
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
+
+        const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, args ?? {});
+        if (workspaceAccess) {
+          this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
+          this.pendingWorkspaceAccess = workspaceAccess;
+          this.state.setStatus('WAITING_FOR_CONFIRMATION');
+          this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
+          return lastAssistantMessage;
+        }
 
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
@@ -617,6 +637,17 @@ export class Agent extends EventEmitter {
     if (!risk) return this.confirmation.confirmUnknown ?? true;
     const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
     return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
+  }
+
+  private getRequiredWorkspaceAccess(
+    toolName: string,
+    args: Record<string, unknown>,
+  ): { paths: string[] } | undefined {
+    if (toolName !== 'file_editor') return undefined;
+    const p = toOptionalNonEmptyString(args.path);
+    if (!p || !path.isAbsolute(p)) return undefined;
+    if (this.workspace.isPathAllowed(p)) return undefined;
+    return { paths: [p] };
   }
 
   private createActionEvent(

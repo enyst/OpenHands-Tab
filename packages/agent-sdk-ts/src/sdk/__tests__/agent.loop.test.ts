@@ -7,6 +7,7 @@ import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
+import { FileEditorTool } from '../../tools';
 
 class MockLLM implements LLMClient {
   constructor(private readonly chunks: LLMStreamChunk[]) {}
@@ -80,6 +81,42 @@ describe('Agent loop control', () => {
     expect(eventsAfterApproval.some(isObservationEvent)).toBe(true);
     const toolMessages = eventsAfterApproval.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages.length).toBe(1);
+  });
+
+  it('prompts for confirmation before accessing files outside the workspace', async () => {
+    const log = new EventLog();
+    const workspaceRoot = createWorkspaceRoot();
+    const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-'));
+    const outsidePath = path.join(externalDir, 'outside.txt');
+    fs.writeFileSync(outsidePath, 'hello', 'utf8');
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Viewing file' },
+      { type: 'tool_call_delta', id: 'call_1', name: 'file_editor', arguments: JSON.stringify({ command: 'view', path: outsidePath }) },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [new FileEditorTool()],
+    });
+
+    await agent.run('view a file');
+    const eventsAfterRun = log.list();
+    expect(eventsAfterRun.some(isActionEvent)).toBe(true);
+    expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
+    expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+
+    await agent.approveAction();
+    const eventsAfterApproval = log.list();
+    const obs = eventsAfterApproval.filter(isObservationEvent).find((e) => e.tool_name === 'file_editor' && e.tool_call_id === 'call_1');
+    expect(obs).toBeTruthy();
+    expect(JSON.stringify(obs?.observation ?? {})).toContain('hello');
+
+    fs.rmSync(externalDir, { recursive: true, force: true });
   });
 
   it('records agent error when tool arguments are not objects', async () => {

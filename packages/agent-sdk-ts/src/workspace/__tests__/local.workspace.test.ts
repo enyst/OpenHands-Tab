@@ -30,6 +30,21 @@ describe('LocalWorkspace', () => {
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
       expect(() => workspace.resolvePath('../etc/passwd')).toThrowError();
     });
+
+    it('allows explicitly-approved external paths', async () => {
+      const { workspace } = await makeWorkspace((dir) => created.push(dir));
+      const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-external-'));
+      created.push(externalDir);
+      const externalFile = path.join(externalDir, 'outside.txt');
+      await fs.promises.writeFile(externalFile, 'hello', 'utf8');
+
+      expect(() => workspace.resolvePath(externalFile)).toThrowError();
+
+      workspace.allowPath(externalFile);
+      const realExternalFile = await fs.promises.realpath(externalFile);
+      expect(workspace.resolvePath(externalFile)).toBe(realExternalFile);
+      expect(() => workspace.resolvePath(path.join(externalFile, 'child'))).toThrowError();
+    });
   });
 
   describe('commands', () => {
