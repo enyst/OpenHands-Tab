@@ -16,6 +16,7 @@ Each test file orchestrates a VS Code instance and runs a specific test suite:
 - **serverSelection.test.ts**: Tests server selection and local/remote mode switching
 - **confirmation.test.ts**: Tests action confirmation workflow with security levels
 - **errorHandling.test.ts**: Tests error events and error state handling
+- **agentServerRemote.test.ts**: (Optional) Starts a local python agent-server and tests remote mode end-to-end (gated by `E2E_AGENT_SERVER=1`)
 
 ### Suite Files (suite/*.ts)
 These run inside VS Code and execute the actual tests:
@@ -36,6 +37,17 @@ These run inside VS Code and execute the actual tests:
 
 ```bash
 npm run e2e
+```
+
+### Remote agent-server E2E (optional)
+
+Requires:
+- `uv` installed
+- a local agent-sdk checkout (default `~/repos/agent-sdk`)
+
+Run:
+```bash
+E2E_AGENT_SERVER=1 npm run e2e
 ```
 
 ## Local Conversation Storage
