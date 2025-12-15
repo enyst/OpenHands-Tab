@@ -453,6 +453,14 @@ export function App() {
             case 'openAttachments':
               postMessage({ type: 'selectAttachments' });
               break;
+            case 'sendMessage': {
+              const text = (rawPayload as { text?: unknown } | undefined)?.text;
+              if (typeof text !== 'string') break;
+              const normalized = text.trim();
+              if (!normalized) break;
+              postMessage({ type: 'send', text: normalized, contextFiles: [], attachments: [] });
+              break;
+            }
           }
           break;
         }

@@ -76,14 +76,14 @@ export class SettingsManager {
         ? this.adapter.getExplicit<string>('openhands.llm.usageId')
         : (this.adapter.get<string | null>('openhands.llm.usageId', DEFAULTS.llm.usageId) ?? DEFAULTS.llm.usageId)
     );
-    const model = normalizeNonEmptyString(
-      isRemote
-        ? this.adapter.getExplicit<string>('openhands.llm.model')
-        : (this.adapter.get<string | null>('openhands.llm.model', DEFAULTS.llm.model) ?? DEFAULTS.llm.model)
+    const explicitModel = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.model'));
+    // Always provide a model name, even in remote mode: the python agent-server requires it in StartConversationRequest.
+    const model = explicitModel ?? normalizeNonEmptyString(
+      this.adapter.get<string | null>('openhands.llm.model', DEFAULTS.llm.model) ?? DEFAULTS.llm.model
     );
     const llm: LLMSettings = {
-      // In remote mode, omit usageId/model unless explicitly configured.
-      // In local mode, we must provide a model so the local Agent can create an LLM client.
+      // In remote mode, omit usageId unless explicitly configured.
+      // Always provide a model so LocalConversation and RemoteConversation can start reliably.
       usageId,
       provider,
       model,

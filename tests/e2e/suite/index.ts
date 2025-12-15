@@ -44,6 +44,11 @@ export async function run(): Promise<void> {
     return runUiFlowsTest();
   }
 
+  if (testName === 'agentServerRemote') {
+    const { run: runAgentServerRemoteTest } = await import('./agentServerRemote');
+    return runAgentServerRemoteTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness

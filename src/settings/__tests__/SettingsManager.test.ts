@@ -34,11 +34,12 @@ describe('SettingsManager', () => {
     expect(s.agent.debug).toBe(false);
   });
 
-  it('omits model by default in remote mode', async () => {
+  it('includes a default model in remote mode', async () => {
+    const defaults = await mgr.get();
     await mgr.update({ serverUrl: 'http://example:1234' });
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
-    expect(s.llm.model).toBeUndefined();
+    expect(s.llm.model).toBe(defaults.llm.model);
   });
 
   it('updates and persists config and secrets', async () => {
