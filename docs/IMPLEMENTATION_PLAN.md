@@ -106,8 +106,8 @@ Manual verification completed:
 - Errors surface via the status banner and render appropriately in the event stream
 
 Implementation notes:
-- media/webview.js and index.css generated via build process
-- All styling uses Tailwind CSS 4.x (compiled to tailwind.gen.css, bundled to media/index.css)
+- Build outputs in `media/**` are generated (don’t edit by hand)
+- All styling uses Tailwind CSS 4.x (source in `src/webview-src/tailwind.css`; compiled to `src/webview-src/tailwind.gen.css` and bundled to `media/index.css`)
 - Webview uses React 19 with custom components
 - Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
 
