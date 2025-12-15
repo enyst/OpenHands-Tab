@@ -19,10 +19,10 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   async update<T = unknown>(key: string, value: T, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
-    const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+    const hasWorkspace = !!vscode.workspace.workspaceFolders?.length;
     const effectiveTarget =
-      target === 'workspace'
-        ? (hasWorkspace ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global)
+      target === 'workspace' && hasWorkspace
+        ? vscode.ConfigurationTarget.Workspace
         : vscode.ConfigurationTarget.Global;
 
     await vscode.workspace.getConfiguration().update(key, value, effectiveTarget);
