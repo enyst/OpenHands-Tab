@@ -244,6 +244,7 @@ export function App() {
       if (typeof state.conversationId === 'string') payload.conversationId = state.conversationId;
       if (typeof state.lastSeenSeq === 'number') payload.lastSeenSeq = state.lastSeenSeq;
       vscodeApi.postMessage(payload);
+      vscodeApi.postMessage({ type: 'requestSkills' });
     };
 
     sendReady();
