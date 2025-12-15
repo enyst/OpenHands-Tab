@@ -33,12 +33,16 @@ export class RemoteConversation extends EventEmitter {
   private status: ConversationStatus = 'offline';
   private readonly seenEventIds = new Set<string>();
   private ws?: WebSocket;
+  private wsHandshakeTimer?: ReturnType<typeof setTimeout>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private retryCount = 0;
   private readonly retryBaseMs = 1000;
   private readonly retryMaxMs = 15000;
   private readonly workspaceRoot: string;
   private static readonly historyPageLimit = 100;
+  private static readonly wsHandshakeTimeoutMs = 10_000;
+  private static readonly httpTimeoutMs = 15_000;
+  private hasEverConnected = false;
 
   constructor(options: RemoteConversationOptions) {
     super();
@@ -80,6 +84,7 @@ export class RemoteConversation extends EventEmitter {
           this.ws.close();
           this.ws = undefined;
         }
+        this.clearWsHandshakeTimer();
         this.seenEventIds.clear();
         this.setStatus('connecting');
         const base = this.serverUrl.replace(/\/$/, '');
@@ -149,11 +154,11 @@ export class RemoteConversation extends EventEmitter {
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
-      const res = await fetch(`${base}/api/conversations`, {
+      const res = await this.fetchWithTimeout(`${base}/api/conversations`, {
         method: 'POST',
         headers,
         body: JSON.stringify(req)
-      });
+      }, RemoteConversation.httpTimeoutMs);
         if (!res.ok) {
           const info = await res.text().catch(() => '');
           const status = res.status;
@@ -183,6 +188,7 @@ export class RemoteConversation extends EventEmitter {
       } else {
         this.emit('error', e instanceof Error ? e : new Error(String(e)));
       }
+      this.setStatus('offline');
       return undefined;
     }
   }
@@ -203,7 +209,7 @@ export class RemoteConversation extends EventEmitter {
     const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers = this.getAuthHeaders();
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers });
+      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers }, RemoteConversation.httpTimeoutMs);
       if (!res.ok) {
         const info = await res.text().catch(() => '');
         const status = res.status;
@@ -222,7 +228,7 @@ export class RemoteConversation extends EventEmitter {
     const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers = this.getAuthHeaders();
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
+      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers }, RemoteConversation.httpTimeoutMs);
       if (!res.ok) {
         const info = await res.text().catch(() => '');
         const status = res.status;
@@ -283,9 +289,9 @@ export class RemoteConversation extends EventEmitter {
         const base = this.serverUrl.replace(/\/$/, '');
         const headers = this.getAuthHeaders();
         const httpPayload = { ...messagePayload, run: true };
-        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events`, {
+        const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events`, {
           method: 'POST', headers, body: JSON.stringify(httpPayload)
-        });
+        }, RemoteConversation.httpTimeoutMs);
         if (!res.ok) {
           const info = await res.text().catch(() => '');
           this.emit('error', new Error(`Failed to send message (HTTP ${res.status})${info ? `: ${info}` : ''}`));
@@ -295,6 +301,7 @@ export class RemoteConversation extends EventEmitter {
   }
 
   disconnect() {
+    this.clearWsHandshakeTimer();
     this.clearReconnect();
     if (this.ws) {
       this.ws.removeAllListeners();
@@ -328,11 +335,31 @@ export class RemoteConversation extends EventEmitter {
 
   private scheduleReconnect() {
     this.clearReconnect();
+    // If we have never successfully connected, don't spin in a retry loop.
+    // In that case, surface the error and let the user manually retry.
+    if (!this.hasEverConnected) return;
     const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
     const jitter = Math.floor(base * 0.2 * Math.random());
     const delay = base + jitter;
     this.retryCount = Math.min(this.retryCount + 1, 10);
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
+  }
+
+  private clearWsHandshakeTimer() {
+    if (this.wsHandshakeTimer) {
+      clearTimeout(this.wsHandshakeTimer);
+      this.wsHandshakeTimer = undefined;
+    }
+  }
+
+  private async fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private connect() {
@@ -347,10 +374,46 @@ export class RemoteConversation extends EventEmitter {
     this.setStatus('connecting');
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
+    this.clearWsHandshakeTimer();
+    this.wsHandshakeTimer = setTimeout(() => {
+      // Ignore if another connection attempt replaced this socket.
+      if (this.ws !== ws) return;
+      if (ws.readyState === WebSocket.OPEN) return;
+      this.emit('error', new Error(`Timed out connecting to agent-server at ${this.serverUrl}. Is the server running?`));
+      this.setStatus('offline');
+      try {
+        (ws as unknown as { terminate?: () => void }).terminate?.();
+      } catch (err) {
+        void err;
+      }
+      try {
+        ws.close();
+      } catch (err) {
+        void err;
+      }
+      this.scheduleReconnect();
+    }, RemoteConversation.wsHandshakeTimeoutMs);
 
-    ws.on('open', () => { this.retryCount = 0; this.setStatus('online'); });
-    ws.on('close', () => { this.setStatus('offline'); this.scheduleReconnect(); });
-    ws.on('error', (err: Error) => { this.emit('error', err); this.setStatus('offline'); this.scheduleReconnect(); });
+    ws.on('open', () => {
+      if (this.ws !== ws) return;
+      this.clearWsHandshakeTimer();
+      this.retryCount = 0;
+      this.hasEverConnected = true;
+      this.setStatus('online');
+    });
+    ws.on('close', () => {
+      if (this.ws !== ws) return;
+      this.clearWsHandshakeTimer();
+      this.setStatus('offline');
+      this.scheduleReconnect();
+    });
+    ws.on('error', (err: Error) => {
+      if (this.ws !== ws) return;
+      this.clearWsHandshakeTimer();
+      this.emit('error', err);
+      this.setStatus('offline');
+      this.scheduleReconnect();
+    });
     ws.on('message', (buf: Buffer) => {
       try {
         const str = buf.toString('utf8');
@@ -381,7 +444,7 @@ export class RemoteConversation extends EventEmitter {
       while (true) {
         const params = new URLSearchParams({ limit: String(RemoteConversation.historyPageLimit) });
         if (pageId) params.set('page_id', pageId);
-        const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/search?${params.toString()}`, { headers });
+        const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events/search?${params.toString()}`, { headers }, RemoteConversation.httpTimeoutMs);
         if (!res.ok) {
           const info = await res.text().catch(() => '');
           this.emit('error', new Error(`Failed to fetch conversation history (HTTP ${res.status})${info ? `: ${info}` : ''}`));
