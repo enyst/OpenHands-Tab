@@ -9,6 +9,35 @@ export async function run(): Promise<void> {
     return runAgentSdkEventsTest();
   }
 
+  if (testName === 'settings') {
+    const { run: runSettingsTest } = await import('./settings');
+    return runSettingsTest();
+  }
+
+  if (testName === 'history') {
+    const { run: runHistoryTest } = await import('./history');
+    return runHistoryTest();
+  }
+
+  if (testName === 'messaging') {
+    const { run: runMessagingTest } = await import('./messaging');
+    return runMessagingTest();
+  }
+
+  if (testName === 'serverSelection') {
+    const { run: runServerSelectionTest } = await import('./serverSelection');
+    return runServerSelectionTest();
+  }
+
+  if (testName === 'confirmation') {
+    const { run: runConfirmationTest } = await import('./confirmation');
+    return runConfirmationTest();
+  }
+
+  if (testName === 'errorHandling') {
+    const { run: runErrorHandlingTest } = await import('./errorHandling');
+    return runErrorHandlingTest();
+  }
 
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
