@@ -44,6 +44,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('User message here')).toBeInTheDocument();
+    expect(screen.queryByText('User')).toBeNull();
   });
 
   it('renders agent error events', async () => {
