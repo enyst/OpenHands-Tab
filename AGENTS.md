@@ -119,9 +119,10 @@ Reviews (do not merge without review):
 - Ask an active agent/human in this project for review (via Agent Mail or GitHub).
 - If nobody is available, do **not** merge. Leave the PR open and do other work; re-check Mail later for reviewers.
 - Wait for the two GitHub AI reviewers to finish before merging:
-  - **CodeRabbitAI**: check its first comment for “pending” or “rate limit exceeded”.
-    - If pending: wait.
-    - If rate limited: after the cooldown, re-trigger by pushing a small change or commenting `@coderabbitai review` on the PR.
+  - **CodeRabbitAI**: only wait if its ETA is ≤10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
+    - If pending and ETA ≤10 minutes: wait.
+    - If rate limited and cooldown ≤10 minutes: wait (and re-trigger via `@coderabbitai review` if needed).
+    - If it’s silent >10 minutes, or rate-limited >10 minutes: proceed with **Gemini-code-assist** + human/agent approval (via Agent Mail or GitHub) and you may merge once those are done.
   - **Gemini-code-assist**: generally considered “done” once it has posted two top-level comments, but also review its inline comment threads.
 - Always read review threads in “Files changed” (both bots leave inline comments).
 - Merge only after you have an explicit approval and all review threads are resolved/addressed.
