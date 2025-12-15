@@ -776,10 +776,13 @@ export function activate(context: vscode.ExtensionContext) {
   // Test command to send mock events to webview for E2E testing
   const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
     sentTestEvents.push(event);
+    const seq = bufferConversationEvent(event);
     if (chatView) {
-      void chatView.webview.postMessage({ type: 'event', event });
+      const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event };
+      if (typeof seq === 'number') payload.seq = seq;
+      void chatView.webview.postMessage(payload);
     }
-    return { sent: true };
+    return { sent: true, buffered: true, seq };
   });
 
   // Query rendered events from webview for E2E testing
