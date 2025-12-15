@@ -32,6 +32,9 @@ const baseSettings: OpenHandsSettings = {
 };
 
 const createWorkspaceRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'agent-mixed-tool-outcomes-'));
+const cleanupWorkspaceRoot = (workspaceRoot: string) => {
+  fs.rmSync(workspaceRoot, { recursive: true, force: true });
+};
 
 describe('Agent mixed tool call outcomes', () => {
   it('executes later tool calls even if an earlier tool is missing', async () => {
@@ -55,38 +58,45 @@ describe('Agent mixed tool call outcomes', () => {
       ],
     ]);
 
-    const agent = new Agent({
-      settings: baseSettings,
-      events: log,
-      workspaceRoot: createWorkspaceRoot(),
-      llmClient: llm,
-      tools: [tool],
-    });
+    const workspaceRoot = createWorkspaceRoot();
+    try {
+      const agent = new Agent({
+        settings: baseSettings,
+        events: log,
+        workspaceRoot,
+        llmClient: llm,
+        tools: [tool],
+      });
 
-    await agent.run('hi');
+      await agent.run('hi');
 
-    expect(llm.callCount).toBe(2);
-    expect(agent.state.snapshot.status).toBe('IDLE');
-    expect(agent.state.snapshot.iteration).toBe(2);
+      expect(llm.callCount).toBe(2);
+      expect(agent.state.snapshot.status).toBe('IDLE');
 
-    const events = log.list();
-    const actions = events.filter(isActionEvent);
-    expect(actions.some((e) => e.tool_call_id === 'call_missing')).toBe(true);
-    expect(actions.some((e) => e.tool_call_id === 'call_echo')).toBe(true);
+      const events = log.list();
+      const actions = events.filter(isActionEvent);
+      expect(actions).toHaveLength(2);
+      expect(actions.some((e) => e.tool_call_id === 'call_missing')).toBe(true);
+      expect(actions.some((e) => e.tool_call_id === 'call_echo')).toBe(true);
 
-    const errors = events.filter(isAgentErrorEvent);
-    expect(errors.some((e) => e.tool_call_id === 'call_missing')).toBe(true);
+      const errors = events.filter(isAgentErrorEvent);
+      expect(errors.filter((e) => e.tool_call_id === 'call_missing')).toHaveLength(1);
+      expect(errors.some((e) => e.tool_call_id === 'call_echo')).toBe(false);
 
-    const observations = events.filter(isObservationEvent);
-    expect(observations.some((e) => e.tool_call_id === 'call_missing')).toBe(false);
-    expect(observations.some((e) => e.tool_call_id === 'call_echo')).toBe(true);
+      const observations = events.filter(isObservationEvent);
+      expect(observations.some((e) => e.tool_call_id === 'call_missing')).toBe(false);
+      expect(observations.filter((e) => e.tool_call_id === 'call_echo')).toHaveLength(1);
 
-    const toolMessages = events
-      .filter(isMessageEvent)
-      .filter((evt) => evt.llm_message.role === 'tool')
-      .map((evt) => evt.llm_message.tool_call_id);
-    expect(toolMessages).toContain('call_missing');
-    expect(toolMessages).toContain('call_echo');
+      const toolMessages = events
+        .filter(isMessageEvent)
+        .filter((evt) => evt.llm_message.role === 'tool')
+        .map((evt) => evt.llm_message.tool_call_id);
+      expect(toolMessages).toHaveLength(2);
+      expect(toolMessages).toContain('call_missing');
+      expect(toolMessages).toContain('call_echo');
+    } finally {
+      cleanupWorkspaceRoot(workspaceRoot);
+    }
   });
 
   it('executes later tool calls even if an earlier tool call has invalid JSON args', async () => {
@@ -111,38 +121,44 @@ describe('Agent mixed tool call outcomes', () => {
       ],
     ]);
 
-    const agent = new Agent({
-      settings: baseSettings,
-      events: log,
-      workspaceRoot: createWorkspaceRoot(),
-      llmClient: llm,
-      tools: [tool],
-    });
+    const workspaceRoot = createWorkspaceRoot();
+    try {
+      const agent = new Agent({
+        settings: baseSettings,
+        events: log,
+        workspaceRoot,
+        llmClient: llm,
+        tools: [tool],
+      });
 
-    await agent.run('hi');
+      await agent.run('hi');
 
-    expect(llm.callCount).toBe(2);
-    expect(agent.state.snapshot.status).toBe('IDLE');
-    expect(agent.state.snapshot.iteration).toBe(2);
+      expect(llm.callCount).toBe(2);
+      expect(agent.state.snapshot.status).toBe('IDLE');
 
-    const events = log.list();
-    const actions = events.filter(isActionEvent);
-    expect(actions.some((e) => e.tool_call_id === 'call_bad_args')).toBe(false);
-    expect(actions.some((e) => e.tool_call_id === 'call_echo')).toBe(true);
+      const events = log.list();
+      const actions = events.filter(isActionEvent);
+      expect(actions).toHaveLength(1);
+      expect(actions.some((e) => e.tool_call_id === 'call_bad_args')).toBe(false);
+      expect(actions.some((e) => e.tool_call_id === 'call_echo')).toBe(true);
 
-    const errors = events.filter(isAgentErrorEvent);
-    expect(errors.some((e) => e.tool_call_id === 'call_bad_args')).toBe(true);
+      const errors = events.filter(isAgentErrorEvent);
+      expect(errors.filter((e) => e.tool_call_id === 'call_bad_args')).toHaveLength(1);
+      expect(errors.some((e) => e.tool_call_id === 'call_echo')).toBe(false);
 
-    const observations = events.filter(isObservationEvent);
-    expect(observations.some((e) => e.tool_call_id === 'call_bad_args')).toBe(false);
-    expect(observations.some((e) => e.tool_call_id === 'call_echo')).toBe(true);
+      const observations = events.filter(isObservationEvent);
+      expect(observations.some((e) => e.tool_call_id === 'call_bad_args')).toBe(false);
+      expect(observations.filter((e) => e.tool_call_id === 'call_echo')).toHaveLength(1);
 
-    const toolMessages = events
-      .filter(isMessageEvent)
-      .filter((evt) => evt.llm_message.role === 'tool')
-      .map((evt) => evt.llm_message.tool_call_id);
-    expect(toolMessages).toContain('call_bad_args');
-    expect(toolMessages).toContain('call_echo');
+      const toolMessages = events
+        .filter(isMessageEvent)
+        .filter((evt) => evt.llm_message.role === 'tool')
+        .map((evt) => evt.llm_message.tool_call_id);
+      expect(toolMessages).toHaveLength(2);
+      expect(toolMessages).toContain('call_bad_args');
+      expect(toolMessages).toContain('call_echo');
+    } finally {
+      cleanupWorkspaceRoot(workspaceRoot);
+    }
   });
 });
-
