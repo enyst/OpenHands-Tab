@@ -278,7 +278,7 @@ function TerminalObservationSummary({ observation }: { observation: JsonRecord }
  * Event color tokens - CSS custom properties defined in tailwind.css
  * Design Philosophy: "Warm Technical Refinement"
  * - Agent/AI: Warm gold (protagonist, signature OpenHands color)
- * - User: Warm slate (supporting role, understated)
+ * - User: Warm stone (supporting role, understated)
  * - System: Soft lavender (informational)
  * - Action: Teal (operational, cool accent for contrast)
  * - Observation: Soft mint (results/completion)
@@ -739,7 +739,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
-  // Agent messages get slightly more prominent styling
+  // User messages get extra contrast; agent messages stay prominent
   const bgOpacity = isUser ? 0.08 : isAgent ? 0.06 : 0.04;
 
   return (
