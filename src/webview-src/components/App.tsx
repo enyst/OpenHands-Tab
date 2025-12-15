@@ -31,6 +31,8 @@ import {
   type Condensation,
 } from '@openhands/agent-sdk-ts';
 
+import { ConfirmationPrompt } from './ConfirmationPrompt';
+
 interface VscodeApi {
   postMessage: (message: unknown) => void;
 }
@@ -451,118 +453,6 @@ function EventBlock({ event }: { event: Event }) {
 const STATUS_DEBOUNCE_MS = 600;
 const STATUS_AUTO_DISMISS_MS = 5000;
 let lastStatusMessage = { level: '' as 'info' | 'warn' | 'error', message: '', at: 0 };
-
-// ============================================
-// CONFIRMATION PROMPT
-// ============================================
-
-interface ConfirmationPromptProps {
-  actions: ActionEvent[];
-  onApprove: () => void;
-  onReject: (reason?: string) => void;
-  isSubmitting: boolean;
-}
-
-function ConfirmationPrompt({ actions, onApprove, onReject, isSubmitting }: ConfirmationPromptProps) {
-  const [showRejectInput, setShowRejectInput] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-
-  if (actions.length === 0) return null;
-
-  const handleReject = () => {
-    onReject(rejectReason || undefined);
-    setShowRejectInput(false);
-    setRejectReason('');
-  };
-
-  return (
-    <div className="oh-confirmation">
-      <div className="oh-confirmation-title">
-        <span className="codicon codicon-shield" />
-        Action Confirmation Required
-      </div>
-
-      {actions.map((action) => (
-        <div key={action.tool_call_id} className="mb-4 pb-4 border-b border-[rgba(255,225,101,0.2)] last:border-b-0">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="oh-code">{action.tool_name}</span>
-            {action.security_risk && action.security_risk !== 'UNKNOWN' && (
-              <div className={`oh-risk-badge ${action.security_risk.toLowerCase()}`}>
-                <span>{action.security_risk}</span>
-              </div>
-            )}
-          </div>
-          {action.thought && action.thought.length > 0 && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Thought</div>
-              <div className="text-sm whitespace-pre-wrap mt-1">
-                {action.thought.map(t => t.text).join('\n')}
-              </div>
-            </div>
-          )}
-          {action.action && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Action Details</div>
-              <pre className="text-xs max-h-32 overflow-auto">
-                {JSON.stringify(action.action, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-      ))}
-
-      <div className="oh-confirmation-actions">
-        <button
-          type="button"
-          onClick={onApprove}
-          disabled={isSubmitting}
-          className="oh-btn oh-btn-primary"
-        >
-          <span className="codicon codicon-check mr-2" />
-          Approve
-        </button>
-        {!showRejectInput ? (
-          <button
-            type="button"
-            onClick={() => setShowRejectInput(true)}
-            disabled={isSubmitting}
-            className="oh-btn oh-btn-danger"
-          >
-            <span className="codicon codicon-close mr-2" />
-            Reject
-          </button>
-        ) : (
-          <>
-            <input
-              type="text"
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              disabled={isSubmitting}
-              placeholder="Reason (optional)"
-              className="oh-popover-search flex-1"
-            />
-            <button
-              type="button"
-              onClick={handleReject}
-              disabled={isSubmitting}
-              className="oh-btn oh-btn-danger"
-            >
-              Confirm
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowRejectInput(false)}
-              disabled={isSubmitting}
-              className="oh-btn oh-btn-secondary"
-            >
-              Cancel
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ============================================
 // MAIN APP COMPONENT
@@ -1162,7 +1052,7 @@ export function App() {
             ))}
             {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
               <ConfirmationPrompt
-                actions={pendingActions}
+                pendingActions={pendingActions}
                 onApprove={handleApprove}
                 onReject={handleReject}
                 isSubmitting={isSubmitting}

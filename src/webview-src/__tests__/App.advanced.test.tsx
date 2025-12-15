@@ -175,7 +175,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'configUpdated', serverUrl: 'http://localhost:3000', mode: 'remote' });
 
       await waitFor(() => {
-        expect(container.textContent).toContain('Config updated');
+        expect(container.textContent).toContain('Config: http://localhost:3000');
       });
 
       // Info messages have auto-dismiss functionality (verified by implementation)
@@ -291,12 +291,12 @@ describe('App - Advanced Test Coverage', () => {
 
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
       await waitFor(() => {
-        expect(screen.getByText(/Connected to server/)).toBeInTheDocument();
+        expect(screen.getByText('Connected')).toBeInTheDocument();
       });
 
       postToWindow({ type: 'status', status: 'offline', mode: 'remote' });
       await waitFor(() => {
-        expect(screen.getByText(/Disconnected from server/)).toBeInTheDocument();
+        expect(screen.getByText('Disconnected')).toBeInTheDocument();
       });
     });
 
@@ -306,7 +306,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'status', status: 'offline', mode: 'local' });
 
       await waitFor(() => {
-        expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
+        expect(screen.getByText('Local mode active')).toBeInTheDocument();
       });
     });
 
@@ -351,14 +351,14 @@ describe('App - Advanced Test Coverage', () => {
 
   describe('Mode switching (local/remote)', () => {
     it('shows status dot only in remote mode', async () => {
-      const { container } = render(<App />);
+      render(<App />);
 
       // Remote mode - status indicator should be visible
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
       await waitFor(() => {
-        const statusIndicator = container.querySelector('[aria-label*="Status:"]');
-        expect(statusIndicator).toBeInTheDocument();
+        expect(screen.getByText('online')).toBeInTheDocument();
+        expect(screen.getByLabelText('Connection status')).toBeInTheDocument();
       });
     });
 
@@ -368,12 +368,10 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'status', status: 'offline', mode: 'local' });
 
       await waitFor(() => {
-        expect(screen.getByText('Local Mode')).toBeInTheDocument();
+        expect(screen.getByText('LOCAL')).toBeInTheDocument();
       });
 
-      // In local mode, status indicator shows disconnected but reconnect button is still shown
-      // (The new design always shows reconnect button when offline, regardless of mode)
-      expect(screen.getByLabelText(/Status:/)).toBeInTheDocument();
+      expect(screen.queryByLabelText('Connection status')).not.toBeInTheDocument();
     });
 
     it('shows connection button in remote mode', async () => {
@@ -382,9 +380,8 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
       await waitFor(() => {
-        // In the new design, the status indicator shows "Connected"
-        expect(screen.getByLabelText(/Status:/)).toBeInTheDocument();
-        expect(screen.getByText('Connected')).toBeInTheDocument();
+        expect(screen.getByText('online')).toBeInTheDocument();
+        expect(screen.getByLabelText('Connection status')).toBeInTheDocument();
       });
     });
 
@@ -395,14 +392,15 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'configUpdated', serverUrl: null, mode: 'local' });
 
       await waitFor(() => {
-        expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
+        expect(screen.getByText('Local mode active')).toBeInTheDocument();
+        expect(screen.getByText('LOCAL')).toBeInTheDocument();
       });
 
       // Switch back to remote mode
       postToWindow({ type: 'configUpdated', serverUrl: 'http://localhost:3000', mode: 'remote' });
 
       await waitFor(() => {
-        expect(screen.queryByText('Local Mode')).not.toBeInTheDocument();
+        expect(screen.queryByText('LOCAL')).not.toBeInTheDocument();
       });
     });
   });
@@ -464,7 +462,7 @@ describe('App - Advanced Test Coverage', () => {
     it('clears input and state on new conversation button click', async () => {
       render(<App />);
 
-      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
+      const input = screen.getByLabelText('Message input') as HTMLTextAreaElement;
 
       // Use fireEvent instead of userEvent for more reliable input simulation
       await act(async () => {
@@ -473,7 +471,7 @@ describe('App - Advanced Test Coverage', () => {
 
       expect(input.value).toBe('Some text');
 
-      const newChatBtn = screen.getByLabelText('New');
+      const newChatBtn = screen.getByLabelText('New Conversation');
       await userEvent.click(newChatBtn);
 
       expect(input.value).toBe('');
@@ -546,7 +544,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty workspace files list', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
 
       postToWindow({ type: 'workspaceFiles', files: [] });
 
@@ -558,7 +556,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty skills list', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Skills'));
+      await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
 
       postToWindow({ type: 'skillsList', skills: [] });
 
@@ -578,7 +576,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty input submission', async () => {
       render(<App />);
 
-      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
+      const input = screen.getByLabelText('Message input') as HTMLTextAreaElement;
 
       // Try to send empty message
       await userEvent.type(input, '{enter}');
@@ -592,7 +590,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles whitespace-only input', async () => {
       render(<App />);
 
-      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
+      const input = screen.getByLabelText('Message input') as HTMLTextAreaElement;
 
       await userEvent.type(input, '   {enter}');
 
@@ -607,7 +605,7 @@ describe('App - Advanced Test Coverage', () => {
     it('closes context picker on click outside', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
 
       postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
 
@@ -629,7 +627,7 @@ describe('App - Advanced Test Coverage', () => {
     it('closes context picker on Escape key', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
 
       postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
 
@@ -651,7 +649,7 @@ describe('App - Advanced Test Coverage', () => {
     it('closes skills popover on click outside', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Skills'));
+      await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
 
       postToWindow({ type: 'skillsList', skills: [{ label: 'Test', path: '/test.md' }] });
 
@@ -673,7 +671,7 @@ describe('App - Advanced Test Coverage', () => {
     it('closes skills popover on Escape key', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Skills'));
+      await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
 
       postToWindow({ type: 'skillsList', skills: [{ label: 'Test', path: '/test.md' }] });
 
@@ -774,7 +772,7 @@ describe('App - Advanced Test Coverage', () => {
     it('filters workspace files based on query', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
 
       postToWindow({
         type: 'workspaceFiles',

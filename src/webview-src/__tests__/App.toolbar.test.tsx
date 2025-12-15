@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor, cleanup } from '@testing-library/react';
 import { App } from '../components/App';
 
 const mockApi = { postMessage: vi.fn() };
@@ -12,6 +12,10 @@ describe('App toolbar interactions', () => {
     mockApi.postMessage.mockClear();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('sends openSettingsPage when settings icon is clicked', () => {
     render(<App />);
     fireEvent.click(screen.getAllByLabelText('Settings')[0]);
@@ -20,15 +24,15 @@ describe('App toolbar interactions', () => {
 
   it('requests workspace files and inserts context mention at cursor', async () => {
     render(<App />);
-    const input = document.getElementById('openhands-chat-input') as HTMLInputElement;
+    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
     expect(input).toBeTruthy();
 
-    // Type @ to trigger mention mode
-    fireEvent.change(input, { target: { value: '@' } });
-    // Simulate selection at end of input
-    Object.defineProperty(input, 'selectionStart', { value: 1, configurable: true });
-    Object.defineProperty(input, 'selectionEnd', { value: 1, configurable: true });
+    fireEvent.change(input, { target: { value: '' } });
+    Object.defineProperty(input, 'selectionStart', { value: 0, configurable: true });
+    Object.defineProperty(input, 'selectionEnd', { value: 0, configurable: true });
     fireEvent.select(input);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Context' }));
 
     // Wait for workspace files request
     await waitFor(() => {
@@ -47,7 +51,7 @@ describe('App toolbar interactions', () => {
     // Click on a file to select it
     fireEvent.click(screen.getByText('src/index.ts'));
 
-    // The @ mention should be replaced with the file path
+    // The file mention should be inserted at the caret position
     await waitFor(() => {
       expect(input.value).toContain('@src/index.ts');
     });
@@ -58,7 +62,7 @@ describe('App toolbar interactions', () => {
 
   it('requests skills and opens selected skill file', async () => {
     render(<App />);
-    fireEvent.click(screen.getAllByLabelText('Skills')[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestSkills' });
 
     await act(async () => {

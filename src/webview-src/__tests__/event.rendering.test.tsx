@@ -84,7 +84,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
-    expect(await screen.findByText(/3 tools available/)).toBeInTheDocument();
+    expect(await screen.findByText(/3 tools loaded/)).toBeInTheDocument();
   });
 
   it('renders ActionEvent', async () => {
@@ -139,8 +139,8 @@ describe('Agent-SDK event rendering', () => {
       source: 'user' as const
     } as any;
     postToWindow({ type: 'event', event: ev });
-    // PauseEvent shows in status bar, not in event stream
-    expect(await screen.findByText(/Conversation paused/)).toBeInTheDocument();
+    expect(await screen.findByText('Conversation paused')).toBeInTheDocument();
+    expect(await screen.findByText('Paused')).toBeInTheDocument();
   });
 
   it('renders Condensation', async () => {
@@ -152,6 +152,7 @@ describe('Agent-SDK event rendering', () => {
       summary: 'Condensed multiple historical events to save memory'
     } as any;
     postToWindow({ type: 'event', event: ev });
-    expect(await screen.findByText(/Forgetting 5 events/)).toBeInTheDocument();
+    expect(await screen.findByText(/Memory Condensed/)).toBeInTheDocument();
+    expect(await screen.findByText(/5 events/)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
@@ -13,6 +13,10 @@ describe('App actions post messages to extension', () => {
     window.acquireVsCodeApi = () => mockApi;
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it('Settings posts openSettingsPage', async () => {
     render(<App />);
     await userEvent.click(screen.getAllByLabelText(/settings/i)[0]);
@@ -21,13 +25,13 @@ describe('App actions post messages to extension', () => {
 
   it('Reconnect posts command reconnect', async () => {
     render(<App />);
-    await userEvent.click(screen.getAllByLabelText(/reconnect/i)[0]);
+    await userEvent.click(screen.getByLabelText('Connection status'));
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'reconnect' });
   });
 
   it('New Chat posts command startNewConversation', async () => {
     render(<App />);
-    await userEvent.click(screen.getAllByLabelText(/new/i)[0]);
+    await userEvent.click(screen.getByLabelText('New Conversation'));
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'startNewConversation' });
   });
 
@@ -39,12 +43,12 @@ describe('App actions post messages to extension', () => {
       window.postMessage({ type: 'status', status: 'online', mode: 'remote' }, '*');
     });
 
-    await userEvent.click(screen.getAllByLabelText('Add context')[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Context' }));
     expect(await screen.findByPlaceholderText('Search files...')).toBeInTheDocument();
 
     const input = document.getElementById('openhands-chat-input');
     expect(input).toBeTruthy();
-    await userEvent.type(input as HTMLInputElement, 'hello{enter}');
+    await userEvent.type(input as HTMLTextAreaElement, 'hello{enter}');
 
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'hello' });
     expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
@@ -58,7 +62,7 @@ describe('App actions post messages to extension', () => {
       window.postMessage({ type: 'status', status: 'online', mode: 'remote' }, '*');
     });
 
-    await userEvent.click(screen.getAllByLabelText('Skills')[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
@@ -74,9 +78,9 @@ describe('App actions post messages to extension', () => {
     mockApi.postMessage.mockClear();
     const input = document.getElementById('openhands-chat-input');
     expect(input).toBeTruthy();
-    await userEvent.type(input as HTMLInputElement, 'ping{enter}');
+    await userEvent.type(input as HTMLTextAreaElement, 'ping{enter}');
 
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'ping' });
-    expect(screen.queryByRole('listbox', { name: 'Skills' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
   });
 });
