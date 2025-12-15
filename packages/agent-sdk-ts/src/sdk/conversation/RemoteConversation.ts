@@ -260,11 +260,11 @@ export class RemoteConversation extends EventEmitter {
       const payload: { accept: boolean; reason?: string } = { accept };
       if (!accept && reason !== undefined) payload.reason = reason;
 
-      const res = await fetch(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
+      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
-      });
+      }, RemoteConversation.httpTimeoutMs);
 
       if (!res.ok) {
         const info = await res.text().catch(() => '');
