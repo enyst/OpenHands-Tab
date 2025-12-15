@@ -5,6 +5,7 @@ interface ConfirmationPromptProps {
   pendingActions: ActionEvent[];
   onApprove: () => void;
   onReject: (reason?: string) => void;
+  onOpenPath?: (path: string) => void;
   isSubmitting?: boolean;
 }
 
@@ -12,6 +13,7 @@ export function ConfirmationPrompt({
   pendingActions,
   onApprove,
   onReject,
+  onOpenPath,
   isSubmitting = false,
 }: ConfirmationPromptProps) {
   const [showRejectInput, setShowRejectInput] = useState(false);
@@ -37,6 +39,16 @@ export function ConfirmationPrompt({
   };
 
   if (pendingActions.length === 0) return null;
+
+  const getFileAccessSummary = (action: ActionEvent): { operation: 'read' | 'write'; path: string } | undefined => {
+    if (action.tool_name !== 'file_editor') return undefined;
+    const record = action.action;
+    const command = typeof record?.command === 'string' ? record.command : undefined;
+    const p = typeof record?.path === 'string' ? record.path : undefined;
+    if (!command || !p) return undefined;
+    const operation: 'read' | 'write' = command === 'view' ? 'read' : 'write';
+    return { operation, path: p };
+  };
 
   return (
     <div
@@ -76,6 +88,7 @@ export function ConfirmationPrompt({
             {pendingActions.map((action, index) => {
               const thought = action.thought.map((t) => t.text).join('\n');
               const hasHighRisk = action.security_risk === 'HIGH';
+              const fileAccess = getFileAccessSummary(action);
 
               return (
                 <div
@@ -119,6 +132,35 @@ export function ConfirmationPrompt({
                         Reasoning
                       </div>
                       <div className="italic text-stone-300">{thought}</div>
+                    </div>
+                  )}
+
+                  {/* File access summary */}
+                  {fileAccess && (
+                    <div className="mb-3 text-sm leading-relaxed">
+                      <div className="font-medium text-xs uppercase tracking-wider text-stone-500 mb-1.5">
+                        File Access
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={`
+                            inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border
+                            ${fileAccess.operation === 'write'
+                              ? 'bg-amber-500/15 text-amber-300 border-amber-400/30'
+                              : 'bg-teal-500/15 text-teal-300 border-teal-400/30'
+                            }
+                          `}
+                        >
+                          {fileAccess.operation.toUpperCase()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onOpenPath?.(fileAccess.path)}
+                          className="text-xs font-mono text-stone-300 break-all underline decoration-stone-500/50 hover:text-stone-200 hover:decoration-stone-400 transition-colors text-left"
+                        >
+                          {fileAccess.path}
+                        </button>
+                      </div>
                     </div>
                   )}
 

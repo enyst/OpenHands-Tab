@@ -630,6 +630,10 @@ export function App() {
     postMessage({ type: 'openAttachment', uri });
   }, [postMessage]);
 
+  const handleOpenPath = useCallback((p: string) => {
+    postMessage({ type: 'openWorkspaceFile', path: p });
+  }, [postMessage]);
+
   const handleRemoveAttachment = useCallback((uri: string) => {
     setAttachments((prev) => prev.filter((a) => a.uri !== uri));
   }, []);
@@ -768,6 +772,7 @@ export function App() {
           pendingActions={pendingActions}
           onApprove={handleApprove}
           onReject={handleReject}
+          onOpenPath={handleOpenPath}
           isSubmitting={isSubmitting}
         />
       )}
