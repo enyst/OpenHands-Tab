@@ -11,6 +11,7 @@ async function pollUntil(
     if (await condition()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
 }
 
 export async function run(): Promise<void> {
@@ -106,7 +107,7 @@ export async function run(): Promise<void> {
   await pollUntil(async () => {
     const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const count = r?.eventTypes?.filter((t: string) => t === 'ActionEvent').length || 0;
-    return count >= 4;
+    return count >= actionEventsWithRisks.length;
   });
 
   // Query rendered events
@@ -116,8 +117,8 @@ export async function run(): Promise<void> {
 
   // Verify all action events rendered
   const actionCount = result.eventTypes.filter((t: string) => t === 'ActionEvent').length;
-  if (actionCount !== 4) {
-    throw new Error(`Expected 4 ActionEvents with different risk levels, got ${actionCount}`);
+  if (actionCount !== actionEventsWithRisks.length) {
+    throw new Error(`Expected ${actionEventsWithRisks.length} ActionEvents with different risk levels, got ${actionCount}`);
   }
 
   // Test 2: Send observation events to complete the actions
@@ -148,7 +149,7 @@ export async function run(): Promise<void> {
   await pollUntil(async () => {
     const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const count = r?.eventTypes?.filter((t: string) => t === 'ObservationEvent').length || 0;
-    return count >= 2;
+    return count >= observations.length;
   });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
@@ -221,11 +222,13 @@ export async function run(): Promise<void> {
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', unexecutedAction);
 
+  const expectedTotalActions = actionEventsWithRisks.length + 1; // +1 for unexecutedAction
+
   // Poll until unexecuted action is rendered
   await pollUntil(async () => {
     const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const count = r?.eventTypes?.filter((t: string) => t === 'ActionEvent').length || 0;
-    return count >= 5;
+    return count >= expectedTotalActions;
   });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
@@ -233,8 +236,8 @@ export async function run(): Promise<void> {
 
   // Total should include all action types
   const totalActions = result.eventTypes.filter((t: string) => t === 'ActionEvent').length;
-  if (totalActions !== 5) {
-    throw new Error(`Expected 5 total ActionEvents, got ${totalActions}`);
+  if (totalActions !== expectedTotalActions) {
+    throw new Error(`Expected ${expectedTotalActions} total ActionEvents, got ${totalActions}`);
   }
 
   console.log('✓ All confirmation tests passed');

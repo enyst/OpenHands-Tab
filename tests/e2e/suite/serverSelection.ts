@@ -11,6 +11,7 @@ async function pollUntil(
     if (await condition()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
 }
 
 export async function run(): Promise<void> {
@@ -123,7 +124,7 @@ export async function run(): Promise<void> {
 
   // Verify backlog increased
   if (diag.eventBacklog.size < 1) {
-    console.log('Warning: Event backlog did not increase after test event');
+    throw new Error('Event backlog should have increased after sending a test event');
   }
 
   // Test 10: Query rendered events should work regardless of mode

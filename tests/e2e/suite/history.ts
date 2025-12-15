@@ -11,6 +11,7 @@ async function pollUntil(
     if (await condition()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
 }
 
 export async function run(): Promise<void> {
@@ -71,7 +72,7 @@ export async function run(): Promise<void> {
   // Poll until events are rendered
   await pollUntil(async () => {
     const result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
-    return result?.count >= 2;
+    return result?.count >= testEvents.length;
   });
 
   // Test 4: Query rendered events
@@ -93,8 +94,8 @@ export async function run(): Promise<void> {
   console.log(`Event types: ${result.eventTypes.join(', ')}`);
 
   // Verify we have at least the test events
-  if (result.count < 2) {
-    throw new Error(`Expected at least 2 events, got ${result.count}`);
+  if (result.count < testEvents.length) {
+    throw new Error(`Expected at least ${testEvents.length} events, got ${result.count}`);
   }
 
   // Test 5: Verify event backlog is tracked

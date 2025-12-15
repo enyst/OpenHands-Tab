@@ -11,6 +11,7 @@ async function pollUntil(
     if (await condition()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
 }
 
 export async function run(): Promise<void> {
@@ -56,12 +57,12 @@ export async function run(): Promise<void> {
     throw new Error(`Expected 1 AgentErrorEvent, got ${errorCount}`);
   }
 
-  // Test 2: Send ConversationErrorEvent
+  // Test 2: Send ConversationErrorEvent (uses detail/code per agent-sdk-ts types)
   const conversationError = {
     kind: 'ConversationErrorEvent',
-    source: 'agent',
-    error: 'Connection lost to server',
-    error_type: 'ConnectionError'
+    source: 'environment',
+    detail: 'Connection lost to server',
+    code: 'ConnectionError'
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', conversationError);
@@ -110,19 +111,21 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('openhands._sendTestEvent', err);
   }
 
+  const expectedAgentErrors = 1 + multipleErrors.length;
+
   // Poll until all error events are rendered
   await pollUntil(async () => {
     const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const count = r?.eventTypes?.filter((t: string) => t === 'AgentErrorEvent').length || 0;
-    return count >= 4;
+    return count >= expectedAgentErrors;
   });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After multiple errors - Count: ${result.count}`);
 
   errorCount = result.eventTypes.filter((t: string) => t === 'AgentErrorEvent').length;
-  if (errorCount !== 4) {
-    throw new Error(`Expected 4 AgentErrorEvents total, got ${errorCount}`);
+  if (errorCount !== expectedAgentErrors) {
+    throw new Error(`Expected ${expectedAgentErrors} AgentErrorEvents total, got ${errorCount}`);
   }
 
   // Test 4: Send observation with non-zero exit code (error state)
@@ -174,10 +177,10 @@ export async function run(): Promise<void> {
   // PauseEvent may or may not render (it shows in status bar)
   console.log(`PauseEvent count (may be 0 if not rendered): ${pauseCount}`);
 
-  // Test 6: Send Condensation event (memory compaction)
+  // Test 6: Send Condensation event (memory compaction) - source must be 'environment' per type
   const condensation = {
     kind: 'Condensation',
-    source: 'agent',
+    source: 'environment',
     forgotten_event_ids: ['evt_1', 'evt_2', 'evt_3'],
     summary: 'Condensed 3 events from earlier conversation'
   };

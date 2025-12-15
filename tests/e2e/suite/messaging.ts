@@ -11,6 +11,7 @@ async function pollUntil(
     if (await condition()) return;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
+  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
 }
 
 export async function run(): Promise<void> {
@@ -70,7 +71,7 @@ export async function run(): Promise<void> {
   await pollUntil(async () => {
     const result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const msgCount = result?.eventTypes?.filter((t: string) => t === 'MessageEvent').length || 0;
-    return msgCount >= 3;
+    return msgCount >= messageEvents.length;
   });
 
   // Query rendered events
@@ -80,8 +81,8 @@ export async function run(): Promise<void> {
 
   // Verify message events rendered
   const messageCount = result.eventTypes.filter((t: string) => t === 'MessageEvent').length;
-  if (messageCount !== 3) {
-    throw new Error(`Expected 3 MessageEvents, got ${messageCount}`);
+  if (messageCount !== messageEvents.length) {
+    throw new Error(`Expected ${messageEvents.length} MessageEvents, got ${messageCount}`);
   }
 
   // Test 2: Send action event with observation
@@ -157,11 +158,13 @@ export async function run(): Promise<void> {
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', multiPartMessage);
 
+  const expectedMessagesAfterMultiPart = messageEvents.length + 1;
+
   // Poll until multi-part message is rendered
   await pollUntil(async () => {
     const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const msgCount = r?.eventTypes?.filter((t: string) => t === 'MessageEvent').length || 0;
-    return msgCount >= 4;
+    return msgCount >= expectedMessagesAfterMultiPart;
   });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
@@ -195,9 +198,10 @@ export async function run(): Promise<void> {
     throw new Error(`Expected at least 1 SystemPromptEvent, got ${sysPromptCount}`);
   }
 
-  // Verify total event count
-  if (result.count < 7) {
-    throw new Error(`Expected at least 7 total events, got ${result.count}`);
+  // Verify total event count: messages + action + observation + multipart + system prompt
+  const expectedTotalEvents = messageEvents.length + 1 + 1 + 1 + 1;
+  if (result.count < expectedTotalEvents) {
+    throw new Error(`Expected at least ${expectedTotalEvents} total events, got ${result.count}`);
   }
 
   console.log('✓ All messaging tests passed');
