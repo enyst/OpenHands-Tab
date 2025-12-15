@@ -687,44 +687,53 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   }
   const { main: withoutContext, files: contextFiles } = parseContextBlock(rawText);
 
-  const ATTACHMENT_BEGIN = '----- BEGIN ATTACHMENT:';
-  const ATTACHMENT_END = '----- END ATTACHMENT:';
-  const stripTrailingDashes = (value: string) => value.replace(/\s*-{5,}\s*$/, '').trim();
+  const ATTACHMENT_BEGIN_LINE_RE = /^----- BEGIN ATTACHMENT:\s*(.*?)\s*-----\s*$/;
+  const ATTACHMENT_END_LINE_RE = /^----- END ATTACHMENT:\s*(.*?)\s*-----\s*$/;
 
   function parseAttachmentBlocks(text: string): { main: string; attachments: Array<{ label: string; content: string }> } {
     const attachments: Array<{ label: string; content: string }> = [];
-    const parts: string[] = [];
-    let cursor = 0;
+    const mainLines: string[] = [];
+    const lines = text.split(/\r?\n/);
 
-    while (true) {
-      const beginIdx = text.indexOf(ATTACHMENT_BEGIN, cursor);
-      if (beginIdx === -1) break;
-      parts.push(text.slice(cursor, beginIdx));
+    let i = 0;
+    while (i < lines.length) {
+      const beginLine = lines[i];
+      const beginMatch = beginLine.match(ATTACHMENT_BEGIN_LINE_RE);
+      if (!beginMatch) {
+        mainLines.push(beginLine);
+        i += 1;
+        continue;
+      }
 
-      const beginLineEnd = text.indexOf('\n', beginIdx);
-      if (beginLineEnd === -1) {
-        cursor = beginIdx;
+      const label = (beginMatch[1] ?? '').trim() || 'Attachment';
+      const contentLines: string[] = [];
+      i += 1;
+
+      let foundEnd = false;
+      while (i < lines.length) {
+        const endMatch = lines[i].match(ATTACHMENT_END_LINE_RE);
+        if (endMatch) {
+          const endLabel = (endMatch[1] ?? '').trim() || 'Attachment';
+          if (endLabel === label) {
+            foundEnd = true;
+            i += 1; // Consume end marker line
+            break;
+          }
+        }
+        contentLines.push(lines[i]);
+        i += 1;
+      }
+
+      if (!foundEnd) {
+        // Incomplete block: treat everything from the begin marker onward as normal message text.
+        mainLines.push(beginLine, ...contentLines, ...lines.slice(i));
         break;
       }
-      const beginLine = text.slice(beginIdx, beginLineEnd).trim();
-      let label = stripTrailingDashes(beginLine.slice(ATTACHMENT_BEGIN.length).trim());
-      if (!label) label = 'Attachment';
 
-      const endToken = `${ATTACHMENT_END} ${label}`;
-      const endIdx = text.indexOf(endToken, beginLineEnd);
-      if (endIdx === -1) {
-        cursor = beginIdx;
-        break;
-      }
-      const endLineEnd = text.indexOf('\n', endIdx);
-      const content = text.slice(beginLineEnd + 1, endIdx).trimEnd();
-
-      attachments.push({ label, content });
-      cursor = endLineEnd === -1 ? text.length : endLineEnd + 1;
+      attachments.push({ label, content: contentLines.join('\n').trimEnd() });
     }
 
-    parts.push(text.slice(cursor));
-    return { main: parts.join('').trim(), attachments };
+    return { main: mainLines.join('\n').trim(), attachments };
   }
 
   const { main: textContent, attachments } = parseAttachmentBlocks(withoutContext);
