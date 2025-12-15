@@ -26,8 +26,8 @@ export type OpenHandsSettings = ServerSettings & {
 const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
   servers: [],
-  llm: { usageId: 'default-llm', model: 'claude-sonnet-4-20250514' },
-  agent: { enableSecurityAnalyzer: false },
+  llm: { usageId: 'default-llm', provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+  agent: { enableSecurityAnalyzer: false, debug: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'HIGH', confirmUnknown: true },
   secrets: {}
@@ -44,6 +44,20 @@ const sanitizePositiveInteger = (value: number | null | undefined): number | und
   return int > 0 ? int : undefined;
 };
 
+const normalizeLlmProvider = (value: unknown): LLMSettings['provider'] | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return undefined;
+  switch (trimmed) {
+    case 'openai':
+    case 'openrouter':
+    case 'litellm_proxy':
+    case 'anthropic':
+      return trimmed;
+    default:
+      return undefined;
+  }
+};
+
 export class SettingsManager {
   constructor(private adapter: SettingsAdapter) {}
 
@@ -53,6 +67,14 @@ export class SettingsManager {
     );
     const isRemote = !!serverUrl;
     const servers = this.adapter.get<SavedServer[]>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers;
+    const explicitBaseUrl = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.baseUrl'));
+    const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
+    const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
+    const usageId = normalizeNonEmptyString(
+      isRemote
+        ? this.adapter.getExplicit<string>('openhands.llm.usageId')
+        : (this.adapter.get<string | null>('openhands.llm.usageId', DEFAULTS.llm.usageId) ?? DEFAULTS.llm.usageId)
+    );
     const model = normalizeNonEmptyString(
       isRemote
         ? this.adapter.getExplicit<string>('openhands.llm.model')
@@ -61,9 +83,14 @@ export class SettingsManager {
     const llm: LLMSettings = {
       // In remote mode, omit usageId/model unless explicitly configured.
       // In local mode, we must provide a model so the local Agent can create an LLM client.
-      usageId: normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId')),
+      usageId,
+      provider,
       model,
-      baseUrl: this.adapter.get<string | null>('openhands.llm.baseUrl', DEFAULTS.llm.baseUrl) ?? DEFAULTS.llm.baseUrl,
+      baseUrl: normalizeNonEmptyString(
+        isRemote
+          ? this.adapter.getExplicit<string>('openhands.llm.baseUrl')
+          : (this.adapter.get<string | null>('openhands.llm.baseUrl', DEFAULTS.llm.baseUrl) ?? DEFAULTS.llm.baseUrl)
+      ),
       apiVersion: this.adapter.get<string | null>('openhands.llm.apiVersion', DEFAULTS.llm.apiVersion) ?? DEFAULTS.llm.apiVersion,
       timeout: this.adapter.get<number | null>('openhands.llm.timeout', DEFAULTS.llm.timeout) ?? DEFAULTS.llm.timeout,
       temperature: this.adapter.get<number | null>('openhands.llm.temperature', DEFAULTS.llm.temperature) ?? DEFAULTS.llm.temperature,
@@ -72,9 +99,12 @@ export class SettingsManager {
       maxInputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxInputTokens', null) ?? undefined),
       maxOutputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxOutputTokens', null) ?? undefined),
       reasoningEffort: this.adapter.get<'low' | 'medium' | 'high' | 'none' | null>('openhands.llm.reasoningEffort', DEFAULTS.llm.reasoningEffort) ?? DEFAULTS.llm.reasoningEffort,
+      inputCostPerToken: this.adapter.get<number | null>('openhands.llm.inputCostPerToken', DEFAULTS.llm.inputCostPerToken) ?? DEFAULTS.llm.inputCostPerToken,
+      outputCostPerToken: this.adapter.get<number | null>('openhands.llm.outputCostPerToken', DEFAULTS.llm.outputCostPerToken) ?? DEFAULTS.llm.outputCostPerToken,
     };
     const agent: AgentSettings = {
       enableSecurityAnalyzer: this.adapter.get<boolean>('openhands.agent.enableSecurityAnalyzer', DEFAULTS.agent.enableSecurityAnalyzer) ?? DEFAULTS.agent.enableSecurityAnalyzer,
+      debug: this.adapter.get<boolean>('openhands.agent.debug', DEFAULTS.agent.debug) ?? DEFAULTS.agent.debug,
     };
     const conversation: ConversationSettings = {
       maxIterations: this.adapter.get<number>('openhands.conversation.maxIterations', DEFAULTS.conversation.maxIterations) ?? DEFAULTS.conversation.maxIterations,
@@ -110,6 +140,7 @@ export class SettingsManager {
 
     if (partial.llm) {
       if (partial.llm.usageId !== undefined) ops.push(this.adapter.update('openhands.llm.usageId', partial.llm.usageId, target));
+      if (partial.llm.provider !== undefined) ops.push(this.adapter.update('openhands.llm.provider', partial.llm.provider, target));
       if (partial.llm.model !== undefined) ops.push(this.adapter.update('openhands.llm.model', partial.llm.model, target));
       if (partial.llm.baseUrl !== undefined) ops.push(this.adapter.update('openhands.llm.baseUrl', partial.llm.baseUrl, target));
       if (partial.llm.apiVersion !== undefined) ops.push(this.adapter.update('openhands.llm.apiVersion', partial.llm.apiVersion, target));
@@ -120,11 +151,16 @@ export class SettingsManager {
       if (partial.llm.maxInputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxInputTokens', partial.llm.maxInputTokens, target));
       if (partial.llm.maxOutputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxOutputTokens', partial.llm.maxOutputTokens, target));
       if (partial.llm.reasoningEffort !== undefined) ops.push(this.adapter.update('openhands.llm.reasoningEffort', partial.llm.reasoningEffort, target));
+      if (partial.llm.inputCostPerToken !== undefined) ops.push(this.adapter.update('openhands.llm.inputCostPerToken', partial.llm.inputCostPerToken, target));
+      if (partial.llm.outputCostPerToken !== undefined) ops.push(this.adapter.update('openhands.llm.outputCostPerToken', partial.llm.outputCostPerToken, target));
     }
 
     if (partial.agent) {
       if (partial.agent.enableSecurityAnalyzer !== undefined) {
         ops.push(this.adapter.update('openhands.agent.enableSecurityAnalyzer', partial.agent.enableSecurityAnalyzer, target));
+      }
+      if (partial.agent.debug !== undefined) {
+        ops.push(this.adapter.update('openhands.agent.debug', partial.agent.debug, target));
       }
     }
 

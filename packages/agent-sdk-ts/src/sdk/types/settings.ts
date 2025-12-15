@@ -1,5 +1,8 @@
+import type { LLMProvider } from '../llm/types';
+
 export type LLMSettings = {
   usageId?: string | null;
+  provider?: LLMProvider | null;
   model?: string | null;
   baseUrl?: string | null;
   apiVersion?: string | null;

@@ -1165,6 +1165,15 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save API Key',
   });
 
+  const setSessionApiKey = registerSecretCommand('openhands.setSessionApiKey', {
+    title: 'Session API Key',
+    secretKey: 'sessionApiKey',
+    prompt: 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Session API Key saved securely.',
+    clearedMessage: 'Session API Key cleared.',
+    errorPrefix: 'Failed to save Session API Key',
+  });
+
   const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
     title: 'GitHub Token',
     secretKey: 'githubToken',
@@ -1288,6 +1297,7 @@ export function activate(context: vscode.ExtensionContext) {
     startNew,
     configure,
     setApiKey,
+    setSessionApiKey,
     setGithubToken,
     setCustomSecret1,
     setCustomSecret2,

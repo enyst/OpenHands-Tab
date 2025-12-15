@@ -471,6 +471,7 @@ export class Agent extends EventEmitter {
     }
     const s = this.options.settings;
     const config = {
+      provider: s.llm.provider ?? undefined,
       model: s.llm.model ?? '',
       usageId: s.llm.usageId ?? undefined,
       baseUrl: s.llm.baseUrl ?? undefined,
@@ -506,7 +507,8 @@ export class Agent extends EventEmitter {
     const code = this.classifyConversationError(message);
     const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
     const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
-    const provider = detectProviderFromBaseUrl(configuredBaseUrl);
+    const configuredProvider = this.options.settings?.llm?.provider ?? undefined;
+    const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
     const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
     const configuredApiKey = toOptionalNonEmptyString(this.options.settings?.secrets?.llmApiKey);
     const hasInlineApiKey =
