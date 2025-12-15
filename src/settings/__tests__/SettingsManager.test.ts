@@ -250,7 +250,7 @@ describe('SettingsManager', () => {
     expect(s.agent.debug).toBe(false);
     expect(s.conversation.maxIterations).toBe(50);
     expect(s.confirmation.policy).toBe('never');
-    expect(s.confirmation.riskyThreshold).toBe('HIGH');
+    expect(s.confirmation.riskyThreshold).toBe('MEDIUM');
     expect(s.confirmation.confirmUnknown).toBe(true);
   });
 

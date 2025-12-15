@@ -8,8 +8,9 @@ export const DEFAULT_PROVIDER_BASE_URLS: Record<LLMProvider, string> = {
 };
 
 export const detectProviderFromBaseUrl = (baseUrl?: string | null): LLMProvider => {
-  if (baseUrl?.includes('anthropic.com')) return 'anthropic';
-  if (baseUrl?.includes('openrouter.ai')) return 'openrouter';
-  if (baseUrl?.includes('litellm')) return 'litellm_proxy';
+  const normalized = (baseUrl ?? '').toLowerCase();
+  if (normalized.includes('anthropic.com')) return 'anthropic';
+  if (normalized.includes('openrouter.ai')) return 'openrouter';
+  if (normalized.includes('litellm')) return 'litellm_proxy';
   return 'openai';
 };

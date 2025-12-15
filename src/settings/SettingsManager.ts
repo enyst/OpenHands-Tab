@@ -29,7 +29,7 @@ const DEFAULTS: OpenHandsSettings = {
   llm: { usageId: 'default-llm', provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
   agent: { enableSecurityAnalyzer: false, debug: false },
   conversation: { maxIterations: 50 },
-  confirmation: { policy: 'never', riskyThreshold: 'HIGH', confirmUnknown: true },
+  confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
   secrets: {}
 };
 
@@ -47,6 +47,7 @@ const sanitizePositiveInteger = (value: number | null | undefined): number | und
 const normalizeLlmProvider = (value: unknown): LLMSettings['provider'] | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) return undefined;
+  if (trimmed === 'auto') return undefined;
   switch (trimmed) {
     case 'openai':
     case 'openrouter':
