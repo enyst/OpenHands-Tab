@@ -224,8 +224,7 @@ export class Agent extends EventEmitter {
   pause(): void {
     if (this.paused) return;
     this.paused = true;
-    const pause: Event = { kind: 'PauseEvent', source: 'user' } as Event;
-    this.events.push(pause);
+    this.events.push({ kind: 'PauseEvent', source: 'user' });
     this.state.setStatus('PAUSED');
   }
 
@@ -275,6 +274,16 @@ export class Agent extends EventEmitter {
       action_id: actionEvent.id!,
     } as Event);
     this.state.setStatus('IDLE');
+  }
+
+  private pauseForConfirmation(
+    pendingAction: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> },
+    pendingWorkspaceAccess?: { paths: string[] },
+  ): void {
+    this.pendingAction = pendingAction;
+    this.pendingWorkspaceAccess = pendingWorkspaceAccess;
+    this.state.setStatus('WAITING_FOR_CONFIRMATION');
+    this.events.push({ kind: 'PauseEvent', source: 'agent' });
   }
 
   private async runLoop(): Promise<Message | undefined> {
@@ -377,28 +386,24 @@ export class Agent extends EventEmitter {
           continue;
         }
         const { args, securityRisk } = parsed;
+        const actionArgs = args ?? {};
 
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
-        const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, args ?? {});
+        const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, actionArgs);
         if (workspaceAccess) {
-          this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
-          this.pendingWorkspaceAccess = workspaceAccess;
-          this.state.setStatus('WAITING_FOR_CONFIRMATION');
-          this.events.push({ kind: 'PauseEvent', source: 'agent' } as Event);
+          this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs }, workspaceAccess);
           return lastAssistantMessage;
         }
 
         if (this.requiresConfirmation(recordedAction)) {
-          this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
-          this.state.setStatus('WAITING_FOR_CONFIRMATION');
-          this.events.push({ kind: 'PauseEvent', source: 'agent' } as Event);
+          this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs });
           return lastAssistantMessage;
         }
 
         try {
-          await this.executeTool(toolCall, recordedAction, args ?? {});
+          await this.executeTool(toolCall, recordedAction, actionArgs);
         } catch {
           toolExecutionFailed = true;
           // Continue processing other tool calls but mark this iteration as failed
