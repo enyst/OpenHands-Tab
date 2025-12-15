@@ -7,6 +7,9 @@ interface InputAreaProps {
   onSubmit: () => void;
   disabled?: boolean;
   placeholder?: string;
+  // LLM model display
+  modelLabel?: string;
+  onOpenModelSettings?: () => void;
   // Context picker
   onOpenContext: () => void;
   contextCount?: number;
@@ -30,6 +33,8 @@ export function InputArea({
   onSubmit,
   disabled = false,
   placeholder = 'Ask OpenHands anything...',
+  modelLabel,
+  onOpenModelSettings,
   onOpenContext,
   contextCount = 0,
   onOpenSkills,
@@ -153,6 +158,32 @@ export function InputArea({
 
         {/* Accessory buttons row */}
         <div className="flex items-center gap-2 mt-3">
+          {modelLabel !== undefined && (
+            <button
+              type="button"
+              onClick={onOpenModelSettings}
+              className={`
+                inline-flex items-center gap-2
+                px-3 py-2 rounded-lg
+                text-xs font-medium
+                transition-all duration-200
+                border
+                focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+                ${onOpenModelSettings
+                  ? 'bg-white/[0.04] text-stone-400 border-white/[0.06] hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]'
+                  : 'bg-white/[0.02] text-stone-600 border-white/[0.03] cursor-not-allowed'
+                }
+              `}
+              aria-label="LLM model"
+              title={onOpenModelSettings ? 'Change model in settings' : `LLM model: ${modelLabel}`}
+              disabled={!onOpenModelSettings}
+            >
+              <span className="codicon codicon-symbol-parameter text-[13px] text-brand-400/70" />
+              <span className="text-stone-500">Model</span>
+              <span className="font-mono text-stone-300 truncate max-w-[14rem]">{modelLabel}</span>
+            </button>
+          )}
+
           <AccessoryButton
             icon="mention"
             label="Add context"

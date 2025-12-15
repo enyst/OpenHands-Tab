@@ -1,11 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor, cleanup } from '@testing-library/react';
 import { App } from '../components/App';
 
 const mockApi = { postMessage: vi.fn() };
 
 describe('App toolbar interactions', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     // @ts-expect-error mock VS Code API
     window.acquireVsCodeApi = () => mockApi;
@@ -24,6 +28,18 @@ describe('App toolbar interactions', () => {
     await waitFor(() => {
       expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestSkills' });
     });
+  });
+
+  it('shows the configured LLM model in the input row', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmModel: 'gpt-4.1' }
+      }));
+    });
+
+    expect(await screen.findByLabelText('LLM model')).toHaveTextContent('gpt-4.1');
   });
 
   it('requests workspace files and inserts context mention at cursor', async () => {
