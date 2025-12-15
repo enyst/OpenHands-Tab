@@ -1,16 +1,27 @@
 import * as vscode from 'vscode';
 
+// Helper to poll until condition is met
+async function pollUntil(
+  condition: () => Promise<boolean>,
+  timeoutMs: number = 10000,
+  intervalMs: number = 200
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await condition()) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
 export async function run(): Promise<void> {
   // Ensure chat view is created
   await vscode.commands.executeCommand('openhands.open');
 
   // Wait until view and webview are ready
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
+  await pollUntil(async () => {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    if (diag?.chat?.hasView && diag?.chat?.webviewReady) break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
+    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+  }, 15000);
 
   // Test 1: Check initial mode (should be local when no serverUrl configured)
   let diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
@@ -36,7 +47,6 @@ export async function run(): Promise<void> {
   }
 
   // Test 2: Verify status is present
-  const validStatuses = ['online', 'offline', 'connecting'];
   console.log(`Status: ${diag.status}`);
   // Status might be undefined initially in local mode
 
@@ -57,7 +67,12 @@ export async function run(): Promise<void> {
 
   // Test 5: Test reconnect command behavior
   await vscode.commands.executeCommand('openhands.reconnect');
-  await new Promise((r) => setTimeout(r, 500));
+
+  // Poll until webview is ready after reconnect
+  await pollUntil(async () => {
+    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return d?.chat?.webviewReady;
+  });
 
   diag = await vscode.commands.executeCommand('openhands._diagnostics');
   console.log(`Mode after reconnect: ${diag.mode}`);
@@ -69,7 +84,12 @@ export async function run(): Promise<void> {
 
   // Test 7: Start new conversation and verify mode persists
   await vscode.commands.executeCommand('openhands.startNewConversation');
-  await new Promise((r) => setTimeout(r, 500));
+
+  // Poll until webview is ready after new conversation
+  await pollUntil(async () => {
+    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return d?.chat?.webviewReady;
+  });
 
   diag = await vscode.commands.executeCommand('openhands._diagnostics');
   console.log(`Mode after new conversation: ${diag.mode}`);
@@ -92,7 +112,12 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', testEvent);
-  await new Promise((r) => setTimeout(r, 300));
+
+  // Poll until event is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    return r?.count >= 1;
+  });
 
   diag = await vscode.commands.executeCommand('openhands._diagnostics');
 

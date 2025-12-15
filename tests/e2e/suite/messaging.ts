@@ -1,20 +1,34 @@
 import * as vscode from 'vscode';
 
+// Helper to poll until condition is met
+async function pollUntil(
+  condition: () => Promise<boolean>,
+  timeoutMs: number = 10000,
+  intervalMs: number = 200
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await condition()) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
 export async function run(): Promise<void> {
   // Ensure chat view is created
   await vscode.commands.executeCommand('openhands.open');
 
   // Wait until view and webview are ready
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
+  await pollUntil(async () => {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    if (diag?.chat?.hasView && diag?.chat?.webviewReady) break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
+    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+  }, 15000);
 
   // Start fresh conversation
   await vscode.commands.executeCommand('openhands.startNewConversation');
-  await new Promise((r) => setTimeout(r, 500));
+  await pollUntil(async () => {
+    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return d?.chat?.webviewReady;
+  });
 
   // Test 1: Send various message events with different roles
   const messageEvents = [
@@ -50,10 +64,14 @@ export async function run(): Promise<void> {
 
   for (const event of messageEvents) {
     await vscode.commands.executeCommand('openhands._sendTestEvent', event);
-    await new Promise((r) => setTimeout(r, 100));
   }
 
-  await new Promise((r) => setTimeout(r, 500));
+  // Poll until message events are rendered
+  await pollUntil(async () => {
+    const result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const msgCount = result?.eventTypes?.filter((t: string) => t === 'MessageEvent').length || 0;
+    return msgCount >= 3;
+  });
 
   // Query rendered events
   let result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
@@ -84,7 +102,6 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', actionEvent);
-  await new Promise((r) => setTimeout(r, 100));
 
   // Send corresponding observation
   const observationEvent = {
@@ -100,7 +117,14 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', observationEvent);
-  await new Promise((r) => setTimeout(r, 500));
+
+  // Poll until action and observation are rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const actionCount = r?.eventTypes?.filter((t: string) => t === 'ActionEvent').length || 0;
+    const obsCount = r?.eventTypes?.filter((t: string) => t === 'ObservationEvent').length || 0;
+    return actionCount >= 1 && obsCount >= 1;
+  });
 
   // Query again
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
@@ -132,7 +156,13 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', multiPartMessage);
-  await new Promise((r) => setTimeout(r, 500));
+
+  // Poll until multi-part message is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const msgCount = r?.eventTypes?.filter((t: string) => t === 'MessageEvent').length || 0;
+    return msgCount >= 4;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After multi-part message - Count: ${result.count}`);
@@ -149,7 +179,13 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', systemPrompt);
-  await new Promise((r) => setTimeout(r, 500));
+
+  // Poll until system prompt is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const sysCount = r?.eventTypes?.filter((t: string) => t === 'SystemPromptEvent').length || 0;
+    return sysCount >= 1;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After system prompt - Count: ${result.count}`);

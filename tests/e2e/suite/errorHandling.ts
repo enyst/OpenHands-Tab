@@ -1,20 +1,34 @@
 import * as vscode from 'vscode';
 
+// Helper to poll until condition is met
+async function pollUntil(
+  condition: () => Promise<boolean>,
+  timeoutMs: number = 10000,
+  intervalMs: number = 200
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await condition()) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
 export async function run(): Promise<void> {
   // Ensure chat view is created
   await vscode.commands.executeCommand('openhands.open');
 
   // Wait until view and webview are ready
-  const deadline = Date.now() + 15000;
-  while (Date.now() < deadline) {
+  await pollUntil(async () => {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    if (diag?.chat?.hasView && diag?.chat?.webviewReady) break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
+    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+  }, 15000);
 
   // Start fresh conversation
   await vscode.commands.executeCommand('openhands.startNewConversation');
-  await new Promise((r) => setTimeout(r, 500));
+  await pollUntil(async () => {
+    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return d?.chat?.webviewReady;
+  });
 
   // Test 1: Send AgentErrorEvent
   const agentError = {
@@ -26,7 +40,13 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', agentError);
-  await new Promise((r) => setTimeout(r, 300));
+
+  // Poll until error event is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const count = r?.eventTypes?.filter((t: string) => t === 'AgentErrorEvent').length || 0;
+    return count >= 1;
+  });
 
   let result: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After agent error - Count: ${result.count}, Types: ${result.eventTypes.join(', ')}`);
@@ -45,7 +65,13 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', conversationError);
-  await new Promise((r) => setTimeout(r, 300));
+
+  // Poll until conversation error is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const count = r?.eventTypes?.filter((t: string) => t === 'ConversationErrorEvent').length || 0;
+    return count >= 1;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After conversation error - Count: ${result.count}`);
@@ -82,10 +108,14 @@ export async function run(): Promise<void> {
 
   for (const err of multipleErrors) {
     await vscode.commands.executeCommand('openhands._sendTestEvent', err);
-    await new Promise((r) => setTimeout(r, 100));
   }
 
-  await new Promise((r) => setTimeout(r, 300));
+  // Poll until all error events are rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const count = r?.eventTypes?.filter((t: string) => t === 'AgentErrorEvent').length || 0;
+    return count >= 4;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After multiple errors - Count: ${result.count}`);
@@ -109,7 +139,13 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', failedObservation);
-  await new Promise((r) => setTimeout(r, 300));
+
+  // Poll until observation is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const count = r?.eventTypes?.filter((t: string) => t === 'ObservationEvent').length || 0;
+    return count >= 1;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After failed observation - Count: ${result.count}`);
@@ -126,7 +162,9 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', pauseEvent);
-  await new Promise((r) => setTimeout(r, 300));
+
+  // Small delay for pause event processing
+  await new Promise((r) => setTimeout(r, 200));
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After pause event - Count: ${result.count}`);
@@ -145,7 +183,13 @@ export async function run(): Promise<void> {
   };
 
   await vscode.commands.executeCommand('openhands._sendTestEvent', condensation);
-  await new Promise((r) => setTimeout(r, 300));
+
+  // Poll until condensation is rendered
+  await pollUntil(async () => {
+    const r: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const count = r?.eventTypes?.filter((t: string) => t === 'Condensation').length || 0;
+    return count >= 1;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After condensation - Count: ${result.count}`);
@@ -166,7 +210,12 @@ export async function run(): Promise<void> {
 
   // Test 8: Recovery - start new conversation after errors
   await vscode.commands.executeCommand('openhands.startNewConversation');
-  await new Promise((r) => setTimeout(r, 500));
+
+  // Poll until webview is ready
+  await pollUntil(async () => {
+    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return d?.chat?.webviewReady;
+  });
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After new conversation - Events should be cleared or minimal: ${result.count}`);

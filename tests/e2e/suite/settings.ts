@@ -67,11 +67,14 @@ export async function run(): Promise<void> {
     throw new Error(`Start new conversation command failed: ${err}`);
   }
 
-  // Wait a bit for conversation to reset
-  await new Promise((r) => setTimeout(r, 500));
-
-  // Verify diagnostics after new conversation
-  const diagAfter: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  // Poll until webview is ready after new conversation
+  const afterDeadline = Date.now() + 10000;
+  let diagAfter: any;
+  while (Date.now() < afterDeadline) {
+    diagAfter = await vscode.commands.executeCommand('openhands._diagnostics');
+    if (diagAfter?.chat?.webviewReady) break;
+    await new Promise((r) => setTimeout(r, 200));
+  }
   if (!diagAfter?.chat?.webviewReady) {
     throw new Error('Webview not ready after new conversation');
   }
