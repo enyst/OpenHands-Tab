@@ -278,7 +278,7 @@ function TerminalObservationSummary({ observation }: { observation: JsonRecord }
  * Event color tokens - CSS custom properties defined in tailwind.css
  * Design Philosophy: "Warm Technical Refinement"
  * - Agent/AI: Warm gold (protagonist, signature OpenHands color)
- * - User: Warm slate (supporting role, understated)
+ * - User: Warm stone (supporting role, understated)
  * - System: Soft lavender (informational)
  * - Action: Teal (operational, cool accent for contrast)
  * - Observation: Soft mint (results/completion)
@@ -735,11 +735,12 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const roleLabel = message.role === 'assistant'
     ? 'Agent'
     : message.role.charAt(0).toUpperCase() + message.role.slice(1);
+  const showRoleLabel = !isUser;
 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
-  // Agent messages get slightly more prominent styling
-  const bgOpacity = isAgent ? 0.06 : 0.04;
+  // User messages get extra contrast; agent messages stay prominent
+  const bgOpacity = isUser ? 0.08 : isAgent ? 0.06 : 0.04;
 
   return (
     <EventContainer accentColor={accentColor} bgOpacity={bgOpacity} index={index} dataTestId="message-event">
@@ -752,17 +753,21 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <div className={`font-semibold text-sm ${isAgent ? 'text-amber-200' : 'text-stone-300'}`}>{roleLabel}</div>
-            {message.created_at && (
-              <div className="text-xs text-stone-500">
-                {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            )}
-          </div>
+          {(showRoleLabel || message.created_at) && (
+            <div className="flex items-center gap-2 mb-2">
+              {showRoleLabel && (
+                <div className={`font-semibold text-sm ${isAgent ? 'text-amber-200' : 'text-stone-300'}`}>{roleLabel}</div>
+              )}
+              {message.created_at && (
+                <div className={`text-xs text-stone-500 ${showRoleLabel ? '' : 'ml-auto'}`}>
+                  {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
+            </div>
+          )}
 
           {textContent && (
-            <div className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
+            <div className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${isAgent || isUser ? 'text-stone-200' : 'text-stone-300'}`}>
               {textContent}
             </div>
           )}

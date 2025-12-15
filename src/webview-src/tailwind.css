@@ -12,8 +12,8 @@
   :root {
     /* Agent/AI - signature warm gold (the main voice) */
     --event-agent: #E8A642;
-    /* User - warm slate (understated, supporting) */
-    --event-user: #94A3B8;
+    /* User - warm stone (understated, supporting) */
+    --event-user: #A8A29E;
     /* System - soft lavender (informational, ambient) */
     --event-system: #A78BFA;
     /* Actions - teal (operational, cool accent contrast) */
