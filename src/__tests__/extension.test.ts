@@ -613,6 +613,48 @@ describe('Settings and modes', () => {
 
   });
 
+  it('streams stdout and stderr from a single BashOutput event into the OpenHands terminal log', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await resolveChatView(mockContext);
+
+    const writes: string[] = [];
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-mixed-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-mixed-1',
+      order: 0,
+      command: 'mixed_output',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-mixed-2',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:01.000Z',
+      command_id: 'tc-mixed-1',
+      order: 1,
+      exit_code: 0,
+      stdout: 'stdout line\n',
+      stderr: 'stderr line\n',
+    });
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ mixed_output\r\n');
+    expect(joined).toContain('stdout line\r\n');
+    expect(joined).toContain('stderr line\r\n');
+  });
+
   it('coalesces CR-only progress output in the OpenHands terminal log', async () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');
@@ -662,6 +704,50 @@ describe('Settings and modes', () => {
     expect(joined).toContain('Short\r\n');
     expect(joined).not.toContain('Longer line that should be cleared');
     expect(joined).not.toContain('\u001b[K');
+  });
+
+  it('coalesces ANSI-colored progress output (including split CSI sequences)', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await resolveChatView(mockContext);
+
+    const writes: string[] = [];
+    let ptyInstance: any;
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      ptyInstance = pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-progress-color-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-progress-color-1',
+      order: 0,
+      command: 'progress_colored',
+    });
+
+    expect(ptyInstance).toBeTruthy();
+
+    ptyInstance.write('\u001b[32mDownloading 1%\u001b[0m');
+    ptyInstance.write('\r\u001b[33mDownloading 2%\u001b[0m');
+    // Split escape sequence across writes.
+    ptyInstance.write('\r\u001b');
+    ptyInstance.write('[34mDownloading 3%\u001b[0m');
+    ptyInstance.write('\n');
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ progress_colored\r\n');
+    expect(joined).toContain('\u001b[34mDownloading 3%\u001b[0m\r\n');
+    expect(joined).not.toContain('Downloading 1%');
+    expect(joined).not.toContain('Downloading 2%');
   });
 
   it('strips terminal string control sequences (OSC/DCS) from the OpenHands terminal log', async () => {
