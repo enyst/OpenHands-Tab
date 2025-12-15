@@ -5,9 +5,11 @@ Goal: run an agent-server compatible with this extension’s POST /api/conversat
 Option A: agent-sdk local (recommended for developers)
 - Prereqs: Python 3.12+, [uv](https://github.com/astral-sh/uv)
 - Steps:
-  1) git clone https://github.com/All-Hands-AI/agent-sdk
-  2) cd agent-sdk
-  3) `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
+  1) `git clone https://github.com/OpenHands/software-agent-sdk.git ~/repos/agent-sdk`
+  2) `cd ~/repos/agent-sdk && make build`
+  3) Start server:
+     - `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server`
+     - Or manually: `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
   4) In VS Code (Extension Dev Host), set openhands.serverUrl to <http://localhost:3000>
 
 Option B: remote server

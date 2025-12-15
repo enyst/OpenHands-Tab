@@ -1691,4 +1691,4 @@ describe('Type Guards', () => {
 - [Package AGENTS.md](../packages/agent-sdk-ts/AGENTS.md)
 - [Repository Guidelines](../AGENTS.md)
 - [PRD](./PRD.md)
-- [OpenHands agent-sdk (Python)](https://github.com/All-Hands-AI/agent-sdk)
+- [OpenHands agent-sdk (Python)](https://github.com/OpenHands/software-agent-sdk)

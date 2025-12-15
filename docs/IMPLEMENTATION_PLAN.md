@@ -109,7 +109,7 @@ Implementation notes:
 - Build outputs in `media/**` are generated (don’t edit by hand)
 - All styling uses Tailwind CSS 4.x (source in `src/webview-src/tailwind.css`; compiled to `src/webview-src/tailwind.gen.css` and bundled to `media/index.css`)
 - Webview uses React 19 with custom components
-- Backend prerequisite: OpenHands Agent Server (V1) from All-Hands-AI/agent-sdk. See README.md for uv quickstart. Default base http://localhost:3000. Configure via Settings button or openhands.serverUrl.
+- Backend prerequisite: OpenHands Agent Server from [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk). See `docs/e2e_testing.md` (or `./scripts/start-agent-server.sh`) for local launch. Default base <http://localhost:3000>. Configure via Settings button or openhands.serverUrl.
 
 - TODO: Consider removing media/*.map from git if source maps are not needed in repo
 

@@ -15,7 +15,7 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
 - Node.js 22+
 - VS Code Desktop (Electron build)
 - Optional: Python 3.12+ and agent-server (agent-sdk) running for full integration testing
-- Recommended default server URL: http://localhost:3000
+- Recommended default server URL: <http://localhost:3000>
 
 ## Testing Approaches
 
@@ -24,13 +24,18 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
    - npm install
    - npm run compile
 2) Start agent-server (separate terminal)
-   - git clone https://github.com/All-Hands-AI/agent-sdk && cd agent-sdk
-   - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
+   - Recommended: use a local checkout of [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)
+     - First time: `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server:prepare`
+     - After: `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server`
+   - Or clone it:
+     - `git clone https://github.com/OpenHands/software-agent-sdk.git ~/repos/agent-sdk`
+     - `cd ~/repos/agent-sdk && make build`
+     - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
 3) Launch the extension in VS Code
    - Open this folder in VS Code
    - Press F5 to run “Extension Development Host”
 4) In the Dev Host window
-   - Run “OpenHands: Configure” → ensure server URL is http://localhost:3000
+   - Run “OpenHands: Configure” → ensure server URL is <http://localhost:3000>
    - Run “OpenHands: Open” (reveals the chat sidebar view)
    - Run "OpenHands: Start New Conversation"
    - Type a message and verify assistant/tool events stream in the webview
