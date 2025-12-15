@@ -440,11 +440,9 @@ async function ensureWritableDirectory(dir: string): Promise<void> {
 async function resolveConversationStoreRoot(context: vscode.ExtensionContext): Promise<string> {
   const cfg = vscode.workspace.getConfiguration();
   const configured = normalizeNonEmptyString(cfg.get<string>('openhands.conversation.storeRoot'));
-  const envOverride = normalizeNonEmptyString(process.env.OPENHANDS_CONVERSATIONS_DIR);
 
   const candidates: Array<{ label: string; dir: string }> = [];
   if (configured) candidates.push({ label: 'setting openhands.conversation.storeRoot', dir: resolveConfiguredPath(configured) });
-  if (envOverride) candidates.push({ label: 'env OPENHANDS_CONVERSATIONS_DIR', dir: resolveConfiguredPath(envOverride) });
 
   try {
     candidates.push({ label: 'default ~/.openhands/conversations-vscode', dir: path.join(os.homedir(), '.openhands', 'conversations-vscode') });
