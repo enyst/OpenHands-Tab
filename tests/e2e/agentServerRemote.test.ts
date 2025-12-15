@@ -105,7 +105,15 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       ['run', 'python', '-m', 'openhands.agent_server', '--host', '127.0.0.1', '--port', String(port)],
       {
         cwd: agentSdkDir,
-        env: { ...process.env, PYTHONUNBUFFERED: '1', SESSION_API_KEY: '' },
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: '1',
+          SESSION_API_KEY: '',
+          // Keep server startup lightweight for CI (no VSCode/VNC, no tool preload).
+          OH_ENABLE_VSCODE: '0',
+          OH_ENABLE_VNC: '0',
+          OH_PRELOAD_TOOLS: '0',
+        },
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',
       }
