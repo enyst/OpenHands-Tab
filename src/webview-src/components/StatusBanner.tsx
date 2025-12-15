@@ -4,6 +4,7 @@ interface StatusBannerProps {
   message: string;
   level: 'info' | 'warn' | 'error';
   onDismiss: () => void;
+  dismissible?: boolean;
   autoDismiss?: boolean;
   autoDismissDelay?: number;
 }
@@ -12,6 +13,7 @@ export function StatusBanner({
   message,
   level,
   onDismiss,
+  dismissible = true,
   autoDismiss = true,
   autoDismissDelay = 5000,
 }: StatusBannerProps) {
@@ -64,14 +66,21 @@ export function StatusBanner({
         className={`codicon codicon-${config.icon} flex-shrink-0`}
         style={{ color: config.iconColor }}
       />
-      <div className="flex-1 text-sm">{message}</div>
-      <button
-        onClick={onDismiss}
-        className="flex-shrink-0 w-6 h-6 rounded-md hover:bg-white/[0.08] flex items-center justify-center transition-colors text-stone-400 hover:text-stone-300"
-        aria-label="Dismiss"
+      <div
+        className={`flex-1 text-sm ${level === 'error' ? 'break-words' : 'truncate'}`}
+        title={message}
       >
-        <span className="codicon codicon-close text-xs" />
-      </button>
+        {message}
+      </div>
+      {dismissible && (
+        <button
+          onClick={onDismiss}
+          className="flex-shrink-0 w-6 h-6 rounded-md hover:bg-white/[0.08] flex items-center justify-center transition-colors text-stone-400 hover:text-stone-300"
+          aria-label="Dismiss"
+        >
+          <span className="codicon codicon-close text-xs" />
+        </button>
+      )}
     </div>
   );
 }
