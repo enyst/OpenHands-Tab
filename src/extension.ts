@@ -303,17 +303,29 @@ function flushConversationEventBacklog(params: {
 
 const normalizeTerminalNewlines = (text: string): string => text.replace(/\r?\n/g, '\r\n');
 
+type TerminalLogPseudoterminalOptions = {
+  renderProgress: boolean;
+};
+
 class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   private static readonly PTY_WRITE_CHUNK_SIZE = 16_000;
+  private static readonly MAX_PENDING_LINE_CHARS = 500_000;
 
   private readonly writeEmitter = new vscode.EventEmitter<string>();
   private readonly closeEmitter = new vscode.EventEmitter<void>();
   private closed = false;
   private showedInputHint = false;
   private lastEndedWithNewline = true;
+  private readonly renderProgress: boolean;
+  private progressCarry = '';
+  private progressLine = '';
 
   readonly onDidWrite = this.writeEmitter.event;
   readonly onDidClose = this.closeEmitter.event;
+
+  constructor(options?: Partial<TerminalLogPseudoterminalOptions>) {
+    this.renderProgress = options?.renderProgress ?? true;
+  }
 
   open(): void {
     this.writeLine('[OpenHands] Terminal log (read-only)');
@@ -321,6 +333,10 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
 
   close(): void {
     if (this.closed) return;
+    if (this.progressLine) {
+      this.writeRaw(this.sanitizeProgressLine(this.progressLine));
+      this.progressLine = '';
+    }
     this.closed = true;
     this.closeEmitter.fire();
     this.writeEmitter.dispose();
@@ -330,6 +346,10 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   isClosed(): boolean { return this.closed; }
 
   ensureNewline(): void {
+    if (this.progressLine) {
+      this.write('\n');
+      return;
+    }
     if (!this.lastEndedWithNewline) this.write('\n');
   }
 
@@ -348,7 +368,7 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
     this.lastEndedWithNewline = /\n$/.test(chunk);
   }
 
-  write(text: string): void {
+  private writeRaw(text: string): void {
     if (this.closed) return;
     const normalized = normalizeTerminalNewlines(text);
 
@@ -384,6 +404,99 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
       this.emitChunk(normalized.slice(start, end));
       start = end;
     }
+  }
+
+  private sanitizeProgressLine(line: string): string {
+    // ANSI erase-to-EOL (CSI K) is used by progress bars to clear leftover text.
+    // In our coalesced rendering (keeping only last update), the erase is redundant
+    // and can be safely removed to keep the log readable.
+    if (!line.includes('\u001b[')) return line;
+
+    const esc = '\u001b';
+    let out = '';
+
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === esc && line[i + 1] === '[') {
+        let j = i + 2;
+        while (j < line.length) {
+          const code = line.charCodeAt(j);
+          const isDigit = code >= 48 && code <= 57;
+          const isSemicolon = code === 59;
+          if (!isDigit && !isSemicolon) break;
+          j += 1;
+        }
+
+        if (line[j] === 'K') {
+          i = j;
+          continue;
+        }
+      }
+
+      out += line[i];
+    }
+
+    return out;
+  }
+
+  private splitTrailingIncompleteCsi(text: string): { prefix: string; carry: string } {
+    if (!text) return { prefix: '', carry: '' };
+
+    if (text.endsWith('\u001b')) {
+      return { prefix: text.slice(0, -1), carry: '\u001b' };
+    }
+
+    const escIdx = text.lastIndexOf('\u001b[');
+    if (escIdx < 0) return { prefix: text, carry: '' };
+
+    const afterCsi = text.slice(escIdx + 2);
+    const hasTerminator = /[@-~]/.test(afterCsi);
+    if (hasTerminator) return { prefix: text, carry: '' };
+
+    return { prefix: text.slice(0, escIdx), carry: text.slice(escIdx) };
+  }
+
+  private writeWithProgressCoalescing(text: string): void {
+    if (this.closed) return;
+
+    // Normalize CRLF -> LF so we can treat standalone CR as progress-only updates.
+    const combined = (this.progressCarry + text).replace(/\r\n/g, '\n');
+    this.progressCarry = '';
+
+    const { prefix, carry } = this.splitTrailingIncompleteCsi(combined);
+    this.progressCarry = carry;
+
+    const parts = prefix.split('\n');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+
+      const lastCr = part.lastIndexOf('\r');
+      if (lastCr >= 0) {
+        this.progressLine = part.slice(lastCr + 1);
+      } else {
+        this.progressLine += part;
+      }
+
+      if (!isLast) {
+        const line = this.sanitizeProgressLine(this.progressLine);
+        this.progressLine = '';
+        this.writeRaw(`${line}\n`);
+      }
+    }
+
+    if (this.progressLine.length > OpenHandsTerminalLogPseudoterminal.MAX_PENDING_LINE_CHARS) {
+      const overflow = this.sanitizeProgressLine(this.progressLine);
+      this.progressLine = '';
+      this.writeRaw(overflow);
+    }
+  }
+
+  write(text: string): void {
+    if (!this.renderProgress) {
+      this.writeRaw(text);
+      return;
+    }
+    this.writeWithProgressCoalescing(text);
   }
 
   writeLine(line: string): void {
@@ -605,7 +718,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Recreate terminal if not present or if the PTY has been closed
     if (!terminal || !terminalLogPty || terminalLogPty.isClosed?.()) {
       try {
-        terminalLogPty = new OpenHandsTerminalLogPseudoterminal();
+        const renderProgress =
+          vscode.workspace.getConfiguration().get<boolean>('openhands.terminal.renderProgress') ?? true;
+        terminalLogPty = new OpenHandsTerminalLogPseudoterminal({ renderProgress });
         terminal = vscode.window.createTerminal({ name: 'OpenHands', pty: terminalLogPty });
         terminal.show(true);
       } catch (e) {
@@ -1090,6 +1205,14 @@ export function activate(context: vscode.ExtensionContext) {
         conversation = undefined;
         conversationStoreRoot = undefined;
         await ensureConversationAndConnection();
+        return;
+      }
+
+      if (e.affectsConfiguration('openhands.terminal.renderProgress')) {
+        // Recreate on next terminal event so it picks up updated rendering behavior.
+        try { terminal?.dispose(); } catch { }
+        terminal = undefined;
+        terminalLogPty = undefined;
         return;
       }
 

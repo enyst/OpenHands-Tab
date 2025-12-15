@@ -123,6 +123,11 @@
           "default": "",
           "markdownDescription": "Optional directory for local-mode conversation history/events. Leave empty to use `~/.openhands/conversations-vscode/`."
         },
+        "openhands.terminal.renderProgress": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Coalesce carriage-return progress updates in the OpenHands terminal log."
+        },
         "openhands.confirmation.policy": {
           "type": "string",
           "enum": [

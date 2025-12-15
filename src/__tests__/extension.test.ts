@@ -612,6 +612,57 @@ describe('Settings and modes', () => {
     expect(writes.join('')).toContain(largeOutput);
 
   });
+
+  it('coalesces CR-only progress output in the OpenHands terminal log', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await resolveChatView(mockContext);
+
+    const writes: string[] = [];
+    let ptyInstance: any;
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      ptyInstance = pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-progress-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-progress-1',
+      order: 0,
+      command: 'progress_output',
+    });
+
+    expect(ptyInstance).toBeTruthy();
+
+    // Simulate progress updates arriving in multiple chunks (including CSI K split across writes).
+    ptyInstance.write('Downloading 1%');
+    ptyInstance.write('\rDownloading 2%');
+    ptyInstance.write('\rDownloading 3%');
+    ptyInstance.write('\n');
+
+    ptyInstance.write('Longer line that should be cleared');
+    ptyInstance.write('\rShort');
+    ptyInstance.write('\u001b');
+    ptyInstance.write('[K\n');
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ progress_output\r\n');
+    expect(joined).toContain('Downloading 3%\r\n');
+    expect(joined).not.toContain('Downloading 1%');
+    expect(joined).not.toContain('Downloading 2%');
+    expect(joined).toContain('Short\r\n');
+    expect(joined).not.toContain('Longer line that should be cleared');
+    expect(joined).not.toContain('\u001b[K');
+  });
 });
 
 
