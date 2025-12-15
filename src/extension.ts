@@ -805,6 +805,20 @@ export function activate(context: vscode.ExtensionContext) {
         }
         conversation = undefined;
         await ensureConversationAndConnection();
+        return;
+      }
+
+      if (e.affectsConfiguration('openhands.llm')) {
+        try {
+          await ensureConversationAndConnection();
+          if (conversationMode === 'remote') {
+            outputChannel?.appendLine('[settings] LLM settings updated (remote mode: applies on next conversation)');
+          } else {
+            outputChannel?.appendLine('[settings] LLM settings updated (local mode: applies immediately)');
+          }
+        } catch (err: unknown) {
+          outputChannel?.appendLine(`[settings] Failed to apply LLM settings update: ${renderError(err)}`);
+        }
       }
     })
   );

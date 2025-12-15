@@ -161,7 +161,7 @@ export class Agent extends EventEmitter {
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
-  private readonly debug: boolean;
+  private debug: boolean;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -183,6 +183,19 @@ export class Agent extends EventEmitter {
     this.debug = options.settings?.agent?.debug ?? false;
 
     this.events.on((event) => this.emit('event', event));
+  }
+
+  setSettings(settings: OpenHandsSettings): void {
+    this.options.settings = settings;
+
+    // Refresh derived settings used by the agent runtime.
+    this.confirmation.policy = settings?.confirmation?.policy ?? 'never';
+    this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
+    this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
+    this.debug = settings?.agent?.debug ?? false;
+
+    // Force the next run to rebuild the LLM client from updated settings.
+    this.orchestratorPromise = undefined;
   }
 
   get pendingActionId(): string | undefined {

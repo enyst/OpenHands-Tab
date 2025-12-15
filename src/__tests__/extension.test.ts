@@ -230,6 +230,35 @@ describe('Chat view behavior', () => {
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
     expect(conv?.restoreConversation).not.toHaveBeenCalled();
   });
+
+  it('refreshes the active conversation when LLM settings change', async () => {
+    const view = await resolveChatView(mockContext);
+    expect(view).toBeTruthy();
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    mockSettings = {
+      ...mockSettings,
+      llm: {
+        ...mockSettings.llm,
+        model: 'gpt-4o-mini',
+      },
+    };
+
+    (vscode as any).__triggerConfigChange({
+      affectsConfiguration: (key: string) => key === 'openhands.llm' || key === 'openhands.llm.model',
+    });
+
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      if ((conv.setSettings as Mock).mock.calls.length > 0) break;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(conv.setSettings).toHaveBeenCalledWith(mockSettings);
+  });
 });
 
 describe('Command handlers', () => {
