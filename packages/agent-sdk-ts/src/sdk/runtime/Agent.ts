@@ -174,25 +174,24 @@ export class Agent extends EventEmitter {
     this.tools = new Map(providedTools.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;
-    this.confirmation = {
-      policy: options.settings?.confirmation?.policy ?? 'never',
-      riskyThreshold: options.settings?.confirmation?.riskyThreshold ?? 'MEDIUM',
-      confirmUnknown: options.settings?.confirmation?.confirmUnknown ?? true,
-    };
+    this.confirmation = { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true };
     this.agentContext = options.agentContext;
-    this.debug = options.settings?.agent?.debug ?? false;
+    this.debug = false;
+    this.updateDerivedSettings(options.settings);
 
     this.events.on((event) => this.emit('event', event));
   }
 
-  setSettings(settings: OpenHandsSettings): void {
-    this.options.settings = settings;
-
-    // Refresh derived settings used by the agent runtime.
+  private updateDerivedSettings(settings: OpenHandsSettings): void {
     this.confirmation.policy = settings?.confirmation?.policy ?? 'never';
     this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
     this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
     this.debug = settings?.agent?.debug ?? false;
+  }
+
+  setSettings(settings: OpenHandsSettings): void {
+    this.options.settings = settings;
+    this.updateDerivedSettings(settings);
 
     // Force the next run to rebuild the LLM client from updated settings.
     this.orchestratorPromise = undefined;
