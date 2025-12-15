@@ -298,6 +298,7 @@ export function App() {
     const handler = (event: MessageEvent) => {
       const payload = event.data as {
         type?: string;
+        requestId?: string;
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
@@ -413,7 +414,9 @@ export function App() {
           }
           break;
         case 'queryUiState': {
-          postMessage({ type: 'uiStateResponse', ...uiStateRef.current });
+          if (typeof payload.requestId === 'string') {
+            postMessage({ type: 'uiStateResponse', requestId: payload.requestId, ...uiStateRef.current });
+          }
           break;
         }
         case 'e2eAction': {
@@ -461,11 +464,14 @@ export function App() {
             }
             return 'unknown';
           });
-          postMessage({
-            type: 'renderedEventsResponse',
-            count: events.length,
-            eventTypes
-          });
+          if (typeof payload.requestId === 'string') {
+            postMessage({
+              type: 'renderedEventsResponse',
+              requestId: payload.requestId,
+              count: events.length,
+              eventTypes
+            });
+          }
           break;
         }
         case 'historyList': {
