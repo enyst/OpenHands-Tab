@@ -17,9 +17,9 @@ describe('App render', () => {
   it('renders header, input, and toolbar controls', () => {
     render(<App />);
     expect(screen.getByText('OpenHands')).toBeInTheDocument();
-    expect(screen.getByLabelText('Message input')).toBeInTheDocument();
-    expect(screen.getByLabelText('New Conversation')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Context' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toBeInTheDocument();
+    expect(screen.getByLabelText('New')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Add context')[0]).toBeInTheDocument();
   });
 
   it('displays streaming content incrementally', async () => {

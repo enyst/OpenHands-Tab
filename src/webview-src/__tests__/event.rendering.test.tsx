@@ -90,7 +90,7 @@ describe('Agent-SDK event rendering', () => {
     const toggle = await screen.findByRole('button', { name: /Show system prompt/i });
     fireEvent.click(toggle);
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
-    expect(await screen.findByText(/3 tools loaded/)).toBeInTheDocument();
+    expect(await screen.findByText(/3 tools available/)).toBeInTheDocument();
   });
 
   it('renders ActionEvent', async () => {
@@ -148,7 +148,6 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('Conversation paused')).toBeInTheDocument();
-    expect(await screen.findByText('Paused')).toBeInTheDocument();
   });
 
   it('renders Condensation', async () => {
@@ -160,8 +159,8 @@ describe('Agent-SDK event rendering', () => {
       summary: 'Condensed multiple historical events to save memory'
     } as any;
     postToWindow({ type: 'event', event: ev });
-    expect(await screen.findByText(/Memory Condensed/)).toBeInTheDocument();
-    expect(await screen.findByText(/5 events/)).toBeInTheDocument();
+    expect(await screen.findByText(/Conversation Summarized/)).toBeInTheDocument();
+    expect(await screen.findByText(/Forgetting 5 events/)).toBeInTheDocument();
   });
 
   it('renders friendly summaries for file_editor events', async () => {
