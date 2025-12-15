@@ -91,14 +91,16 @@ describe('App event handling helpers', () => {
     });
 
     await act(async () => {
+      const requestId = 'test-query-rendered-events';
       postToWindow({
         type: 'queryRenderedEvents',
+        requestId,
       });
     });
 
     await waitFor(() => {
       expect(mockApi.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'renderedEventsResponse', count: 0 })
+        expect.objectContaining({ type: 'renderedEventsResponse', requestId: 'test-query-rendered-events', count: 0 })
       );
     });
   });

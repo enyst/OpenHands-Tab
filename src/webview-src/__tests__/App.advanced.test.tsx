@@ -748,12 +748,14 @@ describe('App - Advanced Test Coverage', () => {
       mockApi.postMessage.mockClear();
 
       // Query rendered events
-      postToWindow({ type: 'queryRenderedEvents' });
+      const requestId = 'test-query-rendered-events';
+      postToWindow({ type: 'queryRenderedEvents', requestId });
 
       await waitFor(() => {
         expect(mockApi.postMessage).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'renderedEventsResponse',
+            requestId,
             count: 2,
             eventTypes: ['MessageEvent', 'MessageEvent']
           })

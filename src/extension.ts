@@ -44,18 +44,55 @@ type WebviewMessage =
   | { type: 'openAttachment'; uri: string }
   | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
   | { type: 'command'; command: string; reason?: string }
-  | { type: 'renderedEventsResponse'; count: number; eventTypes: string[] }
+  | { type: 'renderedEventsResponse'; requestId: string; count: number; eventTypes: string[] }
+  | {
+    type: 'uiStateResponse';
+    requestId: string;
+    input: string;
+    showContextPicker: boolean;
+    showSkillsPopover: boolean;
+    showHistory: boolean;
+    workspaceFilesCount: number;
+    selectedContextFiles: string[];
+    skillsCount: number;
+    attachmentsCount: number;
+  }
   | { type: 'webviewConsole'; level: string; args: unknown[] }
   | { type: 'webviewError'; message: string; stack?: string }
   | { type: 'webviewNetwork'; phase: string; id: string; method: string; url: string; status?: number; ok?: boolean }
   | { type: 'webviewWebSocket'; phase: string; url: string; code?: number; reason?: string };
+
+type RenderedEventsInfo = { count: number; eventTypes: string[] };
+type UiStateSnapshot = {
+  input: string;
+  showContextPicker: boolean;
+  showSkillsPopover: boolean;
+  showHistory: boolean;
+  workspaceFilesCount: number;
+  selectedContextFiles: string[];
+  skillsCount: number;
+  attachmentsCount: number;
+};
+
+const DEFAULT_UI_STATE: UiStateSnapshot = {
+  input: '',
+  showContextPicker: false,
+  showSkillsPopover: false,
+  showHistory: false,
+  workspaceFilesCount: 0,
+  selectedContextFiles: [],
+  skillsCount: 0,
+  attachmentsCount: 0,
+};
 
 let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;
 let conversationMode: 'local' | 'remote' = 'remote';
 let terminal: vscode.Terminal | undefined;
 let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
-let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
+let nextE2ERequestId = 0;
+const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo) => void>();
+const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
 let chatWebviewReady = false; // Track if chat WebviewView is ready
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
@@ -77,6 +114,35 @@ let activeConversationId: string | undefined;
 const sentTestEvents: Event[] = [];
 // Track which command_ids have already printed an exit summary to avoid duplicates
 const printedExitFor = new Set<string>();
+
+function nextRequestId(prefix: string): string {
+  nextE2ERequestId += 1;
+  return `${prefix}-${Date.now().toString(36)}-${nextE2ERequestId}`;
+}
+
+function createPendingResponse<T>(
+  map: Map<string, (value: T) => void>,
+  requestId: string,
+  timeoutMs: number
+): { promise: Promise<T | undefined>; cancel: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const promise = new Promise<T | undefined>((resolve) => {
+    timer = setTimeout(() => {
+      map.delete(requestId);
+      resolve(undefined);
+    }, timeoutMs);
+    map.set(requestId, (value: T) => {
+      if (timer) clearTimeout(timer);
+      map.delete(requestId);
+      resolve(value);
+    });
+  });
+  const cancel = () => {
+    if (timer) clearTimeout(timer);
+    map.delete(requestId);
+  };
+  return { promise, cancel };
+}
 
 // Dev logging/instrumentation toggle and file sink
 let devBridgeEnabled = false;
@@ -794,24 +860,53 @@ export function activate(context: vscode.ExtensionContext) {
       return { count: 0, eventTypes: [] };
     }
 
-    // Clear previous response and request from webview
-    renderedEventsInfo = undefined;
-    void chatView.webview.postMessage({ type: 'queryRenderedEvents' });
-
-    // Wait for response (with timeout)
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      if (renderedEventsInfo !== undefined) {
-        return renderedEventsInfo;
-      }
-      await new Promise((r) => setTimeout(r, 50));
+    void chatView.show?.(true);
+    const requestId = nextRequestId('renderedEvents');
+    const pending = createPendingResponse(pendingRenderedEventsRequests, requestId, 5000);
+    const posted = await chatView.webview.postMessage({ type: 'queryRenderedEvents', requestId });
+    if (!posted) {
+      pending.cancel();
+      return { count: 0, eventTypes: [] };
     }
+
+    const info = await pending.promise;
+    if (info) return info;
 
     // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
     const filtered = sentTestEvents.filter((e) => e.kind !== 'ConversationStateUpdateEvent');
     const types = filtered.map((e) => e.kind ?? 'unknown');
     return { count: types.length, eventTypes: types };
   });
+
+  // Query UI state from webview for E2E testing (toolbar + popovers)
+  const queryUiState = vscode.commands.registerCommand('openhands._queryUiState', async () => {
+    if (!chatView) {
+      return DEFAULT_UI_STATE;
+    }
+
+    void chatView.show?.(true);
+    const requestId = nextRequestId('uiState');
+    const pending = createPendingResponse(pendingUiStateRequests, requestId, 5000);
+    const posted = await chatView.webview.postMessage({ type: 'queryUiState', requestId });
+    if (!posted) {
+      pending.cancel();
+      return DEFAULT_UI_STATE;
+    }
+
+    return (await pending.promise) ?? DEFAULT_UI_STATE;
+  });
+
+  // Send a test action to the webview for E2E testing (UI flows without DOM automation)
+  const webviewAction = vscode.commands.registerCommand(
+    'openhands._webviewAction',
+    async (req: { action: string; payload?: unknown } | undefined) => {
+      if (!chatView) return { sent: false };
+      if (!req || typeof req.action !== 'string' || req.action.length === 0) return { sent: false };
+      void chatView.show?.(true);
+      const sent = await chatView.webview.postMessage({ type: 'e2eAction', action: req.action, payload: req.payload });
+      return { sent };
+    }
+  );
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensureConversationAndConnection();
@@ -927,6 +1022,8 @@ export function activate(context: vscode.ExtensionContext) {
     diag,
     sendTestEvent,
     queryRenderedEvents,
+    queryUiState,
+    webviewAction,
     startNew,
     configure,
     setApiKey,
@@ -944,7 +1041,8 @@ export function deactivate() {
   conversation = undefined;
   terminal = undefined;
   terminalLogPty = undefined;
-  renderedEventsInfo = undefined;
+  pendingRenderedEventsRequests.clear();
+  pendingUiStateRequests.clear();
   chatWebviewReady = false;
   chatLastConversationId = undefined;
   chatLastSeenSeq = undefined;
@@ -1214,6 +1312,29 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
       }
       case 'selectAttachments': {
         try {
+          const extensionMode = vscode.ExtensionMode;
+          const isTestMode =
+            extensionMode?.Test !== undefined &&
+            context.extensionMode === extensionMode.Test;
+          if (isTestMode && process.env.E2E_MOCK_ATTACHMENTS === '1') {
+            const mockUris = [vscode.Uri.joinPath(context.extensionUri, 'README.md')];
+            const attachments = await Promise.all(
+              mockUris.map(async (uri) => {
+                const label = toAttachmentLabel(uri);
+                let sizeBytes: number | undefined;
+                try {
+                  const stat = await vscode.workspace.fs.stat(uri);
+                  sizeBytes = stat.size;
+                } catch (err) {
+                  console.warn('[OpenHands] Failed to stat attachment', err);
+                }
+                return { uri: uri.toString(), label, sizeBytes };
+              })
+            );
+            void host.postMessage({ type: 'attachmentsSelected', attachments });
+            break;
+          }
+
           const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri;
           const picked = await vscode.window.showOpenDialog({
             canSelectFiles: true,
@@ -1306,7 +1427,19 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
         }
         break;
       case 'renderedEventsResponse':
-        renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes };
+        pendingRenderedEventsRequests.get(message.requestId)?.({ count: message.count, eventTypes: message.eventTypes });
+        break;
+      case 'uiStateResponse':
+        pendingUiStateRequests.get(message.requestId)?.({
+          input: message.input,
+          showContextPicker: message.showContextPicker,
+          showSkillsPopover: message.showSkillsPopover,
+          showHistory: message.showHistory,
+          workspaceFilesCount: message.workspaceFilesCount,
+          selectedContextFiles: message.selectedContextFiles,
+          skillsCount: message.skillsCount,
+          attachmentsCount: message.attachmentsCount,
+        });
         break;
       case 'webviewConsole': {
         if (!devBridgeEnabled) break;

@@ -39,6 +39,11 @@ export async function run(): Promise<void> {
     return runErrorHandlingTest();
   }
 
+  if (testName === 'uiFlows') {
+    const { run: runUiFlowsTest } = await import('./uiFlows');
+    return runUiFlowsTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness

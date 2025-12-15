@@ -159,12 +159,36 @@ export function App() {
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uiStateRef = useRef({
+    input: '',
+    showContextPicker: false,
+    showSkillsPopover: false,
+    showHistory: false,
+    workspaceFilesCount: 0,
+    selectedContextFiles: [] as string[],
+    skillsCount: 0,
+    attachmentsCount: 0,
+  });
 
   // Post message helper
   const postMessage = useCallback((msg: unknown) => {
     const api = getVscodeApi();
     api.postMessage(msg);
   }, []);
+
+  // Keep a snapshot for E2E state queries without re-registering message listeners on every keystroke.
+  useEffect(() => {
+    uiStateRef.current = {
+      input,
+      showContextPicker,
+      showSkillsPopover,
+      showHistory,
+      workspaceFilesCount: workspaceFiles.length,
+      selectedContextFiles: selectedContextFiles.slice(),
+      skillsCount: skills.length,
+      attachmentsCount: attachments.length,
+    };
+  }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, workspaceFiles.length]);
 
   // Show status message with debouncing
   const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
@@ -274,6 +298,7 @@ export function App() {
     const handler = (event: MessageEvent) => {
       const payload = event.data as {
         type?: string;
+        requestId?: string;
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
@@ -388,6 +413,49 @@ export function App() {
             setSkills(payload.skills);
           }
           break;
+        case 'queryUiState': {
+          if (typeof payload.requestId === 'string') {
+            postMessage({ type: 'uiStateResponse', requestId: payload.requestId, ...uiStateRef.current });
+          }
+          break;
+        }
+        case 'e2eAction': {
+          if (typeof (payload as { action?: unknown }).action !== 'string') break;
+          const action = (payload as { action: string }).action;
+          const rawPayload = (payload as { payload?: unknown }).payload;
+
+          switch (action) {
+            case 'openContext':
+              setShowSkillsPopover(false);
+              setShowContextPicker(true);
+              postMessage({ type: 'requestWorkspaceFiles' });
+              break;
+            case 'closeContext':
+              setShowContextPicker(false);
+              setIsMentionActive(false);
+              setContextQuery('');
+              mentionStartRef.current = null;
+              break;
+            case 'toggleContextFile': {
+              const file = (rawPayload as { file?: unknown } | undefined)?.file;
+              if (typeof file !== 'string' || file.length === 0) break;
+              setSelectedContextFiles((prev) => (prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]));
+              break;
+            }
+            case 'openSkills':
+              setShowContextPicker(false);
+              setShowSkillsPopover(true);
+              postMessage({ type: 'requestSkills' });
+              break;
+            case 'closeSkills':
+              setShowSkillsPopover(false);
+              break;
+            case 'openAttachments':
+              postMessage({ type: 'selectAttachments' });
+              break;
+          }
+          break;
+        }
         case 'queryRenderedEvents': {
           const eventTypes = events.map(({ event }) => {
             if ('kind' in event && typeof event.kind === 'string') return event.kind;
@@ -396,11 +464,14 @@ export function App() {
             }
             return 'unknown';
           });
-          postMessage({
-            type: 'renderedEventsResponse',
-            count: events.length,
-            eventTypes
-          });
+          if (typeof payload.requestId === 'string') {
+            postMessage({
+              type: 'renderedEventsResponse',
+              requestId: payload.requestId,
+              count: events.length,
+              eventTypes
+            });
+          }
           break;
         }
         case 'historyList': {
