@@ -37,10 +37,10 @@ npm run build
 
 ### Git Hooks (optional)
 
-This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit.
+This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit (installed automatically by `npm install` via the `prepare` script).
 
 - Bypass hooks: `git commit --no-verify`
-- Run manually: `npx lint-staged`
+- Run manually: `npm exec -- lint-staged`
 
 ### Configuration
 

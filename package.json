@@ -282,9 +282,6 @@
     "dev:vscode": "bash scripts/dev-vscode.sh",
     "prepare": "husky"
   },
-  "lint-staged": {
-    "*.{ts,tsx}": "eslint --max-warnings=0"
-  },
   "files": [
     "dist/**",
     "media/**",
