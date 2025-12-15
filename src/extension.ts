@@ -2,10 +2,8 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { TextDecoder } from 'util';
-import { SettingsManager, type OpenHandsSettings, type SavedServer } from './settings/SettingsManager';
+import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
-import { FileStore } from '@openhands/agent-sdk-ts';
 import {
   Conversation,
   type ConversationInstance,
@@ -14,53 +12,14 @@ import {
   TerminalTool,
   type BashEvent,
   type Event,
-  isEvent,
-  isMessageEvent,
-  isTextContent,
   isBashCommand,
   isBashExit,
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
 import { OpenHandsChatViewProvider } from './sidebar/OpenHandsChatViewProvider';
-import { initialLlmStreamingState, reduceLlmStreamingState } from './shared/llmStreaming';
-
-// Discriminated union for webview → extension messages
-type WebviewMessage =
-  | { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number }
-  | { type: 'openSettingsPage' }
-  | { type: 'openSettings' }
-  | { type: 'requestWorkspaceFiles' }
-  | { type: 'requestSkills' }
-  | { type: 'openSkill'; path: string }
-  | { type: 'openWorkspaceFile'; path: string }
-  | { type: 'requestHistory' }
-  | { type: 'restoreConversation'; id: string }
-  | { type: 'getConfig' }
-  | { type: 'selectServer'; url: string }
-  | { type: 'addServer'; server: SavedServer }
-  | { type: 'removeServer'; url: string }
-  | { type: 'switchToLocal' }
-  | { type: 'selectAttachments' }
-  | { type: 'openAttachment'; uri: string }
-  | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
-  | { type: 'command'; command: string; reason?: string }
-  | { type: 'renderedEventsResponse'; requestId: string; count: number; eventTypes: string[] }
-  | {
-    type: 'uiStateResponse';
-    requestId: string;
-    input: string;
-    showContextPicker: boolean;
-    showSkillsPopover: boolean;
-    showHistory: boolean;
-    workspaceFilesCount: number;
-    selectedContextFiles: string[];
-    skillsCount: number;
-    attachmentsCount: number;
-  }
-  | { type: 'webviewConsole'; level: string; args: unknown[] }
-  | { type: 'webviewError'; message: string; stack?: string }
-  | { type: 'webviewNetwork'; phase: string; id: string; method: string; url: string; status?: number; ok?: boolean }
-  | { type: 'webviewWebSocket'; phase: string; url: string; code?: number; reason?: string };
+import { attachConversationListeners } from './conversation/host/attachConversationListeners';
+import { createConfigurationChangeHandler } from './settings/host/createConfigurationChangeHandler';
+import { createWebviewMessageHandler } from './webview/host/createWebviewMessageHandler';
 
 type RenderedEventsInfo = { count: number; eventTypes: string[] };
 type UiStateSnapshot = {
@@ -103,8 +62,6 @@ let verboseEventLogging = false;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
-const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
-const MAX_ATTACHMENT_TOTAL_BYTES = 500 * 1024;
 type BufferedConversationEvent = { seq: number; event: Event };
 const conversationEventBacklog: Array<BufferedConversationEvent | undefined> = [];
 let conversationEventBacklogStart = 0;
@@ -193,76 +150,6 @@ function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
     const item = conversationEventBacklog[idx];
     if (item) yield item;
   }
-}
-
-function isProbablyBinary(bytes: Uint8Array): boolean {
-  // Heuristic: treat NUL bytes as binary.
-  for (let i = 0; i < bytes.length; i += 1) {
-    if (bytes[i] === 0) return true;
-  }
-  return false;
-}
-
-function toAttachmentLabel(uri: vscode.Uri): string {
-  try {
-    const rel = vscode.workspace.asRelativePath(uri, false);
-    if (rel && rel !== uri.fsPath) return rel;
-  } catch (err) {
-    console.warn('[OpenHands] Failed to compute relative attachment label', err);
-  }
-  return path.basename(uri.fsPath);
-}
-
-function safeParseUri(raw: string): vscode.Uri | undefined {
-  try {
-    return vscode.Uri.parse(raw, true);
-  } catch (err) {
-    console.warn('[OpenHands] Skipping invalid URI', err);
-    return undefined;
-  }
-}
-
-async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<string> {
-  if (attachmentUris.length === 0) return '';
-
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  const blocks: string[] = [];
-  let totalIncluded = 0;
-
-  for (const uri of attachmentUris) {
-    const label = toAttachmentLabel(uri);
-    const begin = `----- BEGIN ATTACHMENT: ${label} -----`;
-    const end = `----- END ATTACHMENT: ${label} -----`;
-
-    try {
-      const bytes = await vscode.workspace.fs.readFile(uri);
-
-      if (isProbablyBinary(bytes)) {
-        blocks.push(`\n\n${begin}\n(attachment skipped: binary file)\n${end}`);
-        continue;
-      }
-
-      const remaining = MAX_ATTACHMENT_TOTAL_BYTES - totalIncluded;
-      if (remaining <= 0) {
-        blocks.push(`\n\n${begin}\n(attachment skipped: total attachment size limit reached)\n${end}`);
-        continue;
-      }
-
-      const maxForThis = Math.min(MAX_ATTACHMENT_BYTES_PER_FILE, remaining);
-      const truncated = bytes.length > maxForThis;
-      const slice = bytes.slice(0, maxForThis);
-      totalIncluded += slice.length;
-
-      const meta = truncated ? `(truncated: first ${slice.length} bytes of ${bytes.length} bytes)\n` : '';
-      const text = decoder.decode(slice);
-      blocks.push(`\n\n${begin}\n${meta}${text}\n${end}`);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      blocks.push(`\n\n${begin}\n(attachment skipped: ${reason})\n${end}`);
-    }
-  }
-
-  return blocks.join('');
 }
 
 function flushConversationEventBacklog(params: {
@@ -636,48 +523,6 @@ function safeStringify(value: unknown): string {
 }
 /* eslint-enable @typescript-eslint/no-unsafe-return */
 
-async function listWorkspaceFiles(limit = 500): Promise<string[]> {
-  if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-    return [];
-  }
-  try {
-    // Exclude common directories, build artifacts, and all dotfiles/dotdirs
-    const excludePattern = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/__pycache__/**,**/coverage/**,**/tmp/**,**/temp/**,**/.*}';
-    const uris = await vscode.workspace.findFiles('**/*', excludePattern, limit);
-    const unique = new Set<string>();
-    for (const uri of uris) {
-      const relative = vscode.workspace.asRelativePath(uri, false);
-      if (relative) {
-        unique.add(relative);
-      }
-    }
-    return Array.from(unique).sort((a, b) => a.localeCompare(b));
-  } catch (err) {
-    console.error('[OpenHands] Failed to list workspace files', err);
-    return [];
-  }
-}
-
-async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
-  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
-  try {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    const files = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
-    return files
-      .map((entry) => {
-        const absolutePath = path.join(skillsDir, entry.name);
-        const label = entry.name.slice(0, -3); // remove .md
-        return { label, path: absolutePath };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error('[OpenHands] Failed to read skills directory', err);
-    }
-    return [];
-  }
-}
-
 function normalizeNonEmptyString(value: string | undefined | null): string | undefined {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || undefined;
@@ -754,8 +599,32 @@ export function activate(context: vscode.ExtensionContext) {
 
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
-      createWebviewMessageHandler(context, {
-        postMessage: (message) => view.webview.postMessage(message),
+      createWebviewMessageHandler({
+        context,
+        host: { postMessage: (message) => view.webview.postMessage(message) },
+        getConversation: () => conversation,
+        getConversationMode: () => conversationMode,
+        getConversationStoreRoot: () => conversationStoreRoot,
+        resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
+        setWebviewReadyState: (conversationId, lastSeenSeq) => {
+          chatWebviewReady = true;
+          chatLastConversationId = conversationId;
+          chatLastSeenSeq = lastSeenSeq;
+        },
+        setLastKnownLlmModel: (model) => {
+          lastKnownLlmModel = model;
+        },
+        getLastKnownLlmModel: () => lastKnownLlmModel,
+        flushConversationEventBacklog,
+        onRenderedEventsResponse: (requestId, info) => {
+          pendingRenderedEventsRequests.get(requestId)?.(info);
+        },
+        onUiStateResponse: (requestId, info) => {
+          pendingUiStateRequests.get(requestId)?.(info);
+        },
+        isDevBridgeEnabled: () => devBridgeEnabled,
+        getOutputChannel: () => outputChannel,
+        fileLog,
       }),
     onResolved: (view) => {
       chatView = view;
@@ -904,88 +773,21 @@ export function activate(context: vscode.ExtensionContext) {
       conversationMode = desiredMode;
 
       conversation.removeAllListeners();
-      conversation.on('status', (s: string) => {
-        outputChannel?.appendLine(`[status] ${s}`);
-        if (chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage({ type: 'status', status: s, mode: conversationMode, llmModel: lastKnownLlmModel });
-        }
+      attachConversationListeners({
+        context,
+        conversation,
+        getOutputChannel: () => outputChannel,
+        getChatView: () => chatView,
+        isChatWebviewReady: () => chatWebviewReady,
+        getConversationMode: () => conversationMode,
+        getLastKnownLlmModel: () => lastKnownLlmModel,
+        isVerboseEventLogging: () => verboseEventLogging,
+        bufferConversationEvent,
+        resetConversationEventBacklog,
+        safeStringify,
+        renderError,
+        handleTerminalEvent,
       });
-
-      let streamingState = initialLlmStreamingState;
-      conversation.on('event', (ev: Event) => {
-        const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
-        streamingState = streamingUpdate.state;
-        const isStateUpdate = ev.kind === 'ConversationStateUpdateEvent';
-        const isLlmStreamUpdate = isStateUpdate && (ev.key === 'llm_stream' || ev.key === 'llm_tool_call');
-
-        if (streamingUpdate.started) {
-          outputChannel?.appendLine('[llm] Streaming started...');
-        }
-
-        if (!isLlmStreamUpdate) {
-          const isErrorLike = ev.kind === 'ConversationErrorEvent' || ev.kind === 'AgentErrorEvent';
-          if (verboseEventLogging || isErrorLike) {
-            outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
-          } else {
-            outputChannel?.appendLine(`[event] ${ev.kind}`);
-          }
-        }
-
-        if (streamingUpdate.completed) {
-          outputChannel?.appendLine('[llm] Streaming complete');
-        }
-
-        try {
-          if (isStateUpdate && ev.key === 'llm_request') {
-            const raw = ev.value as {
-              model?: unknown;
-              tools?: unknown;
-              tool_count?: unknown;
-            } | undefined;
-            const model = typeof raw?.model === 'string' ? raw.model : undefined;
-            const names = Array.isArray(raw?.tools)
-              ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
-              : [];
-            const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
-            const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
-            outputChannel?.appendLine(summary);
-          }
-        } catch (e) {
-          outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
-        }
-
-        const shouldBufferForReplay = !isLlmStreamUpdate;
-        const seq = shouldBufferForReplay ? bufferConversationEvent(ev) : undefined;
-        const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event: ev };
-        if (typeof seq === 'number') payload.seq = seq;
-
-        if (chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage(payload);
-        }
-      });
-
-      conversation.on('error', (err) => {
-        const rendered = renderError(err);
-        outputChannel?.appendLine(`[error] ${rendered}`);
-        if (err instanceof Error && err.stack) {
-          outputChannel?.appendLine(err.stack);
-        }
-        if (chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage({ type: 'error', error: rendered });
-        }
-      });
-
-      conversation.on('conversationStarted', (id: string | undefined) => {
-        outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
-        streamingState = initialLlmStreamingState;
-        resetConversationEventBacklog(id);
-        void context.workspaceState.update('openhands.conversationId', id);
-        if (id && chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage({ type: 'conversationStarted', conversationId: id });
-        }
-      });
-
-      conversation.on('terminal', (event: BashEvent) => handleTerminalEvent(event));
 
       if (savedId && conversation) {
         try {
@@ -1287,62 +1089,31 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Listen for runtime configuration changes
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration('openhands.serverUrl')) {
-        try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch { }
-        // If switching away from local mode, dispose any lingering log terminal
-        const cfg = vscode.workspace.getConfiguration();
-        const nextUrl = cfg.get<string>('openhands.serverUrl');
-        const nextMode: 'local' | 'remote' = nextUrl ? 'remote' : 'local';
-        if (conversationMode === 'local' && nextMode === 'remote') {
-          try { terminal?.dispose(); } catch { }
-          terminal = undefined;
-          terminalLogPty = undefined;
-        }
-        conversation = undefined;
-        await ensureConversationAndConnection();
-        return;
-      }
-
-      if (e.affectsConfiguration('openhands.conversation.storeRoot')) {
-        try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch { }
-        conversation = undefined;
-        conversationStoreRoot = undefined;
-        await ensureConversationAndConnection();
-        return;
-      }
-
-      if (e.affectsConfiguration('openhands.terminal.renderProgress')) {
-        // Recreate on next terminal event so it picks up updated rendering behavior.
-        try { terminalLogPty?.ensureNewline?.(); } catch {}
-        try { terminal?.dispose(); } catch {}
-        terminal = undefined;
-        terminalLogPty = undefined;
-        return;
-      }
-
-      if (e.affectsConfiguration('openhands.agent.debug') || e.affectsConfiguration('openhands.devBridge.enabled')) {
-        const cfg = vscode.workspace.getConfiguration();
-        const debug = cfg.get<boolean>('openhands.agent.debug') ?? false;
-        const devBridgeEnabled = cfg.get<boolean>('openhands.devBridge.enabled') ?? false;
-        verboseEventLogging = debug || devBridgeEnabled;
-      }
-
-      if (e.affectsConfiguration('openhands.llm')) {
-        try {
-          await ensureConversationAndConnection();
-          if (conversationMode === 'remote') {
-            outputChannel?.appendLine('[settings] LLM settings updated (remote mode: applies on next conversation)');
-          } else {
-            outputChannel?.appendLine('[settings] LLM settings updated (local mode: applies immediately)');
-          }
-        } catch (err: unknown) {
-          outputChannel?.appendLine(`[settings] Failed to apply LLM settings update: ${renderError(err)}`);
-        }
-      }
-    })
-  );
+  const onConfigurationChange = createConfigurationChangeHandler({
+    ensureConversationAndConnection: () => ensureConversationAndConnection(),
+    getConversation: () => conversation,
+    setConversation: (next) => {
+      conversation = next;
+    },
+    getConversationMode: () => conversationMode,
+    getTerminal: () => terminal,
+    setTerminal: (next) => {
+      terminal = next;
+    },
+    getTerminalLogPty: () => terminalLogPty,
+    setTerminalLogPty: (pty) => {
+      terminalLogPty = pty as OpenHandsTerminalLogPseudoterminal | undefined;
+    },
+    setConversationStoreRoot: (root) => {
+      conversationStoreRoot = root;
+    },
+    setVerboseEventLogging: (value) => {
+      verboseEventLogging = value;
+    },
+    getOutputChannel: () => outputChannel,
+    renderError,
+  });
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(onConfigurationChange));
 
   context.subscriptions.push(
     open,
@@ -1381,428 +1152,4 @@ export function deactivate() {
   conversationStoreRoot = undefined;
   resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
-}
-
-/**
- * Message bridge handler: routes messages from webview to extension host.
- *
- * Supported message types:
- * - 'openSettings' / 'openSettingsPage': Opens VS Code settings scoped to OpenHands
- * - 'getConfig': Returns current serverUrl to webview
- * - 'send': Sends user message to agent via active conversation
- * - 'command': Executes agent control commands (reconnect, pause, startNewConversation, approveAction, rejectAction)
- * - 'requestWorkspaceFiles': Returns list of workspace files for @ mentions
- * - 'requestSkills': Returns ~/.openhands/skills markdown files
- * - 'requestHistory': Returns local conversation history (store root configurable)
- * - 'openSkill': Opens the specified skill file in editor
- * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
- *
- * Reverse flow (extension → webview):
- * - SDK Conversation callbacks post 'status', 'event', 'error' messages to webview
- * - Config updates post 'configUpdated' messages
- *
- * Security: All network communication happens in extension host (not webview),
- * avoiding CORS and CSP limitations.
- */
-type WebviewHost = {
-  postMessage: (message: unknown) => Thenable<boolean>;
-};
-
-function createWebviewMessageHandler(context: vscode.ExtensionContext, host: WebviewHost) {
-  const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-
-  return async (msg: unknown) => {
-    if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
-    const message = msg as WebviewMessage;
-
-    switch (message.type) {
-      case 'webviewReady': {
-        chatWebviewReady = true;
-        chatLastConversationId = message.conversationId;
-        chatLastSeenSeq = message.lastSeenSeq;
-
-        const initSettings = await settingsMgr.get();
-        lastKnownLlmModel = initSettings.llm.model ?? null;
-
-        void host.postMessage({
-          type: 'status',
-          status: conversation?.getStatus() ?? 'offline',
-          mode: conversationMode,
-          llmModel: lastKnownLlmModel,
-        });
-
-        void host.postMessage({
-          type: 'serverListUpdated',
-          servers: initSettings.servers,
-          serverUrl: initSettings.serverUrl ?? '',
-        });
-
-        flushConversationEventBacklog({
-          postMessage: host.postMessage,
-          clientConversationId: message.conversationId,
-          clientLastSeenSeq: message.lastSeenSeq,
-        });
-
-        break;
-      }
-      case 'openSettingsPage':
-      case 'openSettings':
-        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
-        break;
-      case 'requestWorkspaceFiles': {
-        const files = await listWorkspaceFiles();
-        void host.postMessage({ type: 'workspaceFiles', files });
-        break;
-      }
-      case 'requestSkills': {
-        const skills = await listSkillFiles();
-        outputChannel?.appendLine(`[skills] Found ${skills.length} skill(s)`);
-        void host.postMessage({ type: 'skillsList', skills });
-        break;
-      }
-      case 'openSkill': {
-        const skillPath = message.path;
-        if (!skillPath) break;
-        try {
-          const skillsRoot = path.resolve(os.homedir(), '.openhands', 'skills');
-          const resolvedPath = path.resolve(skillPath);
-          const relative = path.relative(skillsRoot, resolvedPath);
-          if (relative.startsWith('..') || path.isAbsolute(relative)) {
-            void vscode.window.showErrorMessage('Refusing to open skill outside of ~/.openhands/skills');
-            break;
-          }
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
-          await vscode.window.showTextDocument(document, { preview: false });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to open skill file: ${reason}`);
-        }
-        break;
-      }
-      case 'openWorkspaceFile': {
-        const p = message.path;
-        if (!p) break;
-        try {
-          const isAbs = path.isAbsolute(p);
-          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          let resolved: string | undefined;
-          if (!isAbs && wsRoot) {
-            const candidate = path.resolve(wsRoot, p);
-            const rel = path.relative(wsRoot, candidate);
-            if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-              resolved = candidate;
-            }
-          }
-          if (!resolved) {
-            resolved = path.resolve(p);
-          }
-          await fs.stat(resolved);
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
-          await vscode.window.showTextDocument(document, { preview: false });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to open file: ${reason}`);
-        }
-        break;
-      }
-      case 'requestHistory': {
-        try {
-          const convRoot = conversationStoreRoot ?? (await resolveConversationStoreRoot(context));
-          let ids: string[] = [];
-          try {
-            ids = FileStore.listConversations(convRoot);
-          } catch {
-            ids = [];
-          }
-          const conversations = await Promise.all(
-            ids.map(async (id) => {
-              try {
-                const statePath = path.join(convRoot, id, 'state.json');
-                const eventsPath = path.join(convRoot, id, 'events.jsonl');
-                const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
-                const timestamp = stat?.mtimeMs ?? Date.now();
-                let firstMessage: string | undefined;
-                try {
-                  const content = await fs.readFile(eventsPath, 'utf8');
-                  const line = content.split('\n').find((l) => l.includes('"MessageEvent"'));
-                  if (line) {
-                    const parsed: unknown = JSON.parse(line);
-                    if (isEvent(parsed) && isMessageEvent(parsed)) {
-                      const msg = parsed.llm_message;
-                      if (msg.role === 'user') {
-                        const textPart = msg.content.find(isTextContent);
-                        if (textPart) firstMessage = textPart.text;
-                      }
-                    }
-                  }
-                } catch {}
-                return { id, timestamp: Math.floor(timestamp), firstMessage };
-              } catch {
-                return { id, timestamp: Date.now() };
-              }
-            })
-          );
-          void host.postMessage({ type: 'historyList', conversations });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[history] ${reason}`);
-          void host.postMessage({ type: 'historyList', conversations: [] });
-        }
-        break;
-      }
-      case 'restoreConversation': {
-        const id = message.id;
-        if (!id) break;
-        try {
-          const maybe = conversation?.restoreConversation?.(id);
-          void Promise.resolve(maybe).catch((err: unknown) => {
-            const reason = err instanceof Error ? err.message : String(err);
-            outputChannel?.appendLine(`[restore] ${reason}`);
-            void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
-          });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[restore] ${reason}`);
-          void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
-        }
-        break;
-      }
-      case 'getConfig': {
-        const settings = await settingsMgr.get();
-        void host.postMessage({ type: 'config', serverUrl: settings.serverUrl ?? null, mode: conversationMode });
-        break;
-      }
-      case 'selectServer': {
-        const url = message.url;
-        const currentSettings = await settingsMgr.get();
-
-        const serverExists = currentSettings.servers.some((s) => s.url === url);
-        if (!serverExists && url) {
-          await settingsMgr.update({
-            servers: [...currentSettings.servers, { url }],
-            serverUrl: url,
-          });
-        } else {
-          await settingsMgr.update({ serverUrl: url });
-        }
-
-        const updated = await settingsMgr.get();
-        void host.postMessage({
-          type: 'serverListUpdated',
-          servers: updated.servers,
-          serverUrl: updated.serverUrl ?? '',
-        });
-        break;
-      }
-      case 'addServer': {
-        const server = message.server;
-        if (!server?.url) break;
-
-        const currentSettings = await settingsMgr.get();
-        const exists = currentSettings.servers.some((s) => s.url === server.url);
-        if (!exists) {
-          const newServers = [...currentSettings.servers, server];
-          await settingsMgr.update({ servers: newServers });
-          void host.postMessage({
-            type: 'serverListUpdated',
-            servers: newServers,
-            serverUrl: currentSettings.serverUrl ?? '',
-          });
-        }
-        break;
-      }
-      case 'removeServer': {
-        const url = message.url;
-        if (!url) break;
-
-        const currentSettings = await settingsMgr.get();
-        const newServers = currentSettings.servers.filter((s) => s.url !== url);
-        const newServerUrl = currentSettings.serverUrl === url ? '' : currentSettings.serverUrl;
-
-        await settingsMgr.update({
-          servers: newServers,
-          serverUrl: newServerUrl,
-        });
-
-        void host.postMessage({
-          type: 'serverListUpdated',
-          servers: newServers,
-          serverUrl: newServerUrl ?? '',
-        });
-        break;
-      }
-      case 'switchToLocal': {
-        await settingsMgr.update({ serverUrl: '' });
-
-        const updated = await settingsMgr.get();
-        void host.postMessage({
-          type: 'serverListUpdated',
-          servers: updated.servers,
-          serverUrl: '',
-        });
-        break;
-      }
-      case 'selectAttachments': {
-        try {
-          const extensionMode = vscode.ExtensionMode;
-          const isTestMode =
-            extensionMode?.Test !== undefined &&
-            context.extensionMode === extensionMode.Test;
-          if (isTestMode && process.env.E2E_MOCK_ATTACHMENTS === '1') {
-            const mockUris = [vscode.Uri.joinPath(context.extensionUri, 'README.md')];
-            const attachments = await Promise.all(
-              mockUris.map(async (uri) => {
-                const label = toAttachmentLabel(uri);
-                let sizeBytes: number | undefined;
-                try {
-                  const stat = await vscode.workspace.fs.stat(uri);
-                  sizeBytes = stat.size;
-                } catch (err) {
-                  console.warn('[OpenHands] Failed to stat attachment', err);
-                }
-                return { uri: uri.toString(), label, sizeBytes };
-              })
-            );
-            void host.postMessage({ type: 'attachmentsSelected', attachments });
-            break;
-          }
-
-          const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-          const picked = await vscode.window.showOpenDialog({
-            canSelectFiles: true,
-            canSelectFolders: false,
-            canSelectMany: true,
-            defaultUri,
-            openLabel: 'Attach',
-          });
-          if (!picked || picked.length === 0) break;
-
-          const attachments = await Promise.all(
-            picked.map(async (uri) => {
-              const label = toAttachmentLabel(uri);
-              let sizeBytes: number | undefined;
-              try {
-                const stat = await vscode.workspace.fs.stat(uri);
-                sizeBytes = stat.size;
-              } catch (err) {
-                console.warn('[OpenHands] Failed to stat attachment', err);
-              }
-              return { uri: uri.toString(), label, sizeBytes };
-            })
-          );
-          void host.postMessage({ type: 'attachmentsSelected', attachments });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to select attachments: ${reason}`);
-        }
-        break;
-      }
-      case 'openAttachment': {
-        const raw = message.uri;
-        if (!raw) break;
-        try {
-          const uri = vscode.Uri.parse(raw, true);
-          const document = await vscode.workspace.openTextDocument(uri);
-          await vscode.window.showTextDocument(document, { preview: false });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to open attachment: ${reason}`);
-        }
-        break;
-      }
-      case 'send':
-        if (!conversation) break;
-        {
-          const baseText = message.text;
-          const contextFiles = Array.isArray(message.contextFiles)
-            ? message.contextFiles.filter((f): f is string => typeof f === 'string' && f.length > 0)
-            : [];
-          const attachmentUris = Array.isArray(message.attachments)
-            ? message.attachments
-              .filter((u): u is string => typeof u === 'string' && u.length > 0)
-              .map((u) => safeParseUri(u))
-              .filter((u): u is vscode.Uri => u !== undefined)
-            : [];
-
-          const attachmentsText = await buildAttachmentBlocks(attachmentUris);
-
-          let finalText = baseText;
-          if (attachmentsText) {
-            finalText += attachmentsText;
-          }
-          if (contextFiles.length > 0) {
-            finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
-          }
-          await conversation.sendUserMessage(finalText);
-        }
-        break;
-      case 'command':
-        switch (message.command) {
-          case 'reconnect':
-            conversation?.reconnect();
-            break;
-          case 'pause':
-            await conversation?.pause();
-            break;
-          case 'startNewConversation':
-            await conversation?.startNewConversation();
-            break;
-          case 'approveAction':
-            await conversation?.approveAction();
-            break;
-          case 'rejectAction':
-            await conversation?.rejectAction(message.reason);
-            break;
-          default:
-            console.warn(`Unknown command received from webview: ${message.command}`);
-            break;
-        }
-        break;
-      case 'renderedEventsResponse':
-        pendingRenderedEventsRequests.get(message.requestId)?.({ count: message.count, eventTypes: message.eventTypes });
-        break;
-      case 'uiStateResponse':
-        pendingUiStateRequests.get(message.requestId)?.({
-          input: message.input,
-          showContextPicker: message.showContextPicker,
-          showSkillsPopover: message.showSkillsPopover,
-          showHistory: message.showHistory,
-          workspaceFilesCount: message.workspaceFilesCount,
-          selectedContextFiles: message.selectedContextFiles,
-          skillsCount: message.skillsCount,
-          attachmentsCount: message.attachmentsCount,
-        });
-        break;
-      case 'webviewConsole': {
-        if (!devBridgeEnabled) break;
-        outputChannel?.appendLine(`[webview ${message.level}] ${message.args.join(' ')}`);
-        fileLog(`[console.${message.level}] ${message.args.join(' ')}`);
-        break;
-      }
-      case 'webviewError': {
-        if (!devBridgeEnabled) break;
-        outputChannel?.appendLine(`[webview error] ${message.message}`);
-        if (message.stack) outputChannel?.appendLine(message.stack);
-        fileLog(`[error] ${message.message}${message.stack ? `\n${message.stack}` : ''}`);
-        break;
-      }
-      case 'webviewNetwork': {
-        if (!devBridgeEnabled) break;
-        const line = `[webview net] ${message.phase} id=${message.id} ${message.method} ${message.url}${message.status !== undefined ? ` status=${message.status} ok=${message.ok}` : ''}`;
-        outputChannel?.appendLine(line);
-        fileLog(line);
-        break;
-      }
-      case 'webviewWebSocket': {
-        if (!devBridgeEnabled) break;
-        const parts = [`[webview ws] ${message.phase}`];
-        if (message.url) parts.push(`url=${message.url}`);
-        if (message.code !== undefined) parts.push(`code=${message.code}`);
-        if (message.reason) parts.push(`reason=${message.reason}`);
-        outputChannel?.appendLine(parts.join(' '));
-        fileLog(parts.join(' '));
-        break;
-      }
-    }
-  };
 }
