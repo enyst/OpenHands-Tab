@@ -20,7 +20,7 @@ npm run e2e
 
 In local mode, the extension persists conversation history/events to `~/.openhands/conversations-vscode/` by default.
 
-To override the storage directory (useful for CI runners or read-only home dirs), set VS Code setting `openhands.conversation.storeRoot`.
+To override the storage directory (useful for CI runners or read-only home dirs), set the VS Code setting `openhands.conversation.storeRoot`.
 
 ## Agent-SDK Events Test
 
