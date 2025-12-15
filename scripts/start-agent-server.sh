@@ -28,9 +28,15 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ ! -f "$AGENT_SDK_DIR/openhands-agent-server/openhands/agent_server/README.md" ]; then
-  echo "Expected agent-server sources not found under: $AGENT_SDK_DIR" >&2
-  echo "This should be a clone of: https://github.com/OpenHands/software-agent-sdk" >&2
+AGENT_SERVER_ENTRYPOINT="$AGENT_SDK_DIR/openhands-agent-server/openhands/agent_server/__main__.py"
+if [ ! -f "$AGENT_SERVER_ENTRYPOINT" ]; then
+  echo "Expected agent-server entrypoint not found: $AGENT_SERVER_ENTRYPOINT" >&2
+  echo "AGENT_SDK_DIR should point at a clone of: https://github.com/OpenHands/software-agent-sdk" >&2
+  exit 1
+fi
+
+if [ "$PREPARE" = "1" ] && ! command -v make >/dev/null 2>&1; then
+  echo "'make' is required for PREPARE=1 but was not found on PATH." >&2
   exit 1
 fi
 
