@@ -1,5 +1,4 @@
 import fs from 'fs/promises';
-import path from 'path';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
@@ -147,7 +146,6 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         if (exists) {
           throw new Error('create failed: file already exists');
         }
-        await context.workspace.ensureDirectory(path.dirname(resolved));
         await ws.writeFile(args.path, args.file_text ?? '');
         return { command: 'create', path: resolved, prev_exist: false, old_content: null, new_content: args.file_text ?? '' };
       }

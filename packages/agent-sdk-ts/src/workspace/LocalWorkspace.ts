@@ -78,9 +78,23 @@ export class LocalWorkspace {
     }
   }
 
+  private normalizeExistingOrParent(candidate: string): string {
+    if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
+    try {
+      const parent = path.dirname(candidate);
+      if (fs.existsSync(parent)) {
+        const realParent = fs.realpathSync(parent);
+        return path.join(realParent, path.basename(candidate));
+      }
+    } catch {
+      // Best-effort normalization only.
+    }
+    return candidate;
+  }
+
   allowPath(targetPath: string): void {
     const candidate = path.resolve(targetPath);
-    const normalized = fs.existsSync(candidate) ? fs.realpathSync(candidate) : candidate;
+    const normalized = this.normalizeExistingOrParent(candidate);
     const kind: AllowedRootKind = (() => {
       try {
         const stat = fs.statSync(normalized);
@@ -105,7 +119,7 @@ export class LocalWorkspace {
     const candidate = path.isAbsolute(targetPath)
       ? path.resolve(targetPath)
       : path.resolve(this.root, targetPath);
-    const normalized = fs.existsSync(candidate) ? fs.realpathSync(candidate) : candidate;
+    const normalized = this.normalizeExistingOrParent(candidate);
     for (const [root, kind] of this.allowedRoots.entries()) {
       if (kind === 'file') {
         if (normalized === root) return normalized;

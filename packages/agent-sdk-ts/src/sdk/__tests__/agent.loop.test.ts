@@ -20,6 +20,21 @@ class MockLLM implements LLMClient {
   }
 }
 
+class SequencedLLM implements LLMClient {
+  private idx = 0;
+
+  constructor(private readonly sequences: LLMStreamChunk[][]) {}
+
+  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    void _request;
+    const seq = this.sequences[this.idx] ?? [];
+    this.idx += 1;
+    for (const chunk of seq) {
+      yield chunk;
+    }
+  }
+}
+
 const baseSettings: OpenHandsSettings = {
   llm: { model: 'test-model' },
   agent: {},
@@ -153,6 +168,54 @@ describe('Agent loop control', () => {
     await agent.approveAction();
     expect(fs.existsSync(outsidePath)).toBe(true);
     expect(fs.readFileSync(outsidePath, 'utf8')).toBe('hello');
+
+    fs.rmSync(externalDir, { recursive: true, force: true });
+  });
+
+  it('does not grant directory access when creating an external file', async () => {
+    const log = new EventLog();
+    const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-create-siblings-'));
+    const outsidePath = path.join(externalDir, 'new.txt');
+    const siblingPath = path.join(externalDir, 'sibling.txt');
+    fs.writeFileSync(siblingPath, 'sibling', 'utf8');
+
+    const llm = new SequencedLLM([
+      [
+        { type: 'text', text: 'Creating file' },
+        {
+          type: 'tool_call_delta',
+          id: 'call_create',
+          name: 'file_editor',
+          arguments: JSON.stringify({ command: 'create', path: outsidePath, file_text: 'hello' }),
+        },
+        { type: 'finish' },
+      ],
+      [
+        { type: 'text', text: 'Viewing sibling' },
+        { type: 'tool_call_delta', id: 'call_view', name: 'file_editor', arguments: JSON.stringify({ command: 'view', path: siblingPath }) },
+        { type: 'finish' },
+      ],
+    ]);
+
+    const agent = new Agent({
+      settings: { ...baseSettings, conversation: { maxIterations: 2 } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [new FileEditorTool()],
+    });
+
+    await agent.run('create then view');
+    expect(log.list().filter(isPauseEvent).length).toBe(1);
+
+    await agent.approveAction();
+    expect(fs.existsSync(outsidePath)).toBe(true);
+
+    const pauses = log.list().filter(isPauseEvent);
+    expect(pauses.length).toBe(2);
+
+    const siblingObs = log.list().filter(isObservationEvent).find((e) => e.tool_call_id === 'call_view');
+    expect(siblingObs).toBeUndefined();
 
     fs.rmSync(externalDir, { recursive: true, force: true });
   });
