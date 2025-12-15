@@ -116,16 +116,16 @@ Before opening or updating a PR:
 - Ensure GitHub CI checks are green on the PR
 
 Reviews (do not merge without review):
-- Ask an active agent/human in this project for review (via Agent Mail or GitHub).
-- If nobody is available, do **not** merge. Leave the PR open and do other work; re-check Mail later for reviewers.
-- Wait for the two GitHub AI reviewers to finish before merging:
+- Request an OpenHands review by commenting `@openhands /codereview-roasted` on the PR (mandatory).
+- Wait for the GitHub AI reviewers to finish (or be clearly unavailable) before merging:
+  - **Gemini-code-assist**: generally considered “done” once it has posted two top-level comments, but also review its inline comment threads.
   - **CodeRabbitAI**: only wait if its ETA is ≤10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
     - If pending and ETA ≤10 minutes: wait.
     - If rate limited and cooldown ≤10 minutes: wait (and re-trigger via `@coderabbitai review` if needed).
-    - If it’s silent >10 minutes, or rate-limited >10 minutes: proceed with **Gemini-code-assist** + human/agent approval (via Agent Mail or GitHub) and you may merge once those are done.
-  - **Gemini-code-assist**: generally considered “done” once it has posted two top-level comments, but also review its inline comment threads.
-- Always read review threads in “Files changed” (both bots leave inline comments).
-- Merge only after you have an explicit approval and all review threads are resolved/addressed.
+    - If it’s silent >10 minutes, or rate-limited >10 minutes: proceed with OpenHands + Gemini and do not block on CodeRabbit.
+- Always read review threads in “Files changed” (OpenHands + bots leave inline comments).
+- If OpenHands feedback is “truly minor”, use judgment: you can address it without re-requesting review; if it flags deeper issues, re-request `@openhands /codereview-roasted` after fixes.
+- Merge only when CI is green, review threads are resolved/addressed, and required reviews are complete.
 
 ## SDK Package
 
