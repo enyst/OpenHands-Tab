@@ -90,6 +90,9 @@ describe('Agent loop control', () => {
     expect(eventsAfterRun.some(isActionEvent)).toBe(true);
     expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
     expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
 
     await agent.approveAction();
     const eventsAfterApproval = log.list();
@@ -124,6 +127,9 @@ describe('Agent loop control', () => {
     expect(eventsAfterRun.some(isActionEvent)).toBe(true);
     expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
     expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
 
     await agent.approveAction();
     const eventsAfterApproval = log.list();
@@ -164,6 +170,9 @@ describe('Agent loop control', () => {
     expect(eventsAfterRun.some(isActionEvent)).toBe(true);
     expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
     expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
 
     await agent.approveAction();
     expect(fs.existsSync(outsidePath)).toBe(true);
@@ -206,13 +215,16 @@ describe('Agent loop control', () => {
     });
 
     await agent.run('create then view');
-    expect(log.list().filter(isPauseEvent).length).toBe(1);
+    const pausesAfterRun = log.list().filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
 
     await agent.approveAction();
     expect(fs.existsSync(outsidePath)).toBe(true);
 
     const pauses = log.list().filter(isPauseEvent);
     expect(pauses.length).toBe(2);
+    expect(pauses.every((pause) => pause.source === 'agent')).toBe(true);
 
     const siblingObs = log.list().filter(isObservationEvent).find((e) => e.tool_call_id === 'call_view');
     expect(siblingObs).toBeUndefined();

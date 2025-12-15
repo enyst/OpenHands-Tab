@@ -386,14 +386,14 @@ export class Agent extends EventEmitter {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
           this.pendingWorkspaceAccess = workspaceAccess;
           this.state.setStatus('WAITING_FOR_CONFIRMATION');
-          this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
+          this.events.push({ kind: 'PauseEvent', source: 'agent' } as Event);
           return lastAssistantMessage;
         }
 
         if (this.requiresConfirmation(recordedAction)) {
           this.pendingAction = { toolCall, actionEvent: recordedAction, args: args ?? {} };
           this.state.setStatus('WAITING_FOR_CONFIRMATION');
-          this.events.push({ kind: 'PauseEvent', source: 'user' } as Event);
+          this.events.push({ kind: 'PauseEvent', source: 'agent' } as Event);
           return lastAssistantMessage;
         }
 
