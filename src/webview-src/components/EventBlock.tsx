@@ -687,44 +687,51 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   }
   const { main: withoutContext, files: contextFiles } = parseContextBlock(rawText);
 
-  const ATTACHMENT_BEGIN = '----- BEGIN ATTACHMENT:';
-  const ATTACHMENT_END = '----- END ATTACHMENT:';
-  const stripTrailingDashes = (value: string) => value.replace(/\s*-{5,}\s*$/, '').trim();
+  const ATTACHMENT_BEGIN_LINE_RE = /^-{5,}\s*BEGIN ATTACHMENT:\s*(.*?)\s*-{5,}\s*$/;
+  const ATTACHMENT_END_LINE_RE = /^-{5,}\s*END ATTACHMENT:\s*(.*?)\s*-{5,}\s*$/;
+
+  const normalizeAttachmentLabel = (value: string) => value.trim().replace(/\s+/g, ' ');
 
   function parseAttachmentBlocks(text: string): { main: string; attachments: Array<{ label: string; content: string }> } {
     const attachments: Array<{ label: string; content: string }> = [];
-    const parts: string[] = [];
-    let cursor = 0;
+    const mainLines: string[] = [];
+    const lines = text.split(/\r?\n/);
 
-    while (true) {
-      const beginIdx = text.indexOf(ATTACHMENT_BEGIN, cursor);
-      if (beginIdx === -1) break;
-      parts.push(text.slice(cursor, beginIdx));
-
-      const beginLineEnd = text.indexOf('\n', beginIdx);
-      if (beginLineEnd === -1) {
-        cursor = beginIdx;
-        break;
+    let i = 0;
+    while (i < lines.length) {
+      const beginLine = lines[i];
+      const beginMatch = beginLine.match(ATTACHMENT_BEGIN_LINE_RE);
+      if (!beginMatch) {
+        mainLines.push(beginLine);
+        i += 1;
+        continue;
       }
-      const beginLine = text.slice(beginIdx, beginLineEnd).trim();
-      let label = stripTrailingDashes(beginLine.slice(ATTACHMENT_BEGIN.length).trim());
-      if (!label) label = 'Attachment';
 
-      const endToken = `${ATTACHMENT_END} ${label}`;
-      const endIdx = text.indexOf(endToken, beginLineEnd);
-      if (endIdx === -1) {
-        cursor = beginIdx;
-        break;
+      const label = normalizeAttachmentLabel(beginMatch[1] ?? '') || 'Attachment';
+
+      let endIndex = -1;
+      for (let j = i + 1; j < lines.length; j += 1) {
+        const endMatch = lines[j].match(ATTACHMENT_END_LINE_RE);
+        if (!endMatch) continue;
+        const endLabel = normalizeAttachmentLabel(endMatch[1] ?? '') || 'Attachment';
+        if (endLabel === label) {
+          endIndex = j;
+          break;
+        }
       }
-      const endLineEnd = text.indexOf('\n', endIdx);
-      const content = text.slice(beginLineEnd + 1, endIdx).trimEnd();
 
-      attachments.push({ label, content });
-      cursor = endLineEnd === -1 ? text.length : endLineEnd + 1;
+      if (endIndex === -1) {
+        // No matching end marker: treat the begin marker line as normal text and continue scanning.
+        mainLines.push(beginLine);
+        i += 1;
+        continue;
+      }
+
+      attachments.push({ label, content: lines.slice(i + 1, endIndex).join('\n').trimEnd() });
+      i = endIndex + 1;
     }
 
-    parts.push(text.slice(cursor));
-    return { main: parts.join('').trim(), attachments };
+    return { main: mainLines.join('\n').trimEnd(), attachments };
   }
 
   const { main: textContent, attachments } = parseAttachmentBlocks(withoutContext);
