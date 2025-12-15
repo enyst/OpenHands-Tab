@@ -603,114 +603,88 @@ describe('App - Advanced Test Coverage', () => {
   });
 
   describe('Click outside and escape handlers', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
     it('toggles context picker closed on second click', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      fireEvent.click(screen.getByLabelText('Add context'));
 
-      postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
-      });
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Click the toggle again -> should close
-      await userEvent.click(screen.getByLabelText('Add context'));
+      fireEvent.click(screen.getByLabelText('Add context'));
 
-      await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
     });
 
     it('closes context picker on click outside', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      fireEvent.click(screen.getByLabelText('Add context'));
 
-      postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
-      });
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Click outside (on the main app)
-      await userEvent.click(screen.getByText('OpenHands'));
+      fireEvent.click(screen.getByText('OpenHands'));
 
-      await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
     });
 
     it('closes context picker on Escape key', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Add context'));
+      fireEvent.click(screen.getByLabelText('Add context'));
 
-      postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
-      });
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Press Escape
-      await userEvent.keyboard('{Escape}');
+      fireEvent.keyDown(document, { key: 'Escape' });
 
-      await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
     });
 
     it('closes skills popover on click outside', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Skills'));
+      fireEvent.click(screen.getByLabelText('Skills'));
 
-      postToWindow({ type: 'skillsList', skills: [{ label: 'Test', path: '/test.md' }] });
-
-      await waitFor(() => {
-        expect(screen.getByText('Test')).toBeInTheDocument();
-      });
+      expect(screen.getByText('Available Skills')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Click outside
-      await userEvent.click(screen.getByText('OpenHands'));
+      fireEvent.click(screen.getByText('OpenHands'));
 
-      await waitFor(() => {
-        expect(screen.queryByText('Test')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByText('Available Skills')).not.toBeInTheDocument();
     });
 
     it('closes skills popover on Escape key', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByLabelText('Skills'));
+      fireEvent.click(screen.getByLabelText('Skills'));
 
-      postToWindow({ type: 'skillsList', skills: [{ label: 'Test', path: '/test.md' }] });
-
-      await waitFor(() => {
-        expect(screen.getByText('Test')).toBeInTheDocument();
-      });
+      expect(screen.getByText('Available Skills')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Press Escape
-      await userEvent.keyboard('{Escape}');
+      fireEvent.keyDown(document, { key: 'Escape' });
 
-      await waitFor(() => {
-        expect(screen.queryByText('Test')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByText('Available Skills')).not.toBeInTheDocument();
     });
   });
 
