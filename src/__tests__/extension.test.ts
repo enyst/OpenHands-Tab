@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import * as vscode from 'vscode';
 import { EventEmitter } from 'events';
+import * as fsSync from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as path from 'path';
+import * as os from 'os';
 
 const defaultMockSettings = {
   serverUrl: 'http://localhost:3000',
@@ -83,11 +87,26 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     return emitter;
   });
 
+  class FileStore {
+    static listConversations(rootDir?: string): string[] {
+      const dir = rootDir ?? path.join(process.cwd(), '.openhands', 'conversations');
+      if (!fsSync.existsSync(dir)) return [];
+      return fsSync
+        .readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => entry.name);
+    }
+  }
+
   return {
     Conversation,
     isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),
     isBashExit: vi.fn((event: any) => event?.type === 'BashExit'),
+    FileStore,
+    isEvent: vi.fn((candidate: any) => !!candidate && typeof candidate === 'object' && typeof candidate.kind === 'string'),
+    isMessageEvent: vi.fn((event: any) => event?.kind === 'MessageEvent' && !!event.llm_message && typeof event.llm_message === 'object'),
+    isTextContent: vi.fn((content: any) => content?.type === 'text'),
     __getLastConversation: () => lastConversation,
     TerminalTool: vi.fn(() => new StubTool('terminal')),
     FileEditorTool: vi.fn(() => new StubTool('file_editor')),
@@ -311,6 +330,54 @@ describe('Command handlers', () => {
     expect(conversationInstance.sendUserMessage).toHaveBeenCalledWith('hello');
     expect(conversationInstance.approveAction).toHaveBeenCalled();
     expect(conversationInstance.rejectAction).toHaveBeenCalledWith('nope');
+  });
+
+  it('returns history from the stable conversation store', async () => {
+    const handler = chatView._messageHandler;
+    expect(handler).toBeTypeOf('function');
+
+    const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'oh-tab-homedir-'));
+    const previousOverride = process.env.OPENHANDS_CONVERSATIONS_DIR;
+
+    try {
+      const conversationId = 'local-test-convo';
+      const conversationsRoot = path.join(tmpHome, '.openhands', 'conversations-vscode');
+      process.env.OPENHANDS_CONVERSATIONS_DIR = conversationsRoot;
+      const conversationDir = path.join(conversationsRoot, conversationId);
+      await fs.mkdir(conversationDir, { recursive: true });
+
+      const eventsPath = path.join(conversationDir, 'events.jsonl');
+      const messageEvent = {
+        kind: 'MessageEvent',
+        llm_message: {
+          role: 'user',
+          content: [{ type: 'text', text: 'hello from history' }],
+        },
+      };
+      await fs.writeFile(eventsPath, `${JSON.stringify(messageEvent)}\n`, 'utf8');
+
+      (chatView.webview.postMessage as Mock).mockClear();
+      await handler({ type: 'requestHistory' });
+
+      const historyMessage = (chatView.webview.postMessage as Mock).mock.calls
+        .map((call) => call[0])
+        .find((payload) => payload?.type === 'historyList') as any;
+
+      expect(historyMessage).toBeTruthy();
+      expect(historyMessage.conversations).toEqual([
+        expect.objectContaining({
+          id: conversationId,
+          firstMessage: 'hello from history',
+        }),
+      ]);
+    } finally {
+      if (previousOverride === undefined) {
+        delete process.env.OPENHANDS_CONVERSATIONS_DIR;
+      } else {
+        process.env.OPENHANDS_CONVERSATIONS_DIR = previousOverride;
+      }
+      await fs.rm(tmpHome, { recursive: true, force: true });
+    }
   });
 });
 

@@ -410,6 +410,14 @@ async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
   }
 }
 
+function getConversationStoreRoot(): string {
+  const override = process.env.OPENHANDS_CONVERSATIONS_DIR;
+  if (override && override.trim()) {
+    return path.resolve(override);
+  }
+  return path.join(os.homedir(), '.openhands', 'conversations-vscode');
+}
+
 export function activate(context: vscode.ExtensionContext) {
   try {
     const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
@@ -538,7 +546,7 @@ export function activate(context: vscode.ExtensionContext) {
         workspaceRoot,
         conversationId: savedId,
         tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
-        persistenceDir: settings.serverUrl ? undefined : '.openhands/conversations',
+        persistenceDir: settings.serverUrl ? undefined : getConversationStoreRoot(),
       };
 
       conversation = Conversation(conversationOptions);
@@ -863,6 +871,7 @@ export function deactivate() {
  * - 'command': Executes agent control commands (reconnect, pause, startNewConversation, approveAction, rejectAction)
  * - 'requestWorkspaceFiles': Returns list of workspace files for @ mentions
  * - 'requestSkills': Returns ~/.openhands/skills markdown files
+ * - 'requestHistory': Returns ~/.openhands/conversations-vscode conversations
  * - 'openSkill': Opens the specified skill file in editor
  * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
  *
@@ -973,8 +982,7 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
       }
       case 'requestHistory': {
         try {
-          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-          const convRoot = path.join(root, '.openhands', 'conversations');
+          const convRoot = getConversationStoreRoot();
           let ids: string[] = [];
           try {
             ids = FileStore.listConversations(convRoot);
