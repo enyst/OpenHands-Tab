@@ -603,6 +603,28 @@ describe('App - Advanced Test Coverage', () => {
   });
 
   describe('Click outside and escape handlers', () => {
+    it('toggles context picker closed on second click', async () => {
+      render(<App />);
+
+      await userEvent.click(screen.getByLabelText('Add context'));
+
+      postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
+      });
+
+      // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Click the toggle again -> should close
+      await userEvent.click(screen.getByLabelText('Add context'));
+
+      await waitFor(() => {
+        expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
+      });
+    });
+
     it('closes context picker on click outside', async () => {
       render(<App />);
 
