@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { TextDecoder } from 'util';
-import { SettingsManager, type SavedServer } from './settings/SettingsManager';
+import { SettingsManager, type OpenHandsSettings, type SavedServer } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { FileStore } from '@openhands/agent-sdk-ts';
 import {
@@ -918,36 +918,127 @@ export function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
   });
 
-  const setApiKey = vscode.commands.registerCommand('openhands.setApiKey', async () => {
-    try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-      const existing = await settingsMgr.get();
-
-      const llmApiKey = await vscode.window.showInputBox({
-        title: 'LLM API Key',
-        value: existing.secrets.llmApiKey,
-        password: true,
-        prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
-        placeHolder: 'sk-...'
-      });
-
-      if (llmApiKey === undefined) {
-        // User cancelled
-        return;
-      }
-
-      // Secrets are stored in VS Code SecretStorage, not workspace settings
-      await settingsMgr.update({ secrets: { llmApiKey: llmApiKey || undefined } });
-
-      vscode.window.showInformationMessage('LLM API Key saved securely.');
-
-      // Apply to conversation
-      const newSettings = await settingsMgr.get();
-      conversation?.setSettings(newSettings);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to save API Key: ${message}`);
+  type SecretKey = keyof OpenHandsSettings['secrets'];
+  const registerSecretCommand = (
+    commandId: string,
+    options: {
+      title: string;
+      secretKey: SecretKey;
+      prompt: string;
+      placeHolder?: string;
+      successMessage: string;
+      clearedMessage: string;
+      errorPrefix: string;
     }
+  ) =>
+    vscode.commands.registerCommand(commandId, async () => {
+      try {
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        const existing = await settingsMgr.get();
+        const currentValue = existing.secrets[options.secretKey];
+        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
+
+        if (isCurrentlySet) {
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+            ],
+            {
+              title: options.title,
+              placeHolder: 'Choose an action',
+              canPickMany: false,
+            }
+          );
+          if (!action) return;
+
+          if (action.value === 'clear') {
+            const confirmed = await vscode.window.showWarningMessage(
+              `Clear ${options.title}?`,
+              { modal: true },
+              'Clear'
+            );
+            if (confirmed !== 'Clear') return;
+
+            const secretsUpdate = { [options.secretKey]: undefined } as Partial<OpenHandsSettings['secrets']>;
+            await settingsMgr.update({ secrets: secretsUpdate });
+            vscode.window.showInformationMessage(options.clearedMessage);
+
+            const newSettings = await settingsMgr.get();
+            conversation?.setSettings(newSettings);
+            return;
+          }
+        }
+
+        const value = await vscode.window.showInputBox({
+          title: options.title,
+          password: true,
+          prompt: options.prompt,
+          placeHolder: options.placeHolder,
+        });
+
+        if (value === undefined) return;
+
+        const trimmed = value.trim();
+        if (!trimmed) return;
+
+        const secretsUpdate = { [options.secretKey]: trimmed } as Partial<OpenHandsSettings['secrets']>;
+        await settingsMgr.update({ secrets: secretsUpdate });
+        vscode.window.showInformationMessage(options.successMessage);
+
+        const newSettings = await settingsMgr.get();
+        conversation?.setSettings(newSettings);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
+      }
+    });
+
+  const setApiKey = registerSecretCommand('openhands.setApiKey', {
+    title: 'LLM API Key',
+    secretKey: 'llmApiKey',
+    prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-...',
+    successMessage: 'LLM API Key saved securely.',
+    clearedMessage: 'LLM API Key cleared.',
+    errorPrefix: 'Failed to save API Key',
+  });
+
+  const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
+    title: 'GitHub Token',
+    secretKey: 'githubToken',
+    prompt: 'Enter your GitHub token. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'ghp_...',
+    successMessage: 'GitHub token saved securely.',
+    clearedMessage: 'GitHub token cleared.',
+    errorPrefix: 'Failed to save GitHub token',
+  });
+
+  const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
+    title: 'Custom Secret 1',
+    secretKey: 'customSecret1',
+    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Custom secret 1 saved securely.',
+    clearedMessage: 'Custom secret 1 cleared.',
+    errorPrefix: 'Failed to save custom secret 1',
+  });
+
+  const setCustomSecret2 = registerSecretCommand('openhands.setCustomSecret2', {
+    title: 'Custom Secret 2',
+    secretKey: 'customSecret2',
+    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Custom secret 2 saved securely.',
+    clearedMessage: 'Custom secret 2 cleared.',
+    errorPrefix: 'Failed to save custom secret 2',
+  });
+
+  const setCustomSecret3 = registerSecretCommand('openhands.setCustomSecret3', {
+    title: 'Custom Secret 3',
+    secretKey: 'customSecret3',
+    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Custom secret 3 saved securely.',
+    clearedMessage: 'Custom secret 3 cleared.',
+    errorPrefix: 'Failed to save custom secret 3',
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
@@ -1027,6 +1118,10 @@ export function activate(context: vscode.ExtensionContext) {
     startNew,
     configure,
     setApiKey,
+    setGithubToken,
+    setCustomSecret1,
+    setCustomSecret2,
+    setCustomSecret3,
     reconnect,
     pause,
     resume

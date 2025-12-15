@@ -108,6 +108,55 @@ describe('SettingsManager', () => {
     expect(s.secrets.awsSecretAccessKey).toBeUndefined();
   });
 
+  it('updates GitHub token and custom secrets', async () => {
+    await mgr.update({
+      secrets: {
+        githubToken: 'ghp_example123',
+        customSecret1: 'secret-1',
+        customSecret2: 'secret-2',
+        customSecret3: 'secret-3',
+      }
+    });
+
+    const s = await mgr.get();
+    expect(s.secrets.githubToken).toBe('ghp_example123');
+    expect(s.secrets.customSecret1).toBe('secret-1');
+    expect(s.secrets.customSecret2).toBe('secret-2');
+    expect(s.secrets.customSecret3).toBe('secret-3');
+  });
+
+  it('clears GitHub token and custom secrets when undefined is provided', async () => {
+    await mgr.update({
+      secrets: {
+        githubToken: 'ghp_example123',
+        customSecret1: 'secret-1',
+        customSecret2: 'secret-2',
+        customSecret3: 'secret-3',
+      }
+    });
+
+    let s = await mgr.get();
+    expect(s.secrets.githubToken).toBe('ghp_example123');
+    expect(s.secrets.customSecret1).toBe('secret-1');
+    expect(s.secrets.customSecret2).toBe('secret-2');
+    expect(s.secrets.customSecret3).toBe('secret-3');
+
+    await mgr.update({
+      secrets: {
+        githubToken: undefined,
+        customSecret1: undefined,
+        customSecret2: undefined,
+        customSecret3: undefined,
+      }
+    });
+
+    s = await mgr.get();
+    expect(s.secrets.githubToken).toBeUndefined();
+    expect(s.secrets.customSecret1).toBeUndefined();
+    expect(s.secrets.customSecret2).toBeUndefined();
+    expect(s.secrets.customSecret3).toBeUndefined();
+  });
+
   it('updates all optional LLM fields', async () => {
     await mgr.update({
       llm: {
