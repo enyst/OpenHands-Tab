@@ -12,6 +12,11 @@ describe('VscodeSettingsAdapter', () => {
     // Reset all mocks before each test
     vi.clearAllMocks();
 
+    Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+      value: [{ uri: { fsPath: '/test/workspace' } }],
+      configurable: true,
+    });
+
     // Create mock objects
     mockConfiguration = {
       get: vi.fn(),
@@ -151,6 +156,25 @@ describe('VscodeSettingsAdapter', () => {
         key,
         value,
         vscode.ConfigurationTarget.Workspace
+      );
+    });
+
+    it('should fall back to global when no workspace is open', async () => {
+      const key = 'test.key';
+      const value = 'test-value';
+      mockConfiguration.update.mockResolvedValue(undefined);
+
+      Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+        value: [],
+        configurable: true,
+      });
+
+      await adapter.update(key, value, 'workspace');
+
+      expect(mockConfiguration.update).toHaveBeenCalledWith(
+        key,
+        value,
+        vscode.ConfigurationTarget.Global
       );
     });
 
