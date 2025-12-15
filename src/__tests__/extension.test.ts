@@ -663,6 +663,52 @@ describe('Settings and modes', () => {
     expect(joined).not.toContain('Longer line that should be cleared');
     expect(joined).not.toContain('\u001b[K');
   });
+
+  it('strips terminal string control sequences (OSC/DCS) from the OpenHands terminal log', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await resolveChatView(mockContext);
+
+    const writes: string[] = [];
+    let ptyInstance: any;
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      ptyInstance = pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-sanitize-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-sanitize-1',
+      order: 0,
+      command: 'sanitize_output',
+    });
+
+    expect(ptyInstance).toBeTruthy();
+
+    // OSC with BEL terminator
+    ptyInstance.write('hello\u001b]0;title\u0007world\n');
+    // OSC with ST (ESC \\) terminator
+    ptyInstance.write('a\u001b]8;;https://example.com\u001b\\b\n');
+    // DCS with ST terminator
+    ptyInstance.write('x\u001bPqstuff\u001b\\y\n');
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ sanitize_output\r\n');
+    expect(joined).toContain('helloworld\r\n');
+    expect(joined).toContain('ab\r\n');
+    expect(joined).toContain('xy\r\n');
+    expect(joined).not.toContain('\u001b]');
+    expect(joined).not.toContain('\u001bP');
+  });
 });
 
 

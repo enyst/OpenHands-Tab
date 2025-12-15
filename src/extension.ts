@@ -303,6 +303,46 @@ function flushConversationEventBacklog(params: {
 
 const normalizeTerminalNewlines = (text: string): string => text.replace(/\r?\n/g, '\r\n');
 
+const sanitizeTerminalControlSequences = (text: string): string => {
+  if (!text.includes('\u001b')) return text;
+
+  const esc = '\u001b';
+  const bel = '\u0007';
+
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === esc) {
+      const introducer = text[i + 1];
+      const isOsc = introducer === ']';
+      const isStringSequence = isOsc || introducer === 'P' || introducer === '^' || introducer === '_';
+
+      if (isStringSequence) {
+        i += 2; // skip ESC + introducer
+        while (i < text.length) {
+          const c = text[i];
+          if (isOsc && c === bel) {
+            i += 1;
+            break;
+          }
+          if (c === esc && text[i + 1] === '\\') {
+            i += 2;
+            break;
+          }
+          i += 1;
+        }
+        continue;
+      }
+    }
+
+    out += ch;
+    i += 1;
+  }
+
+  return out;
+};
+
 type TerminalLogPseudoterminalOptions = {
   renderProgress: boolean;
 };
@@ -374,7 +414,8 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
 
   private writeRaw(text: string): void {
     if (this.closed) return;
-    const normalized = normalizeTerminalNewlines(text);
+    const sanitized = sanitizeTerminalControlSequences(text);
+    const normalized = normalizeTerminalNewlines(sanitized);
 
     const max = OpenHandsTerminalLogPseudoterminal.PTY_WRITE_CHUNK_SIZE;
     let start = 0;
