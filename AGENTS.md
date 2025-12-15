@@ -116,16 +116,16 @@ Before opening or updating a PR:
 - Ensure GitHub CI checks are green on the PR
 
 Reviews (do not merge without review):
-- Request an OpenHands review by commenting `@openhands /codereview-roasted` on the PR (mandatory).
-- Wait for the GitHub AI reviewers to finish (or be clearly unavailable) before merging:
-  - **Gemini-code-assist**: generally considered “done” once it has posted two top-level comments, but also review its inline comment threads.
-  - **CodeRabbitAI**: only wait if its ETA is ≤10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
-    - If pending and ETA ≤10 minutes: wait.
-    - If rate limited and cooldown ≤10 minutes: wait (and re-trigger via `@coderabbitai review` if needed).
-    - If it’s silent >10 minutes, or rate-limited >10 minutes: proceed with OpenHands + Gemini and do not block on CodeRabbit.
-- Always read review threads in “Files changed” (OpenHands + bots leave inline comments).
-- If OpenHands feedback is “truly minor”, use judgment: you can address it without re-requesting review; if it flags deeper issues, re-request `@openhands /codereview-roasted` after fixes.
-- Merge only when CI is green, review threads are resolved/addressed, and required reviews are complete.
+- Request an OpenHands review (mandatory): comment `@openhands /codereview-roasted`.
+  - If OpenHands is unresponsive after ~15 minutes, do not block indefinitely: proceed with Gemini + CI green and merge, then follow up if needed.
+  - If OpenHands flags deeper issues, fix and re-request `@openhands /codereview-roasted`.
+- Ensure the GitHub AI reviewers are done (or clearly unavailable):
+  - **Gemini-code-assist**: treat as "done" once it has posted two top-level comments and you've checked/resolved its inline threads. Trigger with `/gemini review` if needed.
+  - **CodeRabbitAI**: only wait if its ETA is <=10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
+    - Re-trigger with `@coderabbitai review` if needed.
+- Always read review threads in "Files changed" (OpenHands + bots leave inline comments).
+- If OpenHands feedback is "truly minor" (e.g., wording/typos/formatting only), you can address it without re-requesting review.
+- Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
 
 ## SDK Package
 
