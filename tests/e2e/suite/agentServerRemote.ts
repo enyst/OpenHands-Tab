@@ -51,6 +51,9 @@ export async function run(): Promise<void> {
 
   const before: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   const beforeCount = typeof before?.count === 'number' ? before.count : 0;
+  const beforeMessageCount = Array.isArray(before?.eventTypes)
+    ? before.eventTypes.filter((t: unknown) => t === 'MessageEvent').length
+    : 0;
 
   const send: any = await vscode.commands.executeCommand('openhands._webviewAction', {
     action: 'sendMessage',
@@ -64,8 +67,8 @@ export async function run(): Promise<void> {
     const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const count = typeof rendered?.count === 'number' ? rendered.count : 0;
     const types = Array.isArray(rendered?.eventTypes) ? rendered.eventTypes : [];
-    const interesting = types.includes('MessageEvent') || types.includes('ConversationErrorEvent') || types.includes('AgentErrorEvent');
-    return count > beforeCount && interesting;
+    const messageCount = types.filter((t: unknown) => t === 'MessageEvent').length;
+    return count > beforeCount && messageCount > beforeMessageCount;
   }, 60000);
 
   const after: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
@@ -73,4 +76,3 @@ export async function run(): Promise<void> {
 
   console.log('✓ Remote agent-server E2E test passed');
 }
-

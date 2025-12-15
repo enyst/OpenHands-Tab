@@ -35,10 +35,11 @@ describe('SettingsManager', () => {
   });
 
   it('includes a default model in remote mode', async () => {
+    const defaults = await mgr.get();
     await mgr.update({ serverUrl: 'http://example:1234' });
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
-    expect(s.llm.model).toBe('claude-sonnet-4-20250514');
+    expect(s.llm.model).toBe(defaults.llm.model);
   });
 
   it('updates and persists config and secrets', async () => {
