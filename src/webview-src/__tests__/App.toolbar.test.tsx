@@ -18,6 +18,14 @@ describe('App toolbar interactions', () => {
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openSettingsPage' });
   });
 
+  it('requests skills on mount to populate badge', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestSkills' });
+    });
+  });
+
   it('requests workspace files and inserts context mention at cursor', async () => {
     render(<App />);
     const input = document.getElementById('openhands-chat-input') as HTMLInputElement;

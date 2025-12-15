@@ -98,6 +98,11 @@
           "default": 50,
           "markdownDescription": "Default max iterations for new conversations (server default is 500)."
         },
+        "openhands.conversation.storeRoot": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional directory for local-mode conversation history/events. Leave empty to use `~/.openhands/conversations-vscode/`."
+        },
         "openhands.confirmation.policy": {
           "type": "string",
           "enum": [

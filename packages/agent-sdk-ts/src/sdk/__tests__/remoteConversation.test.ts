@@ -79,6 +79,62 @@ describe('RemoteConversation', () => {
     (globalThis as any).fetch = undefined as any;
   });
 
+  it('times out if the WebSocket never connects', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(async (url: string) => {
+        expect(url).toContain('/events/search');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const { RemoteConversation } = await import('../conversation/RemoteConversation');
+      const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+      const statuses: string[] = [];
+      const errors: unknown[] = [];
+      conversation.on('status', (s) => statuses.push(s));
+      conversation.on('error', (e) => errors.push(e));
+
+      await conversation.restoreConversation('abc');
+      expect(conversation.getStatus()).toBe('connecting');
+
+      vi.advanceTimersByTime(10_001);
+
+      expect(conversation.getStatus()).toBe('offline');
+      expect(statuses).toContain('connecting');
+      expect(statuses).toContain('offline');
+      expect(errors.length).toBeGreaterThanOrEqual(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sets offline when starting a new conversation fails', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('ECONNREFUSED');
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    const statuses: string[] = [];
+    conversation.on('status', (s) => statuses.push(s));
+    conversation.on('error', () => {});
+
+    const id = await conversation.startNewConversation();
+    expect(id).toBeUndefined();
+    expect(conversation.getStatus()).toBe('offline');
+    expect(statuses).toContain('connecting');
+    expect(statuses).toContain('offline');
+  });
+
   it('replays history on restore and skips duplicate event ids', async () => {
     const history: Event[] = [
       {

@@ -131,7 +131,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Approve/Reject buttons with optional reason
 
 ### Persistence
-- Conversation history in ~/.openhands/conversations (default ON)
+- Conversation history in `~/.openhands/conversations-vscode/` (default ON; override with VS Code setting `openhands.conversation.storeRoot`)
 - Server/SDK JSON persisted as-is
 
 ## 8. Non-Functional Requirements

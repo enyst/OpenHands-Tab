@@ -38,7 +38,11 @@ These run inside VS Code and execute the actual tests:
 npm run e2e
 ```
 
-## Test Coverage
+## Local Conversation Storage
+
+In local mode, the extension persists conversation history/events to `~/.openhands/conversations-vscode/` by default.
+
+To override the storage directory (useful for CI runners or read-only home dirs), set the VS Code setting `openhands.conversation.storeRoot`.
 
 ### Agent-SDK Events Test
 Verifies that all event types from the OpenHands agent-sdk are properly rendered:

@@ -24,13 +24,13 @@ export function useCloseOnEscapeAndOutsideClick(
 
     const timer = window.setTimeout(() => {
       document.addEventListener('keydown', handleEscape);
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('click', handleClickOutside);
     }, delay);
 
     return () => {
       window.clearTimeout(timer);
       document.removeEventListener('keydown', handleEscape);
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('click', handleClickOutside);
     };
   }, [isOpen, onClose, ref, delay]);
 }
