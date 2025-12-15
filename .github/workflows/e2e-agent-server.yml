@@ -13,7 +13,7 @@ permissions:
 jobs:
   agent-server-e2e:
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout (oh-tab)
         uses: actions/checkout@v4
@@ -38,12 +38,30 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            agent-sdk/.venv
+          key: uv-${{ runner.os }}-${{ hashFiles('agent-sdk/uv.lock') }}
+
       - name: Prepare agent-sdk environment
         working-directory: agent-sdk
         run: uv sync --frozen
 
-      - name: Update apt cache
-        run: sudo apt-get update -y
+      - name: Get VS Code version for caching
+        id: vscode-version
+        run: |
+          echo "version=stable-$(date +%Y-W%V)" >> $GITHUB_OUTPUT
+
+      - name: Cache VS Code download
+        uses: actions/cache@v4
+        with:
+          path: ~/.vscode-test
+          key: vscode-${{ steps.vscode-version.outputs.version }}-${{ runner.os }}
+          restore-keys: |
+            vscode-stable-
 
       - name: Install base VS Code desktop dependencies
         env:
@@ -57,6 +75,14 @@ jobs:
             libgtk-3-0 libnss3 libnspr4 libasound2 libxss1 libxkbfile1 libsecret-1-0 \
             libx11-6 libx11-xcb1 libxshmfence1 libgbm1 libglib2.0-0 xauth xvfb ca-certificates)
 
+      - name: Install additional optional GUI deps (best-effort)
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            libxrender1 libgdk-pixbuf2.0-0 libpango1.0-0 libxinerama1 libxcursor1 libxkbcommon-x11-0 \
+            libwayland-client0 libwayland-cursor0 libcairo2 || true
+
       - name: Install dependencies
         run: npm ci || npm install
 
@@ -69,4 +95,3 @@ jobs:
           ELECTRON_ENABLE_LOGGING: '1'
           ELECTRON_IS_DEV: '1'
           QTWEBENGINE_DISABLE_SANDBOX: '1'
-
