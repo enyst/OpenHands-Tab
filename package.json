@@ -126,7 +126,7 @@
         "openhands.terminal.renderProgress": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Coalesce carriage-return progress updates in the OpenHands terminal log."
+          "markdownDescription": "Coalesce carriage-return (\\r) progress updates in the OpenHands terminal log (keeps only the last update per line)."
         },
         "openhands.confirmation.policy": {
           "type": "string",

@@ -309,7 +309,7 @@ type TerminalLogPseudoterminalOptions = {
 
 class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   private static readonly PTY_WRITE_CHUNK_SIZE = 16_000;
-  private static readonly MAX_PENDING_LINE_CHARS = 500_000;
+  private static readonly MAX_PENDING_LINE_CHARS = 200_000;
 
   private readonly writeEmitter = new vscode.EventEmitter<string>();
   private readonly closeEmitter = new vscode.EventEmitter<void>();
@@ -334,9 +334,10 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   close(): void {
     if (this.closed) return;
     if (this.progressLine) {
-      this.writeRaw(this.sanitizeProgressLine(this.progressLine));
+      this.writeRaw(`${this.sanitizeProgressLine(this.progressLine)}\n`);
       this.progressLine = '';
     }
+    this.progressCarry = '';
     this.closed = true;
     this.closeEmitter.fire();
     this.writeEmitter.dispose();
@@ -346,11 +347,14 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   isClosed(): boolean { return this.closed; }
 
   ensureNewline(): void {
-    if (this.progressLine) {
-      this.write('\n');
+    if (this.progressLine || this.progressCarry) {
+      const line = this.sanitizeProgressLine(this.progressLine);
+      this.progressLine = '';
+      this.progressCarry = '';
+      this.writeRaw(`${line}\n`);
       return;
     }
-    if (!this.lastEndedWithNewline) this.write('\n');
+    if (!this.lastEndedWithNewline) this.writeRaw('\n');
   }
 
   handleInput(_data: string): void {
@@ -487,7 +491,8 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
     if (this.progressLine.length > OpenHandsTerminalLogPseudoterminal.MAX_PENDING_LINE_CHARS) {
       const overflow = this.sanitizeProgressLine(this.progressLine);
       this.progressLine = '';
-      this.writeRaw(overflow);
+      this.progressCarry = '';
+      this.writeRaw(`${overflow}\n`);
     }
   }
 
@@ -1210,6 +1215,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       if (e.affectsConfiguration('openhands.terminal.renderProgress')) {
         // Recreate on next terminal event so it picks up updated rendering behavior.
+        try { terminalLogPty?.ensureNewline?.(); } catch { }
         try { terminal?.dispose(); } catch { }
         terminal = undefined;
         terminalLogPty = undefined;
