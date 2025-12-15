@@ -196,12 +196,13 @@ export class Agent extends EventEmitter {
    * an active run. New settings take effect on the next run.
    */
   setSettings(settings: OpenHandsSettings): void {
-    void this.lock.acquire(async () => {
+    void this.lock.acquire(() => {
       this.options.settings = settings;
       this.updateDerivedSettings(settings);
 
       // Force the next run to rebuild the LLM client from updated settings.
       this.orchestratorPromise = undefined;
+      return Promise.resolve();
     });
   }
 
