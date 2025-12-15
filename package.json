@@ -24,6 +24,10 @@
     "onCommand:openhands.startNewConversation",
     "onCommand:openhands.configure",
     "onCommand:openhands.setApiKey",
+    "onCommand:openhands.setGithubToken",
+    "onCommand:openhands.setCustomSecret1",
+    "onCommand:openhands.setCustomSecret2",
+    "onCommand:openhands.setCustomSecret3",
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
     "onCommand:openhands.resumeCurrentRun",
@@ -47,6 +51,22 @@
       {
         "command": "openhands.setApiKey",
         "title": "OpenHands: Set API Key"
+      },
+      {
+        "command": "openhands.setGithubToken",
+        "title": "OpenHands: Set GitHub Token"
+      },
+      {
+        "command": "openhands.setCustomSecret1",
+        "title": "OpenHands: Set Custom Secret 1"
+      },
+      {
+        "command": "openhands.setCustomSecret2",
+        "title": "OpenHands: Set Custom Secret 2"
+      },
+      {
+        "command": "openhands.setCustomSecret3",
+        "title": "OpenHands: Set Custom Secret 3"
       },
       {
         "command": "openhands.reconnect",
@@ -152,6 +172,30 @@
           "default": "",
           "editPresentation": "singlelineText",
           "markdownDescription": "**To set your LLM API Key securely:**\n\n[🔑 Configure API Key](command:openhands.setApiKey)\n\n_(API keys are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.githubToken": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret1": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 1 securely:**\n\n[🔑 Configure Custom Secret 1](command:openhands.setCustomSecret1)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret2": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 2 securely:**\n\n[🔑 Configure Custom Secret 2](command:openhands.setCustomSecret2)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret3": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 3 securely:**\n\n[🔑 Configure Custom Secret 3](command:openhands.setCustomSecret3)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
         },
         "openhands.llm.apiVersion": {
           "type": "string",

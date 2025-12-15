@@ -16,6 +16,10 @@ export type OpenHandsSettings = ServerSettings & {
     llmApiKey?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
+    githubToken?: string;
+    customSecret1?: string;
+    customSecret2?: string;
+    customSecret3?: string;
   };
 };
 
@@ -85,6 +89,10 @@ export class SettingsManager {
       llmApiKey: await this.adapter.getSecret('openhands.llmApiKey'),
       awsAccessKeyId: await this.adapter.getSecret('openhands.awsAccessKeyId'),
       awsSecretAccessKey: await this.adapter.getSecret('openhands.awsSecretAccessKey'),
+      githubToken: await this.adapter.getSecret('openhands.githubToken'),
+      customSecret1: await this.adapter.getSecret('openhands.customSecret1'),
+      customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
+      customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
     };
     return { serverUrl, servers, llm, agent, conversation, confirmation, secrets };
   }
@@ -150,6 +158,18 @@ export class SettingsManager {
       }
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'awsSecretAccessKey')) {
         ops.push(this.adapter.storeSecret('openhands.awsSecretAccessKey', partial.secrets.awsSecretAccessKey));
+      }
+      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'githubToken')) {
+        ops.push(this.adapter.storeSecret('openhands.githubToken', partial.secrets.githubToken));
+      }
+      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret1')) {
+        ops.push(this.adapter.storeSecret('openhands.customSecret1', partial.secrets.customSecret1));
+      }
+      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret2')) {
+        ops.push(this.adapter.storeSecret('openhands.customSecret2', partial.secrets.customSecret2));
+      }
+      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret3')) {
+        ops.push(this.adapter.storeSecret('openhands.customSecret3', partial.secrets.customSecret3));
       }
     }
 

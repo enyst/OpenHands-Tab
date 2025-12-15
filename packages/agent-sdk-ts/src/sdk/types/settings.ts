@@ -43,5 +43,9 @@ export type OpenHandsSettings = ServerSettings & {
     llmApiKey?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
+    githubToken?: string;
+    customSecret1?: string;
+    customSecret2?: string;
+    customSecret3?: string;
   };
 };

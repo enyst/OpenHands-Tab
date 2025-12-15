@@ -855,6 +855,110 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  const setGithubToken = vscode.commands.registerCommand('openhands.setGithubToken', async () => {
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+      const existing = await settingsMgr.get();
+
+      const githubToken = await vscode.window.showInputBox({
+        title: 'GitHub Token',
+        value: existing.secrets.githubToken,
+        password: true,
+        prompt: 'Enter your GitHub token. It will be stored securely in VS Code SecretStorage.',
+        placeHolder: 'ghp_...'
+      });
+
+      if (githubToken === undefined) {
+        // User cancelled
+        return;
+      }
+
+      await settingsMgr.update({ secrets: { githubToken: githubToken || undefined } });
+      vscode.window.showInformationMessage('GitHub token saved securely.');
+
+      const newSettings = await settingsMgr.get();
+      conversation?.setSettings(newSettings);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to save GitHub token: ${message}`);
+    }
+  });
+
+  const setCustomSecret1 = vscode.commands.registerCommand('openhands.setCustomSecret1', async () => {
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+      const existing = await settingsMgr.get();
+
+      const value = await vscode.window.showInputBox({
+        title: 'Custom Secret 1',
+        value: existing.secrets.customSecret1,
+        password: true,
+        prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+      });
+
+      if (value === undefined) return;
+
+      await settingsMgr.update({ secrets: { customSecret1: value || undefined } });
+      vscode.window.showInformationMessage('Custom secret 1 saved securely.');
+
+      const newSettings = await settingsMgr.get();
+      conversation?.setSettings(newSettings);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to save custom secret 1: ${message}`);
+    }
+  });
+
+  const setCustomSecret2 = vscode.commands.registerCommand('openhands.setCustomSecret2', async () => {
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+      const existing = await settingsMgr.get();
+
+      const value = await vscode.window.showInputBox({
+        title: 'Custom Secret 2',
+        value: existing.secrets.customSecret2,
+        password: true,
+        prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+      });
+
+      if (value === undefined) return;
+
+      await settingsMgr.update({ secrets: { customSecret2: value || undefined } });
+      vscode.window.showInformationMessage('Custom secret 2 saved securely.');
+
+      const newSettings = await settingsMgr.get();
+      conversation?.setSettings(newSettings);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to save custom secret 2: ${message}`);
+    }
+  });
+
+  const setCustomSecret3 = vscode.commands.registerCommand('openhands.setCustomSecret3', async () => {
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+      const existing = await settingsMgr.get();
+
+      const value = await vscode.window.showInputBox({
+        title: 'Custom Secret 3',
+        value: existing.secrets.customSecret3,
+        password: true,
+        prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+      });
+
+      if (value === undefined) return;
+
+      await settingsMgr.update({ secrets: { customSecret3: value || undefined } });
+      vscode.window.showInformationMessage('Custom secret 3 saved securely.');
+
+      const newSettings = await settingsMgr.get();
+      conversation?.setSettings(newSettings);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`Failed to save custom secret 3: ${message}`);
+    }
+  });
+
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
     await ensureConversationAndConnection();
     conversation?.reconnect();
@@ -930,6 +1034,10 @@ export function activate(context: vscode.ExtensionContext) {
     startNew,
     configure,
     setApiKey,
+    setGithubToken,
+    setCustomSecret1,
+    setCustomSecret2,
+    setCustomSecret3,
     reconnect,
     pause,
     resume
