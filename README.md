@@ -35,6 +35,13 @@ npm run build
 2. Press F5 to launch Extension Development Host
 3. Click the OpenHands icon in the Activity Bar (or run "OpenHands: Open") to reveal the chat sidebar view
 
+### Git Hooks (optional)
+
+This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit.
+
+- Bypass hooks: `git commit --no-verify`
+- Run manually: `npx lint-staged`
+
 ### Configuration
 
 - **OpenHands: Configure** - Set up server URL, LLM settings, API keys
