@@ -647,6 +647,10 @@ export class Agent extends EventEmitter {
     const p = toOptionalNonEmptyString(args.path);
     if (!p || !path.isAbsolute(p)) return undefined;
     if (this.workspace.isPathAllowed(p)) return undefined;
+    const command = toOptionalNonEmptyString(args.command);
+    if (command === 'create') {
+      return { paths: [path.dirname(p), p] };
+    }
     return { paths: [p] };
   }
 

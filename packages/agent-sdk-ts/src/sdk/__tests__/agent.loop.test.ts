@@ -119,6 +119,44 @@ describe('Agent loop control', () => {
     fs.rmSync(externalDir, { recursive: true, force: true });
   });
 
+  it('allows creating an external file after approval', async () => {
+    const log = new EventLog();
+    const workspaceRoot = createWorkspaceRoot();
+    const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-create-'));
+    const outsidePath = path.join(externalDir, 'new.txt');
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Creating file' },
+      {
+        type: 'tool_call_delta',
+        id: 'call_create',
+        name: 'file_editor',
+        arguments: JSON.stringify({ command: 'create', path: outsidePath, file_text: 'hello' }),
+      },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [new FileEditorTool()],
+    });
+
+    await agent.run('create a file');
+    const eventsAfterRun = log.list();
+    expect(eventsAfterRun.some(isActionEvent)).toBe(true);
+    expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
+    expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+
+    await agent.approveAction();
+    expect(fs.existsSync(outsidePath)).toBe(true);
+    expect(fs.readFileSync(outsidePath, 'utf8')).toBe('hello');
+
+    fs.rmSync(externalDir, { recursive: true, force: true });
+  });
+
   it('records agent error when tool arguments are not objects', async () => {
     const log = new EventLog();
     const tool: ToolDefinition<Record<string, unknown>, { echoed: boolean }> = {
