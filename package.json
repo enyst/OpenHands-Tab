@@ -34,7 +34,6 @@
     "onView:openhands.chat"
   ],
   "contributes": {
-
     "commands": [
       {
         "command": "openhands.open",
@@ -94,7 +93,6 @@
           "default": false,
           "markdownDescription": "Enable webview→extension debug logging bridge (Output channel + file in extension log path)."
         },
-
         "openhands.serverUrl": {
           "type": "string",
           "default": "",
@@ -106,10 +104,16 @@
           "items": {
             "type": "object",
             "properties": {
-              "url": { "type": "string" },
-              "label": { "type": "string" }
+              "url": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
             },
-            "required": ["url"]
+            "required": [
+              "url"
+            ]
           },
           "markdownDescription": "List of saved OpenHands server URLs with optional labels."
         },
@@ -232,7 +236,6 @@
           "type": "number",
           "markdownDescription": "Max output tokens. Leave empty to use default."
         },
-
         "openhands.llm.reasoningEffort": {
           "type": "string",
           "enum": [
@@ -281,7 +284,8 @@
     "build:webview": "node esbuild.webview.mjs",
     "agent-server": "bash scripts/start-agent-server.sh",
     "agent-server:prepare": "PREPARE=1 bash scripts/start-agent-server.sh",
-    "dev:vscode": "bash scripts/dev-vscode.sh"
+    "dev:vscode": "bash scripts/dev-vscode.sh",
+    "prepare": "husky"
   },
   "files": [
     "dist/**",
@@ -311,7 +315,9 @@
     "esbuild": "^0.23.1",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "husky": "^9.1.7",
     "jsdom": "^25.0.1",
+    "lint-staged": "^16.2.7",
     "mocha": "^10.8.2",
     "tailwindcss": "^4.1.13",
     "ts-node": "^10.9.2",
