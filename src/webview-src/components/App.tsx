@@ -238,13 +238,17 @@ export function App() {
   // Signal webview is ready on mount
   useEffect(() => {
     const vscodeApi = getVscodeApi();
+    let didRequestSkills = false;
     const sendReady = () => {
       const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
       const payload: { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number } = { type: 'webviewReady' };
       if (typeof state.conversationId === 'string') payload.conversationId = state.conversationId;
       if (typeof state.lastSeenSeq === 'number') payload.lastSeenSeq = state.lastSeenSeq;
       vscodeApi.postMessage(payload);
-      vscodeApi.postMessage({ type: 'requestSkills' });
+      if (!didRequestSkills) {
+        didRequestSkills = true;
+        vscodeApi.postMessage({ type: 'requestSkills' });
+      }
     };
 
     sendReady();
