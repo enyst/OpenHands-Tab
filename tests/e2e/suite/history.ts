@@ -44,6 +44,9 @@ export async function run(): Promise<void> {
 
   const diagAfterNew: any = await vscode.commands.executeCommand('openhands._diagnostics');
   console.log(`Conversation ID after new: ${diagAfterNew.conversationId || 'none'}`);
+  if (initialConversationId && diagAfterNew.conversationId && diagAfterNew.conversationId === initialConversationId) {
+    throw new Error(`Expected conversationId to change after startNewConversation (still ${diagAfterNew.conversationId})`);
+  }
 
   // Test 3: Send test events to create conversation content
   const testEvents = [
@@ -101,6 +104,10 @@ export async function run(): Promise<void> {
   // Test 5: Verify event backlog is tracked
   const diagWithEvents: any = await vscode.commands.executeCommand('openhands._diagnostics');
   console.log(`Event backlog size: ${diagWithEvents.eventBacklog?.size || 0}`);
+  const backlogWithEvents = diagWithEvents.eventBacklog?.size ?? 0;
+  if (backlogWithEvents < testEvents.length) {
+    throw new Error(`Expected eventBacklog.size >= ${testEvents.length}, got ${backlogWithEvents}`);
+  }
 
   // Test 6: Start another new conversation and verify events are cleared
   await vscode.commands.executeCommand('openhands.startNewConversation');
@@ -110,6 +117,12 @@ export async function run(): Promise<void> {
     const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
     return d?.chat?.webviewReady;
   });
+
+  const diagAfterReset: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const backlogAfterReset = diagAfterReset.eventBacklog?.size ?? 0;
+  if (backlogAfterReset >= backlogWithEvents) {
+    throw new Error(`Expected eventBacklog.size to reset after new conversation (before=${backlogWithEvents}, after=${backlogAfterReset})`);
+  }
 
   const resultAfterNew: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
 

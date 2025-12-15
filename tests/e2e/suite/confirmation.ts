@@ -158,7 +158,7 @@ export async function run(): Promise<void> {
   // Test 3: Send user rejection observation
   const rejection = {
     kind: 'UserRejectObservation',
-    source: 'user',
+    source: 'environment',
     rejection_reason: 'This command is too dangerous',
     tool_name: 'terminal',
     tool_call_id: 'call_high_risk',

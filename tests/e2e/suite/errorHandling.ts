@@ -210,6 +210,11 @@ export async function run(): Promise<void> {
   }
 
   console.log(`Diagnostics - eventBacklog size: ${diag.eventBacklog.size}`);
+  const expectedMinBacklogSize = expectedAgentErrors + 1 + 1 + 1 + 1; // +ConversationError +Observation +Pause +Condensation
+  if ((diag.eventBacklog?.size ?? 0) < expectedMinBacklogSize) {
+    throw new Error(`Expected eventBacklog.size >= ${expectedMinBacklogSize}, got ${diag.eventBacklog?.size ?? 0}`);
+  }
+  const backlogBeforeRecovery = diag.eventBacklog?.size ?? 0;
 
   // Test 8: Recovery - start new conversation after errors
   await vscode.commands.executeCommand('openhands.startNewConversation');
@@ -219,6 +224,12 @@ export async function run(): Promise<void> {
     const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
     return d?.chat?.webviewReady;
   });
+
+  const diagAfterRecovery: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const backlogAfterRecovery = diagAfterRecovery?.eventBacklog?.size ?? 0;
+  if (backlogAfterRecovery >= backlogBeforeRecovery) {
+    throw new Error(`Expected eventBacklog.size to reset after recovery (before=${backlogBeforeRecovery}, after=${backlogAfterRecovery})`);
+  }
 
   result = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   console.log(`After new conversation - Events should be cleared or minimal: ${result.count}`);
