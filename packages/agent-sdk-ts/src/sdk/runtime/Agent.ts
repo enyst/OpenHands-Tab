@@ -189,12 +189,20 @@ export class Agent extends EventEmitter {
     this.debug = settings?.agent?.debug ?? false;
   }
 
+  /**
+   * Updates the agent's settings at runtime.
+   *
+   * Changes are applied under the agent lock so settings updates can't race with
+   * an active run. New settings take effect on the next run.
+   */
   setSettings(settings: OpenHandsSettings): void {
-    this.options.settings = settings;
-    this.updateDerivedSettings(settings);
+    void this.lock.acquire(async () => {
+      this.options.settings = settings;
+      this.updateDerivedSettings(settings);
 
-    // Force the next run to rebuild the LLM client from updated settings.
-    this.orchestratorPromise = undefined;
+      // Force the next run to rebuild the LLM client from updated settings.
+      this.orchestratorPromise = undefined;
+    });
   }
 
   get pendingActionId(): string | undefined {
