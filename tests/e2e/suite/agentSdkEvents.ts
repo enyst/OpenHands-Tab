@@ -98,7 +98,7 @@ export async function run(): Promise<void> {
     // UserRejectObservation
     {
       kind: 'UserRejectObservation',
-      source: 'user',
+      source: 'environment',
       rejection_reason: 'This command looks dangerous',
       tool_name: 'terminal',
       tool_call_id: 'call_002',
