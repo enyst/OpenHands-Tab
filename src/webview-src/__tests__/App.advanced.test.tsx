@@ -300,6 +300,22 @@ describe('App - Advanced Test Coverage', () => {
       });
     });
 
+    it('keeps the status row mounted when auto-dismiss hides the banner', async () => {
+      vi.useFakeTimers();
+      render(<App />);
+
+      expect(screen.getByTestId('status-row')).toBeInTheDocument();
+      expect(screen.getByText(/Initializing/)).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(screen.queryByText(/Initializing/)).not.toBeInTheDocument();
+
+      expect(screen.getByTestId('status-row')).toBeInTheDocument();
+    });
+
     it('shows local mode banner when mode is local', async () => {
       render(<App />);
 
@@ -308,6 +324,18 @@ describe('App - Advanced Test Coverage', () => {
       await waitFor(() => {
         expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
       });
+    });
+
+    it('does not show a dismiss button for the local mode banner', async () => {
+      render(<App />);
+
+      postToWindow({ type: 'status', status: 'offline', mode: 'local' });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
     });
 
     it('updates banner on conversation start', async () => {

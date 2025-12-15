@@ -52,6 +52,12 @@ type ConversationsList = Array<{
   messageCount?: number;
 }>;
 
+type StatusBannerState = {
+  message: string;
+  level: 'info' | 'warn' | 'error';
+  dismissible?: boolean;
+};
+
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
  */
@@ -122,7 +128,7 @@ export function App() {
   const [attachments, setAttachments] = useState<Array<{ uri: string; label: string; sizeBytes?: number }>>([]);
 
   // UI state
-  const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>(
+  const [statusBanner, setStatusBanner] = useState<StatusBannerState | null>(
     { message: 'Initializing…', level: 'info' }
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -289,7 +295,7 @@ export function App() {
               setMode(payload.mode);
             }
             if (payload.mode === 'local') {
-              setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
+              setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
             } else if (payload.status === 'connecting') {
               setStatusBanner({ message: 'Connecting to server…', level: 'info' });
             } else if (payload.status === 'online') {
@@ -309,7 +315,7 @@ export function App() {
           if (payload.mode === 'local') {
             setMode('local');
             setCurrentServerUrl(undefined);
-            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info' });
+            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
           } else if (payload.mode === 'remote') {
             setMode('remote');
           }
@@ -689,6 +695,19 @@ export function App() {
 
       {/* Input area */}
       <div className="relative">
+        {/* Status banner (space reserved to prevent layout jumps) */}
+        <div className="px-4 pb-2 min-h-[56px] flex items-end" data-testid="status-row">
+          {statusBanner && (
+            <StatusBanner
+              message={statusBanner.message}
+              level={statusBanner.level}
+              dismissible={statusBanner.dismissible}
+              onDismiss={() => setStatusBanner(null)}
+              autoDismiss={statusBanner.level !== 'error'}
+            />
+          )}
+        </div>
+
         <InputArea
           value={input}
           onChange={handleInputChange}
@@ -723,18 +742,6 @@ export function App() {
           skills={skills}
           onOpenSkill={handleOpenSkill}
         />
-
-        {/* Status banner */}
-        {statusBanner && (
-          <div className="px-4 pb-4">
-            <StatusBanner
-              message={statusBanner.message}
-              level={statusBanner.level}
-              onDismiss={() => setStatusBanner(null)}
-              autoDismiss={statusBanner.level !== 'error'}
-            />
-          </div>
-        )}
       </div>
 
       {/* History view (slide-over panel) */}
