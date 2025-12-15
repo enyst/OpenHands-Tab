@@ -201,13 +201,14 @@ async function resolveChatView(mockContext: any) {
   expect(provider).toBeTruthy();
 
   const view = createMockWebviewView();
+  const { Conversation } = await import('@openhands/agent-sdk-ts');
+  const beforeCalls = (Conversation as Mock).mock.calls.length;
   provider.resolveWebviewView(view);
 
   // ensureConversationAndConnection() is async and invoked without await
   const deadline = Date.now() + 2000;
   while (Date.now() < deadline) {
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
-    if (__getLastConversation()) break;
+    if ((Conversation as Mock).mock.calls.length > beforeCalls) break;
     await new Promise((r) => setTimeout(r, 0));
   }
 
@@ -337,12 +338,12 @@ describe('Command handlers', () => {
     expect(handler).toBeTypeOf('function');
 
     const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), 'oh-tab-homedir-'));
-    const previousOverride = process.env.OPENHANDS_CONVERSATIONS_DIR;
+    const cfgValues = (vscode as any).__getMockConfigValues?.();
 
     try {
       const conversationId = 'local-test-convo';
       const conversationsRoot = path.join(tmpHome, '.openhands', 'conversations-vscode');
-      process.env.OPENHANDS_CONVERSATIONS_DIR = conversationsRoot;
+      cfgValues?.set('openhands.conversation.storeRoot', conversationsRoot);
       const conversationDir = path.join(conversationsRoot, conversationId);
       await fs.mkdir(conversationDir, { recursive: true });
 
@@ -371,11 +372,7 @@ describe('Command handlers', () => {
         }),
       ]);
     } finally {
-      if (previousOverride === undefined) {
-        delete process.env.OPENHANDS_CONVERSATIONS_DIR;
-      } else {
-        process.env.OPENHANDS_CONVERSATIONS_DIR = previousOverride;
-      }
+      cfgValues?.delete('openhands.conversation.storeRoot');
       await fs.rm(tmpHome, { recursive: true, force: true });
     }
   });
