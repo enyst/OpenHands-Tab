@@ -706,6 +706,53 @@ describe('Settings and modes', () => {
     expect(joined).not.toContain('\u001b[K');
   });
 
+  it('warns once and flushes when the progress coalescing buffer overflows', async () => {
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await resolveChatView(mockContext);
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const writes: string[] = [];
+    let ptyInstance: any;
+    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
+      const pty = options?.pty;
+      ptyInstance = pty;
+      if (pty?.onDidWrite) {
+        pty.onDidWrite((chunk: string) => writes.push(chunk));
+      }
+      return { show: vi.fn(), dispose: vi.fn() } as any;
+    });
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-progress-overflow-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-progress-overflow-1',
+      order: 0,
+      command: 'progress_overflow',
+    });
+
+    expect(ptyInstance).toBeTruthy();
+
+    const huge = 'a'.repeat(200_001);
+    ptyInstance.write(huge);
+    ptyInstance.write('\n');
+    ptyInstance.write('b'.repeat(200_001));
+    ptyInstance.write('\n');
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('Terminal progress renderer overflowed')
+    );
+
+    warn.mockRestore();
+    expect(writes.join('')).toContain('$ progress_overflow\r\n');
+  });
+
   it('coalesces ANSI-colored progress output (including split CSI sequences)', async () => {
     mockSettings.serverUrl = undefined as any;
     extension = await import('../extension');

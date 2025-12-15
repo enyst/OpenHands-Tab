@@ -359,6 +359,7 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   private readonly renderProgress: boolean;
   private progressCarry = '';
   private progressLine = '';
+  private warnedProgressOverflow = false;
 
   readonly onDidWrite = this.writeEmitter.event;
   readonly onDidClose = this.closeEmitter.event;
@@ -509,6 +510,13 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
 
     const { prefix, carry } = this.splitTrailingIncompleteCsi(combined);
     this.progressCarry = carry;
+    if (this.progressCarry.length > OpenHandsTerminalLogPseudoterminal.MAX_PENDING_LINE_CHARS) {
+      if (!this.warnedProgressOverflow) {
+        this.warnedProgressOverflow = true;
+        console.warn('[OpenHands] Terminal progress renderer overflowed (carry); flushing to avoid memory growth.');
+      }
+      this.progressCarry = '';
+    }
 
     const parts = prefix.split('\n');
     for (let i = 0; i < parts.length; i++) {
@@ -533,6 +541,10 @@ class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
       const overflow = this.sanitizeProgressLine(this.progressLine);
       this.progressLine = '';
       this.progressCarry = '';
+      if (!this.warnedProgressOverflow) {
+        this.warnedProgressOverflow = true;
+        console.warn('[OpenHands] Terminal progress renderer overflowed; flushing to avoid memory growth.');
+      }
       this.writeRaw(`${overflow}\n`);
     }
   }
