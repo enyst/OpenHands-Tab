@@ -168,7 +168,7 @@ src/
 │   ├── SettingsManager.ts       # Settings access layer
 │   └── VscodeSettingsAdapter.ts # VS Code implementation
 ├── sidebar/
-│   └── OpenHandsViewProvider.ts # Activity bar tree view
+│   └── OpenHandsChatViewProvider.ts # Chat sidebar WebviewView provider
 └── webview-src/
     ├── webview.tsx              # Entry point
     └── components/
