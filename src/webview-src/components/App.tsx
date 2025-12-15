@@ -112,6 +112,7 @@ export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [llmModel, setLlmModel] = useState<string | null | undefined>(undefined);
 
   // Events and conversation state
   const [events, setEvents] = useState<RenderedEvent[]>([]);
@@ -276,6 +277,7 @@ export function App() {
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
+        llmModel?: string | null;
         event?: unknown;
         seq?: unknown;
         error?: unknown;
@@ -293,6 +295,9 @@ export function App() {
             setStatus(payload.status);
             if (payload.mode === 'local' || payload.mode === 'remote') {
               setMode(payload.mode);
+            }
+            if (typeof payload.llmModel === 'string' || payload.llmModel === null) {
+              setLlmModel(payload.llmModel);
             }
             if (payload.mode === 'local') {
               setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
@@ -635,6 +640,9 @@ export function App() {
 
   // Derived state: conversation is empty when no events and no streaming
   const isEmptyConversation = events.length === 0 && streamingContent === null;
+  const llmModelLabel = llmModel === undefined
+    ? undefined
+    : (llmModel || (mode === 'remote' ? 'server default' : 'default'));
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -713,6 +721,8 @@ export function App() {
           onChange={handleInputChange}
           onSubmit={handleSendMessage}
           disabled={status === 'offline'}
+          modelLabel={llmModelLabel}
+          onOpenModelSettings={handleOpenSettings}
           onOpenContext={handleOpenContext}
           contextCount={selectedContextFiles.length}
           onOpenSkills={handleOpenSkills}

@@ -61,6 +61,7 @@ let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 let conversationStoreRoot: string | undefined;
+let lastKnownLlmModel: string | null = null;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
@@ -581,6 +582,7 @@ export function activate(context: vscode.ExtensionContext) {
   async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean }) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
+    lastKnownLlmModel = settings.llm.model ?? null;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
@@ -633,7 +635,7 @@ export function activate(context: vscode.ExtensionContext) {
       conversation.on('status', (s: string) => {
         outputChannel?.appendLine(`[status] ${s}`);
         if (chatView && chatWebviewReady && chatView.visible) {
-          void chatView.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
+          void chatView.webview.postMessage({ type: 'status', status: s, mode: conversationMode, llmModel: lastKnownLlmModel });
         }
       });
 
@@ -729,6 +731,7 @@ export function activate(context: vscode.ExtensionContext) {
         type: 'status',
         status: conversation?.getStatus() ?? 'offline',
         mode: conversationMode,
+        llmModel: lastKnownLlmModel,
       });
     }
   }
@@ -988,13 +991,16 @@ function createWebviewMessageHandler(context: vscode.ExtensionContext, host: Web
         chatLastConversationId = message.conversationId;
         chatLastSeenSeq = message.lastSeenSeq;
 
+        const initSettings = await settingsMgr.get();
+        lastKnownLlmModel = initSettings.llm.model ?? null;
+
         void host.postMessage({
           type: 'status',
           status: conversation?.getStatus() ?? 'offline',
           mode: conversationMode,
+          llmModel: lastKnownLlmModel,
         });
 
-        const initSettings = await settingsMgr.get();
         void host.postMessage({
           type: 'serverListUpdated',
           servers: initSettings.servers,
