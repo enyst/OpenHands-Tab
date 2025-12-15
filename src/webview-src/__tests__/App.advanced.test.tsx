@@ -175,7 +175,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'configUpdated', serverUrl: 'http://localhost:3000', mode: 'remote' });
 
       await waitFor(() => {
-        expect(container.textContent).toContain('Config: http://localhost:3000');
+        expect(container.textContent).toContain('Config updated');
       });
 
       // Info messages have auto-dismiss functionality (verified by implementation)
@@ -291,13 +291,29 @@ describe('App - Advanced Test Coverage', () => {
 
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
       await waitFor(() => {
-        expect(screen.getByText('Connected')).toBeInTheDocument();
+        expect(screen.getByText(/Connected to server/)).toBeInTheDocument();
       });
 
       postToWindow({ type: 'status', status: 'offline', mode: 'remote' });
       await waitFor(() => {
-        expect(screen.getByText('Disconnected')).toBeInTheDocument();
+        expect(screen.getByText(/Disconnected from server/)).toBeInTheDocument();
       });
+    });
+
+    it('keeps the status row mounted when auto-dismiss hides the banner', async () => {
+      vi.useFakeTimers();
+      render(<App />);
+
+      expect(screen.getByTestId('status-row')).toBeInTheDocument();
+      expect(screen.getByText(/Initializing/)).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+
+      expect(screen.queryByText(/Initializing/)).not.toBeInTheDocument();
+
+      expect(screen.getByTestId('status-row')).toBeInTheDocument();
     });
 
     it('shows local mode banner when mode is local', async () => {
@@ -306,8 +322,20 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'status', status: 'offline', mode: 'local' });
 
       await waitFor(() => {
-        expect(screen.getByText('Local mode active')).toBeInTheDocument();
+        expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
       });
+    });
+
+    it('does not show a dismiss button for the local mode banner', async () => {
+      render(<App />);
+
+      postToWindow({ type: 'status', status: 'offline', mode: 'local' });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
     });
 
     it('updates banner on conversation start', async () => {
@@ -351,27 +379,28 @@ describe('App - Advanced Test Coverage', () => {
 
   describe('Mode switching (local/remote)', () => {
     it('shows status dot only in remote mode', async () => {
-      render(<App />);
+      const { container } = render(<App />);
 
       // Remote mode - status indicator should be visible
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
       await waitFor(() => {
-        expect(screen.getByText('online')).toBeInTheDocument();
-        expect(screen.getByLabelText('Connection status')).toBeInTheDocument();
+        const statusIndicator = container.querySelector('[aria-label*="Status:"]');
+        expect(statusIndicator).toBeInTheDocument();
       });
     });
 
-    it('hides connection button in local mode', async () => {
+    it('hides connection status in local mode', async () => {
       render(<App />);
 
       postToWindow({ type: 'status', status: 'offline', mode: 'local' });
 
       await waitFor(() => {
-        expect(screen.getByText('LOCAL')).toBeInTheDocument();
+        expect(screen.getByText('Local Mode')).toBeInTheDocument();
       });
 
-      expect(screen.queryByLabelText('Connection status')).not.toBeInTheDocument();
+      // In local mode, status indicator is hidden - only the server selector shows "Local Mode"
+      expect(screen.queryByLabelText(/Status:/)).not.toBeInTheDocument();
     });
 
     it('shows connection button in remote mode', async () => {
@@ -380,8 +409,9 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
       await waitFor(() => {
-        expect(screen.getByText('online')).toBeInTheDocument();
-        expect(screen.getByLabelText('Connection status')).toBeInTheDocument();
+        // In the new design, the status indicator shows "Connected"
+        expect(screen.getByLabelText(/Status:/)).toBeInTheDocument();
+        expect(screen.getByText('Connected')).toBeInTheDocument();
       });
     });
 
@@ -392,15 +422,14 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'configUpdated', serverUrl: null, mode: 'local' });
 
       await waitFor(() => {
-        expect(screen.getByText('Local mode active')).toBeInTheDocument();
-        expect(screen.getByText('LOCAL')).toBeInTheDocument();
+        expect(screen.getByText(/Local mode: running without remote server/)).toBeInTheDocument();
       });
 
       // Switch back to remote mode
       postToWindow({ type: 'configUpdated', serverUrl: 'http://localhost:3000', mode: 'remote' });
 
       await waitFor(() => {
-        expect(screen.queryByText('LOCAL')).not.toBeInTheDocument();
+        expect(screen.queryByText('Local Mode')).not.toBeInTheDocument();
       });
     });
   });
@@ -462,7 +491,7 @@ describe('App - Advanced Test Coverage', () => {
     it('clears input and state on new conversation button click', async () => {
       render(<App />);
 
-      const input = screen.getByLabelText('Message input') as HTMLTextAreaElement;
+      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
 
       // Use fireEvent instead of userEvent for more reliable input simulation
       await act(async () => {
@@ -471,7 +500,7 @@ describe('App - Advanced Test Coverage', () => {
 
       expect(input.value).toBe('Some text');
 
-      const newChatBtn = screen.getByLabelText('New Conversation');
+      const newChatBtn = screen.getByLabelText('New');
       await userEvent.click(newChatBtn);
 
       expect(input.value).toBe('');
@@ -544,7 +573,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty workspace files list', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
+      await userEvent.click(screen.getByLabelText('Add context'));
 
       postToWindow({ type: 'workspaceFiles', files: [] });
 
@@ -556,7 +585,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty skills list', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
+      await userEvent.click(screen.getByLabelText('Skills'));
 
       postToWindow({ type: 'skillsList', skills: [] });
 
@@ -576,7 +605,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles empty input submission', async () => {
       render(<App />);
 
-      const input = screen.getByLabelText('Message input') as HTMLTextAreaElement;
+      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
 
       // Try to send empty message
       await userEvent.type(input, '{enter}');
@@ -590,7 +619,7 @@ describe('App - Advanced Test Coverage', () => {
     it('handles whitespace-only input', async () => {
       render(<App />);
 
-      const input = screen.getByLabelText('Message input') as HTMLTextAreaElement;
+      const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLInputElement;
 
       await userEvent.type(input, '   {enter}');
 
@@ -602,92 +631,88 @@ describe('App - Advanced Test Coverage', () => {
   });
 
   describe('Click outside and escape handlers', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    it('toggles context picker closed on second click', async () => {
+      render(<App />);
+
+      fireEvent.click(screen.getByLabelText('Add context'));
+
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
+
+      // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
+      act(() => { vi.advanceTimersByTime(150); });
+
+      // Click the toggle again -> should close
+      fireEvent.click(screen.getByLabelText('Add context'));
+
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
+    });
+
     it('closes context picker on click outside', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
+      fireEvent.click(screen.getByLabelText('Add context'));
 
-      postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
-      });
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Click outside (on the main app)
-      await userEvent.click(screen.getByText('OpenHands'));
+      fireEvent.click(screen.getByText('OpenHands'));
 
-      await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
     });
 
     it('closes context picker on Escape key', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
+      fireEvent.click(screen.getByLabelText('Add context'));
 
-      postToWindow({ type: 'workspaceFiles', files: ['test.ts'] });
-
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
-      });
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Press Escape
-      await userEvent.keyboard('{Escape}');
+      fireEvent.keyDown(document, { key: 'Escape' });
 
-      await waitFor(() => {
-        expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
     });
 
     it('closes skills popover on click outside', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
+      fireEvent.click(screen.getByLabelText('Skills'));
 
-      postToWindow({ type: 'skillsList', skills: [{ label: 'Test', path: '/test.md' }] });
-
-      await waitFor(() => {
-        expect(screen.getByText('Test')).toBeInTheDocument();
-      });
+      expect(screen.getByText('Available Skills')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Click outside
-      await userEvent.click(screen.getByText('OpenHands'));
+      fireEvent.click(screen.getByText('OpenHands'));
 
-      await waitFor(() => {
-        expect(screen.queryByText('Test')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByText('Available Skills')).not.toBeInTheDocument();
     });
 
     it('closes skills popover on Escape key', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Skills' }));
+      fireEvent.click(screen.getByLabelText('Skills'));
 
-      postToWindow({ type: 'skillsList', skills: [{ label: 'Test', path: '/test.md' }] });
-
-      await waitFor(() => {
-        expect(screen.getByText('Test')).toBeInTheDocument();
-      });
+      expect(screen.getByText('Available Skills')).toBeInTheDocument();
 
       // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
-      await new Promise(resolve => setTimeout(resolve, 150));
+      act(() => { vi.advanceTimersByTime(150); });
 
       // Press Escape
-      await userEvent.keyboard('{Escape}');
+      fireEvent.keyDown(document, { key: 'Escape' });
 
-      await waitFor(() => {
-        expect(screen.queryByText('Test')).not.toBeInTheDocument();
-      });
+      expect(screen.queryByText('Available Skills')).not.toBeInTheDocument();
     });
   });
 
@@ -723,12 +748,14 @@ describe('App - Advanced Test Coverage', () => {
       mockApi.postMessage.mockClear();
 
       // Query rendered events
-      postToWindow({ type: 'queryRenderedEvents' });
+      const requestId = 'test-query-rendered-events';
+      postToWindow({ type: 'queryRenderedEvents', requestId });
 
       await waitFor(() => {
         expect(mockApi.postMessage).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'renderedEventsResponse',
+            requestId,
             count: 2,
             eventTypes: ['MessageEvent', 'MessageEvent']
           })
@@ -772,7 +799,7 @@ describe('App - Advanced Test Coverage', () => {
     it('filters workspace files based on query', async () => {
       render(<App />);
 
-      await userEvent.click(screen.getByRole('button', { name: 'Context' }));
+      await userEvent.click(screen.getByLabelText('Add context'));
 
       postToWindow({
         type: 'workspaceFiles',
@@ -866,15 +893,15 @@ describe('App - Advanced Test Coverage', () => {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
-        tool_name: 'terminal',
+        tool_name: 'custom-tool',
         tool_call_id: 'obs-1',
         action_id: 'action-1'
       };
 
       postToWindow({ type: 'event', event: observation });
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show more/i })).toBeInTheDocument();
       });
     });
 
@@ -886,25 +913,25 @@ describe('App - Advanced Test Coverage', () => {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: { output: longOutput },
-        tool_name: 'terminal',
+        tool_name: 'custom-tool',
         tool_call_id: 'obs-2',
         action_id: 'action-2'
       };
 
       postToWindow({ type: 'event', event: observation });
 
-      const showMoreBtn = await screen.findByText(/Show more/);
+      const showMoreBtn = await screen.findByRole('button', { name: /Show more/i });
       await userEvent.click(showMoreBtn);
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show less/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show less/i })).toBeInTheDocument();
       });
 
-      const showLessBtn = screen.getByText(/Show less/);
+      const showLessBtn = await screen.findByRole('button', { name: /Show less/i });
       await userEvent.click(showLessBtn);
 
-      await waitFor(() => {
-        expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      await waitFor(async () => {
+        expect(await screen.findByRole('button', { name: /Show more/i })).toBeInTheDocument();
       });
     });
   });

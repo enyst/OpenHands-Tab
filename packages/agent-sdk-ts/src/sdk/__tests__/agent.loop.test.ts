@@ -7,6 +7,7 @@ import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
+import { FileEditorTool } from '../../tools';
 
 class MockLLM implements LLMClient {
   constructor(private readonly chunks: LLMStreamChunk[]) {}
@@ -14,6 +15,21 @@ class MockLLM implements LLMClient {
   async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     void _request;
     for (const chunk of this.chunks) {
+      yield chunk;
+    }
+  }
+}
+
+class SequencedLLM implements LLMClient {
+  private idx = 0;
+
+  constructor(private readonly sequences: LLMStreamChunk[][]) {}
+
+  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    void _request;
+    const seq = this.sequences[this.idx] ?? [];
+    this.idx += 1;
+    for (const chunk of seq) {
       yield chunk;
     }
   }
@@ -74,12 +90,146 @@ describe('Agent loop control', () => {
     expect(eventsAfterRun.some(isActionEvent)).toBe(true);
     expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
     expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
 
     await agent.approveAction();
     const eventsAfterApproval = log.list();
     expect(eventsAfterApproval.some(isObservationEvent)).toBe(true);
     const toolMessages = eventsAfterApproval.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages.length).toBe(1);
+  });
+
+  it('prompts for confirmation before accessing files outside the workspace', async () => {
+    const log = new EventLog();
+    const workspaceRoot = createWorkspaceRoot();
+    const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-'));
+    const outsidePath = path.join(externalDir, 'outside.txt');
+    fs.writeFileSync(outsidePath, 'hello', 'utf8');
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Viewing file' },
+      { type: 'tool_call_delta', id: 'call_1', name: 'file_editor', arguments: JSON.stringify({ command: 'view', path: outsidePath }) },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [new FileEditorTool()],
+    });
+
+    await agent.run('view a file');
+    const eventsAfterRun = log.list();
+    expect(eventsAfterRun.some(isActionEvent)).toBe(true);
+    expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
+    expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
+
+    await agent.approveAction();
+    const eventsAfterApproval = log.list();
+    const obs = eventsAfterApproval.filter(isObservationEvent).find((e) => e.tool_name === 'file_editor' && e.tool_call_id === 'call_1');
+    expect(obs).toBeTruthy();
+    expect(JSON.stringify(obs?.observation ?? {})).toContain('hello');
+
+    fs.rmSync(externalDir, { recursive: true, force: true });
+  });
+
+  it('allows creating an external file after approval', async () => {
+    const log = new EventLog();
+    const workspaceRoot = createWorkspaceRoot();
+    const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-create-'));
+    const outsidePath = path.join(externalDir, 'new.txt');
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Creating file' },
+      {
+        type: 'tool_call_delta',
+        id: 'call_create',
+        name: 'file_editor',
+        arguments: JSON.stringify({ command: 'create', path: outsidePath, file_text: 'hello' }),
+      },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [new FileEditorTool()],
+    });
+
+    await agent.run('create a file');
+    const eventsAfterRun = log.list();
+    expect(eventsAfterRun.some(isActionEvent)).toBe(true);
+    expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
+    expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
+    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
+
+    await agent.approveAction();
+    expect(fs.existsSync(outsidePath)).toBe(true);
+    expect(fs.readFileSync(outsidePath, 'utf8')).toBe('hello');
+
+    fs.rmSync(externalDir, { recursive: true, force: true });
+  });
+
+  it('does not grant directory access when creating an external file', async () => {
+    const log = new EventLog();
+    const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-create-siblings-'));
+    const outsidePath = path.join(externalDir, 'new.txt');
+    const siblingPath = path.join(externalDir, 'sibling.txt');
+    fs.writeFileSync(siblingPath, 'sibling', 'utf8');
+
+    const llm = new SequencedLLM([
+      [
+        { type: 'text', text: 'Creating file' },
+        {
+          type: 'tool_call_delta',
+          id: 'call_create',
+          name: 'file_editor',
+          arguments: JSON.stringify({ command: 'create', path: outsidePath, file_text: 'hello' }),
+        },
+        { type: 'finish' },
+      ],
+      [
+        { type: 'text', text: 'Viewing sibling' },
+        { type: 'tool_call_delta', id: 'call_view', name: 'file_editor', arguments: JSON.stringify({ command: 'view', path: siblingPath }) },
+        { type: 'finish' },
+      ],
+    ]);
+
+    const agent = new Agent({
+      settings: { ...baseSettings, conversation: { maxIterations: 2 } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [new FileEditorTool()],
+    });
+
+    await agent.run('create then view');
+    const pausesAfterRun = log.list().filter(isPauseEvent);
+    expect(pausesAfterRun).toHaveLength(1);
+    expect(pausesAfterRun[0]?.source).toBe('agent');
+
+    await agent.approveAction();
+    expect(fs.existsSync(outsidePath)).toBe(true);
+
+    const pauses = log.list().filter(isPauseEvent);
+    expect(pauses.length).toBe(2);
+    expect(pauses.every((pause) => pause.source === 'agent')).toBe(true);
+
+    const siblingObs = log.list().filter(isObservationEvent).find((e) => e.tool_call_id === 'call_view');
+    expect(siblingObs).toBeUndefined();
+
+    fs.rmSync(externalDir, { recursive: true, force: true });
   });
 
   it('records agent error when tool arguments are not objects', async () => {
@@ -110,8 +260,7 @@ describe('Agent loop control', () => {
     expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_invalid');
 
     const actions = events.filter(isActionEvent);
-    expect(actions).toHaveLength(1);
-    expect((actions[0] as { tool_call_id?: string }).tool_call_id).toBe('call_invalid');
+    expect(actions).toHaveLength(0);
 
     expect(events.some(isObservationEvent)).toBe(false);
   });
@@ -144,8 +293,7 @@ describe('Agent loop control', () => {
     expect((agentErrors[0] as { tool_call_id?: string }).tool_call_id).toBe('call_primitive');
 
     const actions = events.filter(isActionEvent);
-    expect(actions).toHaveLength(1);
-    expect((actions[0] as { tool_call_id?: string }).tool_call_id).toBe('call_primitive');
+    expect(actions).toHaveLength(0);
 
     expect(events.some(isObservationEvent)).toBe(false);
   });

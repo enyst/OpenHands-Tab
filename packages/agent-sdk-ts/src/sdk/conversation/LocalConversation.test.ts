@@ -97,7 +97,7 @@ describe('LocalConversation', () => {
     await conversation.sendUserMessage('do something');
 
     const errors = events.filter(isAgentErrorEvent);
-    expect(errors.some((e) => e.error.includes('Invalid tool arguments'))).toBe(true);
+    expect(errors.some((e) => e.error.includes('Error validating args'))).toBe(true);
     const finalAssistant = events
       .filter((e): e is MessageEvent => isMessageEvent(e) && e.source === 'agent')
       .pop();
@@ -120,7 +120,7 @@ describe('LocalConversation', () => {
     await conversation.sendUserMessage('call bad tool');
 
     const error = events.find(isAgentErrorEvent);
-    expect(error?.error).toContain('Unknown tool');
+    expect(error?.error).toContain('not found');
   });
 
   it('captures tool validation failures as AgentErrorEvents', async () => {
@@ -152,5 +152,38 @@ describe('LocalConversation', () => {
     // In this scenario, the failure happens at validation time, so no ConversationErrorEvent is expected.
     const conversationError = events.find(isConversationErrorEvent);
     expect(conversationError).toBeUndefined();
+  });
+
+  it('emits ConversationErrorEvent when no LLM API key is available', async () => {
+    const envKeys = [
+      'OPENAI_API_KEY',
+      'OPENROUTER_API_KEY',
+      'LITELLM_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'LLM_API_KEY',
+    ];
+    const previous = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+    for (const key of envKeys) delete process.env[key];
+
+    try {
+      const conversation = new LocalConversation({ settings: baseSettings, tools: createDefaultTools() });
+      const events: Event[] = [];
+      conversation.on('event', (e: Event) => events.push(e));
+
+      await conversation.sendUserMessage('hi');
+
+      const error = events.find(isConversationErrorEvent);
+      expect(error).toBeDefined();
+      expect(error?.detail).toContain('Missing API key for LLM provider');
+    } finally {
+      for (const key of envKeys) {
+        const value = previous[key];
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
   });
 });

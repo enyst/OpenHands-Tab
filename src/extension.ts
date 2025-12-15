@@ -2,33 +2,105 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { SettingsManager } from './settings/SettingsManager';
+import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
-import { FileStore } from '@openhands/agent-sdk-ts';
 import {
   Conversation,
   type ConversationInstance,
-  BrowserTool,
   FileEditorTool,
   TaskTrackerTool,
   TerminalTool,
+  type BashEvent,
+  type Event,
   isBashCommand,
   isBashExit,
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
-import { OpenHandsViewProvider } from './sidebar/OpenHandsViewProvider';
+import { OpenHandsChatViewProvider } from './sidebar/OpenHandsChatViewProvider';
+import { attachConversationListeners } from './conversation/host/attachConversationListeners';
+import { createConfigurationChangeHandler } from './settings/host/createConfigurationChangeHandler';
+import { createWebviewMessageHandler } from './webview/host/createWebviewMessageHandler';
 
-let panel: vscode.WebviewPanel | undefined;
+type RenderedEventsInfo = { count: number; eventTypes: string[] };
+type UiStateSnapshot = {
+  input: string;
+  showContextPicker: boolean;
+  showSkillsPopover: boolean;
+  showHistory: boolean;
+  workspaceFilesCount: number;
+  selectedContextFiles: string[];
+  skillsCount: number;
+  attachmentsCount: number;
+};
+
+const DEFAULT_UI_STATE: UiStateSnapshot = {
+  input: '',
+  showContextPicker: false,
+  showSkillsPopover: false,
+  showHistory: false,
+  workspaceFilesCount: 0,
+  selectedContextFiles: [],
+  skillsCount: 0,
+  attachmentsCount: 0,
+};
+
+let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;
 let conversationMode: 'local' | 'remote' = 'remote';
 let terminal: vscode.Terminal | undefined;
-let renderedEventsInfo: { count: number; eventTypes: string[] } | undefined;
-let webviewReady = false; // Track if webview is ready to receive messages
+let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
+let nextE2ERequestId = 0;
+const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo) => void>();
+const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
+let chatWebviewReady = false; // Track if chat WebviewView is ready
+let chatLastConversationId: string | undefined;
+let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
+let conversationStoreRoot: string | undefined;
+let lastKnownLlmModel: string | null = null;
+let verboseEventLogging = false;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
+const MAX_EVENT_BACKLOG = 2000;
+type BufferedConversationEvent = { seq: number; event: Event };
+const conversationEventBacklog: Array<BufferedConversationEvent | undefined> = [];
+let conversationEventBacklogStart = 0;
+let conversationEventBacklogSize = 0;
+let conversationEventSeq = 0;
+let activeConversationId: string | undefined;
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
-const sentTestEvents: unknown[] = [];
+const sentTestEvents: Event[] = [];
+// Track which command_ids have already printed an exit summary to avoid duplicates
+const printedExitFor = new Set<string>();
+
+function nextRequestId(prefix: string): string {
+  nextE2ERequestId += 1;
+  return `${prefix}-${Date.now().toString(36)}-${nextE2ERequestId}`;
+}
+
+function createPendingResponse<T>(
+  map: Map<string, (value: T) => void>,
+  requestId: string,
+  timeoutMs: number
+): { promise: Promise<T | undefined>; cancel: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const promise = new Promise<T | undefined>((resolve) => {
+    timer = setTimeout(() => {
+      map.delete(requestId);
+      resolve(undefined);
+    }, timeoutMs);
+    map.set(requestId, (value: T) => {
+      if (timer) clearTimeout(timer);
+      map.delete(requestId);
+      resolve(value);
+    });
+  });
+  const cancel = () => {
+    if (timer) clearTimeout(timer);
+    map.delete(requestId);
+  };
+  return { promise, cancel };
+}
 
 // Dev logging/instrumentation toggle and file sink
 let devBridgeEnabled = false;
@@ -45,276 +117,732 @@ async function initFileLogger(context: vscode.ExtensionContext) {
 function fileLog(line: string) {
   if (!devBridgeEnabled || !webviewLogFile) return;
   const ts = new Date().toISOString();
-  fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch(() => {});
+  fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch((err: unknown) => {
+    console.warn('[OpenHands] Failed to append to webview log', err);
+  });
+}
+
+function resetConversationEventBacklog(conversationId: string | undefined) {
+  activeConversationId = conversationId;
+  conversationEventSeq = 0;
+  conversationEventBacklogStart = 0;
+  conversationEventBacklogSize = 0;
+  conversationEventBacklog.length = 0;
+}
+
+function bufferConversationEvent(event: Event): number {
+  conversationEventSeq += 1;
+  const item: BufferedConversationEvent = { seq: conversationEventSeq, event };
+  if (conversationEventBacklogSize < MAX_EVENT_BACKLOG) {
+    const idx = (conversationEventBacklogStart + conversationEventBacklogSize) % MAX_EVENT_BACKLOG;
+    conversationEventBacklog[idx] = item;
+    conversationEventBacklogSize += 1;
+  } else {
+    conversationEventBacklog[conversationEventBacklogStart] = item;
+    conversationEventBacklogStart = (conversationEventBacklogStart + 1) % MAX_EVENT_BACKLOG;
+  }
+  return conversationEventSeq;
+}
+
+function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
+  for (let i = 0; i < conversationEventBacklogSize; i += 1) {
+    const idx = (conversationEventBacklogStart + i) % MAX_EVENT_BACKLOG;
+    const item = conversationEventBacklog[idx];
+    if (item) yield item;
+  }
+}
+
+function flushConversationEventBacklog(params: {
+  postMessage: (message: unknown) => Thenable<boolean>;
+  clientConversationId?: string;
+  clientLastSeenSeq?: number;
+}) {
+  const currentConversationId = activeConversationId ?? conversation?.getConversationId();
+  if (!currentConversationId) {
+    return;
+  }
+
+  const earliestSeq = conversationEventBacklogSize > 0 ? conversationEventSeq - conversationEventBacklogSize + 1 : undefined;
+  const latestSeq = conversationEventBacklogSize > 0 ? conversationEventSeq : undefined;
+  const lastSeenSeq = params.clientLastSeenSeq;
+
+  const lastSeenIsValid = typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq);
+  const isInRange = lastSeenIsValid && (earliestSeq === undefined || lastSeenSeq >= earliestSeq - 1);
+  const needsFullReplay = params.clientConversationId !== currentConversationId || !isInRange;
+
+  if (needsFullReplay) {
+    void params.postMessage({ type: 'conversationStarted', conversationId: currentConversationId });
+    for (const item of iterConversationEventBacklog()) {
+      void params.postMessage({ type: 'event', seq: item.seq, event: item.event });
+    }
+    return;
+  }
+
+  if (latestSeq === undefined || lastSeenSeq === undefined || lastSeenSeq >= latestSeq) {
+    return;
+  }
+
+  for (const item of iterConversationEventBacklog()) {
+    if (item.seq > lastSeenSeq) {
+      void params.postMessage({ type: 'event', seq: item.seq, event: item.event });
+    }
+  }
+}
+
+const normalizeTerminalNewlines = (text: string): string => text.replace(/\r?\n/g, '\r\n');
+
+const sanitizeTerminalControlSequences = (text: string): string => {
+  if (!text.includes('\u001b')) return text;
+
+  const esc = '\u001b';
+  const bel = '\u0007';
+
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === esc) {
+      const introducer = text[i + 1];
+      const isOsc = introducer === ']';
+      const isStringSequence = isOsc || introducer === 'P' || introducer === '^' || introducer === '_';
+
+      if (isStringSequence) {
+        i += 2; // skip ESC + introducer
+        while (i < text.length) {
+          const c = text[i];
+          if (isOsc && c === bel) {
+            i += 1;
+            break;
+          }
+          if (c === esc && text[i + 1] === '\\') {
+            i += 2;
+            break;
+          }
+          i += 1;
+        }
+        continue;
+      }
+    }
+
+    out += ch;
+    i += 1;
+  }
+
+  return out;
+};
+
+type TerminalLogPseudoterminalOptions = {
+  renderProgress: boolean;
+};
+
+class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
+  private static readonly PTY_WRITE_CHUNK_SIZE = 16_000;
+  private static readonly MAX_PENDING_LINE_CHARS = 200_000;
+
+  private readonly writeEmitter = new vscode.EventEmitter<string>();
+  private readonly closeEmitter = new vscode.EventEmitter<void>();
+  private closed = false;
+  private showedInputHint = false;
+  private lastEndedWithNewline = true;
+  private readonly renderProgress: boolean;
+  private progressCarry = '';
+  private progressLine = '';
+  private warnedProgressOverflow = false;
+
+  readonly onDidWrite = this.writeEmitter.event;
+  readonly onDidClose = this.closeEmitter.event;
+
+  constructor(options?: Partial<TerminalLogPseudoterminalOptions>) {
+    this.renderProgress = options?.renderProgress ?? true;
+  }
+
+  open(): void {
+    this.writeLine('[OpenHands] Terminal log (read-only)');
+  }
+
+  close(): void {
+    if (this.closed) return;
+    if (this.progressLine) {
+      this.writeRaw(`${this.sanitizeProgressLine(this.progressLine)}\n`);
+      this.progressLine = '';
+    }
+    this.progressCarry = '';
+    this.closed = true;
+    this.closeEmitter.fire();
+    this.writeEmitter.dispose();
+    this.closeEmitter.dispose();
+  }
+
+  isClosed(): boolean { return this.closed; }
+
+  ensureNewline(): void {
+    if (this.progressLine || this.progressCarry) {
+      const line = this.sanitizeProgressLine(this.progressLine);
+      this.progressLine = '';
+      this.progressCarry = '';
+      this.writeRaw(`${line}\n`);
+      return;
+    }
+    if (!this.lastEndedWithNewline) this.writeRaw('\n');
+  }
+
+  handleInput(_data: string): void {
+    if (this.closed || this.showedInputHint) return;
+    this.showedInputHint = true;
+    this.writeLine('');
+    this.writeLine('[OpenHands] This terminal is read-only.');
+    this.writeLine('[OpenHands] Use a normal VS Code terminal for manual commands.');
+    this.writeLine('');
+  }
+
+  private emitChunk(chunk: string): void {
+    if (!chunk) return;
+    this.writeEmitter.fire(chunk);
+    this.lastEndedWithNewline = /\n$/.test(chunk);
+  }
+
+  private writeRaw(text: string): void {
+    if (this.closed) return;
+    const sanitized = sanitizeTerminalControlSequences(text);
+    const normalized = normalizeTerminalNewlines(sanitized);
+
+    const max = OpenHandsTerminalLogPseudoterminal.PTY_WRITE_CHUNK_SIZE;
+    let start = 0;
+    while (start < normalized.length) {
+      let end = Math.min(start + max, normalized.length);
+
+      // Prefer to split on newline boundaries if possible
+      const slice = normalized.slice(start, end);
+      const lastNl = slice.lastIndexOf('\n');
+      if (lastNl > 0 && start + lastNl + 1 < normalized.length) {
+        end = start + lastNl + 1;
+      }
+
+      // Avoid splitting surrogate pairs
+      const prevChar = normalized.charCodeAt(end - 1);
+      if (prevChar >= 0xd800 && prevChar <= 0xdbff && end < normalized.length) {
+        end -= 1;
+      }
+
+      // Avoid cutting off an ANSI CSI sequence (ESC [ ... terminator @-~) at the end of the chunk (best-effort)
+      const tail = normalized.slice(start, end);
+      const escIdx = tail.lastIndexOf('\u001b[');
+      if (escIdx >= 0) {
+        const afterCsi = tail.slice(escIdx + 2); // after ESC [
+        const hasTerminator = /[@-~]/.test(afterCsi); // CSI typically ends with a byte in @-~
+        if (!hasTerminator && escIdx > 0) {
+          end = start + escIdx;
+        }
+      }
+
+      this.emitChunk(normalized.slice(start, end));
+      start = end;
+    }
+  }
+
+  private sanitizeProgressLine(line: string): string {
+    // ANSI erase-to-EOL (CSI K) is used by progress bars to clear leftover text.
+    // In our coalesced rendering (keeping only last update), the erase is redundant
+    // and can be safely removed to keep the log readable.
+    if (!line.includes('\u001b[')) return line;
+
+    const esc = '\u001b';
+    let out = '';
+
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === esc && line[i + 1] === '[') {
+        let j = i + 2;
+        while (j < line.length) {
+          const code = line.charCodeAt(j);
+          const isDigit = code >= 48 && code <= 57;
+          const isSemicolon = code === 59;
+          if (!isDigit && !isSemicolon) break;
+          j += 1;
+        }
+
+        if (line[j] === 'K') {
+          i = j;
+          continue;
+        }
+      }
+
+      out += line[i];
+    }
+
+    return out;
+  }
+
+  private splitTrailingIncompleteCsi(text: string): { prefix: string; carry: string } {
+    if (!text) return { prefix: '', carry: '' };
+
+    if (text.endsWith('\u001b')) {
+      return { prefix: text.slice(0, -1), carry: '\u001b' };
+    }
+
+    const escIdx = text.lastIndexOf('\u001b[');
+    if (escIdx < 0) return { prefix: text, carry: '' };
+
+    const afterCsi = text.slice(escIdx + 2);
+    const hasTerminator = /[@-~]/.test(afterCsi);
+    if (hasTerminator) return { prefix: text, carry: '' };
+
+    return { prefix: text.slice(0, escIdx), carry: text.slice(escIdx) };
+  }
+
+  private writeWithProgressCoalescing(text: string): void {
+    if (this.closed) return;
+
+    // Normalize CRLF -> LF so we can treat standalone CR as progress-only updates.
+    const combined = (this.progressCarry + text).replace(/\r\n/g, '\n');
+    this.progressCarry = '';
+
+    const { prefix, carry } = this.splitTrailingIncompleteCsi(combined);
+    this.progressCarry = carry;
+    if (this.progressCarry.length > OpenHandsTerminalLogPseudoterminal.MAX_PENDING_LINE_CHARS) {
+      if (!this.warnedProgressOverflow) {
+        this.warnedProgressOverflow = true;
+        console.warn('[OpenHands] Terminal progress renderer overflowed (carry); flushing to avoid memory growth.');
+      }
+      this.progressCarry = '';
+    }
+
+    const parts = prefix.split('\n');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLast = i === parts.length - 1;
+
+      const lastCr = part.lastIndexOf('\r');
+      if (lastCr >= 0) {
+        this.progressLine = part.slice(lastCr + 1);
+      } else {
+        this.progressLine += part;
+      }
+
+      if (!isLast) {
+        const line = this.sanitizeProgressLine(this.progressLine);
+        this.progressLine = '';
+        this.writeRaw(`${line}\n`);
+      }
+    }
+
+    if (this.progressLine.length > OpenHandsTerminalLogPseudoterminal.MAX_PENDING_LINE_CHARS) {
+      const overflow = this.sanitizeProgressLine(this.progressLine);
+      this.progressLine = '';
+      this.progressCarry = '';
+      if (!this.warnedProgressOverflow) {
+        this.warnedProgressOverflow = true;
+        console.warn('[OpenHands] Terminal progress renderer overflowed; flushing to avoid memory growth.');
+      }
+      this.writeRaw(`${overflow}\n`);
+    }
+  }
+
+  write(text: string): void {
+    if (!this.renderProgress) {
+      this.writeRaw(text);
+      return;
+    }
+    this.writeWithProgressCoalescing(text);
+  }
+
+  writeLine(line: string): void {
+    this.write(`${line}\n`);
+  }
 }
 
 const createDefaultLocalTools = () => [
   new TerminalTool(),
   new FileEditorTool(),
   new TaskTrackerTool(),
-  new BrowserTool(),
 ];
 
+/** Render an error for logging/display (handles Error objects and unknown values) */
+function renderError(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+}
+
+function shouldRedactKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return (
+    k.includes('api_key') ||
+    k === 'apikey' ||
+    k === 'authorization' ||
+    k === 'auth' ||
+    k.includes('accesskey') ||
+    k.endsWith('token') ||
+    k.includes('secret') ||
+    k === 'llmapikey' ||
+    k === 'sessionapikey'
+  );
+}
+
+const REDACTED = '[REDACTED]';
+
+function redactStringHeuristics(text: string): string {
+  let t = text;
+
+  // Authorization / Bearer patterns
+  t = t.replace(/(Authorization\s*:\s*Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
+  t = t.replace(/(Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
+
+  // Common token prefixes
+  t = t.replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gi, REDACTED);
+  t = t.replace(/\bgh[pousr]_[A-Za-z0-9]{12,}\b/gi, REDACTED);
+  t = t.replace(/\bgithub_pat_[A-Za-z0-9_]{12,}\b/gi, REDACTED);
+
+  // AWS access key ids (AKIA..., ASIA...)
+  t = t.replace(/\b(AKIA|ASIA)[0-9A-Z]{16}\b/g, REDACTED);
+
+  // Common key=value or key: value patterns
+  const keyPattern =
+    /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret|aws[_-]?access[_-]?key[_-]?id|aws[_-]?secret[_-]?access[_-]?key)/gi;
+  t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, key) => `${key}: ${REDACTED}`);
+  t = t.replace(new RegExp(`([?&])(${keyPattern.source})=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=${REDACTED}`);
+
+  return t;
+}
+
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 function safeStringify(value: unknown): string {
   try {
-    return JSON.stringify(value, (_key, val) => (typeof val === 'bigint' ? val.toString() : val));
+    const rendered = JSON.stringify(
+      value,
+      (key, val) => {
+        if (typeof val === 'bigint') return val.toString();
+        if (typeof key === 'string' && shouldRedactKey(key)) return REDACTED;
+        if (typeof val === 'string') return redactStringHeuristics(val);
+        return val;
+      }
+    );
+    if (typeof rendered === 'string') return rendered;
+    return '<unserializable: undefined>';
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return `<unserializable: ${reason}>`;
   }
 }
+/* eslint-enable @typescript-eslint/no-unsafe-return */
 
-async function listWorkspaceFiles(limit = 500): Promise<string[]> {
-  if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-    return [];
-  }
-  try {
-    const uris = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**,**/dist/**,**/out/**,**/build/**,**/.venv/**}', limit);
-    const unique = new Set<string>();
-    for (const uri of uris) {
-      const relative = vscode.workspace.asRelativePath(uri, false);
-      if (relative) unique.add(relative);
-    }
-    return Array.from(unique).sort((a, b) => a.localeCompare(b));
-  } catch (err) {
-    console.error('[OpenHands] Failed to list workspace files', err);
-    return [];
-  }
+function normalizeNonEmptyString(value: string | undefined | null): string | undefined {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed || undefined;
 }
 
-async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
-  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
-  try {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    const files = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
-    return files
-      .map((entry) => {
-        const absolutePath = path.join(skillsDir, entry.name);
-        const label = entry.name.slice(0, -3); // remove .md
-        return { label, path: absolutePath };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error('[OpenHands] Failed to read skills directory', err);
-    }
-    return [];
+function resolveConfiguredPath(p: string): string {
+  const raw = p.trim();
+  if (raw.startsWith('~/') || raw === '~') {
+    const suffix = raw === '~' ? '' : raw.slice(2);
+    return path.join(os.homedir(), suffix);
   }
+  if (raw.startsWith('~\\')) {
+    return path.join(os.homedir(), raw.slice(2));
+  }
+  if (path.isAbsolute(raw)) return raw;
+  // Prefer homedir-relative resolution so behavior is stable even with no workspace open.
+  return path.resolve(os.homedir(), raw);
+}
+
+async function ensureWritableDirectory(dir: string): Promise<void> {
+  await fs.mkdir(dir, { recursive: true });
+  const probe = path.join(dir, `.openhands-write-probe-${process.pid}-${Date.now()}`);
+  await fs.writeFile(probe, 'ok', 'utf8');
+  await fs.unlink(probe);
+}
+
+async function resolveConversationStoreRoot(context: vscode.ExtensionContext): Promise<string> {
+  const cfg = vscode.workspace.getConfiguration();
+  const configured = normalizeNonEmptyString(cfg.get<string>('openhands.conversation.storeRoot'));
+
+  const candidates: Array<{ label: string; dir: string }> = [];
+  if (configured) candidates.push({ label: 'setting openhands.conversation.storeRoot', dir: resolveConfiguredPath(configured) });
+
+  try {
+    candidates.push({ label: 'default ~/.openhands/conversations-vscode', dir: path.join(os.homedir(), '.openhands', 'conversations-vscode') });
+  } catch (err) {
+    outputChannel?.appendLine(`[storage] Failed to compute home dir default: ${renderError(err)}`);
+  }
+
+  const globalStorage = (context as unknown as { globalStorageUri?: vscode.Uri }).globalStorageUri?.fsPath;
+  if (globalStorage) {
+    candidates.push({ label: 'VS Code globalStorageUri', dir: path.join(globalStorage, 'conversations') });
+  }
+
+  candidates.push({ label: 'os.tmpdir()', dir: path.join(os.tmpdir(), 'openhands-conversations-vscode') });
+
+  for (const candidate of candidates) {
+    try {
+      await ensureWritableDirectory(candidate.dir);
+      if (candidate.dir !== candidates[0]?.dir) {
+        outputChannel?.appendLine(`[storage] Using conversation store root: ${candidate.dir} (${candidate.label})`);
+      }
+      return candidate.dir;
+    } catch (err) {
+      outputChannel?.appendLine(`[storage] Cannot use ${candidate.label} (${candidate.dir}): ${renderError(err)}`);
+    }
+  }
+
+  // Last resort: return tmp path even if we couldn't probe it; conversation may still run without persistence.
+  return path.join(os.tmpdir(), 'openhands-conversations-vscode');
 }
 
 export function activate(context: vscode.ExtensionContext) {
   try {
-    const factory = (vscode.window as typeof vscode.window & { createOutputChannel?: typeof vscode.window.createOutputChannel }).createOutputChannel;
-    if (factory) {
-      const channel = factory('OpenHands', { log: true } as any);
-      if (channel) {
-        outputChannel = channel;
-        context.subscriptions.push(channel);
-        channel.show?.(true);
-        channel.appendLine?.('[OpenHands] Logging channel initialized');
-      }
-    }
+    const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
+    outputChannel = channel;
+    context.subscriptions.push(channel);
+    channel.show(true);
+    channel.appendLine('[OpenHands] Logging channel initialized');
   } catch (err) {
     console.warn('[OpenHands] Failed to create output channel:', err);
     outputChannel = undefined;
   }
 
-  const sidebarProvider = new OpenHandsViewProvider();
-  const treeView = vscode.window.createTreeView('openhands.quickActions', { treeDataProvider: sidebarProvider });
-  context.subscriptions.push(treeView);
-  context.subscriptions.push(treeView.onDidChangeVisibility((event) => {
-    if (event.visible) {
-      void vscode.commands.executeCommand('openhands.openTab');
-    }
-  }));
+  const chatViewProvider = new OpenHandsChatViewProvider(context, {
+    createMessageHandler: (view) =>
+      createWebviewMessageHandler({
+        context,
+        host: { postMessage: (message) => view.webview.postMessage(message) },
+        getConversation: () => conversation,
+        getConversationMode: () => conversationMode,
+        getConversationStoreRoot: () => conversationStoreRoot,
+        resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
+        setWebviewReadyState: (conversationId, lastSeenSeq) => {
+          chatWebviewReady = true;
+          chatLastConversationId = conversationId;
+          chatLastSeenSeq = lastSeenSeq;
+        },
+        setLastKnownLlmModel: (model) => {
+          lastKnownLlmModel = model;
+        },
+        getLastKnownLlmModel: () => lastKnownLlmModel,
+        flushConversationEventBacklog,
+        onRenderedEventsResponse: (requestId, info) => {
+          pendingRenderedEventsRequests.get(requestId)?.(info);
+        },
+        onUiStateResponse: (requestId, info) => {
+          pendingUiStateRequests.get(requestId)?.(info);
+        },
+        isDevBridgeEnabled: () => devBridgeEnabled,
+        getOutputChannel: () => outputChannel,
+        fileLog,
+      }),
+    onResolved: (view) => {
+      chatView = view;
+      chatWebviewReady = false;
+      void ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
+        outputChannel?.appendLine(`[error] ensureConversationAndConnection failed: ${renderError(err)}`);
+      });
+    },
+    onDisposed: () => {
+      chatView = undefined;
+      chatWebviewReady = false;
+      chatLastConversationId = undefined;
+      chatLastSeenSeq = undefined;
+    },
+  });
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('openhands.chat', chatViewProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    })
+  );
 
   // Enable dev bridge only for Development/Test extension modes or with user setting
-  const ExtMode = (vscode as any).ExtensionMode;
-  const mode = (context as any).extensionMode;
-  const isDevOrTest = !!(ExtMode && (mode === ExtMode.Development || mode === ExtMode.Test));
+  const mode = context.extensionMode;
+  const extensionMode = vscode.ExtensionMode;
+  const isDevOrTest =
+    (extensionMode?.Development !== undefined &&
+      (mode === extensionMode.Development || mode === extensionMode.Test)) ||
+    false;
   const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
   devBridgeEnabled = isDevOrTest || enableFromSetting;
   void initFileLogger(context);
 
-
-  const handleTerminalEvent = (event: any) => {
+  const handleTerminalEvent = (event: BashEvent) => {
     receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
     if (receivedTerminalEvents.length > MAX_TERMINAL_EVENTS) {
       receivedTerminalEvents.shift();
     }
 
-    void panel?.webview.postMessage({ type: 'terminalEvent', event });
+    if (chatView && chatWebviewReady && chatView.visible) {
+      void chatView.webview.postMessage({ type: 'terminalEvent', event });
+    }
 
     if (conversationMode !== 'local') {
       return;
     }
 
-    if (!terminal) {
+    // Recreate terminal if not present or if the PTY has been closed
+    if (!terminal || !terminalLogPty || terminalLogPty.isClosed?.()) {
       try {
-        terminal = vscode.window.createTerminal({ name: 'OpenHands' });
+        const renderProgress =
+          vscode.workspace.getConfiguration().get<boolean>('openhands.terminal.renderProgress') ?? true;
+        terminalLogPty = new OpenHandsTerminalLogPseudoterminal({ renderProgress });
+        terminal = vscode.window.createTerminal({ name: 'OpenHands', pty: terminalLogPty });
         terminal.show(true);
       } catch (e) {
-        console.error('[Terminal] Failed to create terminal:', e);
+        console.error('[Terminal] Failed to create terminal log:', e);
+        terminal = undefined;
+        terminalLogPty = undefined;
         return;
       }
     }
 
     try {
       if (isBashCommand(event)) {
-        terminal.sendText(`$ ${event.command}`, false);
-        terminal.sendText('');
+        // Add a spacer only if previous output didn't end with a newline
+        terminalLogPty.ensureNewline?.();
+        terminalLogPty.writeLine(`$ ${event.command}`);
+        if (event.command_id) printedExitFor.delete(event.command_id);
       } else if (isBashOutput(event)) {
-        if (event.stdout) terminal.sendText(event.stdout, false);
-        if (event.stderr) terminal.sendText(event.stderr, false);
+        if (event.stdout) terminalLogPty.write(event.stdout);
+        if (event.stderr) terminalLogPty.write(event.stderr);
+        // Defensive: if exit_code is provided on output but no BashExit arrives, synthesize a footer once
+        const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
+        const code = 'exit_code' in event ? (event as { exit_code?: number }).exit_code : undefined;
+        if (cid && typeof code === 'number' && !printedExitFor.has(cid)) {
+          terminalLogPty.ensureNewline?.();
+          terminalLogPty.writeLine(`[Process exited with code ${code}]`);
+          printedExitFor.add(cid);
+        }
       } else if (isBashExit(event)) {
-        terminal.sendText(`[Process exited with code ${event.exit_code}]`);
+        terminalLogPty.ensureNewline?.();
+        terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
+        if ('command_id' in event && (event as { command_id?: string }).command_id) {
+          printedExitFor.add((event as { command_id?: string }).command_id as string);
+        }
       }
     } catch (e) {
       console.error('[Terminal] Failed to write terminal event:', e);
     }
   };
 
-  async function ensurePanelAndConnection() {
-    let panelJustCreated = false;
-    if (!panel) {
-      webviewReady = false; // Reset readiness flag for new panel
-      panel = vscode.window.createWebviewPanel(
-        'openhandsTab',
-        'OpenHands Tab',
-        vscode.ViewColumn.Beside,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
-        }
-      );
-      panel.webview.html = getWebviewHtml(context, panel.webview);
-      panel.webview.onDidReceiveMessage(onWebviewMessage(context, panel), undefined, context.subscriptions);
-      panel.onDidDispose(() => {
-        panel = undefined;
-        webviewReady = false;
-      }, null, context.subscriptions);
-      panelJustCreated = true;
-    }
-
+  async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean }) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
+    lastKnownLlmModel = settings.llm.model ?? null;
+
+    const cfg = vscode.workspace.getConfiguration();
+    verboseEventLogging = Boolean(settings.agent?.debug) || Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const rawSavedId = context.workspaceState.get<string>('openhands.conversationId');
-    const savedId = panelJustCreated ? undefined : rawSavedId;
+    const savedId = options?.uiJustCreated ? undefined : rawSavedId;
     const needsNewConversation = !conversation || conversationMode !== desiredMode;
 
     if (needsNewConversation) {
-      try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch {}
+      try {
+        conversation?.removeAllListeners();
+        conversation?.disconnect();
+      } catch {}
+
+      const persistenceDir =
+        desiredMode === 'local'
+          ? await resolveConversationStoreRoot(context).catch((err: unknown) => {
+              outputChannel?.appendLine(`[storage] Failed to resolve conversation store root: ${renderError(err)}`);
+              return path.join(os.tmpdir(), 'openhands-conversations-vscode');
+            })
+          : undefined;
+      conversationStoreRoot = persistenceDir;
+
       const conversationOptions = {
         serverUrl: settings.serverUrl ?? undefined,
         settings,
         workspaceRoot,
         conversationId: savedId,
         tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
-        persistenceDir: settings.serverUrl ? undefined : '.openhands/conversations',
+        persistenceDir,
       };
 
-      conversation = Conversation(conversationOptions);
+      try {
+        conversation = Conversation(conversationOptions);
+      } catch (err) {
+        outputChannel?.appendLine(`[error] Failed to create Conversation: ${renderError(err)}`);
+        // Keep extension alive even if persistence path is broken; fall back to temp.
+        if (desiredMode === 'local' && persistenceDir) {
+          const fallbackDir = path.join(os.tmpdir(), 'openhands-conversations-vscode');
+          outputChannel?.appendLine(`[storage] Retrying Conversation with fallback dir: ${fallbackDir}`);
+          conversationStoreRoot = fallbackDir;
+          conversation = Conversation({ ...conversationOptions, persistenceDir: fallbackDir });
+        } else {
+          throw err;
+        }
+      }
       conversationMode = desiredMode;
 
       conversation.removeAllListeners();
-      conversation.on('status', (s) => {
-        outputChannel?.appendLine(`[status] ${s}`);
-        void panel?.webview.postMessage({ type: 'status', status: s, mode: conversationMode });
+      attachConversationListeners({
+        context,
+        conversation,
+        getOutputChannel: () => outputChannel,
+        getChatView: () => chatView,
+        isChatWebviewReady: () => chatWebviewReady,
+        getConversationMode: () => conversationMode,
+        getLastKnownLlmModel: () => lastKnownLlmModel,
+        isVerboseEventLogging: () => verboseEventLogging,
+        bufferConversationEvent,
+        resetConversationEventBacklog,
+        safeStringify,
+        renderError,
+        handleTerminalEvent,
       });
-      conversation.on('event', (ev) => {
-        outputChannel?.appendLine(`[event] ${safeStringify(ev)}`);
-        // Friendly LLM request summary for debugging
-        try {
-          const evAny = ev as { kind?: unknown; key?: unknown; value?: unknown };
-          if (evAny.kind === 'ConversationStateUpdateEvent' && evAny.key === 'llm_request') {
-            const raw = evAny.value as {
-              model?: unknown;
-              tools?: unknown;
-              tool_count?: unknown;
-            } | undefined;
-            const model = typeof raw?.model === 'string' ? raw.model : undefined;
-            const names = Array.isArray(raw?.tools)
-              ? (raw?.tools as unknown[]).filter((n: unknown) => typeof n === 'string')
-              : [];
-            const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
-            const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
-            outputChannel?.appendLine(summary);
-          }
-        } catch (e) {
-          outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
-        }
-        void panel?.webview.postMessage({ type: 'event', event: ev });
-      });
-      conversation.on('error', (err) => {
-        const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-        outputChannel?.appendLine(`[error] ${rendered}`);
-        if (err instanceof Error && err.stack) {
-          outputChannel?.appendLine(err.stack);
-        }
-        void panel?.webview.postMessage({ type: 'error', error: rendered });
-      });
-      conversation.on('conversationStarted', (id) => {
-        outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
-        void context.workspaceState.update('openhands.conversationId', id);
-        if (id) {
-          void panel?.webview.postMessage({ type: 'conversationStarted', conversationId: id });
-        }
-      });
-      conversation.on('terminal', (event) => handleTerminalEvent(event));
-      if (savedId) {
+
+      if (savedId && conversation) {
         try {
           const maybe = conversation.restoreConversation(savedId);
           void Promise.resolve(maybe).catch((err: unknown) => {
-            const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-            outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
+            outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
           });
         } catch (err) {
-          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-          outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
+          outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
         }
       }
     } else if (conversation) {
       conversation.setSettings(settings);
-      if (savedId) {
-        try {
-          const maybe = conversation.restoreConversation(savedId);
-          void Promise.resolve(maybe).catch((err: unknown) => {
-            const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-            outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-          });
-        } catch (err) {
-          const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-          outputChannel?.appendLine(`[restoreConversation] ${rendered}`);
-        }
-      }
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
     }
 
-    void panel?.webview.postMessage({
-      type: 'status',
-      status: conversation?.getStatus() ?? 'offline',
-      mode: conversationMode,
-    });
-
-    panel?.reveal();
+    if (chatView && chatWebviewReady && chatView.visible) {
+      void chatView.webview.postMessage({
+        type: 'status',
+        status: conversation?.getStatus() ?? 'offline',
+        mode: conversationMode,
+        llmModel: lastKnownLlmModel,
+      });
+    }
   }
 
-  const openTab = vscode.commands.registerCommand('openhands.openTab', async () => {
-    await ensurePanelAndConnection();
+  const open = vscode.commands.registerCommand('openhands.open', async () => {
+    try {
+      // VS Code auto-creates a focus command for views: `<viewId>.focus`
+      await vscode.commands.executeCommand('openhands.chat.focus');
+    } catch {
+      // Fallback: open the container and reveal the view if already resolved
+      await vscode.commands.executeCommand('workbench.view.extension.openhands');
+      chatView?.show?.(true);
+    }
+    await ensureConversationAndConnection();
   });
 
   // Diagnostics command for E2E tests and troubleshooting
   const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? '';
   const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
-    const diag = {
-      hasPanel: !!panel,
-      webviewReady,
+    return {
+      chat: {
+        hasView: !!chatView,
+        visible: chatView?.visible ?? false,
+        webviewReady: chatWebviewReady,
+        clientConversationId: chatLastConversationId,
+        clientLastSeenSeq: chatLastSeenSeq,
+      },
+      eventBacklog: {
+        activeConversationId,
+        size: conversationEventBacklogSize,
+        latestSeq: conversationEventSeq,
+      },
       hasConversation: !!conversation,
       conversationId: conversation?.getConversationId(),
       status: conversation?.getStatus(),
@@ -325,243 +853,283 @@ export function activate(context: vscode.ExtensionContext) {
         received: receivedTerminalEvents.length,
       },
     };
-    return diag;
   });
 
   // Test command to send mock events to webview for E2E testing
-  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', async (event: unknown) => {
-    if (!panel) {
-      await ensurePanelAndConnection();
-    }
+  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
     sentTestEvents.push(event);
-    void panel?.webview.postMessage({ type: 'event', event });
-    return { sent: true };
+    const seq = bufferConversationEvent(event);
+    if (chatView) {
+      const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event };
+      if (typeof seq === 'number') payload.seq = seq;
+      void chatView.webview.postMessage(payload);
+    }
+    return { sent: true, buffered: true, seq };
   });
 
   // Query rendered events from webview for E2E testing
   const queryRenderedEvents = vscode.commands.registerCommand('openhands._queryRenderedEvents', async () => {
-    if (!panel) {
+    if (!chatView) {
       return { count: 0, eventTypes: [] };
     }
 
-    // Clear previous response and request from webview
-    renderedEventsInfo = undefined;
-    panel.webview.postMessage({ type: 'queryRenderedEvents' });
-
-    // Wait for response (with timeout)
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      if (renderedEventsInfo !== undefined) {
-        return renderedEventsInfo;
-      }
-      await new Promise((r) => setTimeout(r, 50));
+    void chatView.show?.(true);
+    const requestId = nextRequestId('renderedEvents');
+    const pending = createPendingResponse(pendingRenderedEventsRequests, requestId, 5000);
+    const posted = await chatView.webview.postMessage({ type: 'queryRenderedEvents', requestId });
+    if (!posted) {
+      pending.cancel();
+      return { count: 0, eventTypes: [] };
     }
 
+    const info = await pending.promise;
+    if (info) return info;
+
     // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
-    const filtered = sentTestEvents.filter((e) => !((e as any)?.kind === 'ConversationStateUpdateEvent'));
-    const types = filtered.map((e) => (e && typeof e === 'object' && 'kind' in (e as any)) ? (e as any).kind : 'unknown');
+    const filtered = sentTestEvents.filter((e) => e.kind !== 'ConversationStateUpdateEvent');
+    const types = filtered.map((e) => e.kind ?? 'unknown');
     return { count: types.length, eventTypes: types };
   });
 
+  // Query UI state from webview for E2E testing (toolbar + popovers)
+  const queryUiState = vscode.commands.registerCommand('openhands._queryUiState', async () => {
+    if (!chatView) {
+      return DEFAULT_UI_STATE;
+    }
+
+    void chatView.show?.(true);
+    const requestId = nextRequestId('uiState');
+    const pending = createPendingResponse(pendingUiStateRequests, requestId, 5000);
+    const posted = await chatView.webview.postMessage({ type: 'queryUiState', requestId });
+    if (!posted) {
+      pending.cancel();
+      return DEFAULT_UI_STATE;
+    }
+
+    return (await pending.promise) ?? DEFAULT_UI_STATE;
+  });
+
+  // Send a test action to the webview for E2E testing (UI flows without DOM automation)
+  const webviewAction = vscode.commands.registerCommand(
+    'openhands._webviewAction',
+    async (req: { action: string; payload?: unknown } | undefined) => {
+      if (!chatView) return { sent: false };
+      if (!req || typeof req.action !== 'string' || req.action.length === 0) return { sent: false };
+      void chatView.show?.(true);
+      const sent = await chatView.webview.postMessage({ type: 'e2eAction', action: req.action, payload: req.payload });
+      return { sent };
+    }
+  );
+
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
-    await ensurePanelAndConnection();
+    await ensureConversationAndConnection();
     await conversation?.startNewConversation();
   });
 
   const configure = vscode.commands.registerCommand('openhands.configure', async () => {
-    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-    const existing = await settingsMgr.get();
-
-    // Step 1: Server URL
-    const serverUrlInput = await vscode.window.showInputBox({
-      title: 'OpenHands Server URL',
-      value: existing.serverUrl ?? undefined,
-      placeHolder: 'http://localhost:3000 (leave blank for local mode)'
-    });
-    if (serverUrlInput === undefined) return;
-
-    const serverUrl = serverUrlInput.trim() || undefined;
-
-    // Step 2: LLM
-    const usageId = await vscode.window.showInputBox({
-      title: 'LLM Usage ID (preferred)',
-      value: existing.llm.usageId ?? undefined,
-      placeHolder: 'e.g. default-llm',
-      prompt: 'Maps to agent-sdk usage_id; leave blank to use server defaults.'
-    });
-    const llmModel = await vscode.window.showInputBox({
-      title: 'LLM Model',
-      value: existing.llm.model ?? undefined,
-      placeHolder: 'e.g. claude-3-5-sonnet-20241022 or openrouter/*'
-    });
-    const llmBaseUrl = await vscode.window.showInputBox({
-      title: 'LLM Base URL (optional)',
-      value: existing.llm.baseUrl ?? undefined,
-      placeHolder: 'e.g. https://api.openrouter.ai',
-      prompt: 'Optional override; leave empty for provider default.'
-    });
-    const llmApiKey = await vscode.window.showInputBox({
-      title: 'LLM API Key (secret)',
-      value: existing.secrets.llmApiKey,
-      password: true,
-      prompt: 'Stored securely in VS Code SecretStorage.'
-    });
-
-    // Step 3: Agent and conversation options
-    const enableSec = await vscode.window.showQuickPick(['Yes', 'No'], {
-      title: 'Enable Security Analyzer?',
-      canPickMany: false,
-      placeHolder: existing.agent.enableSecurityAnalyzer ? 'Yes' : 'No'
-    });
-
-    const maxIterationsStr = await vscode.window.showInputBox({
-      title: 'Max Iterations (default for new conversations)',
-      value: String(existing.conversation.maxIterations ?? 50),
-      placeHolder: 'e.g. 50',
-      validateInput: (value) => {
-        if (!value || value.trim() === '') return undefined;
-        const n = Number.parseInt(value.trim(), 10);
-        if (!Number.isFinite(n) || n < 1 || n > 500) return 'Enter an integer between 1 and 500.';
-        return undefined;
-      }
-    });
-
-    const policy = await vscode.window.showQuickPick(['never', 'always', 'risky'], {
-      title: 'Confirmation Policy',
-      canPickMany: false,
-      placeHolder: existing.confirmation.policy ?? 'never'
-    });
-
-    let riskyThreshold: 'LOW' | 'MEDIUM' | 'HIGH' | undefined = existing.confirmation.riskyThreshold;
-    let confirmUnknown: boolean | undefined = existing.confirmation.confirmUnknown;
-    if (policy === 'risky') {
-      const thresholdPick = await vscode.window.showQuickPick(['LOW', 'MEDIUM', 'HIGH'], {
-        title: 'Risk threshold for ConfirmRisky',
-        canPickMany: false,
-        placeHolder: existing.confirmation.riskyThreshold ?? 'HIGH'
-      });
-      riskyThreshold = (thresholdPick as 'LOW' | 'MEDIUM' | 'HIGH' | undefined) || existing.confirmation.riskyThreshold || 'HIGH';
-      const confirmUnknownPick = await vscode.window.showQuickPick(['Yes', 'No'], {
-        title: 'Confirm unknown risk actions?',
-        canPickMany: false,
-        placeHolder: existing.confirmation.confirmUnknown ? 'Yes' : 'No'
-      });
-      confirmUnknown = confirmUnknownPick ? confirmUnknownPick === 'Yes' : existing.confirmation.confirmUnknown;
-    }
-
-    // Step 4: Session and LLM API Keys (optional)
-    const sessionApiKey = await vscode.window.showInputBox({
-      title: 'Session API Key (optional, secret)',
-      value: existing.secrets.sessionApiKey,
-      password: true,
-      prompt: 'If your server requires authentication, enter the Session API key. Stored in SecretStorage.'
-    });
-
-    await settingsMgr.update({
-      serverUrl,
-      llm: { usageId: usageId || undefined, model: llmModel || undefined, baseUrl: llmBaseUrl || undefined },
-      agent: {
-        enableSecurityAnalyzer: enableSec ? enableSec === 'Yes' : existing.agent.enableSecurityAnalyzer,
-      },
-      conversation: {
-        maxIterations: (() => {
-          const v = maxIterationsStr?.trim();
-          if (!v) return existing.conversation.maxIterations;
-          const n = Math.trunc(Number(v));
-          if (!Number.isFinite(n)) return existing.conversation.maxIterations;
-          return Math.min(500, Math.max(1, n));
-        })(),
-      },
-      confirmation: {
-        policy: (policy as 'never' | 'always' | 'risky' | undefined) || existing.confirmation.policy,
-        riskyThreshold,
-        confirmUnknown,
-      },
-      secrets: { llmApiKey: llmApiKey || undefined, sessionApiKey: sessionApiKey || undefined }
-    }, 'workspace');
-
-    vscode.window.showInformationMessage('OpenHands settings updated.');
-
-    const newSettings = await settingsMgr.get();
-    try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch {}
-    conversation = undefined;
-    conversationMode = newSettings.serverUrl ? 'remote' : 'local';
-    await ensurePanelAndConnection();
-    panel?.webview.postMessage({ type: 'configUpdated', serverUrl: newSettings.serverUrl ?? null, mode: conversationMode });
+    // Open VS Code settings page for OpenHands extension
+    await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
   });
 
-  const setApiKey = vscode.commands.registerCommand('openhands.setApiKey', async () => {
-    try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-      const existing = await settingsMgr.get();
-
-      const llmApiKey = await vscode.window.showInputBox({
-        title: 'LLM API Key',
-        value: existing.secrets.llmApiKey,
-        password: true,
-        prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
-        placeHolder: 'sk-...'
-      });
-
-      if (llmApiKey === undefined) {
-        // User cancelled
-        return;
-      }
-
-      await settingsMgr.update({
-        secrets: { llmApiKey: llmApiKey || undefined }
-      }, 'workspace');
-
-      vscode.window.showInformationMessage('LLM API Key saved securely.');
-
-      // Apply to conversation
-      const newSettings = await settingsMgr.get();
-      conversation?.setSettings(newSettings);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to save API Key: ${message}`);
+  type SecretKey = keyof OpenHandsSettings['secrets'];
+  const registerSecretCommand = (
+    commandId: string,
+    options: {
+      title: string;
+      secretKey: SecretKey;
+      prompt: string;
+      placeHolder?: string;
+      successMessage: string;
+      clearedMessage: string;
+      errorPrefix: string;
     }
+  ) =>
+    vscode.commands.registerCommand(commandId, async () => {
+      try {
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        const existing = await settingsMgr.get();
+        const currentValue = existing.secrets[options.secretKey];
+        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
+
+        if (isCurrentlySet) {
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+            ],
+            {
+              title: options.title,
+              placeHolder: 'Choose an action',
+              canPickMany: false,
+            }
+          );
+          if (!action) return;
+
+          if (action.value === 'clear') {
+            const confirmed = await vscode.window.showWarningMessage(
+              `Clear ${options.title}?`,
+              { modal: true },
+              'Clear'
+            );
+            if (confirmed !== 'Clear') return;
+
+            const secretsUpdate = { [options.secretKey]: undefined } as Partial<OpenHandsSettings['secrets']>;
+            await settingsMgr.update({ secrets: secretsUpdate });
+            vscode.window.showInformationMessage(options.clearedMessage);
+
+            const newSettings = await settingsMgr.get();
+            conversation?.setSettings(newSettings);
+            return;
+          }
+        }
+
+        const value = await vscode.window.showInputBox({
+          title: options.title,
+          password: true,
+          prompt: options.prompt,
+          placeHolder: options.placeHolder,
+        });
+
+        if (value === undefined) return;
+
+        const trimmed = value.trim();
+        if (!trimmed) return;
+
+        const secretsUpdate = { [options.secretKey]: trimmed } as Partial<OpenHandsSettings['secrets']>;
+        await settingsMgr.update({ secrets: secretsUpdate });
+        vscode.window.showInformationMessage(options.successMessage);
+
+        const newSettings = await settingsMgr.get();
+        conversation?.setSettings(newSettings);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
+      }
+    });
+
+  const setApiKey = registerSecretCommand('openhands.setApiKey', {
+    title: 'LLM API Key',
+    secretKey: 'llmApiKey',
+    prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-...',
+    successMessage: 'LLM API Key saved securely.',
+    clearedMessage: 'LLM API Key cleared.',
+    errorPrefix: 'Failed to save API Key',
+  });
+
+  const setSessionApiKey = registerSecretCommand('openhands.setSessionApiKey', {
+    title: 'Session API Key',
+    secretKey: 'sessionApiKey',
+    prompt: 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Session API Key saved securely.',
+    clearedMessage: 'Session API Key cleared.',
+    errorPrefix: 'Failed to save Session API Key',
+  });
+
+  const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
+    title: 'GitHub Token',
+    secretKey: 'githubToken',
+    prompt: 'Enter your GitHub token. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'ghp_...',
+    successMessage: 'GitHub token saved securely.',
+    clearedMessage: 'GitHub token cleared.',
+    errorPrefix: 'Failed to save GitHub token',
+  });
+
+  const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
+    title: 'Custom Secret 1',
+    secretKey: 'customSecret1',
+    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Custom secret 1 saved securely.',
+    clearedMessage: 'Custom secret 1 cleared.',
+    errorPrefix: 'Failed to save custom secret 1',
+  });
+
+  const setCustomSecret2 = registerSecretCommand('openhands.setCustomSecret2', {
+    title: 'Custom Secret 2',
+    secretKey: 'customSecret2',
+    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Custom secret 2 saved securely.',
+    clearedMessage: 'Custom secret 2 cleared.',
+    errorPrefix: 'Failed to save custom secret 2',
+  });
+
+  const setCustomSecret3 = registerSecretCommand('openhands.setCustomSecret3', {
+    title: 'Custom Secret 3',
+    secretKey: 'customSecret3',
+    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Custom secret 3 saved securely.',
+    clearedMessage: 'Custom secret 3 cleared.',
+    errorPrefix: 'Failed to save custom secret 3',
   });
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
-    // Ensure a visible, initialized panel for reconnect. If one exists, dispose to force re-creation.
-    if (panel) {
-      try { panel.dispose(); } catch {}
-      panel = undefined;
-    }
-    await ensurePanelAndConnection();
+    await ensureConversationAndConnection();
     conversation?.reconnect();
   });
 
-  const pause = vscode.commands.registerCommand('openhands.pauseCurrentRun', async () => {
-    await ensurePanelAndConnection();
-    await conversation?.pause();
-  });
-
-  const resume = vscode.commands.registerCommand('openhands.resumeCurrentRun', async () => {
-    await ensurePanelAndConnection();
-    await conversation?.resume();
-  });
-
-  // Listen for runtime configuration changes
+  // Clear terminal references when the user closes the OpenHands terminal
   context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration(async (e) => {
-      if (e.affectsConfiguration('openhands.serverUrl')) {
-        try { conversation?.removeAllListeners(); conversation?.disconnect(); } catch {}
-        conversation = undefined;
-        await ensurePanelAndConnection();
+    vscode.window.onDidCloseTerminal((t) => {
+      if (t === terminal) {
+        terminal = undefined;
+        terminalLogPty = undefined;
       }
     })
   );
 
+  const pause = vscode.commands.registerCommand('openhands.pauseCurrentRun', async () => {
+    await ensureConversationAndConnection();
+    await conversation?.pause();
+  });
+
+  const resume = vscode.commands.registerCommand('openhands.resumeCurrentRun', async () => {
+    await ensureConversationAndConnection();
+    await conversation?.resume();
+  });
+
+  // Listen for runtime configuration changes
+  const onConfigurationChange = createConfigurationChangeHandler({
+    ensureConversationAndConnection: () => ensureConversationAndConnection(),
+    getConversation: () => conversation,
+    setConversation: (next) => {
+      conversation = next;
+    },
+    getConversationMode: () => conversationMode,
+    getTerminal: () => terminal,
+    setTerminal: (next) => {
+      terminal = next;
+    },
+    getTerminalLogPty: () => terminalLogPty,
+    setTerminalLogPty: (pty) => {
+      terminalLogPty = pty as OpenHandsTerminalLogPseudoterminal | undefined;
+    },
+    setConversationStoreRoot: (root) => {
+      conversationStoreRoot = root;
+    },
+    setVerboseEventLogging: (value) => {
+      verboseEventLogging = value;
+    },
+    getOutputChannel: () => outputChannel,
+    renderError,
+  });
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(onConfigurationChange));
+
   context.subscriptions.push(
-    openTab,
+    open,
     diag,
     sendTestEvent,
     queryRenderedEvents,
+    queryUiState,
+    webviewAction,
     startNew,
     configure,
     setApiKey,
+    setSessionApiKey,
+    setGithubToken,
+    setCustomSecret1,
+    setCustomSecret2,
+    setCustomSecret3,
     reconnect,
     pause,
     resume
@@ -569,294 +1137,19 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  try { conversation?.disconnect(); } catch {}
-  try { terminal?.dispose(); } catch {}
-  try { panel?.dispose?.(); } catch {}
+  try { conversation?.disconnect(); } catch { }
+  try { terminal?.dispose(); } catch { }
   // Reset module state to ensure clean slate for tests and re-activation
-  panel = undefined;
+  chatView = undefined;
   conversation = undefined;
   terminal = undefined;
-  renderedEventsInfo = undefined;
-  webviewReady = false;
+  terminalLogPty = undefined;
+  pendingRenderedEventsRequests.clear();
+  pendingUiStateRequests.clear();
+  chatWebviewReady = false;
+  chatLastConversationId = undefined;
+  chatLastSeenSeq = undefined;
+  conversationStoreRoot = undefined;
+  resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
-}
-
-function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode.Webview): string {
-  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'webview.js'));
-  const stylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'index.css'));
-  const codiconStylesUri = webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'media', 'codicon.css'));
-  const version = Date.now().toString();
-  const csp = [
-    `default-src 'none'`,
-    `img-src ${webview.cspSource} data:`,
-    `style-src ${webview.cspSource} 'unsafe-inline'`,
-    `font-src ${webview.cspSource}`,
-    `script-src ${webview.cspSource}`,
-  ].join('; ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link href="${stylesUri.toString()}?v=${version}" rel="stylesheet" />
-  <link href="${codiconStylesUri.toString()}?v=${version}" rel="stylesheet" />
-  <title>OpenHands Tab</title>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="${scriptUri.toString()}?v=${version}"></script>
-</body>
-</html>`;
-}
-
-/**
- * Message bridge handler: routes messages from webview to extension host.
- *
- * Supported message types:
- * - 'openSettings': Opens the configuration wizard (multi-step input)
- * - 'openSettingsPage': Opens VS Code settings scoped to OpenHands
- * - 'getConfig': Returns current serverUrl to webview
- * - 'send': Sends user message to agent via active conversation
- * - 'command': Executes agent control commands (reconnect, pause, startNewConversation, approveAction, rejectAction)
- * - 'requestWorkspaceFiles': Returns list of workspace files for @ mentions
- * - 'requestSkills': Returns ~/.openhands/skills markdown files
- * - 'openSkill': Opens the specified skill file in editor
- * - 'renderedEventsResponse': Receives diagnostic info from webview (for E2E tests)
- *
- * Reverse flow (extension → webview):
- * - ConnectionManager callbacks post 'status', 'event', 'error' messages to webview
- * - Config updates post 'configUpdated' messages
- *
- * Security: All network communication happens in extension host (not webview),
- * avoiding CORS and CSP limitations.
- */
-function onWebviewMessage(context: vscode.ExtensionContext, panel: vscode.WebviewPanel) {
-  return async (msg: unknown) => {
-    // Type guard for message structure
-    if (!msg || typeof msg !== 'object') return;
-    const message = msg as { type?: string; text?: unknown; command?: unknown; reason?: unknown; path?: unknown; count?: unknown; eventTypes?: unknown; level?: unknown; args?: unknown; message?: unknown; stack?: unknown; phase?: unknown; id?: unknown; method?: unknown; url?: unknown; status?: unknown; ok?: unknown };
-
-    switch (message.type) {
-      case 'webviewReady':
-        // Webview has mounted and is ready to receive messages
-        webviewReady = true;
-        // Re-send current status so the webview can enable UI immediately
-        void panel.webview.postMessage({
-          type: 'status',
-          status: conversation?.getStatus() ?? 'offline',
-          mode: conversationMode,
-        });
-        break;
-      case 'openSettingsPage':
-        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
-        break;
-      case 'openSettings':
-        await vscode.commands.executeCommand('openhands.configure');
-        break;
-      case 'requestWorkspaceFiles': {
-        const files = await listWorkspaceFiles();
-        void panel.webview.postMessage({ type: 'workspaceFiles', files });
-        break;
-      }
-      case 'requestSkills': {
-        const skills = await listSkillFiles();
-        outputChannel?.appendLine(`[skills] Found ${skills.length} skill(s)`);
-        void panel.webview.postMessage({ type: 'skillsList', skills });
-        break;
-      }
-      case 'openSkill': {
-        const skillPath = typeof message.path === 'string' ? message.path : undefined;
-        if (!skillPath) break;
-        try {
-          const skillsRoot = path.resolve(os.homedir(), '.openhands', 'skills');
-          const resolvedPath = path.resolve(skillPath);
-          const relative = path.relative(skillsRoot, resolvedPath);
-          if (relative.startsWith('..') || path.isAbsolute(relative)) {
-            void vscode.window.showErrorMessage('Refusing to open skill outside of ~/.openhands/skills');
-            break;
-          }
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
-          await vscode.window.showTextDocument(document, { preview: false });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to open skill file: ${reason}`);
-        }
-        break;
-      }
-      case 'openWorkspaceFile': {
-        const p = typeof (message as any).path === 'string' ? (message as any).path : undefined;
-        if (!p) break;
-        try {
-          const isAbs = path.isAbsolute(p);
-          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          let resolved: string | undefined;
-          if (!isAbs && wsRoot) {
-            const candidate = path.resolve(wsRoot, p);
-            const rel = path.relative(wsRoot, candidate);
-            if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-              resolved = candidate;
-            }
-          }
-          if (!resolved) {
-            resolved = path.resolve(p);
-          }
-          await fs.stat(resolved);
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
-          await vscode.window.showTextDocument(document, { preview: false });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void vscode.window.showErrorMessage(`Failed to open file: ${reason}`);
-        }
-        break;
-      }
-
-      case 'requestHistory': {
-        try {
-          const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-          const convRoot = path.join(root, '.openhands', 'conversations');
-          let ids: string[] = [];
-          try {
-            ids = FileStore.listConversations(convRoot);
-          } catch {
-            ids = [];
-          }
-          const conversations = await Promise.all(ids.map(async (id) => {
-            try {
-              const statePath = path.join(convRoot, id, 'state.json');
-              const eventsPath = path.join(convRoot, id, 'events.jsonl');
-              const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
-              const timestamp = stat?.mtimeMs ?? Date.now();
-              // Try to read first user message for preview
-              let firstMessage: string | undefined;
-              try {
-                const content = await fs.readFile(eventsPath, 'utf8');
-                const line = content.split('\n').find((l) => l.includes('"MessageEvent"'));
-                if (line) {
-                  const ev = JSON.parse(line);
-                  const msg = ev?.llm_message;
-                  if (msg?.role === 'user' && Array.isArray(msg?.content)) {
-                    const text = msg.content.find((c: any) => c?.type === 'text')?.text;
-                    if (typeof text === 'string') firstMessage = text;
-                  }
-                }
-              } catch {}
-              return { id, timestamp: Math.floor(timestamp), firstMessage };
-            } catch {
-              return { id, timestamp: Date.now() };
-            }
-          }));
-          void panel.webview.postMessage({ type: 'historyList', conversations });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[history] ${reason}`);
-          void panel.webview.postMessage({ type: 'historyList', conversations: [] });
-        }
-        break;
-      }
-      case 'restoreConversation': {
-        const id = typeof (message as any).id === 'string' ? (message as any).id : undefined;
-        if (!id) break;
-        try {
-          const maybe = conversation?.restoreConversation?.(id);
-          void Promise.resolve(maybe).catch((err: unknown) => {
-            const reason = err instanceof Error ? err.message : String(err);
-            outputChannel?.appendLine(`[restore] ${reason}`);
-            void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
-          });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[restore] ${reason}`);
-          void vscode.window.showErrorMessage(`Failed to restore conversation: ${reason}`);
-        }
-        break;
-      }
-      case 'getConfig': {
-        const settings = await new SettingsManager(new VscodeSettingsAdapter(context)).get();
-        void panel.webview.postMessage({ type: 'config', serverUrl: settings.serverUrl ?? null, mode: conversationMode });
-        break;
-      }
-      case 'send':
-        if (typeof message.text === 'string') {
-          await conversation?.sendUserMessage(message.text);
-        }
-        break;
-      case 'command':
-        if (typeof message.command === 'string') {
-          switch (message.command) {
-            case 'reconnect':
-              conversation?.reconnect();
-              break;
-            case 'pause':
-              await conversation?.pause();
-              break;
-            case 'startNewConversation': {
-              await conversation?.startNewConversation();
-              break;
-            }
-            case 'approveAction':
-              await conversation?.approveAction();
-              break;
-            case 'rejectAction':
-              await conversation?.rejectAction(typeof message.reason === 'string' ? message.reason : undefined);
-              break;
-            default:
-              console.warn(`Unknown command received from webview: ${message.command}`);
-              break;
-          }
-        }
-        break;
-      case 'renderedEventsResponse':
-        if (typeof message.count === 'number' && Array.isArray(message.eventTypes)) {
-          // Store the response from webview for testing/diagnostics
-          renderedEventsInfo = { count: message.count, eventTypes: message.eventTypes as string[] };
-        }
-        break;
-      case 'webviewConsole': {
-        if (!devBridgeEnabled) break;
-        const level = (typeof message.level === 'string' ? message.level : 'log') as 'log' | 'warn' | 'error';
-        const args = Array.isArray(message.args) ? message.args : [];
-        outputChannel?.appendLine(`[webview ${level}] ${args.join(' ')}`);
-        fileLog(`[console.${level}] ${args.join(' ')}`);
-        break;
-      }
-      case 'webviewError': {
-        if (!devBridgeEnabled) break;
-        const m = typeof message.message === 'string' ? message.message : 'error';
-        const s = typeof message.stack === 'string' ? message.stack : '';
-        outputChannel?.appendLine(`[webview error] ${m}`);
-        if (s) outputChannel?.appendLine(s);
-        fileLog(`[error] ${m}${s ? `\n${s}` : ''}`);
-        break;
-      }
-      case 'webviewNetwork': {
-        if (!devBridgeEnabled) break;
-        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
-        const id = typeof message.id === 'string' ? message.id : '';
-        const method = typeof message.method === 'string' ? message.method : '';
-        const url = typeof message.url === 'string' ? message.url : '';
-        const status = typeof message.status === 'number' ? message.status : undefined;
-        const ok = typeof message.ok === 'boolean' ? message.ok : undefined;
-        const line = `[webview net] ${phase} id=${id} ${method} ${url}${status !== undefined ? ` status=${status} ok=${ok}` : ''}`;
-        outputChannel?.appendLine(line);
-        fileLog(line);
-        break;
-      }
-      case 'webviewWebSocket': {
-        if (!devBridgeEnabled) break;
-        const phase = typeof message.phase === 'string' ? message.phase : 'unknown';
-        const url = typeof message.url === 'string' ? message.url : '';
-        const code = (message as any).code as number | undefined;
-        const reason = typeof (message as any).reason === 'string' ? (message as any).reason : undefined;
-        const parts = [`[webview ws] ${phase}`];
-        if (url) parts.push(`url=${url}`);
-        if (code !== undefined) parts.push(`code=${code}`);
-        if (reason) parts.push(`reason=${reason}`);
-        outputChannel?.appendLine(parts.join(' '));
-        fileLog(parts.join(' '));
-        break;
-      }
-    }
-  };
 }

@@ -1,11 +1,4 @@
-// React must be in scope for JSX to work after esbuild transpilation
-import React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-/*
-  App.tsx - Neo-Brutalist Command Center Design
-  A distinctive, warm-technical interface for OpenHands Tab
-*/
-
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   isEvent,
   isSystemPromptEvent,
@@ -18,54 +11,38 @@ import {
   isPauseEvent,
   isCondensation,
   isConversationStateUpdateEvent,
-  isTextContent,
   type Event,
   type ActionEvent,
-  type ObservationEvent,
-  type MessageEvent as AgentMessageEvent,
-  type SystemPromptEvent,
-  type UserRejectObservation,
-  type AgentErrorEvent,
-  type ConversationErrorEvent,
-  type PauseEvent,
-  type Condensation,
 } from '@openhands/agent-sdk-ts';
+import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
+import { getVscodeApi } from '../shared/vscodeApi';
 
+// Component imports
+import { Header } from './Header';
+import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
-
-interface VscodeApi {
-  postMessage: (message: unknown) => void;
-}
-
-// Cache the VS Code API - it can only be acquired once per webview
-// Store on window to survive hot module reloading
-declare global {
-  interface Window {
-    __vscodeApi?: VscodeApi;
-  }
-}
-
-function getVscodeApi(): VscodeApi {
-  // Check if already cached on window (survives HMR)
-  if (typeof window !== 'undefined' && window.__vscodeApi) {
-    return window.__vscodeApi;
-  }
-
-  if (typeof window !== 'undefined' && 'acquireVsCodeApi' in window && typeof (window as { acquireVsCodeApi?: () => VscodeApi }).acquireVsCodeApi === 'function') {
-    const api = (window as { acquireVsCodeApi: () => VscodeApi }).acquireVsCodeApi();
-    window.__vscodeApi = api;
-    return api;
-  }
-
-  // Fallback for non-vscode environments (e.g., tests)
-  const fallback: VscodeApi = { postMessage: () => { /* noop for tests */ } };
-  if (typeof window !== 'undefined') {
-    window.__vscodeApi = fallback;
-  }
-  return fallback;
-}
+import { StatusBanner } from './StatusBanner';
+import { HistoryView } from './HistoryView';
+import {
+  SystemPromptEventBlock,
+  ActionEventBlock,
+  ObservationEventBlock,
+  UserRejectBlock,
+  AgentErrorBlock,
+  ConversationErrorBlock,
+  CondensationBlock,
+  MessageEventBlock,
+  StreamingMessageBlock,
+} from './EventBlock';
 
 type RenderedEvent = { id: number; event: Event };
+
+const isRenderableEvent = (event: Event) => !isConversationStateUpdateEvent(event);
+
+type WebviewPersistedState = {
+  conversationId?: string;
+  lastSeenSeq?: number;
+};
 
 type ConversationsList = Array<{
   id: string;
@@ -75,407 +52,84 @@ type ConversationsList = Array<{
   messageCount?: number;
 }>;
 
-// ============================================
-// EVENT RENDERING COMPONENTS
-// ============================================
+type StatusBannerState = {
+  message: string;
+  level: 'info' | 'warn' | 'error';
+  dismissible?: boolean;
+};
 
-function SystemPromptEventBlock({ event }: { event: SystemPromptEvent }) {
+/**
+ * Event dispatcher: routes agent-sdk events to appropriate rendering components.
+ */
+function EventBlock({ event, index }: { event: Event; index: number }) {
+  if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} index={index} />;
+  if (isActionEvent(event)) return <ActionEventBlock event={event} index={index} />;
+  if (isObservationEvent(event)) return <ObservationEventBlock event={event} index={index} />;
+  if (isUserRejectObservation(event)) return <UserRejectBlock event={event} index={index} />;
+  if (isMessageEvent(event)) {
+    const message = event.llm_message;
+    if (message?.role === 'tool') return null;
+    const hasRenderableContent = Array.isArray(message?.content)
+      ? message.content.some((item) => {
+        if (item.type === 'text') return item.text.trim().length > 0;
+        return true;
+      })
+      : false;
+    const hasToolCalls = Array.isArray(message?.tool_calls) && message.tool_calls.length > 0;
+    if (message?.role === 'assistant' && hasToolCalls && !hasRenderableContent) {
+      return null;
+    }
+    return <MessageEventBlock event={event} index={index} />;
+  }
+  if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} index={index} />;
+  if (isConversationErrorEvent(event)) return <ConversationErrorBlock event={event} index={index} />;
+  if (isPauseEvent(event)) return null; // Pause events only show in status bar
+  if (isCondensation(event)) return <CondensationBlock event={event} index={index} />;
+
+  // Fallback for unknown events
+  const safeKind = 'kind' in event && typeof event.kind === 'string' ? event.kind : 'unknown';
   return (
-    <div className="oh-event event-system">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-terminal" />
-            </span>
-            System Prompt
-          </div>
-          <span className="oh-event-meta">INIT</span>
-        </div>
-        <div className="oh-event-content">
-          <div className="whitespace-pre-wrap">{event.system_prompt.text}</div>
-          {event.tools && event.tools.length > 0 && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Available Tools</div>
-              <span className="oh-code">{event.tools.length} tools loaded</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ActionEventBlock({ event }: { event: ActionEvent }) {
-  const thought = event.thought.map((t) => t.text).join('\n');
-  const isExecuted = event.action !== null;
-  return (
-    <div className="oh-event event-action">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-play" />
-            </span>
-            Agent Action
-            {!isExecuted && <span className="oh-code ml-2">NOT EXECUTED</span>}
-          </div>
-          {event.security_risk && event.security_risk !== 'UNKNOWN' && (
-            <div className={`oh-risk-badge ${event.security_risk.toLowerCase()}`}>
-              <span>{event.security_risk}</span>
-            </div>
-          )}
-        </div>
-        <div className="oh-event-content">
-          {event.reasoning_content && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Reasoning</div>
-              <div className="whitespace-pre-wrap">{event.reasoning_content}</div>
-            </div>
-          )}
-          {thought && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Thought</div>
-              <div className="whitespace-pre-wrap">{thought}</div>
-            </div>
-          )}
-          {event.tool_name && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Tool</div>
-              <span className="oh-code">{event.tool_name}</span>
-            </div>
-          )}
-          {event.action && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Action Details</div>
-              <pre>{JSON.stringify(event.action, null, 2)}</pre>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ObservationEventBlock({ event }: { event: ObservationEvent }) {
-  const [expanded, setExpanded] = useState(false);
-  const output = JSON.stringify(event.observation, null, 2);
-  const tooLong = output.length > 2000;
-  const shown = expanded || !tooLong ? output : output.slice(0, 2000) + '\n…';
-  return (
-    <div className="oh-event event-observation">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-eye" />
-            </span>
-            Observation
-          </div>
-          <span className="oh-event-meta">RESULT</span>
-        </div>
-        <div className="oh-event-content">
-          <div className="oh-event-section">
-            <div className="oh-event-section-title">Tool</div>
-            <span className="oh-code">{event.tool_name}</span>
-          </div>
-          <div className="oh-event-section">
-            <div className="oh-event-section-title">Output</div>
-            <pre>{shown}</pre>
-          </div>
-          {tooLong && (
-            <button className="oh-expand-btn" onClick={() => setExpanded(!expanded)}>
-              {expanded ? '← Show less' : 'Show more →'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UserRejectBlock({ event }: { event: UserRejectObservation }) {
-  return (
-    <div className="oh-event event-reject">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-close" />
-            </span>
-            Action Rejected
-          </div>
-          <span className="oh-event-meta">DENIED</span>
-        </div>
-        <div className="oh-event-content">
-          <div className="oh-event-section">
-            <div className="oh-event-section-title">Tool</div>
-            <span className="oh-code">{event.tool_name}</span>
-          </div>
-          <div className="oh-event-section">
-            <div className="oh-event-section-title">Reason</div>
-            <div className="whitespace-pre-wrap">{event.rejection_reason}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AgentErrorBlock({ event }: { event: AgentErrorEvent }) {
-  return (
-    <div className="oh-event event-error">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-error" />
-            </span>
-            Agent Error
-          </div>
-          <span className="oh-event-meta">ERROR</span>
-        </div>
-        <div className="oh-event-content">
-          <div className="oh-event-section">
-            <div className="oh-event-section-title">Error Details</div>
-            <div className="whitespace-pre-wrap" style={{ color: 'var(--oh-error)' }}>{event.error}</div>
-          </div>
-          {event.tool_name && (
-            <div className="mt-2 text-sm opacity-70">Tool: {event.tool_name}</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConversationErrorBlock({ event }: { event: ConversationErrorEvent }) {
-  return (
-    <div className="oh-event event-error">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-warning" />
-            </span>
-            Conversation Error
-          </div>
-          <span className="oh-event-meta">ERROR</span>
-        </div>
-        <div className="oh-event-content">
-          {event.code && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Code</div>
-              <span className="oh-code">{event.code}</span>
-            </div>
-          )}
-          {event.detail && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Details</div>
-              <div className="whitespace-pre-wrap" style={{ color: 'var(--oh-error)' }}>{event.detail}</div>
-            </div>
-          )}
-          {!event.detail && !event.code && (
-            <div className="mt-1 text-sm opacity-70">Additional information unavailable.</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PauseEventBlock({ event: _event }: { event: PauseEvent }) {
-  return (
-    <div className="oh-event event-pause">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-debug-pause" />
-            </span>
-            Paused
-          </div>
-          <span className="oh-event-meta">HALT</span>
-        </div>
-        <div className="oh-event-content">
-          <div className="text-sm opacity-80">Conversation paused by user</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CondensationBlock({ event }: { event: Condensation }) {
-  return (
-    <div className="oh-event event-condensation">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-fold" />
-            </span>
-            Memory Condensed
-          </div>
-          <span className="oh-event-meta">OPTIMIZE</span>
-        </div>
-        <div className="oh-event-content">
-          <div className="oh-event-section">
-            <div className="oh-event-section-title">Events Condensed</div>
-            <span className="oh-code">{event.forgotten_event_ids.length} events</span>
-          </div>
-          {event.summary && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Summary</div>
-              <div className="whitespace-pre-wrap">{event.summary}</div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MessageEventBlock({ event }: { event: AgentMessageEvent }) {
-  const role = event.llm_message.role;
-  const textParts = event.llm_message.content.filter(isTextContent).map((c) => c.text);
-  const content = textParts.join('\n');
-
-  const imageParts = event.llm_message.content.filter((c): c is { type: 'image'; image_urls?: string[]; detail?: string } =>
-    c.type === 'image'
-  );
-
-  const eventClass = role === 'user' ? 'event-message-user' : 'event-message-assistant';
-  const icon = role === 'user' ? 'account' : 'hubot';
-  const label = role === 'user' ? 'USER' : 'AGENT';
-
-  return (
-    <div className={`oh-event ${eventClass}`}>
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className={`codicon codicon-${icon}`} />
-            </span>
-            {event.source || role}
-          </div>
-          <span className="oh-event-meta">{label}</span>
-        </div>
-        <div className="oh-event-content">
-          {content && <div className="whitespace-pre-wrap">{content}</div>}
-          {imageParts.length > 0 && (
-            <div className="mt-2">
-              {imageParts.map((img, idx) => (
-                <div key={idx} className="text-sm opacity-70">
-                  <span className="codicon codicon-file-media mr-1" />
-                  Image {img.image_urls && img.image_urls.length > 0 ? `(${img.image_urls.length} url${img.image_urls.length > 1 ? 's' : ''})` : ''}
-                </div>
-              ))}
-            </div>
-          )}
-          {event.llm_message.reasoning_content && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Reasoning</div>
-              <div className="whitespace-pre-wrap mt-1">{event.llm_message.reasoning_content}</div>
-            </div>
-          )}
-          {(() => {
-            const activated = event.activated_skills;
-            if (!activated || activated.length === 0) return null;
-            return (
-              <div className="oh-event-section">
-                <div className="oh-event-section-title">Activated Skills</div>
-                <span className="oh-code">{activated.join(', ')}</span>
-              </div>
-            );
-          })()}
-          {event.extended_content && event.extended_content.length > 0 && (
-            <div className="oh-event-section">
-              <div className="oh-event-section-title">Extended Context</div>
-              <div className="whitespace-pre-wrap mt-1">{event.extended_content.map(c => c.text).join(' ')}</div>
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="bg-white/5 border-l-[3px] border-gray-500 p-4 rounded-lg my-3">
+      <div className="font-semibold mb-2">Unknown Event: {String(safeKind)}</div>
+      <pre className="font-mono text-xs overflow-auto bg-black/20 p-3 rounded">
+        {JSON.stringify(event ?? {}, null, 2)}
+      </pre>
     </div>
   );
 }
 
 /**
- * Event dispatcher: routes agent-sdk events to appropriate rendering components.
+ * Status message debouncing configuration
  */
-function EventBlock({ event }: { event: Event }) {
-  if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} />;
-  if (isActionEvent(event)) return <ActionEventBlock event={event} />;
-  if (isObservationEvent(event)) return <ObservationEventBlock event={event} />;
-  if (isUserRejectObservation(event)) return <UserRejectBlock event={event} />;
-  if (isMessageEvent(event)) return <MessageEventBlock event={event} />;
-  if (isAgentErrorEvent(event)) return <AgentErrorBlock event={event} />;
-  if (isConversationErrorEvent(event)) return <ConversationErrorBlock event={event} />;
-  if (isPauseEvent(event)) return <PauseEventBlock event={event} />;
-  if (isCondensation(event)) return <CondensationBlock event={event} />;
-
-  // Fallback for unknown events
-  const safeKind = (event as any)?.kind ?? 'unknown';
-  return (
-    <div className="oh-event">
-      <div className="oh-event-indicator" />
-      <div className="oh-event-card">
-        <div className="oh-event-header">
-          <div className="oh-event-title">
-            <span className="oh-event-icon">
-              <span className="codicon codicon-question" />
-            </span>
-            Unknown Event
-          </div>
-          <span className="oh-event-meta">{String(safeKind)}</span>
-        </div>
-        <div className="oh-event-content">
-          <pre>{JSON.stringify(event ?? {}, null, 2)}</pre>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================
-// STATUS & DEBOUNCE CONFIGURATION
-// ============================================
-
 const STATUS_DEBOUNCE_MS = 600;
-const STATUS_AUTO_DISMISS_MS = 5000;
 let lastStatusMessage = { level: '' as 'info' | 'warn' | 'error', message: '', at: 0 };
 
-// ============================================
-// MAIN APP COMPONENT
-// ============================================
-
+/**
+ * Main App component: React webview root for OpenHands extension.
+ */
 export function App() {
   // Connection state
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+  const [llmModel, setLlmModel] = useState<string | null | undefined>(undefined);
 
   // Events and conversation state
   const [events, setEvents] = useState<RenderedEvent[]>([]);
   const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const eventId = useRef(1);
 
   // Input state
   const [input, setInput] = useState('');
   const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
 
+  // Attachments state
+  const [attachments, setAttachments] = useState<Array<{ uri: string; label: string; sizeBytes?: number }>>([]);
+
   // UI state
-  const [statusBanner, setStatusBanner] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>(
+  const [statusBanner, setStatusBanner] = useState<StatusBannerState | null>(
     { message: 'Initializing…', level: 'info' }
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -486,27 +140,35 @@ export function App() {
   const [contextQuery, setContextQuery] = useState('');
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
   const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
-  const [contextActiveIndex, setContextActiveIndex] = useState(0);
-  const [workspaceFilesRequested, setWorkspaceFilesRequested] = useState(false);
-  const [isContextLoading, setIsContextLoading] = useState(false);
+  const [isMentionActive, setIsMentionActive] = useState(false);
+  const mentionStartRef = useRef<number | null>(null);
 
   // Skills state
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
   const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
-  const [skillsActiveIndex, setSkillsActiveIndex] = useState(0);
-  const [skillsRequested, setSkillsRequested] = useState(false);
-  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
 
   // History state
-  const [history, setHistory] = useState<ConversationsList>([]);
+  const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
+
+  // Server selection state
+  const [servers, setServers] = useState<{ url: string; label?: string }[]>([]);
+  const [currentServerUrl, setCurrentServerUrl] = useState<string | undefined>(undefined);
 
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
+  const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const statusAutoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const contextPopoverRef = useRef<HTMLDivElement | null>(null);
-  const skillsPopoverRef = useRef<HTMLDivElement | null>(null);
+  const uiStateRef = useRef({
+    input: '',
+    showContextPicker: false,
+    showSkillsPopover: false,
+    showHistory: false,
+    workspaceFilesCount: 0,
+    selectedContextFiles: [] as string[],
+    skillsCount: 0,
+    attachmentsCount: 0,
+  });
 
   // Post message helper
   const postMessage = useCallback((msg: unknown) => {
@@ -514,108 +176,142 @@ export function App() {
     api.postMessage(msg);
   }, []);
 
-  // Show status message with debouncing and auto-dismiss
-  const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string, autoDismiss = true) => {
+  // Keep a snapshot for E2E state queries without re-registering message listeners on every keystroke.
+  useEffect(() => {
+    uiStateRef.current = {
+      input,
+      showContextPicker,
+      showSkillsPopover,
+      showHistory,
+      workspaceFilesCount: workspaceFiles.length,
+      selectedContextFiles: selectedContextFiles.slice(),
+      skillsCount: skills.length,
+      attachmentsCount: attachments.length,
+    };
+  }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, workspaceFiles.length]);
+
+  // Show status message with debouncing
+  const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
     const now = Date.now();
     if (lastStatusMessage.level === level && lastStatusMessage.message === message && now - lastStatusMessage.at < STATUS_DEBOUNCE_MS) {
       return;
     }
     lastStatusMessage = { level, message, at: now };
+    setStatusBanner({ message, level });
+  }, []);
 
-    if (statusAutoDismissRef.current) {
-      clearTimeout(statusAutoDismissRef.current);
-      statusAutoDismissRef.current = null;
+  const handleConversationStateUpdate = useCallback((event: Event) => {
+    if (!isConversationStateUpdateEvent(event)) return false;
+
+    if (event.agent_status) {
+      setAgentStatus(event.agent_status);
+      if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
+        showStatusMessage('warn', 'Agent is waiting for confirmation');
+      }
+      lastAgentStatusRef.current = event.agent_status;
     }
 
-    setStatusBanner({ message, level });
+    return true;
+  }, [showStatusMessage]);
 
-    if (autoDismiss && level !== 'error') {
-      statusAutoDismissRef.current = setTimeout(() => {
-        setStatusBanner((current) => {
-          if (current?.message === message) {
-            return null;
-          }
-          return current;
-        });
-        statusAutoDismissRef.current = null;
-      }, STATUS_AUTO_DISMISS_MS);
+  const handleStreamingUpdate = useCallback((event: Event) => {
+    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, event);
+    streamingStateRef.current = streamingUpdate.state;
+
+    if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
+      setStreamingContent(streamingUpdate.state.content);
     }
   }, []);
 
-  // Handle incoming events
-  const handleEvent = useCallback((e: unknown) => {
-    const known = isEvent(e);
-
-    if (known && isConversationStateUpdateEvent(e)) {
-      if (e.agent_status) {
-        setAgentStatus(e.agent_status);
-        if (e.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
-          showStatusMessage('warn', 'Agent is waiting for confirmation');
-        }
-        lastAgentStatusRef.current = e.agent_status;
+  const handlePendingActions = useCallback((event: Event) => {
+    const clearSubmissionState = () => {
+      if (submissionTimeoutRef.current) {
+        clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
       }
-      return;
+      setIsSubmitting(false);
+    };
+
+    if (isActionEvent(event)) {
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
+        return exists ? prev : [...prev, event];
+      });
+    } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== event.tool_call_id));
+      clearSubmissionState();
+    } else if (isAgentErrorEvent(event)) {
+      showStatusMessage('error', event.error);
+      clearSubmissionState();
+    } else if (isPauseEvent(event)) {
+      showStatusMessage('warn', 'Conversation paused');
     }
-
-    if (known) {
-      // Track pending actions
-      if (isActionEvent(e)) {
-        setPendingActions((prev) => {
-          const exists = prev.some((a) => a.tool_call_id === e.tool_call_id);
-          return exists ? prev : [...prev, e];
-        });
-      }
-
-      // Clear pending action when we receive its observation
-      if (isObservationEvent(e) || isUserRejectObservation(e)) {
-        setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== e.tool_call_id));
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      }
-
-      if (isAgentErrorEvent(e)) {
-        showStatusMessage('error', e.error);
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      } else if (isPauseEvent(e)) {
-        showStatusMessage('warn', 'Conversation paused');
-      }
-    }
-
-    // Add event to the list for rendering
-    if ((e as any)?.kind === 'ConversationStateUpdateEvent') {
-      return;
-    }
-
-    setEvents((ev) => [...ev, { id: eventId.current++, event: e as any }]);
   }, [showStatusMessage]);
+
+  const handleRenderableEvent = useCallback((event: Event) => {
+    if (!isRenderableEvent(event)) return;
+
+    setEvents((ev) => [...ev, { id: eventId.current++, event }]);
+  }, []);
+
+  // Handle incoming events
+  const handleEvent = useCallback((incomingEvent: unknown) => {
+    if (!isEvent(incomingEvent)) return;
+
+    const event = incomingEvent;
+    handleStreamingUpdate(event);
+    if (handleConversationStateUpdate(event)) return;
+
+    handlePendingActions(event);
+    handleRenderableEvent(event);
+  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingUpdate]);
 
   // Signal webview is ready on mount
   useEffect(() => {
     const vscodeApi = getVscodeApi();
-    vscodeApi.postMessage({ type: 'webviewReady' });
+    let didRequestSkills = false;
+    const sendReady = () => {
+      const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
+      const payload: { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number } = { type: 'webviewReady' };
+      if (typeof state.conversationId === 'string') payload.conversationId = state.conversationId;
+      if (typeof state.lastSeenSeq === 'number') payload.lastSeenSeq = state.lastSeenSeq;
+      vscodeApi.postMessage(payload);
+      if (!didRequestSkills) {
+        didRequestSkills = true;
+        vscodeApi.postMessage({ type: 'requestSkills' });
+      }
+    };
+
+    sendReady();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        sendReady();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
-  // Message handler
+  // Message handler: processes incoming messages from extension host
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const payload = event.data as {
         type?: string;
+        requestId?: string;
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
+        llmModel?: string | null;
         event?: unknown;
+        seq?: unknown;
         error?: unknown;
         conversationId?: string;
         files?: string[];
         skills?: { label: string; path: string }[];
         conversations?: ConversationsList;
+        servers?: { url: string; label?: string }[];
+        attachments?: Array<{ uri: string; label: string; sizeBytes?: number }>;
       };
 
       switch (payload?.type) {
@@ -625,31 +321,67 @@ export function App() {
             if (payload.mode === 'local' || payload.mode === 'remote') {
               setMode(payload.mode);
             }
+            if (typeof payload.llmModel === 'string' || payload.llmModel === null) {
+              setLlmModel(payload.llmModel);
+            }
             if (payload.mode === 'local') {
-              setStatusBanner({ message: 'Local mode active', level: 'info' });
+              setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
             } else if (payload.status === 'connecting') {
               setStatusBanner({ message: 'Connecting to server…', level: 'info' });
             } else if (payload.status === 'online') {
-              setStatusBanner({ message: 'Connected', level: 'info' });
+              setStatusBanner({ message: 'Connected to server', level: 'info' });
             } else if (payload.status === 'offline') {
-              setStatusBanner({ message: 'Disconnected', level: 'warn' });
+              setStatusBanner({ message: 'Disconnected from server', level: 'warn' });
             }
           }
           break;
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
-            const label = payload.serverUrl && payload.serverUrl.length > 0 ? payload.serverUrl : 'local';
-            showStatusMessage('info', `Config: ${label}`);
+            const url = payload.serverUrl || undefined;
+            setCurrentServerUrl(url);
+            const label = url || 'local mode';
+            showStatusMessage('info', `Config updated: ${label}`);
           }
           if (payload.mode === 'local') {
             setMode('local');
-            setStatusBanner({ message: 'Local mode active', level: 'info' });
+            setCurrentServerUrl(undefined);
+            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
           } else if (payload.mode === 'remote') {
             setMode('remote');
           }
           break;
+        case 'serverListUpdated':
+          if (Array.isArray(payload.servers)) {
+            setServers(payload.servers);
+          }
+          if (typeof payload.serverUrl === 'string') {
+            setCurrentServerUrl(payload.serverUrl || undefined);
+          }
+          break;
+        case 'attachmentsSelected':
+          if (Array.isArray(payload.attachments)) {
+            setAttachments((prev) => {
+              const existing = new Set(prev.map((a) => a.uri));
+              const next = [...prev];
+              for (const a of payload.attachments ?? []) {
+                if (!a || typeof a.uri !== 'string' || typeof a.label !== 'string') continue;
+                if (existing.has(a.uri)) continue;
+                next.push(a);
+                existing.add(a.uri);
+              }
+              return next;
+            });
+          }
+          break;
         case 'event':
-          handleEvent(payload.event);
+          if (isEvent(payload.event)) {
+            handleEvent(payload.event);
+            if (typeof payload.seq === 'number') {
+              const api = getVscodeApi();
+              const prev = api.getState?.<WebviewPersistedState>() ?? {};
+              api.setState?.({ ...prev, lastSeenSeq: payload.seq });
+            }
+          }
           break;
         case 'error':
           if (typeof payload.error === 'string') {
@@ -664,44 +396,95 @@ export function App() {
             setEvents([]);
             setPendingActions([]);
             setAgentStatus(undefined);
+            setStreamingContent(null);
             eventId.current = 1;
+            // No toast: UI clears and restored/started messages will render naturally
+            const api = getVscodeApi();
+            api.setState?.({ conversationId: payload.conversationId, lastSeenSeq: 0 });
           }
           break;
         case 'workspaceFiles':
           if (Array.isArray(payload.files)) {
             setWorkspaceFiles(payload.files.filter((f): f is string => typeof f === 'string'));
-            setIsContextLoading(false);
           }
           break;
-        case 'skillsList': {
-          const payloadSkills = (payload as { skills?: unknown }).skills;
-          const entries = Array.isArray(payloadSkills)
-            ? payloadSkills.filter(
-                (item): item is { label: string; path: string } =>
-                  !!item &&
-                  typeof item === 'object' &&
-                  typeof (item as { label?: unknown }).label === 'string' &&
-                  typeof (item as { path?: unknown }).path === 'string'
-              )
-            : [];
-          setSkills(entries);
-          setIsSkillsLoading(false);
-          setSkillsActiveIndex(0);
+        case 'skillsList':
+          if (Array.isArray(payload.skills)) {
+            setSkills(payload.skills);
+          }
+          break;
+        case 'queryUiState': {
+          if (typeof payload.requestId === 'string') {
+            postMessage({ type: 'uiStateResponse', requestId: payload.requestId, ...uiStateRef.current });
+          }
+          break;
+        }
+        case 'e2eAction': {
+          if (typeof (payload as { action?: unknown }).action !== 'string') break;
+          const action = (payload as { action: string }).action;
+          const rawPayload = (payload as { payload?: unknown }).payload;
+
+          switch (action) {
+            case 'openContext':
+              setShowSkillsPopover(false);
+              setShowContextPicker(true);
+              postMessage({ type: 'requestWorkspaceFiles' });
+              break;
+            case 'closeContext':
+              setShowContextPicker(false);
+              setIsMentionActive(false);
+              setContextQuery('');
+              mentionStartRef.current = null;
+              break;
+            case 'toggleContextFile': {
+              const file = (rawPayload as { file?: unknown } | undefined)?.file;
+              if (typeof file !== 'string' || file.length === 0) break;
+              setSelectedContextFiles((prev) => (prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]));
+              break;
+            }
+            case 'openSkills':
+              setShowContextPicker(false);
+              setShowSkillsPopover(true);
+              postMessage({ type: 'requestSkills' });
+              break;
+            case 'closeSkills':
+              setShowSkillsPopover(false);
+              break;
+            case 'openAttachments':
+              postMessage({ type: 'selectAttachments' });
+              break;
+            case 'sendMessage': {
+              const text = (rawPayload as { text?: unknown } | undefined)?.text;
+              if (typeof text !== 'string') break;
+              const normalized = text.trim();
+              if (!normalized) break;
+              postMessage({ type: 'send', text: normalized, contextFiles: [], attachments: [] });
+              break;
+            }
+          }
           break;
         }
         case 'queryRenderedEvents': {
-          const vscodeApi = getVscodeApi();
-          vscodeApi.postMessage({
-            type: 'renderedEventsResponse',
-            count: events.length,
-            eventTypes: events.map(e => (e.event as any).kind ?? (e.event as any).type)
+          const eventTypes = events.map(({ event }) => {
+            if ('kind' in event && typeof event.kind === 'string') return event.kind;
+            if ('type' in event && typeof (event as { type?: unknown }).type === 'string') {
+              return (event as { type: string }).type;
+            }
+            return 'unknown';
           });
+          if (typeof payload.requestId === 'string') {
+            postMessage({
+              type: 'renderedEventsResponse',
+              requestId: payload.requestId,
+              count: events.length,
+              eventTypes
+            });
+          }
           break;
         }
         case 'historyList': {
           const list = Array.isArray(payload.conversations) ? payload.conversations : [];
           setHistory(list);
-          setShowHistory(true);
           break;
         }
       }
@@ -711,23 +494,53 @@ export function App() {
     return () => window.removeEventListener('message', handler);
   }, [events, handleEvent, postMessage, showStatusMessage]);
 
-  // Auto-scroll to bottom when events change
+  // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
     const el = endRef.current;
     if (el && 'scrollIntoView' in el && typeof el.scrollIntoView === 'function') {
       el.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
-  }, [events.length]);
+  }, [events.length, streamingContent]);
 
-  // Filtered workspace files for context picker
-  const filteredWorkspaceFiles = useMemo(() => {
-    if (!contextQuery.trim()) return workspaceFiles.slice(0, 20);
-    const lower = contextQuery.toLowerCase();
-    return workspaceFiles.filter((file) => file.toLowerCase().includes(lower)).slice(0, 20);
-  }, [contextQuery, workspaceFiles]);
+  // Shared mention detection logic
+  const updateMentionState = useCallback((text: string, caret: number) => {
+    const before = text.slice(0, caret);
+    const at = before.lastIndexOf('@');
 
-  const safeContextActiveIndex = Math.min(contextActiveIndex, Math.max(0, filteredWorkspaceFiles.length - 1));
-  const safeSkillsActiveIndex = Math.min(skillsActiveIndex, Math.max(0, skills.length - 1));
+    // Clear mention if no @ or whitespace after @
+    if (at === -1 || /\s/.test(before.slice(at + 1))) {
+      if (isMentionActive) {
+        setIsMentionActive(false);
+        setShowContextPicker(false);
+        setContextQuery('');
+        mentionStartRef.current = null;
+      }
+      return;
+    }
+
+    // Activate mention mode
+    const afterAt = before.slice(at + 1);
+    mentionStartRef.current = at;
+    setIsMentionActive(true);
+    setShowSkillsPopover(false);
+    if (!showContextPicker) {
+      postMessage({ type: 'requestWorkspaceFiles' });
+      setShowContextPicker(true);
+    }
+    setContextQuery(afterAt);
+  }, [isMentionActive, postMessage, showContextPicker]);
+
+  // Selection tracking from InputArea
+  const handleSelectionChange = useCallback((start: number, end: number) => {
+    selectionRef.current = { start, end };
+    updateMentionState(input, end);
+  }, [input, updateMentionState]);
+
+  // Input change with mention detection
+  const handleInputChange = useCallback((value: string) => {
+    setInput(value);
+    updateMentionState(value, selectionRef.current.end);
+  }, [updateMentionState]);
 
   // Handler functions
   const handleStartNewConversation = useCallback(() => {
@@ -736,212 +549,45 @@ export function App() {
     setEvents([]);
     setPendingActions([]);
     setAgentStatus(undefined);
+    setStreamingContent(null);
     eventId.current = 1;
     setInput('');
     setSelectedContextFiles([]);
+    setAttachments([]);
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage]);
 
   const handleOpenHistory = useCallback(() => {
+    setShowHistory(true);
     postMessage({ type: 'requestHistory' });
   }, [postMessage]);
 
-  const handleInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const value = event.target.value;
-    setInput(value);
-    const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-    const start = target.selectionStart ?? value.length;
-    const end = target.selectionEnd ?? start;
-    selectionRef.current = { start, end };
-  }, []);
+  const handleOpenSettings = useCallback(() => {
+    postMessage({ type: 'openSettingsPage' });
+  }, [postMessage]);
 
-  const handleInputSelect = useCallback((event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-    const start = target.selectionStart ?? target.value.length;
-    const end = target.selectionEnd ?? start;
-    selectionRef.current = { start, end };
-  }, []);
+  const handleReconnect = useCallback(() => {
+    postMessage({ type: 'command', command: 'reconnect' });
+  }, [postMessage]);
 
-  const insertContextFile = useCallback((file: string) => {
-    const { start } = selectionRef.current;
-    const before = input.slice(0, start);
-    const after = input.slice(start);
-    const mention = `@${file} `;
-    const newValue = before + mention + after;
-    const caretPos = before.length + mention.length;
-
-    if (!selectedContextFiles.includes(file)) {
-      setSelectedContextFiles((prev) => [...prev, file]);
-    }
-
-    selectionRef.current = { start: caretPos, end: caretPos };
-    setInput(newValue);
-    setShowContextPicker(false);
-    setContextQuery('');
-    setContextActiveIndex(0);
-    setTimeout(() => {
-      const el = document.getElementById('openhands-chat-input');
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-        el.focus();
-        el.setSelectionRange(caretPos, caretPos);
-      }
-    }, 0);
-  }, [input, selectedContextFiles]);
-
-  const handleContextQueryKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showContextPicker) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      if (filteredWorkspaceFiles.length === 0) return;
-      setContextActiveIndex((prev) => (prev + 1) % filteredWorkspaceFiles.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (filteredWorkspaceFiles.length === 0) return;
-      setContextActiveIndex((prev) => (prev - 1 + filteredWorkspaceFiles.length) % filteredWorkspaceFiles.length);
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      const file = filteredWorkspaceFiles[safeContextActiveIndex];
-      if (file) insertContextFile(file);
-    }
-  }, [filteredWorkspaceFiles, insertContextFile, safeContextActiveIndex, showContextPicker]);
-
-  const closeContextPicker = useCallback(() => {
-    setShowContextPicker(false);
-    setContextQuery('');
-    setContextActiveIndex(0);
-  }, []);
-
-  const closeSkillsPopover = useCallback(() => {
-    setShowSkillsPopover(false);
-    setSkillsActiveIndex(0);
-  }, []);
-
-  const openSkill = useCallback((path: string) => {
-    showStatusMessage('info', 'Opening skill…');
-    postMessage({ type: 'openSkill', path });
-    closeSkillsPopover();
-  }, [closeSkillsPopover, postMessage, showStatusMessage]);
-
-  const handleContextToggle = useCallback(() => {
-    closeSkillsPopover();
-    setShowContextPicker((prev) => {
-      const next = !prev;
-      if (next) {
-        setContextActiveIndex(0);
-        if (!workspaceFilesRequested) {
-          setWorkspaceFilesRequested(true);
-          setIsContextLoading(true);
-          postMessage({ type: 'requestWorkspaceFiles' });
-        }
-      } else {
-        setContextQuery('');
-        setContextActiveIndex(0);
-      }
-      return next;
-    });
-  }, [closeSkillsPopover, postMessage, workspaceFilesRequested]);
-
-  const handleSkillsToggle = useCallback(() => {
-    closeContextPicker();
-    setShowSkillsPopover((prev) => {
-      const next = !prev;
-      if (next) {
-        setSkillsActiveIndex(0);
-        if (!skillsRequested) {
-          setSkillsRequested(true);
-          setIsSkillsLoading(true);
-          postMessage({ type: 'requestSkills' });
-        }
-      } else {
-        setSkillsActiveIndex(0);
-      }
-      return next;
-    });
-  }, [closeContextPicker, postMessage, skillsRequested]);
-
-  const handleSkillsKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!showSkillsPopover || skills.length === 0) return;
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setSkillsActiveIndex((prev) => (prev + 1) % skills.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setSkillsActiveIndex((prev) => (prev - 1 + skills.length) % skills.length);
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      const skill = skills[safeSkillsActiveIndex];
-      if (skill) openSkill(skill.path);
-    }
-  }, [openSkill, safeSkillsActiveIndex, showSkillsPopover, skills]);
-
-  useEffect(() => {
-    if (!showContextPicker) return;
-    const timer = setTimeout(() => {
-      const contextualInput = document.getElementById('openhands-context-query');
-      if (contextualInput instanceof HTMLInputElement) contextualInput.focus();
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [showContextPicker]);
-
-  useEffect(() => {
-    if (!showSkillsPopover) return;
-    const timer = setTimeout(() => {
-      const target = skillsPopoverRef.current;
-      if (!target) return;
-      const firstButton = target.querySelector<HTMLButtonElement>('button');
-      if (firstButton) {
-        firstButton.focus();
-      } else {
-        target.focus();
-      }
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [showSkillsPopover, skills.length]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (showContextPicker && contextPopoverRef.current && !contextPopoverRef.current.contains(event.target as Node)) {
-        closeContextPicker();
-      }
-      if (showSkillsPopover && skillsPopoverRef.current && !skillsPopoverRef.current.contains(event.target as Node)) {
-        closeSkillsPopover();
-      }
-    };
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      if (showContextPicker) closeContextPicker();
-      if (showSkillsPopover) closeSkillsPopover();
-    };
-    window.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('keydown', handleEscape);
-    return () => {
-      window.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('keydown', handleEscape);
-    };
-  }, [closeContextPicker, closeSkillsPopover, showContextPicker, showSkillsPopover]);
-
-  const isLocalMode = mode === 'local';
-
-  const send = useCallback(() => {
+  const handleSendMessage = useCallback(() => {
     const text = input.trim();
     if (!text) return;
-
-    const files = selectedContextFiles.slice();
-    let finalText = text;
-    if (files.length > 0) {
-      const lines = files;
-      finalText += `\n\nUser has selected the following files for you to read:\n${lines.join('\n')}`;
-    }
 
     setInput('');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
     setContextQuery('');
     setSelectedContextFiles([]);
+    setAttachments([]);
     selectionRef.current = { start: 0, end: 0 };
-    postMessage({ type: 'send', text: finalText });
-  }, [input, postMessage, selectedContextFiles]);
+    postMessage({
+      type: 'send',
+      text,
+      contextFiles: selectedContextFiles.slice(),
+      attachments: attachments.map((a) => a.uri),
+    });
+  }, [attachments, input, postMessage, selectedContextFiles]);
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
@@ -971,278 +617,235 @@ export function App() {
     showStatusMessage('info', 'Rejection submitted');
   }, [isSubmitting, postMessage, showStatusMessage]);
 
+  // Context picker handlers
+  const handleOpenContext = useCallback(() => {
+    setShowSkillsPopover(false);
+    setShowContextPicker((prev) => {
+      const willBeOpen = !prev;
+      if (willBeOpen) {
+        postMessage({ type: 'requestWorkspaceFiles' });
+      }
+      return willBeOpen;
+    });
+  }, [postMessage]);
+
+  // Attachments handlers
+  const handleOpenAttachments = useCallback(() => {
+    postMessage({ type: 'selectAttachments' });
+  }, [postMessage]);
+
+  const handleOpenAttachment = useCallback((uri: string) => {
+    postMessage({ type: 'openAttachment', uri });
+  }, [postMessage]);
+
+  const handleOpenPath = useCallback((p: string) => {
+    postMessage({ type: 'openWorkspaceFile', path: p });
+  }, [postMessage]);
+
+  const handleRemoveAttachment = useCallback((uri: string) => {
+    setAttachments((prev) => prev.filter((a) => a.uri !== uri));
+  }, []);
+
+  const handleToggleContextFile = useCallback((file: string) => {
+    if (isMentionActive && mentionStartRef.current !== null) {
+      // Ensure file is in selected context
+      setSelectedContextFiles((prev) => (prev.includes(file) ? prev : [...prev, file]));
+
+      const caret = selectionRef.current.end;
+      const start = mentionStartRef.current;
+      const before = input.slice(0, start);
+      const after = input.slice(caret);
+      const inserted = `@${file} `;
+      const next = before + inserted + after;
+      setInput(next);
+
+      // Place caret after inserted mention
+      setTimeout(() => {
+        const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
+        if (textarea) {
+          const pos = (before + inserted).length;
+          try { textarea.setSelectionRange(pos, pos); } catch { }
+        }
+      }, 0);
+
+      // Close mention/context picker
+      setIsMentionActive(false);
+      setShowContextPicker(false);
+      setContextQuery('');
+      mentionStartRef.current = null;
+    } else {
+      setSelectedContextFiles((prev) =>
+        prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]
+      );
+    }
+  }, [input, isMentionActive]);
+
+  // Skills handlers
+  const handleOpenSkills = useCallback(() => {
+    setShowContextPicker(false);
+    setShowSkillsPopover((prev) => {
+      const willBeOpen = !prev;
+      if (willBeOpen) {
+        postMessage({ type: 'requestSkills' });
+      }
+      return willBeOpen;
+    });
+  }, [postMessage]);
+
+  const handleOpenSkill = useCallback((path: string) => {
+    showStatusMessage('info', 'Opening skill…');
+    postMessage({ type: 'openSkill', path });
+    setShowSkillsPopover(false);
+  }, [postMessage, showStatusMessage]);
+
+  // History handlers
   const handleSelectConversation = useCallback((id: string) => {
-    setShowHistory(false);
+    // No toast on restore; the UI will be repopulated with restored events
     postMessage({ type: 'restoreConversation', id });
   }, [postMessage]);
 
+  // Server selection handlers
+  const handleSelectServer = useCallback((url: string) => {
+    postMessage({ type: 'selectServer', url });
+  }, [postMessage]);
+
+  const handleAddServer = useCallback((server: { url: string; label?: string }) => {
+    postMessage({ type: 'addServer', server });
+  }, [postMessage]);
+
+  const handleRemoveServer = useCallback((url: string) => {
+    postMessage({ type: 'removeServer', url });
+  }, [postMessage]);
+
+  const handleSwitchToLocal = useCallback(() => {
+    postMessage({ type: 'switchToLocal' });
+  }, [postMessage]);
+
+  // Derived state: conversation is empty when no events and no streaming
+  const isEmptyConversation = events.length === 0 && streamingContent === null;
+  const llmModelLabel = llmModel === undefined
+    ? undefined
+    : (llmModel || (mode === 'remote' ? 'server default' : 'default'));
+
   return (
-    <div className="oh-app">
-      {/* Animated Background */}
-      <div className="oh-app-background" />
-      <div className="oh-scan-line" />
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Header */}
+      <Header
+        status={status}
+        mode={mode}
+        conversationId={conversationId}
+        currentServerUrl={currentServerUrl}
+        servers={servers}
+        onNewConversation={handleStartNewConversation}
+        onOpenHistory={handleOpenHistory}
+        onOpenSettings={handleOpenSettings}
+        onReconnect={handleReconnect}
+        onSelectServer={handleSelectServer}
+        onAddServer={handleAddServer}
+        onRemoveServer={handleRemoveServer}
+        onSwitchToLocal={handleSwitchToLocal}
+      />
 
-      {/* Header / Command Bar */}
-      <header className="oh-header">
-        <div className="oh-header-left">
-          <div className="oh-header-brand">
-            <svg className="oh-brand-icon" viewBox="0 0 47 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M44.731 8.9991C43.271 8.13859 42.2956 9.4574 42.4152 11.248L42.4031 11.2616C42.4071 9.39165 42.1435 7.32642 41.2675 5.65567C40.9573 5.06395 40.3287 4.09128 39.0856 4.54957C38.5402 4.75068 38.0454 5.35594 38.3009 6.9184C38.3009 6.9184 38.5848 8.55821 38.532 10.6196V10.6486C38.1772 4.96339 36.8388 3.22883 34.9246 3.34099C34.3122 3.44541 33.4748 3.69873 33.7566 5.44683C33.7566 5.44683 34.0628 7.27034 34.1622 8.72258L34.1683 8.79606H34.1622C33.2618 5.66147 32.0492 5.61893 31.1712 5.74076C30.3743 5.85098 29.5044 6.64381 29.9444 8.20627C31.3253 13.1083 31.0556 19.012 30.9522 19.857C30.6703 19.2789 30.5831 18.8206 30.1918 18.1863C28.6182 15.6396 27.87 15.452 26.9514 15.4133C26.0389 15.3746 25.0534 15.9141 25.1183 16.941C25.1852 17.9678 25.7307 18.1379 26.5053 19.5689C27.1096 20.6827 27.2819 22.1427 28.4986 24.7958C29.5064 26.9925 32.1405 29.402 36.9382 29.1158C40.8255 28.992 46.631 27.6887 45.6212 19.13C45.3697 17.6429 45.5583 16.3976 45.6901 15.1213C45.8949 13.1412 46.195 9.85962 44.733 8.99717L44.731 8.9991Z" fill="#FFE165"/>
-              <path d="M20.458 15.4707C19.5395 15.5268 18.7973 15.7259 17.2724 18.2998C16.8932 18.9398 16.8161 19.4 16.5444 19.9821C16.4248 19.139 16.0415 13.2411 17.3272 8.31587C17.7368 6.74761 16.8526 5.97024 16.0537 5.87356C15.1736 5.7672 13.959 5.83101 13.1195 8.99654H13.1094L13.1215 8.90566C13.1925 7.45149 13.4642 5.62411 13.4642 5.62411C13.7096 3.87021 12.8701 3.63236 12.2557 3.5376C10.3455 3.46025 9.04367 5.20255 8.79222 10.8375H8.78817C8.70097 8.79737 8.95039 7.17303 8.95039 7.17303C9.17547 5.60477 8.66853 5.00918 8.119 4.81774C6.86786 4.38071 6.25749 5.36498 5.95941 5.96251C5.11585 7.64873 4.89077 9.71783 4.93133 11.5878L4.91916 11.5742C5.0023 9.78164 4.0026 8.48023 2.55882 9.36589C1.11504 10.2535 1.47802 13.5292 1.72135 15.5055C1.87952 16.7798 2.09041 18.0213 1.86735 19.5122C1.02379 28.0864 6.85366 29.2872 10.7429 29.3433C15.5447 29.5464 18.1322 27.0886 19.0974 24.8745C20.2613 22.202 20.4074 20.7382 20.9893 19.6147C21.7355 18.1702 22.279 17.9904 22.3256 16.9635C22.3723 15.9367 21.3766 15.4146 20.4641 15.4688L20.458 15.4707Z" fill="#FFE165"/>
-            </svg>
-            <span className="oh-brand-title">OpenHands</span>
+      {/* Main conversation area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {isEmptyConversation ? (
+          <div className="flex flex-col items-center justify-center h-full text-center px-6">
+            <div className="text-6xl mb-6">🙌</div>
+            <h2 className="text-2xl font-semibold mb-3 text-stone-100">Welcome to OpenHands</h2>
+            <p className="text-sm text-stone-400 max-w-md leading-relaxed">
+              Start a conversation to collaborate with your AI coding assistant.
+              Ask questions, request implementations, or get help with your code.
+            </p>
+            <div className="mt-6 flex items-center gap-2 text-xs text-stone-500">
+              <span className="codicon codicon-lightbulb text-brand-400" />
+              <span>Type a message below to get started</span>
+            </div>
           </div>
-          {!isLocalMode && (
-            <div className="oh-status-badge">
-              <span className={`oh-status-dot ${status}`} />
-              {status}
-            </div>
-          )}
-          {isLocalMode && (
-            <div className="oh-status-badge">
-              <span className="codicon codicon-server-environment" />
-              LOCAL
-            </div>
-          )}
-        </div>
-        <div className="oh-header-right">
-          <button
-            className="oh-toolbar-btn"
-            onClick={handleStartNewConversation}
-            title="New Conversation"
-            aria-label="New Conversation"
-          >
-            <span className="codicon codicon-add" />
-          </button>
-          <button
-            className="oh-toolbar-btn"
-            onClick={handleOpenHistory}
-            title="History"
-            aria-label="History"
-          >
-            <span className="codicon codicon-history" />
-          </button>
-          <button
-            className="oh-toolbar-btn"
-            onClick={() => postMessage({ type: 'openSettingsPage' })}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <span className="codicon codicon-settings-gear" />
-          </button>
-          {!isLocalMode && (
-            <button
-              className={`oh-toolbar-btn ${status === 'connecting' ? 'spinning' : ''}`}
-              onClick={() => postMessage({ type: 'command', command: 'reconnect' })}
-              title={status === 'online' ? 'Connected (click to reconnect)' : status === 'offline' ? 'Disconnected (click to reconnect)' : 'Reconnecting'}
-              aria-label="Connection status"
-            >
-              <span className={`codicon codicon-${status === 'online' ? 'pass' : status === 'offline' ? 'error' : 'sync'}`} />
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="oh-main">
-        <div className="oh-timeline-container" role="log" aria-label="Conversation events" aria-live="polite">
-          <div className="oh-timeline">
-            {events.map((ev) => (
-              <EventBlock key={ev.id} event={ev.event} />
+        ) : (
+          <>
+            {events.map((ev, index) => (
+              <EventBlock key={ev.id} event={ev.event} index={index} />
             ))}
-            {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
-              <ConfirmationPrompt
-                pendingActions={pendingActions}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                isSubmitting={isSubmitting}
-              />
+            {streamingContent !== null && (
+              <StreamingMessageBlock content={streamingContent} />
             )}
             <div ref={endRef} />
-          </div>
-        </div>
-      </main>
-
-      {/* Input Area / Command Center */}
-      <footer className="oh-input-area">
-        <div className="oh-input-wrapper">
-          <textarea
-            id="openhands-chat-input"
-            className="oh-input-field"
-            placeholder="Type your message..."
-            value={input}
-            onChange={handleInputChange}
-            onSelect={handleInputSelect}
-            onClick={handleInputSelect}
-            onFocus={handleInputSelect}
-            onKeyUp={handleInputSelect}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                send();
-                return;
-              }
-              handleInputSelect(e);
-            }}
-            rows={3}
-            aria-label="Message input"
-          />
-        </div>
-
-        <div className="oh-accessories">
-          <div className="relative">
-            <button
-              className="oh-accessory-btn"
-              onClick={handleContextToggle}
-              title="Add context"
-            >
-              <span className="codicon codicon-mention" />
-              Context
-            </button>
-            {showContextPicker && (
-              <div
-                ref={contextPopoverRef}
-                className="oh-popover"
-                style={{ bottom: '100%', left: 0, marginBottom: '8px', width: '280px' }}
-              >
-                <div className="oh-popover-title">Add Context</div>
-                <input
-                  id="openhands-context-query"
-                  type="text"
-                  value={contextQuery}
-                  onChange={(e) => {
-                    setContextQuery(e.target.value);
-                    setContextActiveIndex(0);
-                  }}
-                  onKeyDown={handleContextQueryKeyDown}
-                  placeholder="Search files..."
-                  className="oh-popover-search"
-                />
-                <div className="oh-popover-list">
-                  {isContextLoading ? (
-                    <div className="py-2 text-center text-sm opacity-70">Loading…</div>
-                  ) : filteredWorkspaceFiles.length === 0 ? (
-                    <div className="py-2 text-center text-sm opacity-70">No matches</div>
-                  ) : (
-                    filteredWorkspaceFiles.map((file, index) => (
-                      <div
-                        key={file}
-                        className={`oh-popover-item ${index === safeContextActiveIndex ? 'active' : ''}`}
-                        onClick={() => insertContextFile(file)}
-                        onMouseEnter={() => setContextActiveIndex(index)}
-                      >
-                        <span className="oh-truncate" title={file}>{file}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            className="oh-accessory-btn"
-            onClick={() => showStatusMessage('info', 'File attachments coming soon')}
-            title="Attach files"
-          >
-            <span className="codicon codicon-add" />
-            Attach
-          </button>
-
-          <button
-            className="oh-accessory-btn"
-            onClick={() => showStatusMessage('info', 'MCP server management coming soon')}
-            title="MCP Servers"
-          >
-            <span className="codicon codicon-server-environment" />
-            MCP
-          </button>
-
-          <div className="relative">
-            <button
-              className="oh-accessory-btn"
-              onClick={handleSkillsToggle}
-              title="Skills"
-            >
-              <span className="codicon codicon-mortar-board" />
-              Skills
-            </button>
-            {showSkillsPopover && (
-              <div
-                ref={skillsPopoverRef}
-                tabIndex={-1}
-                className="oh-popover"
-                style={{ bottom: '100%', right: 0, marginBottom: '8px', width: '260px' }}
-                onKeyDown={handleSkillsKeyDown}
-              >
-                <div className="oh-popover-title">Skills</div>
-                <div className="oh-popover-list">
-                  {isSkillsLoading ? (
-                    <div className="py-2 text-center text-sm opacity-70">Loading…</div>
-                  ) : skills.length === 0 ? (
-                    <div className="py-2 text-center text-sm opacity-70">No skills found</div>
-                  ) : (
-                    skills.map((skill, index) => (
-                      <div
-                        key={skill.path}
-                        className={`oh-popover-item ${index === safeSkillsActiveIndex ? 'active' : ''}`}
-                        onClick={() => openSkill(skill.path)}
-                        onMouseEnter={() => setSkillsActiveIndex(index)}
-                      >
-                        {skill.label}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {statusBanner && (
-          <div className={`oh-status-banner ${statusBanner.level}`}>
-            <span>{statusBanner.message}</span>
-            {conversationId && statusBanner.level !== 'error' && (
-              <span className="opacity-60">ID: {conversationId.slice(0, 8)}</span>
-            )}
-          </div>
+          </>
         )}
-      </footer>
+      </div>
 
-      {/* History Panel */}
-      {showHistory && (
-        <div className="oh-history-overlay" onClick={() => setShowHistory(false)}>
-          <div className="oh-history-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="oh-history-header">
-              <h3>Conversation History</h3>
-              <button onClick={() => setShowHistory(false)} className="oh-toolbar-btn">
-                <span className="codicon codicon-close" />
-              </button>
-            </div>
-            <div className="oh-history-list">
-              {history.length === 0 ? (
-                <div className="py-4 text-center text-sm opacity-70">No conversations yet</div>
-              ) : (
-                history.map((conv) => (
-                  <div
-                    key={conv.id}
-                    className={`oh-history-item ${conv.id === conversationId ? 'active' : ''}`}
-                    onClick={() => handleSelectConversation(conv.id)}
-                  >
-                    <div className="oh-history-item-title">
-                      {conv.title || conv.firstMessage?.slice(0, 50) || 'Untitled'}
-                    </div>
-                    <div className="oh-history-item-meta">
-                      {new Date(conv.timestamp).toLocaleDateString()}
-                      {conv.messageCount && ` · ${conv.messageCount} messages`}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Confirmation prompt (modal overlay) */}
+      {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
+        <ConfirmationPrompt
+          pendingActions={pendingActions}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onOpenPath={handleOpenPath}
+          isSubmitting={isSubmitting}
+        />
       )}
+
+      {/* Input area */}
+      <div className="relative">
+        {/* Status banner (space reserved to prevent layout jumps) */}
+        <div className="px-4 pb-2 min-h-[56px] flex items-end" data-testid="status-row">
+          {statusBanner && (
+            <StatusBanner
+              message={statusBanner.message}
+              level={statusBanner.level}
+              dismissible={statusBanner.dismissible}
+              onDismiss={() => setStatusBanner(null)}
+              autoDismiss={statusBanner.level !== 'error'}
+            />
+          )}
+        </div>
+
+        <InputArea
+          value={input}
+          onChange={handleInputChange}
+          onSubmit={handleSendMessage}
+          disabled={status === 'offline'}
+          modelLabel={llmModelLabel}
+          onOpenModelSettings={handleOpenSettings}
+          onOpenContext={handleOpenContext}
+          contextCount={selectedContextFiles.length}
+          onOpenSkills={handleOpenSkills}
+          skillsCount={skills.length}
+          onOpenAttachments={handleOpenAttachments}
+          attachments={attachments}
+          onOpenAttachment={handleOpenAttachment}
+          onRemoveAttachment={handleRemoveAttachment}
+          onSelectionChange={handleSelectionChange}
+        />
+
+        {/* Context picker popover */}
+        <ContextPicker
+          isOpen={showContextPicker}
+          onClose={() => setShowContextPicker(false)}
+          files={workspaceFiles}
+          selectedFiles={selectedContextFiles}
+          onToggleFile={handleToggleContextFile}
+          searchQuery={contextQuery}
+          onSearchChange={setContextQuery}
+        />
+
+        {/* Skills popover */}
+        <SkillsPopover
+          isOpen={showSkillsPopover}
+          onClose={() => setShowSkillsPopover(false)}
+          skills={skills}
+          onOpenSkill={handleOpenSkill}
+        />
+      </div>
+
+      {/* History view (slide-over panel) */}
+      <HistoryView
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        conversations={history}
+        currentConversationId={conversationId}
+        onSelectConversation={handleSelectConversation}
+      />
     </div>
   );
 }

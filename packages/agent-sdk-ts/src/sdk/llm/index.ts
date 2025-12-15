@@ -3,5 +3,6 @@ export * from './credentials';
 export * from './openai-compatible';
 export * from './anthropic';
 export * from './factory';
+export * from './provider';
 export * from './metrics';
 export * from './registry';

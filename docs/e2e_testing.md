@@ -15,7 +15,7 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
 - Node.js 22+
 - VS Code Desktop (Electron build)
 - Optional: Python 3.12+ and agent-server (agent-sdk) running for full integration testing
-- Recommended default server URL: http://localhost:3000
+- Recommended default server URL: <http://localhost:3000>
 
 ## Testing Approaches
 
@@ -24,16 +24,21 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
    - npm install
    - npm run compile
 2) Start agent-server (separate terminal)
-   - git clone https://github.com/All-Hands-AI/agent-sdk && cd agent-sdk
-   - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
+   - Recommended: use a local checkout of [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)
+     - First time: `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server:prepare`
+     - After: `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server`
+   - Or clone it:
+     - `git clone https://github.com/OpenHands/software-agent-sdk.git ~/repos/agent-sdk`
+     - `cd ~/repos/agent-sdk && make build`
+     - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
 3) Launch the extension in VS Code
    - Open this folder in VS Code
    - Press F5 to run “Extension Development Host”
 4) In the Dev Host window
-   - Run “OpenHands: Configure” → ensure server URL is http://localhost:3000
-   - Run “OpenHands: Open Tab”
+   - Run “OpenHands: Configure” → ensure server URL is <http://localhost:3000>
+   - Run “OpenHands: Open” (reveals the chat sidebar view)
    - Run "OpenHands: Start New Conversation"
-   - Type a message and verify assistant/tool events stream in the tab
+   - Type a message and verify assistant/tool events stream in the webview
 
 ### Option B: Automated E2E Tests with @vscode/test-electron
 
@@ -70,7 +75,7 @@ import { runTests } from '@vscode/test-electron';
 describe('OpenHands-Tab E2E', function() {
   this.timeout(120000);
 
-  it('opens the tab and renders HTML', async () => {
+  it('opens the chat webview and renders HTML', async () => {
     // VS Code launches with extension loaded
     // Test suite verifies commands, webview, etc.
   });
@@ -91,7 +96,7 @@ describe('OpenHands-Tab E2E', function() {
 - Inject `SESSION_API_KEY` environment variable if required
 
 **Test Stability:**
-- Start with smoke tests (activation + command execution + panel created)
+- Start with smoke tests (activation + command execution + webview created)
 - Add network-dependent assertions once the server contract is stable
 - Use timeouts appropriately for async operations
 
@@ -99,7 +104,7 @@ describe('OpenHands-Tab E2E', function() {
 
 Whether testing manually or automated, verify:
 - ✅ VS Code launches with the extension
-- ✅ Command "OpenHands: Open Tab" succeeds and a panel appears
+- ✅ Command "OpenHands: Open" succeeds and the chat view appears
 - ✅ Command "OpenHands: Start New Conversation" succeeds (HTTP 201)
 - ✅ WebSocket connects (status shows online) and events stream when you send a message
 

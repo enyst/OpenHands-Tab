@@ -4,11 +4,24 @@
     {
       "type": "extensionHost",
       "request": "launch",
-      "name": "Run OH-Tab",
+      "name": "Run OH-Tab (isolated profile)",
       "runtimeExecutable": "${execPath}",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--user-data-dir=${workspaceFolder}/.vscode-dev"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "preLaunchTask": "npm: compile"
+    },
+    {
+      "type": "extensionHost",
+      "request": "launch",
+      "name": "Run OH-Tab (normal profile)",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}"
       ],
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"

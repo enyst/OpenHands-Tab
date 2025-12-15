@@ -45,16 +45,18 @@ Choose one of the following:
 
 ### A. From VS Code (recommended)
 - Open the folder in VS Code
-- Press F5 (or Run and Debug → "Run OH-Tab")
-  - Uses .vscode/launch.json to start an Extension Development Host
+- Press F5 (or Run and Debug → "Run OH-Tab (isolated profile)")
+  - Uses `.vscode/launch.json` to start an Extension Development Host
+  - This uses an isolated user-data dir (`.vscode-dev`), so your normal VS Code settings/secrets are not shared
+  - To reuse your normal VS Code profile (and existing SecretStorage), pick "Run OH-Tab (normal profile)"
 
 ## Action shortcuts: Visual vs CLI
 
 For each common action, here are both the Visual (UI) steps and equivalent CLI triggers for agents.
 
 - Start Extension Development Host
-  - Visual: Open folder → Run and Debug → "Run OH-Tab" (F5)
-  - CLI: code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
+  - Visual: Open folder → Run and Debug → "Run OH-Tab (isolated profile)" (F5) or "Run OH-Tab (normal profile)"
+  - CLI (normal profile): code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 
 - Rebuild extension (backend + webview)
   - Visual: Terminal → Run Task → "npm: compile" (or use F5 which runs preLaunchTask)
@@ -136,7 +138,7 @@ code \
 ## Configuration for the Agent
 In the Dev Host window, use the commands:
 - OpenHands: Configure — set server URL (leave blank for local mode)
-- OpenHands: Open Tab — opens the main tab
+- OpenHands: Open — reveals the chat sidebar view
 - OpenHands: Start New Conversation — starts a new conversation
 
 ## Logs and Diagnostics

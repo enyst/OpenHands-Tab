@@ -12,7 +12,7 @@ const userDataDir = path.join(os.tmpdir(), `vscode-test-${Date.now()}`);
 describe('OpenHands-Tab diagnostics', function () {
   this.timeout(120000);
 
-  it('returns basic state after opening tab', async () => {
+  it('returns basic state after opening chat view', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
     const extensionTestsPath = path.resolve(__dirname, './suite');

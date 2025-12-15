@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, act, waitFor, cleanup } from '@testing-library/react';
 import { App } from '../components/App';
@@ -6,14 +6,14 @@ import { App } from '../components/App';
 const mockApi = { postMessage: vi.fn() };
 
 describe('App toolbar interactions', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     // @ts-expect-error mock VS Code API
     window.acquireVsCodeApi = () => mockApi;
     mockApi.postMessage.mockClear();
-  });
-
-  afterEach(() => {
-    cleanup();
   });
 
   it('sends openSettingsPage when settings icon is clicked', () => {
@@ -22,17 +22,49 @@ describe('App toolbar interactions', () => {
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openSettingsPage' });
   });
 
+  it('requests skills on mount to populate badge', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestSkills' });
+    });
+  });
+
+  it('shows the configured LLM model in the input row', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmModel: 'gpt-4.1' }
+      }));
+    });
+
+    expect(await screen.findByLabelText('LLM model')).toHaveTextContent('gpt-4.1');
+  });
+
+  it('shows a default label when no LLM model is configured', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmModel: null }
+      }));
+    });
+
+    expect(await screen.findByLabelText('LLM model')).toHaveTextContent('default');
+  });
+
   it('requests workspace files and inserts context mention at cursor', async () => {
     render(<App />);
-    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+    const input = document.getElementById('openhands-chat-input') as HTMLInputElement;
     expect(input).toBeTruthy();
 
-    fireEvent.change(input, { target: { value: '' } });
-    Object.defineProperty(input, 'selectionStart', { value: 0, configurable: true });
-    Object.defineProperty(input, 'selectionEnd', { value: 0, configurable: true });
+    // Type @ to trigger mention mode
+    fireEvent.change(input, { target: { value: '@' } });
+    // Simulate selection at end of input
+    Object.defineProperty(input, 'selectionStart', { value: 1, configurable: true });
+    Object.defineProperty(input, 'selectionEnd', { value: 1, configurable: true });
     fireEvent.select(input);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Context' }));
 
     // Wait for workspace files request
     await waitFor(() => {
@@ -51,7 +83,7 @@ describe('App toolbar interactions', () => {
     // Click on a file to select it
     fireEvent.click(screen.getByText('src/index.ts'));
 
-    // The file mention should be inserted at the caret position
+    // The @ mention should be replaced with the file path
     await waitFor(() => {
       expect(input.value).toContain('@src/index.ts');
     });
@@ -62,7 +94,7 @@ describe('App toolbar interactions', () => {
 
   it('requests skills and opens selected skill file', async () => {
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
+    fireEvent.click(screen.getAllByLabelText('Skills')[0]);
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestSkills' });
 
     await act(async () => {

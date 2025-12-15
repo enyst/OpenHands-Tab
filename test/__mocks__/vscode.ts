@@ -7,6 +7,7 @@ const mockCommands = new Map<string, Function>();
 const mockSubscriptions: Array<{ dispose: () => void }> = [];
 const mockConfigListeners: Function[] = [];
 const mockConfigValues = new Map<string, any>();
+const mockWebviewViewProviders = new Map<string, any>();
 
 // Workspace mock
 export const workspace = {
@@ -52,6 +53,13 @@ export const window = {
   showInputBox: vi.fn(),
   showQuickPick: vi.fn(),
   createTerminal: vi.fn(),
+  onDidCloseTerminal: vi.fn(() => ({ dispose: vi.fn() })),
+  registerWebviewViewProvider: vi.fn((viewId: string, provider: any, _options?: any) => {
+    mockWebviewViewProviders.set(viewId, provider);
+    const disposable = { dispose: vi.fn(() => mockWebviewViewProviders.delete(viewId)) };
+    mockSubscriptions.push(disposable);
+    return disposable;
+  }),
   registerTreeDataProvider: vi.fn(() => ({ dispose: vi.fn() })),
   createTreeView: vi.fn(() => ({
     onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
@@ -140,6 +148,7 @@ export function __resetMocks() {
   mockSubscriptions.length = 0;
   mockConfigListeners.length = 0;
   mockConfigValues.clear();
+  mockWebviewViewProviders.clear();
   // Reset common spies to default implementations
   ;(workspace.getConfiguration as any).mockClear();
   ;(workspace.onDidChangeConfiguration as any).mockClear();
@@ -152,12 +161,14 @@ export function __resetMocks() {
   ;(window.showQuickPick as any).mockClear();
   ;(window.createTerminal as any).mockClear();
   ;(window.createTreeView as any).mockClear();
+  ;(window.registerWebviewViewProvider as any).mockClear();
   ;(commands.registerCommand as any).mockClear();
   ;(commands.executeCommand as any).mockClear();
 }
 
 // Expose helpers for tests that expect them
 export function __getMockConfigValues() { return mockConfigValues; }
+export function __getMockWebviewViewProviders() { return mockWebviewViewProviders; }
 
 // Helper to manually trigger configuration change listeners (if needed by tests)
 export function __triggerConfigChange(e: any) {

@@ -33,8 +33,8 @@ describe('OpenAICompatibleClient streaming', () => {
   it('streams text, tool calls, and updates state', async () => {
     const sse = [
       'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Hello"}]}}]}',
-      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"name":"ping","arguments":"{\\"ok\\":tru"}}]}}]}',
-      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"arguments":"e}"}}]}},"usage":{"prompt_tokens":5,"completion_tokens":2}}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"ping","arguments":"{\\"ok\\":tru"}}]}}]}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"e}"}}]}},"usage":{"prompt_tokens":5,"completion_tokens":2}}',
       'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
       'data: [DONE]',
     ].join('\n');

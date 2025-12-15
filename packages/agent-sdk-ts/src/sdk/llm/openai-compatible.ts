@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
+import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 
 const decoder = new TextDecoder();
 
@@ -80,9 +81,9 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
 });
 
 const defaultBaseUrls: Record<string, string> = {
-  openai: 'https://api.openai.com/v1',
-  openrouter: 'https://openrouter.ai/api/v1',
-  litellm_proxy: 'http://localhost:4000',
+  openai: DEFAULT_PROVIDER_BASE_URLS.openai,
+  openrouter: DEFAULT_PROVIDER_BASE_URLS.openrouter,
+  litellm_proxy: DEFAULT_PROVIDER_BASE_URLS.litellm_proxy,
 };
 
 const parseSseLines = async function* (response: Response): AsyncGenerator<string> {
@@ -115,22 +116,34 @@ const parseSseLines = async function* (response: Response): AsyncGenerator<strin
 
 class OpenAIToolCallAccumulator implements ToolCallAccumulator {
   complete = [] as ToolCallAccumulator['complete'];
-  private readonly partial = new Map<string, { id: string; name?: string; arguments: string }>();
+  // Track by index since that's always present in streaming, but store the real id
+  private readonly partial = new Map<number, { id: string; name?: string; arguments: string }>();
 
-  applyDelta(delta: { id: string; name?: string; arguments?: string }): ToolCallAccumulator['complete'] {
-    const existing = this.partial.get(delta.id) ?? { id: delta.id, name: delta.name, arguments: '' };
-    this.partial.set(delta.id, {
-      id: delta.id,
-      name: delta.name ?? existing.name,
-      arguments: `${existing.arguments}${delta.arguments ?? ''}`,
-    });
+  applyDelta(delta: { index: number; id?: string; name?: string; arguments?: string }): { accumulated: ToolCallAccumulator['complete']; current: { id: string; name: string; argumentsDelta: string } } {
+    const existing = this.partial.get(delta.index);
+    // OpenAI only sends id in first delta; fall back to synthetic id so orchestrator can track calls
+    const id = delta.id ?? existing?.id ?? `tool_call_${delta.index}`;
+    const updated = {
+      id,
+      name: delta.name ?? existing?.name,
+      arguments: `${existing?.arguments ?? ''}${delta.arguments ?? ''}`,
+    };
+    this.partial.set(delta.index, updated);
 
     this.complete = Array.from(this.partial.values()).map((value) => ({
       id: value.id,
       type: 'function',
       function: { name: value.name ?? '', arguments: value.arguments },
     }));
-    return this.complete;
+
+    return {
+      accumulated: this.complete,
+      current: {
+        id,
+        name: updated.name ?? '',
+        argumentsDelta: delta.arguments ?? '',
+      },
+    };
   }
 }
 
@@ -153,21 +166,23 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
 
   if (Array.isArray(delta.tool_calls)) {
     for (const call of delta.tool_calls) {
-      const toolId = call.id ?? call.index?.toString() ?? 'tool_call';
-      const acc = accumulator.applyDelta({
-        id: toolId,
+      // Index should always be present per OpenAI spec; skip malformed deltas
+      if (typeof call.index !== 'number') {
+        continue;
+      }
+      const result = accumulator.applyDelta({
+        index: call.index,
+        id: call.id,
         name: call.function?.name,
         arguments: call.function?.arguments,
       });
-      const current = acc.find((item) => item.id === toolId);
-      if (current) {
-        deltas.push({
-          type: 'tool_call_delta',
-          id: current.id,
-          name: current.function.name,
-          arguments: current.function.arguments,
-        });
-      }
+      // Yield only the delta, not accumulated arguments (orchestrator will accumulate)
+      deltas.push({
+        type: 'tool_call_delta',
+        id: result.current.id,
+        name: result.current.name,
+        arguments: result.current.argumentsDelta,
+      });
     }
   }
 
@@ -222,9 +237,11 @@ export class OpenAICompatibleClient implements LLMClient {
         for (const item of mapped) {
           yield item;
         }
-      } catch (error) {
-        yield { type: 'finish', finishReason: (error as Error).message };
-        break;
+      } catch {
+        // Skip malformed chunks rather than terminating entire stream.
+        // Proxies or providers may occasionally send bad data; we prefer
+        // resilience over failing fast since partial responses are still useful.
+        continue;
       }
     }
   }

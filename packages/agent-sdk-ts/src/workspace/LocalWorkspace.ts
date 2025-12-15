@@ -40,44 +40,95 @@ export interface DirectoryEntry {
   isDirectory: boolean;
 }
 
+type AllowedRootKind = 'dir' | 'file';
+
 export class LocalWorkspace {
   readonly root: string;
+  private readonly allowedRoots = new Map<string, AllowedRootKind>();
 
   constructor(root?: string) {
     const detectedRoot = root ?? LocalWorkspace.getDefaultRoot();
     this.root = fs.realpathSync(detectedRoot);
+    this.allowedRoots.set(this.root, 'dir');
+    for (const extraRoot of LocalWorkspace.getVsCodeWorkspaceRoots()) {
+      try {
+        this.allowedRoots.set(fs.realpathSync(extraRoot), 'dir');
+      } catch {
+        // Ignore invalid workspace roots.
+      }
+    }
   }
 
   static getDefaultRoot(): string {
-    const vscodeRoot = LocalWorkspace.getVsCodeWorkspaceRoot();
-    if (vscodeRoot) {
-      return vscodeRoot;
-    }
+    const vscodeRoots = LocalWorkspace.getVsCodeWorkspaceRoots();
+    if (vscodeRoots.length > 0) return vscodeRoots[0];
     return process.cwd();
   }
 
-  private static getVsCodeWorkspaceRoot(): string | null {
+  private static getVsCodeWorkspaceRoots(): string[] {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const vscode = require('vscode') as typeof import('vscode');
-      const folder = vscode.workspace?.workspaceFolders?.[0];
-      if (folder?.uri?.scheme === 'file') {
-        return folder.uri.fsPath;
+      const folders = vscode.workspace?.workspaceFolders ?? [];
+      return folders
+        .map((folder) => (folder.uri?.scheme === 'file' ? folder.uri.fsPath : undefined))
+        .filter((folder): folder is string => typeof folder === 'string' && folder.length > 0);
+    } catch {
+      return [];
+    }
+  }
+
+  private normalizeExistingOrParent(candidate: string): string {
+    if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
+    try {
+      const parent = path.dirname(candidate);
+      if (fs.existsSync(parent)) {
+        const realParent = fs.realpathSync(parent);
+        return path.join(realParent, path.basename(candidate));
       }
     } catch {
-      return null;
+      // Best-effort normalization only.
     }
-    return null;
+    return candidate;
+  }
+
+  allowPath(targetPath: string): void {
+    const candidate = path.resolve(targetPath);
+    const normalized = this.normalizeExistingOrParent(candidate);
+    const kind: AllowedRootKind = (() => {
+      try {
+        const stat = fs.statSync(normalized);
+        return stat.isDirectory() ? 'dir' : 'file';
+      } catch {
+        return 'file';
+      }
+    })();
+    this.allowedRoots.set(normalized, kind);
+  }
+
+  isPathAllowed(targetPath: string): boolean {
+    try {
+      void this.resolvePath(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   resolvePath(targetPath: string): string {
     const candidate = path.isAbsolute(targetPath)
       ? path.resolve(targetPath)
       : path.resolve(this.root, targetPath);
-    const normalized = fs.existsSync(candidate) ? fs.realpathSync(candidate) : candidate;
-    const relative = path.relative(this.root, normalized);
-    if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
-      return normalized;
+    const normalized = this.normalizeExistingOrParent(candidate);
+    for (const [root, kind] of this.allowedRoots.entries()) {
+      if (kind === 'file') {
+        if (normalized === root) return normalized;
+        continue;
+      }
+      const relative = path.relative(root, normalized);
+      if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+        return normalized;
+      }
     }
     throw new Error(`Path escapes workspace root: ${targetPath}`);
   }

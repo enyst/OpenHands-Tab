@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 
 // --- Constants ---
 
 const PROMPT_PREVIEW_MAX_LENGTH = 100;
+const HISTORY_PAGE_SIZE = 30;
 
 // --- Types ---
 
@@ -97,35 +98,37 @@ function ConversationItem({
     <button
       onClick={onSelect}
       className={`
-        w-full text-left p-4 rounded-lg
+        w-full text-left p-4 rounded-xl
         transition-all duration-200
-        border border-transparent
-        hover:border-brand-500/30 hover:bg-white/5
-        focus:outline-none focus:ring-2 focus:ring-brand-500/50
-        ${isActive ? 'bg-brand-500/10 border-brand-500/30' : 'bg-white/5'}
+        border
+        hover:bg-white/[0.04]
+        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+        ${isActive
+          ? 'bg-brand-500/10 border-brand-500/25 hover:bg-brand-500/15'
+          : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}
         animate-slide-up
       `}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
       {/* Title Row */}
       <div className="flex items-start justify-between gap-3 mb-1">
-        <div className="font-medium text-sm line-clamp-2 flex-1 text-[var(--vscode-foreground)]">
+        <div className={`font-medium text-sm line-clamp-2 flex-1 ${isActive ? 'text-brand-200' : 'text-stone-200'}`}>
           {displayTitle}
         </div>
         {isActive && (
-          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-400 mt-1" />
+          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-400 mt-1 animate-pulse" />
         )}
       </div>
 
       {/* Prompt Preview */}
       {promptPreview && (
-        <div className="text-xs opacity-60 line-clamp-2 mb-2">
+        <div className="text-xs text-stone-500 line-clamp-2 mb-2">
           {promptPreview}
         </div>
       )}
 
       {/* Metadata Row */}
-      <div className="flex items-center gap-3 text-xs opacity-50">
+      <div className="flex items-center gap-3 text-xs text-stone-500">
         <span className="flex items-center gap-1">
           <span className="codicon codicon-clock" />
           {timeAgo}
@@ -146,12 +149,35 @@ function ConversationItem({
  */
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center px-8 opacity-60">
-      <span className="codicon codicon-inbox text-4xl mb-4 opacity-40" />
-      <p className="text-sm">No conversation history yet</p>
-      <p className="text-xs mt-2 opacity-70">
+    <div className="flex flex-col items-center justify-center h-full text-center px-8">
+      <span className="codicon codicon-inbox text-4xl mb-4 text-stone-600" />
+      <p className="text-sm text-stone-400">No conversation history yet</p>
+      <p className="text-xs mt-2 text-stone-500">
         Start a new conversation to begin
       </p>
+    </div>
+  );
+}
+
+/**
+ * Renders the empty state when no conversations match the search query.
+ */
+function NoResultsState({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center px-8">
+      <span className="codicon codicon-search text-4xl mb-4 text-stone-600" />
+      <p className="text-sm text-stone-300">No matches</p>
+      <p className="text-xs mt-2 text-stone-500">
+        Nothing matched <span className="font-mono text-stone-400">{query}</span>
+      </p>
+      <button
+        type="button"
+        onClick={onClear}
+        className="mt-4 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-300 hover:bg-white/[0.08] hover:text-stone-100 transition-all"
+      >
+        <span className="codicon codicon-clear-all" />
+        Clear search
+      </button>
     </div>
   );
 }
@@ -168,52 +194,141 @@ export function HistoryView({
   onSelectConversation,
 }: HistoryViewProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(HISTORY_PAGE_SIZE);
 
   // Close on Escape key or click outside (with delay to avoid immediate close on open)
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
 
-  if (!isOpen) return null;
+  const sortedConversations = useMemo(
+    () => [...conversations].sort((a, b) => b.timestamp - a.timestamp),
+    [conversations]
+  );
+  const filteredConversations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return sortedConversations;
+    }
+    return sortedConversations.filter((conversation) => {
+      const haystack = [
+        conversation.title,
+        conversation.firstMessage,
+        conversation.id,
+      ]
+        .filter(Boolean)
+        .join('\n')
+        .toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [sortedConversations, query]);
 
-  const sortedConversations = [...conversations].sort((a, b) => b.timestamp - a.timestamp);
+  const hasAnyQuery = query.length > 0;
+  const visibleConversations = useMemo(
+    () => filteredConversations.slice(0, visibleCount),
+    [filteredConversations, visibleCount]
+  );
+  const canLoadMore = visibleConversations.length < filteredConversations.length;
+
+  const updateQuery = (next: string) => {
+    setQuery(next);
+    setVisibleCount(HISTORY_PAGE_SIZE);
+  };
+
+  const footerText = useMemo(() => {
+    const trimmedQuery = query.trim();
+    const totalConversations = sortedConversations.length;
+    const visible = visibleConversations.length;
+
+    if (trimmedQuery) {
+      const matchWord = filteredConversations.length === 1 ? 'match' : 'matches';
+      return `Showing ${visible} of ${filteredConversations.length} ${matchWord} (${totalConversations} total)`;
+    }
+
+    const conversationWord = totalConversations === 1 ? 'conversation' : 'conversations';
+    if (canLoadMore) {
+      return `Showing ${visible} of ${totalConversations} ${conversationWord}`;
+    }
+    return `${totalConversations} ${conversationWord}`;
+  }, [canLoadMore, filteredConversations.length, query, sortedConversations.length, visibleConversations.length]);
+
+  if (!isOpen) return null;
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 animate-fade-in"
+        className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 animate-fade-in"
         aria-hidden="true"
       />
 
       {/* Side Panel */}
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 h-full w-full max-w-md bg-[var(--vscode-editor-background)] border-l border-white/10 shadow-2xl z-50 animate-slide-in-right flex flex-col"
+        className="fixed right-0 top-0 h-full w-full max-w-md border-l border-white/[0.06] shadow-2xl z-50 animate-slide-in-right flex flex-col"
+        style={{
+          background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
+        }}
         role="dialog"
         aria-label="Conversation History"
         aria-modal="true"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
           <div className="flex items-center gap-3">
-            <span className="codicon codicon-history text-xl text-brand-400" />
-            <h2 className="text-lg font-semibold">History</h2>
+            <div className="w-8 h-8 rounded-lg bg-brand-500/15 flex items-center justify-center">
+              <span className="codicon codicon-history text-base text-brand-400" />
+            </div>
+            <h2 className="text-lg font-semibold text-stone-100">History</h2>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
+            className="h-8 w-8 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-200 hover:bg-white/[0.08] flex items-center justify-center transition-all"
             aria-label="Close history"
           >
             <span className="codicon codicon-close" />
           </button>
         </div>
 
+        {/* Search */}
+        <div className="px-6 pt-4">
+          <div className="relative">
+            <span className="codicon codicon-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+            <input
+              value={query}
+              onChange={(e) => updateQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && hasAnyQuery) {
+                  e.stopPropagation();
+                  updateQuery('');
+                }
+              }}
+              placeholder="Search history…"
+              className="w-full pl-9 pr-9 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0"
+              aria-label="Search conversation history"
+            />
+            {hasAnyQuery && (
+              <button
+                type="button"
+                onClick={() => updateQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md text-stone-400 hover:text-stone-200 hover:bg-white/[0.06] flex items-center justify-center transition-all"
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <span className="codicon codicon-close" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {sortedConversations.length === 0 ? (
             <EmptyState />
+          ) : filteredConversations.length === 0 ? (
+            <NoResultsState query={query.trim()} onClear={() => updateQuery('')} />
           ) : (
             <div className="space-y-2">
-              {sortedConversations.map((conversation, index) => (
+              {visibleConversations.map((conversation, index) => (
                 <ConversationItem
                   key={conversation.id}
                   conversation={conversation}
@@ -225,14 +340,27 @@ export function HistoryView({
                   }}
                 />
               ))}
+
+              {canLoadMore && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + HISTORY_PAGE_SIZE)}
+                    className="w-full px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-stone-300 hover:bg-white/[0.06] hover:text-stone-100 hover:border-white/[0.1] transition-all"
+                    aria-label="Load more conversations"
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/10 bg-white/5">
-          <p className="text-xs opacity-60 text-center">
-            {sortedConversations.length} conversation{sortedConversations.length !== 1 ? 's' : ''}
+        <div className="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
+          <p className="text-xs text-stone-500 text-center">
+            {footerText}
           </p>
         </div>
       </div>

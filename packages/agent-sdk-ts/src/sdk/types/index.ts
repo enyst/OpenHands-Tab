@@ -106,7 +106,7 @@ export interface ConversationErrorEvent extends EventBase {
 // PauseEvent - shown in visualizer
 export interface PauseEvent extends EventBase {
   kind: 'PauseEvent';
-  source: 'user';
+  source: 'agent' | 'user';
 }
 
 // Condensation - shown in visualizer
@@ -164,7 +164,7 @@ export const isEvent = (candidate: unknown): candidate is Event => {
     case 'ConversationErrorEvent':
       return typeof obj.detail === 'string' || typeof obj.code === 'string';
     case 'PauseEvent':
-      return obj.source === 'user';
+      return obj.source === 'user' || obj.source === 'agent';
     case 'Condensation':
       return Array.isArray(obj.forgotten_event_ids);
     case 'ConversationStateUpdateEvent':

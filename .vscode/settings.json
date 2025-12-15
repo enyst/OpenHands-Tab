@@ -1,4 +1,8 @@
 {
-  "openhands.llm.model": "gpt-5",
-  "openhands.llm.reasoningEffort": "low"
+  "openhands.llm.reasoningEffort": "low",
+  "openhands.servers": [
+    {
+      "url": "localhost:3000"
+    }
+  ]
 }

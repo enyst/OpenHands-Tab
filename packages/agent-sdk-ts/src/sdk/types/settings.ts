@@ -1,5 +1,8 @@
+import type { LLMProvider } from '../llm/types';
+
 export type LLMSettings = {
   usageId?: string | null;
+  provider?: LLMProvider | null;
   model?: string | null;
   baseUrl?: string | null;
   apiVersion?: string | null;
@@ -20,6 +23,7 @@ export type ServerSettings = {
 
 export type AgentSettings = {
   enableSecurityAnalyzer?: boolean;
+  debug?: boolean;
 };
 
 export type ConversationSettings = {
@@ -42,5 +46,9 @@ export type OpenHandsSettings = ServerSettings & {
     llmApiKey?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
+    githubToken?: string;
+    customSecret1?: string;
+    customSecret2?: string;
+    customSecret3?: string;
   };
 };

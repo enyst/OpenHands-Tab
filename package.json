@@ -3,7 +3,7 @@
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
   "version": "0.0.4",
-  "description": "A VS Code extension to interact with OpenHands agent-server in a dedicated tab",
+  "description": "A VS Code extension to interact with OpenHands agents in a dedicated sidebar chat view",
   "license": "MIT",
   "workspaces": [
     "packages/*"
@@ -20,20 +20,25 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onCommand:openhands.openTab",
+    "onCommand:openhands.open",
     "onCommand:openhands.startNewConversation",
     "onCommand:openhands.configure",
+    "onCommand:openhands.setApiKey",
+    "onCommand:openhands.setSessionApiKey",
+    "onCommand:openhands.setGithubToken",
+    "onCommand:openhands.setCustomSecret1",
+    "onCommand:openhands.setCustomSecret2",
+    "onCommand:openhands.setCustomSecret3",
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
     "onCommand:openhands.resumeCurrentRun",
-    "onView:openhands.quickActions"
+    "onView:openhands.chat"
   ],
   "contributes": {
-
     "commands": [
       {
-        "command": "openhands.openTab",
-        "title": "OpenHands: Open Tab"
+        "command": "openhands.open",
+        "title": "OpenHands: Open"
       },
       {
         "command": "openhands.startNewConversation",
@@ -46,6 +51,26 @@
       {
         "command": "openhands.setApiKey",
         "title": "OpenHands: Set API Key"
+      },
+      {
+        "command": "openhands.setSessionApiKey",
+        "title": "OpenHands: Set Session API Key"
+      },
+      {
+        "command": "openhands.setGithubToken",
+        "title": "OpenHands: Set GitHub Token"
+      },
+      {
+        "command": "openhands.setCustomSecret1",
+        "title": "OpenHands: Set Custom Secret 1"
+      },
+      {
+        "command": "openhands.setCustomSecret2",
+        "title": "OpenHands: Set Custom Secret 2"
+      },
+      {
+        "command": "openhands.setCustomSecret3",
+        "title": "OpenHands: Set Custom Secret 3"
       },
       {
         "command": "openhands.reconnect",
@@ -73,16 +98,50 @@
           "default": false,
           "markdownDescription": "Enable webview→extension debug logging bridge (Output channel + file in extension log path)."
         },
-
         "openhands.serverUrl": {
           "type": "string",
           "default": "",
           "markdownDescription": "OpenHands agent-server base URL. Leave blank to run in local mode."
         },
+        "openhands.servers": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ]
+          },
+          "markdownDescription": "List of saved OpenHands server URLs with optional labels."
+        },
+        "openhands.secrets.sessionApiKey": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your Session API Key securely:**\n\n[🔑 Configure Session API Key](command:openhands.setSessionApiKey)\n\n_(Stored in secure system keychain, not in settings.json. Used to authenticate to agent-server.)_"
+        },
         "openhands.conversation.maxIterations": {
           "type": "number",
           "default": 50,
           "markdownDescription": "Default max iterations for new conversations (server default is 500)."
+        },
+        "openhands.conversation.storeRoot": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional directory for local-mode conversation history/events. Leave empty to use `~/.openhands/conversations-vscode/`."
+        },
+        "openhands.terminal.renderProgress": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Coalesce carriage-return (\\r) progress updates in the OpenHands terminal log (keeps only the last update per line)."
         },
         "openhands.confirmation.policy": {
           "type": "string",
@@ -101,7 +160,7 @@
             "MEDIUM",
             "HIGH"
           ],
-          "default": "HIGH",
+          "default": "MEDIUM",
           "markdownDescription": "Risk threshold for ConfirmRisky policy. Actions at or above this require confirmation."
         },
         "openhands.confirmation.risky.confirmUnknown": {
@@ -114,29 +173,41 @@
           "default": false,
           "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
         },
-        "openhands.llm.usageId": {
-          "type": "string",
-          "default": "default-llm",
-          "markdownDescription": "Preferred usage_id for LLM config sent to agent-server. If unset, server defaults apply."
+        "openhands.agent.debug": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable local-mode debug events (e.g., llm_request/tool_call_raw)."
         },
         "openhands.llm.model": {
           "type": "string",
           "default": "claude-sonnet-4-20250514",
           "markdownDescription": "Default model name for LLM requests."
         },
+        "openhands.llm.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "anthropic",
+            "openai",
+            "openrouter",
+            "litellm_proxy"
+          ],
+          "default": "auto",
+          "markdownDescription": "LLM provider selection. Use `auto` to infer from `openhands.llm.baseUrl` when set; otherwise local mode defaults to Anthropic."
+        },
         "openhands.llm.baseUrl": {
           "type": "string",
           "markdownDescription": "Optional LLM base URL override. Leave empty to use provider default."
+        },
+        "openhands.llm.apiVersion": {
+          "type": "string",
+          "markdownDescription": "Optional LLM API version (e.g., Azure). Leave empty if not applicable."
         },
         "openhands.llm.apiKey": {
           "type": "string",
           "default": "",
           "editPresentation": "singlelineText",
           "markdownDescription": "**To set your LLM API Key securely:**\n\n[🔑 Configure API Key](command:openhands.setApiKey)\n\n_(API keys are stored in secure system keychain, not in settings.json)_"
-        },
-        "openhands.llm.apiVersion": {
-          "type": "string",
-          "markdownDescription": "Optional LLM API version (e.g., Azure). Leave empty if not applicable."
         },
         "openhands.llm.timeout": {
           "type": "number",
@@ -164,7 +235,6 @@
           "type": "number",
           "markdownDescription": "Max output tokens. Leave empty to use default."
         },
-
         "openhands.llm.reasoningEffort": {
           "type": "string",
           "enum": [
@@ -175,6 +245,43 @@
           ],
           "default": "none",
           "markdownDescription": "Reasoning effort for supported models."
+        },
+        "openhands.llm.inputCostPerToken": {
+          "type": "number",
+          "markdownDescription": "Optional cost per input token (USD) for usage stats."
+        },
+        "openhands.llm.outputCostPerToken": {
+          "type": "number",
+          "markdownDescription": "Optional cost per output token (USD) for usage stats."
+        },
+        "openhands.llm.usageId": {
+          "type": "string",
+          "default": "default-llm",
+          "markdownDescription": "Optional usage_id for local-mode LLM metrics tracking. In remote mode, only applies if explicitly set."
+        },
+        "openhands.secrets.githubToken": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret1": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 1 securely:**\n\n[🔑 Configure Custom Secret 1](command:openhands.setCustomSecret1)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret2": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 2 securely:**\n\n[🔑 Configure Custom Secret 2](command:openhands.setCustomSecret2)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.customSecret3": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your custom secret 3 securely:**\n\n[🔑 Configure Custom Secret 3](command:openhands.setCustomSecret3)\n\n_(Secrets are stored in secure system keychain, not in settings.json)_"
         }
       }
     },
@@ -190,9 +297,9 @@
     "views": {
       "openhands": [
         {
-          "id": "openhands.quickActions",
-          "name": "OpenHands",
-          "type": "tree"
+          "id": "openhands.chat",
+          "name": "Chat",
+          "type": "webview"
         }
       ]
     }
@@ -204,14 +311,18 @@
     "watch": "tsc -w -p . & npx tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --watch & node --watch esbuild.webview.mjs",
     "vscode:prepublish": "npm run build",
     "package": "node scripts/run-vsce-package.js",
-    "e2e": "npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
+    "e2e": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
+    "e2e:agent-server": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/agentServerRemote.test.js",
     "test": "npm test -w @openhands/agent-sdk-ts && vitest run --dir src",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
     "lint": "npm run lint -w @openhands/agent-sdk-ts && eslint src tests",
     "lint:fix": "eslint . --fix",
     "build:webview": "node esbuild.webview.mjs",
-    "dev:vscode": "bash scripts/dev-vscode.sh"
+    "agent-server": "bash scripts/start-agent-server.sh",
+    "agent-server:prepare": "PREPARE=1 bash scripts/start-agent-server.sh",
+    "dev:vscode": "bash scripts/dev-vscode.sh",
+    "prepare": "husky"
   },
   "files": [
     "dist/**",
@@ -241,7 +352,9 @@
     "esbuild": "^0.23.1",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^7.0.1",
+    "husky": "^9.1.7",
     "jsdom": "^25.0.1",
+    "lint-staged": "^16.2.7",
     "mocha": "^10.8.2",
     "tailwindcss": "^4.1.13",
     "ts-node": "^10.9.2",
@@ -250,7 +363,6 @@
   },
   "dependencies": {
     "@openhands/agent-sdk-ts": "workspace:*",
-    "@openhands/ui": "^1.0.0-beta.9",
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",
     "@vscode/codicons": "^0.0.36",

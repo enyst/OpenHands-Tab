@@ -5,19 +5,21 @@ Goal: run an agent-server compatible with this extension’s POST /api/conversat
 Option A: agent-sdk local (recommended for developers)
 - Prereqs: Python 3.12+, [uv](https://github.com/astral-sh/uv)
 - Steps:
-  1) git clone https://github.com/All-Hands-AI/agent-sdk
-  2) cd agent-sdk
-  3) `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
+  1) `git clone https://github.com/OpenHands/software-agent-sdk.git ~/repos/agent-sdk`
+  2) `cd ~/repos/agent-sdk && make build` (optional; `uv run` will usually work without it)
+  3) Start server from this repo:
+     - `AGENT_SDK_DIR=~/repos/agent-sdk PORT=3000 ./scripts/start-agent-server.sh`
+     - Or manually (from `~/repos/agent-sdk`): `uv run python -m openhands.agent_server --host 127.0.0.1 --port 3000`
   4) In VS Code (Extension Dev Host), set openhands.serverUrl to <http://localhost:3000>
 
 Option B: remote server
 - If you have a remote agent-server URL, set openhands.serverUrl accordingly.
-- If it requires a session API key, set SESSION_API_KEY in the VS Code launch env or shell.
+- If it requires a session API key, set it via `OpenHands: Set Session API Key`.
 
 Session API Key (optional)
-- HTTP: the extension adds X-Session-API-Key when SESSION_API_KEY is present
-- WebSocket: the extension appends ?session_api_key=... to the WS URL
+- HTTP: the extension adds `X-Session-API-Key` when `openhands.secrets.sessionApiKey` is set
+- WebSocket: the extension appends `?session_api_key=...` to the WS URL when `openhands.secrets.sessionApiKey` is set
 
 Notes
 - The extension sends a Start Conversation payload containing LLM and tool configuration for PoC. Ensure your server accepts that.
-- For CI smoke in this repo, we do NOT start a server; tests run with E2E_WITH_SERVER=0.
+- Live agent-server E2E tests are gated behind `E2E_AGENT_SERVER=1` and will skip otherwise.
