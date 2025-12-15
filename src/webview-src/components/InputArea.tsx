@@ -158,10 +158,10 @@ export function InputArea({
 
         {/* Accessory buttons row */}
         <div className="flex items-center gap-2 mt-3">
-          {modelLabel !== undefined && (
-            <button
-              type="button"
-              onClick={onOpenModelSettings}
+	          {modelLabel !== undefined && (
+	            <button
+	              type="button"
+	              onClick={onOpenModelSettings}
               className={`
                 inline-flex items-center gap-2
                 px-3 py-2 rounded-lg
@@ -172,12 +172,16 @@ export function InputArea({
                 ${onOpenModelSettings
                   ? 'bg-white/[0.04] text-stone-400 border-white/[0.06] hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]'
                   : 'bg-white/[0.02] text-stone-600 border-white/[0.03] cursor-not-allowed'
-                }
-              `}
-              aria-label="LLM model"
-              title={onOpenModelSettings ? 'Change model in settings' : `LLM model: ${modelLabel}`}
-              disabled={!onOpenModelSettings}
-            >
+	              }
+	            `}
+	              aria-label="LLM model"
+	              title={
+	                onOpenModelSettings
+	                  ? `LLM model: ${modelLabel} (click to change in settings)`
+	                  : `LLM model: ${modelLabel}`
+	              }
+	              disabled={!onOpenModelSettings}
+	            >
               <span className="codicon codicon-symbol-parameter text-[13px] text-brand-400/70" />
               <span className="text-stone-500">Model</span>
               <span className="font-mono text-stone-300 truncate max-w-[14rem]">{modelLabel}</span>

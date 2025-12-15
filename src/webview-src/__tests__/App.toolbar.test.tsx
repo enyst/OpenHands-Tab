@@ -42,6 +42,18 @@ describe('App toolbar interactions', () => {
     expect(await screen.findByLabelText('LLM model')).toHaveTextContent('gpt-4.1');
   });
 
+  it('shows a default label when no LLM model is configured', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmModel: null }
+      }));
+    });
+
+    expect(await screen.findByLabelText('LLM model')).toHaveTextContent('default');
+  });
+
   it('requests workspace files and inserts context mention at cursor', async () => {
     render(<App />);
     const input = document.getElementById('openhands-chat-input') as HTMLInputElement;
