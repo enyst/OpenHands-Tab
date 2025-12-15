@@ -42,7 +42,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Event rendering for all event types
 
 ### Not Yet Implemented
-- **Mid-conversation LLM switching** - must start new conversation to change model
+- **Mid-conversation LLM switching (remote mode)** - must start a new conversation to change model; local mode applies settings updates live
 
 **Deferred (requires human approval)**
 - **MCP integration / MCP server selection** - UI placeholders exist but are intentionally deferred; not a priority; do not work on this without explicit approval from a human maintainer

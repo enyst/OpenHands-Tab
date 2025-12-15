@@ -161,7 +161,7 @@ export class Agent extends EventEmitter {
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
-  private readonly debug: boolean;
+  private debug: boolean;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -174,15 +174,36 @@ export class Agent extends EventEmitter {
     this.tools = new Map(providedTools.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;
-    this.confirmation = {
-      policy: options.settings?.confirmation?.policy ?? 'never',
-      riskyThreshold: options.settings?.confirmation?.riskyThreshold ?? 'MEDIUM',
-      confirmUnknown: options.settings?.confirmation?.confirmUnknown ?? true,
-    };
+    this.confirmation = { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true };
     this.agentContext = options.agentContext;
-    this.debug = options.settings?.agent?.debug ?? false;
+    this.debug = false;
+    this.updateDerivedSettings(options.settings);
 
     this.events.on((event) => this.emit('event', event));
+  }
+
+  private updateDerivedSettings(settings: OpenHandsSettings): void {
+    this.confirmation.policy = settings?.confirmation?.policy ?? 'never';
+    this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
+    this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
+    this.debug = settings?.agent?.debug ?? false;
+  }
+
+  /**
+   * Updates the agent's settings at runtime.
+   *
+   * Changes are applied under the agent lock so settings updates can't race with
+   * an active run. New settings take effect on the next run.
+   */
+  setSettings(settings: OpenHandsSettings): void {
+    void this.lock.acquire(() => {
+      this.options.settings = settings;
+      this.updateDerivedSettings(settings);
+
+      // Force the next run to rebuild the LLM client from updated settings.
+      this.orchestratorPromise = undefined;
+      return Promise.resolve();
+    });
   }
 
   get pendingActionId(): string | undefined {
