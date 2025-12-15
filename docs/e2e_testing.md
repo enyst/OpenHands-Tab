@@ -24,8 +24,13 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
    - npm install
    - npm run compile
 2) Start agent-server (separate terminal)
-   - git clone https://github.com/All-Hands-AI/agent-sdk && cd agent-sdk
-   - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
+   - Recommended: use a local checkout of https://github.com/OpenHands/software-agent-sdk
+     - First time: `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server:prepare`
+     - After: `AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server`
+   - Or clone it:
+     - `git clone https://github.com/OpenHands/software-agent-sdk.git ~/repos/agent-sdk`
+     - `cd ~/repos/agent-sdk && make build`
+     - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
 3) Launch the extension in VS Code
    - Open this folder in VS Code
    - Press F5 to run “Extension Development Host”

@@ -223,6 +223,6 @@ src/
 - **Advanced History** - export + richer metadata (and server-backed history if needed)
 
 ## 13. References
-- [agent-sdk](https://github.com/All-Hands-AI/agent-sdk) - Python SDK and agent-server
+- [agent-sdk](https://github.com/OpenHands/software-agent-sdk) - Python SDK and agent-server
 - [agent-sdk-architecture.md](agent-sdk-architecture.md) - SDK architecture
 - [settings_prd.md](settings_prd.md) - Settings system details

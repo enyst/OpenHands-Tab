@@ -230,6 +230,8 @@
     "lint": "npm run lint -w @openhands/agent-sdk-ts && eslint src tests",
     "lint:fix": "eslint . --fix",
     "build:webview": "node esbuild.webview.mjs",
+    "agent-server": "bash scripts/start-agent-server.sh",
+    "agent-server:prepare": "PREPARE=1 bash scripts/start-agent-server.sh",
     "dev:vscode": "bash scripts/dev-vscode.sh"
   },
   "files": [
