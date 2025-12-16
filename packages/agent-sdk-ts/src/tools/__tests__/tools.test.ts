@@ -74,6 +74,17 @@ describe('FileEditorTool', () => {
     ).rejects.toThrowError(/Path escapes workspace root/i);
   });
 
+  it('rejects create when file_text exceeds 10MB', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const oversized = 'a'.repeat(10 * 1024 * 1024 + 1);
+    await expect(
+      tool.execute(tool.validate({ command: 'create', path: 'big.txt', file_text: oversized }), { workspace }),
+    ).rejects.toThrowError(/Maximum allowed size is 10MB/i);
+  });
+
   it('views files with line numbers and truncation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -122,14 +133,15 @@ describe('FileEditorTool', () => {
 
     const listing = result.new_content ?? '';
     expect(listing).toContain('up to 2 levels deep');
-    expect(listing).toContain(`${dir}/`);
-    expect(listing).toContain(path.join(dir, 'visible.txt'));
-    expect(listing).toContain(`${path.join(dir, 'dirA')}/`);
-    expect(listing).toContain(path.join(dir, 'dirA', 'a.txt'));
-    expect(listing).toContain(`${path.join(dir, 'dirA', 'subdir')}/`);
+    expect(listing).toContain('d .');
+    expect(listing).toContain('f visible.txt');
+    expect(listing).toContain('d dirA');
+    expect(listing).toContain(`f ${path.join('dirA', 'a.txt')}`);
+    expect(listing).toContain(`d ${path.join('dirA', 'subdir')}`);
+    expect(listing).not.toContain(dir);
 
     // Max depth is 2 (root + children + grandchildren), so b.txt (depth 3) is excluded.
-    expect(listing).not.toContain(path.join(dir, 'dirA', 'subdir', 'b.txt'));
+    expect(listing).not.toContain(path.join('dirA', 'subdir', 'b.txt'));
 
     // Hidden entries excluded (root + depth 2).
     expect(listing).not.toContain('.hidden.txt');
@@ -156,8 +168,9 @@ describe('FileEditorTool', () => {
       const result = await tool.execute(viewArgs, { workspace });
 
       const listing = result.new_content ?? '';
-      expect(listing).toContain(path.join(dir, 'visible.txt'));
-      expect(listing).toContain(`${path.join(dir, 'unreadable')}/`);
+      expect(listing).toContain('f visible.txt');
+      expect(listing).toContain('d unreadable');
+      expect(listing).toContain('skipped unreadable: unreadable');
     } finally {
       await fs.promises.chmod(path.join(dir, 'unreadable'), 0o755);
     }

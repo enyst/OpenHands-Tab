@@ -17,6 +17,7 @@ export interface FileEditorResult {
 }
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_INLINE_IMAGE_BASE64_CHARS = 4 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 const PDF_EXTENSION = '.pdf';
 
@@ -172,7 +173,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       case 'view': {
         const stat = await fs.stat(resolved);
         if (stat.isDirectory()) {
-          const { text } = await this.viewDirectory(resolved);
+          const { text } = await this.viewDirectory(resolved, ws.root);
           return { command: 'view', path: resolved, prev_exist: true, old_content: null, new_content: text };
         }
         const buffer = await this.readValidatedFile(resolved, extension);
@@ -190,9 +191,21 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         if (exists) {
           throw new Error('create failed: file already exists');
         }
-        await ws.writeFile(resolved, args.file_text ?? '');
+        const fileText = args.file_text ?? '';
+        const sizeBytes = Buffer.byteLength(fileText, 'utf8');
+        if (sizeBytes > MAX_FILE_SIZE_BYTES) {
+          const mb = sizeBytes / 1024 / 1024;
+          throw new Error(`create failed: file is too large (${mb.toFixed(1)}MB). Maximum allowed size is 10MB.`);
+        }
+        await ws.writeFile(resolved, fileText);
         this.pushUndo(resolved, { prevExist: false, oldContent: null });
-        return { command: 'create', path: resolved, prev_exist: false, old_content: null, new_content: args.file_text ?? '' };
+        return {
+          command: 'create',
+          path: resolved,
+          prev_exist: false,
+          old_content: null,
+          new_content: truncateContent(fileText),
+        };
       }
       case 'str_replace': {
         if (IMAGE_EXTENSIONS.has(extension) || extension === PDF_EXTENSION) {
@@ -283,40 +296,52 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     return buffer;
   }
 
-  private async viewDirectory(absPath: string): Promise<{ text: string }> {
+  private async viewDirectory(absPath: string, workspaceRoot: string): Promise<{ text: string }> {
+    const toDisplayPath = (absolutePath: string): string => {
+      const relative = path.relative(workspaceRoot, absolutePath);
+      if (!relative || relative === '') return '.';
+      if (relative.startsWith('..') || path.isAbsolute(relative)) return absolutePath;
+      return relative;
+    };
+
     const topEntries = await fs.readdir(absPath, { withFileTypes: true });
     const hiddenCount = topEntries.filter((entry) => entry.name.startsWith('.')).length;
 
     const visibleTop = topEntries
       .filter((entry) => !entry.name.startsWith('.'))
       .map((entry) => ({ name: entry.name, abs: path.join(absPath, entry.name), isDir: entry.isDirectory() }))
-      .sort((a, b) => a.abs.localeCompare(b.abs));
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-    const lines: string[] = [`${absPath}/`];
-      for (const entry of visibleTop) {
-        lines.push(entry.isDir ? `${entry.abs}/` : entry.abs);
-        if (!entry.isDir) continue;
+    const displayRoot = toDisplayPath(absPath);
+    const lines: string[] = [`d ${displayRoot}`];
 
-        let childEntries: Dirent[];
-        try {
-          childEntries = await fs.readdir(entry.abs, { withFileTypes: true });
-        } catch {
-          continue;
-        }
-        const visibleChildren = childEntries
-          .filter((child) => !child.name.startsWith('.'))
-          .map((child) => ({ abs: path.join(entry.abs, child.name), isDir: child.isDirectory() }))
-          .sort((a, b) => a.abs.localeCompare(b.abs));
+    for (const entry of visibleTop) {
+      const displayEntry = toDisplayPath(entry.abs);
+      lines.push(`${entry.isDir ? 'd' : 'f'} ${displayEntry}`);
+      if (!entry.isDir) continue;
+
+      let childEntries: Dirent[];
+      try {
+        childEntries = await fs.readdir(entry.abs, { withFileTypes: true });
+      } catch {
+        lines.push(`skipped unreadable: ${displayEntry}`);
+        continue;
+      }
+      const visibleChildren = childEntries
+        .filter((child) => !child.name.startsWith('.'))
+        .map((child) => ({ name: child.name, abs: path.join(entry.abs, child.name), isDir: child.isDirectory() }))
+        .sort((a, b) => a.name.localeCompare(b.name));
       for (const child of visibleChildren) {
-        lines.push(child.isDir ? `${child.abs}/` : child.abs);
+        const displayChild = toDisplayPath(child.abs);
+        lines.push(`${child.isDir ? 'd' : 'f'} ${displayChild}`);
       }
     }
 
-    const header = `Here's the files and directories up to 2 levels deep in ${absPath}, excluding hidden items:\n`;
+    const header = `Here's the files and directories up to 2 levels deep in ${displayRoot}, excluding hidden items:\n`;
     const body = lines.join('\n');
     const hiddenNote =
       hiddenCount > 0
-        ? `\n\n${hiddenCount} hidden files/directories in the top-level directory are excluded. You can use 'ls -la ${absPath}' to see them.`
+        ? `\n\n${hiddenCount} hidden files/directories in the top-level directory are excluded. You can use 'ls -la ${displayRoot}' to see them.`
         : '';
     return { text: truncateContent(`${header}${body}${hiddenNote}`) };
   }
@@ -339,6 +364,20 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
           return 'image/png';
       }
     })();
+    const estimatedBase64Length = Math.ceil(buffer.length / 3) * 4;
+    if (estimatedBase64Length > MAX_INLINE_IMAGE_BASE64_CHARS) {
+      const mb = buffer.length / 1024 / 1024;
+      const text = `Image file ${absPath} is too large to inline (${mb.toFixed(1)}MB).`;
+      return {
+        command: 'view',
+        path: absPath,
+        prev_exist: true,
+        old_content: null,
+        new_content: text,
+        content: [{ type: 'text', text }],
+      };
+    }
+
     const imageBase64 = buffer.toString('base64');
     const imageUrl = `data:${mime};base64,${imageBase64}`;
     const text = `Image file ${absPath} read successfully. Displaying image content.`;
