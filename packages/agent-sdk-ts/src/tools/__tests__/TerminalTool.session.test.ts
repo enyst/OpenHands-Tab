@@ -126,4 +126,22 @@ describe('TerminalTool session behavior', () => {
 
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
   });
+
+  it('executes a new command even if the previous one completed between calls', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+
+    const started = await tool.execute(tool.validate({ command: 'sleep 0.15; echo first', timeout: 0.05 }), { workspace });
+    expect(started.exit_code).toBe(-1);
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+
+    const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 0.2 }), { workspace });
+    expect(next.exit_code).toBe(0);
+    expect(`${next.stdout ?? ''}${next.stderr ?? ''}`).toContain('first');
+    expect(`${next.stdout ?? ''}${next.stderr ?? ''}`).toContain('second');
+
+    await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
+  });
 });
