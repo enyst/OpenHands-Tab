@@ -367,7 +367,9 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     const estimatedBase64Length = Math.ceil(buffer.length / 3) * 4;
     if (estimatedBase64Length > MAX_INLINE_IMAGE_BASE64_CHARS) {
       const mb = buffer.length / 1024 / 1024;
-      const text = `Image file ${absPath} is too large to inline (${mb.toFixed(1)}MB).`;
+      const inlineLimitBytes = Math.floor(MAX_INLINE_IMAGE_BASE64_CHARS * 3 / 4);
+      const inlineLimitMb = inlineLimitBytes / 1024 / 1024;
+      const text = `Image file ${absPath} is too large to inline (${mb.toFixed(1)}MB). Files up to 10MB are allowed, but inline image previews are capped at ~${inlineLimitMb.toFixed(1)}MB.`;
       return {
         command: 'view',
         path: absPath,
