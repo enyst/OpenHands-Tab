@@ -35,10 +35,13 @@ const TOOL_DESCRIPTION = `Fast content search tool.
 
 const MAX_RESULTS = 100;
 
+const shouldSkipEntry = (name: string): boolean => name.startsWith('.') || name === 'node_modules';
+
 const listFiles = async (root: string): Promise<string[]> => {
   const entries = await fs.readdir(root, { withFileTypes: true });
   const results: string[] = [];
   for (const entry of entries) {
+    if (shouldSkipEntry(entry.name)) continue;
     const fullPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       const child = await listFiles(fullPath);
@@ -52,6 +55,13 @@ const listFiles = async (root: string): Promise<string[]> => {
 
 const normalize = (p: string): string => p.split(path.sep).join('/');
 
+const normalizePattern = (pattern: string): string => {
+  const cleaned = normalize(pattern.trim());
+  if (!cleaned) return '**/*';
+  if (cleaned.includes('/')) return cleaned;
+  return cleaned.startsWith('**/') ? cleaned : `**/${cleaned}`;
+};
+
 const createMatcher = (pattern: string): ((value: string) => boolean) => {
   const matcher = picomatch(pattern, { dot: true }) as (value: string) => boolean;
   return (value: string) => Boolean(matcher(value));
@@ -64,10 +74,16 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
 
   async execute(args: z.infer<typeof grepArgsSchema>, context: ToolContext): Promise<GrepResult> {
     const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
-    const includeMatcher = args.include ? createMatcher(args.include) : null;
+    const includeMatcher = args.include ? createMatcher(normalizePattern(args.include)) : null;
     const files = await listFiles(searchRoot);
     const matches: { file: string; mtime: number }[] = [];
-    const contentRegex = new RegExp(args.pattern, 'm');
+    let contentRegex: RegExp;
+    try {
+      contentRegex = new RegExp(args.pattern, 'i');
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`Invalid regex pattern: ${detail}`);
+    }
 
     for (const file of files) {
       const relative = normalize(path.relative(searchRoot, file));
@@ -96,4 +112,3 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
     };
   }
 }
-

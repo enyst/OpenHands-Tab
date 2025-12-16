@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import picomatch from 'picomatch';
 import { z } from 'zod';
@@ -36,10 +37,13 @@ Examples:
 
 const MAX_RESULTS = 100;
 
+const shouldSkipEntry = (name: string): boolean => name.startsWith('.') || name === 'node_modules';
+
 const listFiles = async (root: string): Promise<string[]> => {
   const entries = await fs.readdir(root, { withFileTypes: true });
   const results: string[] = [];
   for (const entry of entries) {
+    if (shouldSkipEntry(entry.name)) continue;
     const fullPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
       const child = await listFiles(fullPath);
@@ -53,6 +57,50 @@ const listFiles = async (root: string): Promise<string[]> => {
 
 const normalize = (p: string): string => p.split(path.sep).join('/');
 
+const normalizePattern = (pattern: string): string => {
+  const cleaned = normalize(pattern.trim());
+  if (!cleaned) return '**/*';
+  if (cleaned.includes('/')) return cleaned;
+  return cleaned.startsWith('**/') ? cleaned : `**/${cleaned}`;
+};
+
+const expandHome = (input: string): string => {
+  if (input === '~') return os.homedir();
+  if (input.startsWith('~/') || input.startsWith('~\\')) {
+    return path.join(os.homedir(), input.slice(2));
+  }
+  return input;
+};
+
+const resolveSearchRootAndPattern = (
+  args: z.infer<typeof globArgsSchema>,
+  context: ToolContext,
+): { searchRoot: string; pattern: string } => {
+  if (args.path) {
+    return { searchRoot: context.workspace.resolvePath(args.path), pattern: normalizePattern(args.pattern) };
+  }
+
+  const expandedPattern = expandHome(args.pattern);
+  if (!path.isAbsolute(expandedPattern)) {
+    return { searchRoot: context.workspace.root, pattern: normalizePattern(args.pattern) };
+  }
+
+  const parsed = path.parse(expandedPattern);
+  const root = parsed.root || path.sep;
+  const remainder = expandedPattern.slice(root.length);
+  const parts = remainder.split(/[\\/]+/).filter(Boolean);
+
+  const searchParts: string[] = [];
+  for (const part of parts) {
+    if (/[*?[\]{}()!]/.test(part)) break;
+    searchParts.push(part);
+  }
+
+  const base = path.join(root, ...searchParts);
+  const glob = parts.length > searchParts.length ? parts.slice(searchParts.length).join('/') : '**/*';
+  return { searchRoot: context.workspace.resolvePath(base), pattern: normalizePattern(glob) };
+};
+
 const createMatcher = (pattern: string): ((value: string) => boolean) => {
   const matcher = picomatch(pattern, { dot: true }) as (value: string) => boolean;
   return (value: string) => Boolean(matcher(value));
@@ -64,8 +112,8 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
   readonly schema = globArgsSchema;
 
   async execute(args: z.infer<typeof globArgsSchema>, context: ToolContext): Promise<GlobResult> {
-    const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
-    const matcher = createMatcher(args.pattern);
+    const { searchRoot, pattern } = resolveSearchRootAndPattern(args, context);
+    const matcher = createMatcher(pattern);
     const files = await listFiles(searchRoot);
     const filtered: string[] = [];
 
@@ -92,4 +140,3 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
     };
   }
 }
-
