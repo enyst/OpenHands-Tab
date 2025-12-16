@@ -9,6 +9,7 @@ import type { Event, MessageEvent, TextContent } from '../types';
 import { isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
+import { FileEditorTool } from '../../tools/FileEditorTool';
 
 class MockLLM implements LLMClient {
   constructor(private readonly chunks: LLMStreamChunk[]) {}
@@ -186,6 +187,77 @@ describe('LocalConversation persistence', () => {
     const observation = newEvents.find((e) => isObservationEvent(e) && e.tool_name === 'echo');
     expect(observation).toBeDefined();
     expect(JSON.stringify(observation?.observation ?? {})).toContain('hi');
+  });
+
+  it('restores pending workspace access confirmations so approveAction allows file_editor paths after restore', async () => {
+    const dir = makeTempDir('local-workspace-access-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const outsideDir = makeTempDir('local-outside-workspace-');
+    const outsideFile = path.join(outsideDir, 'outside.txt');
+    const fileEditor = new FileEditorTool();
+
+    const llm = new MockLLM([
+      { type: 'tool_call_delta', id: 'call_1', name: 'file_editor', arguments: JSON.stringify({ command: 'create', path: outsideFile, file_text: 'hello' }) },
+      { type: 'finish' },
+    ]);
+
+    const conversation = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [fileEditor],
+      persistenceDir: dir,
+    });
+
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('create file');
+    const stateAfterRun = (conversation as unknown as { state: ConversationState }).state.snapshot;
+    expect(stateAfterRun.status).toBe('WAITING_FOR_CONFIRMATION');
+    expect(fs.existsSync(outsideFile)).toBe(false);
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      tools: [fileEditor],
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(id!);
+
+    const before = restoredEvents.length;
+    await restored.approveAction();
+    const newEvents = restoredEvents.slice(before);
+
+    expect(fs.readFileSync(outsideFile, 'utf8')).toBe('hello');
+    const observation = newEvents.find((e) => isObservationEvent(e) && e.tool_name === 'file_editor');
+    expect(observation).toBeDefined();
+  });
+
+  it('emits a diagnostic when restoring a WAITING_FOR_CONFIRMATION snapshot without a matching ActionEvent', () => {
+    const dir = makeTempDir('local-missing-action-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+
+    const conversationId = 'local-missing-action';
+    const store = new FileStore({ rootDir: dir, conversationId });
+    store.writeState({ status: 'WAITING_FOR_CONFIRMATION', iteration: 0, values: {} });
+    store.appendEvent({ kind: 'PauseEvent', source: 'agent' } as Event);
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(conversationId);
+
+    const diagnostic = restoredEvents.find(
+      (event) => event.kind === 'ConversationStateUpdateEvent' && (event as unknown as { key?: unknown }).key === 'restore_pending_confirmation',
+    );
+    expect(diagnostic).toBeDefined();
   });
 });
 
