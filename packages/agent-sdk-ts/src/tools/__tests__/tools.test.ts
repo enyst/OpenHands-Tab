@@ -78,6 +78,55 @@ describe('FileEditorTool', () => {
     expect(head.length).toBeLessThanOrEqual(500 + 20); // small slop for line boundaries
     expect(tail.length).toBeLessThanOrEqual(500 + 20);
   });
+
+  it('supports undo_edit for edits', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'v0' }), { workspace });
+    await tool.execute(tool.validate({ command: 'str_replace', path: 'note.txt', old_str: 'v0', new_str: 'v1' }), { workspace });
+
+    const undo = await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    expect(undo.command).toBe('undo_edit');
+    expect(await workspace.readFile('note.txt')).toBe('v0');
+  });
+
+  it('supports multiple undo_edit calls', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'v0' }), { workspace });
+    await tool.execute(tool.validate({ command: 'str_replace', path: 'note.txt', old_str: 'v0', new_str: 'v1' }), { workspace });
+    await tool.execute(tool.validate({ command: 'str_replace', path: 'note.txt', old_str: 'v1', new_str: 'v2' }), { workspace });
+
+    await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    expect(await workspace.readFile('note.txt')).toBe('v1');
+
+    await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    expect(await workspace.readFile('note.txt')).toBe('v0');
+  });
+
+  it('undo_edit can undo a create by deleting the file', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'content' }), { workspace });
+    await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    await expect(workspace.readFile('note.txt')).rejects.toThrowError();
+  });
+
+  it('throws undo_edit when there is no history', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await workspace.writeFile('note.txt', 'content');
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace }))
+      .rejects.toThrowError(/no edit history/i);
+  });
 });
 
 describe('TaskTrackerTool', () => {
