@@ -220,6 +220,19 @@ export class LocalWorkspace {
 
   private async writeFileSafely(absPath: string, content: string | Buffer): Promise<void> {
     const constants = fs.constants as Record<string, number>;
+    try {
+      const stat = await fs.promises.lstat(absPath);
+      if (stat.isSymbolicLink()) {
+        throw new Error(`writeFile failed: refusing to write to symlink path: ${absPath}`);
+      }
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+        // ok: creating the file
+      } else {
+        throw error;
+      }
+    }
+
     const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
     const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
     const handle = await fs.promises.open(absPath, flags, 0o666);
@@ -244,9 +257,12 @@ export class LocalWorkspace {
       if (kind === 'file') {
         let stat: fs.Stats;
         try {
-          stat = await fs.promises.stat(parentDir);
+          stat = await fs.promises.lstat(parentDir);
         } catch {
           throw new Error(`writeFile failed: parent directory does not exist: ${parentDir}`);
+        }
+        if (stat.isSymbolicLink()) {
+          throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${parentDir}`);
         }
         if (!stat.isDirectory()) {
           throw new Error(`writeFile failed: parent is not a directory: ${parentDir}`);
