@@ -13,6 +13,7 @@
     "url": "https://github.com/enyst/OpenHands-Tab.git"
   },
   "engines": {
+    "node": ">=22.12.0 <23",
     "vscode": "^1.104.0"
   },
   "categories": [
@@ -346,20 +347,20 @@
     "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
-    "@vitest/coverage-v8": "^2.1.4",
+    "@vitest/coverage-v8": "^3.2.4",
     "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^3.6.1",
-    "esbuild": "^0.23.1",
+    "esbuild": "^0.27.1",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "husky": "^9.1.7",
-    "jsdom": "^25.0.1",
+    "jsdom": "^27.3.0",
     "lint-staged": "^16.2.7",
     "mocha": "^10.8.2",
     "tailwindcss": "^4.1.13",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "vitest": "^2.1.4"
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "@openhands/agent-sdk-ts": "workspace:*",
