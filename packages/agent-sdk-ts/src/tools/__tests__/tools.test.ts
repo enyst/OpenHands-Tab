@@ -89,6 +89,7 @@ describe('FileEditorTool', () => {
 
     const undo = await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
     expect(undo.command).toBe('undo_edit');
+    expect(undo.prev_exist).toBe(true);
     expect(await workspace.readFile('note.txt')).toBe('v0');
   });
 
@@ -114,7 +115,8 @@ describe('FileEditorTool', () => {
     const tool = new FileEditorTool();
 
     await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'content' }), { workspace });
-    await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    const undo = await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    expect(undo.prev_exist).toBe(false);
     await expect(workspace.readFile('note.txt')).rejects.toThrowError();
   });
 

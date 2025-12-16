@@ -207,9 +207,9 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         }
 
         if (!undo.prevExist) {
-          return { command: 'undo_edit', path: resolved, prev_exist: current !== null, old_content: current, new_content: null };
+          return { command: 'undo_edit', path: resolved, prev_exist: undo.prevExist, old_content: current, new_content: null };
         }
-        return { command: 'undo_edit', path: resolved, prev_exist: current !== null, old_content: current, new_content: undo.oldContent };
+        return { command: 'undo_edit', path: resolved, prev_exist: undo.prevExist, old_content: current, new_content: undo.oldContent };
       }
       default: {
         const unreachable: never = args.command;
