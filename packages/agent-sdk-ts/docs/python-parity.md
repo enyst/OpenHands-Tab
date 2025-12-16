@@ -45,7 +45,7 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - Persistence and EventLog
   - Python: File-backed EventLog, deterministic IDs, resume-from-disk via ConversationState.create, FIFO locks, etc.
-  - TypeScript: FileStore-backed persistence exists (events + state) and LocalConversation supports restore. See `packages/agent-sdk-ts/src/sdk/runtime/FileStore.ts` and tests: `packages/agent-sdk-ts/src/sdk/__tests__/persistence.test.ts`.
+  - TypeScript: FileStore-backed persistence exists (events + state) and LocalConversation supports restore. See `packages/agent-sdk-ts/src/sdk/runtime/persistence.ts` and tests: `packages/agent-sdk-ts/src/sdk/__tests__/persistence.test.ts`.
 
 - Tool observation content (role="tool" messages)
   - Python: tool observations are LLM-facing plain text via Observation helpers (e.g., TerminalObservation appends metadata and uses `<response clipped>` truncation). See `tests/tools/terminal/test_observation_truncation.py`.
@@ -567,7 +567,7 @@ classDiagram
       +attachPersistence(store)
       +setValue()/snapshot
     }
-    class FileStoreTS {
+    class FileStore {
       +appendEvent()
       +writeState()
       +readEvents()
@@ -580,8 +580,8 @@ classDiagram
     }
     EventLogPython --> ConversationStatePython
     EventLogTS --> ConversationStateTS
-    EventLogTS --> FileStoreTS
-    ConversationStateTS --> FileStoreTS
+    EventLogTS --> FileStore
+    ConversationStateTS --> FileStore
 ```
 
 ### Source references
