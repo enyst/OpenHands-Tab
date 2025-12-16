@@ -27,7 +27,6 @@ const grepArgsSchema = z.object({
 
 const TOOL_DESCRIPTION = `Fast content search tool.
 * Searches file contents using regular expressions
-* Searches are case-insensitive by default (like ripgrep \`-i\`)
 * Supports full regex syntax (eg. "log.*Error", "function\\s+\\w+", etc.)
 * Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
 * Returns matching file paths sorted by modification time.
@@ -41,20 +40,6 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
   readonly description = TOOL_DESCRIPTION;
   readonly schema = grepArgsSchema;
 
-  private getWalkOptions(args: z.infer<typeof grepArgsSchema>) {
-    const normalizedPattern = normalizeSlashes(args.include ? normalizeGlobPattern(args.include) : '');
-    const normalizedPath = args.path ? normalizeSlashes(expandHome(args.path)) : '';
-
-    const includeHidden =
-      normalizedPattern.split('/').some((part) => part.startsWith('.'))
-      || normalizedPath.split('/').some((part) => part.startsWith('.'));
-    const includeNodeModules =
-      normalizedPattern.includes('node_modules')
-      || normalizedPath.split('/').some((part) => part === 'node_modules');
-
-    return { includeHidden, includeNodeModules };
-  }
-
   async execute(args: z.infer<typeof grepArgsSchema>, context: ToolContext): Promise<GrepResult> {
     let searchRoot: string;
     try {
@@ -64,11 +49,11 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
       throw new Error(`Invalid search path: ${detail}`);
     }
     const includeMatcher = args.include ? createGlobMatcher(normalizeGlobPattern(args.include)) : null;
-    const files = await listFilesRecursively(searchRoot, this.getWalkOptions(args));
+    const files = await listFilesRecursively(searchRoot);
     const matches: { file: string; mtime: number }[] = [];
     let contentRegex: RegExp;
     try {
-      contentRegex = new RegExp(args.pattern, 'im');
+      contentRegex = new RegExp(args.pattern, 'm');
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid regex pattern: ${detail}`);

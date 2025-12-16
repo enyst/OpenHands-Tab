@@ -9,8 +9,8 @@ export type SearchWalkOptions = {
 };
 
 export const shouldSkipSearchEntry = (name: string, options: SearchWalkOptions = {}): boolean => {
-  if (!options.includeHidden && name.startsWith('.')) return true;
-  if (!options.includeNodeModules && name === 'node_modules') return true;
+  if (options.includeHidden === false && name.startsWith('.')) return true;
+  if (options.includeNodeModules === false && name === 'node_modules') return true;
   return false;
 };
 
@@ -35,8 +35,7 @@ export const normalizeSlashes = (value: string): string => value.split(path.sep)
 export const normalizeGlobPattern = (pattern: string): string => {
   const cleaned = normalizeSlashes(pattern.trim());
   if (!cleaned) return '**/*';
-  if (cleaned.includes('/')) return cleaned;
-  return cleaned.startsWith('**/') ? cleaned : `**/${cleaned}`;
+  return cleaned;
 };
 
 export const expandHome = (input: string): string => {

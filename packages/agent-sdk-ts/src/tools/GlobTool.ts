@@ -1,5 +1,4 @@
 import fs from 'fs/promises';
-import fsSync from 'node:fs';
 import path from 'path';
 import { z } from 'zod';
 import type { ToolContext } from './types';
@@ -37,12 +36,13 @@ Examples:
 
 const MAX_RESULTS = 100;
 
-const resolveSearchRootAndPattern = (
+const resolveSearchRootAndPattern = async (
   args: z.infer<typeof globArgsSchema>,
   context: ToolContext,
-):
+): Promise<
   | { mode: 'walk'; searchRoot: string; pattern: string }
-  | { mode: 'file'; filePath: string } => {
+  | { mode: 'file'; filePath: string }
+> => {
   try {
     if (args.path) {
       return {
@@ -78,7 +78,7 @@ const resolveSearchRootAndPattern = (
 
     if (!sawMagic && glob === '**/*') {
       try {
-        if (fsSync.statSync(resolvedBase).isDirectory()) {
+        if ((await fs.stat(resolvedBase)).isDirectory()) {
           return { mode: 'walk', searchRoot: resolvedBase, pattern: '**/*' };
         }
       } catch {
@@ -94,27 +94,13 @@ const resolveSearchRootAndPattern = (
   }
 };
 
-const getWalkOptions = (args: z.infer<typeof globArgsSchema>) => {
-  const normalizedPattern = normalizeSlashes(expandHome(args.pattern));
-  const normalizedPath = args.path ? normalizeSlashes(expandHome(args.path)) : '';
-
-  const includeHidden =
-    normalizedPattern.split('/').some((part) => part.startsWith('.'))
-    || normalizedPath.split('/').some((part) => part.startsWith('.'));
-  const includeNodeModules =
-    normalizedPattern.includes('node_modules')
-    || normalizedPath.split('/').some((part) => part === 'node_modules');
-
-  return { includeHidden, includeNodeModules };
-};
-
 export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult> {
   readonly name = 'glob';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = globArgsSchema;
 
   async execute(args: z.infer<typeof globArgsSchema>, context: ToolContext): Promise<GlobResult> {
-    const resolved = resolveSearchRootAndPattern(args, context);
+    const resolved = await resolveSearchRootAndPattern(args, context);
 
     if (resolved.mode === 'file') {
       try {
@@ -130,7 +116,7 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
 
     const { searchRoot, pattern } = resolved;
     const matcher = createGlobMatcher(pattern);
-    const files = await listFilesRecursively(searchRoot, getWalkOptions(args));
+    const files = await listFilesRecursively(searchRoot);
     const filtered: string[] = [];
 
     for (const file of files) {
