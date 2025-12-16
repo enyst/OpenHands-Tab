@@ -7,7 +7,7 @@ This document compares the Python `agent-sdk` (reference implementation) with th
 This document is the living output for Beads issue `oh-tab-0rq`.
 
 - TypeScript SDK: `packages/agent-sdk-ts` (this repo).
-- Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk).
+- Python reference SDK: `OpenHands/software-agent-sdk` (reference implementation).
 - Focus: VS Code local-mode parity (no agent-server / remote workspace).
 
 ## Current parity snapshot (2025-12-16)
@@ -66,7 +66,7 @@ Actionable gaps to consider next
 - FileEditorTool: add `undo_edit` parity and tighten directory/binary viewing behavior.
 - Longer term (out of scope for VS Code local mode): remote workspace and agent-server-only behaviors.
 
-## Candidate test cases to mirror (from `~/repos/agent-sdk`)
+## Candidate test cases to mirror (from `OpenHands/software-agent-sdk`)
 
 These Python tests are the most directly relevant “spec” for VS Code local-mode parity work. Use them to drive new Vitest coverage in `packages/agent-sdk-ts` (tests first, then implementation).
 
