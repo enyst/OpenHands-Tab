@@ -220,6 +220,12 @@ class TerminalSession {
     }
 
     if (running) {
+      if (!args.is_input && args.command.trim().length > 0) {
+        throw new Error(
+          `Cannot start a new terminal command while another is running ($ ${running.command}). ` +
+            `Poll with command="" or send input with is_input=true (e.g., "C-c" to interrupt).`,
+        );
+      }
       if (args.is_input) {
         const input = args.command ?? '';
         const trimmed = input.trim();

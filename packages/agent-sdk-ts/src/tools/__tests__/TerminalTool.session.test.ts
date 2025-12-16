@@ -104,6 +104,22 @@ describe('TerminalTool session behavior', () => {
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
   });
 
+  it('rejects a new command while another command is still running', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+
+    const started = await tool.execute(tool.validate({ command: 'sleep 2', timeout: 0.05 }), { workspace });
+    expect(started.exit_code).toBe(-1);
+
+    await expect(tool.execute(tool.validate({ command: 'echo nope', timeout: 0.05 }), { workspace })).rejects.toThrowError(
+      /Cannot start a new terminal command/i,
+    );
+
+    await tool.execute(tool.validate({ command: 'C-c', is_input: true, timeout: 0.2 }), { workspace });
+    await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
+  });
+
   it('returns the final exit code when a timed-out command completes later', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
