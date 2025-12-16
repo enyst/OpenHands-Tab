@@ -26,9 +26,59 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('hello');
     });
 
-    it('blocks traversal outside the sandbox', async () => {
+    it('blocks path traversal attacks', async () => {
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
-      expect(() => workspace.resolvePath('../etc/passwd')).toThrowError();
+      const vectors = [
+        '../sensitive.txt',
+        '../../sensitive.txt',
+        '../../../etc/passwd',
+        'subdir/../../../sensitive.txt',
+        '..\\sensitive.txt',
+        'subdir/../../sensitive.txt',
+        './../sensitive.txt',
+        'a/../../../sensitive.txt',
+      ];
+
+      for (const attackPath of vectors) {
+        expect(() => workspace.resolvePath(attackPath)).toThrowError(/Path escapes workspace root/);
+      }
+    });
+
+    it('allows legitimate paths inside the sandbox', async () => {
+      const { workspace, dir } = await makeWorkspace((value) => created.push(value));
+      const realDir = await fs.promises.realpath(dir);
+
+      const legitimatePaths = [
+        'file.txt',
+        'subdir/file.txt',
+        'deep/nested/path/file.txt',
+        'file_with_dots.txt',
+        '.hidden_file',
+        'subdir/.hidden',
+      ];
+
+      for (const legitPath of legitimatePaths) {
+        const resolved = workspace.resolvePath(legitPath);
+        const relative = path.relative(realDir, resolved);
+        expect(relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))).toBe(true);
+      }
+
+      expect(workspace.resolvePath('')).toBe(realDir);
+      expect(workspace.resolvePath('.')).toBe(realDir);
+    });
+
+    it('blocks symlink escapes for nested non-existent paths', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace, dir } = await makeWorkspace((value) => created.push(value));
+      const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-outside-'));
+      created.push(externalDir);
+
+      const symlinkPath = path.join(dir, 'linked');
+      await fs.promises.symlink(externalDir, symlinkPath, 'dir');
+
+      expect(() => workspace.resolvePath('linked')).toThrowError(/Path escapes workspace root/);
+      expect(() => workspace.resolvePath('linked/subdir/file.txt')).toThrowError(/Path escapes workspace root/);
     });
 
     it('allows explicitly-approved external paths', async () => {

@@ -79,12 +79,20 @@ export class LocalWorkspace {
   }
 
   private normalizeExistingOrParent(candidate: string): string {
-    if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
     try {
-      const parent = path.dirname(candidate);
-      if (fs.existsSync(parent)) {
-        const realParent = fs.realpathSync(parent);
-        return path.join(realParent, path.basename(candidate));
+      if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
+
+      let current = candidate;
+      const suffix: string[] = [];
+      while (true) {
+        const parent = path.dirname(current);
+        if (parent === current) break;
+        suffix.unshift(path.basename(current));
+        current = parent;
+        if (fs.existsSync(current)) {
+          const realBase = fs.realpathSync(current);
+          return path.join(realBase, ...suffix);
+        }
       }
     } catch {
       // Best-effort normalization only.
