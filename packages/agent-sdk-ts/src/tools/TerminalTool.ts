@@ -1,5 +1,8 @@
+import type { ChildProcessWithoutNullStreams } from 'child_process';
+import { spawn } from 'child_process';
+import { randomUUID } from 'crypto';
+import os from 'os';
 import { z } from 'zod';
-import { IntegratedTerminalRunner } from './IntegratedTerminalRunner';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
 
@@ -13,9 +16,311 @@ export interface TerminalArgs {
 export interface TerminalResult {
   command?: string | null;
   exit_code?: number | null;
+  // Back-compat for older consumers (e.g. BashEvent adapters).
+  exitCode?: number | null;
   timeout?: boolean;
   stdout?: string;
   stderr?: string;
+}
+
+const DEFAULT_NO_CHANGE_TIMEOUT_SECONDS = 10;
+
+type SupportedSignal = 'SIGTERM' | 'SIGINT' | 'SIGTSTP';
+
+type RunningTerminalProcess = {
+  id: string;
+  command: string;
+  process: ChildProcessWithoutNullStreams;
+  stdout: string;
+  stderr: string;
+  stdoutOffset: number;
+  stderrOffset: number;
+  lastActivityTs: number;
+  exitCode: number | null;
+  done: boolean;
+  meta: {
+    begin: string;
+    end: string;
+    exit: string;
+    pwd: string;
+    env: string;
+  };
+  waiters: Set<() => void>;
+};
+
+class TerminalSession {
+  private cwd: string;
+  private env: Record<string, string>;
+  private running: RunningTerminalProcess | null = null;
+
+  constructor(workDir: string) {
+    this.cwd = workDir;
+    this.env = Object.fromEntries(
+      Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    );
+  }
+
+  reset(workDir: string): void {
+    this.killRunning('SIGTERM');
+    this.cwd = workDir;
+    this.env = Object.fromEntries(
+      Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    );
+  }
+
+  private killRunning(signal: SupportedSignal): void {
+    if (!this.running) return;
+    try {
+      this.sendSignal(this.running.process, signal);
+    } catch {
+      // Ignore.
+    }
+    this.running = null;
+  }
+
+  private sendSignal(proc: ChildProcessWithoutNullStreams, signal: SupportedSignal): void {
+    if (!proc.pid) return;
+    if (os.platform() !== 'win32') {
+      try {
+        process.kill(-proc.pid, signal);
+        return;
+      } catch {
+        // Fall back to signaling the immediate process.
+      }
+    }
+    try {
+      proc.kill(signal);
+    } catch {
+      // Ignore.
+    }
+  }
+
+  private signal(cmd: RunningTerminalProcess): void {
+    if (cmd.waiters.size === 0) return;
+    for (const waiter of cmd.waiters) {
+      try {
+        waiter();
+      } catch {
+        // Ignore waiter failures.
+      }
+    }
+    cmd.waiters.clear();
+  }
+
+  private tryParseMeta(cmd: RunningTerminalProcess): void {
+    const beginIndex = cmd.stdout.indexOf(cmd.meta.begin);
+    if (beginIndex === -1) return;
+    const endIndex = cmd.stdout.indexOf(cmd.meta.end, beginIndex);
+    if (endIndex === -1) return;
+
+    const blockStart = beginIndex + cmd.meta.begin.length;
+    const block = cmd.stdout.slice(blockStart, endIndex);
+    const lines = block.split(/\r?\n/).map((line) => line.trimEnd());
+
+    const exitLine = lines.find((line) => line.startsWith(cmd.meta.exit));
+    const pwdLine = lines.find((line) => line.startsWith(cmd.meta.pwd));
+    const envLine = lines.find((line) => line.startsWith(cmd.meta.env));
+
+    if (pwdLine) {
+      const pwd = pwdLine.slice(cmd.meta.pwd.length).trim();
+      if (pwd) this.cwd = pwd;
+    }
+
+    if (envLine) {
+      const payload = envLine.slice(cmd.meta.env.length).trim();
+      if (payload) {
+        try {
+          const decoded = Buffer.from(payload, 'base64').toString('utf8');
+          const parsed = JSON.parse(decoded) as Record<string, unknown>;
+          const filtered: Record<string, string> = {};
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string') filtered[k] = v;
+          }
+          this.env = filtered;
+        } catch {
+          // Ignore env parse failures; keep previous env.
+        }
+      }
+    }
+
+    if (exitLine) {
+      const raw = exitLine.slice(cmd.meta.exit.length).trim();
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isFinite(parsed)) {
+        cmd.exitCode = parsed;
+      }
+    }
+
+    let removeEnd = endIndex + cmd.meta.end.length;
+    if (cmd.stdout.slice(removeEnd, removeEnd + 2) === '\r\n') removeEnd += 2;
+    else if (cmd.stdout.slice(removeEnd, removeEnd + 1) === '\n') removeEnd += 1;
+
+    const oldOffset = cmd.stdoutOffset;
+    const removedLength = removeEnd - beginIndex;
+    cmd.stdout = cmd.stdout.slice(0, beginIndex) + cmd.stdout.slice(removeEnd);
+
+    if (oldOffset <= beginIndex) {
+      cmd.stdoutOffset = oldOffset;
+    } else if (oldOffset >= removeEnd) {
+      cmd.stdoutOffset = oldOffset - removedLength;
+    } else {
+      cmd.stdoutOffset = beginIndex;
+    }
+  }
+
+  private async waitForNoChangeOrDone(cmd: RunningTerminalProcess, timeoutMs: number): Promise<'done' | 'no_change'> {
+    if (cmd.done) return 'done';
+
+    while (!cmd.done) {
+      const elapsed = Date.now() - cmd.lastActivityTs;
+      const remaining = timeoutMs - elapsed;
+      if (remaining <= 0) return 'no_change';
+
+      await new Promise<void>((resolve) => {
+        const waiter = () => {
+          cleanup();
+          resolve();
+        };
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve();
+        }, remaining);
+        const cleanup = () => {
+          clearTimeout(timer);
+          cmd.waiters.delete(waiter);
+        };
+        cmd.waiters.add(waiter);
+      });
+
+      if (cmd.done) return 'done';
+      if (Date.now() - cmd.lastActivityTs >= timeoutMs) return 'no_change';
+    }
+
+    return 'done';
+  }
+
+  private drain(cmd: RunningTerminalProcess): { stdout: string; stderr: string } {
+    const stdout = cmd.stdout.slice(cmd.stdoutOffset);
+    const stderr = cmd.stderr.slice(cmd.stderrOffset);
+    cmd.stdoutOffset = cmd.stdout.length;
+    cmd.stderrOffset = cmd.stderr.length;
+    return { stdout, stderr };
+  }
+
+  takeCompleted(): { stdout: string; stderr: string; exitCode: number | null } | null {
+    const cmd = this.running;
+    if (!cmd || !cmd.done) return null;
+    const drained = this.drain(cmd);
+    const exitCode = cmd.exitCode;
+    this.running = null;
+    return { ...drained, exitCode };
+  }
+
+  async execute(args: { command: string; is_input: boolean; timeoutSeconds: number }): Promise<{ stdout: string; stderr: string; exitCode: number | null; done: boolean }> {
+    const timeoutMs = Math.max(0, Math.floor(args.timeoutSeconds * 1000));
+
+    if (!args.is_input) {
+      if (this.running && !this.running.done) {
+        const status = await this.waitForNoChangeOrDone(this.running, timeoutMs);
+        const drained = this.drain(this.running);
+        return { ...drained, exitCode: status === 'done' ? this.running.exitCode : -1, done: status === 'done' };
+      }
+
+      const id = randomUUID();
+      const meta = {
+        begin: `__OPENHANDS_META_${id}__BEGIN__`,
+        end: `__OPENHANDS_META_${id}__END__`,
+        exit: `__OPENHANDS_EXIT_${id}__`,
+        pwd: `__OPENHANDS_PWD_${id}__`,
+        env: `__OPENHANDS_ENV_${id}__`,
+      };
+
+      const scriptLines = [
+        args.command,
+        'openhands_ec=$?',
+        `printf '\\n${meta.begin}\\n'`,
+        `printf '${meta.exit}%s\\n' "$openhands_ec"`,
+        `printf '${meta.pwd}%s\\n' "$(pwd)"`,
+        `printf '${meta.env}'`,
+        `node -e 'process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString("base64"))'`,
+        "printf '\\n'",
+        `printf '${meta.end}\\n'`,
+        'exit $openhands_ec',
+      ];
+      const script = scriptLines.join('\n');
+
+      const shellPath = os.platform() === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : '/bin/bash';
+      const child = spawn(shellPath, ['-c', script], {
+        cwd: this.cwd,
+        env: this.env,
+        stdio: 'pipe',
+        detached: os.platform() !== 'win32',
+      });
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+
+      const cmd: RunningTerminalProcess = {
+        id,
+        command: args.command,
+        process: child,
+        stdout: '',
+        stderr: '',
+        stdoutOffset: 0,
+        stderrOffset: 0,
+        lastActivityTs: Date.now(),
+        exitCode: null,
+        done: false,
+        meta,
+        waiters: new Set(),
+      };
+      this.running = cmd;
+
+      child.stdout.on('data', (data: Buffer | string) => {
+        cmd.stdout += data.toString();
+        cmd.lastActivityTs = Date.now();
+        this.tryParseMeta(cmd);
+        this.signal(cmd);
+      });
+
+      child.stderr.on('data', (data: Buffer | string) => {
+        cmd.stderr += data.toString();
+        cmd.lastActivityTs = Date.now();
+        this.signal(cmd);
+      });
+
+      child.on('close', (code) => {
+        cmd.done = true;
+        cmd.exitCode = typeof code === 'number' ? code : cmd.exitCode ?? 0;
+        this.tryParseMeta(cmd);
+        this.signal(cmd);
+      });
+
+      const status = await this.waitForNoChangeOrDone(cmd, timeoutMs);
+      const drained = this.drain(cmd);
+      return { ...drained, exitCode: status === 'done' ? cmd.exitCode : -1, done: status === 'done' };
+    }
+
+    const cmd = this.running;
+    if (!cmd || cmd.done) {
+      return { stdout: '', stderr: 'No running terminal command to send input to.', exitCode: null, done: true };
+    }
+
+    const input = args.command ?? '';
+    const trimmed = input.trim();
+    if (trimmed === 'C-c') {
+      this.sendSignal(cmd.process, 'SIGINT');
+    } else if (trimmed === 'C-z') {
+      this.sendSignal(cmd.process, 'SIGTSTP');
+    } else if (trimmed === 'C-d') {
+      cmd.process.stdin.write('\u0004');
+    } else if (input.length > 0) {
+      cmd.process.stdin.write(`${input}\n`);
+    }
+
+    const status = await this.waitForNoChangeOrDone(cmd, timeoutMs);
+    const drained = this.drain(cmd);
+    return { ...drained, exitCode: status === 'done' ? cmd.exitCode : -1, done: status === 'done' };
+  }
 }
 
 const TOOL_DESCRIPTION = `Execute a bash command in the terminal within a persistent shell session.
@@ -59,37 +364,62 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
   readonly name = 'terminal';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = terminalSchema;
+  private session: TerminalSession | null = null;
+  private queue: Promise<TerminalResult> = Promise.resolve({ command: null, exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: '' });
 
   async execute(args: z.infer<typeof terminalSchema>, context: ToolContext): Promise<TerminalResult> {
-    // This TS SDK provides a per-invocation shell execution. Interactive input to a
-    // running process is not supported in this environment.
-    if (args.is_input) {
-      return { command: args.command ?? '', exit_code: null, timeout: false, stderr: 'Interactive input to a running process is not supported in this environment.' };
-    }
+    const run = async (): Promise<TerminalResult> => {
+      if (args.reset) {
+        if (args.is_input) {
+          throw new Error('reset cannot be used with is_input=true');
+        }
+        this.session?.reset(context.workspace.root);
+        this.session = null;
+        return { command: args.command ?? '', exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: 'Terminal session reset.' };
+      }
 
-    const runner = new IntegratedTerminalRunner(context.workspace);
-    const seconds = typeof args.timeout === 'number' && Number.isFinite(args.timeout) ? args.timeout : undefined;
-    const timeoutMs = seconds !== undefined ? Math.max(0, Math.floor(seconds * 1000)) : undefined;
+      if (!this.session) {
+        this.session = new TerminalSession(context.workspace.root);
+      }
 
-    let controller: AbortController | undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeoutSeconds =
+        typeof args.timeout === 'number' && Number.isFinite(args.timeout)
+          ? args.timeout
+          : DEFAULT_NO_CHANGE_TIMEOUT_SECONDS;
 
-    if (timeoutMs && timeoutMs > 0) {
-      controller = new AbortController();
-      timer = setTimeout(() => controller?.abort(new Error('Command timed out')), timeoutMs);
-    }
+      const prior = this.session.takeCompleted();
+      const priorText = prior ? [prior.stdout, prior.stderr].filter(Boolean).join('') : '';
 
-    try {
-      const result = await runner.execute(args.command, { signal: controller?.signal });
+      const result = await this.session.execute({
+        command: args.command ?? '',
+        is_input: args.is_input ?? false,
+        timeoutSeconds,
+      });
+
+      const stdoutParts: string[] = [];
+      const stderrParts: string[] = [];
+      if (priorText) {
+        stdoutParts.push('[Below is the output of the previous command.]\n', priorText);
+      }
+      if (result.stdout) stdoutParts.push(result.stdout);
+      if (result.stderr) stderrParts.push(result.stderr);
+
+      const exitCode = result.exitCode;
       return {
-        command: result.command,
-        stdout: result.stdout,
-        stderr: controller?.signal.aborted ? (result.stderr || 'Command timed out') : result.stderr,
-        exit_code: controller?.signal.aborted ? (result.exitCode || -1) : result.exitCode,
-        timeout: controller?.signal.aborted || false,
+        command: args.command ?? '',
+        stdout: stdoutParts.join(''),
+        stderr: stderrParts.join(''),
+        exit_code: exitCode,
+        exitCode,
+        timeout: exitCode === -1,
       };
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
+    };
+
+    const resultPromise = this.queue.then(run, run);
+    this.queue = resultPromise.then(
+      () => ({ command: null, exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: '' }),
+      () => ({ command: null, exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: '' }),
+    );
+    return resultPromise;
   }
 }
