@@ -23,7 +23,7 @@ export interface CommandOptions {
   cwd?: string;
   env?: EnvVars;
   timeoutMs?: number;
-  shell?: string;
+  shell?: string | boolean;
 }
 
 export interface CommandResult {
@@ -79,21 +79,35 @@ export class LocalWorkspace {
   }
 
   private normalizeExistingOrParent(candidate: string): string {
-    if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
+    const parsed = path.parse(candidate);
+    const root = parsed.root;
+    const parts = candidate
+      .slice(root.length)
+      .split(path.sep)
+      .filter((part) => part.length > 0);
 
-    let current = candidate;
-    const suffix: string[] = [];
-    while (true) {
-      const parent = path.dirname(current);
-      if (parent === current) break;
-      suffix.unshift(path.basename(current));
-      current = parent;
-      if (fs.existsSync(current)) {
-        const realBase = fs.realpathSync(current);
-        return path.join(realBase, ...suffix);
+    let current = root;
+    for (let i = 0; i < parts.length; i++) {
+      const next = path.join(current, parts[i]);
+      let stat: fs.Stats;
+      try {
+        stat = fs.lstatSync(next);
+      } catch (error) {
+        if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+          const remaining = parts.slice(i).join(path.sep);
+          return remaining ? path.join(current, remaining) : current;
+        }
+        throw error;
       }
+
+      if (stat.isSymbolicLink()) {
+        // Treat symlink components as hostile: require them to resolve now.
+        current = fs.realpathSync(next);
+        continue;
+      }
+      current = next;
     }
-    return candidate;
+    return current;
   }
 
   allowPath(targetPath: string): void {
@@ -194,6 +208,19 @@ export class LocalWorkspace {
       let stderr = '';
       const timeout = options.timeoutMs
         ? setTimeout(() => {
+            if (os.platform() === 'win32') {
+              // If we spawned through a shell, best-effort kill the entire process tree.
+              // `child.kill()` may only terminate the shell process, leaving payloads running.
+              try {
+                spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], {
+                  stdio: 'ignore',
+                  windowsHide: true,
+                });
+              } catch {
+                child.kill('SIGTERM');
+              }
+              return;
+            }
             child.kill('SIGTERM');
           }, options.timeoutMs)
         : null;

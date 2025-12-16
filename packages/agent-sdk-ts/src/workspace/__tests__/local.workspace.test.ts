@@ -86,6 +86,22 @@ describe('LocalWorkspace', () => {
       expect(() => workspace.resolvePath('linked/subdir/file.txt')).toThrowError(/Path escapes workspace root/);
     });
 
+    it('blocks dangling symlink escapes (even when target does not exist)', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace, dir } = await makeWorkspace((value) => created.push(value));
+      const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-dangling-'));
+      created.push(externalDir);
+      await fs.promises.rm(externalDir, { recursive: true, force: true });
+
+      const symlinkPath = path.join(dir, 'dangling');
+      await fs.promises.symlink(externalDir, symlinkPath, 'dir');
+
+      expect(() => workspace.resolvePath('dangling/secret.txt')).toThrowError();
+      await expect(workspace.writeFile('dangling/secret.txt', 'nope')).rejects.toThrowError();
+      expect(fs.existsSync(externalDir)).toBe(false);
+    });
+
     it('allows symlinks that remain inside the sandbox', async () => {
       if (process.platform === 'win32') return;
 
