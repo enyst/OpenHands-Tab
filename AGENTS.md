@@ -139,6 +139,7 @@ Reviews (do not merge without review):
     git worktree add --detach "$WORKTREE" HEAD
     ```
   - Start a named tmux session and capture output to a log file:
+    (use the actual PR number, below is just an example)
     ```bash
     SESSION=oh_pr246
     LOG="/tmp/${SESSION}.log"
