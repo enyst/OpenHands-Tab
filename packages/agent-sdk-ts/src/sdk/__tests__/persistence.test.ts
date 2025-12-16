@@ -258,6 +258,67 @@ describe('LocalConversation persistence', () => {
       (event) => event.kind === 'ConversationStateUpdateEvent' && (event as unknown as { key?: unknown }).key === 'restore_pending_confirmation',
     );
     expect(diagnostic).toBeDefined();
+
+    const restoredState = (restored as unknown as { state: ConversationState }).state.snapshot;
+    expect(restoredState.status).toBe('IDLE');
+
+    const restoreError = restoredEvents.find(
+      (event) =>
+        event.kind === 'ConversationErrorEvent' &&
+        (event as unknown as { code?: unknown }).code === 'restore_pending_confirmation_failed',
+    );
+    expect(restoreError).toBeDefined();
+  });
+
+  it('clears stale WAITING_FOR_CONFIRMATION snapshots when the tool call is already resolved', () => {
+    const dir = makeTempDir('local-stale-waiting-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+
+    const conversationId = 'local-stale-waiting';
+    const store = new FileStore({ rootDir: dir, conversationId });
+    store.writeState({ status: 'WAITING_FOR_CONFIRMATION', iteration: 0, values: {} });
+    store.appendEvent({
+      kind: 'ActionEvent',
+      source: 'agent',
+      thought: [],
+      action: { command: 'echo', value: 'hi' },
+      tool_name: 'echo',
+      tool_call_id: 'call_1',
+    } as Event);
+    store.appendEvent({ kind: 'PauseEvent', source: 'agent' } as Event);
+    store.appendEvent({
+      kind: 'ObservationEvent',
+      source: 'environment',
+      observation: { echoed: 'hi' },
+      tool_name: 'echo',
+      tool_call_id: 'call_1',
+      action_id: 'action_1',
+    } as Event);
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(conversationId);
+
+    const diagnostic = restoredEvents.find(
+      (event) => event.kind === 'ConversationStateUpdateEvent' && (event as unknown as { key?: unknown }).key === 'restore_pending_confirmation',
+    );
+    expect(diagnostic).toBeDefined();
+
+    const restoredState = (restored as unknown as { state: ConversationState }).state.snapshot;
+    expect(restoredState.status).toBe('IDLE');
+
+    const restoreError = restoredEvents.find(
+      (event) =>
+        event.kind === 'ConversationErrorEvent' &&
+        (event as unknown as { code?: unknown }).code === 'restore_pending_confirmation_failed',
+    );
+    expect(restoreError).toBeUndefined();
   });
 });
 

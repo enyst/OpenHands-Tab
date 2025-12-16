@@ -231,6 +231,24 @@ export class Agent extends EventEmitter {
     } as Event);
   }
 
+  private clearWaitingForConfirmation(reason: string, detail?: Record<string, unknown>, emitError = false): void {
+    this.emitRestorePendingConfirmationDiagnostic(reason, detail);
+    if (emitError) {
+      const lines = [
+        'Pending confirmation could not be restored after reload; clearing WAITING_FOR_CONFIRMATION state.',
+        `Reason: ${reason}`,
+        detail ? `Context: ${JSON.stringify(detail)}` : undefined,
+      ].filter(Boolean) as string[];
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'agent',
+        code: 'restore_pending_confirmation_failed',
+        detail: lines.join('\n'),
+      } as Event);
+    }
+    this.state.setStatus('IDLE');
+  }
+
   restorePendingConfirmation(): void {
     if (this.pendingAction) return;
     if (this.state.snapshot.status !== 'WAITING_FOR_CONFIRMATION') return;
@@ -246,7 +264,7 @@ export class Agent extends EventEmitter {
     }
 
     if (pauseIndex === -1) {
-      this.emitRestorePendingConfirmationDiagnostic('missing_pause_event');
+      this.clearWaitingForConfirmation('missing_pause_event', undefined, true);
       return;
     }
 
@@ -261,7 +279,7 @@ export class Agent extends EventEmitter {
     }
 
     if (!action || actionIndex < 0) {
-      this.emitRestorePendingConfirmationDiagnostic('missing_action_event', { pauseIndex });
+      this.clearWaitingForConfirmation('missing_action_event', { pauseIndex }, true);
       return;
     }
 
@@ -274,7 +292,7 @@ export class Agent extends EventEmitter {
     });
 
     if (alreadyResolved) {
-      this.emitRestorePendingConfirmationDiagnostic('tool_call_already_resolved', { toolCallId });
+      this.clearWaitingForConfirmation('tool_call_already_resolved', { toolCallId });
       return;
     }
 
