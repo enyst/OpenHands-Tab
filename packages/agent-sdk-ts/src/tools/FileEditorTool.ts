@@ -186,16 +186,30 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'undo_edit': {
-        const undo = this.popUndo(resolved);
         const current = await this.readOptionalFile(resolved);
+
+        const stack = this.undoHistory.get(resolved);
+        if (!stack || stack.length === 0) {
+          throw new Error('undo_edit failed: no edit history for path');
+        }
+
+        const undo = stack[stack.length - 1];
 
         if (!undo.prevExist) {
           await this.removeCreatedFile(resolved);
-          return { command: 'undo_edit', path: resolved, prev_exist: true, old_content: current, new_content: null };
+        } else {
+          await ws.writeFile(resolved, undo.oldContent ?? '');
         }
 
-        await ws.writeFile(resolved, undo.oldContent ?? '');
-        return { command: 'undo_edit', path: resolved, prev_exist: true, old_content: current, new_content: undo.oldContent };
+        stack.pop();
+        if (stack.length === 0) {
+          this.undoHistory.delete(resolved);
+        }
+
+        if (!undo.prevExist) {
+          return { command: 'undo_edit', path: resolved, prev_exist: current !== null, old_content: current, new_content: null };
+        }
+        return { command: 'undo_edit', path: resolved, prev_exist: current !== null, old_content: current, new_content: undo.oldContent };
       }
       default: {
         const unreachable: never = args.command;
@@ -211,18 +225,6 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       stack.shift();
     }
     this.undoHistory.set(resolvedPath, stack);
-  }
-
-  private popUndo(resolvedPath: string): UndoEntry {
-    const stack = this.undoHistory.get(resolvedPath);
-    if (!stack || stack.length === 0) {
-      throw new Error('undo_edit failed: no edit history for path');
-    }
-    const entry = stack.pop()!;
-    if (stack.length === 0) {
-      this.undoHistory.delete(resolvedPath);
-    }
-    return entry;
   }
 
   private async readOptionalFile(absPath: string): Promise<string | null> {

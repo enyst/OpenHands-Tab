@@ -129,6 +129,8 @@ describe('FileEditorTool', () => {
 
     await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace }))
       .rejects.toThrowError(/refusing to delete directory/i);
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace }))
+      .rejects.toThrowError(/refusing to delete directory/i);
     expect(fs.statSync(path.join(dir, 'note.txt')).isDirectory()).toBe(true);
   });
 
