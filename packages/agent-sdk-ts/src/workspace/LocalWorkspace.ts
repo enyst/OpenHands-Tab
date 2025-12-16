@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import type { SpawnOptions } from 'child_process';
 import * as fs from 'fs';
-import { readFile as readFileAsync, mkdir, writeFile as writeFileAsync, rm, readdir } from 'node:fs/promises';
+import { readFile as readFileAsync, mkdir, rm, readdir } from 'node:fs/promises';
 import path from 'path';
 import os from 'os';
 
@@ -315,10 +315,7 @@ export class LocalWorkspace {
         await this.writeFileSafely(resolved, content);
         return;
       }
-
-      await mkdir(parentDir, { recursive: true });
-      await writeFileAsync(resolved, content);
-      return;
+      throw new Error(`writeFile failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
     }
 
     await this.ensureSafeDirectory(root, parentDir);

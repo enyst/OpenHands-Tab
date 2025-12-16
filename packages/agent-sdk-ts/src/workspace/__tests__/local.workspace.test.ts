@@ -185,7 +185,6 @@ describe('LocalWorkspace', () => {
         if (!swapped && targetString === canonicalParentDir) {
           await swapParent();
         }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         return originalStat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
 
@@ -194,7 +193,6 @@ describe('LocalWorkspace', () => {
         if (!swapped && targetString === canonicalParentDir) {
           await swapParent();
         }
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
 
