@@ -115,6 +115,8 @@ type UndoEntry = {
   oldContent: string | null;
 };
 
+const MAX_UNDO_ENTRIES_PER_PATH = 10;
+
 export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, FileEditorResult> {
   readonly name = 'file_editor';
   readonly description = TOOL_DESCRIPTION;
@@ -188,7 +190,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         const current = await this.readOptionalFile(resolved);
 
         if (!undo.prevExist) {
-          await ws.remove(resolved);
+          await this.removeCreatedFile(resolved);
           return { command: 'undo_edit', path: resolved, prev_exist: true, old_content: current, new_content: null };
         }
 
@@ -205,6 +207,9 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
   private pushUndo(resolvedPath: string, entry: UndoEntry): void {
     const stack = this.undoHistory.get(resolvedPath) ?? [];
     stack.push(entry);
+    while (stack.length > MAX_UNDO_ENTRIES_PER_PATH) {
+      stack.shift();
+    }
     this.undoHistory.set(resolvedPath, stack);
   }
 
@@ -225,6 +230,19 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       return await fs.readFile(absPath, 'utf8');
     } catch {
       return null;
+    }
+  }
+
+  private async removeCreatedFile(absPath: string): Promise<void> {
+    try {
+      const stat = await fs.lstat(absPath);
+      if (stat.isDirectory()) {
+        throw new Error(`undo_edit failed: refusing to delete directory: ${absPath}`);
+      }
+      await fs.unlink(absPath);
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') return;
+      throw error;
     }
   }
 }

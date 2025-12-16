@@ -118,6 +118,43 @@ describe('FileEditorTool', () => {
     await expect(workspace.readFile('note.txt')).rejects.toThrowError();
   });
 
+  it('undo_edit refuses to delete directories when undoing a create', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'content' }), { workspace });
+    await fs.promises.unlink(path.join(dir, 'note.txt'));
+    await fs.promises.mkdir(path.join(dir, 'note.txt'));
+
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace }))
+      .rejects.toThrowError(/refusing to delete directory/i);
+    expect(fs.statSync(path.join(dir, 'note.txt')).isDirectory()).toBe(true);
+  });
+
+  it('caps undo_edit history per path', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'v0' }), { workspace });
+    for (let i = 0; i < 11; i++) {
+      await tool.execute(
+        tool.validate({ command: 'str_replace', path: 'note.txt', old_str: `v${i}`, new_str: `v${i + 1}` }),
+        { workspace },
+      );
+    }
+    expect(await workspace.readFile('note.txt')).toBe('v11');
+
+    for (let i = 0; i < 10; i++) {
+      await tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace });
+    }
+    expect(await workspace.readFile('note.txt')).toBe('v1');
+
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace }))
+      .rejects.toThrowError(/no edit history/i);
+  });
+
   it('throws undo_edit when there is no history', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
