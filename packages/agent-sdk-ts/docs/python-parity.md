@@ -120,13 +120,13 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 
 ### TypeScript shape
 
-- Only `LocalWorkspace` exists?
+- Only `LocalWorkspace` exists.
   - Resolves workspace root
   - Reads/writes/removes files
   - Creates directories
   - Runs commands via VS Code APIs with minimal metadata
-- No shared base class or factory?
-- No remote workspace or file transfer helpers?
+- No shared base class or factory.
+- No remote workspace or file transfer helpers.
 
 ### Gaps to close
 
@@ -201,7 +201,8 @@ classDiagram
 - `LocalConversation`
   - Builds fresh `Agent`, `EventLog`, `ConversationState`, and `SecretRegistry`
   - Emits `status/event/error/conversationStarted/terminal`
-  - Has no persistence or cleanup hooks
+  - Supports persistence via `persistenceDir`/`FileStore` (snapshot + event replay via `restoreConversation`)
+  - No context-manager semantics; callers manage lifecycle (`disconnect`, event listeners)
 - `RemoteConversation`
   - Manages reconnect/replay and exposes settings mutation
   - Only proxies chat/events (no remote workspace/file helpers)
@@ -292,7 +293,7 @@ classDiagram
 
 - Add tool schema/security analyzer injection, condenser pipeline
 - Note: we do not want observability in TS.
-- Support persisted `ConversationState` restoration and pending-action replay - I think this is done?
+- Persisted `ConversationState` restore is supported via `LocalConversation.restoreConversation`, but `Agent` does not reconstruct `pendingAction` from restored state/events yet (see `oh-tab-wc7`).
 - Implement responses-API parity and richer confirmation policies akin to Python analyzers
 
 ```mermaid
@@ -318,7 +319,7 @@ classDiagram
       -ConversationState (in-memory)
       -EventLog (in-memory)
       -SecretRegistry (in-memory)
-      -AgentContext?
+      -AgentContext (optional)
     }
     AgentPython --> ConversationStatePython
     AgentTS --> ConversationStateTS
@@ -498,7 +499,7 @@ classDiagram
 
 - Port persistence constants, diffing, and cross-process locks
 - Persist secrets: in TS we want to always use VSCode secret manager
-- Persist conversation state for resume/replay - probably already done
+- Persist conversation state for resume/replay (snapshot + event replay) is supported via `FileStore`, but pending-action replay remains incomplete (see `oh-tab-wc7`).
 
 ## Tool schema parity
 
