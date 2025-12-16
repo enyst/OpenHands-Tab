@@ -210,7 +210,11 @@ export class Agent extends EventEmitter {
       if (!trimmed) return;
       if (/^[A-Z0-9_]+$/.test(trimmed)) {
         const envValue = process.env[trimmed];
-        if (envValue) values.add(envValue);
+        if (envValue) {
+          values.add(envValue);
+        } else {
+          values.add(trimmed);
+        }
       } else {
         values.add(trimmed);
       }
