@@ -173,6 +173,17 @@ export class LocalWorkspace {
       throw new Error(`Path escapes workspace root: ${dirPath}`);
     }
 
+    const assertContained = (candidate: string) => {
+      const candidateRel = path.relative(root, candidate);
+      if (
+        candidateRel.startsWith(`..${path.sep}`)
+        || candidateRel === '..'
+        || path.isAbsolute(candidateRel)
+      ) {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
+    };
+
     const parts = relative.split(path.sep).filter((part) => part.length > 0);
     let current = root;
 
@@ -184,25 +195,32 @@ export class LocalWorkspace {
         throw new Error(`Path escapes workspace root: ${dirPath}`);
       }
 
-      if (currentStat.isSymbolicLink()) {
+      if (currentStat.isSymbolicLink() || !currentStat.isDirectory()) {
         throw new Error(`Path escapes workspace root: ${dirPath}`);
       }
-      if (!currentStat.isDirectory()) {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
+      assertContained(current);
 
-      current = await fs.promises.realpath(current);
-      const currentRel = path.relative(root, current);
-      if (currentRel.startsWith(`..${path.sep}`) || currentRel === '..' || path.isAbsolute(currentRel)) {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
-      const next = path.join(current, part);
+      let next = path.join(current, part);
 
       let stat: fs.Stats;
       try {
         stat = await fs.promises.lstat(next);
       } catch (error) {
         if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+          // Re-check the parent directory immediately before creating the next component.
+          // This closes a TOCTTOU window where the parent can be swapped to a symlink between
+          // validation and mkdir, causing `mkdir(next)` to escape the workspace root.
+          try {
+            currentStat = await fs.promises.lstat(current);
+          } catch {
+            throw new Error(`Path escapes workspace root: ${dirPath}`);
+          }
+          if (currentStat.isSymbolicLink() || !currentStat.isDirectory()) {
+            throw new Error(`Path escapes workspace root: ${dirPath}`);
+          }
+          assertContained(current);
+          next = path.join(current, part);
+
           try {
             await mkdir(next);
           } catch (mkdirError) {
@@ -218,14 +236,18 @@ export class LocalWorkspace {
 
       if (stat.isSymbolicLink()) {
         const resolved = await fs.promises.realpath(next);
-        const resolvedRel = path.relative(root, resolved);
-        if (
-          resolvedRel.startsWith(`..${path.sep}`)
-          || resolvedRel === '..'
-          || path.isAbsolute(resolvedRel)
-        ) {
+        assertContained(resolved);
+
+        let resolvedStat: fs.Stats;
+        try {
+          resolvedStat = await fs.promises.stat(resolved);
+        } catch {
           throw new Error(`Path escapes workspace root: ${dirPath}`);
         }
+        if (!resolvedStat.isDirectory()) {
+          throw new Error(`Path escapes workspace root: ${dirPath}`);
+        }
+
         current = resolved;
         continue;
       }
@@ -233,11 +255,7 @@ export class LocalWorkspace {
       if (!stat.isDirectory()) {
         throw new Error(`Path escapes workspace root: ${dirPath}`);
       }
-      current = await fs.promises.realpath(next);
-      const nextRel = path.relative(root, current);
-      if (nextRel.startsWith(`..${path.sep}`) || nextRel === '..' || path.isAbsolute(nextRel)) {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
+      current = next;
     }
   }
 
@@ -420,15 +438,7 @@ export class LocalWorkspace {
       throw new Error(`writeFile failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
     }
 
-    await this.ensureSafeDirectory(root, parentDir);
-    const canonicalParent = await fs.promises.realpath(parentDir);
-    const relative = path.relative(root, canonicalParent);
-    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
-      throw new Error(`Path escapes workspace root: ${targetPath}`);
-    }
-
-    const safeResolved = path.join(canonicalParent, path.basename(resolved));
-    await this.writeFileSafely(safeResolved, content, root);
+    await this.writeFileSafely(resolved, content, root);
   }
 
   async remove(targetPath: string): Promise<void> {

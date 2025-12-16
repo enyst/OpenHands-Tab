@@ -179,15 +179,11 @@ describe('LocalWorkspace', () => {
       };
 
       const originalRealpath = fs.promises.realpath;
-      let parentRealpathCalls = 0;
       const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
         const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
         if (!swapped && targetString === canonicalParentDir) {
-          parentRealpathCalls += 1;
-          if (parentRealpathCalls === 1) {
-            await swapParent();
-          }
+          await swapParent();
         }
         return result;
       });
@@ -220,15 +216,11 @@ describe('LocalWorkspace', () => {
       };
 
       const originalRealpath = fs.promises.realpath;
-      let parentRealpathCalls = 0;
       const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
         const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
         if (!swapped && targetString === canonicalParentDir) {
-          parentRealpathCalls += 1;
-          if (parentRealpathCalls === 4) {
-            await swapParent();
-          }
+          await swapParent();
         }
         return result;
       });
@@ -262,17 +254,20 @@ describe('LocalWorkspace', () => {
       };
 
       const originalLstat = fs.promises.lstat;
-      let parentLstatCalls = 0;
+      const childPath = path.join(canonicalParentDir, 'child');
       const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        const result = await originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
-        if (!swapped && targetString === canonicalParentDir) {
-          parentLstatCalls += 1;
-          if (parentLstatCalls === 2) {
-            await swapParent();
+        if (!swapped && targetString === childPath) {
+          try {
+            return await originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
+          } catch (error) {
+            if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+              await swapParent();
+            }
+            throw error;
           }
         }
-        return result;
+        return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
 
       try {
