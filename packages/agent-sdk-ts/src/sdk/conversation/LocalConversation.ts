@@ -151,6 +151,8 @@ export class LocalConversation extends EventEmitter {
       } else {
         this.state.loadEvents(loadedEvents);
       }
+
+      this.agent.restorePendingConfirmation();
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.emit('error', err);

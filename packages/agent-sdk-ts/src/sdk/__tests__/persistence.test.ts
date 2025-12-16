@@ -6,7 +6,9 @@ import { LocalConversation } from '../conversation';
 import { ConversationState, EventLog, FileStore } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import type { Event, MessageEvent, TextContent } from '../types';
+import { isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
+import type { ToolDefinition } from '../types/tools';
 
 class MockLLM implements LLMClient {
   constructor(private readonly chunks: LLMStreamChunk[]) {}
@@ -136,6 +138,54 @@ describe('LocalConversation persistence', () => {
     const messagesAfter = restoredEvents.length;
 
     expect(messagesAfter).toBeGreaterThan(messagesBefore);
+  });
+
+  it('restores pending confirmations so approveAction works after restore', async () => {
+    const dir = makeTempDir('local-confirmation-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const settings: OpenHandsSettings = { ...baseSettings, confirmation: { policy: 'always' } };
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input) => ({ value: (input as { value: string }).value }),
+      execute: async (args) => ({ echoed: args.value }),
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Using tool' },
+      { type: 'tool_call_delta', id: 'call_1', name: 'echo', arguments: '{"value":"hi"}' },
+      { type: 'finish' },
+    ]);
+
+    const conversation = new LocalConversation({
+      settings,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [tool],
+      persistenceDir: dir,
+    });
+
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('run tool');
+    const stateAfterRun = (conversation as unknown as { state: ConversationState }).state.snapshot;
+    expect(stateAfterRun.status).toBe('WAITING_FOR_CONFIRMATION');
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      tools: [tool],
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(id!);
+
+    const before = restoredEvents.length;
+    await restored.approveAction();
+    const newEvents = restoredEvents.slice(before);
+
+    const observation = newEvents.find((e) => isObservationEvent(e) && e.tool_name === 'echo');
+    expect(observation).toBeDefined();
+    expect(JSON.stringify(observation?.observation ?? {})).toContain('hi');
   });
 });
 

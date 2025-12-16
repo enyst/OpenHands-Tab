@@ -8,7 +8,7 @@ import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
 import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
-import { isMessageEvent, isSystemPromptEvent, isTextContent, type SecurityRisk } from '../types';
+import { isActionEvent, isMessageEvent, isSystemPromptEvent, isTextContent, type SecurityRisk } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
@@ -210,6 +210,24 @@ export class Agent extends EventEmitter {
 
   get pendingActionId(): string | undefined {
     return this.pendingAction?.actionEvent.id;
+  }
+
+  restorePendingConfirmation(): void {
+    if (this.pendingAction) return;
+    if (this.state.snapshot.status !== 'WAITING_FOR_CONFIRMATION') return;
+
+    const events = this.events.list();
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i];
+      if (!isActionEvent(event)) continue;
+
+      const actionArgs: Record<string, unknown> = event.action ?? {};
+      const workspaceAccess = this.getRequiredWorkspaceAccess(event.tool_name, actionArgs);
+
+      this.pendingAction = { toolCall: event.tool_call, actionEvent: event, args: actionArgs };
+      this.pendingWorkspaceAccess = workspaceAccess;
+      return;
+    }
   }
 
   async run(input: AgentRunInput): Promise<Message | undefined> {
