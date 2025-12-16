@@ -44,7 +44,7 @@ const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 // Simple utility to cap logged/tool result sizes
 const TRUNCATE_LIMIT = 2000;
 const ELLIPSIS = '…(truncated)';
-const TOOL_MESSAGE_MAX_CHARS = 30_000;
+const TOOL_MESSAGE_MAX_CHARS = 8_000;
 const TOOL_MESSAGE_CLIP_MARKER = '<response clipped>';
 function truncateString(input: string): string {
   return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
@@ -220,18 +220,15 @@ export class Agent extends EventEmitter {
       maybePush(secret);
     }
 
-    const commonEnvSecrets = [
-      'OPENAI_API_KEY',
-      'OPENROUTER_API_KEY',
-      'LITELLM_API_KEY',
-      'ANTHROPIC_API_KEY',
-      'LLM_API_KEY',
-      'GITHUB_TOKEN',
-      'GH_TOKEN',
-    ];
-    for (const key of commonEnvSecrets) {
-      const value = process.env[key];
-      if (value) values.add(value);
+    for (const secret of this.secrets.getRegisteredValues()) {
+      maybePush(secret);
+    }
+
+    const envKeyLooksSensitive = /(?:^|_)(?:API_?KEY|ACCESS_TOKEN|REFRESH_TOKEN|TOKEN|SECRET|PASSWORD)(?:$|_)/i;
+    for (const [key, value] of Object.entries(process.env)) {
+      if (!value) continue;
+      if (!envKeyLooksSensitive.test(key)) continue;
+      values.add(value);
     }
 
     return Array.from(values)
@@ -254,7 +251,17 @@ export class Agent extends EventEmitter {
 
     if (toolName === 'terminal') {
       const record = asRecord(result) ?? {};
-      const command = toOptionalNonEmptyString(record.command) ?? toOptionalNonEmptyString(toolCall.function.arguments);
+      const commandFromArgs = (() => {
+        const rawArgs = toOptionalNonEmptyString(toolCall.function.arguments);
+        if (!rawArgs) return undefined;
+        try {
+          const parsed = JSON.parse(rawArgs) as Record<string, unknown>;
+          return toOptionalNonEmptyString(parsed.command) ?? rawArgs;
+        } catch {
+          return rawArgs;
+        }
+      })();
+      const command = toOptionalNonEmptyString(record.command) ?? commandFromArgs;
       const stdout = typeof record.stdout === 'string' ? record.stdout.trimEnd() : '';
       const stderr = typeof record.stderr === 'string' ? record.stderr.trimEnd() : '';
       const exitCode = typeof record.exit_code === 'number' ? record.exit_code : undefined;

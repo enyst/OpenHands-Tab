@@ -86,7 +86,7 @@ describe('Agent truncates tool logs and observations', () => {
     expect(toolMsg).toBeTruthy();
     const txt = toolMsg!.llm_message.content.find((c) => c.type === 'text') as { type: 'text'; text: string };
     expect(txt.text).toContain('<response clipped>');
-    expect(txt.text.length).toBeLessThanOrEqual(30_000);
+    expect(txt.text.length).toBeLessThanOrEqual(8_000);
   });
 
   it('truncates large stdout results in ObservationEvent and tool message', async () => {
@@ -117,6 +117,6 @@ describe('Agent truncates tool logs and observations', () => {
     expect(toolMsg).toBeTruthy();
     const txt = toolMsg!.llm_message.content.find((c) => c.type === 'text') as { type: 'text'; text: string };
     expect(txt.text).toContain('<response clipped>');
-    expect(txt.text.length).toBeLessThanOrEqual(30_000);
+    expect(txt.text.length).toBeLessThanOrEqual(8_000);
   });
 });

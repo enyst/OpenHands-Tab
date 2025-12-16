@@ -29,14 +29,24 @@ export class SecretRegistry {
     }
 
     const envKey = name.toUpperCase();
-    if (process.env[envKey]) {
-      return process.env[envKey];
+    const envValue = process.env[envKey];
+    if (envValue) {
+      this.secrets.set(name, envValue);
+      return envValue;
     }
 
     if (this.storage) {
-      return this.storage.get(name);
+      const stored = await this.storage.get(name);
+      if (stored) {
+        this.secrets.set(name, stored);
+      }
+      return stored;
     }
 
     return undefined;
+  }
+
+  getRegisteredValues(): string[] {
+    return Array.from(this.secrets.values());
   }
 }
