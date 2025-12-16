@@ -242,7 +242,7 @@ class TerminalSession {
         `printf '${meta.exit}%s\\n' "$openhands_ec"`,
         `printf '${meta.pwd}%s\\n' "$(pwd)"`,
         `printf '${meta.env}'`,
-        `node -e 'process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString("base64"))'`,
+        `${JSON.stringify(process.execPath)} -e 'process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString("base64"))'`,
         "printf '\\n'",
         `printf '${meta.end}\\n'`,
         'exit $openhands_ec',
