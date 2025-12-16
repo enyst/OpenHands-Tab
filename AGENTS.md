@@ -120,7 +120,19 @@ Reviews (do not merge without review):
 - Request review via **Agent Mail** (mandatory):
   - Requester (e.g., `BlackDog`): send an Agent Mail message to a reviewer with the PR link/number and context; set `ack_required=true`.
   - Reviewer (e.g., `OrangeCastle`): run the OpenHands roasted review locally (via tmux) and reply in-thread with the full output.
-- OpenHands roasted review via tmux (reviewer workflow):
+- Ensure the GitHub AI reviewers are done (or clearly unavailable):
+  - **Gemini-code-assist**: starts automatically upon PR creation; treat it as "one review done" once it has posted two top-level comments and you've checked/resolved its inline threads. Re-trigger with `/gemini review` if needed.
+  - **CodeRabbitAI**: only wait if its ETA is <=10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
+    - if you waited for its rate-limit to expire (if it was under 10 minutes), you can re-trigger with `@coderabbitai review`.
+- Always read review threads in "Files changed" (bots leave inline comments).
+- Right before merging, do a final pass on GitHub to avoid missing late feedback:
+  - "Conversation" tab: scan top-level comments (including bots).
+  - "Files changed" tab: scan/resolve inline review threads.
+  - Checks: confirm OpenHands/Gemini/CodeRabbit aren't still pending (or explicitly waived per the policy above).
+- If OpenHands feedback is "truly minor" (e.g., wording/typos/formatting only), you can address it without re-requesting review.
+- Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
+
+**Reviewer workflow** (the OpenHands roasted review via tmux):
   - Use a clean worktree to avoid clobbering shared branches/uncommitted changes:
     ```bash
     WORKTREE="$(mktemp -d -t oh-tab-review.XXXXXX)"
@@ -151,17 +163,7 @@ Reviews (do not merge without review):
   - Pitfalls we hit:
     - You must pass the task with `-t` (positional args are treated as subcommands).
     - `--exp` UI is noisy to log/copy (ANSI); `--headless` is easier for paste-back to Mail.
-- Ensure the GitHub AI reviewers are done (or clearly unavailable):
-  - **Gemini-code-assist**: treat as "done" once it has posted two top-level comments and you've checked/resolved its inline threads. Trigger with `/gemini review` if needed.
-  - **CodeRabbitAI**: only wait if its ETA is <=10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
-    - Re-trigger with `@coderabbitai review` if needed.
-- Always read review threads in "Files changed" (bots leave inline comments).
-- Right before merging, do a final pass on GitHub to avoid missing late feedback:
-  - "Conversation" tab: scan top-level comments (including bots).
-  - "Files changed" tab: scan/resolve inline review threads.
-  - Checks: confirm OpenHands/Gemini/CodeRabbit aren't still pending (or explicitly waived per the policy above).
-- If OpenHands feedback is "truly minor" (e.g., wording/typos/formatting only), you can address it without re-requesting review.
-- Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
+
 
 ## SDK Package
 
