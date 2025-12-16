@@ -2,8 +2,15 @@
 
 This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@openhands/agent-sdk-ts` (VS Code-focused SDK). It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
 
+## Audit scope (oh-tab-0rq)
 
-## Current parity snapshot (2025-11-26)
+This document is the living output for Beads issue `oh-tab-0rq`.
+
+- TypeScript SDK: `packages/agent-sdk-ts` (this repo).
+- Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk).
+- Focus: VS Code local-mode parity (no agent-server / remote workspace).
+
+## Current parity snapshot (2025-12-16)
 
 This section summarizes concrete behavior alignment between Python agent-sdk and TypeScript @openhands/agent-sdk-ts observed today, with pointers to code/tests and gaps to close.
 
@@ -38,13 +45,63 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - Persistence and EventLog
   - Python: File-backed EventLog, deterministic IDs, resume-from-disk via ConversationState.create, FIFO locks, etc.
-  - TypeScript: In-memory EventLog and state. Already documented below; gap remains.
+  - TypeScript: FileStore-backed persistence exists (events + state) and LocalConversation supports restore. See `packages/agent-sdk-ts/src/sdk/runtime/persistence.ts` and tests: `packages/agent-sdk-ts/src/sdk/__tests__/persistence.test.ts`.
+
+- Tool observation content (role="tool" messages)
+  - Python: tool observations are LLM-facing plain text via Observation helpers (e.g., TerminalObservation appends metadata and uses `<response clipped>` truncation). See `tests/tools/terminal/test_observation_truncation.py`.
+  - TypeScript: Agent currently JSON-stringifies tool results into tool MessageEvent content (AgentErrorEvent tool messages are plain text). See `packages/agent-sdk-ts/src/sdk/runtime/Agent.ts` (executeTool) and `packages/agent-sdk-ts/src/sdk/runtime/toolCallErrorEvents.ts`.
+  - Status: Divergence; affects LLM context quality and parity with Python tests/spec.
+
+- Terminal session semantics
+  - Python: persistent shell session; supports `is_input` (stdin/log polling) and `reset`. See `tests/tools/terminal/test_terminal_session.py`.
+  - TypeScript: per-command child process; `is_input` returns an unsupported message and `reset` is currently ignored. See `packages/agent-sdk-ts/src/tools/TerminalTool.ts` and `packages/agent-sdk-ts/src/tools/IntegratedTerminalRunner.ts`.
+  - Status: Divergence; impacts common VS Code workflows (env vars, venv activation, cwd persistence).
 
 Actionable gaps to consider next
 - Decide on unified error text truncation policy (keep TS 4096 cap or match Python behavior). If keeping TS cap, document rationale and ensure consumers expect plain text possibly truncated.
 - Define cross-SDK policy for tool-call argument redaction; either port TS recursive redaction to Python (central helper) or scope TS to observation-only to match Python. Document effective guarantees for logs/telemetry.
 - security_risk defaulting: consider default UNKNOWN in TS when interoperating with agent-server to match Python expectations; otherwise ensure server tolerates undefined in TS-local contexts.
-- Longer term: remote workspace, persisted EventLog/ConversationState, analyzers/condensers to approach Python feature parity.
+- Tool observation formatting: move away from JSON-only tool messages toward Python-like, human-readable tool outputs with consistent truncation + (optional) metadata.
+- TerminalTool: implement persistent session semantics (or change schema/description to match reality) and add tests mirroring Python.
+- FileEditorTool: add `undo_edit` parity and tighten directory/binary viewing behavior.
+- Longer term (out of scope for VS Code local mode): remote workspace and agent-server-only behaviors.
+
+## Candidate test cases to mirror (from `~/repos/agent-sdk`)
+
+These Python tests are the most directly relevant “spec” for VS Code local-mode parity work. Use them to drive new Vitest coverage in `packages/agent-sdk-ts` (tests first, then implementation).
+
+### Terminal tool
+
+- Python: `tests/tools/terminal/test_terminal_tool.py` (basic execution, schema) → TypeScript: `packages/agent-sdk-ts/src/tools/__tests__/tools.test.ts` (expand coverage).
+- Python: `tests/tools/terminal/test_observation_truncation.py` (LLM-facing output formatting + `<response clipped>`) → TypeScript: add parity tests around `Agent` tool message content/truncation.
+- Python: `tests/tools/terminal/test_terminal_session.py`, `tests/tools/terminal/test_shutdown_handling.py`, `tests/tools/terminal/test_shell_path_configuration.py` → TypeScript: missing (requires persistent session + reset/is_input semantics).
+- Python: `tests/tools/terminal/test_secrets_masking.py` → TypeScript: missing (SecretRegistry-aware masking for tool output).
+
+### File editor tool
+
+- Python: `tests/tools/file_editor/test_basic_operations.py` (create/view/str_replace/insert/undo_edit) → TypeScript: partial in `packages/agent-sdk-ts/src/tools/__tests__/tools.test.ts` (add undo_edit + error cases).
+- Python: `tests/tools/file_editor/test_schema.py` (command enum includes undo_edit) → TypeScript: update schema once undo_edit is implemented.
+- Python: `tests/tools/file_editor/test_workspace_root.py`, `tests/tools/file_editor/test_file_validation.py`, `tests/tools/file_editor/test_view_supported_binary_files.py` → TypeScript: missing (directory view rules + binary handling).
+
+### Glob/Grep tools
+
+- Python: `tests/tools/glob/test_glob_tool.py`, `tests/tools/glob/test_consistency.py` → TypeScript: add fixtures to cover ignore rules, ordering, and truncation behavior.
+- Python: `tests/tools/grep/test_grep_tool.py`, `tests/tools/grep/test_consistency.py` → TypeScript: add fixtures to cover include globs + regex semantics and truncation behavior.
+
+### Runtime/events/workspace
+
+- Python: `tests/sdk/event/test_events_to_messages.py`, `tests/sdk/event/test_event_serialization.py` → TypeScript: `packages/agent-sdk-ts/src/sdk/__tests__/agent-sdk.guards.test.ts` + runtime tests (expand into message conversion parity).
+- Python: `tests/sdk/security/test_confirmation_policy.py` → TypeScript: `packages/agent-sdk-ts/src/sdk/__tests__/agent.loop.test.ts` and `packages/agent-sdk-ts/src/sdk/runtime/__tests__/Agent.security-risk.test.ts`.
+- Python: `tests/sdk/io/test_local_filestore_security.py` → TypeScript: `packages/agent-sdk-ts/src/workspace/__tests__/local.workspace.test.ts` (expand with symlink cases).
+
+## Beads follow-ups (created from this audit)
+
+- `oh-tab-wmn` — agent-sdk-ts: TerminalTool persistent session + is_input/reset parity
+- `oh-tab-bcu` — agent-sdk-ts: Tool MessageEvent content parity (avoid JSON-only tool outputs)
+- `oh-tab-nbc` — agent-sdk-ts: FileEditorTool undo_edit parity
+- `oh-tab-7d4` — agent-sdk-ts: FileEditorTool directory view + binary handling parity
+- `oh-tab-pla` — agent-sdk-ts: LocalWorkspace symlink/path security parity
+- `oh-tab-2wx` — agent-sdk-ts: GlobTool/GrepTool parity (fixtures, ignore, truncation)
 
 ## Workspace layer
 
@@ -503,17 +560,28 @@ classDiagram
       +push(event)
       +list()
       +on(listener)
-      -memory_only
+      +attachPersistence(store)
     }
     class ConversationStateTS {
       +attachEventLog()
+      +attachPersistence(store)
       +setValue()/snapshot
     }
+    class FileStore {
+      +appendEvent()
+      +writeState()
+      +readEvents()
+      +readState()
+    }
     class SecretRegistryTS {
-      +volatile_secrets
+      +in_memory_secrets
+      +env_fallback
+      +vscode_secret_storage
     }
     EventLogPython --> ConversationStatePython
     EventLogTS --> ConversationStateTS
+    EventLogTS --> FileStore
+    ConversationStateTS --> FileStore
 ```
 
 ### Source references
@@ -522,7 +590,8 @@ classDiagram
 
 ## Quick checklist for parity work
 - Implement workspace factory/base with remote support, path validation, git helpers, and richer command metadata.
-- Extend conversations with persistence, visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
+- Extend conversations with visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
 - Augment agent with condenser/security analyzers, persisted state replay, and expanded confirmation policies.
 - Add template-aware `AgentContext`, MCP-aware `Skill` metadata/validation, and richer trigger matching.
-- Provide file-backed `EventLog`, state/secret persistence helpers, and the missing event variants (`TokenEvent`, condensation request/summary).
+- Align tool message formatting (Terminal/FileEditor) with Python’s LLM-facing observations (truncation markers, optional metadata, secrets masking).
+- Add missing event variants (`TokenEvent`, condensation request/summary) if VS Code needs them for UI parity.
