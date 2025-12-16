@@ -124,6 +124,10 @@ Reviews (do not merge without review):
   - **CodeRabbitAI**: only wait if its ETA is <=10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
     - Re-trigger with `@coderabbitai review` if needed.
 - Always read review threads in "Files changed" (OpenHands + bots leave inline comments).
+- Right before merging, do a final pass on GitHub to avoid missing late feedback:
+  - "Conversation" tab: scan top-level comments (including bots).
+  - "Files changed" tab: scan/resolve inline review threads.
+  - Checks: confirm OpenHands/Gemini/CodeRabbit aren't still pending (or explicitly waived per the policy above).
 - If OpenHands feedback is "truly minor" (e.g., wording/typos/formatting only), you can address it without re-requesting review.
 - Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
 
