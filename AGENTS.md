@@ -141,7 +141,7 @@ Reviews (do not merge without review):
   - Start a named tmux session and capture output to a log file:
     (use the actual PR number, below is just an example)
     ```bash
-    SESSION=oh_pr246
+    SESSION=oh_pr${PR_NUMBER}
     LOG="/tmp/${SESSION}.log"
     rm -f "$LOG"
 
