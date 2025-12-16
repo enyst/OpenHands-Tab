@@ -44,6 +44,8 @@ const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 // Simple utility to cap logged/tool result sizes
 const TRUNCATE_LIMIT = 2000;
 const ELLIPSIS = '…(truncated)';
+const TOOL_MESSAGE_MAX_CHARS = 30_000;
+const TOOL_MESSAGE_CLIP_MARKER = '<response clipped>';
 function truncateString(input: string): string {
   return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
 }
@@ -64,6 +66,15 @@ function toOptionalNonEmptyString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): string {
+  if (text.length <= maxChars) return text;
+  const available = maxChars - TOOL_MESSAGE_CLIP_MARKER.length - 2;
+  const half = Math.max(0, Math.floor(available / 2));
+  const head = text.slice(0, half);
+  const tail = text.slice(-half);
+  return `${head}\n${TOOL_MESSAGE_CLIP_MARKER}\n${tail}`;
 }
 
 function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
@@ -189,6 +200,99 @@ export class Agent extends EventEmitter {
     this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
     this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
     this.debug = settings?.agent?.debug ?? false;
+  }
+
+  private getSecretValuesForMasking(): string[] {
+    const values = new Set<string>();
+    const maybePush = (candidate: unknown) => {
+      if (typeof candidate !== 'string') return;
+      const trimmed = candidate.trim();
+      if (!trimmed) return;
+      if (/^[A-Z0-9_]+$/.test(trimmed)) {
+        const envValue = process.env[trimmed];
+        if (envValue) values.add(envValue);
+      } else {
+        values.add(trimmed);
+      }
+    };
+
+    for (const secret of Object.values(this.options.settings?.secrets ?? {})) {
+      maybePush(secret);
+    }
+
+    const commonEnvSecrets = [
+      'OPENAI_API_KEY',
+      'OPENROUTER_API_KEY',
+      'LITELLM_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'LLM_API_KEY',
+      'GITHUB_TOKEN',
+      'GH_TOKEN',
+    ];
+    for (const key of commonEnvSecrets) {
+      const value = process.env[key];
+      if (value) values.add(value);
+    }
+
+    return Array.from(values)
+      .filter((value) => value.length >= 8)
+      .sort((a, b) => b.length - a.length);
+  }
+
+  private maskSecretsInText(text: string): string {
+    let masked = text;
+    for (const secret of this.getSecretValuesForMasking()) {
+      masked = masked.replaceAll(secret, '***');
+    }
+    return redactStringHeuristics(masked);
+  }
+
+  private formatToolMessageText(toolCall: ToolCall, result: unknown): string {
+    const toolName = toolCall.function.name;
+    const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+      value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+
+    if (toolName === 'terminal') {
+      const record = asRecord(result) ?? {};
+      const command = toOptionalNonEmptyString(record.command) ?? toOptionalNonEmptyString(toolCall.function.arguments);
+      const stdout = typeof record.stdout === 'string' ? record.stdout.trimEnd() : '';
+      const stderr = typeof record.stderr === 'string' ? record.stderr.trimEnd() : '';
+      const exitCode = typeof record.exit_code === 'number' ? record.exit_code : undefined;
+      const timedOut = record.timeout === true;
+
+      const parts: string[] = [];
+      if (command) {
+        parts.push(command.startsWith('$') ? command : `$ ${command}`);
+      }
+      const output = stdout && stderr ? `${stdout}\n${stderr}` : stdout || stderr;
+      if (output) parts.push(output);
+      if (typeof exitCode === 'number') {
+        parts.push(`[Command finished with exit code ${exitCode}]`);
+      } else {
+        parts.push('[Command finished]');
+      }
+      if (timedOut) parts.push('[Command timed out]');
+      return parts.join('\n');
+    }
+
+    if (toolName === 'file_editor') {
+      const record = asRecord(result) ?? {};
+      const command = toOptionalNonEmptyString(record.command);
+      const targetPath = toOptionalNonEmptyString(record.path);
+      const header = targetPath
+        ? `file_editor${command ? ` ${command}` : ''} ${targetPath}`
+        : `file_editor${command ? ` ${command}` : ''}`;
+      const content = typeof record.new_content === 'string' ? record.new_content : record.new_content === null ? '<file removed>' : '';
+      return content ? `${header}\n${content}` : header;
+    }
+
+    if (typeof result === 'string') return result;
+    if (result === null || result === undefined) return String(result);
+    try {
+      return JSON.stringify(result, null, 2);
+    } catch {
+      return Object.prototype.toString.call(result);
+    }
   }
 
   /**
@@ -712,6 +816,10 @@ export class Agent extends EventEmitter {
       } as Event;
       this.events.push(observation);
 
+      const formatted = this.formatToolMessageText(toolCall, result);
+      const masked = this.maskSecretsInText(formatted);
+      const clipped = truncateToolMessage(masked);
+
       const toolMessage: MessageEvent = {
         kind: 'MessageEvent',
         source: 'environment',
@@ -719,7 +827,7 @@ export class Agent extends EventEmitter {
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function.name,
-          content: [{ type: 'text', text: truncateString(JSON.stringify(result)) }],
+          content: [{ type: 'text', text: clipped }],
         },
       };
       this.events.push(toolMessage);

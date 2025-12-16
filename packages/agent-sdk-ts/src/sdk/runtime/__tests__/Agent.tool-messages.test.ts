@@ -1,0 +1,165 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { describe, expect, it } from 'vitest';
+import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
+import { Agent, EventLog } from '..';
+import { isMessageEvent, type TextContent } from '../../types';
+import type { ToolDefinition } from '../../types/tools';
+import type { OpenHandsSettings } from '../../types/settings';
+
+class MockLLM implements LLMClient {
+  constructor(private readonly chunks: LLMStreamChunk[]) {}
+
+  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    void _request;
+    for (const chunk of this.chunks) {
+      yield chunk;
+    }
+  }
+}
+
+const createWorkspaceRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-messages-'));
+
+describe('Agent tool message formatting', () => {
+  it('formats terminal tool output as plain text and masks configured secrets', async () => {
+    const secretValue = 'ghp_TOPSECRET1234567890';
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: { githubToken: secretValue },
+    };
+    const log = new EventLog();
+
+    const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
+      name: 'terminal',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => ({
+        command: 'echo hello',
+        exit_code: 0,
+        stdout: `hello ${secretValue}`,
+        stderr: '',
+        timeout: false,
+      }),
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Running terminal' },
+      { type: 'tool_call_delta', id: 'call_terminal', name: 'terminal', arguments: '{"command":"echo hello"}' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('run terminal');
+
+    const toolMessages = log
+      .list()
+      .filter(isMessageEvent)
+      .filter((evt) => evt.llm_message.role === 'tool' && evt.llm_message.name === 'terminal');
+    expect(toolMessages).toHaveLength(1);
+
+    const text = (toolMessages[0].llm_message.content[0] as TextContent).text;
+    expect(text).toContain('hello');
+    expect(text).not.toContain(secretValue);
+    expect(text).toContain('***');
+    expect(text.trimStart().startsWith('{')).toBe(false);
+  });
+
+  it('truncates long terminal tool outputs using <response clipped>', async () => {
+    const log = new EventLog();
+    const longOutput = 'A'.repeat(35_000);
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: {},
+    };
+    const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
+      name: 'terminal',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => ({ command: 'echo big', exit_code: 0, stdout: longOutput, stderr: '' }),
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Big output' },
+      { type: 'tool_call_delta', id: 'call_terminal_big', name: 'terminal', arguments: '{"command":"echo big"}' },
+      { type: 'finish' },
+    ]);
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('run big');
+
+    const toolMessages = log
+      .list()
+      .filter(isMessageEvent)
+      .filter((evt) => evt.llm_message.role === 'tool' && evt.llm_message.name === 'terminal');
+    expect(toolMessages).toHaveLength(1);
+
+    const text = (toolMessages[0].llm_message.content[0] as TextContent).text;
+    expect(text).toContain('<response clipped>');
+    expect(text.length).toBeLessThan(longOutput.length);
+  });
+
+  it('formats file_editor tool output as plain text', async () => {
+    const log = new EventLog();
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: {},
+    };
+    const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
+      name: 'file_editor',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => ({
+        command: 'view',
+        path: 'note.txt',
+        prev_exist: true,
+        old_content: 'line-1\nline-2',
+        new_content: '1\tline-1\n2\tline-2',
+      }),
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'View file' },
+      { type: 'tool_call_delta', id: 'call_view', name: 'file_editor', arguments: '{"command":"view","path":"note.txt"}' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('view');
+
+    const toolMessages = log
+      .list()
+      .filter(isMessageEvent)
+      .filter((evt) => evt.llm_message.role === 'tool' && evt.llm_message.name === 'file_editor');
+    expect(toolMessages).toHaveLength(1);
+
+    const text = (toolMessages[0].llm_message.content[0] as TextContent).text;
+    expect(text).toContain('1\tline-1');
+    expect(text.trimStart().startsWith('{')).toBe(false);
+  });
+});
