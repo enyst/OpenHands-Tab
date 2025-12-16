@@ -177,6 +177,25 @@ export class LocalWorkspace {
     let current = root;
 
     for (const part of parts) {
+      let currentStat: fs.Stats;
+      try {
+        currentStat = await fs.promises.lstat(current);
+      } catch {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
+
+      if (currentStat.isSymbolicLink()) {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
+      if (!currentStat.isDirectory()) {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
+
+      current = await fs.promises.realpath(current);
+      const currentRel = path.relative(root, current);
+      if (currentRel.startsWith(`..${path.sep}`) || currentRel === '..' || path.isAbsolute(currentRel)) {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
       const next = path.join(current, part);
 
       let stat: fs.Stats;
@@ -214,13 +233,22 @@ export class LocalWorkspace {
       if (!stat.isDirectory()) {
         throw new Error(`Path escapes workspace root: ${dirPath}`);
       }
-      current = next;
+      current = await fs.promises.realpath(next);
+      const nextRel = path.relative(root, current);
+      if (nextRel.startsWith(`..${path.sep}`) || nextRel === '..' || path.isAbsolute(nextRel)) {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
     }
   }
 
-  private async writeFileSafely(absPath: string, content: string | Buffer): Promise<void> {
+  private async writeFileSafely(absPath: string, content: string | Buffer, containingRoot?: string): Promise<void> {
     const constants = fs.constants as Record<string, number>;
-    const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
+    const noFollow =
+      os.platform() === 'win32'
+        ? 0
+        : typeof constants.O_NOFOLLOW === 'number'
+          ? constants.O_NOFOLLOW
+          : 0;
 
     let targetMode: number | undefined;
     try {
@@ -237,9 +265,37 @@ export class LocalWorkspace {
       }
     }
 
+    const requestedDir = path.dirname(absPath);
+    if (containingRoot) {
+      await this.ensureSafeDirectory(containingRoot, requestedDir);
+    }
+
+    let parentStat: fs.Stats;
+    try {
+      parentStat = await fs.promises.lstat(requestedDir);
+    } catch {
+      throw new Error(`writeFile failed: parent directory does not exist: ${requestedDir}`);
+    }
+
+    if (parentStat.isSymbolicLink()) {
+      throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
+    }
+    if (!parentStat.isDirectory()) {
+      throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
+    }
+
+    const canonicalDir = await fs.promises.realpath(requestedDir);
+    if (containingRoot) {
+      const rel = path.relative(containingRoot, canonicalDir);
+      if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
+        throw new Error(`Path escapes workspace root: ${absPath}`);
+      }
+    }
+
+    const safeTargetPath = path.join(canonicalDir, path.basename(absPath));
     if (noFollow) {
       const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
-      const handle = await fs.promises.open(absPath, flags, targetMode ?? 0o666);
+      const handle = await fs.promises.open(safeTargetPath, flags, targetMode ?? 0o666);
       try {
         await handle.writeFile(content);
       } finally {
@@ -248,13 +304,13 @@ export class LocalWorkspace {
       return;
     }
 
-    const dir = path.dirname(absPath);
     const base = path.basename(absPath);
+    const targetPath = path.join(canonicalDir, base);
     const tempFlags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
 
     for (let attempt = 0; attempt < 10; attempt++) {
       const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const tempPath = path.join(dir, `.${base}.tmp-${suffix}`);
+      const tempPath = path.join(canonicalDir, `.${base}.tmp-${suffix}`);
 
       let handle: fs.promises.FileHandle | undefined;
       try {
@@ -263,7 +319,28 @@ export class LocalWorkspace {
         await handle.close();
         handle = undefined;
 
-        await fs.promises.rename(tempPath, absPath);
+        // Re-check parent just before renaming to avoid late symlink swaps.
+        const parentStatBeforeRename = await fs.promises.lstat(requestedDir);
+        if (parentStatBeforeRename.isSymbolicLink()) {
+          throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
+        }
+
+        const canonicalDirBeforeRename = await fs.promises.realpath(requestedDir);
+        if (containingRoot) {
+          const relBeforeRename = path.relative(containingRoot, canonicalDirBeforeRename);
+          if (
+            relBeforeRename.startsWith(`..${path.sep}`)
+            || relBeforeRename === '..'
+            || path.isAbsolute(relBeforeRename)
+          ) {
+            throw new Error(`Path escapes workspace root: ${absPath}`);
+          }
+        }
+        if (canonicalDirBeforeRename !== canonicalDir) {
+          throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
+        }
+
+        await fs.promises.rename(tempPath, targetPath);
         return;
       } catch (error) {
         if (handle) {
@@ -285,7 +362,7 @@ export class LocalWorkspace {
         throw error;
       }
     }
-    throw new Error(`writeFile failed: unable to create temp file in ${dir}`);
+    throw new Error(`writeFile failed: unable to create temp file in ${canonicalDir}`);
   }
 
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
@@ -326,7 +403,7 @@ export class LocalWorkspace {
     }
 
     const safeResolved = path.join(canonicalParent, path.basename(resolved));
-    await this.writeFileSafely(safeResolved, content);
+    await this.writeFileSafely(safeResolved, content, root);
   }
 
   async remove(targetPath: string): Promise<void> {
