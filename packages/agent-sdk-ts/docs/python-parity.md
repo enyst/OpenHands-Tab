@@ -96,6 +96,7 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 
 - `oh-tab-wmn` — agent-sdk-ts: TerminalTool persistent session + is_input/reset parity
 - `oh-tab-bcu` — agent-sdk-ts: Tool MessageEvent content parity (avoid JSON-only tool outputs)
+- `oh-tab-wc7` — agent-sdk-ts: Pending confirmation replay after restore (persistence)
 - `oh-tab-nbc` — agent-sdk-ts: FileEditorTool undo_edit parity
 - `oh-tab-7d4` — agent-sdk-ts: FileEditorTool directory view + binary handling parity
 - `oh-tab-pla` — agent-sdk-ts: LocalWorkspace symlink/path security parity
@@ -120,13 +121,13 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 
 ### TypeScript shape
 
-- Only `LocalWorkspace` exists?
-  - Resolves workspace root
-  - Reads/writes/removes files
-  - Creates directories
-  - Runs commands via VS Code APIs with minimal metadata
-- No shared base class or factory?
-- No remote workspace or file transfer helpers?
+- Only `LocalWorkspace` exists (no `RemoteWorkspace`).
+  - Resolves workspace root (prefers VS Code workspace folders when available; otherwise `process.cwd()`).
+  - Reads/writes/removes/lists files and creates directories with allowlisted root validation.
+  - Runs commands via `child_process.spawn` (default `/bin/bash` on non-Windows), capturing stdout/stderr/exitCode; supports `cwd`, `env`, `timeoutMs`, and `shell`.
+  - Includes minimal git helpers (`gitStatus`, `gitDiff`).
+- No shared base class or `Workspace()` factory; callers instantiate `LocalWorkspace` directly.
+- No remote workspace or file-transfer helpers (upload/download/copy).
 
 ### Gaps to close
 
@@ -199,16 +200,18 @@ classDiagram
 - `Conversation()`
   - Selects `LocalConversation` (in-process) or `RemoteConversation` (WebSocket with HTTP history replay) based on `serverUrl` presence
 - `LocalConversation`
-  - Builds fresh `Agent`, `EventLog`, `ConversationState`, and `SecretRegistry`
+  - Builds `Agent`, `EventLog`, `ConversationState`, and `SecretRegistry`
   - Emits `status/event/error/conversationStarted/terminal`
-  - Has no persistence or cleanup hooks
+  - Supports FileStore-backed persistence when `persistenceDir` (or injected `persistence`) is configured, including `restoreConversation(id)` replay/restore
+  - No Python-style context-manager cleanup hooks
 - `RemoteConversation`
   - Manages reconnect/replay and exposes settings mutation
   - Only proxies chat/events (no remote workspace/file helpers)
 
 ### Gaps to close
 
-- Persistence-aware construction (resume from disk, persistence directory validation) and context-manager cleanup
+- Pending-action replay after `restoreConversation()` when the saved state is `WAITING_FOR_CONFIRMATION`
+- Persistence directory validation and explicit cleanup/dispose semantics (Python context-manager)
 - Visualizer/stuck-detection hooks, richer callback chaining, and secret injection aligned with Python's constructor signature
 - Remote workspace-aware commands, git/file helpers, and HTTP fallback parity (TS remote mode only streams chat/events)
 
@@ -285,14 +288,14 @@ classDiagram
   - Enforces iteration cap
   - Confirmation policy enum
   - Executes tool calls with basic error handling
-- No condenser, security analyzer, or persisted state replay
+- No condenser or security analyzer; EventLog/ConversationState can be persisted via FileStore but pending confirmations are not replayed after restore
 - Confirmation logic is minimal and local-only
 
 ### Gaps to close
 
 - Add tool schema/security analyzer injection, condenser pipeline
 - Note: we do not want observability in TS.
-- Support persisted `ConversationState` restoration and pending-action replay - I think this is done?
+- Persisted EventLog/ConversationState restore: implemented; pending-action replay after restore is not implemented (Agent `pendingAction` is in-memory only)
 - Implement responses-API parity and richer confirmation policies akin to Python analyzers
 
 ```mermaid
@@ -315,10 +318,10 @@ classDiagram
       +pause()/resume()/cancel()
       +approveAction()/rejectAction()
       -AgentOrchestrator
-      -ConversationState (in-memory)
-      -EventLog (in-memory)
-      -SecretRegistry (in-memory)
-      -AgentContext?
+      -ConversationState (in-memory; optional FileStore persistence)
+      -EventLog (in-memory; optional FileStore persistence)
+      -SecretRegistry (in-memory; can read VS Code SecretStorage when provided)
+      -agentContext?: AgentContext
     }
     AgentPython --> ConversationStatePython
     AgentTS --> ConversationStateTS
