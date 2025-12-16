@@ -103,4 +103,27 @@ describe('TerminalTool session behavior', () => {
 
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
   });
+
+  it('returns the final exit code when a timed-out command completes later', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+
+    const started = await tool.execute(tool.validate({ command: 'sleep 0.2; echo done', timeout: 0.05 }), { workspace });
+    expect(started.exit_code).toBe(-1);
+
+    let polled = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.4 }), { workspace });
+    for (let i = 0; i < 10 && polled.exit_code === -1; i++) {
+      polled = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.2 }), { workspace });
+    }
+
+    expect(polled.exit_code).toBe(0);
+    expect(`${polled.stdout ?? ''}${polled.stderr ?? ''}`).toContain('done');
+
+    const next = await tool.execute(tool.validate({ command: 'echo ok', timeout: 0.2 }), { workspace });
+    expect(next.exit_code).toBe(0);
+    expect((next.stdout ?? '').trim()).toBe('ok');
+
+    await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
+  });
 });

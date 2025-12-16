@@ -207,119 +207,145 @@ class TerminalSession {
     return { stdout, stderr };
   }
 
-  takeCompleted(): { stdout: string; stderr: string; exitCode: number | null } | null {
-    const cmd = this.running;
-    if (!cmd || !cmd.done) return null;
-    const drained = this.drain(cmd);
-    const exitCode = cmd.exitCode;
-    this.running = null;
-    return { ...drained, exitCode };
-  }
-
-  async execute(args: { command: string; is_input: boolean; timeoutSeconds: number }): Promise<{ stdout: string; stderr: string; exitCode: number | null; done: boolean }> {
+  async execute(args: { command: string; is_input: boolean; timeoutSeconds: number }): Promise<{ stdout: string; stderr: string; exitCode: number | null; done: boolean; command: string | null }> {
     const timeoutMs = Math.max(0, Math.floor(args.timeoutSeconds * 1000));
 
-    if (!args.is_input) {
-      if (this.running && !this.running.done) {
-        const status = await this.waitForNoChangeOrDone(this.running, timeoutMs);
-        const drained = this.drain(this.running);
-        return { ...drained, exitCode: status === 'done' ? this.running.exitCode : -1, done: status === 'done' };
+    const running = this.running;
+    if (running) {
+      if (running.done) {
+        const drained = this.drain(running);
+        const exitCode = running.exitCode;
+        const command = running.command;
+        this.running = null;
+        return { ...drained, exitCode, done: true, command };
       }
 
-      const id = randomUUID();
-      const meta = {
-        begin: `__OPENHANDS_META_${id}__BEGIN__`,
-        end: `__OPENHANDS_META_${id}__END__`,
-        exit: `__OPENHANDS_EXIT_${id}__`,
-        pwd: `__OPENHANDS_PWD_${id}__`,
-        env: `__OPENHANDS_ENV_${id}__`,
-      };
+      if (args.is_input) {
+        const input = args.command ?? '';
+        const trimmed = input.trim();
+        if (trimmed === 'C-c') {
+          this.sendSignal(running.process, 'SIGINT');
+        } else if (trimmed === 'C-z') {
+          this.sendSignal(running.process, 'SIGTSTP');
+        } else if (trimmed === 'C-d') {
+          running.process.stdin.write('\u0004');
+        } else if (input.length > 0) {
+          running.process.stdin.write(`${input}\n`);
+        }
+      }
 
-      const scriptLines = [
-        args.command,
-        'openhands_ec=$?',
-        `printf '\\n${meta.begin}\\n'`,
-        `printf '${meta.exit}%s\\n' "$openhands_ec"`,
-        `printf '${meta.pwd}%s\\n' "$(pwd)"`,
-        `printf '${meta.env}'`,
-        `${JSON.stringify(process.execPath)} -e 'process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString("base64"))'`,
-        "printf '\\n'",
-        `printf '${meta.end}\\n'`,
-        'exit $openhands_ec',
-      ];
-      const script = scriptLines.join('\n');
-
-      const shellPath = os.platform() === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : '/bin/bash';
-      const child = spawn(shellPath, ['-c', script], {
-        cwd: this.cwd,
-        env: this.env,
-        stdio: 'pipe',
-        detached: os.platform() !== 'win32',
-      });
-      child.stdout.setEncoding('utf8');
-      child.stderr.setEncoding('utf8');
-
-      const cmd: RunningTerminalProcess = {
-        id,
-        command: args.command,
-        process: child,
-        stdout: '',
-        stderr: '',
-        stdoutOffset: 0,
-        stderrOffset: 0,
-        lastActivityTs: Date.now(),
-        exitCode: null,
-        done: false,
-        meta,
-        waiters: new Set(),
-      };
-      this.running = cmd;
-
-      child.stdout.on('data', (data: Buffer | string) => {
-        cmd.stdout += data.toString();
-        cmd.lastActivityTs = Date.now();
-        this.tryParseMeta(cmd);
-        this.signal(cmd);
-      });
-
-      child.stderr.on('data', (data: Buffer | string) => {
-        cmd.stderr += data.toString();
-        cmd.lastActivityTs = Date.now();
-        this.signal(cmd);
-      });
-
-      child.on('close', (code) => {
-        cmd.done = true;
-        cmd.exitCode = typeof code === 'number' ? code : cmd.exitCode ?? 0;
-        this.tryParseMeta(cmd);
-        this.signal(cmd);
-      });
-
-      const status = await this.waitForNoChangeOrDone(cmd, timeoutMs);
-      const drained = this.drain(cmd);
-      return { ...drained, exitCode: status === 'done' ? cmd.exitCode : -1, done: status === 'done' };
+      const status = await this.waitForNoChangeOrDone(running, timeoutMs);
+      const drained = this.drain(running);
+      const done = status === 'done';
+      const exitCode = done ? running.exitCode : -1;
+      const command = running.command;
+      if (done) {
+        this.running = null;
+      }
+      return { ...drained, exitCode, done, command };
     }
 
-    const cmd = this.running;
-    if (!cmd || cmd.done) {
-      return { stdout: '', stderr: 'No running terminal command to send input to.', exitCode: null, done: true };
+    if (args.is_input) {
+      return { stdout: '', stderr: 'No running terminal command to send input to.', exitCode: null, done: true, command: null };
     }
 
-    const input = args.command ?? '';
-    const trimmed = input.trim();
-    if (trimmed === 'C-c') {
-      this.sendSignal(cmd.process, 'SIGINT');
-    } else if (trimmed === 'C-z') {
-      this.sendSignal(cmd.process, 'SIGTSTP');
-    } else if (trimmed === 'C-d') {
-      cmd.process.stdin.write('\u0004');
-    } else if (input.length > 0) {
-      cmd.process.stdin.write(`${input}\n`);
-    }
+    const id = randomUUID();
+    const meta = {
+      begin: `__OPENHANDS_META_${id}__BEGIN__`,
+      end: `__OPENHANDS_META_${id}__END__`,
+      exit: `__OPENHANDS_EXIT_${id}__`,
+      pwd: `__OPENHANDS_PWD_${id}__`,
+      env: `__OPENHANDS_ENV_${id}__`,
+    };
+
+    const platform = os.platform();
+    const nodeExecutable = platform === 'win32' ? `"${process.execPath.replaceAll('"', '""')}"` : JSON.stringify(process.execPath);
+
+    const scriptLines =
+      platform === 'win32'
+        ? [
+            args.command,
+            'set openhands_ec=%errorlevel%',
+            `echo ${meta.begin}`,
+            `echo ${meta.exit}%openhands_ec%`,
+            `echo ${meta.pwd}%CD%`,
+            `<nul set /p "=${meta.env}"`,
+            `${nodeExecutable} -e "process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString('base64'))"`,
+            'echo.',
+            `echo ${meta.end}`,
+            'exit /b %openhands_ec%',
+          ]
+        : [
+            args.command,
+            'openhands_ec=$?',
+            `printf '\\n${meta.begin}\\n'`,
+            `printf '${meta.exit}%s\\n' "$openhands_ec"`,
+            `printf '${meta.pwd}%s\\n' "$(pwd)"`,
+            `printf '${meta.env}'`,
+            `${nodeExecutable} -e 'process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString("base64"))'`,
+            "printf '\\n'",
+            `printf '${meta.end}\\n'`,
+            'exit $openhands_ec',
+          ];
+
+    const script = scriptLines.join(platform === 'win32' ? '\r\n' : '\n');
+
+    const shellPath = platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : '/bin/bash';
+    const shellArgs = platform === 'win32' ? ['/d', '/s', '/c', script] : ['-c', script];
+
+    const child = spawn(shellPath, shellArgs, {
+      cwd: this.cwd,
+      env: this.env,
+      stdio: 'pipe',
+      detached: platform !== 'win32',
+    });
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+
+    const cmd: RunningTerminalProcess = {
+      id,
+      command: args.command,
+      process: child,
+      stdout: '',
+      stderr: '',
+      stdoutOffset: 0,
+      stderrOffset: 0,
+      lastActivityTs: Date.now(),
+      exitCode: null,
+      done: false,
+      meta,
+      waiters: new Set(),
+    };
+    this.running = cmd;
+
+    child.stdout.on('data', (data: Buffer | string) => {
+      cmd.stdout += data.toString();
+      cmd.lastActivityTs = Date.now();
+      this.tryParseMeta(cmd);
+      this.signal(cmd);
+    });
+
+    child.stderr.on('data', (data: Buffer | string) => {
+      cmd.stderr += data.toString();
+      cmd.lastActivityTs = Date.now();
+      this.signal(cmd);
+    });
+
+    child.on('close', (code) => {
+      cmd.done = true;
+      cmd.exitCode = typeof code === 'number' ? code : cmd.exitCode ?? 0;
+      this.tryParseMeta(cmd);
+      this.signal(cmd);
+    });
 
     const status = await this.waitForNoChangeOrDone(cmd, timeoutMs);
     const drained = this.drain(cmd);
-    return { ...drained, exitCode: status === 'done' ? cmd.exitCode : -1, done: status === 'done' };
+    const done = status === 'done';
+    const exitCode = done ? cmd.exitCode : -1;
+    if (done) {
+      this.running = null;
+    }
+    return { ...drained, exitCode, done, command: args.command };
   }
 }
 
@@ -387,28 +413,18 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
           ? args.timeout
           : DEFAULT_NO_CHANGE_TIMEOUT_SECONDS;
 
-      const prior = this.session.takeCompleted();
-      const priorText = prior ? [prior.stdout, prior.stderr].filter(Boolean).join('') : '';
-
       const result = await this.session.execute({
         command: args.command ?? '',
         is_input: args.is_input ?? false,
         timeoutSeconds,
       });
 
-      const stdoutParts: string[] = [];
-      const stderrParts: string[] = [];
-      if (priorText) {
-        stdoutParts.push('[Below is the output of the previous command.]\n', priorText);
-      }
-      if (result.stdout) stdoutParts.push(result.stdout);
-      if (result.stderr) stderrParts.push(result.stderr);
-
       const exitCode = result.exitCode;
+      const command = result.command ?? args.command ?? '';
       return {
-        command: args.command ?? '',
-        stdout: stdoutParts.join(''),
-        stderr: stderrParts.join(''),
+        command,
+        stdout: result.stdout,
+        stderr: result.stderr,
         exit_code: exitCode,
         exitCode,
         timeout: exitCode === -1,
