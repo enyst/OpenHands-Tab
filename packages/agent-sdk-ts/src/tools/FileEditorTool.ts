@@ -13,7 +13,7 @@ export interface FileEditorResult {
 
 const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing files in plain-text format
 * State is persistent across command calls and discussions with the user
-* If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists non-hidden files and directories up to 2 levels deep
+* If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists the entries in that directory (non-recursive)
 * The \`create\` command cannot be used if the specified \`path\` already exists as a file
 * The \`undo_edit\` command undoes the most recent edit for a \`path\` (including undoing a create)
 * If a \`command\` generates a long output, it will be truncated and marked with \`<response clipped>\`
@@ -28,11 +28,11 @@ Before using this tool:
 When making edits:
    - Ensure the edit results in idiomatic, correct code
    - Do not leave the code in a broken state
-   - Always use absolute file paths (starting with /)
+   - Prefer workspace-relative paths; absolute paths are allowed when they resolve inside the workspace (or other explicitly-allowed roots)
 
 CRITICAL REQUIREMENTS FOR USING THIS TOOL:
 
-1. EXACT MATCHING: The \`old_str\` parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if \`old_str\` matches multiple locations or doesn't match exactly with the file content.
+1. EXACT MATCHING: The \`old_str\` parameter must match EXACTLY a substring of the file, including all whitespace and indentation. It may span multiple lines. The tool will fail if \`old_str\` matches multiple locations or doesn't match exactly.
 
 2. UNIQUENESS: The \`old_str\` must uniquely identify a single instance in the file:
    - Include sufficient context before and after the change point (3-5 lines recommended)
@@ -48,7 +48,9 @@ const fileEditorSchema = z
     command: z
       .enum(['view', 'create', 'str_replace', 'insert', 'undo_edit'])
       .describe('The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.'),
-    path: z.string().describe('Absolute path to file or directory.'),
+    path: z
+      .string()
+      .describe('Workspace-relative path (preferred), or absolute path that resolves inside the workspace (or other explicitly-allowed roots).'),
     file_text: z
       .string()
       .optional()
