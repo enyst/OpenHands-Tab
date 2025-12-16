@@ -3,16 +3,25 @@ import os from 'os';
 import path from 'path';
 import picomatch from 'picomatch';
 
-export const shouldSkipSearchEntry = (name: string): boolean => name.startsWith('.') || name === 'node_modules';
+export type SearchWalkOptions = {
+  includeHidden?: boolean;
+  includeNodeModules?: boolean;
+};
 
-export const listFilesRecursively = async (root: string): Promise<string[]> => {
+export const shouldSkipSearchEntry = (name: string, options: SearchWalkOptions = {}): boolean => {
+  if (!options.includeHidden && name.startsWith('.')) return true;
+  if (!options.includeNodeModules && name === 'node_modules') return true;
+  return false;
+};
+
+export const listFilesRecursively = async (root: string, options: SearchWalkOptions = {}): Promise<string[]> => {
   const entries = await fs.readdir(root, { withFileTypes: true });
   const results: string[] = [];
   for (const entry of entries) {
-    if (shouldSkipSearchEntry(entry.name)) continue;
+    if (shouldSkipSearchEntry(entry.name, options)) continue;
     const fullPath = path.join(root, entry.name);
     if (entry.isDirectory()) {
-      const child = await listFilesRecursively(fullPath);
+      const child = await listFilesRecursively(fullPath, options);
       results.push(...child);
     } else {
       results.push(fullPath);
@@ -42,4 +51,3 @@ export const createGlobMatcher = (pattern: string): ((value: string) => boolean)
   const matcher = picomatch(pattern, { dot: true }) as (value: string) => boolean;
   return (value: string) => Boolean(matcher(value));
 };
-

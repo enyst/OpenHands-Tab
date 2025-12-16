@@ -111,6 +111,24 @@ describe('GlobTool', () => {
     expect(result.searchPath).toBe(realDir);
     expect(result.files.length).toBe(2);
   });
+
+  it('supports absolute file path patterns without wildcards', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+
+    await fs.promises.mkdir(path.join(dir, 'nested'), { recursive: true });
+    const absFile = path.join(dir, 'nested', 'single.py');
+    await fs.promises.writeFile(absFile, '# Single', 'utf8');
+
+    const tool = new GlobTool();
+    const result = await tool.execute(tool.validate({ pattern: absFile }), { workspace });
+
+    expect(result.pattern).toBe(absFile);
+    expect(result.truncated).toBe(false);
+    expect(result.files.length).toBe(1);
+    expect(path.basename(result.files[0])).toBe('single.py');
+    expect(fs.existsSync(result.files[0])).toBe(true);
+  });
 });
 
 describe('GrepTool', () => {
@@ -166,6 +184,33 @@ describe('GrepTool', () => {
     expect(path.basename(result.matches[0])).toBe('visible.py');
   });
 
+  it('includes hidden files when include explicitly targets them', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+
+    await fs.promises.writeFile(path.join(dir, 'visible.py'), 'test', 'utf8');
+    await fs.promises.writeFile(path.join(dir, '.hidden.py'), 'test', 'utf8');
+
+    const tool = new GrepTool();
+    const result = await tool.execute(tool.validate({ pattern: 'test', include: '.hidden.py' }), { workspace });
+    expect(result.matches.length).toBe(1);
+    expect(path.basename(result.matches[0])).toBe('.hidden.py');
+  });
+
+  it('includes node_modules when include explicitly targets them', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+
+    await fs.promises.mkdir(path.join(dir, 'node_modules', 'pkg'), { recursive: true });
+    await fs.promises.writeFile(path.join(dir, 'node_modules', 'pkg', 'index.js'), 'test', 'utf8');
+    await fs.promises.mkdir(path.join(dir, 'src'), { recursive: true });
+    await fs.promises.writeFile(path.join(dir, 'src', 'app.js'), 'test', 'utf8');
+
+    const tool = new GrepTool();
+    const result = await tool.execute(tool.validate({ pattern: 'test', include: 'node_modules/**/*.js' }), { workspace });
+    expect(result.matches.some((match) => match.includes(`${path.sep}node_modules${path.sep}`))).toBe(true);
+  });
+
   it('reports invalid regex patterns', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -189,4 +234,3 @@ describe('GrepTool', () => {
     expect(result.matches.length).toBe(100);
   });
 });
-
