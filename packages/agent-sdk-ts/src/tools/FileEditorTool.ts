@@ -164,11 +164,12 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       case 'str_replace': {
         const prev = await ws.readFile(args.path, 'utf8');
         const oldStr = args.old_str ?? '';
-        const occurrences = oldStr ? prev.split(oldStr).length - 1 : 0;
-        if (occurrences === 0) {
+        const firstMatch = prev.indexOf(oldStr);
+        if (firstMatch === -1) {
           throw new Error('old_str not found in target file');
         }
-        if (occurrences > 1) {
+        const secondMatch = prev.indexOf(oldStr, firstMatch + 1);
+        if (secondMatch !== -1) {
           throw new Error('old_str is not unique and matches multiple locations in the file');
         }
         const updated = prev.replace(oldStr, args.new_str ?? '');
