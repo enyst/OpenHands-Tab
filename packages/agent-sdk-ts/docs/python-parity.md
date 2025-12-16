@@ -7,8 +7,8 @@ This document compares the Python `agent-sdk` (reference implementation) with th
 This document is the living output for Beads issue `oh-tab-0rq`.
 
 - TypeScript SDK: `packages/agent-sdk-ts` (this repo).
-- Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk).
-- Focus: VS Code local-mode parity (no agent-server / remote workspace).
+- Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk, we intently use the local path for our internal workflow).
+- Focus: VS Code local-mode parity and remote workspace working correctly (no agent-server).
 
 ## Current parity snapshot (2025-12-16)
 
@@ -22,12 +22,12 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 - Tool-call argument redaction (llm_tool_call_raw and logs)
   - Python: Secrets masking is applied to tool observations (e.g., Terminal) via SecretRegistry.mask_secrets_in_output; broader recursive argument redaction is not centrally enforced for tool-call argument logging.
   - TypeScript: Agent redacts recursively with heuristics, masking known keys (apiKey, token, password, client_secret, etc.) to "***" and masking Authorization: Bearer tokens in strings. See src/sdk/runtime/Agent.ts redactObject/redactStringHeuristics and tests: `Agent.redaction.test.ts` and `Agent.tool-call-redaction.test.ts`.
-  - Status: TS adds stronger argument redaction for logs; Python focuses on observation output masking. Parity gap: centralized recursive argument redaction in Python or aligned policy documentation.
+  - Status: TS adds stronger argument redaction for logs; Python focuses on observation output masking. Parity gap: but we are fine with it as long as the TS version doesn't display keys to the user or save them in logs.
 
 - security_risk on ActionEvent
   - Python: ActionEvent always has security_risk (defaults to UNKNOWN if omitted). See tests/cross/test_remote_conversation_live_server.py and tests/sdk/agent/test_extract_security_risk.py.
   - TypeScript: security_risk is optional; parseToolArgs pops security_risk from arguments and returns undefined when missing/invalid. See src/sdk/runtime/Agent.ts parseToolArgs/parseSecurityRisk and tests: `Agent.security-risk.test.ts`.
-  - Status: Divergence. Consider adding defaulting to UNKNOWN in TS when integrating with agent-server, or clearly documenting optionality in TS-only flows.
+  - Status: Divergence. Consider adding defaulting to UNKNOWN in TS when integrating with agent-server.
 
 - tool_call_id propagation
   - Python: tool_call_id is preserved across ActionEvent, ObservationEvent, AgentErrorEvent, and tool MessageEvent. See tests/sdk/event/test_events_to_messages.py and cross tests.
@@ -50,21 +50,19 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 - Tool observation content (role="tool" messages)
   - Python: tool observations are LLM-facing plain text via Observation helpers (e.g., TerminalObservation appends metadata and uses `<response clipped>` truncation). See `tests/tools/terminal/test_observation_truncation.py`.
   - TypeScript: Agent currently JSON-stringifies tool results into tool MessageEvent content (AgentErrorEvent tool messages are plain text). See `packages/agent-sdk-ts/src/sdk/runtime/Agent.ts` (executeTool) and `packages/agent-sdk-ts/src/sdk/runtime/toolCallErrorEvents.ts`.
-  - Status: Divergence; affects LLM context quality and parity with Python tests/spec.
+  - Status: Divergence; affects LLM context quality and parity with Python tests/spec. MUST FIX.
 
 - Terminal session semantics
   - Python: persistent shell session; supports `is_input` (stdin/log polling) and `reset`. See `tests/tools/terminal/test_terminal_session.py`.
   - TypeScript: per-command child process; `is_input` returns an unsupported message and `reset` is currently ignored. See `packages/agent-sdk-ts/src/tools/TerminalTool.ts` and `packages/agent-sdk-ts/src/tools/IntegratedTerminalRunner.ts`.
-  - Status: Divergence; impacts common VS Code workflows (env vars, venv activation, cwd persistence).
+  - Status: Divergence; impacts common VS Code workflows (env vars, venv activation, cwd persistence). We should implement real terminal in TS.
 
-Actionable gaps to consider next
-- Decide on unified error text truncation policy (keep TS 4096 cap or match Python behavior). If keeping TS cap, document rationale and ensure consumers expect plain text possibly truncated.
-- Define cross-SDK policy for tool-call argument redaction; either port TS recursive redaction to Python (central helper) or scope TS to observation-only to match Python. Document effective guarantees for logs/telemetry.
-- security_risk defaulting: consider default UNKNOWN in TS when interoperating with agent-server to match Python expectations; otherwise ensure server tolerates undefined in TS-local contexts.
+Other gaps to consider
+- security_risk defaulting: consider default UNKNOWN in TS when interoperating with an agent-server (remote conversation) to match Python expectations.
 - Tool observation formatting: move away from JSON-only tool messages toward Python-like, human-readable tool outputs with consistent truncation + (optional) metadata.
 - TerminalTool: implement persistent session semantics (or change schema/description to match reality) and add tests mirroring Python.
 - FileEditorTool: add `undo_edit` parity and tighten directory/binary viewing behavior.
-- Longer term (out of scope for VS Code local mode): remote workspace and agent-server-only behaviors.
+- Test and fix the remote workspace behaviors.
 
 ## Candidate test cases to mirror (from `~/repos/agent-sdk`)
 
@@ -122,13 +120,13 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 
 ### TypeScript shape
 
-- Only `LocalWorkspace` exists
+- Only `LocalWorkspace` exists?
   - Resolves workspace root
   - Reads/writes/removes files
   - Creates directories
   - Runs commands via VS Code APIs with minimal metadata
-- No shared base class or factory
-- No remote workspace or file transfer helpers
+- No shared base class or factory?
+- No remote workspace or file transfer helpers?
 
 ### Gaps to close
 
@@ -292,8 +290,9 @@ classDiagram
 
 ### Gaps to close
 
-- Add tool schema/security analyzer injection, condenser pipeline, and observability hooks around `runLoop`
-- Support persisted `ConversationState` restoration and pending-action replay
+- Add tool schema/security analyzer injection, condenser pipeline
+- Note: we do not want observability in TS.
+- Support persisted `ConversationState` restoration and pending-action replay - I think this is done?
 - Implement responses-API parity and richer confirmation policies akin to Python analyzers
 
 ```mermaid
@@ -359,6 +358,11 @@ classDiagram
   - Keyword/task triggers
   - Auto `/name` trigger for task skills
   - MCP tool metadata
+
+### Gaps to close:
+- everything that goes to the LLM must be the same.
+- MUST FIX.
+
 ## Tool and event parity
 
 ### Python tool architecture
@@ -401,6 +405,7 @@ In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (se
 - The TS runtime currently has **ActionEvent/ObservationEvent types but no first-class Action/Observation classes**. The Python stack uses Pydantic models for validation, kind resolution, and serialization; TS simply forwards validated args/results as plain JSON.
 - There is no `ToolDefinition`/`ToolExecutor` split in TS. `ToolDefinition.execute` is both the definition and executor. This is enough for VS Code usage but diverges from Python, where the executor can be swapped or wrapped (e.g., for remote execution, observability, or sandboxing).
 - The Python Agent works in terms of `ActionEvent`→`ToolExecutor`→`ObservationEvent`. TS mirrors the **event shapes** but shortcuts the intermediate typed models.
+- This is fine.
 
 **Practical parity goal for now:**
 
@@ -426,7 +431,8 @@ Rather than fully re-implementing Pydantic-style action/observation classes in T
 ### Gaps to close
 
 - Introduce template-driven rendering for system/user suffixes and richer trigger matching (regex, keyword weighting)
-- Add MCP tool metadata, schema validation, and structured activation logs to TypeScript skills
+- Map schema validation, and structured activation logs to TypeScript skills
+- NOT PLANNED: MCP
 
 ```mermaid
 classDiagram
@@ -482,7 +488,6 @@ classDiagram
   - `ConversationState.create`: hydrates state (iteration counts, stuck detection) from disk
   - `SecretRegistry`: persists secrets
 - **TypeScript `EventLog`**
-  - In-memory only
   - Normalizes IDs/timestamps
   - Broadcasts listeners
   - Supports `push/list/on`
@@ -491,9 +496,9 @@ classDiagram
 
 ### Gaps to close
 
-- Add file-backed storage with deterministic naming/indexing and duplicate protection
 - Port persistence constants, diffing, and cross-process locks
-- Persist secrets and conversation state for resume/replay
+- Persist secrets: in TS we want to always use VSCode secret manager
+- Persist conversation state for resume/replay - probably already done
 
 ## Tool schema parity
 
@@ -592,6 +597,7 @@ classDiagram
 - Implement workspace factory/base with remote support, path validation, git helpers, and richer command metadata.
 - Extend conversations with visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
 - Augment agent with condenser/security analyzers, persisted state replay, and expanded confirmation policies.
-- Add template-aware `AgentContext`, MCP-aware `Skill` metadata/validation, and richer trigger matching.
+- Add template-aware `AgentContext`, `Skill` metadata/validation, and richer trigger matching.
 - Align tool message formatting (Terminal/FileEditor) with Python’s LLM-facing observations (truncation markers, optional metadata, secrets masking).
-- Add missing event variants (`TokenEvent`, condensation request/summary) if VS Code needs them for UI parity.
+- Add missing event variants (condensation request/summary) if VS Code needs them for UI parity.
+- NOT PLANNED: MCP, `TokenEvent`.
