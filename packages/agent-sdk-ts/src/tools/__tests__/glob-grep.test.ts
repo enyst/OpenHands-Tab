@@ -147,7 +147,7 @@ describe('GrepTool', () => {
     expect(result.matches.every((p) => p.endsWith('.py') && fs.existsSync(p))).toBe(true);
   });
 
-  it('is case-insensitive by default', async () => {
+  it('is case-sensitive by default', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
 
