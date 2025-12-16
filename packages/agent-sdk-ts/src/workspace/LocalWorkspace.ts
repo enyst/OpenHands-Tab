@@ -220,11 +220,15 @@ export class LocalWorkspace {
 
   private async writeFileSafely(absPath: string, content: string | Buffer): Promise<void> {
     const constants = fs.constants as Record<string, number>;
+    const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
+
+    let targetMode: number | undefined;
     try {
       const stat = await fs.promises.lstat(absPath);
       if (stat.isSymbolicLink()) {
         throw new Error(`writeFile failed: refusing to write to symlink path: ${absPath}`);
       }
+      targetMode = stat.mode;
     } catch (error) {
       if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
         // ok: creating the file
@@ -233,14 +237,55 @@ export class LocalWorkspace {
       }
     }
 
-    const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
-    const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
-    const handle = await fs.promises.open(absPath, flags, 0o666);
-    try {
-      await handle.writeFile(content);
-    } finally {
-      await handle.close();
+    if (noFollow) {
+      const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
+      const handle = await fs.promises.open(absPath, flags, targetMode ?? 0o666);
+      try {
+        await handle.writeFile(content);
+      } finally {
+        await handle.close();
+      }
+      return;
     }
+
+    const dir = path.dirname(absPath);
+    const base = path.basename(absPath);
+    const tempFlags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
+
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const tempPath = path.join(dir, `.${base}.tmp-${suffix}`);
+
+      let handle: fs.promises.FileHandle | undefined;
+      try {
+        handle = await fs.promises.open(tempPath, tempFlags, targetMode ?? 0o666);
+        await handle.writeFile(content);
+        await handle.close();
+        handle = undefined;
+
+        await fs.promises.rename(tempPath, absPath);
+        return;
+      } catch (error) {
+        if (handle) {
+          try {
+            await handle.close();
+          } catch {
+            // ignore
+          }
+        }
+        try {
+          await fs.promises.unlink(tempPath);
+        } catch {
+          // ignore
+        }
+
+        if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'EEXIST') {
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error(`writeFile failed: unable to create temp file in ${dir}`);
   }
 
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
