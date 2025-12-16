@@ -218,6 +218,18 @@ export class LocalWorkspace {
     }
   }
 
+  private async writeFileSafely(absPath: string, content: string | Buffer): Promise<void> {
+    const constants = fs.constants as Record<string, number>;
+    const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
+    const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
+    const handle = await fs.promises.open(absPath, flags, 0o666);
+    try {
+      await handle.writeFile(content);
+    } finally {
+      await handle.close();
+    }
+  }
+
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
     return readFileAsync(resolved, encoding);
@@ -227,12 +239,36 @@ export class LocalWorkspace {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
     const root = this.getContainingDirRoot(parentDir);
-    if (root) {
-      await this.ensureSafeDirectory(root, parentDir);
-    } else {
+    if (!root) {
+      const kind = this.allowedRoots.get(resolved);
+      if (kind === 'file') {
+        let stat: fs.Stats;
+        try {
+          stat = await fs.promises.stat(parentDir);
+        } catch {
+          throw new Error(`writeFile failed: parent directory does not exist: ${parentDir}`);
+        }
+        if (!stat.isDirectory()) {
+          throw new Error(`writeFile failed: parent is not a directory: ${parentDir}`);
+        }
+        await this.writeFileSafely(resolved, content);
+        return;
+      }
+
       await mkdir(parentDir, { recursive: true });
+      await writeFileAsync(resolved, content);
+      return;
     }
-    await writeFileAsync(resolved, content);
+
+    await this.ensureSafeDirectory(root, parentDir);
+    const canonicalParent = await fs.promises.realpath(parentDir);
+    const relative = path.relative(root, canonicalParent);
+    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
+      throw new Error(`Path escapes workspace root: ${targetPath}`);
+    }
+
+    const safeResolved = path.join(canonicalParent, path.basename(resolved));
+    await this.writeFileSafely(safeResolved, content);
   }
 
   async remove(targetPath: string): Promise<void> {
@@ -253,10 +289,15 @@ export class LocalWorkspace {
   async ensureDirectory(targetPath: string): Promise<string> {
     const resolved = this.resolvePath(targetPath);
     const root = this.getContainingDirRoot(resolved);
-    if (root) {
-      await this.ensureSafeDirectory(root, resolved);
-    } else {
-      await mkdir(resolved, { recursive: true });
+    if (!root) {
+      throw new Error(`Path escapes workspace root: ${targetPath}`);
+    }
+
+    await this.ensureSafeDirectory(root, resolved);
+    const canonical = await fs.promises.realpath(resolved);
+    const relative = path.relative(root, canonical);
+    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
+      throw new Error(`Path escapes workspace root: ${targetPath}`);
     }
     return resolved;
   }

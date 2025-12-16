@@ -135,6 +135,20 @@ describe('LocalWorkspace', () => {
       expect(workspace.resolvePath(externalFile)).toBe(realExternalFile);
       expect(() => workspace.resolvePath(path.join(externalFile, 'child'))).toThrowError();
     });
+
+    it('does not create parent directories for file-only external allowances', async () => {
+      const { workspace } = await makeWorkspace((dir) => created.push(dir));
+      const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-external-missing-'));
+      created.push(externalDir);
+      await fs.promises.rm(externalDir, { recursive: true, force: true });
+      expect(fs.existsSync(externalDir)).toBe(false);
+
+      const externalFile = path.join(externalDir, 'outside.txt');
+      workspace.allowPath(externalFile);
+
+      await expect(workspace.writeFile(externalFile, 'hello')).rejects.toThrowError(/parent directory does not exist/i);
+      expect(fs.existsSync(externalDir)).toBe(false);
+    });
   });
 
   describe('commands', () => {
