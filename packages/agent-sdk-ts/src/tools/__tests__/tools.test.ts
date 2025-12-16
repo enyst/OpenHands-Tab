@@ -138,6 +138,31 @@ describe('FileEditorTool', () => {
     expect(listing).toMatch(/2 hidden files\/directories/i);
   });
 
+  it('directory view skips unreadable child directories', async () => {
+    if (process.platform === 'win32') return;
+
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await fs.promises.writeFile(path.join(dir, 'visible.txt'), 'visible');
+    await fs.promises.mkdir(path.join(dir, 'unreadable'), { recursive: true });
+    await fs.promises.writeFile(path.join(dir, 'unreadable', 'secret.txt'), 'secret');
+
+    try {
+      await fs.promises.chmod(path.join(dir, 'unreadable'), 0o000);
+
+      const viewArgs = tool.validate({ command: 'view', path: '.' });
+      const result = await tool.execute(viewArgs, { workspace });
+
+      const listing = result.new_content ?? '';
+      expect(listing).toContain(path.join(dir, 'visible.txt'));
+      expect(listing).toContain(`${path.join(dir, 'unreadable')}/`);
+    } finally {
+      await fs.promises.chmod(path.join(dir, 'unreadable'), 0o755);
+    }
+  });
+
   it('rejects binary files (except supported types)', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -215,6 +240,22 @@ startxref
 
     const result = await tool.execute(tool.validate({ command: 'view', path: 'sample.pdf' }), { workspace });
     expect(result.new_content).toContain('Printer-Friendly Caltrain Schedule');
+  });
+
+  it('rejects editing PDF files', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await fs.promises.writeFile(path.join(dir, 'sample.pdf'), Buffer.from('%PDF-1.4\nHello', 'utf8'));
+
+    await expect(
+      tool.execute(tool.validate({ command: 'str_replace', path: 'sample.pdf', old_str: 'Hello', new_str: 'World' }), { workspace }),
+    ).rejects.toThrowError(/refusing to edit binary/i);
+
+    await expect(
+      tool.execute(tool.validate({ command: 'insert', path: 'sample.pdf', insert_line: 1, new_str: 'x' }), { workspace }),
+    ).rejects.toThrowError(/refusing to edit binary/i);
   });
 
   it('views image files by returning image content URLs', async () => {

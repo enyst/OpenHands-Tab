@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { Dirent } from 'node:fs';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
@@ -24,6 +25,7 @@ const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing 
 * If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists non-hidden files and directories up to 2 levels deep
 * The \`create\` command cannot be used if the specified \`path\` already exists as a file
 * The \`undo_edit\` command undoes the most recent edit for a \`path\` (including undoing a create)
+* Files larger than 10MB are rejected
 * If a \`command\` generates a long output, it will be truncated and marked with \`<response clipped>\`
 * This tool can be used for creating and editing files in plain-text format.
 
@@ -193,8 +195,8 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         return { command: 'create', path: resolved, prev_exist: false, old_content: null, new_content: args.file_text ?? '' };
       }
       case 'str_replace': {
-        if (IMAGE_EXTENSIONS.has(extension)) {
-          throw new Error('str_replace failed: refusing to edit binary image file');
+        if (IMAGE_EXTENSIONS.has(extension) || extension === PDF_EXTENSION) {
+          throw new Error(`str_replace failed: refusing to edit binary file type: ${extension}`);
         }
         const buffer = await this.readValidatedFile(resolved, extension);
         const prev = buffer.toString('utf8');
@@ -216,8 +218,8 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         return { command: 'str_replace', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'insert': {
-        if (IMAGE_EXTENSIONS.has(extension)) {
-          throw new Error('insert failed: refusing to edit binary image file');
+        if (IMAGE_EXTENSIONS.has(extension) || extension === PDF_EXTENSION) {
+          throw new Error(`insert failed: refusing to edit binary file type: ${extension}`);
         }
         const buffer = await this.readValidatedFile(resolved, extension);
         const prev = buffer.toString('utf8');
@@ -291,15 +293,20 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       .sort((a, b) => a.abs.localeCompare(b.abs));
 
     const lines: string[] = [`${absPath}/`];
-    for (const entry of visibleTop) {
-      lines.push(entry.isDir ? `${entry.abs}/` : entry.abs);
-      if (!entry.isDir) continue;
+      for (const entry of visibleTop) {
+        lines.push(entry.isDir ? `${entry.abs}/` : entry.abs);
+        if (!entry.isDir) continue;
 
-      const childEntries = await fs.readdir(entry.abs, { withFileTypes: true });
-      const visibleChildren = childEntries
-        .filter((child) => !child.name.startsWith('.'))
-        .map((child) => ({ abs: path.join(entry.abs, child.name), isDir: child.isDirectory() }))
-        .sort((a, b) => a.abs.localeCompare(b.abs));
+        let childEntries: Dirent[];
+        try {
+          childEntries = await fs.readdir(entry.abs, { withFileTypes: true });
+        } catch {
+          continue;
+        }
+        const visibleChildren = childEntries
+          .filter((child) => !child.name.startsWith('.'))
+          .map((child) => ({ abs: path.join(entry.abs, child.name), isDir: child.isDirectory() }))
+          .sort((a, b) => a.abs.localeCompare(b.abs));
       for (const child of visibleChildren) {
         lines.push(child.isDir ? `${child.abs}/` : child.abs);
       }
@@ -309,7 +316,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     const body = lines.join('\n');
     const hiddenNote =
       hiddenCount > 0
-        ? `\n\n${hiddenCount} hidden files/directories in this directory are excluded. You can use 'ls -la ${absPath}' to see them.`
+        ? `\n\n${hiddenCount} hidden files/directories in the top-level directory are excluded. You can use 'ls -la ${absPath}' to see them.`
         : '';
     return { text: truncateContent(`${header}${body}${hiddenNote}`) };
   }
