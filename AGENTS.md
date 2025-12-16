@@ -154,7 +154,7 @@ Reviews (do not merge without review):
     ```
   - Send follow-ups / re-review requests to the *same* waiting session:
     ```bash
-    tmux send-keys -t "${SESSION}:0.0" "Re-review PR 246 after latest commits." Enter
+    tmux send-keys -t "${SESSION}:0.0" "Re-review PR ${PR_NUMBER} after latest commits." Enter
     ```
   - Stop the session when the PR is merged:
     ```bash
