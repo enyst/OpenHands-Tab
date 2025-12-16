@@ -33,11 +33,14 @@ describe('LocalWorkspace', () => {
         '../../sensitive.txt',
         '../../../etc/passwd',
         'subdir/../../../sensitive.txt',
-        '..\\sensitive.txt',
         'subdir/../../sensitive.txt',
         './../sensitive.txt',
         'a/../../../sensitive.txt',
       ];
+
+      if (process.platform === 'win32') {
+        vectors.push('..\\sensitive.txt');
+      }
 
       for (const attackPath of vectors) {
         expect(() => workspace.resolvePath(attackPath)).toThrowError(/Path escapes workspace root/);
@@ -60,7 +63,9 @@ describe('LocalWorkspace', () => {
       for (const legitPath of legitimatePaths) {
         const resolved = workspace.resolvePath(legitPath);
         const relative = path.relative(realDir, resolved);
-        expect(relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))).toBe(true);
+        expect(
+          relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)),
+        ).toBe(true);
       }
 
       expect(workspace.resolvePath('')).toBe(realDir);
@@ -79,6 +84,25 @@ describe('LocalWorkspace', () => {
 
       expect(() => workspace.resolvePath('linked')).toThrowError(/Path escapes workspace root/);
       expect(() => workspace.resolvePath('linked/subdir/file.txt')).toThrowError(/Path escapes workspace root/);
+    });
+
+    it('allows symlinks that remain inside the sandbox', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace, dir } = await makeWorkspace((value) => created.push(value));
+      const realDir = await fs.promises.realpath(dir);
+
+      const target = path.join(dir, 'target');
+      await fs.promises.mkdir(target, { recursive: true });
+
+      const symlinkPath = path.join(dir, 'inside');
+      await fs.promises.symlink(target, symlinkPath, 'dir');
+
+      const resolved = workspace.resolvePath('inside/file.txt');
+      const relative = path.relative(realDir, resolved);
+      expect(
+        relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative)),
+      ).toBe(true);
     });
 
     it('allows explicitly-approved external paths', async () => {
@@ -100,10 +124,16 @@ describe('LocalWorkspace', () => {
   describe('commands', () => {
     it('runs commands rooted in the workspace', async () => {
       const { workspace, dir } = await makeWorkspace((value) => created.push(value));
-      const result = await workspace.runCommand('pwd');
+      const command = process.platform === 'win32' ? 'cd' : 'pwd';
+      const result = await workspace.runCommand(command);
       expect(result.exitCode).toBe(0);
       const realDir = await fs.promises.realpath(dir);
-      expect(result.stdout.trim()).toBe(realDir);
+      const printedDir = result.stdout.trim();
+      if (process.platform === 'win32') {
+        expect(printedDir.toLowerCase()).toBe(realDir.toLowerCase());
+      } else {
+        expect(printedDir).toBe(realDir);
+      }
     });
   });
 });

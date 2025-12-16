@@ -79,23 +79,19 @@ export class LocalWorkspace {
   }
 
   private normalizeExistingOrParent(candidate: string): string {
-    try {
-      if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
+    if (fs.existsSync(candidate)) return fs.realpathSync(candidate);
 
-      let current = candidate;
-      const suffix: string[] = [];
-      while (true) {
-        const parent = path.dirname(current);
-        if (parent === current) break;
-        suffix.unshift(path.basename(current));
-        current = parent;
-        if (fs.existsSync(current)) {
-          const realBase = fs.realpathSync(current);
-          return path.join(realBase, ...suffix);
-        }
+    let current = candidate;
+    const suffix: string[] = [];
+    while (true) {
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      suffix.unshift(path.basename(current));
+      current = parent;
+      if (fs.existsSync(current)) {
+        const realBase = fs.realpathSync(current);
+        return path.join(realBase, ...suffix);
       }
-    } catch {
-      // Best-effort normalization only.
     }
     return candidate;
   }
@@ -134,7 +130,10 @@ export class LocalWorkspace {
         continue;
       }
       const relative = path.relative(root, normalized);
-      if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+      if (
+        relative === ''
+        || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+      ) {
         return normalized;
       }
     }
@@ -187,7 +186,7 @@ export class LocalWorkspace {
       const spawnOptions: SpawnOptions = {
         cwd,
         env,
-        shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
+        shell: options.shell ?? (os.platform() === 'win32' ? true : '/bin/bash'),
       };
       const child = spawn(command, spawnOptions);
 
