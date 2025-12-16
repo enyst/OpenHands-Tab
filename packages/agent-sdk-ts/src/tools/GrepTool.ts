@@ -18,7 +18,7 @@ const grepArgsSchema = z.object({
   path: z
     .string()
     .optional()
-    .describe('The directory (absolute path) to search in. Defaults to the current working directory.'),
+    .describe('The directory (absolute or workspace-relative path) to search in. Defaults to the current working directory. Must be within the allowed workspace roots.'),
   include: z
     .string()
     .optional()
@@ -79,7 +79,7 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
     const matches: { file: string; mtime: number }[] = [];
     let contentRegex: RegExp;
     try {
-      contentRegex = new RegExp(args.pattern, 'i');
+      contentRegex = new RegExp(args.pattern, 'im');
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid regex pattern: ${detail}`);

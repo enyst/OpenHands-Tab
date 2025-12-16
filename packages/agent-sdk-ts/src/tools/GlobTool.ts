@@ -16,11 +16,11 @@ export interface GlobResult {
 const globArgsSchema = z.object({
   pattern: z
     .string()
-    .describe('The glob pattern to match files (e.g., "**/*.js", "src/**/*.ts").'),
+    .describe('The glob pattern to match files (e.g., "**/*.js", "src/**/*.ts"). May also be an absolute path pattern under the allowed workspace roots.'),
   path: z
     .string()
     .optional()
-    .describe('The directory (absolute path) to search in. Defaults to the current working directory.'),
+    .describe('The directory (absolute or workspace-relative path) to search in. Defaults to the current working directory. Must be within the allowed workspace roots.'),
 });
 
 const TOOL_DESCRIPTION = `Fast file pattern matching tool.
