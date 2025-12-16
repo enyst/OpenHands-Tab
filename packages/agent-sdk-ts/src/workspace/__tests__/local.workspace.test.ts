@@ -141,7 +141,7 @@ describe('LocalWorkspace', () => {
     it('runs commands rooted in the workspace', async () => {
       const { workspace, dir } = await makeWorkspace((value) => created.push(value));
       const command = process.platform === 'win32' ? 'cd' : 'pwd';
-      const result = await workspace.runCommand(command);
+      const result = await workspace.runCommand(command, process.platform === 'win32' ? { shell: true } : undefined);
       expect(result.exitCode).toBe(0);
       const realDir = await fs.promises.realpath(dir);
       const printedDir = result.stdout.trim();

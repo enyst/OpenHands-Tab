@@ -154,6 +154,70 @@ export class LocalWorkspace {
     throw new Error(`Path escapes workspace root: ${targetPath}`);
   }
 
+  private getContainingDirRoot(resolvedPath: string): string | null {
+    let best: string | null = null;
+    for (const [root, kind] of this.allowedRoots.entries()) {
+      if (kind !== 'dir') continue;
+      const relative = path.relative(root, resolvedPath);
+      if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
+        if (!best || root.length > best.length) best = root;
+      }
+    }
+    return best;
+  }
+
+  private async ensureSafeDirectory(root: string, dirPath: string): Promise<void> {
+    const relative = path.relative(root, dirPath);
+    if (relative === '' || relative === '.') return;
+    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
+      throw new Error(`Path escapes workspace root: ${dirPath}`);
+    }
+
+    const parts = relative.split(path.sep).filter((part) => part.length > 0);
+    let current = root;
+
+    for (const part of parts) {
+      const next = path.join(current, part);
+
+      let stat: fs.Stats;
+      try {
+        stat = await fs.promises.lstat(next);
+      } catch (error) {
+        if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+          try {
+            await mkdir(next);
+          } catch (mkdirError) {
+            if (typeof mkdirError !== 'object' || !mkdirError || !('code' in mkdirError) || (mkdirError as { code?: unknown }).code !== 'EEXIST') {
+              throw mkdirError;
+            }
+          }
+          stat = await fs.promises.lstat(next);
+        } else {
+          throw error;
+        }
+      }
+
+      if (stat.isSymbolicLink()) {
+        const resolved = await fs.promises.realpath(next);
+        const resolvedRel = path.relative(root, resolved);
+        if (
+          resolvedRel.startsWith(`..${path.sep}`)
+          || resolvedRel === '..'
+          || path.isAbsolute(resolvedRel)
+        ) {
+          throw new Error(`Path escapes workspace root: ${dirPath}`);
+        }
+        current = resolved;
+        continue;
+      }
+
+      if (!stat.isDirectory()) {
+        throw new Error(`Path escapes workspace root: ${dirPath}`);
+      }
+      current = next;
+    }
+  }
+
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
     return readFileAsync(resolved, encoding);
@@ -161,7 +225,13 @@ export class LocalWorkspace {
 
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
     const resolved = this.resolvePath(targetPath);
-    await mkdir(path.dirname(resolved), { recursive: true });
+    const parentDir = path.dirname(resolved);
+    const root = this.getContainingDirRoot(parentDir);
+    if (root) {
+      await this.ensureSafeDirectory(root, parentDir);
+    } else {
+      await mkdir(parentDir, { recursive: true });
+    }
     await writeFileAsync(resolved, content);
   }
 
@@ -182,7 +252,12 @@ export class LocalWorkspace {
 
   async ensureDirectory(targetPath: string): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    await mkdir(resolved, { recursive: true });
+    const root = this.getContainingDirRoot(resolved);
+    if (root) {
+      await this.ensureSafeDirectory(root, resolved);
+    } else {
+      await mkdir(resolved, { recursive: true });
+    }
     return resolved;
   }
 
@@ -200,7 +275,7 @@ export class LocalWorkspace {
       const spawnOptions: SpawnOptions = {
         cwd,
         env,
-        shell: options.shell ?? (os.platform() === 'win32' ? true : '/bin/bash'),
+        shell: options.shell ?? (os.platform() === 'win32' ? undefined : '/bin/bash'),
       };
       const child = spawn(command, spawnOptions);
 
