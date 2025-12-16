@@ -25,6 +25,7 @@ export default defineConfig({
       'tests/e2e/**',
     ],
     coverage: {
+      provider: 'v8',
       reporter: ['text', 'html'],
       reportsDirectory: './coverage',
       all: true,
