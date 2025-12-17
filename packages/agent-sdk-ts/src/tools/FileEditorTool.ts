@@ -195,11 +195,11 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
 
         const undo = stack[stack.length - 1];
 
-        if (!undo.prevExist) {
-          await this.removeCreatedFile(resolved);
-        } else {
-          await ws.writeFile(resolved, undo.oldContent ?? '');
-        }
+	        if (!undo.prevExist) {
+	          await this.removeCreatedFile(resolved);
+	        } else {
+	          await ws.writeFile(args.path, undo.oldContent ?? '');
+	        }
 
         stack.pop();
         if (stack.length === 0) {
