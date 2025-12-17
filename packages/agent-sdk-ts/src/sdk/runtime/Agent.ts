@@ -270,6 +270,26 @@ export class Agent extends EventEmitter {
     return redactStringHeuristics(masked);
   }
 
+  private maskSecretsInUnknown(value: unknown, seen = new WeakSet<object>()): unknown {
+    if (typeof value === 'string') {
+      return this.maskSecretsInText(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.maskSecretsInUnknown(item, seen));
+    }
+    if (value && typeof value === 'object') {
+      if (seen.has(value)) return value;
+      seen.add(value);
+      const record = value as Record<string, unknown>;
+      const masked: Record<string, unknown> = {};
+      for (const [key, inner] of Object.entries(record)) {
+        masked[key] = this.maskSecretsInUnknown(inner, seen);
+      }
+      return masked;
+    }
+    return value;
+  }
+
   private formatToolMessageText(toolCall: ToolCall, result: unknown): string {
     const toolName = toolCall.function.name;
     const asRecord = (value: unknown): Record<string, unknown> | undefined =>
@@ -924,7 +944,7 @@ export class Agent extends EventEmitter {
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: deepTruncate(result) as Record<string, unknown>,
+        observation: this.maskSecretsInUnknown(deepTruncate(result)) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),

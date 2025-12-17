@@ -85,6 +85,12 @@ describe('Agent tool message formatting', () => {
     expect(text).not.toContain(secretValue);
     expect(text).toContain('***');
     expect(text.trimStart().startsWith('{')).toBe(false);
+
+    const observations = log.list().filter((evt) => evt.kind === 'ObservationEvent');
+    expect(observations).toHaveLength(1);
+    const observation = observations[0] as unknown as { observation?: Record<string, unknown> };
+    expect(JSON.stringify(observation.observation)).not.toContain(secretValue);
+    expect(JSON.stringify(observation.observation)).toContain('***');
   });
 
   it('masks uppercase secrets even when they resemble env var names', async () => {
