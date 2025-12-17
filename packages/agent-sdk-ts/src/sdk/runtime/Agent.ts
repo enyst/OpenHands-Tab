@@ -175,6 +175,7 @@ export class Agent extends EventEmitter {
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
   private debug: boolean;
+  private secretValuesForMaskingCache: { signature: string; values: string[] } | null = null;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -203,6 +204,16 @@ export class Agent extends EventEmitter {
   }
 
   private getSecretValuesForMasking(): string[] {
+    const configuredSecrets = Object.values(this.options.settings?.secrets ?? {})
+      .filter((secret): secret is string => typeof secret === 'string')
+      .map((secret) => secret.trim())
+      .filter(Boolean);
+    const registeredSecrets = this.secrets.getRegisteredValues();
+    const signature = `${configuredSecrets.join('\u0000')}\u0001${registeredSecrets.join('\u0000')}`;
+    if (this.secretValuesForMaskingCache?.signature === signature) {
+      return this.secretValuesForMaskingCache.values;
+    }
+
     const values = new Set<string>();
     const maybePush = (candidate: unknown) => {
       if (typeof candidate !== 'string') return;
@@ -219,11 +230,11 @@ export class Agent extends EventEmitter {
       }
     };
 
-    for (const secret of Object.values(this.options.settings?.secrets ?? {})) {
+    for (const secret of configuredSecrets) {
       maybePush(secret);
     }
 
-    for (const secret of this.secrets.getRegisteredValues()) {
+    for (const secret of registeredSecrets) {
       maybePush(secret);
     }
 
@@ -234,9 +245,11 @@ export class Agent extends EventEmitter {
       values.add(value);
     }
 
-    return Array.from(values)
+    const computed = Array.from(values)
       .filter((value) => value.length >= 8)
       .sort((a, b) => b.length - a.length);
+    this.secretValuesForMaskingCache = { signature, values: computed };
+    return computed;
   }
 
   private maskSecretsInText(text: string): string {
@@ -289,9 +302,10 @@ export class Agent extends EventEmitter {
       const record = asRecord(result) ?? {};
       const command = toOptionalNonEmptyString(record.command);
       const targetPath = toOptionalNonEmptyString(record.path);
-      const header = targetPath
-        ? `file_editor${command ? ` ${command}` : ''} ${targetPath}`
-        : `file_editor${command ? ` ${command}` : ''}`;
+      const headerParts = ['file_editor'];
+      if (command) headerParts.push(command);
+      if (targetPath) headerParts.push(targetPath);
+      const header = headerParts.join(' ');
       const content = typeof record.new_content === 'string' ? record.new_content : record.new_content === null ? '<file removed>' : '';
       return content ? `${header}\n${content}` : header;
     }
