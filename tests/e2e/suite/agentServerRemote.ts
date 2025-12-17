@@ -212,31 +212,25 @@ export async function run(): Promise<void> {
 
   await pollUntil(async () => {
     const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
-    const count = typeof rendered?.count === 'number' ? rendered.count : 0;
-    const types = Array.isArray(rendered?.eventTypes) ? rendered.eventTypes : [];
-    const snapshots = Array.isArray(rendered?.events) ? rendered.events : undefined;
-    if (Array.isArray(snapshots)) {
-      const pairs = snapshots
-        .map((s: any) => ({
-          type: typeof s?.type === 'string' ? s.type : 'unknown',
-          marker: typeof s?.marker === 'string' ? s.marker : undefined,
-        }))
-        .filter((s) => typeof s.marker === 'string')
-        .map((s) => `${s.type}:${s.marker}`);
-      const expectedPairs = expectedRendered.map((s) => `${s.type}:${s.marker}`);
-      const hasExpected = containsSubsequence(pairs, expectedPairs);
-      const hasFiltered =
-        typeof filteredMarker === 'string' ? pairs.some((p) => p.endsWith(`:${filteredMarker}`)) : false;
-      return hasExpected && !hasFiltered;
+    const snapshots = Array.isArray(rendered?.events) ? rendered.events : null;
+    if (!snapshots) {
+      throw new Error(
+        'E2E requires `openhands._queryRenderedEvents` to return per-event snapshots in `rendered.events`.'
+      );
     }
 
-    // Legacy fallback if webview doesn't return per-event snapshots.
-    if (count < baselineTypes.length + expectedRendered.length) return false;
-    const tail = types.slice(Math.min(baselineTypes.length, types.length));
-    return containsSubsequence(
-      tail,
-      expectedRendered.map((s) => s.type)
-    );
+    const pairs = snapshots
+      .map((s: any) => ({
+        type: typeof s?.type === 'string' ? s.type : 'unknown',
+        marker: typeof s?.marker === 'string' ? s.marker : undefined,
+      }))
+      .filter((s) => typeof s.marker === 'string')
+      .map((s) => `${s.type}:${s.marker}`);
+    const expectedPairs = expectedRendered.map((s) => `${s.type}:${s.marker}`);
+    const hasExpected = containsSubsequence(pairs, expectedPairs);
+    const hasFiltered =
+      typeof filteredMarker === 'string' ? pairs.some((p) => p.endsWith(`:${filteredMarker}`)) : false;
+    return hasExpected && !hasFiltered;
   }, 20000);
 
   const afterAll: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
