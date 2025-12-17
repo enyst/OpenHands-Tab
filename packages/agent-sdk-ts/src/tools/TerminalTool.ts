@@ -66,8 +66,8 @@ class TerminalSession {
     this.initializeEnv();
   }
 
-  reset(workDir: string): void {
-    this.killRunning('SIGTERM');
+  async reset(workDir: string): Promise<void> {
+    await this.killRunning('SIGTERM');
     this.cwd = workDir;
     this.initializeEnv();
   }
@@ -78,13 +78,40 @@ class TerminalSession {
     );
   }
 
-  private killRunning(signal: SupportedSignal): void {
-    if (!this.running) return;
+  private async killRunning(signal: SupportedSignal): Promise<void> {
+    const running = this.running;
+    if (!running) return;
+
     try {
-      this.sendSignal(this.running.process, signal);
+      this.sendSignal(running.process, signal);
     } catch {
       // Ignore.
     }
+
+    await new Promise<void>((resolve) => {
+      if (running.done || running.process.exitCode !== null) {
+        resolve();
+        return;
+      }
+
+      const onClose = () => {
+        cleanup();
+        resolve();
+      };
+
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, 2000);
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        running.process.off('close', onClose);
+      };
+
+      running.process.on('close', onClose);
+    });
+
     this.running = null;
   }
 
@@ -322,7 +349,7 @@ class TerminalSession {
             `echo ${meta.begin}`,
             `echo ${meta.exit}%openhands_ec%`,
             `echo ${meta.pwd}%CD%`,
-            `<nul set /p "=${meta.env}"`,
+            `<nul set /p=${meta.env}`,
             `${nodeExecutable} -e "process.stdout.write(Buffer.from(JSON.stringify(process.env)).toString('base64'))"`,
             'echo.',
             `echo ${meta.end}`,
@@ -467,7 +494,7 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
         if (args.is_input) {
           throw new Error('reset cannot be used with is_input=true');
         }
-        this.session?.reset(context.workspace.root);
+        await this.session?.reset(context.workspace.root);
         this.session = null;
         return { command: args.command ?? '', exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: 'Terminal session reset.' };
       }
