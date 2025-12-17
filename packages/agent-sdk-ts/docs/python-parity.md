@@ -8,9 +8,9 @@ This document is the living output for Beads issue `oh-tab-0rq`.
 
 - TypeScript SDK: `packages/agent-sdk-ts` (this repo).
 - Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk, we intently use the local path for our internal workflow).
-- Focus: VS Code local-mode parity and remote workspace working correctly (no agent-server).
+- Focus: VS Code local-mode parity and remote conversation working correctly (no agent-server implementation in TS).
 
-## Current parity snapshot (2025-12-16)
+## Current parity snapshot (2025-12-17)
 
 This section summarizes concrete behavior alignment between Python agent-sdk and TypeScript @openhands/agent-sdk-ts observed today, with pointers to code/tests and gaps to close.
 
@@ -49,20 +49,17 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - Tool observation content (role="tool" messages)
   - Python: tool observations are LLM-facing plain text via Observation helpers (e.g., TerminalObservation appends metadata and uses `<response clipped>` truncation). See `tests/tools/terminal/test_observation_truncation.py`.
-  - TypeScript: Agent currently JSON-stringifies tool results into tool MessageEvent content (AgentErrorEvent tool messages are plain text). See `packages/agent-sdk-ts/src/sdk/runtime/Agent.ts` (executeTool) and `packages/agent-sdk-ts/src/sdk/runtime/toolCallErrorEvents.ts`.
-  - Status: Divergence; affects LLM context quality and parity with Python tests/spec. MUST FIX.
+  - TypeScript: Agent formats tool MessageEvent content as plain text for core tools (terminal, file_editor), applies secret masking, and clips oversized outputs with `<response clipped>`. See `packages/agent-sdk-ts/src/sdk/runtime/Agent.ts` and tests: `packages/agent-sdk-ts/src/sdk/runtime/__tests__/Agent.tool-messages.test.ts` (PR #250 / `oh-tab-bcu`).
+  - Status: Aligned for VS Code local-mode usage (minor policy differences remain, e.g., default clip length).
 
 - Terminal session semantics
   - Python: persistent shell session; supports `is_input` (stdin/log polling) and `reset`. See `tests/tools/terminal/test_terminal_session.py`.
-  - TypeScript: per-command child process; `is_input` returns an unsupported message and `reset` is currently ignored. See `packages/agent-sdk-ts/src/tools/TerminalTool.ts` and `packages/agent-sdk-ts/src/tools/IntegratedTerminalRunner.ts`.
-  - Status: Divergence; impacts common VS Code workflows (env vars, venv activation, cwd persistence). We should implement real terminal in TS.
+  - TypeScript: supports persistent session semantics (cwd/env persistence), rejects concurrent non-empty commands, and supports `is_input`/`reset`. See `packages/agent-sdk-ts/src/tools/TerminalTool.ts` and `packages/agent-sdk-ts/src/tools/TerminalSession.ts` (PR #251 / `oh-tab-wmn`).
+  - Status: Aligned for VS Code local-mode usage.
 
 Other gaps to consider
 - security_risk defaulting: consider default UNKNOWN in TS when interoperating with an agent-server (remote conversation) to match Python expectations.
-- Tool observation formatting: move away from JSON-only tool messages toward Python-like, human-readable tool outputs with consistent truncation + (optional) metadata.
-- TerminalTool: implement persistent session semantics (or change schema/description to match reality) and add tests mirroring Python.
-- FileEditorTool: add `undo_edit` parity and tighten directory/binary viewing behavior.
-- Test and fix the remote workspace behaviors.
+- Remote workspace behaviors: not planned in TS today (remote mode is handled via agent-server + RemoteConversation).
 
 ## Candidate test cases to mirror (from `~/repos/agent-sdk`)
 
@@ -71,26 +68,26 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 ### Terminal tool
 
 - Python: `tests/tools/terminal/test_terminal_tool.py` (basic execution, schema) → TypeScript: `packages/agent-sdk-ts/src/tools/__tests__/tools.test.ts` (expand coverage).
-- Python: `tests/tools/terminal/test_observation_truncation.py` (LLM-facing output formatting + `<response clipped>`) → TypeScript: add parity tests around `Agent` tool message content/truncation.
-- Python: `tests/tools/terminal/test_terminal_session.py`, `tests/tools/terminal/test_shutdown_handling.py`, `tests/tools/terminal/test_shell_path_configuration.py` → TypeScript: missing (requires persistent session + reset/is_input semantics).
-- Python: `tests/tools/terminal/test_secrets_masking.py` → TypeScript: missing (SecretRegistry-aware masking for tool output).
+- Python: `tests/tools/terminal/test_observation_truncation.py` (LLM-facing output formatting + `<response clipped>`) → TypeScript: `packages/agent-sdk-ts/src/sdk/runtime/__tests__/Agent.tool-messages.test.ts` (PR #250 / `oh-tab-bcu`).
+- Python: `tests/tools/terminal/test_terminal_session.py`, `tests/tools/terminal/test_shutdown_handling.py`, `tests/tools/terminal/test_shell_path_configuration.py` → TypeScript: `packages/agent-sdk-ts/src/tools/__tests__/tools.test.ts` (PR #251 / `oh-tab-wmn`).
+- Python: `tests/tools/terminal/test_secrets_masking.py` → TypeScript: `packages/agent-sdk-ts/src/sdk/runtime/__tests__/Agent.tool-messages.test.ts` (PR #250 / `oh-tab-bcu`).
 
 ### File editor tool
 
-- Python: `tests/tools/file_editor/test_basic_operations.py` (create/view/str_replace/insert/undo_edit) → TypeScript: partial in `packages/agent-sdk-ts/src/tools/__tests__/tools.test.ts` (add undo_edit + error cases).
-- Python: `tests/tools/file_editor/test_schema.py` (command enum includes undo_edit) → TypeScript: update schema once undo_edit is implemented.
-- Python: `tests/tools/file_editor/test_workspace_root.py`, `tests/tools/file_editor/test_file_validation.py`, `tests/tools/file_editor/test_view_supported_binary_files.py` → TypeScript: missing (directory view rules + binary handling).
+- Python: `tests/tools/file_editor/test_basic_operations.py` (create/view/str_replace/insert/undo_edit) → TypeScript: covered by `packages/agent-sdk-ts/src/tools/__tests__/tools.test.ts` + FileEditorTool tests (PR #245 / `oh-tab-nbc`).
+- Python: `tests/tools/file_editor/test_schema.py` (command enum includes undo_edit) → TypeScript: schema/docs updates in PR #252 / `oh-tab-8zn`.
+- Python: `tests/tools/file_editor/test_workspace_root.py`, `tests/tools/file_editor/test_file_validation.py`, `tests/tools/file_editor/test_view_supported_binary_files.py` → TypeScript: implemented in PR #253 / `oh-tab-7d4`.
 
 ### Glob/Grep tools
 
-- Python: `tests/tools/glob/test_glob_tool.py`, `tests/tools/glob/test_consistency.py` → TypeScript: add fixtures to cover ignore rules, ordering, and truncation behavior.
-- Python: `tests/tools/grep/test_grep_tool.py`, `tests/tools/grep/test_consistency.py` → TypeScript: add fixtures to cover include globs + regex semantics and truncation behavior.
+- Python: `tests/tools/glob/test_glob_tool.py`, `tests/tools/glob/test_consistency.py` → TypeScript: implemented in PR #248 / `oh-tab-2wx` (fixtures, ignore, truncation).
+- Python: `tests/tools/grep/test_grep_tool.py`, `tests/tools/grep/test_consistency.py` → TypeScript: implemented in PR #248 / `oh-tab-2wx` (fixtures, ignore, truncation).
 
 ### Runtime/events/workspace
 
 - Python: `tests/sdk/event/test_events_to_messages.py`, `tests/sdk/event/test_event_serialization.py` → TypeScript: `packages/agent-sdk-ts/src/sdk/__tests__/agent-sdk.guards.test.ts` + runtime tests (expand into message conversion parity).
 - Python: `tests/sdk/security/test_confirmation_policy.py` → TypeScript: `packages/agent-sdk-ts/src/sdk/__tests__/agent.loop.test.ts` and `packages/agent-sdk-ts/src/sdk/runtime/__tests__/Agent.security-risk.test.ts`.
-- Python: `tests/sdk/io/test_local_filestore_security.py` → TypeScript: `packages/agent-sdk-ts/src/workspace/__tests__/local.workspace.test.ts` (expand with symlink cases).
+- Python: `tests/sdk/io/test_local_filestore_security.py` → TypeScript: `packages/agent-sdk-ts/src/workspace/__tests__/local.workspace.test.ts` (PR #244 / `oh-tab-pla`).
 
 ## Beads follow-ups (created from this audit)
 
@@ -120,13 +117,13 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 
 ### TypeScript shape
 
-- Only `LocalWorkspace` exists?
+- Only `LocalWorkspace` exists (no `RemoteWorkspace` today).
   - Resolves workspace root
   - Reads/writes/removes files
   - Creates directories
   - Runs commands via VS Code APIs with minimal metadata
-- No shared base class or factory?
-- No remote workspace or file transfer helpers?
+- No shared base class or factory.
+- No remote workspace or file transfer helpers.
 
 ### Gaps to close
 
@@ -292,7 +289,7 @@ classDiagram
 
 - Add tool schema/security analyzer injection, condenser pipeline
 - Note: we do not want observability in TS.
-- Support persisted `ConversationState` restoration and pending-action replay - I think this is done?
+- Support persisted `ConversationState` restoration and pending-action replay (implemented in PR #246 / `oh-tab-wc7`).
 - Implement responses-API parity and richer confirmation policies akin to Python analyzers
 
 ```mermaid
