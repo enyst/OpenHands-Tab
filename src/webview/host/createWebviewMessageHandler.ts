@@ -33,7 +33,13 @@ type WebviewMessage =
   | { type: 'openAttachment'; uri: string }
   | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
   | { type: 'command'; command: string; reason?: string }
-  | { type: 'renderedEventsResponse'; requestId: string; count: number; eventTypes: string[] }
+  | {
+    type: 'renderedEventsResponse';
+    requestId: string;
+    count: number;
+    eventTypes: string[];
+    events?: Array<{ type: string; marker?: string; toolCallId?: string }>;
+  }
   | {
     type: 'uiStateResponse';
     requestId: string;
@@ -216,7 +222,14 @@ export type CreateWebviewMessageHandlerDeps = {
     clientLastSeenSeq?: number;
   }) => void;
 
-  onRenderedEventsResponse: (requestId: string, info: { count: number; eventTypes: string[] }) => void;
+  onRenderedEventsResponse: (
+    requestId: string,
+    info: {
+      count: number;
+      eventTypes: string[];
+      events?: Array<{ type: string; marker?: string; toolCallId?: string }>;
+    }
+  ) => void;
   onUiStateResponse: (
     requestId: string,
     info: {
@@ -599,7 +612,11 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         break;
       }
       case 'renderedEventsResponse':
-        deps.onRenderedEventsResponse(message.requestId, { count: message.count, eventTypes: message.eventTypes });
+        deps.onRenderedEventsResponse(message.requestId, {
+          count: message.count,
+          eventTypes: message.eventTypes,
+          events: message.events,
+        });
         break;
       case 'uiStateResponse':
         deps.onUiStateResponse(message.requestId, {

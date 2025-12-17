@@ -21,7 +21,11 @@ import { attachConversationListeners } from './conversation/host/attachConversat
 import { createConfigurationChangeHandler } from './settings/host/createConfigurationChangeHandler';
 import { createWebviewMessageHandler } from './webview/host/createWebviewMessageHandler';
 
-type RenderedEventsInfo = { count: number; eventTypes: string[] };
+type RenderedEventsInfo = {
+  count: number;
+  eventTypes: string[];
+  events?: Array<{ type: string; marker?: string; toolCallId?: string }>;
+};
 type UiStateSnapshot = {
   input: string;
   showContextPicker: boolean;
