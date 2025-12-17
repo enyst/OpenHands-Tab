@@ -93,6 +93,46 @@ describe('Agent tool message formatting', () => {
     expect(JSON.stringify(observation.observation)).toContain('***');
   });
 
+  it('preserves non-plain tool results in ObservationEvent payloads', async () => {
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: {},
+    };
+    const log = new EventLog();
+    const date = new Date('2025-01-02T03:04:05.000Z');
+
+    const tool: ToolDefinition<Record<string, unknown>, unknown> = {
+      name: 'date_tool',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => date,
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Returning a date' },
+      { type: 'tool_call_delta', id: 'call_date', name: 'date_tool', arguments: '{}' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('run date tool');
+
+    const observations = log.list().filter((evt) => evt.kind === 'ObservationEvent');
+    expect(observations).toHaveLength(1);
+    const observation = observations[0] as unknown as { observation?: Record<string, unknown> };
+    expect(observation.observation?.value).toBeInstanceOf(Date);
+    expect(JSON.stringify(observation.observation)).toContain('2025-01-02T03:04:05.000Z');
+  });
+
   it('masks uppercase secrets even when they resemble env var names', async () => {
     const secretValue = 'TOPSECRETUPPERCASE1234567890';
     const envKey = secretValue;
