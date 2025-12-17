@@ -21,6 +21,14 @@ export interface TerminalResult {
   timeout?: boolean;
   stdout?: string;
   stderr?: string;
+  previous?: {
+    command: string;
+    exit_code: number | null;
+    // Back-compat for older consumers (e.g. BashEvent adapters).
+    exitCode: number | null;
+    stdout: string;
+    stderr: string;
+  };
 }
 
 const DEFAULT_NO_CHANGE_TIMEOUT_SECONDS = 10;
@@ -207,7 +215,18 @@ class TerminalSession {
     return { stdout, stderr };
   }
 
-  async execute(args: { command: string; is_input: boolean; timeoutSeconds: number }): Promise<{ stdout: string; stderr: string; exitCode: number | null; done: boolean; command: string | null }> {
+  async execute(args: {
+    command: string;
+    is_input: boolean;
+    timeoutSeconds: number;
+  }): Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number | null;
+    done: boolean;
+    command: string | null;
+    previous: { stdout: string; stderr: string; exitCode: number | null; command: string } | null;
+  }> {
     const timeoutMs = Math.max(0, Math.floor(args.timeoutSeconds * 1000));
 
     let completed: { stdout: string; stderr: string; exitCode: number | null; command: string } | null = null;
@@ -248,18 +267,39 @@ class TerminalSession {
       if (done) {
         this.running = null;
       }
-      return { ...drained, exitCode, done, command };
+      return { ...drained, exitCode, done, command, previous: null };
     }
 
     if (args.is_input) {
       if (completed) {
-        return { stdout: completed.stdout, stderr: completed.stderr, exitCode: completed.exitCode, done: true, command: completed.command };
+        return {
+          stdout: completed.stdout,
+          stderr: completed.stderr,
+          exitCode: completed.exitCode,
+          done: true,
+          command: completed.command,
+          previous: completed,
+        };
       }
-      return { stdout: '', stderr: 'No running terminal command to send input to.', exitCode: null, done: true, command: null };
+      return {
+        stdout: '',
+        stderr: 'No running terminal command to send input to.',
+        exitCode: null,
+        done: true,
+        command: null,
+        previous: null,
+      };
     }
 
     if (completed && !args.command.trim()) {
-      return { stdout: completed.stdout, stderr: completed.stderr, exitCode: completed.exitCode, done: true, command: completed.command };
+      return {
+        stdout: completed.stdout,
+        stderr: completed.stderr,
+        exitCode: completed.exitCode,
+        done: true,
+        command: completed.command,
+        previous: completed,
+      };
     }
 
     const id = randomUUID();
@@ -357,16 +397,18 @@ class TerminalSession {
     const exitCode = done ? cmd.exitCode : -1;
     let stdout = drained.stdout;
     const stderr = drained.stderr;
+    let previous: { stdout: string; stderr: string; exitCode: number | null; command: string } | null = null;
     if (completed) {
       const completedText = [completed.stdout, completed.stderr].filter(Boolean).join('');
       const header = `[Below is the output of the previous command ($ ${completed.command}, exit_code: ${completed.exitCode ?? 0}).]\n`;
       const spacer = completedText && !completedText.endsWith('\n') ? '\n' : '';
       stdout = `${header}${completedText}${spacer}${stdout}`;
+      previous = completed;
     }
     if (done) {
       this.running = null;
     }
-    return { stdout, stderr, exitCode, done, command: args.command };
+    return { stdout, stderr, exitCode, done, command: args.command, previous };
   }
 }
 
@@ -454,6 +496,15 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
         exit_code: exitCode,
         exitCode,
         timeout: exitCode === -1,
+        previous: result.previous
+          ? {
+              command: result.previous.command,
+              exit_code: result.previous.exitCode,
+              exitCode: result.previous.exitCode,
+              stdout: result.previous.stdout,
+              stderr: result.previous.stderr,
+            }
+          : undefined,
       };
     };
 
