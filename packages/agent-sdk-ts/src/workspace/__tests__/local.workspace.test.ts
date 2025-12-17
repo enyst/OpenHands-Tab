@@ -233,7 +233,26 @@ describe('LocalWorkspace', () => {
       }
     });
 
-    it('rejects workspace reads when the parent becomes a symlink mid-read', async () => {
+    it.each([
+      {
+        title: 'rejects workspace reads when the parent becomes a symlink mid-read',
+        op: 'readFile' as const,
+        target: 'parent/inside.txt',
+        checkRedirectedFile: true,
+      },
+      {
+        title: 'rejects workspace deletes when the parent becomes a symlink mid-remove',
+        op: 'remove' as const,
+        target: 'parent/inside.txt',
+        checkRedirectedFile: true,
+      },
+      {
+        title: 'rejects directory listing when the directory becomes a symlink mid-list',
+        op: 'list' as const,
+        target: 'parent',
+        checkRedirectedFile: false,
+      },
+    ])('$title', async ({ op, target, checkRedirectedFile }) => {
       if (process.platform === 'win32') return;
 
       const { workspace } = await makeWorkspace((value) => created.push(value));
@@ -241,7 +260,7 @@ describe('LocalWorkspace', () => {
       await workspace.writeFile('parent/inside.txt', 'hello');
       const canonicalParentDir = workspace.resolvePath('parent');
 
-      const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-redirect-read-'));
+      const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `agent-ws-redirect-${op}-`));
       created.push(redirectDir);
       const redirectedFile = path.join(redirectDir, 'inside.txt');
       await fs.promises.writeFile(redirectedFile, 'pwned', 'utf8');
@@ -265,88 +284,26 @@ describe('LocalWorkspace', () => {
         return result;
       });
 
-      try {
-        await expect(workspace.readFile('parent/inside.txt')).rejects.toThrowError(/symlink|escapes|Path escapes|parent/i);
-        expect(fs.existsSync(redirectedFile)).toBe(true);
-      } finally {
-        realpathSpy.mockRestore();
-      }
-    });
-
-    it('rejects workspace deletes when the parent becomes a symlink mid-remove', async () => {
-      if (process.platform === 'win32') return;
-
-      const { workspace } = await makeWorkspace((value) => created.push(value));
-      await workspace.ensureDirectory('parent');
-      await workspace.writeFile('parent/inside.txt', 'hello');
-      const canonicalParentDir = workspace.resolvePath('parent');
-
-      const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-redirect-remove-'));
-      created.push(redirectDir);
-      const redirectedFile = path.join(redirectDir, 'inside.txt');
-      await fs.promises.writeFile(redirectedFile, 'pwned', 'utf8');
-
-      let swapped = false;
-      const swapParent = async () => {
-        if (swapped) return;
-        swapped = true;
-        const backupDir = `${canonicalParentDir}-bak`;
-        await fs.promises.rename(canonicalParentDir, backupDir);
-        await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
+      const execute = () => {
+        switch (op) {
+          case 'readFile':
+            return workspace.readFile(target);
+          case 'remove':
+            return workspace.remove(target);
+          case 'list':
+            return workspace.list(target);
+          default: {
+            const unreachable: never = op;
+            throw new Error(`Unhandled operation: ${unreachable}`);
+          }
+        }
       };
 
-      const originalRealpath = fs.promises.realpath;
-      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
-        const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
-        if (!swapped && targetString === canonicalParentDir) {
-          await swapParent();
-        }
-        return result;
-      });
-
       try {
-        await expect(workspace.remove('parent/inside.txt')).rejects.toThrowError(/symlink|escapes|Path escapes|parent/i);
-        expect(fs.existsSync(redirectedFile)).toBe(true);
-      } finally {
-        realpathSpy.mockRestore();
-      }
-    });
-
-    it('rejects directory listing when the directory becomes a symlink mid-list', async () => {
-      if (process.platform === 'win32') return;
-
-      const { workspace } = await makeWorkspace((value) => created.push(value));
-      await workspace.ensureDirectory('parent');
-      await workspace.writeFile('parent/inside.txt', 'hello');
-      const canonicalParentDir = workspace.resolvePath('parent');
-
-      const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-redirect-list-'));
-      created.push(redirectDir);
-      const redirectedFile = path.join(redirectDir, 'inside.txt');
-      await fs.promises.writeFile(redirectedFile, 'pwned', 'utf8');
-
-      let swapped = false;
-      const swapParent = async () => {
-        if (swapped) return;
-        swapped = true;
-        const backupDir = `${canonicalParentDir}-bak`;
-        await fs.promises.rename(canonicalParentDir, backupDir);
-        await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
-      };
-
-      const originalRealpath = fs.promises.realpath;
-      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
-        const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
-        if (!swapped && targetString === canonicalParentDir) {
-          await swapParent();
+        await expect(execute()).rejects.toThrowError(/symlink|escapes|Path escapes|parent/i);
+        if (checkRedirectedFile) {
+          expect(fs.existsSync(redirectedFile)).toBe(true);
         }
-        return result;
-      });
-
-      try {
-        await expect(workspace.list('parent')).rejects.toThrowError(/symlink|escapes|Path escapes|parent/i);
       } finally {
         realpathSpy.mockRestore();
       }

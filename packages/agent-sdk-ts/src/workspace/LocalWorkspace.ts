@@ -208,12 +208,12 @@ export class LocalWorkspace {
     opLabel: string,
     directoryLabel: string,
   ): Promise<string> {
-    const canonical = await this.getCanonicalDirectory(dirPath, containingRoot, targetPath, opLabel, directoryLabel);
-    const canonicalBeforeOp = await this.getCanonicalDirectory(dirPath, containingRoot, targetPath, opLabel, directoryLabel);
-    if (canonicalBeforeOp !== canonical) {
+    const firstCanonicalPath = await this.getCanonicalDirectory(dirPath, containingRoot, targetPath, opLabel, directoryLabel);
+    const secondCanonicalPath = await this.getCanonicalDirectory(dirPath, containingRoot, targetPath, opLabel, directoryLabel);
+    if (secondCanonicalPath !== firstCanonicalPath) {
       throw new Error(`${opLabel} failed: ${directoryLabel} changed during operation: ${dirPath}`);
     }
-    return canonicalBeforeOp;
+    return secondCanonicalPath;
   }
 
   private async ensureSafeDirectory(root: string, dirPath: string): Promise<void> {
@@ -465,44 +465,9 @@ export class LocalWorkspace {
       if (kind !== 'file') {
         throw new Error(`readFile failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
       }
-      const canonicalParentDir = await this.getStableCanonicalDirectory(
-        parentDir,
-        undefined,
-        targetPath,
-        'readFile',
-        'parent directory',
-      );
-      const safePath = path.join(canonicalParentDir, path.basename(resolved));
-      const constants = fs.constants as Record<string, number>;
-      const noFollow =
-        os.platform() === 'win32'
-          ? 0
-          : typeof constants.O_NOFOLLOW === 'number'
-            ? constants.O_NOFOLLOW
-            : 0;
-      if (noFollow) {
-        const flags = constants.O_RDONLY | noFollow;
-        const handle = await fs.promises.open(safePath, flags);
-        try {
-          return await readFileAsync(handle, encoding);
-        } finally {
-          await handle.close();
-        }
-      }
-      const stat = await fs.promises.lstat(safePath);
-      if (stat.isSymbolicLink()) {
-        throw new Error(`readFile failed: refusing to read from symlink path: ${targetPath}`);
-      }
-      return readFileAsync(safePath, encoding);
     }
 
-    const canonicalParentDir = await this.getStableCanonicalDirectory(
-      parentDir,
-      root,
-      targetPath,
-      'readFile',
-      'parent directory',
-    );
+    const canonicalParentDir = await this.getStableCanonicalDirectory(parentDir, root ?? undefined, targetPath, 'readFile', 'parent directory');
     const safePath = path.join(canonicalParentDir, path.basename(resolved));
 
     const constants = fs.constants as Record<string, number>;
@@ -566,25 +531,9 @@ export class LocalWorkspace {
       if (kind !== 'file') {
         throw new Error(`remove failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
       }
-      const canonicalParentDir = await this.getStableCanonicalDirectory(
-        parentDir,
-        undefined,
-        targetPath,
-        'remove',
-        'parent directory',
-      );
-      const safePath = path.join(canonicalParentDir, path.basename(resolved));
-      await rm(safePath, { force: true, recursive: true });
-      return;
     }
 
-    const canonicalParentDir = await this.getStableCanonicalDirectory(
-      parentDir,
-      root,
-      targetPath,
-      'remove',
-      'parent directory',
-    );
+    const canonicalParentDir = await this.getStableCanonicalDirectory(parentDir, root ?? undefined, targetPath, 'remove', 'parent directory');
     const safePath = path.join(canonicalParentDir, path.basename(resolved));
     await rm(safePath, { force: true, recursive: true });
   }
