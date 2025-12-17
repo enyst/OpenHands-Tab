@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import path from 'path';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { FileEditorTool, type FileEditorResult } from './FileEditorTool';
@@ -35,16 +36,14 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
   readonly schema = planningSchema;
   private readonly fileEditor = new FileEditorTool();
 
-  private ensurePlanTarget(command: PlanningCommand, resolvedPath: string, planPath: string): void {
+  private ensurePlanTarget(command: PlanningCommand, resolvedPath: string): void {
     if (command === 'view') return;
-    if (resolvedPath !== planPath) {
+    if (path.basename(resolvedPath) !== PLAN_BASENAME) {
       throw new Error('Only PLAN.md may be modified by this tool');
     }
   }
 
-  private async ensurePlanInitialized(command: PlanningCommand, planPath: string, context: ToolContext): Promise<void> {
-    if (command === 'create') return;
-
+  private async ensurePlanInitialized(planPath: string, context: ToolContext): Promise<void> {
     try {
       await fs.stat(planPath);
       return;
@@ -58,11 +57,10 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
   }
 
   async execute(args: z.infer<typeof planningSchema>, context: ToolContext): Promise<PlanningFileEditorResult> {
-    const planPath = context.workspace.resolvePath(PLAN_BASENAME);
     const resolved = context.workspace.resolvePath(args.path);
-    this.ensurePlanTarget(args.command, resolved, planPath);
-    if (resolved === planPath) {
-      await this.ensurePlanInitialized(args.command, planPath, context);
+    this.ensurePlanTarget(args.command, resolved);
+    if (args.command === 'view' && path.basename(resolved) === PLAN_BASENAME) {
+      await this.ensurePlanInitialized(resolved, context);
     }
     return this.fileEditor.execute(args, context);
   }
