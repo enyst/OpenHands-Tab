@@ -298,30 +298,19 @@ describe('LocalWorkspace', () => {
 
       const originalLstat = fs.promises.lstat;
       let pendingSwap = false;
-      type StableCanonicalDirectoryFn = (
-        dirPath: string,
-        containingRoot: string | undefined,
-        targetPath: string,
-        opLabel: string,
-        directoryLabel: string
-      ) => Promise<string>;
-      const workspaceInternals = workspace as unknown as { getStableCanonicalDirectory: StableCanonicalDirectoryFn };
-      const originalGetStableCanonicalDirectory = workspaceInternals.getStableCanonicalDirectory.bind(workspaceInternals);
-      const stableSpy = vi
-        .spyOn(workspaceInternals, 'getStableCanonicalDirectory')
-        .mockImplementation(async (dirPath, containingRoot, pathArg, opLabel, directoryLabel) => {
-          const result = await originalGetStableCanonicalDirectory(
-            dirPath,
-            containingRoot,
-            pathArg,
-            opLabel,
-            directoryLabel,
-          );
-          if (dirPath === canonicalParentDir) {
+      const originalRealpath = fs.promises.realpath;
+      let realpathCalls = 0;
+      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+        const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
+        const resolvedPath = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
+        if (targetString === canonicalParentDir) {
+          realpathCalls += 1;
+          if (realpathCalls >= 2) {
             pendingSwap = true;
           }
-          return result;
-        });
+        }
+        return resolvedPath;
+      });
       const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
         if (pendingSwap && targetString === canonicalParentDir) {
@@ -353,7 +342,7 @@ describe('LocalWorkspace', () => {
         }
       } finally {
         lstatSpy.mockRestore();
-        stableSpy.mockRestore();
+        realpathSpy.mockRestore();
       }
     });
 
