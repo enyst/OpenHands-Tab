@@ -133,6 +133,54 @@ describe('Agent tool message formatting', () => {
     expect(JSON.stringify(observation.observation)).toContain('2025-01-02T03:04:05.000Z');
   });
 
+  it('masks secrets inside class-instance tool results in ObservationEvent payloads', async () => {
+    const secretValue = 'ghp_CLASSSECRET1234567890';
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: { githubToken: secretValue },
+    };
+    const log = new EventLog();
+
+    class ResultWithSecret {
+      constructor(
+        readonly token: string,
+        readonly notes: string,
+      ) {}
+    }
+
+    const tool: ToolDefinition<Record<string, unknown>, unknown> = {
+      name: 'custom_result',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => new ResultWithSecret(secretValue, 'x'.repeat(2100)),
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Returning a class instance' },
+      { type: 'tool_call_delta', id: 'call_custom', name: 'custom_result', arguments: '{}' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('run custom tool');
+
+    const observations = log.list().filter((evt) => evt.kind === 'ObservationEvent');
+    expect(observations).toHaveLength(1);
+    const observation = observations[0] as unknown as { observation?: Record<string, unknown> };
+    expect(JSON.stringify(observation.observation)).not.toContain(secretValue);
+    expect(JSON.stringify(observation.observation)).toContain('***');
+    expect(JSON.stringify(observation.observation)).toContain('…(truncated)');
+  });
+
   it('masks uppercase secrets even when they resemble env var names', async () => {
     const secretValue = 'TOPSECRETUPPERCASE1234567890';
     const envKey = secretValue;
