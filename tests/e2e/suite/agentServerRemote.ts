@@ -108,10 +108,12 @@ export async function run(): Promise<void> {
   }
 
   await pollUntil(async () => {
-    const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
     const count = typeof rendered?.count === 'number' ? rendered.count : 0;
-    const types = Array.isArray(rendered?.eventTypes) ? rendered.eventTypes : [];
-    const messageCount = types.filter((t: unknown) => t === 'MessageEvent').length;
+    const types = Array.isArray(rendered?.eventTypes)
+      ? rendered.eventTypes.filter((t): t is string => typeof t === 'string')
+      : [];
+    const messageCount = types.filter((t) => t === 'MessageEvent').length;
     return count > beforeCount && messageCount > beforeMessageCount;
   }, 60000);
 
@@ -224,6 +226,7 @@ export async function run(): Promise<void> {
   const expectedRendered = injectedEvents
     .filter((event) => event.kind !== 'ConversationStateUpdateEvent')
     .map((event) => ({ type: event.kind, marker: event.e2e_marker }));
+  const expectedPairs = expectedRendered.map((s) => `${s.type}:${s.marker}`);
   const filteredMarker = injectedEvents.find((event) => event.kind === 'ConversationStateUpdateEvent')?.e2e_marker;
 
   for (const event of injectedEvents) {
@@ -237,31 +240,41 @@ export async function run(): Promise<void> {
     return size >= backlogBefore + injectedEvents.length;
   }, 10000);
 
-  await pollUntil(async () => {
-    const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
-    const snapshots = Array.isArray(rendered?.events) ? rendered.events : null;
-    if (!snapshots) {
-      return false;
-    }
+  let lastPairs: string[] = [];
+  try {
+    await pollUntil(async () => {
+      const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
+      const snapshots = Array.isArray(rendered?.events) ? rendered.events : null;
+      if (!snapshots) {
+        lastPairs = [];
+        return false;
+      }
 
-    type RenderedSnapshot = { type: string; marker?: string };
+      type RenderedSnapshot = { type: string; marker?: string };
 
-    const pairs = snapshots
-      .map((snapshot): RenderedSnapshot => {
-        const record = snapshot as RenderedEventSnapshot;
-        return {
-          type: typeof record.type === 'string' ? record.type : 'unknown',
-          marker: typeof record.marker === 'string' ? record.marker : undefined,
-        };
-      })
-      .filter((snapshot): snapshot is RenderedSnapshot & { marker: string } => typeof snapshot.marker === 'string')
-      .map((snapshot) => `${snapshot.type}:${snapshot.marker}`);
-    const expectedPairs = expectedRendered.map((s) => `${s.type}:${s.marker}`);
-    const hasExpected = containsSubsequence(pairs, expectedPairs);
-    const hasFiltered =
-      typeof filteredMarker === 'string' ? pairs.some((pair) => pair.endsWith(`:${filteredMarker}`)) : false;
-    return hasExpected && !hasFiltered;
-  }, 20000);
+      const pairs = snapshots
+        .map((snapshot): RenderedSnapshot => {
+          const record = snapshot as RenderedEventSnapshot;
+          return {
+            type: typeof record.type === 'string' ? record.type : 'unknown',
+            marker: typeof record.marker === 'string' ? record.marker : undefined,
+          };
+        })
+        .filter((snapshot): snapshot is RenderedSnapshot & { marker: string } => typeof snapshot.marker === 'string')
+        .map((snapshot) => `${snapshot.type}:${snapshot.marker}`);
+      lastPairs = pairs;
+
+      const hasExpected = containsSubsequence(pairs, expectedPairs);
+      const hasFiltered =
+        typeof filteredMarker === 'string' ? pairs.some((pair) => pair.endsWith(`:${filteredMarker}`)) : false;
+      return hasExpected && !hasFiltered;
+    }, 20000);
+  } catch (error) {
+    const errorText = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Timed out waiting for injected event markers to render. expectedPairs=${expectedPairs.join(', ')} filteredMarker=${filteredMarker ?? 'none'} lastPairs=${lastPairs.slice(-20).join(', ')} (original error: ${errorText})`
+    );
+  }
 
   const afterAll = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   console.log(
