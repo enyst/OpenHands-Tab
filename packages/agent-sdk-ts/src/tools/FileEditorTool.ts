@@ -79,8 +79,12 @@ const fileEditorSchema = z
     if (value.command === 'create' && value.file_text === undefined) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'file_text is required for create', path: ['file_text'] });
     }
-    if (value.command === 'str_replace' && value.old_str === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'old_str is required for str_replace', path: ['old_str'] });
+    if (value.command === 'str_replace') {
+      if (value.old_str === undefined) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'old_str is required for str_replace', path: ['old_str'] });
+      } else if (value.old_str.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'old_str must be non-empty for str_replace', path: ['old_str'] });
+      }
     }
     if (value.command === 'insert') {
       if (value.new_str === undefined) {
@@ -164,6 +168,9 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       case 'str_replace': {
         const prev = await ws.readFile(args.path, 'utf8');
         const oldStr = args.old_str ?? '';
+        if (oldStr.length === 0) {
+          throw new Error('old_str must be non-empty for str_replace');
+        }
         const firstMatch = prev.indexOf(oldStr);
         if (firstMatch === -1) {
           throw new Error('old_str not found in target file');

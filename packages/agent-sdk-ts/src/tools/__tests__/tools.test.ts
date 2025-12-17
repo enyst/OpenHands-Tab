@@ -194,6 +194,17 @@ describe('FileEditorTool', () => {
     ).rejects.toThrowError(/not unique/i);
   });
 
+  it('rejects empty old_str for str_replace', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'content' }), { workspace });
+    expect(() => tool.validate({ command: 'str_replace', path: 'note.txt', old_str: '', new_str: 'x' })).toThrowError(
+      /old_str.*non-empty/i,
+    );
+  });
+
   it('treats overlapping old_str matches as not unique', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
