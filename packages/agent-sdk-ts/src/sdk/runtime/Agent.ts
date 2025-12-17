@@ -203,21 +203,21 @@ export class Agent extends EventEmitter {
   }
 
   private getSecretValuesForMasking(): string[] {
-	    const values = new Set<string>();
-	    const maybePush = (candidate: unknown) => {
-	      if (typeof candidate !== 'string') return;
-	      const trimmed = candidate.trim();
-	      if (!trimmed) return;
-	      if (/^[A-Z0-9_]+$/.test(trimmed)) {
-	        values.add(trimmed);
-	        const envValue = process.env[trimmed];
-	        if (envValue) {
-	          values.add(envValue);
-	        }
-	      } else {
-	        values.add(trimmed);
-	      }
-	    };
+    const values = new Set<string>();
+    const maybePush = (candidate: unknown) => {
+      if (typeof candidate !== 'string') return;
+      const trimmed = candidate.trim();
+      if (!trimmed) return;
+      if (/^[A-Z0-9_]+$/.test(trimmed)) {
+        values.add(trimmed);
+        const envValue = process.env[trimmed];
+        if (envValue) {
+          values.add(envValue);
+        }
+      } else {
+        values.add(trimmed);
+      }
+    };
 
     for (const secret of Object.values(this.options.settings?.secrets ?? {})) {
       maybePush(secret);
