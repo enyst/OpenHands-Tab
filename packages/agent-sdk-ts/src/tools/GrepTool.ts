@@ -2,7 +2,14 @@ import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
 import type { ToolContext } from './types';
-import { createGlobMatcher, expandHome, listFilesRecursively, normalizeGlobPattern, normalizeSlashes } from './searchUtils';
+import {
+  createGlobMatcher,
+  expandHome,
+  listFilesRecursively,
+  normalizeGlobPattern,
+  normalizeSlashes,
+  planGlobWalk,
+} from './searchUtils';
 import { ZodTool } from './zod-tool';
 
 export interface GrepResult {
@@ -23,6 +30,14 @@ const grepArgsSchema = z.object({
     .string()
     .optional()
     .describe('Optional file pattern to filter which files to search (e.g., "*.js", "*.{ts,tsx}").'),
+  include_hidden: z
+    .boolean()
+    .optional()
+    .describe('Include hidden files and directories (dotfiles). Defaults to true. Set to false for faster searches.'),
+  include_node_modules: z
+    .boolean()
+    .optional()
+    .describe('Include node_modules directories. Defaults to true. Set to false for faster searches.'),
 });
 
 const TOOL_DESCRIPTION = `Fast content search tool.
@@ -48,8 +63,20 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid search path: ${detail}`);
     }
-    const includeMatcher = args.include ? createGlobMatcher(normalizeGlobPattern(args.include)) : null;
-    const files = await listFilesRecursively(searchRoot);
+    const includeHidden = args.include_hidden !== false;
+    const includeNodeModules = args.include_node_modules !== false;
+
+    const includePlan = args.include ? planGlobWalk(searchRoot, normalizeGlobPattern(args.include)) : null;
+    const walkRoot = includePlan?.walkRoot ?? searchRoot;
+    const includeMatcher = includePlan ? createGlobMatcher(includePlan.matcherPattern) : null;
+    const maxDepth = includePlan?.maxDepth;
+
+    let files: string[] = [];
+    try {
+      files = await listFilesRecursively(walkRoot, { includeHidden, includeNodeModules, maxDepth });
+    } catch {
+      files = [];
+    }
     const matches: { file: string; mtime: number }[] = [];
     let contentRegex: RegExp;
     try {
@@ -60,7 +87,7 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
     }
 
     for (const file of files) {
-      const relative = normalizeSlashes(path.relative(searchRoot, file));
+      const relative = normalizeSlashes(path.relative(walkRoot, file));
       if (includeMatcher && !includeMatcher(relative)) continue;
       try {
         const content = await fs.readFile(file, 'utf8');

@@ -2,7 +2,14 @@ import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
 import type { ToolContext } from './types';
-import { createGlobMatcher, expandHome, listFilesRecursively, normalizeGlobPattern, normalizeSlashes } from './searchUtils';
+import {
+  createGlobMatcher,
+  expandHome,
+  listFilesRecursively,
+  normalizeGlobPattern,
+  normalizeSlashes,
+  planGlobWalk,
+} from './searchUtils';
 import { ZodTool } from './zod-tool';
 
 export interface GlobResult {
@@ -20,6 +27,14 @@ const globArgsSchema = z.object({
     .string()
     .optional()
     .describe('The directory (absolute or workspace-relative path) to search in. Defaults to the current working directory. Must be within the allowed workspace roots.'),
+  include_hidden: z
+    .boolean()
+    .optional()
+    .describe('Include hidden files and directories (dotfiles). Defaults to true. Set to false for faster searches.'),
+  include_node_modules: z
+    .boolean()
+    .optional()
+    .describe('Include node_modules directories. Defaults to true. Set to false for faster searches.'),
 });
 
 const TOOL_DESCRIPTION = `Fast file pattern matching tool.
@@ -115,12 +130,22 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
     }
 
     const { searchRoot, pattern } = resolved;
-    const matcher = createGlobMatcher(pattern);
-    const files = await listFilesRecursively(searchRoot);
+    const { walkRoot, matcherPattern, maxDepth } = planGlobWalk(searchRoot, pattern);
+    const matcher = createGlobMatcher(matcherPattern);
+
+    const includeHidden = args.include_hidden !== false;
+    const includeNodeModules = args.include_node_modules !== false;
+
+    let files: string[] = [];
+    try {
+      files = await listFilesRecursively(walkRoot, { includeHidden, includeNodeModules, maxDepth });
+    } catch {
+      files = [];
+    }
     const filtered: string[] = [];
 
     for (const file of files) {
-      const relative = normalizeSlashes(path.relative(searchRoot, file));
+      const relative = normalizeSlashes(path.relative(walkRoot, file));
       if (matcher(relative)) {
         filtered.push(file);
       }
