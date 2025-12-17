@@ -43,10 +43,10 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
     }
   }
 
-  private async ensurePlanInitialized(planPath: string, context: ToolContext): Promise<void> {
+  private async ensurePlanInitialized(planPath: string, context: ToolContext): Promise<boolean> {
     try {
       await fs.stat(planPath);
-      return;
+      return false;
     } catch (error) {
       if (typeof error !== 'object' || !error || !('code' in error) || (error as { code?: unknown }).code !== 'ENOENT') {
         throw error;
@@ -54,14 +54,26 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
     }
 
     await context.workspace.writeFile(planPath, PLAN_HEADERS);
+    return true;
   }
 
   async execute(args: z.infer<typeof planningSchema>, context: ToolContext): Promise<PlanningFileEditorResult> {
     const resolved = context.workspace.resolvePath(args.path);
     this.ensurePlanTarget(args.command, resolved);
-    if (args.command === 'view' && path.basename(resolved) === PLAN_BASENAME) {
-      await this.ensurePlanInitialized(resolved, context);
+
+    const isPlanFile = path.basename(resolved) === PLAN_BASENAME;
+    let createdPlan = false;
+    if (isPlanFile && args.command !== 'create') {
+      createdPlan = await this.ensurePlanInitialized(resolved, context);
     }
-    return this.fileEditor.execute(args, context);
+
+    try {
+      return await this.fileEditor.execute(args, context);
+    } catch (error) {
+      if (createdPlan) {
+        await context.workspace.remove(resolved);
+      }
+      throw error;
+    }
   }
 }
