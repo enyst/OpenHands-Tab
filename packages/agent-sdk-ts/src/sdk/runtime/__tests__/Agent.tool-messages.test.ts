@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
 import { Agent, EventLog } from '..';
 import { isMessageEvent, type TextContent } from '../../types';
@@ -20,7 +20,19 @@ class MockLLM implements LLMClient {
   }
 }
 
-const createWorkspaceRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-messages-'));
+const workspaceRoots: string[] = [];
+
+const createWorkspaceRoot = (): string => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-messages-'));
+  workspaceRoots.push(root);
+  return root;
+};
+
+afterEach(() => {
+  for (const root of workspaceRoots.splice(0)) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 describe('Agent tool message formatting', () => {
   it('formats terminal tool output as plain text and masks configured secrets', async () => {
@@ -75,11 +87,11 @@ describe('Agent tool message formatting', () => {
     expect(text.trimStart().startsWith('{')).toBe(false);
   });
 
-	  it('masks uppercase secrets even when they resemble env var names', async () => {
-	    const secretValue = 'TOPSECRETUPPERCASE1234567890';
-	    const envKey = secretValue;
-	    const previousEnvValue = process.env[envKey];
-	    delete process.env[envKey];
+  it('masks uppercase secrets even when they resemble env var names', async () => {
+    const secretValue = 'TOPSECRETUPPERCASE1234567890';
+    const envKey = secretValue;
+    const previousEnvValue = process.env[envKey];
+    delete process.env[envKey];
 
     try {
       const settings: OpenHandsSettings = {
@@ -134,77 +146,77 @@ describe('Agent tool message formatting', () => {
       } else {
         process.env[envKey] = previousEnvValue;
       }
-	    }
-	  });
+    }
+  });
 
-	  it('masks uppercase secrets when an env var of the same name exists with a different value', async () => {
-	    const secretValue = 'TOPSECRETUPPERCASE1234567890';
-	    const envKey = secretValue;
-	    const envValue = 'DIFFERENT_ENV_SECRET_1234567890';
-	    const previousEnvValue = process.env[envKey];
-	    process.env[envKey] = envValue;
+  it('masks uppercase secrets when an env var of the same name exists with a different value', async () => {
+    const secretValue = 'TOPSECRETUPPERCASE1234567890';
+    const envKey = secretValue;
+    const envValue = 'DIFFERENT_ENV_SECRET_1234567890';
+    const previousEnvValue = process.env[envKey];
+    process.env[envKey] = envValue;
 
-	    try {
-	      const settings: OpenHandsSettings = {
-	        llm: { model: 'test-model' },
-	        agent: {},
-	        conversation: { maxIterations: 1 },
-	        confirmation: {},
-	        secrets: { githubToken: secretValue },
-	      };
-	      const log = new EventLog();
+    try {
+      const settings: OpenHandsSettings = {
+        llm: { model: 'test-model' },
+        agent: {},
+        conversation: { maxIterations: 1 },
+        confirmation: {},
+        secrets: { githubToken: secretValue },
+      };
+      const log = new EventLog();
 
-	      const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
-	        name: 'terminal',
-	        validate: (input) => input as Record<string, unknown>,
-	        execute: async () => ({
-	          command: 'echo hello',
-	          exit_code: 0,
-	          stdout: `hello ${secretValue} ${envValue}`,
-	          stderr: '',
-	          timeout: false,
-	        }),
-	      };
+      const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
+        name: 'terminal',
+        validate: (input) => input as Record<string, unknown>,
+        execute: async () => ({
+          command: 'echo hello',
+          exit_code: 0,
+          stdout: `hello ${secretValue} ${envValue}`,
+          stderr: '',
+          timeout: false,
+        }),
+      };
 
-	      const llm = new MockLLM([
-	        { type: 'text', text: 'Running terminal' },
-	        { type: 'tool_call_delta', id: 'call_terminal', name: 'terminal', arguments: '{"command":"echo hello"}' },
-	        { type: 'finish' },
-	      ]);
+      const llm = new MockLLM([
+        { type: 'text', text: 'Running terminal' },
+        { type: 'tool_call_delta', id: 'call_terminal', name: 'terminal', arguments: '{"command":"echo hello"}' },
+        { type: 'finish' },
+      ]);
 
-	      const agent = new Agent({
-	        settings,
-	        events: log,
-	        workspaceRoot: createWorkspaceRoot(),
-	        llmClient: llm,
-	        tools: [tool],
-	      });
+      const agent = new Agent({
+        settings,
+        events: log,
+        workspaceRoot: createWorkspaceRoot(),
+        llmClient: llm,
+        tools: [tool],
+      });
 
-	      await agent.run('run terminal');
+      await agent.run('run terminal');
 
-	      const toolMessages = log
-	        .list()
-	        .filter(isMessageEvent)
-	        .filter((evt) => evt.llm_message.role === 'tool' && evt.llm_message.name === 'terminal');
-	      expect(toolMessages).toHaveLength(1);
+      const toolMessages = log
+        .list()
+        .filter(isMessageEvent)
+        .filter((evt) => evt.llm_message.role === 'tool' && evt.llm_message.name === 'terminal');
+      expect(toolMessages).toHaveLength(1);
 
-	      const text = (toolMessages[0].llm_message.content[0] as TextContent).text;
-	      expect(text).not.toContain(secretValue);
-	      expect(text).not.toContain(envValue);
-	      expect(text).toContain('***');
-	    } finally {
-	      if (previousEnvValue === undefined) {
-	        delete process.env[envKey];
-	      } else {
-	        process.env[envKey] = previousEnvValue;
-	      }
-	    }
-	  });
+      const text = (toolMessages[0].llm_message.content[0] as TextContent).text;
+      expect(text).not.toContain(secretValue);
+      expect(text).not.toContain(envValue);
+      expect(text).toContain('***');
+    } finally {
+      if (previousEnvValue === undefined) {
+        delete process.env[envKey];
+      } else {
+        process.env[envKey] = previousEnvValue;
+      }
+    }
+  });
 
-	  it('truncates long terminal tool outputs using <response clipped>', async () => {
-	    const log = new EventLog();
-	    const longOutput = 'A'.repeat(35_000);
-	    const settings: OpenHandsSettings = {
+  it('truncates long terminal tool outputs using <response clipped>', async () => {
+    const log = new EventLog();
+    const longOutput = 'A'.repeat(35_000);
+    const settings: OpenHandsSettings = {
       llm: { model: 'test-model' },
       agent: {},
       conversation: { maxIterations: 1 },
