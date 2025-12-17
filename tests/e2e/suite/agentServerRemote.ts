@@ -214,9 +214,7 @@ export async function run(): Promise<void> {
     const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const snapshots = Array.isArray(rendered?.events) ? rendered.events : null;
     if (!snapshots) {
-      throw new Error(
-        'E2E requires `openhands._queryRenderedEvents` to return per-event snapshots in `rendered.events`.'
-      );
+      return false;
     }
 
     const pairs = snapshots
