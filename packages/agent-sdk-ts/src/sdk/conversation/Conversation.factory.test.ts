@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -55,10 +55,8 @@ const baseSettings: OpenHandsSettings = {
 
 const created: string[] = [];
 
-afterEach(() => {
-  for (const dir of created) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+afterEach(async () => {
+  await Promise.all(created.map((dir) => fs.rm(dir, { recursive: true, force: true })));
   created.length = 0;
 });
 
@@ -76,7 +74,7 @@ describe('Conversation factory', () => {
   });
 
   it('supports local hello-world tool flow via Conversation()', async () => {
-    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'conversation-factory-'));
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'conversation-factory-'));
     created.push(workspaceRoot);
 
     const conversation = Conversation({
@@ -95,6 +93,7 @@ describe('Conversation factory', () => {
     expect(events.some(isMessageEvent)).toBe(true);
 
     const filePath = path.join(workspaceRoot, 'hello.py');
-    expect(fs.readFileSync(filePath, 'utf8')).toContain('Hello, World!');
+    const fileContent = await fs.readFile(filePath, 'utf8');
+    expect(fileContent).toContain('Hello, World!');
   });
 });
