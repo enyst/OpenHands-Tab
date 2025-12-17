@@ -216,6 +216,25 @@ export class LocalWorkspace {
     return secondCanonicalPath;
   }
 
+  private async assertCanonicalDirectoryStillValid(
+    expectedCanonicalDir: string,
+    containingRoot: string | undefined,
+    targetPath: string,
+    opLabel: string,
+    directoryLabel: string,
+  ): Promise<void> {
+    const observedCanonicalDir = await this.getCanonicalDirectory(
+      expectedCanonicalDir,
+      containingRoot,
+      targetPath,
+      opLabel,
+      directoryLabel,
+    );
+    if (observedCanonicalDir !== expectedCanonicalDir) {
+      throw new Error(`${opLabel} failed: ${directoryLabel} changed during operation: ${expectedCanonicalDir}`);
+    }
+  }
+
   private async ensureSafeDirectory(root: string, dirPath: string): Promise<void> {
     const relative = path.relative(root, dirPath);
     if (relative === '' || relative === '.') return;
@@ -468,6 +487,13 @@ export class LocalWorkspace {
     }
 
     const canonicalParentDir = await this.getStableCanonicalDirectory(parentDir, root ?? undefined, targetPath, 'readFile', 'parent directory');
+    await this.assertCanonicalDirectoryStillValid(
+      canonicalParentDir,
+      root ?? undefined,
+      targetPath,
+      'readFile',
+      'parent directory',
+    );
     const safePath = path.join(canonicalParentDir, path.basename(resolved));
 
     const constants = fs.constants as Record<string, number>;
@@ -534,6 +560,13 @@ export class LocalWorkspace {
     }
 
     const canonicalParentDir = await this.getStableCanonicalDirectory(parentDir, root ?? undefined, targetPath, 'remove', 'parent directory');
+    await this.assertCanonicalDirectoryStillValid(
+      canonicalParentDir,
+      root ?? undefined,
+      targetPath,
+      'remove',
+      'parent directory',
+    );
     const safePath = path.join(canonicalParentDir, path.basename(resolved));
     await rm(safePath, { force: true, recursive: true });
   }
@@ -545,6 +578,7 @@ export class LocalWorkspace {
       throw new Error(`Path escapes workspace root: ${targetPath}`);
     }
     const canonicalDir = await this.getStableCanonicalDirectory(resolved, root, targetPath, 'list', 'directory');
+    await this.assertCanonicalDirectoryStillValid(canonicalDir, root, targetPath, 'list', 'directory');
     const entries = await readdir(canonicalDir, { withFileTypes: true });
     return entries.map((entry) => ({
       name: entry.name,

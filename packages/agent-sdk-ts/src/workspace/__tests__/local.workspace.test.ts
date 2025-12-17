@@ -178,21 +178,24 @@ describe('LocalWorkspace', () => {
         await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
       };
 
-      const originalRealpath = fs.promises.realpath;
-      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+      const originalLstat = fs.promises.lstat;
+      let lstatCalls = 0;
+      const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
-        if (!swapped && targetString === canonicalParentDir) {
-          await swapParent();
+        if (targetString === canonicalParentDir) {
+          lstatCalls += 1;
+          if (!swapped && lstatCalls === 3) {
+            await swapParent();
+          }
         }
-        return result;
+        return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
 
       try {
         await expect(workspace.writeFile(allowedFile, 'hello')).rejects.toThrowError(/symlink|escapes|refusing|parent/i);
         expect(fs.existsSync(path.join(redirectDir, 'outside.txt'))).toBe(false);
       } finally {
-        realpathSpy.mockRestore();
+        lstatSpy.mockRestore();
       }
     });
 
@@ -215,21 +218,24 @@ describe('LocalWorkspace', () => {
         await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
       };
 
-      const originalRealpath = fs.promises.realpath;
-      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+      const originalLstat = fs.promises.lstat;
+      let lstatCalls = 0;
+      const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
-        if (!swapped && targetString === canonicalParentDir) {
-          await swapParent();
+        if (targetString === canonicalParentDir) {
+          lstatCalls += 1;
+          if (!swapped && lstatCalls === 3) {
+            await swapParent();
+          }
         }
-        return result;
+        return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
 
       try {
         await expect(workspace.writeFile('parent/inside.txt', 'hello')).rejects.toThrowError(/symlink|escapes|refusing|parent/i);
         expect(fs.existsSync(path.join(redirectDir, 'inside.txt'))).toBe(false);
       } finally {
-        realpathSpy.mockRestore();
+        lstatSpy.mockRestore();
       }
     });
 
@@ -274,14 +280,17 @@ describe('LocalWorkspace', () => {
         await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
       };
 
-      const originalRealpath = fs.promises.realpath;
-      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+      const originalLstat = fs.promises.lstat;
+      let lstatCalls = 0;
+      const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
-        if (!swapped && targetString === canonicalParentDir) {
-          await swapParent();
+        if (targetString === canonicalParentDir) {
+          lstatCalls += 1;
+          if (!swapped && lstatCalls === 3) {
+            await swapParent();
+          }
         }
-        return result;
+        return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
 
       const execute = () => {
@@ -305,7 +314,7 @@ describe('LocalWorkspace', () => {
           expect(fs.existsSync(redirectedFile)).toBe(true);
         }
       } finally {
-        realpathSpy.mockRestore();
+        lstatSpy.mockRestore();
       }
     });
 
