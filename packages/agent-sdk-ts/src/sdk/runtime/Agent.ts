@@ -54,18 +54,35 @@ const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 // Simple utility to cap logged/tool result sizes
 const TRUNCATE_LIMIT = 2000;
 const ELLIPSIS = '…(truncated)';
+const CIRCULAR_REFERENCE_MARKER = '[Circular]';
 const TOOL_MESSAGE_MAX_CHARS = 8_000;
 const TOOL_MESSAGE_CLIP_MARKER = '<response clipped>';
 function truncateString(input: string): string {
   return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
 }
-function deepTruncate(value: unknown): unknown {
+
+function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
   if (typeof value === 'string') return truncateString(value);
-  if (Array.isArray(value)) return value.map((v) => deepTruncate(v));
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
+    seen.add(value);
+    return value.map((v) => deepTruncate(v, seen));
+  }
   if (value && typeof value === 'object') {
+    if (value instanceof Date) {
+      try {
+        return value.toISOString();
+      } catch {
+        return String(value);
+      }
+    }
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (!entries.length) return {};
+    if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
+    seen.add(value);
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = deepTruncate(v);
+    for (const [k, v] of entries) {
+      out[k] = deepTruncate(v, seen);
     }
     return out;
   }
@@ -268,6 +285,29 @@ export class Agent extends EventEmitter {
       masked = masked.replaceAll(secret, '***');
     }
     return redactStringHeuristics(masked);
+  }
+
+  private maskSecretsInUnknown(value: unknown, seen = new WeakSet<object>()): unknown {
+    if (typeof value === 'string') {
+      return this.maskSecretsInText(value);
+    }
+    if (Array.isArray(value)) {
+      if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
+      seen.add(value);
+      return value.map((item) => this.maskSecretsInUnknown(item, seen));
+    }
+    if (value && typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>);
+      if (!entries.length) return value;
+      if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
+      seen.add(value);
+      const masked: Record<string, unknown> = {};
+      for (const [key, inner] of entries) {
+        masked[key] = this.maskSecretsInUnknown(inner, seen);
+      }
+      return masked;
+    }
+    return value;
   }
 
   private formatToolMessageText(toolCall: ToolCall, result: unknown): string {
@@ -924,7 +964,7 @@ export class Agent extends EventEmitter {
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: deepTruncate(result) as Record<string, unknown>,
+        observation: deepTruncate(this.maskSecretsInUnknown(result)) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
