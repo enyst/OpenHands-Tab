@@ -6,7 +6,10 @@ import { LocalConversation } from '../conversation';
 import { ConversationState, EventLog, FileStore } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
 import type { Event, MessageEvent, TextContent } from '../types';
+import { isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
+import type { ToolDefinition } from '../types/tools';
+import { FileEditorTool } from '../../tools/FileEditorTool';
 
 class MockLLM implements LLMClient {
   constructor(private readonly chunks: LLMStreamChunk[]) {}
@@ -136,6 +139,194 @@ describe('LocalConversation persistence', () => {
     const messagesAfter = restoredEvents.length;
 
     expect(messagesAfter).toBeGreaterThan(messagesBefore);
+  });
+
+  it('restores pending confirmations so approveAction works after restore', async () => {
+    const dir = makeTempDir('local-confirmation-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const settings: OpenHandsSettings = { ...baseSettings, confirmation: { policy: 'always' } };
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input: unknown) => {
+        if (input && typeof input === 'object' && 'value' in input) {
+          const value = (input as { value?: unknown }).value;
+          if (typeof value === 'string') {
+            return { value };
+          }
+        }
+        throw new Error('Invalid input for echo tool');
+      },
+      execute: async (args) => ({ echoed: args.value }),
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Using tool' },
+      { type: 'tool_call_delta', id: 'call_1', name: 'echo', arguments: '{"value":"hi"}' },
+      { type: 'finish' },
+    ]);
+
+    const conversation = new LocalConversation({
+      settings,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [tool],
+      persistenceDir: dir,
+    });
+
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('run tool');
+    const stateAfterRun = (conversation as unknown as { state: ConversationState }).state.snapshot;
+    expect(stateAfterRun.status).toBe('WAITING_FOR_CONFIRMATION');
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      tools: [tool],
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(id!);
+
+    const before = restoredEvents.length;
+    await restored.approveAction();
+    const newEvents = restoredEvents.slice(before);
+
+    const observation = newEvents.find((e) => isObservationEvent(e) && e.tool_name === 'echo');
+    expect(observation).toBeDefined();
+    expect(JSON.stringify(observation?.observation ?? {})).toContain('hi');
+  });
+
+  it('restores pending workspace access confirmations so approveAction allows file_editor paths after restore', async () => {
+    const dir = makeTempDir('local-workspace-access-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const outsideDir = makeTempDir('local-outside-workspace-');
+    const outsideFile = path.join(outsideDir, 'outside.txt');
+    const fileEditor = new FileEditorTool();
+
+    const llm = new MockLLM([
+      { type: 'tool_call_delta', id: 'call_1', name: 'file_editor', arguments: JSON.stringify({ command: 'create', path: outsideFile, file_text: 'hello' }) },
+      { type: 'finish' },
+    ]);
+
+    const conversation = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: llm,
+      tools: [fileEditor],
+      persistenceDir: dir,
+    });
+
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('create file');
+    const stateAfterRun = (conversation as unknown as { state: ConversationState }).state.snapshot;
+    expect(stateAfterRun.status).toBe('WAITING_FOR_CONFIRMATION');
+    expect(fs.existsSync(outsideFile)).toBe(false);
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      tools: [fileEditor],
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(id!);
+
+    const before = restoredEvents.length;
+    await restored.approveAction();
+    const newEvents = restoredEvents.slice(before);
+
+    expect(fs.readFileSync(outsideFile, 'utf8')).toBe('hello');
+    const observation = newEvents.find((e) => isObservationEvent(e) && e.tool_name === 'file_editor');
+    expect(observation).toBeDefined();
+  });
+
+  it('emits a diagnostic when restoring a WAITING_FOR_CONFIRMATION snapshot without a matching ActionEvent', () => {
+    const dir = makeTempDir('local-missing-action-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+
+    const conversationId = 'local-missing-action';
+    const store = new FileStore({ rootDir: dir, conversationId });
+    store.writeState({ status: 'WAITING_FOR_CONFIRMATION', iteration: 0, values: {} });
+    store.appendEvent({ kind: 'PauseEvent', source: 'agent' } as Event);
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(conversationId);
+
+    const diagnostic = restoredEvents.find(
+      (event) => event.kind === 'ConversationStateUpdateEvent' && (event as unknown as { key?: unknown }).key === 'restore_pending_confirmation',
+    );
+    expect(diagnostic).toBeDefined();
+
+    const restoredState = (restored as unknown as { state: ConversationState }).state.snapshot;
+    expect(restoredState.status).toBe('IDLE');
+
+    const restoreError = restoredEvents.find(
+      (event) =>
+        event.kind === 'ConversationErrorEvent' &&
+        (event as unknown as { code?: unknown }).code === 'restore_pending_confirmation_failed',
+    );
+    expect(restoreError).toBeDefined();
+  });
+
+  it('clears stale WAITING_FOR_CONFIRMATION snapshots when the tool call is already resolved', () => {
+    const dir = makeTempDir('local-stale-waiting-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+
+    const conversationId = 'local-stale-waiting';
+    const store = new FileStore({ rootDir: dir, conversationId });
+    store.writeState({ status: 'WAITING_FOR_CONFIRMATION', iteration: 0, values: {} });
+    store.appendEvent({
+      kind: 'ActionEvent',
+      source: 'agent',
+      thought: [],
+      action: { command: 'echo', value: 'hi' },
+      tool_name: 'echo',
+      tool_call_id: 'call_1',
+    } as Event);
+    store.appendEvent({ kind: 'PauseEvent', source: 'agent' } as Event);
+    store.appendEvent({
+      kind: 'ObservationEvent',
+      source: 'environment',
+      observation: { echoed: 'hi' },
+      tool_name: 'echo',
+      tool_call_id: 'call_1',
+      action_id: 'action_1',
+    } as Event);
+
+    const restoredEvents: Event[] = [];
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: new MockLLM([{ type: 'finish' }]),
+      persistenceDir: dir,
+    });
+    restored.on('event', (e) => restoredEvents.push(e));
+    restored.restoreConversation(conversationId);
+
+    const diagnostic = restoredEvents.find(
+      (event) => event.kind === 'ConversationStateUpdateEvent' && (event as unknown as { key?: unknown }).key === 'restore_pending_confirmation',
+    );
+    expect(diagnostic).toBeDefined();
+
+    const restoredState = (restored as unknown as { state: ConversationState }).state.snapshot;
+    expect(restoredState.status).toBe('IDLE');
+
+    const restoreError = restoredEvents.find(
+      (event) =>
+        event.kind === 'ConversationErrorEvent' &&
+        (event as unknown as { code?: unknown }).code === 'restore_pending_confirmation_failed',
+    );
+    expect(restoreError).toBeUndefined();
   });
 });
 

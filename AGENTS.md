@@ -133,37 +133,37 @@ Reviews (do not merge without review):
 - Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
 
 **Reviewer workflow** (the OpenHands roasted review via tmux):
-  - Use a clean worktree to avoid clobbering shared branches/uncommitted changes:
-    ```bash
-    WORKTREE="$(mktemp -d -t oh-tab-review.XXXXXX)"
-    git worktree add --detach "$WORKTREE" HEAD
-    ```
-  - Start a named tmux session and capture output to a log file:
-    (use the actual PR number, below is just an example)
-    ```bash
-    SESSION=oh_pr${PR_NUMBER}
-    LOG="/tmp/${SESSION}.log"
-    rm -f "$LOG"
+- Use a clean worktree to avoid clobbering shared branches/uncommitted changes:
+  ```bash
+  WORKTREE="$(mktemp -d -t oh-tab-review.XXXXXX)"
+  git worktree add --detach "$WORKTREE" HEAD
+  ```
+- Start a named tmux session and capture output to a log file:
+  (use the actual PR number, below is just an example)
+  ```bash
+  SESSION=oh_pr${PR_NUMBER}
+  LOG="/tmp/${SESSION}.log"
+  rm -f "$LOG"
 
-    tmux new-session -d -s "$SESSION" -n review -c "$WORKTREE" \
-      "openhands --headless --always-approve -t '/codereview-roasted pr 246'"
-    tmux pipe-pane -o -t "${SESSION}:0.0" "cat >> $LOG"
+  tmux new-session -d -s "$SESSION" -n review -c "$WORKTREE" \
+    "openhands --headless --always-approve -t '/codereview-roasted pr 246'"
+  tmux pipe-pane -o -t "${SESSION}:0.0" "cat >> $LOG"
 
-    # Optional: strip ANSI while viewing
-    tail -f "$LOG" | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g'
-    ```
-  - Send follow-ups / re-review requests to the *same* waiting session:
-    ```bash
-    tmux send-keys -t "${SESSION}:0.0" "Re-review PR ${PR_NUMBER} after latest commits." Enter
-    ```
-  - Stop the session when the PR is merged:
-    ```bash
-    tmux kill-session -t "$SESSION"
-    git worktree remove "$WORKTREE"
-    ```
-  - Pitfalls we hit:
-    - You must pass the task with `-t` (positional args are treated as subcommands).
-    - `--exp` UI is noisy to log/copy (ANSI); `--headless` is easier for paste-back to Mail.
+  # Optional: strip ANSI while viewing
+  tail -f "$LOG" | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g'
+  ```
+- Send follow-ups / re-review requests to the *same* waiting session:
+  ```bash
+  tmux send-keys -t "${SESSION}:0.0" "Re-review PR ${PR_NUMBER} after latest commits." Enter
+  ```
+- Stop the session when the PR is merged:
+  ```bash
+  tmux kill-session -t "$SESSION"
+  git worktree remove "$WORKTREE"
+  ```
+- Pitfalls we hit:
+  - You must pass the task with `-t` (positional args are treated as subcommands).
+  - `--exp` UI is noisy to log/copy (ANSI); `--headless` is easier for paste-back to Mail.
 
 
 ## SDK Package

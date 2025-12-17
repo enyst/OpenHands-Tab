@@ -8,7 +8,17 @@ import { EventLog } from './EventLog';
 import type { LLMClient, LLMToolDefinition } from '../llm';
 import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
-import { isMessageEvent, isSystemPromptEvent, isTextContent, type SecurityRisk } from '../types';
+import {
+  isActionEvent,
+  isAgentErrorEvent,
+  isMessageEvent,
+  isObservationEvent,
+  isPauseEvent,
+  isSystemPromptEvent,
+  isTextContent,
+  isUserRejectObservation,
+  type SecurityRisk,
+} from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
@@ -210,6 +220,87 @@ export class Agent extends EventEmitter {
 
   get pendingActionId(): string | undefined {
     return this.pendingAction?.actionEvent.id;
+  }
+
+  private emitRestorePendingConfirmationDiagnostic(reason: string, detail?: Record<string, unknown>): void {
+    this.events.push({
+      kind: 'ConversationStateUpdateEvent',
+      source: 'agent',
+      key: 'restore_pending_confirmation',
+      value: { restored: false, reason, ...detail },
+    } as Event);
+  }
+
+  private clearWaitingForConfirmation(reason: string, detail?: Record<string, unknown>, emitError = false): void {
+    this.emitRestorePendingConfirmationDiagnostic(reason, detail);
+    if (emitError) {
+      const lines = [
+        'Pending confirmation could not be restored after reload; clearing WAITING_FOR_CONFIRMATION state.',
+        `Reason: ${reason}`,
+        detail ? `Context: ${JSON.stringify(detail)}` : undefined,
+      ].filter(Boolean) as string[];
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'agent',
+        code: 'restore_pending_confirmation_failed',
+        detail: lines.join('\n'),
+      } as Event);
+    }
+    this.state.setStatus('IDLE');
+  }
+
+  restorePendingConfirmation(): void {
+    if (this.pendingAction) return;
+    if (this.state.snapshot.status !== 'WAITING_FOR_CONFIRMATION') return;
+
+    const events = this.events.list();
+    let pauseIndex = -1;
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i];
+      if (isPauseEvent(event) && event.source === 'agent') {
+        pauseIndex = i;
+        break;
+      }
+    }
+
+    if (pauseIndex === -1) {
+      this.clearWaitingForConfirmation('missing_pause_event', undefined, true);
+      return;
+    }
+
+    let action: ActionEvent | undefined;
+    let actionIndex = -1;
+    for (let i = pauseIndex - 1; i >= 0; i--) {
+      const event = events[i];
+      if (!isActionEvent(event)) continue;
+      action = event;
+      actionIndex = i;
+      break;
+    }
+
+    if (!action || actionIndex < 0) {
+      this.clearWaitingForConfirmation('missing_action_event', { pauseIndex }, true);
+      return;
+    }
+
+    const toolCallId = action.tool_call_id;
+    const alreadyResolved = events.slice(actionIndex + 1).some((event) => {
+      if (isObservationEvent(event) || isUserRejectObservation(event) || isAgentErrorEvent(event)) {
+        return event.tool_call_id === toolCallId;
+      }
+      return false;
+    });
+
+    if (alreadyResolved) {
+      this.clearWaitingForConfirmation('tool_call_already_resolved', { toolCallId });
+      return;
+    }
+
+    const actionArgs: Record<string, unknown> = action.action ?? {};
+    const workspaceAccess = this.getRequiredWorkspaceAccess(action.tool_name, actionArgs);
+
+    this.pendingAction = { toolCall: action.tool_call, actionEvent: action, args: actionArgs };
+    this.pendingWorkspaceAccess = workspaceAccess;
   }
 
   async run(input: AgentRunInput): Promise<Message | undefined> {
