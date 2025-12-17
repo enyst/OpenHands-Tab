@@ -148,6 +148,7 @@ type UndoEntry = {
 };
 
 const MAX_UNDO_ENTRIES_PER_PATH = 10;
+const MAX_UNDO_PATHS = 100;
 
 export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, FileEditorResult> {
   readonly name = 'file_editor';
@@ -399,7 +400,15 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     while (stack.length > MAX_UNDO_ENTRIES_PER_PATH) {
       stack.shift();
     }
+    if (this.undoHistory.has(resolvedPath)) {
+      this.undoHistory.delete(resolvedPath);
+    }
     this.undoHistory.set(resolvedPath, stack);
+    while (this.undoHistory.size > MAX_UNDO_PATHS) {
+      const oldest = this.undoHistory.keys().next();
+      if (oldest.done) break;
+      this.undoHistory.delete(oldest.value);
+    }
   }
 
   private async readOptionalFile(absPath: string): Promise<string | null> {

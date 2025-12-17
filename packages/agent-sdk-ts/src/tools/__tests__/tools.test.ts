@@ -377,6 +377,23 @@ startxref
       .rejects.toThrowError(/no edit history/i);
   });
 
+  it('caps undo_edit history across paths', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const maxPaths = 100;
+    for (let i = 0; i < maxPaths + 1; i++) {
+      await tool.execute(tool.validate({ command: 'create', path: `file-${i}.txt`, file_text: String(i) }), { workspace });
+    }
+
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'file-0.txt' }), { workspace }))
+      .rejects.toThrowError(/no edit history/i);
+
+    await tool.execute(tool.validate({ command: 'undo_edit', path: `file-${maxPaths}.txt` }), { workspace });
+    await expect(workspace.readFile(`file-${maxPaths}.txt`)).rejects.toThrowError();
+  });
+
   it('requires old_str to be unique for str_replace', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
