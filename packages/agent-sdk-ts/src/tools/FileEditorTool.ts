@@ -231,7 +231,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         }
         const updated = prev.replace(oldStr, args.new_str ?? '');
         await ws.writeFile(resolved, updated);
-        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: prev.length * 2 });
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: Math.max(buffer.length, prev.length * 2) });
         return { command: 'str_replace', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'insert': {
@@ -246,7 +246,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         lines.splice(index, 0, insertion);
         const updated = lines.join('\n');
         await ws.writeFile(resolved, updated);
-        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: prev.length * 2 });
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: Math.max(buffer.length, prev.length * 2) });
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'undo_edit': {
