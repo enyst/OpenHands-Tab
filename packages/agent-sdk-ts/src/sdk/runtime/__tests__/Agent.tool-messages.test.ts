@@ -93,7 +93,7 @@ describe('Agent tool message formatting', () => {
     expect(JSON.stringify(observation.observation)).toContain('***');
   });
 
-  it('preserves non-plain tool results in ObservationEvent payloads', async () => {
+  it('serializes non-plain tool results in ObservationEvent payloads', async () => {
     const settings: OpenHandsSettings = {
       llm: { model: 'test-model' },
       agent: {},
@@ -128,9 +128,9 @@ describe('Agent tool message formatting', () => {
 
     const observations = log.list().filter((evt) => evt.kind === 'ObservationEvent');
     expect(observations).toHaveLength(1);
-    const observation = observations[0] as unknown as { observation?: Record<string, unknown> };
-    expect(observation.observation?.value).toBeInstanceOf(Date);
-    expect(JSON.stringify(observation.observation)).toContain('2025-01-02T03:04:05.000Z');
+    const observation = observations[0] as unknown as { observation?: unknown };
+    expect(observation.observation).toBeTypeOf('string');
+    expect(String(observation.observation)).toContain('2025-01-02T03:04:05.000Z');
   });
 
   it('masks secrets inside class-instance tool results in ObservationEvent payloads', async () => {

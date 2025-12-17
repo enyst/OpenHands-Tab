@@ -61,12 +61,6 @@ function truncateString(input: string): string {
   return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
 }
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const proto = Object.getPrototypeOf(value) as unknown;
-  return proto === Object.prototype || proto === null;
-}
-
 function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
   if (typeof value === 'string') return truncateString(value);
   if (Array.isArray(value)) {
@@ -75,8 +69,15 @@ function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
     return value.map((v) => deepTruncate(v, seen));
   }
   if (value && typeof value === 'object') {
+    if (value instanceof Date) {
+      try {
+        return value.toISOString();
+      } catch {
+        return String(value);
+      }
+    }
     const entries = Object.entries(value as Record<string, unknown>);
-    if (!entries.length) return value;
+    if (!entries.length) return {};
     if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
     seen.add(value);
     const out: Record<string, unknown> = {};
@@ -960,15 +961,10 @@ export class Agent extends EventEmitter {
         this.emitTerminalEvents(toolCall, result);
       }
 
-      const maskedObservation = this.maskSecretsInUnknown(deepTruncate(result));
-      const observationPayload: Record<string, unknown> = isPlainRecord(maskedObservation)
-        ? maskedObservation
-        : { value: maskedObservation };
-
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: observationPayload,
+        observation: deepTruncate(this.maskSecretsInUnknown(result)) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
