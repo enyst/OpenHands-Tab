@@ -63,14 +63,16 @@ class TerminalSession {
 
   constructor(workDir: string) {
     this.cwd = workDir;
-    this.env = Object.fromEntries(
-      Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
-    );
+    this.initializeEnv();
   }
 
   reset(workDir: string): void {
     this.killRunning('SIGTERM');
     this.cwd = workDir;
+    this.initializeEnv();
+  }
+
+  private initializeEnv(): void {
     this.env = Object.fromEntries(
       Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
     );
@@ -140,11 +142,9 @@ class TerminalSession {
         try {
           const decoded = Buffer.from(payload, 'base64').toString('utf8');
           const parsed = JSON.parse(decoded) as Record<string, unknown>;
-          const filtered: Record<string, string> = {};
-          for (const [k, v] of Object.entries(parsed)) {
-            if (typeof v === 'string') filtered[k] = v;
-          }
-          this.env = filtered;
+          this.env = Object.fromEntries(
+            Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+          );
         } catch {
           // Ignore env parse failures; keep previous env.
         }
