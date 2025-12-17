@@ -58,7 +58,7 @@ type RunningTerminalProcess = {
 
 class TerminalSession {
   private cwd: string;
-  private env: Record<string, string>;
+  private env: Record<string, string> = {};
   private running: RunningTerminalProcess | null = null;
 
   constructor(workDir: string) {
