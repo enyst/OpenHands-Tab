@@ -4,7 +4,7 @@ import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
 
 export interface FileEditorResult {
-  command: 'view' | 'create' | 'str_replace' | 'insert';
+  command: 'view' | 'create' | 'str_replace' | 'insert' | 'undo_edit';
   path?: string;
   prev_exist?: boolean;
   old_content?: string | null;
@@ -15,6 +15,7 @@ const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing 
 * State is persistent across command calls and discussions with the user
 * If \`path\` is a text file, \`view\` displays the result of applying \`cat -n\`. If \`path\` is a directory, \`view\` lists non-hidden files and directories up to 2 levels deep
 * The \`create\` command cannot be used if the specified \`path\` already exists as a file
+* The \`undo_edit\` command undoes the most recent edit for a \`path\` (including undoing a create)
 * If a \`command\` generates a long output, it will be truncated and marked with \`<response clipped>\`
 * This tool can be used for creating and editing files in plain-text format.
 
@@ -45,8 +46,8 @@ Remember: when making multiple file edits in a row to the same file, you should 
 const fileEditorSchema = z
   .object({
     command: z
-      .enum(['view', 'create', 'str_replace', 'insert'])
-      .describe('The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`.'),
+      .enum(['view', 'create', 'str_replace', 'insert', 'undo_edit'])
+      .describe('The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.'),
     path: z.string().describe('Absolute path to file or directory.'),
     file_text: z
       .string()
@@ -109,10 +110,18 @@ const truncateContent = (content: string, limit = 500): string => {
   return `${head}\n<response clipped>\n${tail}`;
 };
 
+type UndoEntry = {
+  prevExist: boolean;
+  oldContent: string | null;
+};
+
+const MAX_UNDO_ENTRIES_PER_PATH = 10;
+
 export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, FileEditorResult> {
   readonly name = 'file_editor';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = fileEditorSchema;
+  private readonly undoHistory = new Map<string, UndoEntry[]>();
 
   private async pathExists(absPath: string): Promise<boolean> {
     try {
@@ -147,6 +156,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
           throw new Error('create failed: file already exists');
         }
         await ws.writeFile(args.path, args.file_text ?? '');
+        this.pushUndo(resolved, { prevExist: false, oldContent: null });
         return { command: 'create', path: resolved, prev_exist: false, old_content: null, new_content: args.file_text ?? '' };
       }
       case 'str_replace': {
@@ -161,6 +171,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         }
         const updated = prev.replace(oldStr, args.new_str ?? '');
         await ws.writeFile(args.path, updated);
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev });
         return { command: 'str_replace', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'insert': {
@@ -171,12 +182,69 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         lines.splice(index, 0, insertion);
         const updated = lines.join('\n');
         await ws.writeFile(args.path, updated);
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev });
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
+      }
+      case 'undo_edit': {
+        const current = await this.readOptionalFile(resolved);
+
+        const stack = this.undoHistory.get(resolved);
+        if (!stack || stack.length === 0) {
+          throw new Error('undo_edit failed: no edit history for path');
+        }
+
+        const undo = stack[stack.length - 1];
+
+	        if (!undo.prevExist) {
+	          await this.removeCreatedFile(resolved);
+	        } else {
+	          await ws.writeFile(args.path, undo.oldContent ?? '');
+	        }
+
+        stack.pop();
+        if (stack.length === 0) {
+          this.undoHistory.delete(resolved);
+        }
+
+        if (!undo.prevExist) {
+          return { command: 'undo_edit', path: resolved, prev_exist: undo.prevExist, old_content: current, new_content: null };
+        }
+        return { command: 'undo_edit', path: resolved, prev_exist: undo.prevExist, old_content: current, new_content: undo.oldContent };
       }
       default: {
         const unreachable: never = args.command;
         throw new Error(`Unsupported command: ${String(unreachable)}`);
       }
+    }
+  }
+
+  private pushUndo(resolvedPath: string, entry: UndoEntry): void {
+    const stack = this.undoHistory.get(resolvedPath) ?? [];
+    stack.push(entry);
+    while (stack.length > MAX_UNDO_ENTRIES_PER_PATH) {
+      stack.shift();
+    }
+    this.undoHistory.set(resolvedPath, stack);
+  }
+
+  private async readOptionalFile(absPath: string): Promise<string | null> {
+    try {
+      return await fs.readFile(absPath, 'utf8');
+    } catch {
+      return null;
+    }
+  }
+
+  private async removeCreatedFile(absPath: string): Promise<void> {
+    try {
+      const stat = await fs.lstat(absPath);
+      if (stat.isDirectory()) {
+        throw new Error(`undo_edit failed: refusing to delete directory: ${absPath}`);
+      }
+      await fs.unlink(absPath);
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') return;
+      throw error;
     }
   }
 }
