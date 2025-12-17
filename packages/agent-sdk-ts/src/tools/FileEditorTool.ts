@@ -415,7 +415,8 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     }
     while (this.undoBytesTotal > MAX_UNDO_BYTES_TOTAL) {
       if (this.dropOldestUndoPath(resolvedPath)) continue;
-      if (!this.dropOldestUndoEntryForPath(resolvedPath)) break;
+      if (this.dropOldestUndoEntryForPath(resolvedPath)) continue;
+      if (!this.dropNewestUndoEntryForPath(resolvedPath)) break;
     }
   }
 
@@ -440,13 +441,24 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     if (!stack || stack.length <= 1) return false;
 
     const lastIndex = stack.length - 1;
-    const removableIndex = stack.slice(0, lastIndex).findIndex((entry) => entry.byteSize > 0);
-    const index = removableIndex === -1 ? 0 : removableIndex;
+    const index = stack.slice(0, lastIndex).findIndex((entry) => entry.byteSize > 0);
+    if (index === -1) return false;
     const [removed] = stack.splice(index, 1);
-    if (removed) {
-      this.undoBytesTotal -= removed.byteSize;
+    this.undoBytesTotal -= removed.byteSize;
+    return true;
+  }
+
+  private dropNewestUndoEntryForPath(resolvedPath: string): boolean {
+    const stack = this.undoHistory.get(resolvedPath);
+    if (!stack || stack.length === 0) return false;
+
+    const removed = stack.pop();
+    if (!removed) return false;
+    this.undoBytesTotal -= removed.byteSize;
+    if (stack.length === 0) {
+      this.undoHistory.delete(resolvedPath);
     }
-    return removed !== undefined;
+    return true;
   }
 
   private async readOptionalFile(absPath: string): Promise<string | null> {
