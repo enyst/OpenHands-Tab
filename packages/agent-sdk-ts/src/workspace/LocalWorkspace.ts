@@ -302,54 +302,54 @@ export class LocalWorkspace {
       throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
     }
 
-    const canonicalDir = await fs.promises.realpath(requestedDir);
-    if (containingRoot) {
-      const rel = path.relative(containingRoot, canonicalDir);
-      if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
-        throw new Error(`Path escapes workspace root: ${absPath}`);
-      }
-    }
+	    const canonicalDir = await fs.promises.realpath(requestedDir);
+	    if (containingRoot) {
+	      const rel = path.relative(containingRoot, canonicalDir);
+	      if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
+	        throw new Error(`Path escapes workspace root: ${absPath}`);
+	      }
+	    }
 
-    const safeTargetPath = path.join(canonicalDir, path.basename(absPath));
-    if (noFollow) {
-      // `O_NOFOLLOW` only protects the final path component; re-validate the parent directory
-      // immediately before opening so a late parent symlink swap can't redirect the write.
-      let parentStatBeforeOpen: fs.Stats;
-      try {
-        parentStatBeforeOpen = await fs.promises.lstat(canonicalDir);
-      } catch {
-        throw new Error(`writeFile failed: parent directory does not exist: ${requestedDir}`);
-      }
-      if (parentStatBeforeOpen.isSymbolicLink()) {
-        throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
-      }
-      if (!parentStatBeforeOpen.isDirectory()) {
-        throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
-      }
-      const canonicalDirBeforeOpen = await fs.promises.realpath(canonicalDir);
-      if (canonicalDirBeforeOpen !== canonicalDir) {
-        throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
-      }
-      if (containingRoot) {
-        const relBeforeOpen = path.relative(containingRoot, canonicalDirBeforeOpen);
-        if (relBeforeOpen.startsWith(`..${path.sep}`) || relBeforeOpen === '..' || path.isAbsolute(relBeforeOpen)) {
-          throw new Error(`Path escapes workspace root: ${absPath}`);
-        }
-      }
+	    const base = path.basename(absPath);
+	    if (noFollow) {
+	      // `O_NOFOLLOW` only protects the final path component; re-validate the parent directory
+	      // immediately before opening so a late parent symlink swap can't redirect the write.
+	      let parentStatBeforeOpen: fs.Stats;
+	      try {
+	        parentStatBeforeOpen = await fs.promises.lstat(requestedDir);
+	      } catch {
+	        throw new Error(`writeFile failed: parent directory does not exist: ${requestedDir}`);
+	      }
+	      if (parentStatBeforeOpen.isSymbolicLink()) {
+	        throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
+	      }
+	      if (!parentStatBeforeOpen.isDirectory()) {
+	        throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
+	      }
+	      const canonicalDirBeforeOpen = await fs.promises.realpath(requestedDir);
+	      if (containingRoot) {
+	        const relBeforeOpen = path.relative(containingRoot, canonicalDirBeforeOpen);
+	        if (relBeforeOpen.startsWith(`..${path.sep}`) || relBeforeOpen === '..' || path.isAbsolute(relBeforeOpen)) {
+	          throw new Error(`Path escapes workspace root: ${absPath}`);
+	        }
+	      }
+	      if (canonicalDirBeforeOpen !== canonicalDir) {
+	        throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
+	      }
 
-      const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
-      const handle = await fs.promises.open(safeTargetPath, flags, targetMode ?? 0o666);
-      try {
-        await handle.writeFile(content);
-      } finally {
-        await handle.close();
-      }
-      return;
-    }
+	      const safeTargetPath = path.join(canonicalDirBeforeOpen, base);
+	      const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
+	      const handle = await fs.promises.open(safeTargetPath, flags, targetMode ?? 0o666);
+	      try {
+	        await handle.writeFile(content);
+	      } finally {
+	        await handle.close();
+	      }
+	      return;
+	    }
 
-    const base = path.basename(absPath);
-    const targetPath = path.join(canonicalDir, base);
-    const tempFlags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
+	    const targetPath = path.join(canonicalDir, base);
+	    const tempFlags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
 
     for (let attempt = 0; attempt < 10; attempt++) {
       const suffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
