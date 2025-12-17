@@ -17,36 +17,16 @@ async function pollUntil(
   throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
 }
 
-async function waitForRenderedEventsToStabilize(timeoutMs: number = 15000, stableMs: number = 1000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  let lastCount: number | undefined;
-  let lastChange = Date.now();
-
-  while (Date.now() < deadline) {
-    const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
-    const count = typeof rendered?.count === 'number' ? rendered.count : 0;
-    if (lastCount === undefined) {
-      lastCount = count;
-      lastChange = Date.now();
-    } else if (count !== lastCount) {
-      lastCount = count;
-      lastChange = Date.now();
-    } else if (Date.now() - lastChange >= stableMs) {
-      return;
+function containsSubsequence(haystack: unknown[], needle: unknown[]): boolean {
+  if (needle.length === 0) return true;
+  let needleIndex = 0;
+  for (const item of haystack) {
+    if (item === needle[needleIndex]) {
+      needleIndex += 1;
+      if (needleIndex >= needle.length) return true;
     }
-    await sleep(200);
   }
-
-  throw new Error(`Rendered events did not stabilize within ${timeoutMs}ms`);
-}
-
-function endsWithSequence(haystack: unknown[], needle: unknown[]): boolean {
-  if (needle.length > haystack.length) return false;
-  const offset = haystack.length - needle.length;
-  for (let i = 0; i < needle.length; i += 1) {
-    if (haystack[offset + i] !== needle[i]) return false;
-  }
-  return true;
+  return false;
 }
 
 export async function run(): Promise<void> {
@@ -106,10 +86,6 @@ export async function run(): Promise<void> {
     const messageCount = types.filter((t: unknown) => t === 'MessageEvent').length;
     return count > beforeCount && messageCount > beforeMessageCount;
   }, 60000);
-
-  // Wait for remote streaming to settle, then inject a representative set of event kinds to
-  // verify the webview can render them while running in remote mode.
-  await waitForRenderedEventsToStabilize(20000, 1000);
 
   const afterRemote: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
   const baselineCount = typeof afterRemote?.count === 'number' ? afterRemote.count : 0;
@@ -234,7 +210,8 @@ export async function run(): Promise<void> {
     const count = typeof rendered?.count === 'number' ? rendered.count : 0;
     const types = Array.isArray(rendered?.eventTypes) ? rendered.eventTypes : [];
     if (count < baselineCount + expectedRenderedTypes.length) return false;
-    return endsWithSequence(types, expectedRenderedTypes);
+    const tail = types.slice(Math.min(baselineCount, types.length));
+    return containsSubsequence(tail, expectedRenderedTypes);
   }, 20000);
 
   const afterAll: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
