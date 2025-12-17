@@ -259,6 +259,44 @@ export class LocalWorkspace {
     }
   }
 
+  private async revalidateWriteFileParentDir(
+    requestedDir: string,
+    absPath: string,
+    expectedCanonicalDir: string,
+    containingRoot: string | undefined,
+    options: { requireDirectory: boolean; throwIfMissing: boolean },
+  ): Promise<string> {
+    let parentStat: fs.Stats;
+    try {
+      parentStat = await fs.promises.lstat(requestedDir);
+    } catch (error) {
+      if (options.throwIfMissing) {
+        throw new Error(`writeFile failed: parent directory does not exist: ${requestedDir}`);
+      }
+      throw error;
+    }
+
+    if (parentStat.isSymbolicLink()) {
+      throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
+    }
+    if (options.requireDirectory && !parentStat.isDirectory()) {
+      throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
+    }
+
+    const canonicalDir = await fs.promises.realpath(requestedDir);
+    if (containingRoot) {
+      const rel = path.relative(containingRoot, canonicalDir);
+      if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
+        throw new Error(`Path escapes workspace root: ${absPath}`);
+      }
+    }
+    if (canonicalDir !== expectedCanonicalDir) {
+      throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
+    }
+
+    return canonicalDir;
+  }
+
   private async writeFileSafely(absPath: string, content: string | Buffer, containingRoot?: string): Promise<void> {
     const constants = fs.constants as Record<string, number>;
     const noFollow =
@@ -314,28 +352,13 @@ export class LocalWorkspace {
     if (noFollow) {
       // `O_NOFOLLOW` only protects the final path component; re-validate the parent directory
       // immediately before opening so a late parent symlink swap can't redirect the write.
-      let parentStatBeforeOpen: fs.Stats;
-      try {
-        parentStatBeforeOpen = await fs.promises.lstat(requestedDir);
-      } catch {
-        throw new Error(`writeFile failed: parent directory does not exist: ${requestedDir}`);
-      }
-      if (parentStatBeforeOpen.isSymbolicLink()) {
-        throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
-      }
-      if (!parentStatBeforeOpen.isDirectory()) {
-        throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
-      }
-      const canonicalDirBeforeOpen = await fs.promises.realpath(requestedDir);
-      if (containingRoot) {
-        const relBeforeOpen = path.relative(containingRoot, canonicalDirBeforeOpen);
-        if (relBeforeOpen.startsWith(`..${path.sep}`) || relBeforeOpen === '..' || path.isAbsolute(relBeforeOpen)) {
-          throw new Error(`Path escapes workspace root: ${absPath}`);
-        }
-      }
-      if (canonicalDirBeforeOpen !== canonicalDir) {
-        throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
-      }
+      const canonicalDirBeforeOpen = await this.revalidateWriteFileParentDir(
+        requestedDir,
+        absPath,
+        canonicalDir,
+        containingRoot,
+        { requireDirectory: true, throwIfMissing: true },
+      );
 
       const safeTargetPath = path.join(canonicalDirBeforeOpen, base);
       const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
@@ -363,25 +386,10 @@ export class LocalWorkspace {
         handle = undefined;
 
         // Re-check parent just before renaming to avoid late symlink swaps.
-        const parentStatBeforeRename = await fs.promises.lstat(requestedDir);
-        if (parentStatBeforeRename.isSymbolicLink()) {
-          throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
-        }
-
-        const canonicalDirBeforeRename = await fs.promises.realpath(requestedDir);
-        if (containingRoot) {
-          const relBeforeRename = path.relative(containingRoot, canonicalDirBeforeRename);
-          if (
-            relBeforeRename.startsWith(`..${path.sep}`)
-            || relBeforeRename === '..'
-            || path.isAbsolute(relBeforeRename)
-          ) {
-            throw new Error(`Path escapes workspace root: ${absPath}`);
-          }
-        }
-        if (canonicalDirBeforeRename !== canonicalDir) {
-          throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
-        }
+        await this.revalidateWriteFileParentDir(requestedDir, absPath, canonicalDir, containingRoot, {
+          requireDirectory: false,
+          throwIfMissing: false,
+        });
 
         await fs.promises.rename(tempPath, targetPath);
         return;
