@@ -24,8 +24,8 @@ export interface TerminalResult {
   previous?: {
     command: string;
     exit_code: number | null;
-    // Back-compat for older consumers (e.g. BashEvent adapters).
-    exitCode: number | null;
+    // Back-compat casing for nested consumers (e.g. BashEvent adapters).
+    exitCode?: number | null;
     stdout: string;
     stderr: string;
   };
