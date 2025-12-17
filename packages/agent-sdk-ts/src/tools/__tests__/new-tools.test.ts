@@ -155,34 +155,34 @@ describe('GrepTool', () => {
       await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(/old_str is not unique/);
     });
 
-    it('views PLAN.md with line numbers and truncation', async () => {
-      const { workspace, dir } = await makeWorkspace();
-      created.push(dir);
-      const tool = new PlanningFileEditorTool();
+	    it('views PLAN.md with line numbers and truncation', async () => {
+	      const { workspace, dir } = await makeWorkspace();
+	      created.push(dir);
+	      const tool = new PlanningFileEditorTool();
 
-    const longContent = Array.from({ length: 2000 }, (_, i) => `plan-line-${i + 1}`).join('\n');
-    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: longContent });
-    await tool.execute(createArgs, { workspace });
+	      const longContent = Array.from({ length: 2000 }, (_, i) => `plan-line-${i + 1}`).join('\n');
+	      const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: longContent });
+	      await tool.execute(createArgs, { workspace });
 
-      const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
-      const view = await tool.execute(viewArgs, { workspace });
+	      const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
+	      const view = await tool.execute(viewArgs, { workspace });
 
-      expect(view.command).toBe('view');
-      expect(view.new_content).toBeDefined();
-      const viewed = view.new_content ?? '';
+	      expect(view.command).toBe('view');
+	      expect(view.new_content).toBeDefined();
+	      const viewed = view.new_content ?? '';
 
-    // Starts with cat -n style numbering
-    expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
+	      // Starts with cat -n style numbering
+	      expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
 
-    // Truncation marker present for long content
-    expect(viewed).toContain('<response clipped>');
+	      // Truncation marker present for long content
+	      expect(viewed).toContain('<response clipped>');
 
-    const parts = viewed.split('\n<response clipped>\n');
-    expect(parts.length).toBe(2);
-    const [head, tail] = parts;
-    expect(head.length).toBeLessThanOrEqual(500 + 20);
-    expect(tail.length).toBeLessThanOrEqual(500 + 20);
-  });
+	      const parts = viewed.split('\n<response clipped>\n');
+	      expect(parts.length).toBe(2);
+	      const [head, tail] = parts;
+	      expect(head.length).toBeLessThanOrEqual(500 + 20);
+	      expect(tail.length).toBeLessThanOrEqual(500 + 20);
+	    });
 
   it('rejects create when file already exists', async () => {
     const { workspace, dir } = await makeWorkspace();
