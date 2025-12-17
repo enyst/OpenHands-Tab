@@ -30,11 +30,13 @@ const globArgsSchema = z.object({
   include_hidden: z
     .boolean()
     .optional()
-    .describe('Include hidden files and directories (dotfiles). Defaults to true. Set to false for faster searches.'),
+    .default(false)
+    .describe('Include hidden files and directories (dotfiles). Defaults to false. Set to true to include them.'),
   include_node_modules: z
     .boolean()
     .optional()
-    .describe('Include node_modules directories. Defaults to true. Set to false for faster searches.'),
+    .default(false)
+    .describe('Include node_modules directories. Defaults to false. Set to true to include them.'),
 });
 
 const TOOL_DESCRIPTION = `Fast file pattern matching tool.
@@ -133,8 +135,8 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
     const { walkRoot, matcherPattern, maxDepth } = planGlobWalk(searchRoot, pattern);
     const matcher = createGlobMatcher(matcherPattern);
 
-    const includeHidden = args.include_hidden !== false;
-    const includeNodeModules = args.include_node_modules !== false;
+    const includeHidden = args.include_hidden === true;
+    const includeNodeModules = args.include_node_modules === true;
 
     let files: string[] = [];
     try {

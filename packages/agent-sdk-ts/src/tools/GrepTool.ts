@@ -33,11 +33,13 @@ const grepArgsSchema = z.object({
   include_hidden: z
     .boolean()
     .optional()
-    .describe('Include hidden files and directories (dotfiles). Defaults to true. Set to false for faster searches.'),
+    .default(false)
+    .describe('Include hidden files and directories (dotfiles). Defaults to false. Set to true to include them.'),
   include_node_modules: z
     .boolean()
     .optional()
-    .describe('Include node_modules directories. Defaults to true. Set to false for faster searches.'),
+    .default(false)
+    .describe('Include node_modules directories. Defaults to false. Set to true to include them.'),
 });
 
 const TOOL_DESCRIPTION = `Fast content search tool.
@@ -63,8 +65,8 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid search path: ${detail}`);
     }
-    const includeHidden = args.include_hidden !== false;
-    const includeNodeModules = args.include_node_modules !== false;
+    const includeHidden = args.include_hidden === true;
+    const includeNodeModules = args.include_node_modules === true;
 
     const includePlan = args.include ? planGlobWalk(searchRoot, normalizeGlobPattern(args.include)) : null;
     const walkRoot = includePlan?.walkRoot ?? searchRoot;
@@ -80,7 +82,7 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
     const matches: { file: string; mtime: number }[] = [];
     let contentRegex: RegExp;
     try {
-      contentRegex = new RegExp(args.pattern, 'm');
+      contentRegex = new RegExp(args.pattern, 'im');
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new Error(`Invalid regex pattern: ${detail}`);

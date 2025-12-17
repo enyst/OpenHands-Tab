@@ -10,8 +10,8 @@ export type SearchWalkOptions = {
 };
 
 export const shouldSkipSearchEntry = (name: string, options: SearchWalkOptions = {}): boolean => {
-  if (options.includeHidden === false && name.startsWith('.')) return true;
-  if (options.includeNodeModules === false && name === 'node_modules') return true;
+  if (options.includeHidden !== true && name.startsWith('.')) return true;
+  if (options.includeNodeModules !== true && name === 'node_modules') return true;
   return false;
 };
 
