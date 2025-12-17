@@ -142,22 +142,22 @@ describe('LocalConversation persistence', () => {
   });
 
   it('restores pending confirmations so approveAction works after restore', async () => {
-	    const dir = makeTempDir('local-confirmation-');
-	    const workspaceRoot = makeTempDir('local-workspace-');
-	    const settings: OpenHandsSettings = { ...baseSettings, confirmation: { policy: 'always' } };
-	    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
-	      name: 'echo',
-	      validate: (input: unknown) => {
-	        if (input && typeof input === 'object' && 'value' in input) {
-	          const value = (input as { value?: unknown }).value;
-	          if (typeof value === 'string') {
-	            return { value };
-	          }
-	        }
-	        throw new Error('Invalid input for echo tool');
-	      },
-	      execute: async (args) => ({ echoed: args.value }),
-	    };
+    const dir = makeTempDir('local-confirmation-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const settings: OpenHandsSettings = { ...baseSettings, confirmation: { policy: 'always' } };
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input: unknown) => {
+        if (input && typeof input === 'object' && 'value' in input) {
+          const value = (input as { value?: unknown }).value;
+          if (typeof value === 'string') {
+            return { value };
+          }
+        }
+        throw new Error('Invalid input for echo tool');
+      },
+      execute: async (args) => ({ echoed: args.value }),
+    };
     const llm = new MockLLM([
       { type: 'text', text: 'Using tool' },
       { type: 'tool_call_delta', id: 'call_1', name: 'echo', arguments: '{"value":"hi"}' },
