@@ -1,208 +1,64 @@
 import fs from 'fs/promises';
-import path from 'path';
-import { z } from 'zod';
 import type { ToolContext } from './types';
-import { ZodTool } from './zod-tool';
+import { FileEditorTool, type FileEditorResult } from './FileEditorTool';
 
-export type PlanningCommand = 'view' | 'create' | 'str_replace' | 'insert';
+export type PlanningCommand = FileEditorResult['command'];
+export type PlanningFileEditorResult = FileEditorResult;
 
-export interface PlanningFileEditorResult {
-  command: PlanningCommand;
-  path: string;
-  content?: string;
-  message?: string;
-}
+const FILE_EDITOR_TOOL_DESCRIPTION = new FileEditorTool().description;
 
-const planningSchema = z
-  .object({
-    command: z
-      .enum(['view', 'create', 'str_replace', 'insert'])
-      .describe('Allowed options: `view`, `create`, `str_replace`, `insert`.'),
-    path: z.string().describe('Absolute path to file or directory.'),
-    file_text: z
-      .string()
-      .optional()
-      .describe('Required for `create` command, with the content of the file to be created.'),
-    old_str: z
-      .string()
-      .optional()
-      .describe('Required for `str_replace` command containing the string in `path` to replace.'),
-    new_str: z
-      .string()
-      .optional()
-      .describe(
-        'Optional for `str_replace` (new text to use). Required for `insert` containing the string to insert.',
-      ),
-    insert_line: z
-      .number()
-      .int()
-      .min(0)
-      .optional()
-      .describe('Required for `insert`. The `new_str` will be inserted AFTER the line `insert_line` of `path`.'),
-    view_range: z
-      .array(z.number().int())
-      .length(2)
-      .optional()
-      .describe(
-        'Optional for `view` when `path` points to a file. If provided, the file will be shown in the indicated line number range.',
-      ),
-  })
-  .superRefine((value, ctx) => {
-    if (value.command === 'create' && value.file_text === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'file_text is required for create', path: ['file_text'] });
-    }
-    if (value.command === 'str_replace' && value.old_str === undefined) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'old_str is required for str_replace', path: ['old_str'] });
-    }
-    if (value.command === 'insert') {
-      if (value.new_str === undefined) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'new_str is required for insert', path: ['new_str'] });
-      }
-      if (value.insert_line === undefined) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'insert_line is required for insert', path: ['insert_line'] });
-      }
-    }
-  });
+const PLAN_BASENAME = 'PLAN.md';
 
-const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing files in plain-text format
-* State is persistent across command calls and discussions with the user
-* If "path" is a text file, "view" displays the result of applying cat -n. If "path" is a directory, "view" lists non-hidden files and directories up to 2 levels deep
-* The "create" command cannot be used if the specified "path" already exists as a file
-* If a "command" generates a long output, it will be truncated and marked with <response clipped>
-* This tool can be used for creating and editing files in plain-text format.
+const PLAN_HEADERS = [
+  '# 1. OBJECTIVE\n',
+  '# 2. CONTEXT SUMMARY\n',
+  '# 3. APPROACH OVERVIEW\n',
+  '# 4. IMPLEMENTATION STEPS\n',
+  '# 5. TESTING AND VALIDATION\n',
+].join('\n');
 
-
-Before using this tool:
-1. Use the view tool to understand the file's contents and context
-2. Verify the directory path is correct (only applicable when creating new files):
-   - Use the view tool to verify the parent directory exists and is the correct location
-
-When making edits:
-   - Ensure the edit results in idiomatic, correct code
-   - Do not leave the code in a broken state
-   - Always use absolute file paths (starting with /)
-
-CRITICAL REQUIREMENTS FOR USING THIS TOOL:
-
-1. EXACT MATCHING: The "old_str" parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if "old_str" matches multiple locations or doesn't match exactly with the file content.
-
-2. UNIQUENESS: The "old_str" must uniquely identify a single instance in the file:
-   - Include sufficient context before and after the change point (3-5 lines recommended)
-   - If not unique, the replacement will not be performed
-
-3. REPLACEMENT: The "new_str" parameter should contain the edited lines that replace the "old_str". Both strings must be different.
-
-Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
+const TOOL_DESCRIPTION = `${FILE_EDITOR_TOOL_DESCRIPTION}
 
 IMPORTANT RESTRICTION FOR PLANNING AGENT:
 * You can VIEW any file in the workspace using the 'view' command
 * You can ONLY EDIT the PLAN.md file (all other edit operations will be rejected)
-* PLAN.md is automatically initialized with section headers at the workspace root
-* All editing commands (create, str_replace, insert) are restricted to PLAN.md only
-* The PLAN.md file already contains the required section structure - you just need to fill in the content`;
+* If PLAN.md does not exist, it may be initialized with standard section headers
+* All editing commands (create, str_replace, insert, undo_edit) are restricted to PLAN.md only
+* The PLAN.md file should follow the required section structure - fill in the content`;
 
-const PLAN_BASENAME = 'PLAN.md';
-
-const applyViewRange = (content: string, viewRange?: number[]): string => {
-  if (!viewRange || viewRange.length !== 2) return content;
-  const [start, end] = viewRange;
-  const lines = content.split(/\r?\n/);
-  const slice = lines.slice(start - 1, end === -1 ? undefined : end);
-  return slice.join('\n');
-};
-
-const addLineNumbers = (content: string): string => {
-  const lines = content.split(/\r?\n/);
-  return lines.map((line, idx) => `${idx + 1}\t${line}`).join('\n');
-};
-
-const truncateContent = (content: string, limit = 500): string => {
-  if (content.length <= limit * 2) return content;
-  const head = content.slice(0, limit);
-  const tail = content.slice(-limit);
-  return `${head}\n<response clipped>\n${tail}`;
-};
-
-export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchema>, PlanningFileEditorResult> {
+export class PlanningFileEditorTool extends FileEditorTool {
   readonly name = 'planning_file_editor';
   readonly description = TOOL_DESCRIPTION;
-  readonly schema = planningSchema;
 
-  private ensurePlanTarget(command: PlanningCommand, resolvedPath: string) {
+  private ensurePlanTarget(command: PlanningCommand, resolvedPath: string, planPath: string): void {
     if (command === 'view') return;
-    if (path.basename(resolvedPath) !== PLAN_BASENAME) {
+    if (resolvedPath !== planPath) {
       throw new Error('Only PLAN.md may be modified by this tool');
     }
   }
 
-  async execute(args: z.infer<typeof planningSchema>, context: ToolContext): Promise<PlanningFileEditorResult> {
+  private async ensurePlanInitialized(command: PlanningCommand, planPath: string, context: ToolContext): Promise<void> {
+    if (command === 'create') return;
+
+    try {
+      await fs.stat(planPath);
+      return;
+    } catch (error) {
+      if (typeof error !== 'object' || !error || !('code' in error) || (error as { code?: unknown }).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    await context.workspace.writeFile(planPath, PLAN_HEADERS);
+  }
+
+  async execute(args: Parameters<FileEditorTool['execute']>[0], context: ToolContext): Promise<PlanningFileEditorResult> {
+    const planPath = context.workspace.resolvePath(PLAN_BASENAME);
     const resolved = context.workspace.resolvePath(args.path);
-    this.ensurePlanTarget(args.command, resolved);
-
-    if (args.command === 'view') {
-      try {
-        const stats = await fs.stat(resolved);
-        if (stats.isDirectory()) {
-          const entries = await context.workspace.list(resolved);
-          const listing = entries.map((entry) => `${entry.isDirectory ? 'd' : 'f'} ${entry.path}`).join('\n');
-          return { command: 'view', path: resolved, content: listing };
-        }
-        const content = await fs.readFile(resolved, 'utf8');
-        const ranged = applyViewRange(content, args.view_range);
-        const numbered = addLineNumbers(ranged);
-        const truncated = truncateContent(numbered);
-        return { command: 'view', path: resolved, content: truncated };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return { command: 'view', path: resolved, message };
-      }
+    this.ensurePlanTarget(args.command, resolved, planPath);
+    if (resolved === planPath) {
+      await this.ensurePlanInitialized(args.command, planPath, context);
     }
-
-    if (args.command === 'create') {
-      try {
-        const existing = await fs.stat(resolved);
-        if (existing.isFile()) {
-          throw new Error('create failed: file already exists');
-        }
-        if (existing.isDirectory()) {
-          throw new Error('create failed: path already exists and is a directory');
-        }
-      } catch (error) {
-        const code = (error as { code?: string }).code;
-        if (code !== 'ENOENT') throw error;
-      }
-      await fs.mkdir(path.dirname(resolved), { recursive: true });
-      await fs.writeFile(resolved, args.file_text ?? '', 'utf8');
-      return { command: 'create', path: resolved, content: args.file_text ?? '' };
-    }
-
-    if (args.command === 'str_replace') {
-      const current = await fs.readFile(resolved, 'utf8');
-      const oldStr = args.old_str ?? '';
-      const occurrences = current.split(oldStr).length - 1;
-      if (occurrences === 0) {
-        throw new Error('old_str not found in target file');
-      }
-      if (occurrences > 1) {
-        throw new Error('old_str is not unique and matches multiple locations in the file');
-      }
-      const updated = current.replace(oldStr, args.new_str ?? '');
-      await fs.writeFile(resolved, updated, 'utf8');
-      return { command: 'str_replace', path: resolved, content: updated };
-    }
-
-    if (args.command === 'insert') {
-      const current = await fs.readFile(resolved, 'utf8');
-      const lines = current.split(/\r?\n/);
-      const insertion = args.new_str ?? '';
-      const index = Math.min(args.insert_line ?? 0, lines.length);
-      lines.splice(index, 0, insertion);
-      const updated = lines.join('\n');
-      await fs.writeFile(resolved, updated, 'utf8');
-      return { command: 'insert', path: resolved, content: updated };
-    }
-
-    throw new Error(`Unsupported command: ${String(args.command)}`);
+    return super.execute(args, context);
   }
 }
-
