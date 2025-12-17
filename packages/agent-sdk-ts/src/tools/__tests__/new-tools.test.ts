@@ -115,10 +115,10 @@ describe('PlanningFileEditorTool', () => {
       new_str: 'Updated',
     });
     const replaced = await tool.execute(replaceArgs, { workspace });
-    expect(replaced.content).toContain('Updated plan');
+    expect(replaced.new_content ?? '').toContain('Updated plan');
     const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
     const view = await tool.execute(viewArgs, { workspace });
-    expect(view.content).toContain('Updated plan');
+    expect(view.new_content ?? '').toContain('Updated plan');
   });
 
   it('rejects edits to non-plan files', async () => {
@@ -145,6 +145,16 @@ describe('PlanningFileEditorTool', () => {
     );
   });
 
+  it('treats overlapping str_replace matches as non-unique', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'aaaa' });
+    await tool.execute(createArgs, { workspace });
+    const replaceArgs = tool.validate({ command: 'str_replace', path: 'PLAN.md', old_str: 'aa', new_str: 'bb' });
+    await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(/old_str is not unique/);
+  });
+
   it('views PLAN.md with line numbers and truncation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -158,8 +168,8 @@ describe('PlanningFileEditorTool', () => {
     const view = await tool.execute(viewArgs, { workspace });
 
     expect(view.command).toBe('view');
-    expect(view.content).toBeDefined();
-    const viewed = view.content ?? '';
+    expect(view.new_content).toBeDefined();
+    const viewed = view.new_content ?? '';
 
     // Starts with cat -n style numbering
     expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
@@ -209,4 +219,3 @@ describe('ZodTool parameter conversion', () => {
     });
   });
 });
-
