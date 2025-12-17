@@ -486,9 +486,8 @@ export class LocalWorkspace {
       }
     }
 
-    const canonicalParentDir = await this.getStableCanonicalDirectory(parentDir, root ?? undefined, targetPath, 'readFile', 'parent directory');
-    await this.assertCanonicalDirectoryStillValid(
-      canonicalParentDir,
+    const canonicalParentDir = await this.getStableCanonicalDirectory(
+      parentDir,
       root ?? undefined,
       targetPath,
       'readFile',
@@ -505,6 +504,13 @@ export class LocalWorkspace {
           : 0;
     if (noFollow) {
       const flags = constants.O_RDONLY | noFollow;
+      await this.assertCanonicalDirectoryStillValid(
+        canonicalParentDir,
+        root ?? undefined,
+        targetPath,
+        'readFile',
+        'parent directory',
+      );
       const handle = await fs.promises.open(safePath, flags);
       try {
         return await readFileAsync(handle, encoding);
@@ -513,6 +519,13 @@ export class LocalWorkspace {
       }
     }
 
+    await this.assertCanonicalDirectoryStillValid(
+      canonicalParentDir,
+      root ?? undefined,
+      targetPath,
+      'readFile',
+      'parent directory',
+    );
     const stat = await fs.promises.lstat(safePath);
     if (stat.isSymbolicLink()) {
       throw new Error(`readFile failed: refusing to read from symlink path: ${targetPath}`);
@@ -559,7 +572,14 @@ export class LocalWorkspace {
       }
     }
 
-    const canonicalParentDir = await this.getStableCanonicalDirectory(parentDir, root ?? undefined, targetPath, 'remove', 'parent directory');
+    const canonicalParentDir = await this.getStableCanonicalDirectory(
+      parentDir,
+      root ?? undefined,
+      targetPath,
+      'remove',
+      'parent directory',
+    );
+    const safePath = path.join(canonicalParentDir, path.basename(resolved));
     await this.assertCanonicalDirectoryStillValid(
       canonicalParentDir,
       root ?? undefined,
@@ -567,7 +587,6 @@ export class LocalWorkspace {
       'remove',
       'parent directory',
     );
-    const safePath = path.join(canonicalParentDir, path.basename(resolved));
     await rm(safePath, { force: true, recursive: true });
   }
 

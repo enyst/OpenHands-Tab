@@ -179,14 +179,21 @@ describe('LocalWorkspace', () => {
       };
 
       const originalLstat = fs.promises.lstat;
-      let lstatCalls = 0;
+      let pendingSwap = false;
+      const originalRealpath = fs.promises.realpath;
+      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+        const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
+        const resolvedPath = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
+        if (targetString === canonicalParentDir) {
+          pendingSwap = true;
+        }
+        return resolvedPath;
+      });
       const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        if (targetString === canonicalParentDir) {
-          lstatCalls += 1;
-          if (!swapped && lstatCalls === 3) {
-            await swapParent();
-          }
+        if (pendingSwap && targetString === canonicalParentDir) {
+          pendingSwap = false;
+          await swapParent();
         }
         return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
@@ -196,6 +203,7 @@ describe('LocalWorkspace', () => {
         expect(fs.existsSync(path.join(redirectDir, 'outside.txt'))).toBe(false);
       } finally {
         lstatSpy.mockRestore();
+        realpathSpy.mockRestore();
       }
     });
 
@@ -219,14 +227,21 @@ describe('LocalWorkspace', () => {
       };
 
       const originalLstat = fs.promises.lstat;
-      let lstatCalls = 0;
+      let pendingSwap = false;
+      const originalRealpath = fs.promises.realpath;
+      const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+        const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
+        const resolvedPath = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
+        if (targetString === canonicalParentDir) {
+          pendingSwap = true;
+        }
+        return resolvedPath;
+      });
       const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        if (targetString === canonicalParentDir) {
-          lstatCalls += 1;
-          if (!swapped && lstatCalls === 3) {
-            await swapParent();
-          }
+        if (pendingSwap && targetString === canonicalParentDir) {
+          pendingSwap = false;
+          await swapParent();
         }
         return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
@@ -236,6 +251,7 @@ describe('LocalWorkspace', () => {
         expect(fs.existsSync(path.join(redirectDir, 'inside.txt'))).toBe(false);
       } finally {
         lstatSpy.mockRestore();
+        realpathSpy.mockRestore();
       }
     });
 
@@ -281,14 +297,36 @@ describe('LocalWorkspace', () => {
       };
 
       const originalLstat = fs.promises.lstat;
-      let lstatCalls = 0;
+      let pendingSwap = false;
+      type StableCanonicalDirectoryFn = (
+        dirPath: string,
+        containingRoot: string | undefined,
+        targetPath: string,
+        opLabel: string,
+        directoryLabel: string
+      ) => Promise<string>;
+      const workspaceInternals = workspace as unknown as { getStableCanonicalDirectory: StableCanonicalDirectoryFn };
+      const originalGetStableCanonicalDirectory = workspaceInternals.getStableCanonicalDirectory.bind(workspaceInternals);
+      const stableSpy = vi
+        .spyOn(workspaceInternals, 'getStableCanonicalDirectory')
+        .mockImplementation(async (dirPath, containingRoot, pathArg, opLabel, directoryLabel) => {
+          const result = await originalGetStableCanonicalDirectory(
+            dirPath,
+            containingRoot,
+            pathArg,
+            opLabel,
+            directoryLabel,
+          );
+          if (dirPath === canonicalParentDir) {
+            pendingSwap = true;
+          }
+          return result;
+        });
       const lstatSpy = vi.spyOn(fs.promises, 'lstat').mockImplementation(async (targetPath, ...args) => {
         const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
-        if (targetString === canonicalParentDir) {
-          lstatCalls += 1;
-          if (!swapped && lstatCalls === 3) {
-            await swapParent();
-          }
+        if (pendingSwap && targetString === canonicalParentDir) {
+          pendingSwap = false;
+          await swapParent();
         }
         return originalLstat.call(fs.promises, targetPath as never, ...(args as never[]));
       });
@@ -315,6 +353,7 @@ describe('LocalWorkspace', () => {
         }
       } finally {
         lstatSpy.mockRestore();
+        stableSpy.mockRestore();
       }
     });
 
