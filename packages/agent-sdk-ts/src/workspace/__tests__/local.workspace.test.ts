@@ -277,6 +277,83 @@ describe('LocalWorkspace', () => {
         lstatSpy.mockRestore();
       }
     });
+
+    it('rejects reads when the parent becomes a symlink mid-read', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace } = await makeWorkspace((value) => created.push(value));
+      await workspace.ensureDirectory('parent');
+      await workspace.writeFile('parent/inside.txt', 'hello');
+
+      const canonicalFilePath = workspace.resolvePath('parent/inside.txt');
+      const canonicalParentDir = path.dirname(canonicalFilePath);
+
+      const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-redirect-read-'));
+      created.push(redirectDir);
+      await fs.promises.writeFile(path.join(redirectDir, 'inside.txt'), 'outside', 'utf8');
+
+      let swapped = false;
+      const swapParent = async () => {
+        if (swapped) return;
+        swapped = true;
+        const backupDir = `${canonicalParentDir}-bak`;
+        await fs.promises.rename(canonicalParentDir, backupDir);
+        await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
+      };
+
+      const originalOpen = fs.promises.open;
+      const openSpy = vi.spyOn(fs.promises, 'open').mockImplementation(async (target, ...args) => {
+        const targetString = target instanceof Buffer ? target.toString() : String(target);
+        if (!swapped && targetString === canonicalFilePath) {
+          await swapParent();
+        }
+        return originalOpen.call(fs.promises, target as never, ...(args as never[]));
+      });
+
+      try {
+        await expect(workspace.readFile('parent/inside.txt')).rejects.toThrowError(/symlink|escapes|Path escapes/i);
+      } finally {
+        openSpy.mockRestore();
+      }
+    });
+
+    it('rejects directory listings when the directory becomes a symlink mid-list', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace } = await makeWorkspace((value) => created.push(value));
+      await workspace.ensureDirectory('parent');
+      await workspace.writeFile('parent/inside.txt', 'hello');
+
+      const canonicalParentDir = workspace.resolvePath('parent');
+
+      const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-redirect-list-'));
+      created.push(redirectDir);
+      await fs.promises.writeFile(path.join(redirectDir, 'inside.txt'), 'outside', 'utf8');
+
+      let swapped = false;
+      const swapParent = async () => {
+        if (swapped) return;
+        swapped = true;
+        const backupDir = `${canonicalParentDir}-bak`;
+        await fs.promises.rename(canonicalParentDir, backupDir);
+        await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
+      };
+
+      const originalOpendir = fs.promises.opendir;
+      const opendirSpy = vi.spyOn(fs.promises, 'opendir').mockImplementation(async (target, ...args) => {
+        const targetString = target instanceof Buffer ? target.toString() : String(target);
+        if (!swapped && targetString === canonicalParentDir) {
+          await swapParent();
+        }
+        return originalOpendir.call(fs.promises, target as never, ...(args as never[]));
+      });
+
+      try {
+        await expect(workspace.list('parent')).rejects.toThrowError(/symlink|escapes|Path escapes/i);
+      } finally {
+        opendirSpy.mockRestore();
+      }
+    });
   });
 
   describe('commands', () => {

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import type { SpawnOptions } from 'child_process';
 import * as fs from 'fs';
-import { readFile as readFileAsync, mkdir, rm, readdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'path';
 import os from 'os';
 
@@ -164,6 +164,38 @@ export class LocalWorkspace {
       }
     }
     return best;
+  }
+
+  private static isContainedInRoot(root: string, candidate: string): boolean {
+    const relative = path.relative(root, candidate);
+    return (
+      relative === ''
+      || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+    );
+  }
+
+  private async resolveOpenedPath(fd: number, fallbackPath: string): Promise<string | null> {
+    if (os.platform() !== 'win32') {
+      const candidates = [`/proc/self/fd/${fd}`, `/dev/fd/${fd}`];
+      for (const candidate of candidates) {
+        try {
+          const resolved = await fs.promises.realpath(candidate);
+          // macOS `realpath(/dev/fd/<n>)` can return a synthetic `/dev/fd/<name>` path
+          // that does not reflect the underlying file location; fall back to resolving
+          // the original path in that case.
+          if (resolved.startsWith('/dev/fd/')) continue;
+          return resolved;
+        } catch {
+          // Ignore.
+        }
+      }
+    }
+
+    try {
+      return await fs.promises.realpath(fallbackPath);
+    } catch {
+      return null;
+    }
   }
 
   private async ensureSafeDirectory(root: string, dirPath: string): Promise<void> {
@@ -418,7 +450,25 @@ export class LocalWorkspace {
 
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    return readFileAsync(resolved, encoding);
+    const root = this.getContainingDirRoot(resolved);
+
+    const constants = fs.constants as Record<string, number>;
+    const noFollow =
+      os.platform() === 'win32'
+        ? 0
+        : typeof constants.O_NOFOLLOW === 'number'
+          ? constants.O_NOFOLLOW
+          : 0;
+    const handle = await fs.promises.open(resolved, constants.O_RDONLY | noFollow);
+    try {
+      const openedPath = await this.resolveOpenedPath(handle.fd, resolved);
+      if (root && openedPath && !LocalWorkspace.isContainedInRoot(root, openedPath)) {
+        throw new Error(`Path escapes workspace root: ${targetPath}`);
+      }
+      return await handle.readFile({ encoding });
+    } finally {
+      await handle.close();
+    }
   }
 
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
@@ -451,17 +501,49 @@ export class LocalWorkspace {
 
   async remove(targetPath: string): Promise<void> {
     const resolved = this.resolvePath(targetPath);
+    try {
+      await fs.promises.lstat(resolved);
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+
+    const root = this.getContainingDirRoot(resolved);
+    if (root) {
+      const parentDir = path.dirname(resolved);
+      const canonicalParentDir = await fs.promises.realpath(parentDir);
+      if (!LocalWorkspace.isContainedInRoot(root, canonicalParentDir)) {
+        throw new Error(`Path escapes workspace root: ${targetPath}`);
+      }
+    }
+
     await rm(resolved, { force: true, recursive: true });
   }
 
   async list(targetPath = '.'): Promise<DirectoryEntry[]> {
     const resolved = this.resolvePath(targetPath);
-    const entries = await readdir(resolved, { withFileTypes: true });
-    return entries.map((entry) => ({
-      name: entry.name,
-      path: path.join(targetPath, entry.name),
-      isDirectory: entry.isDirectory(),
-    }));
+    const root = this.getContainingDirRoot(resolved);
+    const dir = await fs.promises.opendir(resolved);
+    try {
+      const openedPath = await this.resolveOpenedPath((dir as unknown as { fd?: number }).fd ?? -1, resolved);
+      if (root && openedPath && !LocalWorkspace.isContainedInRoot(root, openedPath)) {
+        throw new Error(`Path escapes workspace root: ${targetPath}`);
+      }
+
+      const entries: DirectoryEntry[] = [];
+      for await (const entry of dir) {
+        entries.push({
+          name: entry.name,
+          path: path.join(targetPath, entry.name),
+          isDirectory: entry.isDirectory(),
+        });
+      }
+      return entries;
+    } finally {
+      await dir.close();
+    }
   }
 
   async ensureDirectory(targetPath: string): Promise<string> {
