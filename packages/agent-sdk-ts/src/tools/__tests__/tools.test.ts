@@ -377,6 +377,52 @@ startxref
       .rejects.toThrowError(/no edit history/i);
   });
 
+  it('caps undo_edit history across paths', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const maxPaths = 100;
+    for (let i = 0; i < maxPaths + 1; i++) {
+      await tool.execute(tool.validate({ command: 'create', path: `file-${i}.txt`, file_text: String(i) }), { workspace });
+    }
+
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'file-0.txt' }), { workspace }))
+      .rejects.toThrowError(/no edit history/i);
+
+    await tool.execute(tool.validate({ command: 'undo_edit', path: `file-${maxPaths}.txt` }), { workspace });
+    await expect(workspace.readFile(`file-${maxPaths}.txt`)).rejects.toThrowError();
+  });
+
+  it('prunes undo_edit history by byte cap without losing the latest edit', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const baseSizeBytes = 6 * 1024 * 1024;
+    const marker0 = 'MARK0';
+    const padding = 'A'.repeat(baseSizeBytes - marker0.length);
+    await tool.execute(tool.validate({ command: 'create', path: 'big.txt', file_text: `${padding}${marker0}` }), { workspace });
+
+    for (let i = 0; i < 9; i++) {
+      await tool.execute(
+        tool.validate({ command: 'str_replace', path: 'big.txt', old_str: `MARK${i}`, new_str: `MARK${i + 1}` }),
+        { workspace },
+      );
+    }
+    expect(await workspace.readFile('big.txt')).toContain('MARK9');
+
+    for (let i = 9; i >= 2; i--) {
+      await tool.execute(tool.validate({ command: 'undo_edit', path: 'big.txt' }), { workspace });
+      expect(await workspace.readFile('big.txt')).toContain(`MARK${i - 1}`);
+    }
+
+    await tool.execute(tool.validate({ command: 'undo_edit', path: 'big.txt' }), { workspace });
+    await expect(workspace.readFile('big.txt')).rejects.toThrowError();
+    await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'big.txt' }), { workspace }))
+      .rejects.toThrowError(/no edit history/i);
+  });
+
   it('requires old_str to be unique for str_replace', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
