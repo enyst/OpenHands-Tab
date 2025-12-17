@@ -69,7 +69,11 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 
 function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
   if (typeof value === 'string') return truncateString(value);
-  if (Array.isArray(value)) return value.map((v) => deepTruncate(v, seen));
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
+    seen.add(value);
+    return value.map((v) => deepTruncate(v, seen));
+  }
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>);
     if (!entries.length) return value;
@@ -287,6 +291,8 @@ export class Agent extends EventEmitter {
       return this.maskSecretsInText(value);
     }
     if (Array.isArray(value)) {
+      if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
+      seen.add(value);
       return value.map((item) => this.maskSecretsInUnknown(item, seen));
     }
     if (value && typeof value === 'object') {
