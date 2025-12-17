@@ -100,89 +100,89 @@ describe('GrepTool', () => {
   });
 });
 
-  describe('PlanningFileEditorTool', () => {
-    it('enforces PLAN.md edits and performs create/replace', async () => {
-      const { workspace, dir } = await makeWorkspace();
-      created.push(dir);
-      const tool = new PlanningFileEditorTool();
-      expect(() => tool.validate({ command: 'create', path: 'PLAN.md' })).toThrow();
-      const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'Initial plan' });
-      await tool.execute(createArgs, { workspace });
-      const replaceArgs = tool.validate({
-        command: 'str_replace',
-        path: 'PLAN.md',
-        old_str: 'Initial',
-        new_str: 'Updated',
-      });
-      const replaced = await tool.execute(replaceArgs, { workspace });
-      expect(replaced.new_content ?? '').toContain('Updated plan');
-      const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
-      const view = await tool.execute(viewArgs, { workspace });
-      expect(view.new_content ?? '').toContain('Updated plan');
+describe('PlanningFileEditorTool', () => {
+  it('enforces PLAN.md edits and performs create/replace', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+    expect(() => tool.validate({ command: 'create', path: 'PLAN.md' })).toThrow();
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'Initial plan' });
+    await tool.execute(createArgs, { workspace });
+    const replaceArgs = tool.validate({
+      command: 'str_replace',
+      path: 'PLAN.md',
+      old_str: 'Initial',
+      new_str: 'Updated',
     });
+    const replaced = await tool.execute(replaceArgs, { workspace });
+    expect(replaced.new_content ?? '').toContain('Updated plan');
+    const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
+    const view = await tool.execute(viewArgs, { workspace });
+    expect(view.new_content ?? '').toContain('Updated plan');
+  });
 
-    it('rejects edits to non-plan files', async () => {
-      const tool = new PlanningFileEditorTool();
-      const args = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'ok' });
+  it('rejects edits to non-plan files', async () => {
+    const tool = new PlanningFileEditorTool();
+    const args = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'ok' });
     const workspace = new LocalWorkspace(process.cwd());
     await expect(tool.execute({ ...args, path: 'README.md' }, { workspace })).rejects.toThrow();
   });
 
-    it('throws when str_replace target is not unique', async () => {
-      const { workspace, dir } = await makeWorkspace();
-      created.push(dir);
-      const tool = new PlanningFileEditorTool();
-      const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'repeat repeat' });
-      await tool.execute(createArgs, { workspace });
-      const replaceArgs = tool.validate({
-        command: 'str_replace',
-        path: 'PLAN.md',
-        old_str: 'repeat',
-        new_str: 'swap',
-      });
-      await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(
-        /old_str is not unique and matches multiple locations/,
-      );
+  it('throws when str_replace target is not unique', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'repeat repeat' });
+    await tool.execute(createArgs, { workspace });
+    const replaceArgs = tool.validate({
+      command: 'str_replace',
+      path: 'PLAN.md',
+      old_str: 'repeat',
+      new_str: 'swap',
     });
+    await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(
+      /old_str is not unique and matches multiple locations/,
+    );
+  });
 
-    it('treats overlapping str_replace matches as non-unique', async () => {
-      const { workspace, dir } = await makeWorkspace();
-      created.push(dir);
-      const tool = new PlanningFileEditorTool();
-      const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'aaaa' });
-      await tool.execute(createArgs, { workspace });
-      const replaceArgs = tool.validate({ command: 'str_replace', path: 'PLAN.md', old_str: 'aa', new_str: 'bb' });
-      await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(/old_str is not unique/);
-    });
+  it('treats overlapping str_replace matches as non-unique', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: 'aaaa' });
+    await tool.execute(createArgs, { workspace });
+    const replaceArgs = tool.validate({ command: 'str_replace', path: 'PLAN.md', old_str: 'aa', new_str: 'bb' });
+    await expect(tool.execute(replaceArgs, { workspace })).rejects.toThrow(/old_str is not unique/);
+  });
 
-	    it('views PLAN.md with line numbers and truncation', async () => {
-	      const { workspace, dir } = await makeWorkspace();
-	      created.push(dir);
-	      const tool = new PlanningFileEditorTool();
+  it('views PLAN.md with line numbers and truncation', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new PlanningFileEditorTool();
 
-	      const longContent = Array.from({ length: 2000 }, (_, i) => `plan-line-${i + 1}`).join('\n');
-	      const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: longContent });
-	      await tool.execute(createArgs, { workspace });
+    const longContent = Array.from({ length: 2000 }, (_, i) => `plan-line-${i + 1}`).join('\n');
+    const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: longContent });
+    await tool.execute(createArgs, { workspace });
 
-	      const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
-	      const view = await tool.execute(viewArgs, { workspace });
+    const viewArgs = tool.validate({ command: 'view', path: 'PLAN.md', view_range: [1, -1] });
+    const view = await tool.execute(viewArgs, { workspace });
 
-	      expect(view.command).toBe('view');
-	      expect(view.new_content).toBeDefined();
-	      const viewed = view.new_content ?? '';
+    expect(view.command).toBe('view');
+    expect(view.new_content).toBeDefined();
+    const viewed = view.new_content ?? '';
 
-	      // Starts with cat -n style numbering
-	      expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
+    // Starts with cat -n style numbering
+    expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
 
-	      // Truncation marker present for long content
-	      expect(viewed).toContain('<response clipped>');
+    // Truncation marker present for long content
+    expect(viewed).toContain('<response clipped>');
 
-	      const parts = viewed.split('\n<response clipped>\n');
-	      expect(parts.length).toBe(2);
-	      const [head, tail] = parts;
-	      expect(head.length).toBeLessThanOrEqual(500 + 20);
-	      expect(tail.length).toBeLessThanOrEqual(500 + 20);
-	    });
+    const parts = viewed.split('\n<response clipped>\n');
+    expect(parts.length).toBe(2);
+    const [head, tail] = parts;
+    expect(head.length).toBeLessThanOrEqual(500 + 20);
+    expect(tail.length).toBeLessThanOrEqual(500 + 20);
+  });
 
   it('rejects create when file already exists', async () => {
     const { workspace, dir } = await makeWorkspace();
