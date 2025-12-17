@@ -527,6 +527,10 @@ export class LocalWorkspace {
     const root = this.getContainingDirRoot(resolved);
     const dir = await fs.promises.opendir(resolved);
     try {
+      // NOTE: `fs.Dir` does not document an `fd` property, but Node currently exposes it.
+      // We intentionally use it as best-effort defense-in-depth to verify that the opened
+      // directory handle still resolves within the workspace root after opendir().
+      // If unavailable, `resolveOpenedPath` will fall back to a path-based check.
       const openedPath = await this.resolveOpenedPath((dir as unknown as { fd?: number }).fd ?? -1, resolved);
       if (root && openedPath && !LocalWorkspace.isContainedInRoot(root, openedPath)) {
         throw new Error(`Path escapes workspace root: ${targetPath}`);
