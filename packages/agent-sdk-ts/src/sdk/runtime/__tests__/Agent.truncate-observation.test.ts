@@ -24,7 +24,7 @@ const baseSettings: OpenHandsSettings = {
 };
 
 const LONG = 'x'.repeat(2500);
-const LONG_STDOUT = 'o'.repeat(5000);
+const LONG_STDOUT = 'o'.repeat(50_000);
 
 describe('Agent truncates tool logs and observations', () => {
   it('truncates llm_tool_call_raw arguments value', async () => {
@@ -58,10 +58,11 @@ describe('Agent truncates tool logs and observations', () => {
 
   it('deep truncates ObservationEvent payload and tool message content', async () => {
     const log = new EventLog();
+    const veryLong = 'x'.repeat(35_000);
     const tool: ToolDefinition<{ foo: string }, { deep: { s: string }, arr: string[] }> = {
       name: 'makeLong',
       validate: (input) => input as { foo: string },
-      execute: async () => ({ deep: { s: LONG }, arr: [LONG, 'ok'] }),
+      execute: async () => ({ deep: { s: veryLong }, arr: [veryLong, 'ok'] }),
     };
 
     const llm = new MockLLM([
@@ -84,8 +85,8 @@ describe('Agent truncates tool logs and observations', () => {
     const toolMsg = events.filter(isMessageEvent).find((m) => m.llm_message.role === 'tool');
     expect(toolMsg).toBeTruthy();
     const txt = toolMsg!.llm_message.content.find((c) => c.type === 'text') as { type: 'text'; text: string };
-    expect(txt.text.length).toBeLessThanOrEqual(2015);
-    expect(txt.text.endsWith('…(truncated)')).toBe(true);
+    expect(txt.text).toContain('<response clipped>');
+    expect(txt.text.length).toBeLessThanOrEqual(8_000);
   });
 
   it('truncates large stdout results in ObservationEvent and tool message', async () => {
@@ -115,7 +116,7 @@ describe('Agent truncates tool logs and observations', () => {
     const toolMsg = events.filter(isMessageEvent).find((m) => m.llm_message.tool_call_id === 'c3');
     expect(toolMsg).toBeTruthy();
     const txt = toolMsg!.llm_message.content.find((c) => c.type === 'text') as { type: 'text'; text: string };
-    expect(txt.text.length).toBeLessThanOrEqual(2015);
-    expect(txt.text.endsWith('…(truncated)')).toBe(true);
+    expect(txt.text).toContain('<response clipped>');
+    expect(txt.text.length).toBeLessThanOrEqual(8_000);
   });
 });
