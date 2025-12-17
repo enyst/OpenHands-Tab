@@ -1,5 +1,29 @@
 import * as vscode from 'vscode';
 
+type DiagnosticsInfo = {
+  chat?: { hasView?: boolean; webviewReady?: boolean };
+  mode?: string;
+  serverUrl?: string;
+  status?: string;
+  conversationId?: string;
+  eventBacklog?: { size?: number };
+};
+
+type RenderedEventsInfo = {
+  count?: number;
+  eventTypes?: unknown[];
+  events?: unknown[];
+};
+
+type WebviewActionResult = {
+  sent?: boolean;
+};
+
+type RenderedEventSnapshot = {
+  type?: unknown;
+  marker?: unknown;
+};
+
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((r) => setTimeout(r, ms));
 };
@@ -41,8 +65,8 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
   await vscode.workspace.getConfiguration().update(
@@ -57,24 +81,25 @@ export async function run(): Promise<void> {
   );
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     return diag?.mode === 'remote' && diag?.serverUrl === serverUrl;
   }, 15000);
 
   await vscode.commands.executeCommand('openhands.startNewConversation');
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     return diag?.mode === 'remote' && diag?.status === 'online' && typeof diag?.conversationId === 'string';
   }, 45000);
 
-  const before: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+  const before = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const beforeCount = typeof before?.count === 'number' ? before.count : 0;
-  const beforeMessageCount = Array.isArray(before?.eventTypes)
-    ? before.eventTypes.filter((t: unknown) => t === 'MessageEvent').length
-    : 0;
+  const beforeTypes = Array.isArray(before?.eventTypes)
+    ? before.eventTypes.filter((t): t is string => typeof t === 'string')
+    : [];
+  const beforeMessageCount = beforeTypes.filter((t) => t === 'MessageEvent').length;
 
-  const send: any = await vscode.commands.executeCommand('openhands._webviewAction', {
+  const send = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
     action: 'sendMessage',
     payload: { text: 'Hello from E2E (agent-server remote smoke).' }
   });
@@ -90,14 +115,16 @@ export async function run(): Promise<void> {
     return count > beforeCount && messageCount > beforeMessageCount;
   }, 60000);
 
-  const afterRemote: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+  const afterRemote = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const baselineCount = typeof afterRemote?.count === 'number' ? afterRemote.count : 0;
-  const baselineTypes = Array.isArray(afterRemote?.eventTypes) ? afterRemote.eventTypes : [];
+  const baselineTypes = Array.isArray(afterRemote?.eventTypes)
+    ? afterRemote.eventTypes.filter((t): t is string => typeof t === 'string')
+    : [];
   console.log(
     `Remote rendered events (post-send): count=${baselineCount} types=${baselineTypes.slice(-10).join(', ')}`
   );
 
-  const diagBefore: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diagBefore = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
   const backlogBefore = typeof diagBefore?.eventBacklog?.size === 'number' ? diagBefore.eventBacklog.size : 0;
 
   const injectedEvents = [
@@ -200,21 +227,18 @@ export async function run(): Promise<void> {
   const filteredMarker = injectedEvents.find((event) => event.kind === 'ConversationStateUpdateEvent')?.e2e_marker;
 
   for (const event of injectedEvents) {
-    await vscode.commands.executeCommand('openhands._sendTestEvent', event as any);
+    await vscode.commands.executeCommand('openhands._sendTestEvent', event);
     await sleep(50);
   }
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     const size = typeof diag?.eventBacklog?.size === 'number' ? diag.eventBacklog.size : 0;
     return size >= backlogBefore + injectedEvents.length;
   }, 10000);
 
   await pollUntil(async () => {
-    const rendered = (await vscode.commands.executeCommand('openhands._queryRenderedEvents')) as
-      | { events?: unknown }
-      | null
-      | undefined;
+    const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
     const snapshots = Array.isArray(rendered?.events) ? rendered.events : null;
     if (!snapshots) {
       return false;
@@ -224,7 +248,7 @@ export async function run(): Promise<void> {
 
     const pairs = snapshots
       .map((snapshot): RenderedSnapshot => {
-        const record = snapshot as { type?: unknown; marker?: unknown };
+        const record = snapshot as RenderedEventSnapshot;
         return {
           type: typeof record.type === 'string' ? record.type : 'unknown',
           marker: typeof record.marker === 'string' ? record.marker : undefined,
@@ -239,7 +263,7 @@ export async function run(): Promise<void> {
     return hasExpected && !hasFiltered;
   }, 20000);
 
-  const afterAll: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+  const afterAll = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   console.log(
     `Remote rendered events (post-inject): count=${afterAll?.count} types=${Array.isArray(afterAll?.eventTypes) ? afterAll.eventTypes.slice(-20).join(', ') : ''}`
   );
