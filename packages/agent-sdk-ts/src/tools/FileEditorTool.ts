@@ -231,7 +231,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         }
         const updated = prev.replace(oldStr, args.new_str ?? '');
         await ws.writeFile(resolved, updated);
-        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: buffer.length });
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: prev.length * 2 });
         return { command: 'str_replace', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'insert': {
@@ -246,7 +246,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         lines.splice(index, 0, insertion);
         const updated = lines.join('\n');
         await ws.writeFile(resolved, updated);
-        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: buffer.length });
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: prev.length * 2 });
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'undo_edit': {
@@ -413,22 +413,40 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     while (this.undoHistory.size > MAX_UNDO_PATHS) {
       this.dropOldestUndoPath();
     }
-    while (this.undoBytesTotal > MAX_UNDO_BYTES_TOTAL && this.undoHistory.size > 0) {
-      this.dropOldestUndoPath();
+    while (this.undoBytesTotal > MAX_UNDO_BYTES_TOTAL) {
+      if (this.dropOldestUndoPath(resolvedPath)) continue;
+      if (!this.dropOldestUndoEntryForPath(resolvedPath)) break;
     }
   }
 
-  private dropOldestUndoPath(): void {
-    const oldest = this.undoHistory.keys().next();
-    if (oldest.done) return;
+  private dropOldestUndoPath(excludePath?: string): boolean {
+    for (const key of this.undoHistory.keys()) {
+      if (excludePath && key === excludePath) continue;
 
-    const stack = this.undoHistory.get(oldest.value);
-    if (stack) {
-      for (const entry of stack) {
-        this.undoBytesTotal -= entry.byteSize;
+      const stack = this.undoHistory.get(key);
+      if (stack) {
+        for (const entry of stack) {
+          this.undoBytesTotal -= entry.byteSize;
+        }
       }
+      this.undoHistory.delete(key);
+      return true;
     }
-    this.undoHistory.delete(oldest.value);
+    return false;
+  }
+
+  private dropOldestUndoEntryForPath(resolvedPath: string): boolean {
+    const stack = this.undoHistory.get(resolvedPath);
+    if (!stack || stack.length <= 1) return false;
+
+    const lastIndex = stack.length - 1;
+    const removableIndex = stack.slice(0, lastIndex).findIndex((entry) => entry.byteSize > 0);
+    const index = removableIndex === -1 ? 0 : removableIndex;
+    const [removed] = stack.splice(index, 1);
+    if (removed) {
+      this.undoBytesTotal -= removed.byteSize;
+    }
+    return removed !== undefined;
   }
 
   private async readOptionalFile(absPath: string): Promise<string | null> {
