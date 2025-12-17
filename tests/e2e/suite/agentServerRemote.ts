@@ -35,6 +35,9 @@ export async function run(): Promise<void> {
     throw new Error('Missing required env var: AGENT_SERVER_URL');
   }
 
+  const markerPrefix = `e2e_remote_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const markerFor = (index: number) => `${markerPrefix}_${index.toString().padStart(2, '0')}`;
+
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
@@ -101,12 +104,14 @@ export async function run(): Promise<void> {
     {
       kind: 'SystemPromptEvent',
       source: 'agent',
+      e2e_marker: markerFor(1),
       system_prompt: { type: 'text', text: 'You are a helpful AI assistant' },
       tools: [{ name: 'terminal' }, { name: 'file_editor' }]
     },
     {
       kind: 'ActionEvent',
       source: 'agent',
+      e2e_marker: markerFor(2),
       thought: [{ type: 'text', text: 'I need to check the current directory' }],
       reasoning_content: 'To understand the workspace structure',
       action: { command: 'pwd' },
@@ -123,6 +128,7 @@ export async function run(): Promise<void> {
     {
       kind: 'ObservationEvent',
       source: 'environment',
+      e2e_marker: markerFor(3),
       observation: { content: '/tmp', exit_code: 0 },
       tool_name: 'terminal',
       tool_call_id: 'call_remote_001',
@@ -131,6 +137,7 @@ export async function run(): Promise<void> {
     {
       kind: 'UserRejectObservation',
       source: 'environment',
+      e2e_marker: markerFor(4),
       rejection_reason: 'This command looks dangerous',
       tool_name: 'terminal',
       tool_call_id: 'call_remote_002',
@@ -139,11 +146,13 @@ export async function run(): Promise<void> {
     {
       kind: 'MessageEvent',
       source: 'user',
+      e2e_marker: markerFor(5),
       llm_message: { role: 'user', content: [{ type: 'text', text: 'Please help me debug this code' }] }
     },
     {
       kind: 'MessageEvent',
       source: 'agent',
+      e2e_marker: markerFor(6),
       llm_message: {
         role: 'assistant',
         content: [{ type: 'text', text: 'I will help you debug the code. Let me analyze it first.' }],
@@ -153,6 +162,7 @@ export async function run(): Promise<void> {
     {
       kind: 'AgentErrorEvent',
       source: 'agent',
+      e2e_marker: markerFor(7),
       error: 'Failed to execute command: permission denied',
       tool_name: 'terminal',
       tool_call_id: 'call_remote_004'
@@ -160,39 +170,34 @@ export async function run(): Promise<void> {
     {
       kind: 'ConversationErrorEvent',
       source: 'environment',
+      e2e_marker: markerFor(8),
       detail: 'Connection lost to server',
       code: 'ConnectionError'
     },
     {
       kind: 'PauseEvent',
-      source: 'agent'
+      source: 'agent',
+      e2e_marker: markerFor(9)
     },
     {
       kind: 'Condensation',
       source: 'environment',
+      e2e_marker: markerFor(10),
       forgotten_event_ids: ['event_001', 'event_002'],
       summary: 'Condensed 2 events to save memory'
     },
     {
       kind: 'ConversationStateUpdateEvent',
       source: 'agent',
+      e2e_marker: markerFor(11),
       agent_status: 'running'
     }
   ];
 
-  const expectedRenderedTypes = [
-    'SystemPromptEvent',
-    'ActionEvent',
-    'ObservationEvent',
-    'UserRejectObservation',
-    'MessageEvent',
-    'MessageEvent',
-    'AgentErrorEvent',
-    'ConversationErrorEvent',
-    'PauseEvent',
-    'Condensation',
-    // ConversationStateUpdateEvent is filtered out by the webview
-  ];
+  const expectedRendered = injectedEvents
+    .filter((event) => event.kind !== 'ConversationStateUpdateEvent')
+    .map((event) => ({ type: event.kind, marker: event.e2e_marker }));
+  const filteredMarker = injectedEvents.find((event) => event.kind === 'ConversationStateUpdateEvent')?.e2e_marker;
 
   for (const event of injectedEvents) {
     await vscode.commands.executeCommand('openhands._sendTestEvent', event as any);
@@ -209,9 +214,29 @@ export async function run(): Promise<void> {
     const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
     const count = typeof rendered?.count === 'number' ? rendered.count : 0;
     const types = Array.isArray(rendered?.eventTypes) ? rendered.eventTypes : [];
-    if (count < baselineCount + expectedRenderedTypes.length) return false;
-    const tail = types.slice(Math.min(baselineCount, types.length));
-    return containsSubsequence(tail, expectedRenderedTypes);
+    const snapshots = Array.isArray(rendered?.events) ? rendered.events : undefined;
+    if (Array.isArray(snapshots)) {
+      const pairs = snapshots
+        .map((s: any) => ({
+          type: typeof s?.type === 'string' ? s.type : 'unknown',
+          marker: typeof s?.marker === 'string' ? s.marker : undefined,
+        }))
+        .filter((s) => typeof s.marker === 'string')
+        .map((s) => `${s.type}:${s.marker}`);
+      const expectedPairs = expectedRendered.map((s) => `${s.type}:${s.marker}`);
+      const hasExpected = containsSubsequence(pairs, expectedPairs);
+      const hasFiltered =
+        typeof filteredMarker === 'string' ? pairs.some((p) => p.endsWith(`:${filteredMarker}`)) : false;
+      return hasExpected && !hasFiltered;
+    }
+
+    // Legacy fallback if webview doesn't return per-event snapshots.
+    if (count < baselineTypes.length + expectedRendered.length) return false;
+    const tail = types.slice(Math.min(baselineTypes.length, types.length));
+    return containsSubsequence(
+      tail,
+      expectedRendered.map((s) => s.type)
+    );
   }, 20000);
 
   const afterAll: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');

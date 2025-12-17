@@ -465,19 +465,31 @@ export function App() {
           break;
         }
         case 'queryRenderedEvents': {
-          const eventTypes = events.map(({ event }) => {
+          const eventSnapshots = events.map(({ event }) => {
             if ('kind' in event && typeof event.kind === 'string') return event.kind;
             if ('type' in event && typeof (event as { type?: unknown }).type === 'string') {
               return (event as { type: string }).type;
             }
             return 'unknown';
           });
+          const eventTypes = eventSnapshots;
+          const rendered = events.map(({ event }, index) => {
+            const type = eventSnapshots[index] ?? 'unknown';
+            const marker = (event as { e2e_marker?: unknown }).e2e_marker;
+            const toolCallId = (event as { tool_call_id?: unknown }).tool_call_id;
+            return {
+              type,
+              marker: typeof marker === 'string' ? marker : undefined,
+              toolCallId: typeof toolCallId === 'string' ? toolCallId : undefined,
+            };
+          });
           if (typeof payload.requestId === 'string') {
             postMessage({
               type: 'renderedEventsResponse',
               requestId: payload.requestId,
               count: events.length,
-              eventTypes
+              eventTypes,
+              events: rendered
             });
           }
           break;
