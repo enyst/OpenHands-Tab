@@ -145,16 +145,19 @@ const isProbablyBinary = (buffer: Buffer): boolean => {
 type UndoEntry = {
   prevExist: boolean;
   oldContent: string | null;
+  byteSize: number;
 };
 
 const MAX_UNDO_ENTRIES_PER_PATH = 10;
 const MAX_UNDO_PATHS = 100;
+const MAX_UNDO_BYTES_TOTAL = 100 * 1024 * 1024;
 
 export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, FileEditorResult> {
   readonly name = 'file_editor';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = fileEditorSchema;
   private readonly undoHistory = new Map<string, UndoEntry[]>();
+  private undoBytesTotal = 0;
 
   private async pathExists(absPath: string): Promise<boolean> {
     try {
@@ -199,7 +202,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
           throw new Error(`create failed: file is too large (${mb.toFixed(1)}MB). Maximum allowed size is 10MB.`);
         }
         await ws.writeFile(resolved, fileText);
-        this.pushUndo(resolved, { prevExist: false, oldContent: null });
+        this.pushUndo(resolved, { prevExist: false, oldContent: null, byteSize: 0 });
         return {
           command: 'create',
           path: resolved,
@@ -228,7 +231,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         }
         const updated = prev.replace(oldStr, args.new_str ?? '');
         await ws.writeFile(resolved, updated);
-        this.pushUndo(resolved, { prevExist: true, oldContent: prev });
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: buffer.length });
         return { command: 'str_replace', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'insert': {
@@ -243,7 +246,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         lines.splice(index, 0, insertion);
         const updated = lines.join('\n');
         await ws.writeFile(resolved, updated);
-        this.pushUndo(resolved, { prevExist: true, oldContent: prev });
+        this.pushUndo(resolved, { prevExist: true, oldContent: prev, byteSize: buffer.length });
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'undo_edit': {
@@ -263,6 +266,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
 	        }
 
         stack.pop();
+        this.undoBytesTotal -= undo.byteSize;
         if (stack.length === 0) {
           this.undoHistory.delete(resolved);
         }
@@ -397,18 +401,34 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
   private pushUndo(resolvedPath: string, entry: UndoEntry): void {
     const stack = this.undoHistory.get(resolvedPath) ?? [];
     stack.push(entry);
+    this.undoBytesTotal += entry.byteSize;
     while (stack.length > MAX_UNDO_ENTRIES_PER_PATH) {
-      stack.shift();
+      const removed = stack.shift();
+      if (removed) {
+        this.undoBytesTotal -= removed.byteSize;
+      }
     }
-    if (this.undoHistory.has(resolvedPath)) {
-      this.undoHistory.delete(resolvedPath);
-    }
+    this.undoHistory.delete(resolvedPath);
     this.undoHistory.set(resolvedPath, stack);
     while (this.undoHistory.size > MAX_UNDO_PATHS) {
-      const oldest = this.undoHistory.keys().next();
-      if (oldest.done) break;
-      this.undoHistory.delete(oldest.value);
+      this.dropOldestUndoPath();
     }
+    while (this.undoBytesTotal > MAX_UNDO_BYTES_TOTAL && this.undoHistory.size > 0) {
+      this.dropOldestUndoPath();
+    }
+  }
+
+  private dropOldestUndoPath(): void {
+    const oldest = this.undoHistory.keys().next();
+    if (oldest.done) return;
+
+    const stack = this.undoHistory.get(oldest.value);
+    if (stack) {
+      for (const entry of stack) {
+        this.undoBytesTotal -= entry.byteSize;
+      }
+    }
+    this.undoHistory.delete(oldest.value);
   }
 
   private async readOptionalFile(absPath: string): Promise<string | null> {
