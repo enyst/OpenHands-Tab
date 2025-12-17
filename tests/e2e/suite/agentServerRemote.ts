@@ -211,23 +211,31 @@ export async function run(): Promise<void> {
   }, 10000);
 
   await pollUntil(async () => {
-    const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
+    const rendered = (await vscode.commands.executeCommand('openhands._queryRenderedEvents')) as
+      | { events?: unknown }
+      | null
+      | undefined;
     const snapshots = Array.isArray(rendered?.events) ? rendered.events : null;
     if (!snapshots) {
       return false;
     }
 
+    type RenderedSnapshot = { type: string; marker?: string };
+
     const pairs = snapshots
-      .map((s: any) => ({
-        type: typeof s?.type === 'string' ? s.type : 'unknown',
-        marker: typeof s?.marker === 'string' ? s.marker : undefined,
-      }))
-      .filter((s) => typeof s.marker === 'string')
-      .map((s) => `${s.type}:${s.marker}`);
+      .map((snapshot): RenderedSnapshot => {
+        const record = snapshot as { type?: unknown; marker?: unknown };
+        return {
+          type: typeof record.type === 'string' ? record.type : 'unknown',
+          marker: typeof record.marker === 'string' ? record.marker : undefined,
+        };
+      })
+      .filter((snapshot): snapshot is RenderedSnapshot & { marker: string } => typeof snapshot.marker === 'string')
+      .map((snapshot) => `${snapshot.type}:${snapshot.marker}`);
     const expectedPairs = expectedRendered.map((s) => `${s.type}:${s.marker}`);
     const hasExpected = containsSubsequence(pairs, expectedPairs);
     const hasFiltered =
-      typeof filteredMarker === 'string' ? pairs.some((p) => p.endsWith(`:${filteredMarker}`)) : false;
+      typeof filteredMarker === 'string' ? pairs.some((pair) => pair.endsWith(`:${filteredMarker}`)) : false;
     return hasExpected && !hasFiltered;
   }, 20000);
 
