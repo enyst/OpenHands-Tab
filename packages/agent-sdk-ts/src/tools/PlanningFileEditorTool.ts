@@ -1,11 +1,14 @@
 import fs from 'fs/promises';
+import { z } from 'zod';
 import type { ToolContext } from './types';
 import { FileEditorTool, type FileEditorResult } from './FileEditorTool';
+import { ZodTool } from './zod-tool';
 
 export type PlanningCommand = FileEditorResult['command'];
 export type PlanningFileEditorResult = FileEditorResult;
 
 const FILE_EDITOR_TOOL_DESCRIPTION = new FileEditorTool().description;
+const planningSchema = new FileEditorTool().schema;
 
 const PLAN_BASENAME = 'PLAN.md';
 
@@ -26,9 +29,11 @@ IMPORTANT RESTRICTION FOR PLANNING AGENT:
 * All editing commands (create, str_replace, insert, undo_edit) are restricted to PLAN.md only
 * The PLAN.md file should follow the required section structure - fill in the content`;
 
-export class PlanningFileEditorTool extends FileEditorTool {
+export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchema>, PlanningFileEditorResult> {
   readonly name = 'planning_file_editor';
   readonly description = TOOL_DESCRIPTION;
+  readonly schema = planningSchema;
+  private readonly fileEditor = new FileEditorTool();
 
   private ensurePlanTarget(command: PlanningCommand, resolvedPath: string, planPath: string): void {
     if (command === 'view') return;
@@ -52,13 +57,13 @@ export class PlanningFileEditorTool extends FileEditorTool {
     await context.workspace.writeFile(planPath, PLAN_HEADERS);
   }
 
-  async execute(args: Parameters<FileEditorTool['execute']>[0], context: ToolContext): Promise<PlanningFileEditorResult> {
+  async execute(args: z.infer<typeof planningSchema>, context: ToolContext): Promise<PlanningFileEditorResult> {
     const planPath = context.workspace.resolvePath(PLAN_BASENAME);
     const resolved = context.workspace.resolvePath(args.path);
     this.ensurePlanTarget(args.command, resolved, planPath);
     if (resolved === planPath) {
       await this.ensurePlanInitialized(args.command, planPath, context);
     }
-    return super.execute(args, context);
+    return this.fileEditor.execute(args, context);
   }
 }
