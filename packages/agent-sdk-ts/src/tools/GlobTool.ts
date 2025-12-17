@@ -1,8 +1,15 @@
 import fs from 'fs/promises';
 import path from 'path';
-import picomatch from 'picomatch';
 import { z } from 'zod';
 import type { ToolContext } from './types';
+import {
+  createGlobMatcher,
+  expandHome,
+  listFilesRecursively,
+  normalizeGlobPattern,
+  normalizeSlashes,
+  planGlobWalk,
+} from './searchUtils';
 import { ZodTool } from './zod-tool';
 
 export interface GlobResult {
@@ -15,11 +22,21 @@ export interface GlobResult {
 const globArgsSchema = z.object({
   pattern: z
     .string()
-    .describe('The glob pattern to match files (e.g., "**/*.js", "src/**/*.ts").'),
+    .describe('The glob pattern to match files (e.g., "**/*.js", "src/**/*.ts"). May also be an absolute path pattern under the allowed workspace roots.'),
   path: z
     .string()
     .optional()
-    .describe('The directory (absolute path) to search in. Defaults to the current working directory.'),
+    .describe('The directory (absolute or workspace-relative path) to search in. Defaults to the current working directory. Must be within the allowed workspace roots.'),
+  include_hidden: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include hidden files and directories (dotfiles). Defaults to false. Set to true to include them.'),
+  include_node_modules: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include node_modules directories. Defaults to false. Set to true to include them.'),
 });
 
 const TOOL_DESCRIPTION = `Fast file pattern matching tool.
@@ -36,26 +53,62 @@ Examples:
 
 const MAX_RESULTS = 100;
 
-const listFiles = async (root: string): Promise<string[]> => {
-  const entries = await fs.readdir(root, { withFileTypes: true });
-  const results: string[] = [];
-  for (const entry of entries) {
-    const fullPath = path.join(root, entry.name);
-    if (entry.isDirectory()) {
-      const child = await listFiles(fullPath);
-      results.push(...child);
-    } else {
-      results.push(fullPath);
+const resolveSearchRootAndPattern = async (
+  args: z.infer<typeof globArgsSchema>,
+  context: ToolContext,
+): Promise<
+  | { mode: 'walk'; searchRoot: string; pattern: string }
+  | { mode: 'file'; filePath: string }
+> => {
+  try {
+    if (args.path) {
+      return {
+        mode: 'walk',
+        searchRoot: context.workspace.resolvePath(expandHome(args.path)),
+        pattern: normalizeGlobPattern(args.pattern),
+      };
     }
+
+    const expandedPattern = expandHome(args.pattern);
+    if (!path.isAbsolute(expandedPattern)) {
+      return { mode: 'walk', searchRoot: context.workspace.root, pattern: normalizeGlobPattern(args.pattern) };
+    }
+
+    const parsed = path.parse(expandedPattern);
+    const root = parsed.root || path.sep;
+    const remainder = expandedPattern.slice(root.length);
+    const parts = remainder.split(/[\\/]+/).filter(Boolean);
+
+    const searchParts: string[] = [];
+    let sawMagic = false;
+    for (const part of parts) {
+      if (/[*?[\]{}()!]/.test(part)) {
+        sawMagic = true;
+        break;
+      }
+      searchParts.push(part);
+    }
+
+    const base = path.join(root, ...searchParts);
+    const glob = parts.length > searchParts.length ? parts.slice(searchParts.length).join('/') : '**/*';
+    const resolvedBase = context.workspace.resolvePath(base);
+
+    if (!sawMagic && glob === '**/*') {
+      try {
+        if ((await fs.stat(resolvedBase)).isDirectory()) {
+          return { mode: 'walk', searchRoot: resolvedBase, pattern: '**/*' };
+        }
+      } catch {
+        // treat as a file pattern below
+      }
+      return { mode: 'file', filePath: resolvedBase };
+    }
+
+    return { mode: 'walk', searchRoot: resolvedBase, pattern: normalizeGlobPattern(glob) };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid search path: ${detail}`);
   }
-  return results;
-};
-
-const normalize = (p: string): string => p.split(path.sep).join('/');
-
-const createMatcher = (pattern: string): ((value: string) => boolean) => {
-  const matcher = picomatch(pattern, { dot: true }) as (value: string) => boolean;
-  return (value: string) => Boolean(matcher(value));
 };
 
 export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult> {
@@ -64,13 +117,37 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
   readonly schema = globArgsSchema;
 
   async execute(args: z.infer<typeof globArgsSchema>, context: ToolContext): Promise<GlobResult> {
-    const searchRoot = args.path ? context.workspace.resolvePath(args.path) : context.workspace.root;
-    const matcher = createMatcher(args.pattern);
-    const files = await listFiles(searchRoot);
+    const resolved = await resolveSearchRootAndPattern(args, context);
+
+    if (resolved.mode === 'file') {
+      try {
+        const stat = await fs.stat(resolved.filePath);
+        if (!stat.isFile()) {
+          return { files: [], pattern: args.pattern, searchPath: path.dirname(resolved.filePath), truncated: false };
+        }
+        return { files: [resolved.filePath], pattern: args.pattern, searchPath: path.dirname(resolved.filePath), truncated: false };
+      } catch {
+        return { files: [], pattern: args.pattern, searchPath: path.dirname(resolved.filePath), truncated: false };
+      }
+    }
+
+    const { searchRoot, pattern } = resolved;
+    const { walkRoot, matcherPattern, maxDepth } = planGlobWalk(searchRoot, pattern);
+    const matcher = createGlobMatcher(matcherPattern);
+
+    const includeHidden = args.include_hidden === true;
+    const includeNodeModules = args.include_node_modules === true;
+
+    let files: string[] = [];
+    try {
+      files = await listFilesRecursively(walkRoot, { includeHidden, includeNodeModules, maxDepth });
+    } catch {
+      files = [];
+    }
     const filtered: string[] = [];
 
     for (const file of files) {
-      const relative = normalize(path.relative(searchRoot, file));
+      const relative = normalizeSlashes(path.relative(walkRoot, file));
       if (matcher(relative)) {
         filtered.push(file);
       }
@@ -92,4 +169,3 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
     };
   }
 }
-
