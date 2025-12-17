@@ -50,6 +50,30 @@ describe('FileEditorTool', () => {
     expect(saved).toContain('first line');
   });
 
+  it('accepts absolute paths that resolve inside the workspace', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const absPath = path.join(dir, 'abs.txt');
+    await tool.execute(tool.validate({ command: 'create', path: absPath, file_text: 'hello' }), { workspace });
+    expect(await workspace.readFile('abs.txt')).toBe('hello');
+  });
+
+  it('rejects absolute paths outside the workspace', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-tools-outside-'));
+    created.push(externalDir);
+    const absOutside = path.join(externalDir, 'outside.txt');
+
+    await expect(
+      tool.execute(tool.validate({ command: 'create', path: absOutside, file_text: 'nope' }), { workspace }),
+    ).rejects.toThrowError(/Path escapes workspace root/i);
+  });
+
   it('views files with line numbers and truncation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -157,6 +181,39 @@ describe('FileEditorTool', () => {
 
     await expect(tool.execute(tool.validate({ command: 'undo_edit', path: 'note.txt' }), { workspace }))
       .rejects.toThrowError(/no edit history/i);
+  });
+
+  it('requires old_str to be unique for str_replace', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'dup\ndup' }), { workspace });
+    await expect(
+      tool.execute(tool.validate({ command: 'str_replace', path: 'note.txt', old_str: 'dup', new_str: 'x' }), { workspace }),
+    ).rejects.toThrowError(/not unique/i);
+  });
+
+  it('rejects empty old_str for str_replace', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'content' }), { workspace });
+    expect(() => tool.validate({ command: 'str_replace', path: 'note.txt', old_str: '', new_str: 'x' })).toThrowError(
+      /old_str.*non-empty/i,
+    );
+  });
+
+  it('treats overlapping old_str matches as not unique', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'note.txt', file_text: 'aaa' }), { workspace });
+    await expect(
+      tool.execute(tool.validate({ command: 'str_replace', path: 'note.txt', old_str: 'aa', new_str: 'b' }), { workspace }),
+    ).rejects.toThrowError(/not unique/i);
   });
 
   it('throws undo_edit when there is no history', async () => {
