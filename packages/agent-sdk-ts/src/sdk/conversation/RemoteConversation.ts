@@ -11,6 +11,17 @@ interface ConversationHistoryPage {
   next_page_id?: string | null;
 }
 
+const normalizeRemoteServerUrl = (raw: string): string => {
+  let url = raw.trim();
+  if (!url) return url;
+
+  if (url.startsWith('ws://')) url = `http://${url.slice('ws://'.length)}`;
+  else if (url.startsWith('wss://')) url = `https://${url.slice('wss://'.length)}`;
+  else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) url = `http://${url}`;
+
+  return url.replace(/\/+$/, '');
+};
+
 export interface RemoteConversationOptions {
   serverUrl: string;
   settings: OpenHandsSettings;
@@ -46,14 +57,18 @@ export class RemoteConversation extends EventEmitter {
 
   constructor(options: RemoteConversationOptions) {
     super();
-    this.serverUrl = options.serverUrl;
+    this.serverUrl = normalizeRemoteServerUrl(options.serverUrl);
     this.settings = options.settings;
     this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
       this.emit('conversationStarted', this.conversationId);
-      void this.replayHistory().then(() => {
+      void this.replayHistory().then((ok) => {
+        if (!ok) {
+          this.setStatus('offline');
+          return;
+        }
         if (this.conversationId === options.conversationId) {
           this.connect();
         }
@@ -74,7 +89,7 @@ export class RemoteConversation extends EventEmitter {
   }
 
   setServerUrl(url: string) {
-    this.serverUrl = url;
+    this.serverUrl = normalizeRemoteServerUrl(url);
   }
 
     async startNewConversation(): Promise<string | undefined> {
@@ -196,8 +211,13 @@ export class RemoteConversation extends EventEmitter {
   async restoreConversation(id: string) {
     this.conversationId = id;
     this.seenEventIds.clear();
+    this.setStatus('connecting');
     this.emit('conversationStarted', id);
-    await this.replayHistory();
+    const ok = await this.replayHistory();
+    if (!ok) {
+      this.setStatus('offline');
+      return;
+    }
     this.connect();
   }
 
@@ -418,7 +438,7 @@ export class RemoteConversation extends EventEmitter {
       try {
         const str = buf.toString('utf8');
         const data = JSON.parse(str) as unknown;
-        const normalized = this.normalizeEventPayload(data);
+        const normalized = this.cloneEventPayload(data);
         if (isAgentEvent(normalized)) this.emitIfNewEvent(normalized);
         else this.emit('error', new Error(`Invalid event payload: ${JSON.stringify(normalized)}`));
       } catch (e) {
@@ -435,8 +455,8 @@ export class RemoteConversation extends EventEmitter {
     this.emit('event', event);
   }
 
-  private async replayHistory(): Promise<void> {
-    if (!this.conversationId) return;
+  private async replayHistory(): Promise<boolean> {
+    if (!this.conversationId) return true;
     const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
     let pageId: string | undefined;
@@ -448,12 +468,12 @@ export class RemoteConversation extends EventEmitter {
         if (!res.ok) {
           const info = await res.text().catch(() => '');
           this.emit('error', new Error(`Failed to fetch conversation history (HTTP ${res.status})${info ? `: ${info}` : ''}`));
-          return;
+          return false;
         }
         const body = await res.json() as ConversationHistoryPage;
         const items = Array.isArray(body.items) ? body.items : [];
         for (const raw of items) {
-          const normalized = this.normalizeEventPayload(raw);
+          const normalized = this.cloneEventPayload(raw);
           if (isAgentEvent(normalized)) {
             this.emitIfNewEvent(normalized);
           }
@@ -462,18 +482,20 @@ export class RemoteConversation extends EventEmitter {
         if (!next || typeof next !== 'string') break;
         pageId = next;
       }
+      return true;
     } catch (e) {
       this.emit('error', e instanceof Error ? e : new Error(String(e)));
+      return false;
     }
   }
 
-  private normalizeEventPayload(payload: unknown): unknown {
+  private cloneEventPayload(payload: unknown): unknown {
     if (!payload || typeof payload !== 'object') return payload;
-    if (Array.isArray(payload)) return payload.map((item) => this.normalizeEventPayload(item));
+    if (Array.isArray(payload)) return payload.map((item) => this.cloneEventPayload(item));
     const obj = payload as Record<string, unknown>;
     const normalized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-      normalized[key] = this.normalizeEventPayload(value);
+      normalized[key] = this.cloneEventPayload(value);
     }
     return normalized;
   }

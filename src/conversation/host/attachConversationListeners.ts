@@ -110,7 +110,9 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     streamingState = initialLlmStreamingState;
 
     deps.resetConversationEventBacklog(id);
-    void deps.context.workspaceState.update('openhands.conversationId', id);
+    const mode = deps.getConversationMode();
+    const scopedKey = mode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
+    void deps.context.workspaceState.update(scopedKey, id);
     if (id) {
       postToChatIfVisible(deps, { type: 'conversationStarted', conversationId: id });
     }
@@ -118,4 +120,3 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
 
   conversation.on('terminal', (event: BashEvent) => deps.handleTerminalEvent(event));
 }
-

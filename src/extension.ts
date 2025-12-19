@@ -732,8 +732,14 @@ export function activate(context: vscode.ExtensionContext) {
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
-    const rawSavedId = context.workspaceState.get<string>('openhands.conversationId');
-    const savedId = options?.uiJustCreated ? undefined : rawSavedId;
+    const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
+    let savedId = options?.uiJustCreated ? undefined : context.workspaceState.get<string>(savedIdKey);
+
+    if (savedId) {
+      const looksLocal = savedId.startsWith('local-');
+      const matchesDesiredMode = desiredMode === 'local' ? looksLocal : !looksLocal;
+      if (!matchesDesiredMode) savedId = undefined;
+    }
     const needsNewConversation = !conversation || conversationMode !== desiredMode;
 
     if (needsNewConversation) {
@@ -755,7 +761,6 @@ export function activate(context: vscode.ExtensionContext) {
         serverUrl: settings.serverUrl ?? undefined,
         settings,
         workspaceRoot,
-        conversationId: savedId,
         tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
         persistenceDir,
       };

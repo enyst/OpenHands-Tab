@@ -188,4 +188,50 @@ describe('RemoteConversation', () => {
     expect(received.map((e) => e.id)).toEqual(['e-1', 'e-2', 'e-3']);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toMatch(/^http:\/\/localhost:3000\//);
+      expect(url).toContain('/events/search');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [], next_page_id: null }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    const ws = getEventWS();
+    expect(ws.url).toMatch(/^ws:\/\/localhost:3000\/sockets\/events\/abc\?/);
+    expect(ws.url).toContain('resend_all=true');
+  });
+
+  it('does not attempt WebSocket connect when history fetch fails', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('fetch failed');
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    const statuses: string[] = [];
+    const errors: unknown[] = [];
+    conversation.on('status', (s) => statuses.push(s));
+    conversation.on('error', (e) => errors.push(e));
+
+    await conversation.restoreConversation('abc');
+
+    expect(conversation.getStatus()).toBe('offline');
+    expect(statuses).toContain('connecting');
+    expect(statuses).toContain('offline');
+    expect(errors).toHaveLength(1);
+    expect(wsInstances).toHaveLength(0);
+  });
 });
