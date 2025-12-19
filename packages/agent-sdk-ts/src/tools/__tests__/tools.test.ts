@@ -90,7 +90,7 @@ describe('FileEditorTool', () => {
     created.push(dir);
     const tool = new FileEditorTool();
 
-    const longContent = Array.from({ length: 2000 }, (_, i) => `line-${i + 1}`).join('\n');
+    const longContent = Array.from({ length: 10_000 }, (_, i) => `line-${i + 1} ${'x'.repeat(20)}`).join('\n');
     const createArgs = tool.validate({ command: 'create', path: 'note.txt', file_text: longContent });
     await tool.execute(createArgs, { workspace });
 
