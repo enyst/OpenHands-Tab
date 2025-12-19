@@ -733,17 +733,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
-    const legacySavedId = context.workspaceState.get<string>('openhands.conversationId');
     let savedId = options?.uiJustCreated ? undefined : context.workspaceState.get<string>(savedIdKey);
-
-    if (!savedId && !options?.uiJustCreated && legacySavedId) {
-      const legacyLooksLocal = legacySavedId.startsWith('local-');
-      const matchesDesiredMode = desiredMode === 'local' ? legacyLooksLocal : !legacyLooksLocal;
-      if (matchesDesiredMode) {
-        savedId = legacySavedId;
-        void context.workspaceState.update(savedIdKey, legacySavedId);
-      }
-    }
 
     if (savedId) {
       const looksLocal = savedId.startsWith('local-');

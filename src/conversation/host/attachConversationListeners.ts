@@ -113,7 +113,6 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     const mode = deps.getConversationMode();
     const scopedKey = mode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
     void deps.context.workspaceState.update(scopedKey, id);
-    void deps.context.workspaceState.update('openhands.conversationId', id);
     if (id) {
       postToChatIfVisible(deps, { type: 'conversationStarted', conversationId: id });
     }
