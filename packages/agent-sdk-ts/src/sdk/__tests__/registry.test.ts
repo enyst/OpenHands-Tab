@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { LLMRegistry, TrackedLLMClient } from '../llm/registry';
+import { LLMFactory } from '../llm/factory';
 import type { LLMClient, LLMStreamChunk } from '../llm/types';
 import { Metrics } from '../llm/metrics';
 
@@ -44,6 +45,22 @@ describe('LLMRegistry and TrackedLLMClient', () => {
     const t2 = new TrackedLLMClient({ inner: { async *streamChat() {} }, usageId: 'dup', modelName: 'm', metrics: new Metrics('m') });
     registry.add(t1);
     expect(() => registry.add(t2)).toThrow(/already exists/);
+  });
+
+  it('can upsert a usageId and updates the registry entry', async () => {
+    const registry = new LLMRegistry();
+    const events: string[] = [];
+    registry.subscribe((e) => events.push(`${e.llm.usageId}:${e.llm.modelName}`));
+
+    const factory1 = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline', usageId: 'default-llm' }, { registry });
+    const c1 = await factory1.createClient();
+    expect(registry.get('default-llm')).toBe(c1);
+
+    const factory2 = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline2', usageId: 'default-llm' }, { registry });
+    const c2 = await factory2.createClient();
+    expect(registry.get('default-llm')).toBe(c2);
+
+    expect(events).toEqual(['default-llm:gpt-5-mini', 'default-llm:gpt-5-mini']);
   });
 
   it('notifies subscriber and ConversationStats can register', () => {
