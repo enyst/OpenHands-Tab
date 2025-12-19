@@ -111,7 +111,7 @@ const TerminalCommandPreview = ({ command }: { command?: string }): React.ReactE
   if (!command) return null;
   return (
     <pre className="text-xs font-mono bg-black/30 border border-white/[0.04] rounded-lg p-3 overflow-x-auto text-stone-300">
-      <span className="text-teal-400/70 select-none">$ </span>{command}
+      <span className="text-stone-500 select-none">$ </span>{command}
     </pre>
   );
 };
@@ -276,21 +276,19 @@ function TerminalObservationSummary({ observation }: { observation: JsonRecord }
 
 /**
  * Event color tokens - CSS custom properties defined in tailwind.css
- * Design Philosophy: "Warm Technical Refinement"
- * - Agent/AI: Warm gold (protagonist, signature OpenHands color)
- * - User: Warm stone (supporting role, understated)
- * - System: Soft lavender (informational)
- * - Action: Teal (operational, cool accent for contrast)
- * - Observation: Soft mint (results/completion)
- * - Error: Warm coral (alerting without harshness)
+ * Design Philosophy: "Simplified Warm Palette"
+ * - Agent/Actions/Observations: OpenHands golden (the main voice)
+ * - User: Warm grey (understated)
+ * - Error: Warm coral (alerting)
  */
 const USER_ACCENT_COLOR = 'var(--event-user)';
 const AGENT_ACCENT_COLOR = 'var(--event-agent)';
 const DEFAULT_ACCENT_COLOR = 'var(--event-default)';
 const ERROR_ACCENT_COLOR = 'var(--event-error)';
-const SYSTEM_ACCENT_COLOR = 'var(--event-system)';
-const ACTION_ACCENT_COLOR = 'var(--event-action)';
-const OBSERVATION_ACCENT_COLOR = 'var(--event-observation)';
+// Use agent golden for all OpenHands actions/observations/system events
+const SYSTEM_ACCENT_COLOR = AGENT_ACCENT_COLOR;
+const ACTION_ACCENT_COLOR = AGENT_ACCENT_COLOR;
+const OBSERVATION_ACCENT_COLOR = AGENT_ACCENT_COLOR;
 
 /** Mix a CSS color with transparency - use instead of appending hex alpha to CSS vars */
 const withAlpha = (color: string, percent: number) =>
@@ -301,7 +299,7 @@ function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }
   const styles = {
     HIGH: 'bg-red-500/15 text-red-300 border-red-400/30 shadow-[0_0_8px_rgba(248,113,113,0.15)]',
     MEDIUM: 'bg-amber-500/15 text-amber-300 border-amber-400/30',
-    LOW: 'bg-teal-500/15 text-teal-300 border-teal-400/30',
+    LOW: 'bg-stone-500/15 text-stone-400 border-stone-400/20',
     UNKNOWN: 'bg-stone-500/15 text-stone-400 border-stone-400/20',
   };
 
@@ -468,7 +466,7 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 font-mono text-sm">
               <span className="codicon codicon-symbol-method" style={{ color: ACTION_ACCENT_COLOR }} />
-              <span className="text-teal-300">{event.tool_name}</span>
+              <span className="text-amber-300">{event.tool_name}</span>
             </div>
             <button
               onClick={() => setIsExpanded(!isExpanded)}
@@ -519,7 +517,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
           <span className="codicon codicon-eye text-sm" style={{ color: OBSERVATION_ACCENT_COLOR }} />
         </div>
         <div className="font-semibold text-sm text-stone-200">Tool Result</div>
-        <span className="font-mono text-xs text-emerald-400/80 bg-emerald-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
+        <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
         {showHeaderToggle && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
@@ -740,14 +738,14 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const accentColor = isUser ? USER_ACCENT_COLOR : isAgent ? AGENT_ACCENT_COLOR : DEFAULT_ACCENT_COLOR;
   const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
   const roleLabel = message.role === 'assistant'
-    ? 'Agent'
+    ? 'OpenHands says'
     : message.role.charAt(0).toUpperCase() + message.role.slice(1);
   const showRoleLabel = !isUser;
 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
-  // User messages get extra contrast; agent messages stay prominent
-  const bgOpacity = isUser ? 0.08 : isAgent ? 0.06 : 0.04;
+  // User messages get lighter background for better contrast with agent actions
+  const bgOpacity = isUser ? 0.06 : isAgent ? 0.05 : 0.04;
 
   return (
     <EventContainer accentColor={accentColor} bgOpacity={bgOpacity} index={index} dataTestId="message-event">
@@ -859,7 +857,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
               {event.activated_skills.map((skill) => (
                 <span
                   key={skill}
-                  className="inline-flex items-center px-2.5 py-1 rounded-md text-xs bg-violet-500/15 text-violet-300 border border-violet-400/20"
+                  className="inline-flex items-center px-2.5 py-1 rounded-md text-xs bg-amber-500/15 text-amber-300 border border-amber-400/20"
                 >
                   <span className="codicon codicon-mortar-board mr-1.5 text-[10px]" />
                   {skill}
@@ -919,7 +917,7 @@ export function StreamingMessageBlock({ content }: { content: string }) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <div className="font-semibold text-sm text-amber-200">Agent</div>
+            <div className="font-semibold text-sm text-amber-200">OpenHands says</div>
             <div className="flex items-center gap-1.5">
               <span
                 className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
