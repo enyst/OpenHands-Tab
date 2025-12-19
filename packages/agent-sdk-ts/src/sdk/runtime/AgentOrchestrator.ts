@@ -22,9 +22,10 @@ export class AgentOrchestrator {
     const message: Message = { role: 'assistant', content: [] };
     const toolCalls: Record<string, ToolCall> = {};
     let usage: LLMResponse['usage'];
+    let streamText = '';
 
     for await (const chunk of this.llm.streamChat(request)) {
-      this.applyStateUpdate(chunk);
+      streamText = this.applyStateUpdate(chunk, streamText);
       switch (chunk.type) {
         case 'text': {
           const existingText = message.content.find((item) => item.type === 'text');
@@ -71,15 +72,17 @@ export class AgentOrchestrator {
     return { message, usage };
   }
 
-  private applyStateUpdate(chunk: LLMStreamChunk): void {
+  private applyStateUpdate(chunk: LLMStreamChunk, streamText: string): string {
     switch (chunk.type) {
-      case 'text':
+      case 'text': {
+        const nextText = `${streamText}${chunk.text}`;
         this.state.setValue(
           'llm_stream',
-          `${typeof this.state.snapshot.values.llm_stream === 'string' ? this.state.snapshot.values.llm_stream : ''}${chunk.text}`,
+          nextText,
           false,
         );
-        break;
+        return nextText;
+      }
       case 'tool_call_delta':
         this.state.setValue('llm_tool_call', chunk.id, false);
         break;
@@ -94,5 +97,7 @@ export class AgentOrchestrator {
       default:
         break;
     }
+
+    return streamText;
   }
 }
