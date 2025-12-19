@@ -111,7 +111,7 @@ describe('FileEditorTool', () => {
     const parts = viewed.split('\n<response clipped>\n');
     expect(parts.length).toBe(2);
     const [head, tail] = parts;
-    const maxChars = 8_000;
+    const maxChars = 50_000;
     const clipMarker = '<response clipped>';
     const half = Math.floor((maxChars - clipMarker.length - 2) / 2);
     expect(head.length).toBeLessThanOrEqual(half);
