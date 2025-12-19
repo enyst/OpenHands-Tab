@@ -12,14 +12,14 @@ interface ConversationHistoryPage {
 }
 
 const normalizeRemoteServerUrl = (raw: string): string => {
-  const trimmed = raw.trim();
-  if (!trimmed) return trimmed;
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) {
-    if (trimmed.startsWith('ws://')) return `http://${trimmed.slice('ws://'.length)}`.replace(/\/+$/, '');
-    if (trimmed.startsWith('wss://')) return `https://${trimmed.slice('wss://'.length)}`.replace(/\/+$/, '');
-    return trimmed.replace(/\/+$/, '');
-  }
-  return `http://${trimmed}`.replace(/\/+$/, '');
+  let url = raw.trim();
+  if (!url) return url;
+
+  if (url.startsWith('ws://')) url = `http://${url.slice('ws://'.length)}`;
+  else if (url.startsWith('wss://')) url = `https://${url.slice('wss://'.length)}`;
+  else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) url = `http://${url}`;
+
+  return url.replace(/\/+$/, '');
 };
 
 export interface RemoteConversationOptions {
@@ -438,7 +438,7 @@ export class RemoteConversation extends EventEmitter {
       try {
         const str = buf.toString('utf8');
         const data = JSON.parse(str) as unknown;
-        const normalized = this.normalizeEventPayload(data);
+        const normalized = this.cloneEventPayload(data);
         if (isAgentEvent(normalized)) this.emitIfNewEvent(normalized);
         else this.emit('error', new Error(`Invalid event payload: ${JSON.stringify(normalized)}`));
       } catch (e) {
@@ -473,7 +473,7 @@ export class RemoteConversation extends EventEmitter {
         const body = await res.json() as ConversationHistoryPage;
         const items = Array.isArray(body.items) ? body.items : [];
         for (const raw of items) {
-          const normalized = this.normalizeEventPayload(raw);
+          const normalized = this.cloneEventPayload(raw);
           if (isAgentEvent(normalized)) {
             this.emitIfNewEvent(normalized);
           }
@@ -489,13 +489,13 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  private normalizeEventPayload(payload: unknown): unknown {
+  private cloneEventPayload(payload: unknown): unknown {
     if (!payload || typeof payload !== 'object') return payload;
-    if (Array.isArray(payload)) return payload.map((item) => this.normalizeEventPayload(item));
+    if (Array.isArray(payload)) return payload.map((item) => this.cloneEventPayload(item));
     const obj = payload as Record<string, unknown>;
     const normalized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-      normalized[key] = this.normalizeEventPayload(value);
+      normalized[key] = this.cloneEventPayload(value);
     }
     return normalized;
   }
