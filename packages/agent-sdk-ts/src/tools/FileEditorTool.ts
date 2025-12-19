@@ -20,7 +20,7 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_INLINE_IMAGE_BASE64_CHARS = 4 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 const PDF_EXTENSION = '.pdf';
-const MAX_OUTPUT_CHARS = 8_000;
+const MAX_OUTPUT_CHARS = 50_000;
 const OUTPUT_CLIP_MARKER = '<response clipped>';
 
 const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing files in plain-text format
