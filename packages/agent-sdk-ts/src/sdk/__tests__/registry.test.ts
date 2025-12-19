@@ -56,11 +56,12 @@ describe('LLMRegistry and TrackedLLMClient', () => {
     const c1 = await factory1.createClient();
     expect(registry.get('default-llm')).toBe(c1);
 
-    const factory2 = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline2', usageId: 'default-llm' }, { registry });
+    const factory2 = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', apiKey: 'sk-inline2', usageId: 'default-llm' }, { registry });
     const c2 = await factory2.createClient();
+    expect(c2).not.toBe(c1);
     expect(registry.get('default-llm')).toBe(c2);
 
-    expect(events).toEqual(['default-llm:gpt-5-mini', 'default-llm:gpt-5-mini']);
+    expect(events).toEqual(['default-llm:gpt-5-mini', 'default-llm:gpt-4o-mini']);
   });
 
   it('notifies subscriber and ConversationStats can register', () => {
