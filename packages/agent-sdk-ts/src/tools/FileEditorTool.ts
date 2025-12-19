@@ -20,6 +20,8 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_INLINE_IMAGE_BASE64_CHARS = 4 * 1024 * 1024;
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 const PDF_EXTENSION = '.pdf';
+export const MAX_OUTPUT_CHARS = 50_000;
+export const OUTPUT_CLIP_MARKER = '<response clipped>';
 
 const TOOL_DESCRIPTION = `Custom editing tool for viewing, creating and editing files in plain-text format
 * State is persistent across command calls and discussions with the user
@@ -120,11 +122,17 @@ const addLineNumbers = (content: string): string => {
   return lines.map((line, idx) => `${idx + 1}\t${line}`).join('\n');
 };
 
-const truncateContent = (content: string, limit = 500): string => {
-  if (content.length <= limit * 2) return content;
-  const head = content.slice(0, limit);
-  const tail = content.slice(-limit);
-  return `${head}\n<response clipped>\n${tail}`;
+const truncateContent = (content: string, maxChars = MAX_OUTPUT_CHARS): string => {
+  if (content.length <= maxChars) return content;
+  const minRequired = OUTPUT_CLIP_MARKER.length + 2;
+  if (maxChars < minRequired) {
+    return content.slice(0, maxChars);
+  }
+  const available = maxChars - OUTPUT_CLIP_MARKER.length - 2;
+  const half = Math.max(0, Math.floor(available / 2));
+  const head = content.slice(0, half);
+  const tail = content.slice(content.length - half);
+  return `${head}\n${OUTPUT_CLIP_MARKER}\n${tail}`;
 };
 
 const isProbablyBinary = (buffer: Buffer): boolean => {
@@ -158,6 +166,16 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
   readonly schema = fileEditorSchema;
   private readonly undoHistory = new Map<string, UndoEntry[]>();
   private undoBytesTotal = 0;
+  private readonly maxOutputChars: number;
+
+  constructor(options: { maxOutputChars?: number } = {}) {
+    super();
+    const configured = options.maxOutputChars;
+    this.maxOutputChars =
+      typeof configured === 'number' && Number.isFinite(configured) && configured > 0
+        ? Math.floor(configured)
+        : MAX_OUTPUT_CHARS;
+  }
 
   private async pathExists(absPath: string): Promise<boolean> {
     try {
@@ -187,7 +205,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         const content = buffer.toString('utf8');
         const ranged = applyViewRange(content, args.view_range);
         const numbered = addLineNumbers(ranged);
-        const truncated = truncateContent(numbered);
+        const truncated = truncateContent(numbered, this.maxOutputChars);
         return { command: 'view', path: resolved, prev_exist: true, old_content: content, new_content: truncated };
       }
       case 'create': {
@@ -208,7 +226,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
           path: resolved,
           prev_exist: false,
           old_content: null,
-          new_content: truncateContent(fileText),
+          new_content: truncateContent(fileText, this.maxOutputChars),
         };
       }
       case 'str_replace': {
@@ -356,7 +374,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       hiddenCount > 0
         ? `\n\n${hiddenCount} hidden files/directories in the top-level directory are excluded. You can use 'ls -la ${displayRoot}' to see them.`
         : '';
-    return { text: truncateContent(`${header}${body}${hiddenNote}`) };
+    return { text: truncateContent(`${header}${body}${hiddenNote}`, this.maxOutputChars) };
   }
 
   private viewImage(absPath: string, extension: string, buffer: Buffer): FileEditorResult {

@@ -34,7 +34,12 @@ export class PlanningFileEditorTool extends ZodTool<z.infer<typeof planningSchem
   readonly name = 'planning_file_editor';
   readonly description = TOOL_DESCRIPTION;
   readonly schema = planningSchema;
-  private readonly fileEditor = new FileEditorTool();
+  private readonly fileEditor: FileEditorTool;
+
+  constructor(options: { maxOutputChars?: number } = {}) {
+    super();
+    this.fileEditor = new FileEditorTool(options);
+  }
 
   private ensurePlanTarget(command: PlanningCommand, resolvedPath: string): void {
     if (command === 'view') return;
