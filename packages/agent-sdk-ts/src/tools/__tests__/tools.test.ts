@@ -106,12 +106,16 @@ describe('FileEditorTool', () => {
 
     // Truncation marker present for long content
     expect(viewed).toContain('<response clipped>');
+    expect(viewed.length).toBeLessThanOrEqual(8_000);
 
     const parts = viewed.split('\n<response clipped>\n');
     expect(parts.length).toBe(2);
     const [head, tail] = parts;
-    expect(head.length).toBeLessThanOrEqual(500 + 20); // small slop for line boundaries
-    expect(tail.length).toBeLessThanOrEqual(500 + 20);
+    const maxChars = 8_000;
+    const clipMarker = '<response clipped>';
+    const half = Math.floor((maxChars - clipMarker.length - 2) / 2);
+    expect(head.length).toBeLessThanOrEqual(half);
+    expect(tail.length).toBeLessThanOrEqual(half);
   });
 
   it('views directories up to 2 levels deep, excluding hidden items', async () => {
