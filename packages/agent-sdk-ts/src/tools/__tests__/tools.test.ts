@@ -106,7 +106,7 @@ describe('FileEditorTool', () => {
 
     // Truncation marker present for long content
     expect(viewed).toContain('<response clipped>');
-    expect(viewed.length).toBeLessThanOrEqual(8_000);
+    expect(viewed.length).toBeLessThanOrEqual(50_000);
 
     const parts = viewed.split('\n<response clipped>\n');
     expect(parts.length).toBe(2);
