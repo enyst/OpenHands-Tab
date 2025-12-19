@@ -47,7 +47,7 @@ describe('LLMRegistry and TrackedLLMClient', () => {
     expect(() => registry.add(t2)).toThrow(/already exists/);
   });
 
-  it('can upsert a usageId and updates the registry entry', async () => {
+  it('can switch a usageId and updates the registry entry', async () => {
     const registry = new LLMRegistry();
     const events: string[] = [];
     registry.subscribe((e) => events.push(`${e.llm.usageId}:${e.llm.modelName}`));

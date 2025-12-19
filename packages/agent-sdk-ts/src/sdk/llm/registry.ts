@@ -23,10 +23,10 @@ export class LLMRegistry {
   add(llm: TrackedLLMClient): void {
     const id = llm.usageId;
     if (this.usageToLLM.has(id)) throw new Error(`Usage ID '${id}' already exists in registry`);
-    this.upsert(llm);
+    this.switchLlm(llm);
   }
 
-  upsert(llm: TrackedLLMClient): void {
+  switchLlm(llm: TrackedLLMClient): void {
     const id = llm.usageId;
     this.usageToLLM.set(id, llm);
     this.notify({ llm });

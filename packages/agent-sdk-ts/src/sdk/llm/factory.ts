@@ -47,7 +47,7 @@ export class LLMFactory {
     if (this.config.usageId) {
       const metrics = new Metrics(this.config.model);
       const tracked = new TrackedLLMClient({ inner: base, usageId: this.config.usageId, modelName: this.config.model, metrics, onMetricsUpdate: this.onMetricsUpdate });
-      this.registry?.upsert(tracked);
+      this.registry?.switchLlm(tracked);
       return tracked;
     }
 
