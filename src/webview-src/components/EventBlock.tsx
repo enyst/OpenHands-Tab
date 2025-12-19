@@ -132,10 +132,8 @@ function FileEditorActionSummary({ action }: { action: JsonRecord | null }): Rea
       const rangeText = formatLineRange(parseLineRange(action.view_range));
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>
-            The agent wants to read{' '}
-            <InlineFileReference path={path} />.
-          </p>
+          <p>The agent wants to read</p>
+          <InlineFileReference path={path} />
           {rangeText && <p className="text-xs opacity-70">Requested {rangeText}.</p>}
         </div>
       );
@@ -144,10 +142,8 @@ function FileEditorActionSummary({ action }: { action: JsonRecord | null }): Rea
       const planned = formatCharCount(getCharCount(action.file_text));
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>
-            The agent wants to create{' '}
-            <InlineFileReference path={path} />.
-          </p>
+          <p>The agent wants to create</p>
+          <InlineFileReference path={path} />
           {planned && <p className="text-xs opacity-70">They plan to write {planned}.</p>}
         </div>
       );
@@ -158,16 +154,15 @@ function FileEditorActionSummary({ action }: { action: JsonRecord | null }): Rea
       return (
         <div className="text-sm leading-relaxed space-y-1">
           <p>
-            The agent wants to insert text into{' '}
-            <InlineFileReference path={path} />
+            The agent wants to insert text
             {typeof insertLine === 'number' && (
               <>
                 {' '}
                 {insertLine === 0 ? 'at the top of the file' : `after line ${insertLine.toLocaleString()}`}
               </>
             )}
-            .
           </p>
+          <InlineFileReference path={path} />
           {planned && <p className="text-xs opacity-70">They plan to insert {planned}.</p>}
         </div>
       );
@@ -177,10 +172,8 @@ function FileEditorActionSummary({ action }: { action: JsonRecord | null }): Rea
       const replacementLength = getCharCount(action.new_str) ?? 0;
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>
-            The agent wants to replace text inside{' '}
-            <InlineFileReference path={path} />.
-          </p>
+          <p>The agent wants to replace text inside</p>
+          <InlineFileReference path={path} />
           {removed !== undefined && (
             <p className="text-xs opacity-70">
               Replacing {formatCharCount(removed)} with {formatCharCount(replacementLength)}.
@@ -209,10 +202,8 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
       const listedDirectory = rawOld === null && typeof rawNew === 'string';
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>
-            Agent {listedDirectory ? 'listed the contents of' : 'read'}{' '}
-            <InlineFileReference path={path} />.
-          </p>
+          <p>Agent {listedDirectory ? 'listed the contents of' : 'read'}</p>
+          <InlineFileReference path={path} />
         </div>
       );
     }
@@ -221,10 +212,8 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
       const verb = prevExist === true ? 'overwrote' : 'created';
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>
-            Agent {verb}{' '}
-            <InlineFileReference path={path} />.
-          </p>
+          <p>Agent {verb}</p>
+          <InlineFileReference path={path} />
           {sizeText && <p className="text-xs opacity-70">File now contains {sizeText}.</p>}
         </div>
       );
@@ -234,10 +223,8 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
       const detail = formatSizeDelta(oldLength, newLength);
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>
-            Agent {command === 'insert' ? 'inserted text into' : 'replaced text in'}{' '}
-            <InlineFileReference path={path} />.
-          </p>
+          <p>Agent {command === 'insert' ? 'inserted text into' : 'replaced text in'}</p>
+          <InlineFileReference path={path} />
           {detail && <p className="text-xs opacity-70">{detail}</p>}
         </div>
       );
