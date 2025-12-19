@@ -53,6 +53,38 @@ describe('OpenAICompatibleClient streaming', () => {
     expect(state.snapshot.values.llm_tool_call).toBe('call_1');
   });
 
+  it('does not prepend previous llm_stream content on subsequent chats', async () => {
+    const first = [
+      'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Hello"}]}}]}',
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+      'data: [DONE]',
+    ].join('\n');
+    const second = [
+      'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Bye"}]}}]}',
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+      'data: [DONE]',
+    ].join('\n');
+
+    const fetchMock = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(createStreamResponse(first))
+      .mockResolvedValueOnce(createStreamResponse(second));
+
+    const state = new ConversationState({ eventLog: new EventLog() });
+    const client = new OpenAICompatibleClient(baseConfig, 'test-key');
+    const orchestrator = new AgentOrchestrator(client, { state });
+
+    const response1 = await orchestrator.runChat(buildRequest());
+    expect(response1.message.content[0]).toEqual({ type: 'text', text: 'Hello' });
+    expect(state.snapshot.values.llm_stream).toBe('Hello');
+
+    const response2 = await orchestrator.runChat(buildRequest());
+    expect(response2.message.content[0]).toEqual({ type: 'text', text: 'Bye' });
+    expect(state.snapshot.values.llm_stream).toBe('Bye');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('retries on server errors', async () => {
     const stream = 'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Hi"}]},"finish_reason":"stop"}]}' + '\n' + 'data: [DONE]';
     const fetchMock = vi
