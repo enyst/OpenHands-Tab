@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { describe, expect, it, afterEach } from 'vitest';
-import { BrowserTool, FileEditorTool, TaskTrackerTool, TerminalTool } from '..';
+import { BrowserTool, FileEditorTool, OUTPUT_CLIP_MARKER, TaskTrackerTool, TerminalTool } from '..';
 import { LocalWorkspace } from '../../workspace';
 
 const makeWorkspace = async () => {
@@ -88,9 +88,10 @@ describe('FileEditorTool', () => {
   it('views files with line numbers and truncation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
-    const tool = new FileEditorTool();
+    const maxOutputChars = 2_000;
+    const tool = new FileEditorTool({ maxOutputChars });
 
-    const longContent = Array.from({ length: 10_000 }, (_, i) => `line-${i + 1} ${'x'.repeat(20)}`).join('\n');
+    const longContent = Array.from({ length: 500 }, (_, i) => `line-${i + 1} ${'x'.repeat(20)}`).join('\n');
     const createArgs = tool.validate({ command: 'create', path: 'note.txt', file_text: longContent });
     await tool.execute(createArgs, { workspace });
 
@@ -105,15 +106,13 @@ describe('FileEditorTool', () => {
     expect(viewed.startsWith('1\tline-1')).toBe(true);
 
     // Truncation marker present for long content
-    expect(viewed).toContain('<response clipped>');
-    expect(viewed.length).toBeLessThanOrEqual(50_000);
+    expect(viewed).toContain(OUTPUT_CLIP_MARKER);
+    expect(viewed.length).toBeLessThanOrEqual(maxOutputChars);
 
-    const parts = viewed.split('\n<response clipped>\n');
+    const parts = viewed.split(`\n${OUTPUT_CLIP_MARKER}\n`);
     expect(parts.length).toBe(2);
     const [head, tail] = parts;
-    const maxChars = 50_000;
-    const clipMarker = '<response clipped>';
-    const half = Math.floor((maxChars - clipMarker.length - 2) / 2);
+    const half = Math.floor((maxOutputChars - OUTPUT_CLIP_MARKER.length - 2) / 2);
     expect(head.length).toBeLessThanOrEqual(half);
     expect(tail.length).toBeLessThanOrEqual(half);
   });

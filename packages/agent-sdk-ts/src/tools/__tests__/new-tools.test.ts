@@ -8,6 +8,7 @@ import {
   DelegateTool,
   GlobTool,
   GrepTool,
+  OUTPUT_CLIP_MARKER,
   PlanningFileEditorTool,
   ZodTool,
 } from '..';
@@ -158,9 +159,10 @@ describe('PlanningFileEditorTool', () => {
   it('views PLAN.md with line numbers and truncation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
-    const tool = new PlanningFileEditorTool();
+    const maxOutputChars = 2_000;
+    const tool = new PlanningFileEditorTool({ maxOutputChars });
 
-    const longContent = Array.from({ length: 10_000 }, (_, i) => `plan-line-${i + 1} ${'x'.repeat(20)}`).join('\n');
+    const longContent = Array.from({ length: 500 }, (_, i) => `plan-line-${i + 1} ${'x'.repeat(20)}`).join('\n');
     const createArgs = tool.validate({ command: 'create', path: 'PLAN.md', file_text: longContent });
     await tool.execute(createArgs, { workspace });
 
@@ -175,15 +177,13 @@ describe('PlanningFileEditorTool', () => {
     expect(viewed.startsWith('1\tplan-line-1')).toBe(true);
 
     // Truncation marker present for long content
-    expect(viewed).toContain('<response clipped>');
-    expect(viewed.length).toBeLessThanOrEqual(50_000);
+    expect(viewed).toContain(OUTPUT_CLIP_MARKER);
+    expect(viewed.length).toBeLessThanOrEqual(maxOutputChars);
 
-    const parts = viewed.split('\n<response clipped>\n');
+    const parts = viewed.split(`\n${OUTPUT_CLIP_MARKER}\n`);
     expect(parts.length).toBe(2);
     const [head, tail] = parts;
-    const maxChars = 50_000;
-    const clipMarker = '<response clipped>';
-    const half = Math.floor((maxChars - clipMarker.length - 2) / 2);
+    const half = Math.floor((maxOutputChars - OUTPUT_CLIP_MARKER.length - 2) / 2);
     expect(head.length).toBeLessThanOrEqual(half);
     expect(tail.length).toBeLessThanOrEqual(half);
   });
