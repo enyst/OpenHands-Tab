@@ -29,7 +29,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('Hello world')).toBeInTheDocument();
-    expect(await screen.findByText('Agent')).toBeInTheDocument();
+    expect(await screen.findByText('OpenHands says')).toBeInTheDocument();
   });
 
   it('renders user messages correctly', async () => {
