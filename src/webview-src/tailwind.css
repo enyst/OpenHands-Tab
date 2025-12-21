@@ -7,23 +7,17 @@
 @layer base {
   /*
    * Event color tokens - single source of truth for theming
-   * Philosophy: Warm palette with amber/gold as the protagonist color
+   * Philosophy: Simplified warm palette focused on OpenHands golden
    */
   :root {
-    /* Agent/AI - signature warm gold (the main voice) */
+    /* Agent/AI/Actions/Observations - signature warm gold (OpenHands voice) */
     --event-agent: #E8A642;
-    /* User - warm stone (understated, supporting) */
-    --event-user: #A8A29E;
-    /* System - soft lavender (informational, ambient) */
-    --event-system: #A78BFA;
-    /* Actions - teal (operational, cool accent contrast) */
-    --event-action: #2DD4BF;
-    /* Observations - soft mint (results, completion) */
-    --event-observation: #86EFAC;
+    /* User - lighter warm grey for better contrast */
+    --event-user: #78716C;
     /* Errors - warm coral (alerting without harshness) */
     --event-error: #F87171;
-    /* Default fallback */
-    --event-default: #78716C;
+    /* Default fallback - medium grey */
+    --event-default: #57534E;
 
     /* Surface colors for warm dark theme */
     --surface-0: #0C0A09;

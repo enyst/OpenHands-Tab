@@ -23,24 +23,16 @@ module.exports = {
           800: '#92400E',
           900: '#78350F',
         },
-        // Refined semantic event colors - cohesive warm palette
+        // Simplified event colors - focused on OpenHands golden
         event: {
-          // Agent/AI responses - signature amber (protagonist)
-          agent: '#E8A642',       // Warm gold - the AI's voice
-          // User messages - warm slate (supporting role)
-          user: '#94A3B8',        // Warm gray-blue, understated
-          // System information - soft lavender (informational)
-          system: '#A78BFA',      // Muted violet
-          // Actions/Operations - teal (operational, cool accent)
-          action: '#2DD4BF',      // Teal - stands out against warm palette
-          // Results/Observations - sage green (successful completion)
-          observation: '#86EFAC', // Soft mint green
+          // Agent/AI/Actions/Observations - signature warm gold (OpenHands voice)
+          agent: '#E8A642',       // Warm gold - the main voice
+          // User messages - warm grey (understated)
+          user: '#78716C',        // Medium warm grey
           // Errors - warm coral (alert without harshness)
           error: '#F87171',       // Soft coral red
-          // Success states - emerald
-          success: '#34D399',     // Emerald green
-          // Pause/waiting - amber
-          pause: '#FBBF24',       // Amber (matches brand)
+          // Default fallback - darker grey
+          default: '#57534E',     // Dark warm grey
         },
         // Warm dark surface colors (not cold grays)
         surface: {
