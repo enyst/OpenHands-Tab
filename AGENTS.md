@@ -138,6 +138,12 @@ Reviews (do not merge without review):
   WORKTREE="$(mktemp -d -t oh-tab-review.XXXXXX)"
   git worktree add --detach "$WORKTREE" HEAD
   ```
+- If the repo uses `develop` (not `main`) as its default branch, create a local alias so tools that assume `main` don’t explode:
+  ```bash
+  git -C "$WORKTREE" fetch origin develop
+  git -C "$WORKTREE" branch -f main origin/develop
+  git -C "$WORKTREE" branch -f develop origin/develop
+  ```
 - Start a named tmux session and capture output to a log file:
   (use the actual PR number, below is just an example)
   ```bash
@@ -145,13 +151,17 @@ Reviews (do not merge without review):
   LOG="/tmp/${SESSION}.log"
   rm -f "$LOG"
 
-  tmux new-session -d -s "$SESSION" -n review -c "$WORKTREE" \
-    "openhands --headless --always-approve -t '/codereview-roasted pr 246'"
+  tmux new-session -d -s "$SESSION" -n review -c "$WORKTREE"
   tmux pipe-pane -o -t "${SESSION}:0.0" "cat >> $LOG"
+
+  # Run the review (keep it non-headless so the session stays open for follow-ups)
+  tmux send-keys -t "${SESSION}:0.0" \
+    "GIT_PAGER=cat PAGER=cat LESS=FRX openhands --always-approve -t '/codereview-roasted pr ${PR_NUMBER}'" Enter
 
   # Optional: strip ANSI while viewing
   tail -f "$LOG" | sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g'
   ```
+- When it finishes, you’ll see `Message from Agent` and then `Type your message…` in the log/pane.
 - Send follow-ups / re-review requests to the *same* waiting session:
   ```bash
   tmux send-keys -t "${SESSION}:0.0" "Re-review PR ${PR_NUMBER} after latest commits." Enter
@@ -163,7 +173,16 @@ Reviews (do not merge without review):
   ```
 - Pitfalls we hit:
   - You must pass the task with `-t` (positional args are treated as subcommands).
-  - `--exp` UI is noisy to log/copy (ANSI); `--headless` is easier for paste-back to Mail.
+  - If you see `No module named 'fastapi'` on startup, reinstall OpenHands with the missing dependency:
+    ```bash
+    uv tool install --force --with fastapi openhands==1.6.0
+    ```
+  - If you see `Item 'rs_…' of type 'reasoning' was provided without its required following item.`, switch OpenHands to a chat-mode model (gpt-5.* “responses” models triggered this):
+    ```bash
+    jq '.llm.model="openai/gpt-4o-mini" | .condenser.llm.model="openai/gpt-4o-mini"' \
+      ~/.openhands/agent_settings.json > /tmp/agent_settings.json && mv /tmp/agent_settings.json ~/.openhands/agent_settings.json
+    ```
+  - `--exp` UI is noisy to log/copy (ANSI); `GIT_PAGER=cat` + `PAGER=cat` makes paste-back to Mail much easier.
 
 
 ## SDK Package
