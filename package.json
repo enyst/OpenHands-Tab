@@ -288,12 +288,12 @@
         "openhands.elevenlabs.voiceAId": {
           "type": "string",
           "default": "",
-          "markdownDescription": "ElevenLabs voice id for HAL (`voice_hal`)."
+          "markdownDescription": "ElevenLabs voice ID for HAL (voice A)."
         },
         "openhands.elevenlabs.voiceUserId": {
           "type": "string",
           "default": "",
-          "markdownDescription": "ElevenLabs voice id for the user (`voice_user`, used in `tts_only`)."
+          "markdownDescription": "ElevenLabs voice ID for the user (voice B, used in `tts_only` mode)."
         },
         "openhands.elevenlabs.modelId": {
           "type": "string",
