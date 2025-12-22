@@ -47,7 +47,7 @@ Voice A:
 Voice B:
 - “Okay okay, do it.”
 Music:
-- “Pink Panther / elevator music” sting (prefer local file for licensing/timing).
+- “Rhapsody in Blue final crescendo / elevator music” sting (prefer local file for timing).
 
 ### Accessibility
 - Provide a “Mute/Disable audio” setting and a one-click stop button.
