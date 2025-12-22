@@ -1,7 +1,7 @@
 # ElevenLabs API for VS Code — “HAL 9000” fun PRD
 
 ## Summary
-Add an optional, theatrical “HAL 9000” **Restricted Area Protocol** to the OpenHands VS Code extension: when the user/agent attempts a restricted local action (e.g., outside workspace folders or operation with security risk = "HIGH"), the UI shows a pulsating red “eye” and plays a short scripted dialogue (and optional “Pink Panther / elevator music” sting). The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic generation, or (recommended for v1) via **pre-bundled audio files** for deterministic timing and zero API latency.
+Add an optional, theatrical “HAL 9000” **Restricted Area Protocol** to the OpenHands VS Code extension: when the user/agent attempts a restricted local action (e.g., outside workspace folders or operation with security risk = "HIGH"), the UI shows a pulsating red “eye” and plays a short scripted dialogue (and optional “Pink Panther / elevator music” sting). The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic generation, or (deferred for later, after human tests TTS workflow) via **pre-bundled audio files** for deterministic timing and zero API latency.
 
 This PRD is intentionally “fun”/non-critical: it must be easy to disable, safe by default, and must never block core workflows.
 
