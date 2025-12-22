@@ -9,6 +9,9 @@ import { FileStore } from '@openhands/agent-sdk-ts';
 import { isEvent, isMessageEvent, isTextContent } from '@openhands/agent-sdk-ts';
 import { SettingsManager, type SavedServer } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
+import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
+import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
+import { getHalDialogueLines } from '../../shared/halScript';
 
 export type WebviewHost = {
   postMessage: (message: unknown) => Thenable<boolean>;
@@ -33,6 +36,7 @@ type WebviewMessage =
   | { type: 'selectAttachments' }
   | { type: 'openAttachment'; uri: string }
   | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
+  | { type: 'halTtsRequest'; requestId: string; conversationId: string; stepIndex: number }
   | { type: 'command'; command: string; reason?: string }
   | {
     type: 'renderedEventsResponse';
@@ -57,6 +61,7 @@ type WebviewMessage =
     type: 'halStateResponse';
     requestId: string;
     enabled: boolean;
+    mode: string;
     phase: string;
     eye: string;
     stepIndex: number | null;
@@ -299,6 +304,7 @@ export type CreateWebviewMessageHandlerDeps = {
     requestId: string,
     info: {
       enabled: boolean;
+      mode: string;
       phase: string;
       eye: string;
       stepIndex: number | null;
@@ -315,6 +321,21 @@ export type CreateWebviewMessageHandlerDeps = {
 export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDeps) {
   const { context, host } = deps;
   const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+  const elevenlabsCacheMaxBytes = 50 * 1024 * 1024;
+  let elevenlabsTtsGate: TtsConversationGate | null = null;
+
+  const getElevenlabsTtsGate = (): TtsConversationGate => {
+    if (elevenlabsTtsGate) return elevenlabsTtsGate;
+    const baseDir = context.globalStorageUri?.fsPath || path.join(os.tmpdir(), 'oh-tab-global-storage');
+    const cacheDir = path.join(baseDir, 'hal', 'elevenlabs', 'tts-cache');
+    elevenlabsTtsGate = new TtsConversationGate(
+      new ElevenLabsTtsService({
+        cacheDir,
+        maxCacheBytes: elevenlabsCacheMaxBytes,
+      })
+    );
+    return elevenlabsTtsGate;
+  };
 
   return async (msg: unknown) => {
     if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
@@ -699,6 +720,53 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         await conversation.sendUserMessage(finalText);
         break;
       }
+      case 'halTtsRequest': {
+        if (typeof message.requestId !== 'string' || typeof message.conversationId !== 'string') break;
+        if (typeof message.stepIndex !== 'number' || !Number.isFinite(message.stepIndex)) break;
+        const stepIndex = Math.trunc(message.stepIndex);
+        if (stepIndex < 0) break;
+
+        const settings = await settingsMgr.get();
+        const script = getHalDialogueLines(settings.elevenlabs.userName);
+        const line = script[stepIndex];
+        if (!line) {
+          void host.postMessage({ type: 'halTtsResponse', requestId: message.requestId, ok: false, error: 'Invalid HAL script line', shouldNotify: true });
+          break;
+        }
+
+        const apiKey = settings.secrets.elevenLabsApiKey ?? '';
+        const voiceId = line.voice === 'voice_hal' ? (settings.elevenlabs.voiceAId ?? '') : (settings.elevenlabs.voiceUserId ?? '');
+
+        const result = await getElevenlabsTtsGate().synthesize({
+          conversationId: message.conversationId,
+          apiKey,
+          voiceId,
+          text: line.text,
+          modelId: settings.elevenlabs.modelId,
+          cacheEnabled: settings.elevenlabs.cache,
+        });
+
+        if (result.ok) {
+          void host.postMessage({
+            type: 'halTtsResponse',
+            requestId: message.requestId,
+            ok: true,
+            audioBase64: Buffer.from(result.bytes).toString('base64'),
+            volume: settings.elevenlabs.volume,
+          });
+          break;
+        }
+
+        void host.postMessage({
+          type: 'halTtsResponse',
+          requestId: message.requestId,
+          ok: false,
+          error: result.error,
+          shouldNotify: result.shouldNotify,
+          disabled: result.disabled,
+        });
+        break;
+      }
       case 'command': {
         switch (message.command) {
           case 'reconnect':
@@ -752,6 +820,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'halStateResponse':
         deps.onHalStateResponse(message.requestId, {
           enabled: message.enabled,
+          mode: message.mode,
           phase: message.phase,
           eye: message.eye,
           stepIndex: message.stepIndex,
