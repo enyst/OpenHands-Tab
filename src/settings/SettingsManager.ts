@@ -5,11 +5,25 @@ export interface SavedServer {
   label?: string;
 }
 
+export type ElevenLabsMode = 'bundled' | 'tts_only' | 'voice_confirm';
+
+export type ElevenLabsSettings = {
+  enabled: boolean;
+  mode: ElevenLabsMode;
+  userName: string;
+  voiceAId?: string;
+  voiceUserId?: string;
+  modelId?: string;
+  volume: number;
+  cache: boolean;
+};
+
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
+  elevenlabs: ElevenLabsSettings;
   servers: SavedServer[];
   secrets: {
     sessionApiKey?: string;
@@ -31,6 +45,7 @@ const DEFAULTS: OpenHandsSettings = {
   agent: { enableSecurityAnalyzer: false, debug: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
+  elevenlabs: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },
   secrets: {}
 };
 
@@ -58,6 +73,23 @@ const normalizeLlmProvider = (value: unknown): LLMSettings['provider'] | undefin
     default:
       return undefined;
   }
+};
+
+const normalizeElevenLabsMode = (value: unknown, defaultValue: ElevenLabsMode): ElevenLabsMode => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  switch (trimmed) {
+    case 'bundled':
+    case 'tts_only':
+    case 'voice_confirm':
+      return trimmed;
+    default:
+      return defaultValue;
+  }
+};
+
+const clampUnitInterval = (value: number | null | undefined, defaultValue: number): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
+  return Math.min(1, Math.max(0, value));
 };
 
 export class SettingsManager {
@@ -116,6 +148,24 @@ export class SettingsManager {
       riskyThreshold: this.adapter.get<'LOW' | 'MEDIUM' | 'HIGH'>('openhands.confirmation.risky.threshold', DEFAULTS.confirmation.riskyThreshold) ?? DEFAULTS.confirmation.riskyThreshold,
       confirmUnknown: this.adapter.get<boolean>('openhands.confirmation.risky.confirmUnknown', DEFAULTS.confirmation.confirmUnknown) ?? DEFAULTS.confirmation.confirmUnknown,
     };
+    const elevenlabs: ElevenLabsSettings = {
+      enabled: this.adapter.get<boolean>('openhands.elevenlabs.enabled', DEFAULTS.elevenlabs.enabled) ?? DEFAULTS.elevenlabs.enabled,
+      mode: normalizeElevenLabsMode(
+        this.adapter.get<unknown>('openhands.elevenlabs.mode', DEFAULTS.elevenlabs.mode) ?? DEFAULTS.elevenlabs.mode,
+        DEFAULTS.elevenlabs.mode
+      ),
+      userName: normalizeNonEmptyString(
+        this.adapter.get<string | null>('openhands.elevenlabs.userName', DEFAULTS.elevenlabs.userName) ?? DEFAULTS.elevenlabs.userName
+      ) ?? DEFAULTS.elevenlabs.userName,
+      voiceAId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.elevenlabs.voiceAId', null) ?? undefined),
+      voiceUserId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.elevenlabs.voiceUserId', null) ?? undefined),
+      modelId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.elevenlabs.modelId', null) ?? undefined),
+      volume: clampUnitInterval(
+        this.adapter.get<number | null>('openhands.elevenlabs.volume', DEFAULTS.elevenlabs.volume) ?? DEFAULTS.elevenlabs.volume,
+        DEFAULTS.elevenlabs.volume
+      ),
+      cache: this.adapter.get<boolean>('openhands.elevenlabs.cache', DEFAULTS.elevenlabs.cache) ?? DEFAULTS.elevenlabs.cache,
+    };
     const secrets = {
       sessionApiKey: await this.adapter.getSecret('openhands.sessionApiKey'),
       llmApiKey: await this.adapter.getSecret('openhands.llmApiKey'),
@@ -127,7 +177,7 @@ export class SettingsManager {
       customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
       customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
     };
-    return { serverUrl, servers, llm, agent, conversation, confirmation, secrets };
+    return { serverUrl, servers, llm, agent, conversation, confirmation, elevenlabs, secrets };
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
@@ -182,6 +232,33 @@ export class SettingsManager {
       }
       if (partial.confirmation.confirmUnknown !== undefined) {
         ops.push(this.adapter.update('openhands.confirmation.risky.confirmUnknown', partial.confirmation.confirmUnknown, target));
+      }
+    }
+
+    if (partial.elevenlabs) {
+      if (partial.elevenlabs.enabled !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.enabled', partial.elevenlabs.enabled, target));
+      }
+      if (partial.elevenlabs.mode !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.mode', partial.elevenlabs.mode, target));
+      }
+      if (partial.elevenlabs.userName !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.userName', partial.elevenlabs.userName, target));
+      }
+      if (partial.elevenlabs.voiceAId !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.voiceAId', partial.elevenlabs.voiceAId, target));
+      }
+      if (partial.elevenlabs.voiceUserId !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.voiceUserId', partial.elevenlabs.voiceUserId, target));
+      }
+      if (partial.elevenlabs.modelId !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.modelId', partial.elevenlabs.modelId, target));
+      }
+      if (partial.elevenlabs.volume !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.volume', partial.elevenlabs.volume, target));
+      }
+      if (partial.elevenlabs.cache !== undefined) {
+        ops.push(this.adapter.update('openhands.elevenlabs.cache', partial.elevenlabs.cache, target));
       }
     }
 
