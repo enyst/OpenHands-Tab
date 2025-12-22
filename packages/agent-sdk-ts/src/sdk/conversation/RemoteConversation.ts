@@ -140,6 +140,18 @@ export class RemoteConversation extends EventEmitter {
       if (s?.secrets.elevenLabsApiKey) {
         secrets.ELEVENLABS_API_KEY = { kind: 'StaticSecret', value: s.secrets.elevenLabsApiKey };
       }
+      if (s?.secrets.githubToken) {
+        secrets.GITHUB_TOKEN = { kind: 'StaticSecret', value: s.secrets.githubToken };
+      }
+      if (s?.secrets.customSecret1) {
+        secrets.CUSTOM_SECRET_1 = { kind: 'StaticSecret', value: s.secrets.customSecret1 };
+      }
+      if (s?.secrets.customSecret2) {
+        secrets.CUSTOM_SECRET_2 = { kind: 'StaticSecret', value: s.secrets.customSecret2 };
+      }
+      if (s?.secrets.customSecret3) {
+        secrets.CUSTOM_SECRET_3 = { kind: 'StaticSecret', value: s.secrets.customSecret3 };
+      }
 
       const confirmation_policy: Record<string, unknown> = (() => {
         const p = s?.confirmation.policy || 'never';

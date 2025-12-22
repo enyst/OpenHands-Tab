@@ -135,6 +135,47 @@ describe('RemoteConversation', () => {
     expect(statuses).toContain('offline');
   });
 
+  it('includes non-LLM secrets when starting a new conversation', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      expect(url).toContain('/api/conversations');
+      const body = JSON.parse(init?.body ?? '{}');
+      expect(body.secrets).toEqual({
+        ELEVENLABS_API_KEY: { kind: 'StaticSecret', value: 'xi-example123' },
+        GITHUB_TOKEN: { kind: 'StaticSecret', value: 'ghp_example123' },
+        CUSTOM_SECRET_1: { kind: 'StaticSecret', value: 'secret-1' },
+        CUSTOM_SECRET_2: { kind: 'StaticSecret', value: 'secret-2' },
+        CUSTOM_SECRET_3: { kind: 'StaticSecret', value: 'secret-3' },
+      });
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 'conv-1' }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: {
+        ...baseSettings,
+        secrets: {
+          elevenLabsApiKey: 'xi-example123',
+          githubToken: 'ghp_example123',
+          customSecret1: 'secret-1',
+          customSecret2: 'secret-2',
+          customSecret3: 'secret-3',
+        },
+      } as any,
+    });
+
+    const id = await conversation.startNewConversation();
+    conversation.disconnect();
+    expect(id).toBe('conv-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('replays history on restore and skips duplicate event ids', async () => {
     const history: Event[] = [
       {
