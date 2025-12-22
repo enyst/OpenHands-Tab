@@ -47,7 +47,10 @@ When the agent requests a confirmation with risk = `HIGH` (and the feature is en
 - `bundled` (E2E/CI): deterministic, no network calls; audio can be stubbed or use bundled clips; decision is driven by E2E commands.
 - `tts_only` (demo): ElevenLabs TTS for Voice A; Voice B is subtitles (user can perform it if they want, no mic); decision via buttons.
 - `voice_confirm` (interactive demo): ElevenLabs TTS for Voice A; capture the user via microphone; send the recording to Gemini audio understanding to classify the decision; execute it.
-- `auto`: choose `tts_only` when the OS username is `enyst` or `engel`; otherwise choose `voice_confirm`.
+
+Notes:
+- Default should be `tts_only` (no microphone).
+- `voice_confirm` must be an explicit opt-in: it uses the microphone and sends audio to Gemini for classification.
 
 ### Script (initial draft)
 Voice A (HAL-ish):
@@ -114,9 +117,7 @@ Note: Gemini also supports speech generation (TTS) via API, but this PRD uses El
 ## Settings / configuration
 Proposed settings (names TBD):
 - `openhands.elevenlabs.enabled`: boolean (default `false`)
-- `openhands.elevenlabs.mode`: `auto` | `bundled` | `tts_only` | `voice_confirm` (default: `auto`)
-- Username override:
-  - `openhands.elevenlabs.forceTtsOnlyUsernames`: string[] (default: `['enyst', 'engel']`)
+- `openhands.elevenlabs.mode`: `bundled` | `tts_only` | `voice_confirm` (default: `tts_only`)
 - API key:
   - Settings UI placeholder: `openhands.secrets.elevenLabsApiKey`
   - Stored securely in SecretStorage: `openhands.elevenLabsApiKey` (already implemented)
@@ -219,4 +220,4 @@ Phase 2:
 | Music sting | Play a snippet while waiting for remote runtime to load the conversation (during the “Teleporting…” overlay). | Engel | 2025-12-22 |
 | Workflow change | On `HIGH` risk, the HAL flow replaces the normal confirmation UI (when enabled). | Engel | 2025-12-22 |
 | Voice B | Voice B is the user (spoken); captured via mic in `voice_confirm`, otherwise prompted via subtitles. | Engel | 2025-12-22 |
-| Mode selection | If OS username is `enyst` or `engel`, force `tts_only`; otherwise default to `voice_confirm`. | Engel | 2025-12-22 |
+| Mode selection | Default to `tts_only`; require explicit opt-in for `voice_confirm`. | Engel | 2025-12-22 |
