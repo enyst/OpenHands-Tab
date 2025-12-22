@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { pollUntil } from './pollUntil';
 
 type DiagnosticsInfo = {
   chat?: { hasView?: boolean; webviewReady?: boolean };
@@ -27,19 +28,6 @@ type RenderedEventSnapshot = {
 const sleep = async (ms: number): Promise<void> => {
   await new Promise((r) => setTimeout(r, ms));
 };
-
-async function pollUntil(
-  condition: () => Promise<boolean>,
-  timeoutMs: number = 10000,
-  intervalMs: number = 200
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await condition()) return;
-    await sleep(intervalMs);
-  }
-  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
-}
 
 function containsSubsequence(haystack: unknown[], needle: unknown[]): boolean {
   if (needle.length === 0) return true;

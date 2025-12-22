@@ -30,7 +30,7 @@ This document explains how to run automated E2E tests for the OpenHands-Tab VS C
    - Or clone it:
      - `git clone https://github.com/OpenHands/software-agent-sdk.git ~/repos/agent-sdk`
      - `cd ~/repos/agent-sdk && make build`
-     - `uv run python -m openhands.agent_server --host 0.0.0.0 --port 3000`
+     - `uv run python -m openhands.agent_server --host 127.0.0.1 --port 3000` (use `0.0.0.0` only if you need remote access)
 3) Launch the extension in VS Code
    - Open this folder in VS Code
    - Press F5 to run “Extension Development Host”
