@@ -21,7 +21,8 @@ interface ServerSelectorProps {
 
 // Helper to extract display name from server - exported for reuse in Header
 export function getServerDisplayLabel(server: SavedServer): string {
-  if (server.label) return server.label;
+  const trimmedLabel = server.label?.trim();
+  if (trimmedLabel) return trimmedLabel;
   try {
     const url = new URL(server.url);
     return url.hostname + (url.port ? ':' + url.port : '');
@@ -147,6 +148,7 @@ export function ServerSelector({
             {servers.map((server) => {
               const selected = isServerSelected(server.url);
               const displayLabel = getServerDisplayLabel(server);
+              const hasCustomLabel = Boolean(server.label?.trim());
               return (
                 <div
                   key={server.url}
@@ -170,7 +172,7 @@ export function ServerSelector({
                     <span className="codicon codicon-cloud" />
                     <div className="flex-1 min-w-0">
                       <div className="truncate">{displayLabel}</div>
-                      {server.label && (
+                      {hasCustomLabel && (
                         <div className="text-xs opacity-50 truncate">{server.url}</div>
                       )}
                     </div>

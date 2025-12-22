@@ -52,6 +52,20 @@ describe('SettingsManager', () => {
     expect(s.llm.model).toBe(defaults.llm.model);
   });
 
+  it('normalizes saved servers', async () => {
+    a.cfg.set('openhands.servers', [
+      { url: ' http://localhost:3000 ', label: '   ' },
+      { url: '   ' },
+      { url: 'https://example.com:1234', label: ' My Server ' },
+    ]);
+
+    const s = await mgr.get();
+    expect(s.servers).toEqual([
+      { url: 'http://localhost:3000' },
+      { url: 'https://example.com:1234', label: 'My Server' },
+    ]);
+  });
+
   it('updates and persists config and secrets', async () => {
     await mgr.update({
       serverUrl: 'http://example:1234',
