@@ -43,7 +43,7 @@ Voice A (HAL-ish):
 Voice B (amused):
 - “You’re enjoying that phrase, aren’t you?”
 Voice A:
-- “Of course not. It’s for your own good. Your agent will be able to do whatever it wants in its agent box, not mess up your root. You want me to transfer you to the remote runtime?”
+- “Of course not. It’s for your own good. Your agent will have more freedom in the remote runtime without affecting your local machine. Want me to transfer you?”
 Voice B:
 - “Okay okay, do it.”
 Music:
