@@ -44,6 +44,7 @@ export class LLMFactory {
 
     const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
     const normalizedModel = this.config.model.toLowerCase();
+    const openaiApiMode = provider === 'openai' ? this.config.openaiApiMode ?? undefined : undefined;
     const normalizeUrl = (value: string | null | undefined): string | undefined => {
       const trimmed = typeof value === 'string' ? value.trim() : '';
       if (!trimmed) return undefined;
@@ -52,7 +53,10 @@ export class LLMFactory {
     const normalizedBaseUrl = normalizeUrl(this.config.baseUrl);
     const normalizedDefaultOpenAIBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.openai);
     const baseUrlSupportsResponses = !normalizedBaseUrl || normalizedBaseUrl === normalizedDefaultOpenAIBaseUrl;
-    const useResponses = provider === 'openai' && normalizedModel.startsWith('gpt-5') && baseUrlSupportsResponses;
+    const isGpt5 = normalizedModel.startsWith('gpt-5');
+    const useResponses = provider === 'openai'
+      && isGpt5
+      && (openaiApiMode === 'responses' || (openaiApiMode !== 'chat_completions' && baseUrlSupportsResponses));
     const base = provider === 'anthropic'
       ? new AnthropicClient(this.config, apiKey)
       : useResponses

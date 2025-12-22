@@ -181,6 +181,24 @@ describe('LLMFactory integration', () => {
     expect(client).toBeInstanceOf(OpenAIResponsesClient);
   });
 
+  it('honors openaiApiMode=chat_completions for GPT-5 models', async () => {
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', openaiApiMode: 'chat_completions', apiKey: 'sk-inline' });
+    const client = await factory.createClient();
+    expect(client).toBeInstanceOf(OpenAICompatibleClient);
+  });
+
+  it('honors openaiApiMode=responses even when baseUrl is custom', async () => {
+    const factory = new LLMFactory({
+      model: 'gpt-5-mini',
+      provider: 'openai',
+      baseUrl: 'http://localhost:4000',
+      openaiApiMode: 'responses',
+      apiKey: 'sk-inline',
+    });
+    const client = await factory.createClient();
+    expect(client).toBeInstanceOf(OpenAIResponsesClient);
+  });
+
   it('does not route GPT-5 models through Responses API when baseUrl is custom', async () => {
     const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', baseUrl: 'http://localhost:4000', apiKey: 'sk-inline' });
     const client = await factory.createClient();
