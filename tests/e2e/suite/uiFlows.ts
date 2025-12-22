@@ -170,5 +170,58 @@ export async function run(): Promise<void> {
     return hal?.phase === 'idle';
   }, 15000);
 
+  // Also cover deterministic reject path.
+  const rejectToolCallId = `call_hal_reject_${Date.now()}`;
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'ActionEvent',
+    source: 'agent',
+    thought: [{ type: 'text', text: 'High-risk action (reject)' }],
+    action: { command: 'rm -rf /tmp/test-reject' },
+    tool_name: 'terminal',
+    tool_call_id: rejectToolCallId,
+    tool_call: {
+      id: rejectToolCallId,
+      type: 'function',
+      function: { name: 'terminal', arguments: '{"command":"rm -rf /tmp/test-reject"}' }
+    },
+    llm_response_id: 'resp_hal_reject',
+    security_risk: 'HIGH'
+  });
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'ConversationStateUpdateEvent',
+    source: 'agent',
+    agent_status: 'WAITING_FOR_CONFIRMATION'
+  });
+
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.phase === 'awaiting_user';
+  }, 15000);
+
+  await vscode.commands.executeCommand('openhands._webviewAction', { action: 'halReject' });
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.decision === 'reject';
+  }, 15000);
+
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'UserRejectObservation',
+    source: 'environment',
+    rejection_reason: 'E2E reject',
+    tool_name: 'terminal',
+    tool_call_id: rejectToolCallId,
+    action_id: 'action_hal_reject'
+  });
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'ConversationStateUpdateEvent',
+    source: 'agent',
+    agent_status: 'IDLE'
+  });
+
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.phase === 'idle';
+  }, 15000);
+
   console.log('✓ All ui flow tests passed');
 }
