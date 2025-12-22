@@ -147,6 +147,31 @@ function safeParseUri(raw: string): vscode.Uri | undefined {
   }
 }
 
+function resolveWorkspaceFilePath(inputPath: string): { resolvedPath: string; displayPath: string } {
+  const isAbs = path.isAbsolute(inputPath);
+  const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+  let resolvedPath: string;
+  if (!isAbs && wsRoot) {
+    const candidate = path.resolve(wsRoot, inputPath);
+    const rel = path.relative(wsRoot, candidate);
+    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+      resolvedPath = candidate;
+    } else {
+      resolvedPath = path.resolve(inputPath);
+    }
+  } else {
+    resolvedPath = path.resolve(inputPath);
+  }
+
+  if (!wsRoot) {
+    return { resolvedPath, displayPath: resolvedPath };
+  }
+  const rel = path.relative(wsRoot, resolvedPath);
+  const displayPath = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : resolvedPath;
+  return { resolvedPath, displayPath };
+}
+
 async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<string> {
   if (attachmentUris.length === 0) return '';
 
@@ -473,21 +498,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const p = message.path;
         if (!p) break;
         try {
-          const isAbs = path.isAbsolute(p);
-          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          let resolved: string | undefined;
-          if (!isAbs && wsRoot) {
-            const candidate = path.resolve(wsRoot, p);
-            const rel = path.relative(wsRoot, candidate);
-            if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-              resolved = candidate;
-            }
-          }
-          if (!resolved) {
-            resolved = path.resolve(p);
-          }
-          await fs.stat(resolved);
-          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolved));
+          const { resolvedPath } = resolveWorkspaceFilePath(p);
+          await fs.stat(resolvedPath);
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
           await vscode.window.showTextDocument(document, { preview: false });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
@@ -505,27 +518,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         try {
           ensureDiffProviderRegistered(context);
 
-          const isAbs = path.isAbsolute(p);
-          const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          let resolved: string | undefined;
-          if (!isAbs && wsRoot) {
-            const candidate = path.resolve(wsRoot, p);
-            const rel = path.relative(wsRoot, candidate);
-            if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-              resolved = candidate;
-            }
-          }
-          if (!resolved) {
-            resolved = path.resolve(p);
-          }
-
-          const displayPath = wsRoot
-            ? (() => {
-              const rel = path.relative(wsRoot, resolved);
-              if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) return rel;
-              return resolved;
-            })()
-            : resolved;
+          const { displayPath } = resolveWorkspaceFilePath(p);
 
           const { beforeUri, afterUri } = createDiffUris(displayPath);
           storeDiffDocument(beforeUri, message.oldContent);
