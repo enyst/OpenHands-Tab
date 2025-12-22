@@ -41,13 +41,13 @@ When a HIGH-risk confirmation triggers (often associated with local-mode restric
 ### Trigger
 When the agent requests a confirmation with risk = `HIGH` (and the feature is enabled), the extension:
 1) Displays a pulsating red “eye” overlay inside the chat webview.
-2) Plays a fixed dialogue sequence (HAL voice + the user as “Voice B”).
+2) Plays a fixed dialogue sequence (HAL voice + Voice B (“user voice”; synthesized in `tts_only`, microphone in `voice_confirm`)).
 3) Captures the user’s decision: **Approve locally** | **Teleport to remote runtime** | **Reject**.
 4) Executes that decision and returns to the normal extension/webview flow.
 
 ### Modes (optional; for product + tests)
 - `bundled` (E2E/CI): deterministic, no network calls; audio can be stubbed or use bundled clips; decision is driven by E2E commands.
-- `tts_only` (demo): ElevenLabs TTS for Voice A; Voice B is subtitles (user can perform it if they want, no mic); decision via buttons.
+- `tts_only` (demo): ElevenLabs TTS for Voice A (`voice_hal`) and Voice B (`voice_user`); decision via buttons.
 - `voice_confirm` (interactive demo): ElevenLabs TTS for Voice A; capture the user via microphone; send the recording to Gemini audio understanding to classify the decision; execute it.
 
 Notes:
@@ -55,14 +55,14 @@ Notes:
 - `voice_confirm` must be an explicit opt-in: it uses the microphone and sends audio to Gemini for classification.
 
 ### Script (initial draft)
-Voice A (HAL-ish):
+Voice A (`voice_hal`, HAL-ish):
 - “I’m sorry, {userName}, I can’t let you do that.” (default `{userName} = Engel`)
 - “Do you want me to teleport your conversation to the remote runtime?”
-Voice B (user):
+Voice B (`voice_user` / user mic, optional):
 - “You’re enjoying that phrase, aren’t you?”
 Voice A:
 - “Of course not. It’s for your own good. Your agent will have more freedom in the remote runtime without affecting your local machine. Want me to transfer you?”
-Voice B (user):
+Optional (Teleport reaction, `voice_user`):
 - “Okay okay, do it.”
 Music:
 - “Rhapsody in Blue final crescendo / elevator music” sting (while waiting for remote runtime to load).
@@ -98,14 +98,14 @@ Note: Gemini also supports speech generation (TTS) via API, but this PRD uses El
 ### Data flow (`tts_only`)
 1) HIGH-risk confirmation triggers → enter HAL flow (do not show the normal confirmation UI).
 2) Webview displays the red eye overlay.
-3) Voice A lines play via ElevenLabs TTS; Voice B lines are shown as subtitles (the user can say them out loud, but it’s optional).
+3) Voice A lines play via ElevenLabs TTS using `voice_hal`; Voice B lines play via ElevenLabs TTS using `voice_user`.
 4) At the end, present three buttons: **Approve locally** | **Teleport to remote runtime** | **Reject**.
 5) Execute the chosen decision and return to the normal UI.
    - If teleporting: show “Teleporting…” overlay and play the “Rhapsody in Blue…” snippet until the remote conversation is ready.
 
 ### Data flow (`voice_confirm`)
 1) HIGH-risk confirmation triggers → enter HAL flow (do not show the normal confirmation UI).
-2) Voice A lines play via ElevenLabs TTS.
+2) Voice A lines play via ElevenLabs TTS (`voice_hal`).
 3) Show a “Hold to talk” (or Record) control and prompt the user to speak one of: “approve locally”, “teleport”, or “reject”.
 4) Send that audio to Gemini audio understanding and request a structured response (JSON) with one of: `approve_local | teleport_remote | reject`.
 5) Execute the decision and return to the normal UI.
@@ -124,7 +124,8 @@ Proposed settings (names TBD):
 - API key:
   - Settings UI placeholder: `openhands.secrets.elevenLabsApiKey`
   - Stored securely in SecretStorage: `openhands.elevenLabsApiKey` (already implemented)
-- `openhands.elevenlabs.voiceAId`: string (HAL voice id)
+- `openhands.elevenlabs.voiceAId`: string (`voice_hal` / HAL voice id)
+- `openhands.elevenlabs.voiceUserId`: string (`voice_user` / user voice id; used for `tts_only`)
 - `openhands.elevenlabs.modelId`: e.g. `eleven_turbo_v2` (optional)
 - `openhands.elevenlabs.volume`: 0.0–1.0
 - `openhands.elevenlabs.cache`: boolean (default `true`)
@@ -156,7 +157,12 @@ Proposed settings (names TBD):
 - **Reject**: reject the current confirmation and continue (or pause) as the normal confirmation flow would.
 - **Teleport to remote runtime**:
   - Cancel the local confirmation (do not execute the risky local action).
-  - Switch to remote mode and start a new conversation.
+  - Pick the **first** configured remote server in the ServerSelect list.
+    - If no server is available (empty list): show “No server available” and fall back to the standard Reject flow (including the usual reject-reason prompt).
+  - Before starting the new remote conversation: run a one-shot **local** LLM summarization and send **only the summary** as the first user message in the remote conversation (not full JSON event history).
+    - Include repo name + branch name, and a note that uncommitted local changes may not be present in remote.
+    - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn’t emit them today).
+  - Switch to remote mode and start a new conversation on that server.
   - Show the “Teleporting…” overlay and play the “Rhapsody in Blue…” snippet until the remote conversation is ready.
 
 ## Testing plan
@@ -222,5 +228,5 @@ Phase 2:
 | Trigger conditions | Only trigger (if enabled) when the confirmation prompt risk is `HIGH`. | Engel | 2025-12-22 |
 | Music sting | Play a snippet while waiting for remote runtime to load the conversation (during the “Teleporting…” overlay). | Engel | 2025-12-22 |
 | Workflow change | On `HIGH` risk, the HAL flow replaces the normal confirmation UI (when enabled). | Engel | 2025-12-22 |
-| Voice B | Voice B is the user (spoken); captured via mic in `voice_confirm`, otherwise prompted via subtitles. | Engel | 2025-12-22 |
+| Voice B | In `tts_only`, Voice B lines are played via ElevenLabs TTS using `voice_user`; in `voice_confirm`, Voice B is the real user via microphone (for the final decision). | Engel | 2025-12-22 |
 | Mode selection | Default to `tts_only`; require explicit opt-in for `voice_confirm`. | Engel | 2025-12-22 |
