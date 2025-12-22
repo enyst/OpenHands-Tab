@@ -42,6 +42,7 @@ export class DiskLruCache {
     const filePath = this.getEntryPath(key);
     if (!(await fileExists(filePath))) {
       delete this.index.entries[key];
+      await this.saveIndex();
       return undefined;
     }
 
@@ -128,4 +129,3 @@ export class DiskLruCache {
     await fs.rename(tmp, this.indexPath);
   }
 }
-
