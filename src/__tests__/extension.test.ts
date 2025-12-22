@@ -338,6 +338,27 @@ describe('Command handlers', () => {
     expect(conversationInstance.rejectAction).toHaveBeenCalledWith('nope');
   });
 
+  it('does not show a duplicate error popup for teleportAction failures', async () => {
+    const handler = chatView._messageHandler;
+    expect(handler).toBeTypeOf('function');
+
+    const exec = vscode.commands.executeCommand as unknown as Mock;
+    const orig = exec.getMockImplementation();
+    try {
+      exec.mockImplementation(async (name: string, ...args: any[]) => {
+        if (name === 'openhands._teleportToRemoteRuntime') {
+          throw new Error('boom');
+        }
+        return orig?.(name, ...args);
+      });
+
+      await handler({ type: 'command', command: 'teleportAction' });
+      expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+    } finally {
+      exec.mockImplementation(orig);
+    }
+  });
+
   it('opens a diff view for openWorkspaceDiff messages', async () => {
     const handler = chatView._messageHandler;
     expect(handler).toBeTypeOf('function');
