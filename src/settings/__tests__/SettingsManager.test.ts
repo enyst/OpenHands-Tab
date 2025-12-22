@@ -32,6 +32,14 @@ describe('SettingsManager', () => {
     expect(s.llm.model).toBe('claude-sonnet-4-20250514');
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
     expect(s.agent.debug).toBe(false);
+    expect(s.elevenlabs.enabled).toBe(false);
+    expect(s.elevenlabs.mode).toBe('tts_only');
+    expect(s.elevenlabs.userName).toBe('Engel');
+    expect(s.elevenlabs.voiceAId).toBeUndefined();
+    expect(s.elevenlabs.voiceUserId).toBeUndefined();
+    expect(s.elevenlabs.modelId).toBeUndefined();
+    expect(s.elevenlabs.volume).toBe(1);
+    expect(s.elevenlabs.cache).toBe(true);
   });
 
   it('includes a default model in remote mode', async () => {
@@ -56,6 +64,16 @@ describe('SettingsManager', () => {
       agent: { enableSecurityAnalyzer: true, debug: true },
       conversation: { maxIterations: 42 },
       confirmation: { policy: 'risky', riskyThreshold: 'MEDIUM', confirmUnknown: false },
+      elevenlabs: {
+        enabled: true,
+        mode: 'voice_confirm',
+        userName: 'Alice',
+        voiceAId: 'voice_hal',
+        voiceUserId: 'voice_user',
+        modelId: 'eleven_turbo_v2',
+        volume: 0.25,
+        cache: false,
+      },
       secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
     });
     const s = await mgr.get();
@@ -72,8 +90,38 @@ describe('SettingsManager', () => {
     expect(s.confirmation.policy).toBe('risky');
     expect(s.confirmation.riskyThreshold).toBe('MEDIUM');
     expect(s.confirmation.confirmUnknown).toBe(false);
+    expect(s.elevenlabs.enabled).toBe(true);
+    expect(s.elevenlabs.mode).toBe('voice_confirm');
+    expect(s.elevenlabs.userName).toBe('Alice');
+    expect(s.elevenlabs.voiceAId).toBe('voice_hal');
+    expect(s.elevenlabs.voiceUserId).toBe('voice_user');
+    expect(s.elevenlabs.modelId).toBe('eleven_turbo_v2');
+    expect(s.elevenlabs.volume).toBe(0.25);
+    expect(s.elevenlabs.cache).toBe(false);
     expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
+  });
+
+  it('sanitizes invalid ElevenLabs mode and clamps volume', async () => {
+    await mgr.update({
+      elevenlabs: {
+        mode: 'wat' as any,
+        userName: '   ' as any,
+        volume: 2 as any,
+      } as any,
+    });
+
+    const s = await mgr.get();
+    expect(s.elevenlabs.mode).toBe('tts_only');
+    expect(s.elevenlabs.userName).toBe('Engel');
+    expect(s.elevenlabs.volume).toBe(1);
+
+    await mgr.update({
+      elevenlabs: { volume: -1 as any } as any,
+    });
+
+    const s2 = await mgr.get();
+    expect(s2.elevenlabs.volume).toBe(0);
   });
 
   it('clears secret when undefined is provided', async () => {

@@ -265,6 +265,53 @@
           "default": "default-llm",
           "markdownDescription": "Optional usage_id for local-mode LLM metrics tracking. In remote mode, only applies if explicitly set."
         },
+        "openhands.elevenlabs.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Enable the HAL high-risk confirmation flow."
+        },
+        "openhands.elevenlabs.mode": {
+          "type": "string",
+          "enum": [
+            "bundled",
+            "tts_only",
+            "voice_confirm"
+          ],
+          "default": "tts_only",
+          "markdownDescription": "HAL mode when enabled: `bundled` (E2E/CI), `tts_only` (TTS + buttons), `voice_confirm` (TTS + mic + Gemini)."
+        },
+        "openhands.elevenlabs.userName": {
+          "type": "string",
+          "default": "Engel",
+          "markdownDescription": "User name used only in templated HAL script lines."
+        },
+        "openhands.elevenlabs.voiceAId": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "ElevenLabs voice id for HAL (`voice_hal`)."
+        },
+        "openhands.elevenlabs.voiceUserId": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "ElevenLabs voice id for the user (`voice_user`, used in `tts_only`)."
+        },
+        "openhands.elevenlabs.modelId": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Optional ElevenLabs model id (e.g., `eleven_turbo_v2`)."
+        },
+        "openhands.elevenlabs.volume": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 1,
+          "markdownDescription": "Playback volume (0.0–1.0)."
+        },
+        "openhands.elevenlabs.cache": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enable caching for generated ElevenLabs audio."
+        },
         "openhands.secrets.githubToken": {
           "type": "string",
           "default": "",
