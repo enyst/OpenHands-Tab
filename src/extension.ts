@@ -1,13 +1,16 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
+import * as childProcess from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
+import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from './shared/halTeleport';
 import {
   Conversation,
   type ConversationInstance,
   FileEditorTool,
+  LLMFactory,
   TaskTrackerTool,
   TerminalTool,
   type BashEvent,
@@ -570,6 +573,81 @@ function safeStringify(value: unknown): string {
 }
 /* eslint-enable @typescript-eslint/no-unsafe-return */
 
+function execFileText(command: string, args: string[], cwd?: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    childProcess.execFile(command, args, { cwd }, (err, stdout, stderr) => {
+      if (err) {
+        const message = typeof stderr === 'string' && stderr.trim().length > 0 ? stderr.trim() : err.message;
+        reject(new Error(message));
+        return;
+      }
+      resolve(typeof stdout === 'string' ? stdout : String(stdout));
+    });
+  });
+}
+
+async function resolveGitContext(workspaceRoot: string | undefined): Promise<{ repoName: string; branchName: string }> {
+  const fallbackRepo = workspaceRoot ? path.basename(workspaceRoot) : 'unknown';
+  if (!workspaceRoot) return { repoName: fallbackRepo, branchName: 'unknown' };
+
+  try {
+    const root = (await execFileText('git', ['rev-parse', '--show-toplevel'], workspaceRoot)).trim();
+    const branch = (await execFileText('git', ['rev-parse', '--abbrev-ref', 'HEAD'], root)).trim();
+    return { repoName: path.basename(root) || fallbackRepo, branchName: branch || 'unknown' };
+  } catch {
+    return { repoName: fallbackRepo, branchName: 'unknown' };
+  }
+}
+
+async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string): Promise<string> {
+  const model = normalizeNonEmptyString(settings.llm.model) ?? '';
+  if (!model) {
+    throw new Error('LLM model is not configured');
+  }
+  const apiKey = normalizeNonEmptyString(settings.secrets.llmApiKey);
+  if (!apiKey) {
+    throw new Error('Missing LLM API key');
+  }
+
+  const factory = new LLMFactory({
+    provider: settings.llm.provider ?? undefined,
+    model,
+    baseUrl: normalizeNonEmptyString(settings.llm.baseUrl),
+    apiKey,
+    apiVersion: normalizeNonEmptyString(settings.llm.apiVersion),
+    timeoutSeconds: settings.llm.timeout ?? undefined,
+    temperature: settings.llm.temperature ?? undefined,
+    topP: settings.llm.topP ?? undefined,
+    topK: settings.llm.topK ?? undefined,
+    maxInputTokens: settings.llm.maxInputTokens ?? undefined,
+    maxOutputTokens: settings.llm.maxOutputTokens ?? undefined,
+    reasoningEffort: settings.llm.reasoningEffort ?? undefined,
+    inputCostPerToken: settings.llm.inputCostPerToken ?? undefined,
+    outputCostPerToken: settings.llm.outputCostPerToken ?? undefined,
+  });
+
+  const client = await factory.createClient();
+  const request = {
+    systemPrompt: '',
+    messages: [
+      {
+        role: 'user' as const,
+        content: [{ type: 'text' as const, text: prompt }],
+      },
+    ],
+  };
+
+  let text = '';
+  for await (const chunk of client.streamChat(request)) {
+    if (chunk.type === 'text') text += chunk.text;
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new Error('LLM returned an empty summary');
+  }
+  return trimmed;
+}
+
 function normalizeNonEmptyString(value: string | undefined | null): string | undefined {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || undefined;
@@ -1016,6 +1094,74 @@ export function activate(context: vscode.ExtensionContext) {
     await conversation?.startNewConversation();
   });
 
+  const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
+    const postToWebview = (message: unknown) => {
+      if (!chatView || !chatWebviewReady) return;
+      void chatView.webview.postMessage(message);
+    };
+
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+      const settings = await settingsMgr.get();
+
+      const firstServerUrl = typeof settings.servers?.[0]?.url === 'string' ? settings.servers[0].url.trim() : '';
+      if (!firstServerUrl) {
+        const message = 'No server available';
+        outputChannel?.appendLine(`[hal.teleport] ${message}`);
+        postToWebview({ type: 'halTeleportUnavailable', error: message });
+        void vscode.window.showErrorMessage(message);
+        return;
+      }
+
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const { repoName, branchName } = await resolveGitContext(workspaceRoot);
+      const introLines = [
+        'Teleported from the local VS Code runtime after a HIGH-risk confirmation.',
+        `Repo: ${repoName}`,
+        `Branch: ${branchName}`,
+        'Note: uncommitted local changes may not be present remotely.',
+      ];
+      const intro = introLines.join('\n');
+
+      const backlogEvents = Array.from(iterConversationEventBacklog(), (item) => item.event);
+      const summaryEvents = takeLastTeleportableEvents(backlogEvents, TELEPORT_SUMMARY_EVENT_LIMIT);
+      const prompt = renderCondensationSummarizingPrompt({
+        previousSummary: '',
+        eventStrings: summaryEvents.map((e) => safeStringify(e)),
+      });
+
+      let firstRemoteMessage: string;
+      try {
+        const summary = await summarizeWithLocalLlm(settings, prompt);
+        firstRemoteMessage = `${intro}\n\n---\n\n${summary}`;
+      } catch (err) {
+        const last10 = takeLastTeleportableEvents(backlogEvents, TELEPORT_FALLBACK_EVENT_LIMIT).map((e) => safeStringify(e));
+        const reason = renderError(err);
+        const block = last10.map((e) => `<EVENT>\n${e}\n</EVENT>`).join('\n\n');
+        firstRemoteMessage = `${intro}\n\n---\n\nTeleport summary failed: ${reason}\n\nLast 10 events (Action/Observation/Message only):\n\n${block}`;
+      }
+
+      try {
+        await conversation?.rejectAction('Teleported to remote runtime');
+      } catch (err) {
+        outputChannel?.appendLine(`[hal.teleport] Failed to reject local confirmation: ${renderError(err)}`);
+      }
+
+      // Ensure we always start a new remote conversation instead of restoring a prior one.
+      await context.workspaceState.update('openhands.conversationId.remote', undefined);
+
+      await settingsMgr.update({ serverUrl: firstServerUrl });
+      await ensureConversationAndConnection({ uiJustCreated: true });
+      await conversation?.startNewConversation();
+      await conversation?.sendUserMessage(firstRemoteMessage);
+    } catch (err) {
+      const reason = renderError(err);
+      outputChannel?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
+      postToWebview({ type: 'halTeleportFailed', error: reason });
+      void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
+    }
+  });
+
   const configure = vscode.commands.registerCommand('openhands.configure', async () => {
     // Open VS Code settings page for OpenHands extension
     await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
@@ -1248,6 +1394,7 @@ export function activate(context: vscode.ExtensionContext) {
     queryHalState,
     webviewAction,
     startNew,
+    teleportToRemoteRuntime,
     configure,
     setApiKey,
     setSessionApiKey,

@@ -192,6 +192,8 @@ export function App() {
   const [halStepIndex, setHalStepIndex] = useState<number | null>(null);
   const [halDecision, setHalDecision] = useState<HalDecision | null>(null);
   const [halLastError, setHalLastError] = useState<string | null>(null);
+  const [halForceRejectInput, setHalForceRejectInput] = useState(false);
+  const [halTeleporting, setHalTeleporting] = useState(false);
   const halTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const halActiveKeyRef = useRef<string | null>(null);
   const [halSuppressedKey, setHalSuppressedKey] = useState<string | null>(null);
@@ -199,6 +201,7 @@ export function App() {
   const halEnabledRef = useRef<boolean>(false);
   const halPhaseRef = useRef<HalPhase>('idle');
   const halSuppressedKeyRef = useRef<string | null>(null);
+  const halTeleportInProgressRef = useRef(false);
   const pendingActionsRef = useRef<ActionEvent[]>([]);
   const agentStatusRef = useRef<string | undefined>(undefined);
   const conversationIdRef = useRef<string | undefined>(undefined);
@@ -365,6 +368,7 @@ export function App() {
   }, [elevenlabs.userName]);
 
   const maybeUpdateHalFlow = useCallback(() => {
+    if (halTeleportInProgressRef.current) return;
     const enabled = halEnabledRef.current;
     const status = agentStatusRef.current;
     const pending = pendingActionsRef.current;
@@ -386,6 +390,8 @@ export function App() {
         setHalStepIndex(null);
         setHalDecision(null);
         setHalLastError(null);
+        setHalForceRejectInput(false);
+        setHalTeleporting(false);
       }
       return;
     }
@@ -395,6 +401,7 @@ export function App() {
       halActiveKeyRef.current = nextKey;
       halSuppressedKeyRef.current = null;
       setHalSuppressedKey(null);
+      setHalForceRejectInput(false);
     }
 
     if (halSuppressedKeyRef.current === nextKey) {
@@ -610,8 +617,49 @@ export function App() {
             setStatusBanner({ message: 'An unknown error occurred', level: 'error' });
           }
           break;
+        case 'halTeleportUnavailable': {
+          const message = typeof payload.error === 'string' && payload.error.trim() ? payload.error.trim() : 'No server available';
+          halTeleportInProgressRef.current = false;
+          setHalTeleporting(false);
+          setHalForceRejectInput(true);
+          setHalDecision(null);
+          setHalLastError(message);
+          halPhaseRef.current = 'awaiting_user';
+          setHalPhase('awaiting_user');
+          setHalEye('pulsating');
+          showStatusMessage('error', message);
+          break;
+        }
+        case 'halTeleportFailed': {
+          const message = typeof payload.error === 'string' && payload.error.trim() ? payload.error.trim() : 'Teleport failed';
+          halTeleportInProgressRef.current = false;
+          setHalTeleporting(false);
+          setHalForceRejectInput(false);
+          setHalDecision(null);
+          setHalLastError(message);
+          halPhaseRef.current = 'error';
+          setHalPhase('error');
+          setHalEye('dim');
+          showStatusMessage('error', message);
+          break;
+        }
         case 'conversationStarted':
           if (typeof payload.conversationId === 'string') {
+            if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
+              halTeleportInProgressRef.current = false;
+              setHalTeleporting(false);
+              setHalForceRejectInput(false);
+              clearHalTimer();
+              halActiveKeyRef.current = null;
+              halSuppressedKeyRef.current = null;
+              setHalSuppressedKey(null);
+              halPhaseRef.current = 'idle';
+              setHalPhase('idle');
+              setHalEye('off');
+              setHalStepIndex(null);
+              setHalDecision(null);
+              setHalLastError(null);
+            }
             conversationIdRef.current = payload.conversationId;
             setConversationId(payload.conversationId);
             setEvents([]);
@@ -699,8 +747,25 @@ export function App() {
               setHalDecision('reject');
               postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
               break;
+            case 'halTeleport':
+              setHalDecision('teleport_remote');
+              clearHalTimer();
+              halTeleportInProgressRef.current = true;
+              setHalTeleporting(true);
+              setHalForceRejectInput(false);
+              halPhaseRef.current = 'waiting_remote';
+              setHalPhase('waiting_remote');
+              setHalEye('pulsating');
+              setHalStepIndex(null);
+              setHalLastError(null);
+              showStatusMessage('info', 'Teleporting to remote runtime…');
+              postMessage({ type: 'command', command: 'teleportAction' });
+              break;
             case 'halExit': {
               clearHalTimer();
+              halTeleportInProgressRef.current = false;
+              setHalTeleporting(false);
+              setHalForceRejectInput(false);
               const key = halActiveKeyRef.current;
               if (key) {
                 halSuppressedKeyRef.current = key;
@@ -884,6 +949,9 @@ export function App() {
 
   const handleHalExit = useCallback(() => {
     clearHalTimer();
+    halTeleportInProgressRef.current = false;
+    setHalTeleporting(false);
+    setHalForceRejectInput(false);
     const key = halActiveKeyRef.current;
     if (key) {
       halSuppressedKeyRef.current = key;
@@ -910,17 +978,15 @@ export function App() {
   const handleHalTeleport = useCallback(() => {
     setHalDecision('teleport_remote');
     clearHalTimer();
-    const key = halActiveKeyRef.current;
-    if (key) {
-      halSuppressedKeyRef.current = key;
-      setHalSuppressedKey(key);
-    }
-    halPhaseRef.current = 'idle';
-    setHalPhase('idle');
-    setHalEye('off');
+    halTeleportInProgressRef.current = true;
+    setHalTeleporting(true);
+    setHalForceRejectInput(false);
+    halPhaseRef.current = 'waiting_remote';
+    setHalPhase('waiting_remote');
+    setHalEye('pulsating');
     setHalStepIndex(null);
     setHalLastError(null);
-    showStatusMessage('warn', 'Teleport to remote runtime is not implemented yet');
+    showStatusMessage('info', 'Teleporting to remote runtime…');
     postMessage({ type: 'command', command: 'teleportAction' });
   }, [clearHalTimer, postMessage, showStatusMessage]);
 
@@ -1040,7 +1106,8 @@ export function App() {
     halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
       ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
       : null;
-  const shouldShowHalOverlay = halEnabled && hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey;
+  const shouldShowHalOverlay =
+    halEnabled && (halPhase === 'waiting_remote' || (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey));
   const halUiPhase: HalPhase = halPhase === 'idle' && shouldShowHalOverlay ? 'dialogue' : halPhase;
   const halUiStepIndex = halUiPhase === 'dialogue' ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1)) : null;
   const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0] ?? null : null;
@@ -1095,13 +1162,15 @@ export function App() {
       {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
       {shouldShowHalOverlay && (
         <HalOverlay
+          key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
           userName={elevenlabs.userName.trim() || DEFAULT_ELEVENLABS_SETTINGS.userName}
           phase={halUiPhase}
           eye={halEye}
           line={halUiLine}
           decision={halDecision}
           lastError={halLastError}
-          isSubmitting={isSubmitting}
+          isSubmitting={isSubmitting || halTeleporting}
+          startWithRejectInput={halForceRejectInput}
           onApprove={handleHalApprove}
           onTeleport={handleHalTeleport}
           onReject={handleHalReject}
