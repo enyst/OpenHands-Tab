@@ -152,6 +152,14 @@ In the Dev Host window, use the commands:
 - Increase log level:
   - Developer: Set Log Level → Trace
 
+
+### Internal diagnostics command
+- Command: "OpenHands: Diagnostics (Internal)" (command id: `openhands._diagnostics`)
+- Purpose: internal troubleshooting helper for development/testing environments. Safe to ignore for normal use.
+- How to run: Command Palette → type "OpenHands: Diagnostics (Internal)".
+- Output: writes to the OpenHands Output channel and/or the extension log folder alongside the dev bridge logs.
+
+
 ## Taking Screenshots
 - Use the OS screenshot hotkeys, or DevTools screenshot if applicable
 - Save to the repository for traceability, e.g. media/screenshots/
