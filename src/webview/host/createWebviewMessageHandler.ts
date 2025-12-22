@@ -12,7 +12,7 @@ import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
 import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
 import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
-import { getHalDialogueLines } from '../../shared/halScript';
+import { getHalDialogueLinesForMode } from '../../shared/halScript';
 
 export type WebviewHost = {
   postMessage: (message: unknown) => Thenable<boolean>;
@@ -762,7 +762,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         if (stepIndex < 0) break;
 
         const settings = await settingsMgr.get();
-        const script = getHalDialogueLines(settings.elevenlabs.userName);
+        const script = getHalDialogueLinesForMode(settings.elevenlabs.userName, settings.elevenlabs.mode);
         const line = script[stepIndex];
         if (!line) {
           void host.postMessage({ type: 'halTtsResponse', requestId: message.requestId, ok: false, error: 'Invalid HAL script line', shouldNotify: true });

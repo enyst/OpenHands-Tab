@@ -15,7 +15,7 @@ import {
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
-import { getHalDialogueLines, normalizeHalUserName, type HalScriptLine } from '../../shared/halScript';
+import { getHalDialogueLinesForMode, normalizeHalUserName, type HalScriptLine } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
 
 // Component imports
@@ -440,7 +440,10 @@ export function App() {
     }
   }, []);
 
-  const halDialogueLines = useMemo(() => getHalDialogueLines(elevenlabs.userName), [elevenlabs.userName]);
+  const halDialogueLines = useMemo(
+    () => getHalDialogueLinesForMode(elevenlabs.userName, elevenlabs.mode),
+    [elevenlabs.mode, elevenlabs.userName]
+  );
 
     useEffect(() => {
       halDialogueRef.current = halDialogueLines;
@@ -630,6 +633,9 @@ export function App() {
           return;
         }
 
+        const conversationKey = getHalConversationKey();
+        const sessionKey = halActiveKeyRef.current;
+
         cleanupHalVoiceConfirm();
         halVoiceDiscardNextStopRef.current = false;
         halVoiceChunksRef.current = [];
@@ -644,6 +650,15 @@ export function App() {
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           disableVoiceConfirmForConversation(`Microphone permission denied or unavailable: ${reason}`);
+          return;
+        }
+
+        if (halPhaseRef.current !== 'listening' || getHalConversationKey() !== conversationKey || halActiveKeyRef.current !== sessionKey) {
+          for (const track of stream.getTracks()) {
+            try {
+              track.stop();
+            } catch {}
+          }
           return;
         }
 
