@@ -717,7 +717,12 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             await conversation?.rejectAction(message.reason);
             break;
           case 'teleportAction':
-            void vscode.window.showInformationMessage('Teleport to remote runtime is not implemented yet.');
+            try {
+              await vscode.commands.executeCommand('openhands._teleportToRemoteRuntime');
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : String(err);
+              void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
+            }
             break;
           default:
             console.warn(`Unknown command received from webview: ${message.command}`);

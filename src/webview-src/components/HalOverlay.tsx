@@ -13,6 +13,7 @@ type HalOverlayProps = {
   decision: HalDecision | null;
   lastError: string | null;
   isSubmitting: boolean;
+  startWithRejectInput?: boolean;
   onApprove: () => void;
   onTeleport: () => void;
   onReject: (reason?: string) => void;
@@ -27,12 +28,13 @@ export function HalOverlay({
   decision,
   lastError,
   isSubmitting,
+  startWithRejectInput,
   onApprove,
   onTeleport,
   onReject,
   onExit,
 }: HalOverlayProps) {
-  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [showRejectInput, setShowRejectInput] = useState(() => Boolean(startWithRejectInput));
   const [rejectReason, setRejectReason] = useState('');
 
   const title = useMemo(() => {

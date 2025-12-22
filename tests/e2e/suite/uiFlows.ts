@@ -97,6 +97,8 @@ export async function run(): Promise<void> {
 
   // HAL: Phase 0 bundled flow (no network calls)
   const cfg = vscode.workspace.getConfiguration();
+  await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
+  await cfg.update('openhands.servers', [], vscode.ConfigurationTarget.Global);
   await cfg.update('openhands.elevenlabs.enabled', true, vscode.ConfigurationTarget.Global);
   await cfg.update('openhands.elevenlabs.mode', 'bundled', vscode.ConfigurationTarget.Global);
 
@@ -158,6 +160,66 @@ export async function run(): Promise<void> {
     tool_name: 'terminal',
     tool_call_id: highRiskToolCallId,
     action_id: 'action_hal'
+  });
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'ConversationStateUpdateEvent',
+    source: 'agent',
+    agent_status: 'IDLE'
+  });
+
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.phase === 'idle';
+  }, 15000);
+
+  // Teleport (no servers): should fall back to Reject+reason prompt with a visible error.
+  const teleportToolCallId = `call_hal_teleport_${Date.now()}`;
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'ActionEvent',
+    source: 'agent',
+    thought: [{ type: 'text', text: 'High-risk action (teleport)' }],
+    action: { command: 'rm -rf /tmp/test-teleport' },
+    tool_name: 'terminal',
+    tool_call_id: teleportToolCallId,
+    tool_call: {
+      id: teleportToolCallId,
+      type: 'function',
+      function: { name: 'terminal', arguments: '{"command":"rm -rf /tmp/test-teleport"}' }
+    },
+    llm_response_id: 'resp_hal_teleport',
+    security_risk: 'HIGH'
+  });
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'ConversationStateUpdateEvent',
+    source: 'agent',
+    agent_status: 'WAITING_FOR_CONFIRMATION'
+  });
+
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.phase === 'awaiting_user';
+  }, 15000);
+
+  await vscode.commands.executeCommand('openhands._webviewAction', { action: 'halTeleport' });
+
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.phase === 'awaiting_user' && typeof hal?.lastError === 'string' && hal.lastError.includes('No server available');
+  }, 15000);
+
+  await vscode.commands.executeCommand('openhands._webviewAction', { action: 'halReject' });
+  await pollUntil(async () => {
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    return hal?.decision === 'reject';
+  }, 15000);
+
+  await vscode.commands.executeCommand('openhands._sendTestEvent', {
+    kind: 'UserRejectObservation',
+    source: 'environment',
+    rejection_reason: 'E2E reject',
+    tool_name: 'terminal',
+    tool_call_id: teleportToolCallId,
+    action_id: 'action_hal_teleport'
   });
   await vscode.commands.executeCommand('openhands._sendTestEvent', {
     kind: 'ConversationStateUpdateEvent',
