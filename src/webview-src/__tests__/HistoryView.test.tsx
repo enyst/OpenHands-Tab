@@ -16,6 +16,7 @@ describe('HistoryView', () => {
   it('filters conversations by search query', () => {
     const onClose = vi.fn();
     const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
 
     render(
       <HistoryView
@@ -27,6 +28,7 @@ describe('HistoryView', () => {
         ]}
         currentConversationId="def456"
         onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
       />
     );
 
@@ -46,16 +48,18 @@ describe('HistoryView', () => {
   it('shows no-results state and clears search', () => {
     const onClose = vi.fn();
     const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
 
     render(
       <HistoryView
         isOpen
         onClose={onClose}
         conversations={[
-          { id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 1000 },
-          { id: 'def456', firstMessage: 'Refactor prompt', timestamp: 2000 },
+          { id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 2000 },
+          { id: 'def456', firstMessage: 'Refactor prompt', timestamp: 1000 },
         ]}
         onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
       />
     );
 
@@ -74,6 +78,7 @@ describe('HistoryView', () => {
   it('clears search on Escape without closing', () => {
     const onClose = vi.fn();
     const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
 
     render(
       <HistoryView
@@ -81,6 +86,7 @@ describe('HistoryView', () => {
         onClose={onClose}
         conversations={[{ id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 1000 }]}
         onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
       />
     );
 
@@ -97,6 +103,7 @@ describe('HistoryView', () => {
   it('closes on Escape when search is empty', () => {
     const onClose = vi.fn();
     const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
 
     render(
       <HistoryView
@@ -104,6 +111,7 @@ describe('HistoryView', () => {
         onClose={onClose}
         conversations={[{ id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 1000 }]}
         onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
       />
     );
 
@@ -116,6 +124,7 @@ describe('HistoryView', () => {
   it('paginates conversations with Load more', () => {
     const onClose = vi.fn();
     const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
 
     const conversations = Array.from({ length: 31 }, (_, idx) => {
       const n = idx + 1;
@@ -128,6 +137,7 @@ describe('HistoryView', () => {
         onClose={onClose}
         conversations={conversations}
         onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
       />
     );
 
@@ -141,5 +151,32 @@ describe('HistoryView', () => {
     expect(screen.getByText('Conversation 1')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load more conversations' })).not.toBeInTheDocument();
     expect(screen.getByText('31 conversations')).toBeInTheDocument();
+  });
+
+  it('calls onDeleteConversation when trash icon is clicked', () => {
+    const onClose = vi.fn();
+    const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
+
+    render(
+      <HistoryView
+        isOpen
+        onClose={onClose}
+        conversations={[
+          { id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 2000 },
+          { id: 'def456', firstMessage: 'Refactor prompt', timestamp: 1000 },
+        ]}
+        onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
+      />
+    );
+
+    act(() => { vi.advanceTimersByTime(150); });
+
+    const deletes = screen.getAllByRole('button', { name: 'Delete conversation' });
+    fireEvent.click(deletes[0]!);
+
+    expect(onDeleteConversation).toHaveBeenCalledTimes(1);
+    expect(onDeleteConversation).toHaveBeenCalledWith('abc123');
   });
 });

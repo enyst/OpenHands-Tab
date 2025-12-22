@@ -22,6 +22,7 @@ interface HistoryViewProps {
   conversations: Conversation[];
   currentConversationId?: string;
   onSelectConversation: (id: string) => void;
+  onDeleteConversation: (id: string) => void;
 }
 
 interface ConversationItemProps {
@@ -29,6 +30,7 @@ interface ConversationItemProps {
   isActive: boolean;
   animationDelay: number;
   onSelect: () => void;
+  onDelete: () => void;
 }
 
 // --- Utility Functions ---
@@ -89,58 +91,72 @@ function ConversationItem({
   isActive,
   animationDelay,
   onSelect,
+  onDelete,
 }: ConversationItemProps) {
   const displayTitle = getDisplayTitle(conversation);
   const promptPreview = getPromptPreview(conversation.firstMessage);
   const timeAgo = formatTimeAgo(conversation.timestamp);
 
   return (
-    <button
-      onClick={onSelect}
-      className={`
-        w-full text-left p-4 rounded-xl
-        transition-all duration-200
-        border
-        hover:bg-white/[0.04]
-        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-        ${isActive
-          ? 'bg-brand-500/10 border-brand-500/25 hover:bg-brand-500/15'
-          : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}
-        animate-slide-up
-      `}
+    <div
+      className="relative animate-slide-up"
       style={{ animationDelay: `${animationDelay}ms` }}
     >
-      {/* Title Row */}
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <div className={`font-medium text-sm line-clamp-2 flex-1 ${isActive ? 'text-brand-200' : 'text-stone-200'}`}>
-          {displayTitle}
+      <button
+        onClick={onSelect}
+        className={`
+          w-full text-left p-4 pr-12 rounded-xl
+          transition-all duration-200
+          border
+          hover:bg-white/[0.04]
+          focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+          ${isActive
+            ? 'bg-brand-500/10 border-brand-500/25 hover:bg-brand-500/15'
+            : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}
+        `}
+      >
+        {/* Title Row */}
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div className={`font-medium text-sm line-clamp-2 flex-1 ${isActive ? 'text-brand-200' : 'text-stone-200'}`}>
+            {displayTitle}
+          </div>
+          {isActive && (
+            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-400 mt-1 animate-pulse" />
+          )}
         </div>
-        {isActive && (
-          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-brand-400 mt-1 animate-pulse" />
+
+        {/* Prompt Preview */}
+        {promptPreview && (
+          <div className="text-xs text-stone-500 line-clamp-2 mb-2">
+            {promptPreview}
+          </div>
         )}
-      </div>
 
-      {/* Prompt Preview */}
-      {promptPreview && (
-        <div className="text-xs text-stone-500 line-clamp-2 mb-2">
-          {promptPreview}
-        </div>
-      )}
-
-      {/* Metadata Row */}
-      <div className="flex items-center gap-3 text-xs text-stone-500">
-        <span className="flex items-center gap-1">
-          <span className="codicon codicon-clock" />
-          {timeAgo}
-        </span>
-        {conversation.messageCount !== undefined && (
+        {/* Metadata Row */}
+        <div className="flex items-center gap-3 text-xs text-stone-500">
           <span className="flex items-center gap-1">
-            <span className="codicon codicon-comment" />
-            {conversation.messageCount}
+            <span className="codicon codicon-clock" />
+            {timeAgo}
           </span>
-        )}
-      </div>
-    </button>
+          {conversation.messageCount !== undefined && (
+            <span className="flex items-center gap-1">
+              <span className="codicon codicon-comment" />
+              {conversation.messageCount}
+            </span>
+          )}
+        </div>
+      </button>
+
+      <button
+        type="button"
+        onClick={onDelete}
+        className="absolute right-3 top-3 h-7 w-7 rounded-md text-stone-500 hover:text-stone-200 hover:bg-white/[0.06] flex items-center justify-center transition-all"
+        aria-label="Delete conversation"
+        title="Delete conversation"
+      >
+        <span className="codicon codicon-trash text-sm" />
+      </button>
+    </div>
   );
 }
 
@@ -192,6 +208,7 @@ export function HistoryView({
   conversations,
   currentConversationId,
   onSelectConversation,
+  onDeleteConversation,
 }: HistoryViewProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -338,6 +355,7 @@ export function HistoryView({
                     onSelectConversation(conversation.id);
                     onClose();
                   }}
+                  onDelete={() => onDeleteConversation(conversation.id)}
                 />
               ))}
 
