@@ -522,16 +522,32 @@ export class Agent extends EventEmitter {
   rejectAction(reason?: string): void {
     if (!this.pendingAction) return;
     const { actionEvent, toolCall } = this.pendingAction;
+    const rejectionReason = reason ?? 'User rejected the action';
     this.pendingAction = undefined;
     this.pendingWorkspaceAccess = undefined;
     this.events.push({
       kind: 'UserRejectObservation',
       source: 'environment',
-      rejection_reason: reason ?? 'User rejected the action',
+      rejection_reason: rejectionReason,
       tool_name: actionEvent.tool_name,
       tool_call_id: toolCall.id,
       action_id: actionEvent.id!,
     } as Event);
+
+    // OpenAI-compatible providers require that assistant tool_calls are followed by tool messages for each tool_call_id.
+    // If the user rejects a tool call, emit a synthetic tool response so subsequent LLM calls remain valid.
+    const rejectionText = truncateToolMessage(this.maskSecretsInText(`User rejected tool call: ${rejectionReason}`));
+    this.events.push({
+      kind: 'MessageEvent',
+      source: 'environment',
+      llm_message: {
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        name: toolCall.function.name,
+        content: [{ type: 'text', text: rejectionText }],
+      },
+    } as Event);
+
     this.state.setStatus('IDLE');
   }
 
