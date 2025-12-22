@@ -4,6 +4,8 @@ export type LLMProvider = 'openai' | 'litellm_proxy' | 'openrouter' | 'anthropic
 
 export type OpenAIChatApi = 'chat_completions' | 'responses';
 
+export type ReasoningSummary = 'auto' | 'concise' | 'detailed';
+
 export interface LLMToolDefinition {
   type: 'function';
   function: {
@@ -29,6 +31,8 @@ export interface LLMConfiguration {
   maxInputTokens?: number | null;
   maxOutputTokens?: number | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
+  /** Responses-only; ignored by Chat Completions. */
+  reasoningSummary?: ReasoningSummary | null;
   headers?: Record<string, string>;
   /** Cost per input token in USD (or base currency). */
   inputCostPerToken?: number | null;

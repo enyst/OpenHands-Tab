@@ -162,6 +162,29 @@ describe('OpenAIResponsesClient (non-stream)', () => {
     expect(response.usage).toEqual({ inputTokens: 5, outputTokens: 2, cacheReadTokens: 1, cacheWriteTokens: undefined });
     expect(response.message.responses_reasoning_item).toMatchObject({ id: 'rs_1', summary: ['short summary'], encrypted_content: 'encrypted' });
   });
+
+  it('includes reasoning summary in Responses request body when configured', async () => {
+    const payload = {
+      output: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Hello' }],
+        },
+      ],
+      usage: { input_tokens: 5, output_tokens: 2 },
+    };
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const client = new OpenAIResponsesClient({ ...baseConfig, reasoningEffort: 'medium', reasoningSummary: 'detailed' }, 'test-key');
+    const orchestrator = new AgentOrchestrator(client);
+
+    await orchestrator.runChat(buildRequest());
+
+    const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+    expect(body?.reasoning).toEqual({ effort: 'medium', summary: 'detailed' });
+  });
 });
 
 describe('LLMFactory integration', () => {

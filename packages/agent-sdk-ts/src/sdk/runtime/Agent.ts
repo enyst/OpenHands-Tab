@@ -790,6 +790,7 @@ export class Agent extends EventEmitter {
       maxInputTokens: s.llm.maxInputTokens ?? undefined,
       maxOutputTokens: s.llm.maxOutputTokens ?? undefined,
       reasoningEffort: s.llm.reasoningEffort ?? undefined,
+      reasoningSummary: s.llm.reasoningSummary ?? undefined,
       inputCostPerToken: s.llm.inputCostPerToken ?? undefined,
       outputCostPerToken: s.llm.outputCostPerToken ?? undefined,
     };
