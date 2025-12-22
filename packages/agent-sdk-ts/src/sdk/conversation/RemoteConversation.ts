@@ -56,8 +56,10 @@ export class RemoteConversation extends EventEmitter {
   private wsHandshakeTimer?: ReturnType<typeof setTimeout>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private retryCount = 0;
+  private gaveUpReconnect = false;
   private readonly retryBaseMs = 1000;
   private readonly retryMaxMs = 15000;
+  private readonly maxReconnectRetries = 6;
   private readonly workspaceRoot: string;
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
@@ -353,12 +355,16 @@ export class RemoteConversation extends EventEmitter {
   }
 
   reconnect() {
+    this.clearReconnect();
+    this.retryCount = 0;
+    this.gaveUpReconnect = false;
     if (this.conversationId) {
       this.connect();
     }
   }
 
   private setStatus(s: ConversationStatus) {
+    if (this.status === s) return;
     this.status = s;
     this.emit('status', s);
   }
@@ -379,10 +385,17 @@ export class RemoteConversation extends EventEmitter {
     // If we have never successfully connected, don't spin in a retry loop.
     // In that case, surface the error and let the user manually retry.
     if (!this.hasEverConnected) return;
+    if (this.retryCount >= this.maxReconnectRetries) {
+      if (!this.gaveUpReconnect) {
+        this.gaveUpReconnect = true;
+        this.emit('error', new Error('Disconnected from agent-server. Reconnect retries exhausted.'));
+      }
+      return;
+    }
     const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
     const jitter = Math.floor(base * 0.2 * Math.random());
     const delay = base + jitter;
-    this.retryCount = Math.min(this.retryCount + 1, 10);
+    this.retryCount += 1;
     this.reconnectTimer = setTimeout(() => this.connect(), delay);
   }
 
@@ -439,6 +452,7 @@ export class RemoteConversation extends EventEmitter {
       if (this.ws !== ws) return;
       this.clearWsHandshakeTimer();
       this.retryCount = 0;
+      this.gaveUpReconnect = false;
       this.hasEverConnected = true;
       this.setStatus('online');
     });

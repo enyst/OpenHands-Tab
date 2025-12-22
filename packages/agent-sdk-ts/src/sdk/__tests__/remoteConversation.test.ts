@@ -312,4 +312,54 @@ describe('RemoteConversation', () => {
     expect(errors).toHaveLength(1);
     expect(wsInstances).toHaveLength(0);
   });
+
+  it('caps reconnect attempts after disconnect and requires manual reconnect', async () => {
+    vi.useFakeTimers();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    try {
+      const fetchMock = vi.fn(async (url: string) => {
+        expect(url).toContain('/events/search');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const { RemoteConversation } = await import('../conversation/RemoteConversation');
+      const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+      const errors: unknown[] = [];
+      conversation.on('error', (e) => errors.push(e));
+
+      await conversation.restoreConversation('abc');
+      const ws0 = getEventWS();
+      ws0.open();
+      ws0.close();
+
+      const reconnectDelays = [1000, 2000, 4000, 8000, 15000, 15000];
+      for (const delay of reconnectDelays) {
+        vi.advanceTimersByTime(delay);
+        const ws = wsInstances[wsInstances.length - 1];
+        ws.error(new Error('boom'));
+      }
+
+      const eventSockets = () => wsInstances.filter((ws) => ws.url.includes('/sockets/events'));
+      expect(eventSockets()).toHaveLength(1 + reconnectDelays.length);
+
+      vi.advanceTimersByTime(60_000);
+      expect(eventSockets()).toHaveLength(1 + reconnectDelays.length);
+
+      const errorMessages = errors.map((e) => (e instanceof Error ? e.message : String(e)));
+      expect(errorMessages.some((m) => m.includes('Reconnect retries exhausted'))).toBe(true);
+
+      conversation.reconnect();
+      expect(eventSockets()).toHaveLength(1 + reconnectDelays.length + 1);
+    } finally {
+      randomSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 });
