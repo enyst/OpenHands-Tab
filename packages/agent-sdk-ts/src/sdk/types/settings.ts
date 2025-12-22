@@ -1,4 +1,4 @@
-import type { LLMProvider, OpenAIChatApi } from '../llm/types';
+import type { LLMProvider, OpenAIChatApi, ReasoningSummary } from '../llm/types';
 
 export type LLMSettings = {
   usageId?: string | null;
@@ -15,6 +15,8 @@ export type LLMSettings = {
   maxInputTokens?: number | null;
   maxOutputTokens?: number | null;
   reasoningEffort?: 'low' | 'medium' | 'high' | 'none' | null;
+  /** OpenAI Responses-only; ignored by Chat Completions. */
+  reasoningSummary?: ReasoningSummary | null;
   inputCostPerToken?: number | null;
   outputCostPerToken?: number | null;
 };

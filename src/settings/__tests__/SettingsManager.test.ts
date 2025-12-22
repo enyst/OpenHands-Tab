@@ -29,6 +29,7 @@ describe('SettingsManager', () => {
     expect(s.llm.usageId).toBe('default-llm');
     expect(s.llm.provider).toBe('anthropic');
     expect(s.llm.openaiApiMode).toBeUndefined();
+    expect(s.llm.reasoningSummary).toBeUndefined();
     // Local mode requires a default model for the local Agent to run.
     expect(s.llm.model).toBe('claude-sonnet-4-20250514');
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
@@ -263,6 +264,7 @@ describe('SettingsManager', () => {
         maxInputTokens: 4096,
         maxOutputTokens: 2048,
         reasoningEffort: 'high',
+        reasoningSummary: 'detailed',
         inputCostPerToken: 0.000001,
         outputCostPerToken: 0.000002,
       }
@@ -278,6 +280,7 @@ describe('SettingsManager', () => {
     expect(s.llm.maxInputTokens).toBe(4096);
     expect(s.llm.maxOutputTokens).toBe(2048);
     expect(s.llm.reasoningEffort).toBe('high');
+    expect(s.llm.reasoningSummary).toBe('detailed');
     expect(s.llm.inputCostPerToken).toBe(0.000001);
     expect(s.llm.outputCostPerToken).toBe(0.000002);
   });
@@ -292,6 +295,22 @@ describe('SettingsManager', () => {
     expect(a.cfg.get('openhands.llm.openaiApiMode')).toBe('auto');
     s = await mgr.get();
     expect(s.llm.openaiApiMode).toBeUndefined();
+  });
+
+  it('normalizes reasoningSummary and persists none', async () => {
+    await mgr.update({ llm: { reasoningSummary: 'detailed' } });
+    expect(a.cfg.get('openhands.llm.reasoningSummary')).toBe('detailed');
+    let s = await mgr.get();
+    expect(s.llm.reasoningSummary).toBe('detailed');
+
+    a.cfg.set('openhands.llm.reasoningSummary', 'wat');
+    s = await mgr.get();
+    expect(s.llm.reasoningSummary).toBeUndefined();
+
+    await mgr.update({ llm: { reasoningSummary: null } });
+    expect(a.cfg.get('openhands.llm.reasoningSummary')).toBe('none');
+    s = await mgr.get();
+    expect(s.llm.reasoningSummary).toBeUndefined();
   });
 
   it('handles sanitizePositiveInteger with invalid inputs', async () => {

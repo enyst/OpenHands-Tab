@@ -168,6 +168,18 @@
             "order": 7,
             "markdownDescription": "For OpenAI GPT-5 models in local mode, choose which API to use. `auto` uses Responses when supported (otherwise Chat Completions)."
           },
+          "openhands.llm.reasoningSummary": {
+            "type": "string",
+            "enum": [
+              "none",
+              "auto",
+              "concise",
+              "detailed"
+            ],
+            "default": "none",
+            "order": 8,
+            "markdownDescription": "For OpenAI GPT-5 models using the Responses API, request a reasoning summary (only when `openhands.llm.reasoningEffort` is not `none`). `none` omits the summary."
+          },
           "openhands.llm.apiVersion": {
             "type": "string",
             "order": 10,

@@ -95,6 +95,20 @@ const normalizeOpenaiApiMode = (value: unknown): LLMSettings['openaiApiMode'] | 
   }
 };
 
+const normalizeReasoningSummary = (value: unknown): LLMSettings['reasoningSummary'] | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return undefined;
+  if (trimmed === 'none') return undefined;
+  switch (trimmed) {
+    case 'auto':
+    case 'concise':
+    case 'detailed':
+      return trimmed;
+    default:
+      return undefined;
+  }
+};
+
 const normalizeElevenLabsMode = (value: unknown, defaultValue: ElevenLabsMode): ElevenLabsMode => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   switch (trimmed) {
@@ -177,6 +191,11 @@ export class SettingsManager {
       maxInputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxInputTokens', null) ?? undefined),
       maxOutputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxOutputTokens', null) ?? undefined),
       reasoningEffort: this.adapter.get<'low' | 'medium' | 'high' | 'none' | null>('openhands.llm.reasoningEffort', DEFAULTS.llm.reasoningEffort) ?? DEFAULTS.llm.reasoningEffort,
+      reasoningSummary: normalizeReasoningSummary(
+        isRemote
+          ? this.adapter.getExplicit<string>('openhands.llm.reasoningSummary')
+          : (this.adapter.get<string | null>('openhands.llm.reasoningSummary', 'none') ?? 'none')
+      ),
       inputCostPerToken: this.adapter.get<number | null>('openhands.llm.inputCostPerToken', DEFAULTS.llm.inputCostPerToken) ?? DEFAULTS.llm.inputCostPerToken,
       outputCostPerToken: this.adapter.get<number | null>('openhands.llm.outputCostPerToken', DEFAULTS.llm.outputCostPerToken) ?? DEFAULTS.llm.outputCostPerToken,
     };
@@ -260,6 +279,9 @@ export class SettingsManager {
       if (partial.llm.maxInputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxInputTokens', partial.llm.maxInputTokens, target));
       if (partial.llm.maxOutputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxOutputTokens', partial.llm.maxOutputTokens, target));
       if (partial.llm.reasoningEffort !== undefined) ops.push(this.adapter.update('openhands.llm.reasoningEffort', partial.llm.reasoningEffort, target));
+      if (partial.llm.reasoningSummary !== undefined) {
+        ops.push(this.adapter.update('openhands.llm.reasoningSummary', partial.llm.reasoningSummary ?? 'none', target));
+      }
       if (partial.llm.inputCostPerToken !== undefined) ops.push(this.adapter.update('openhands.llm.inputCostPerToken', partial.llm.inputCostPerToken, target));
       if (partial.llm.outputCostPerToken !== undefined) ops.push(this.adapter.update('openhands.llm.outputCostPerToken', partial.llm.outputCostPerToken, target));
     }

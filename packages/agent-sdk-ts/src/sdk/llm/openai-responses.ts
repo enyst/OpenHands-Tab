@@ -212,7 +212,12 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   store: false,
   temperature: config.temperature ?? undefined,
   max_output_tokens: config.maxOutputTokens ?? undefined,
-  reasoning: config.reasoningEffort && config.reasoningEffort !== 'none' ? { effort: config.reasoningEffort } : undefined,
+  reasoning: config.reasoningEffort && config.reasoningEffort !== 'none'
+    ? {
+      effort: config.reasoningEffort,
+      ...(config.reasoningSummary ? { summary: config.reasoningSummary } : {}),
+    }
+    : undefined,
 });
 
 const parseResponsesOutput = (output: unknown): { text?: string; toolCalls: ToolCall[]; responsesReasoningItem?: ResponsesReasoningItem } => {
