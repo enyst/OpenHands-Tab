@@ -100,20 +100,25 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
     const serverUrl = `http://127.0.0.1:${port}`;
 
     const output: string[] = [];
+    const env: Record<string, string | undefined> = {
+      ...process.env,
+      PYTHONUNBUFFERED: '1',
+      // Keep server startup lightweight for CI (no VSCode/VNC, no tool preload).
+      OH_ENABLE_VSCODE: '0',
+      OH_ENABLE_VNC: '0',
+      OH_PRELOAD_TOOLS: '0',
+    };
+    if (env.SESSION_API_KEY === undefined) {
+      // Default to no auth for CI, but allow authenticated runs by setting
+      // SESSION_API_KEY in the environment.
+      env.SESSION_API_KEY = '';
+    }
     const child = spawn(
       'uv',
       ['run', 'python', '-m', 'openhands.agent_server', '--host', '127.0.0.1', '--port', String(port)],
       {
         cwd: agentSdkDir,
-        env: {
-          ...process.env,
-          PYTHONUNBUFFERED: '1',
-          SESSION_API_KEY: '',
-          // Keep server startup lightweight for CI (no VSCode/VNC, no tool preload).
-          OH_ENABLE_VSCODE: '0',
-          OH_ENABLE_VNC: '0',
-          OH_PRELOAD_TOOLS: '0',
-        },
+        env,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: process.platform !== 'win32',
       }
