@@ -2,19 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-
-async function pollUntil(
-  condition: () => Promise<boolean>,
-  timeoutMs: number = 10000,
-  intervalMs: number = 200
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await condition()) return;
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(`pollUntil timed out after ${timeoutMs}ms`);
-}
+import { pollUntil } from './pollUntil';
 
 export async function run(): Promise<void> {
   // Skills: create a temp skill file *before* opening the webview so the initial

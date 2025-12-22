@@ -1502,7 +1502,7 @@ For VS Code usage without an external server, run agent-server on localhost:
 ```typescript
 import { Conversation, isMessageEvent } from '@openhands/agent-sdk-ts';
 
-// Run agent-server locally: uv run agent-server --host 0.0.0.0 --port 3000
+// Run agent-server locally: uv run agent-server --host 127.0.0.1 --port 3000 (use 0.0.0.0 only if you need remote access)
 const conversation = Conversation({
   serverUrl: 'http://localhost:3000', // connects to local agent-server
   settings: {
