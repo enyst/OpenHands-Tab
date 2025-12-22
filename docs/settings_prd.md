@@ -63,7 +63,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - disable_vision: bool | None
     - seed: int | None
     - safety_settings: list[dict[str, str]] | None
-    - usage_id: string (defaults to 'default')
+    - usage_id: string (defaults to 'default-llm')
     - metadata: dict[str, any]
   - Serialization/secret handling
     - api_key and select fields are masked by default; can be exposed with context={'expose_secrets': True}
