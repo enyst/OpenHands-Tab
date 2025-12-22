@@ -27,6 +27,7 @@ import {
   isTextContent,
 } from '@openhands/agent-sdk-ts';
 import { getVscodeApi } from '../shared/vscodeApi';
+import { SecurityRiskBadge } from './SecurityRiskBadge';
 
 // ============================================================================
 // Type Definitions
@@ -335,35 +336,6 @@ const OBSERVATION_ACCENT_COLOR = AGENT_ACCENT_COLOR;
 const withAlpha = (color: string, percent: number) =>
   `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
-// Security risk badge component with refined styling
-function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }) {
-  const styles = {
-    HIGH: 'bg-red-500/15 text-red-300 border-red-400/30 shadow-[0_0_8px_rgba(248,113,113,0.15)]',
-    MEDIUM: 'bg-amber-500/15 text-amber-300 border-amber-400/30',
-    LOW: 'bg-stone-500/15 text-stone-400 border-stone-400/20',
-    UNKNOWN: 'bg-stone-500/15 text-stone-400 border-stone-400/20',
-  };
-
-  const icons = {
-    HIGH: 'shield',
-    MEDIUM: 'warning',
-    LOW: 'info',
-    UNKNOWN: 'question',
-  };
-
-  const tooltip = `The model assessed ${risk.toLowerCase()} risk for this action.`;
-
-  return (
-    <span
-      title={tooltip}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${styles[risk]}`}
-    >
-      <span className={`codicon codicon-${icons[risk]} text-[10px]`} />
-      {risk.toLowerCase()}
-    </span>
-  );
-}
-
 /**
  * Base event container with accent bar and refined styling.
  * Uses warm gradients and subtle shadows for depth.
@@ -489,7 +461,7 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
           <div className="font-semibold text-sm text-stone-200">Agent Action</div>
         </div>
         {event.security_risk && event.security_risk !== 'UNKNOWN' && (
-          <SecurityBadge risk={event.security_risk} />
+          <SecurityRiskBadge risk={event.security_risk} />
         )}
       </div>
 

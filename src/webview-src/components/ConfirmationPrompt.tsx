@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
+import { SecurityRiskBadge } from './SecurityRiskBadge';
 
 interface ConfirmationPromptProps {
   pendingActions: ActionEvent[];
@@ -110,19 +111,7 @@ export function ConfirmationPrompt({
                       <span className="font-mono text-sm text-teal-300">{action.tool_name}</span>
                     </div>
                     {action.security_risk && action.security_risk !== 'UNKNOWN' && (
-                      <span
-                        title={`The model assessed ${action.security_risk.toLowerCase()} risk for this action.`}
-                        className={`
-                          inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border
-                          ${action.security_risk === 'HIGH' ? 'bg-red-500/15 text-red-300 border-red-400/30' :
-                            action.security_risk === 'MEDIUM' ? 'bg-amber-500/15 text-amber-300 border-amber-400/30' :
-                            'bg-teal-500/15 text-teal-300 border-teal-400/30'
-                          }
-                        `}
-                      >
-                        <span className={`codicon codicon-${action.security_risk === 'HIGH' ? 'shield' : 'warning'} text-[10px]`} />
-                        {action.security_risk.toLowerCase()} risk
-                      </span>
+                      <SecurityRiskBadge risk={action.security_risk} labelSuffix=" risk" />
                     )}
                   </div>
 
