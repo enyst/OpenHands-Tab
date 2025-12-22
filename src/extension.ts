@@ -1096,8 +1096,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
     const postToWebview = (message: unknown) => {
-      if (!chatView || !chatWebviewReady) return;
+      if (!chatView || !chatWebviewReady) return false;
       void chatView.webview.postMessage(message);
+      return true;
     };
 
     try {
@@ -1108,8 +1109,10 @@ export function activate(context: vscode.ExtensionContext) {
       if (!firstServerUrl) {
         const message = 'No server available';
         outputChannel?.appendLine(`[hal.teleport] ${message}`);
-        postToWebview({ type: 'halTeleportUnavailable', error: message });
-        void vscode.window.showErrorMessage(message);
+        const posted = postToWebview({ type: 'halTeleportUnavailable', error: message });
+        if (!posted) {
+          void vscode.window.showErrorMessage(message);
+        }
         return;
       }
 
@@ -1157,8 +1160,10 @@ export function activate(context: vscode.ExtensionContext) {
     } catch (err) {
       const reason = renderError(err);
       outputChannel?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
-      postToWebview({ type: 'halTeleportFailed', error: reason });
-      void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
+      const posted = postToWebview({ type: 'halTeleportFailed', error: reason });
+      if (!posted) {
+        void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
+      }
     }
   });
 
