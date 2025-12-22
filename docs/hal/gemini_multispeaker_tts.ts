@@ -38,7 +38,7 @@ async function main() {
             speaker: 'Hal9000',
             voiceConfig: {
               prebuiltVoiceConfig: {
-                voiceName: 'Rasalgethi',
+                voiceName: 'Enceladus',
               },
             },
           },
