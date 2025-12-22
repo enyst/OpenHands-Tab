@@ -6,7 +6,7 @@ import type { ChatCompletionRequest, LLMClient, LLMConfiguration } from './types
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient } from './registry';
 import { Metrics } from './metrics';
-import { detectProviderFromBaseUrl } from './provider';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl } from './provider';
 
 export interface LLMFactoryOptions {
   secrets?: SecretRegistry;
@@ -44,7 +44,15 @@ export class LLMFactory {
 
     const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
     const normalizedModel = this.config.model.toLowerCase();
-    const useResponses = provider !== 'anthropic' && normalizedModel.startsWith('gpt-5');
+    const normalizeUrl = (value: string | null | undefined): string | undefined => {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (!trimmed) return undefined;
+      return trimmed.replace(/\/+$/, '');
+    };
+    const normalizedBaseUrl = normalizeUrl(this.config.baseUrl);
+    const normalizedDefaultOpenAIBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.openai);
+    const baseUrlSupportsResponses = !normalizedBaseUrl || normalizedBaseUrl === normalizedDefaultOpenAIBaseUrl;
+    const useResponses = provider === 'openai' && normalizedModel.startsWith('gpt-5') && baseUrlSupportsResponses;
     const base = provider === 'anthropic'
       ? new AnthropicClient(this.config, apiKey)
       : useResponses

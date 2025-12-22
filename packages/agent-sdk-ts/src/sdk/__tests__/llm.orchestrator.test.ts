@@ -181,6 +181,12 @@ describe('LLMFactory integration', () => {
     expect(client).toBeInstanceOf(OpenAIResponsesClient);
   });
 
+  it('does not route GPT-5 models through Responses API when baseUrl is custom', async () => {
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', baseUrl: 'http://localhost:4000', apiKey: 'sk-inline' });
+    const client = await factory.createClient();
+    expect(client).toBeInstanceOf(OpenAICompatibleClient);
+  });
+
   const maybeIt = process.env.OPENAI_API_KEY ? it : it.skip;
 
   maybeIt('streams from OpenAI with real credentials', async () => {

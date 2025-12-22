@@ -210,7 +210,7 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   tools: request.tools?.length ? request.tools.map(toResponsesTool) : undefined,
   tool_choice: request.tools?.length ? 'auto' : undefined,
   store: false,
-  temperature: 1.0,
+  temperature: config.temperature ?? undefined,
   max_output_tokens: config.maxOutputTokens ?? undefined,
   reasoning: config.reasoningEffort && config.reasoningEffort !== 'none' ? { effort: config.reasoningEffort } : undefined,
 });
