@@ -27,6 +27,7 @@
     "onCommand:openhands.setApiKey",
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
+    "onCommand:openhands.setElevenLabsApiKey",
     "onCommand:openhands.setCustomSecret1",
     "onCommand:openhands.setCustomSecret2",
     "onCommand:openhands.setCustomSecret3",
@@ -60,6 +61,10 @@
       {
         "command": "openhands.setGithubToken",
         "title": "OpenHands: Set GitHub Token"
+      },
+      {
+        "command": "openhands.setElevenLabsApiKey",
+        "title": "OpenHands: Set ElevenLabs API Key"
       },
       {
         "command": "openhands.setCustomSecret1",
@@ -265,6 +270,12 @@
           "default": "",
           "editPresentation": "singlelineText",
           "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.elevenLabsApiKey": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your ElevenLabs API key securely:**\n\n[🔑 Configure ElevenLabs API Key](command:openhands.setElevenLabsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json)_"
         },
         "openhands.secrets.customSecret1": {
           "type": "string",

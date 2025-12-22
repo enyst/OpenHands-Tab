@@ -126,6 +126,7 @@ describe('SettingsManager', () => {
     await mgr.update({
       secrets: {
         githubToken: 'ghp_example123',
+        elevenLabsApiKey: 'xi-example123',
         customSecret1: 'secret-1',
         customSecret2: 'secret-2',
         customSecret3: 'secret-3',
@@ -134,6 +135,7 @@ describe('SettingsManager', () => {
 
     const s = await mgr.get();
     expect(s.secrets.githubToken).toBe('ghp_example123');
+    expect(s.secrets.elevenLabsApiKey).toBe('xi-example123');
     expect(s.secrets.customSecret1).toBe('secret-1');
     expect(s.secrets.customSecret2).toBe('secret-2');
     expect(s.secrets.customSecret3).toBe('secret-3');
@@ -143,6 +145,7 @@ describe('SettingsManager', () => {
     await mgr.update({
       secrets: {
         githubToken: 'ghp_example123',
+        elevenLabsApiKey: 'xi-example123',
         customSecret1: 'secret-1',
         customSecret2: 'secret-2',
         customSecret3: 'secret-3',
@@ -151,6 +154,7 @@ describe('SettingsManager', () => {
 
     let s = await mgr.get();
     expect(s.secrets.githubToken).toBe('ghp_example123');
+    expect(s.secrets.elevenLabsApiKey).toBe('xi-example123');
     expect(s.secrets.customSecret1).toBe('secret-1');
     expect(s.secrets.customSecret2).toBe('secret-2');
     expect(s.secrets.customSecret3).toBe('secret-3');
@@ -158,6 +162,7 @@ describe('SettingsManager', () => {
     await mgr.update({
       secrets: {
         githubToken: undefined,
+        elevenLabsApiKey: undefined,
         customSecret1: undefined,
         customSecret2: undefined,
         customSecret3: undefined,
@@ -166,6 +171,7 @@ describe('SettingsManager', () => {
 
     s = await mgr.get();
     expect(s.secrets.githubToken).toBeUndefined();
+    expect(s.secrets.elevenLabsApiKey).toBeUndefined();
     expect(s.secrets.customSecret1).toBeUndefined();
     expect(s.secrets.customSecret2).toBeUndefined();
     expect(s.secrets.customSecret3).toBeUndefined();

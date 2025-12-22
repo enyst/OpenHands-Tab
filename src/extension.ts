@@ -589,6 +589,13 @@ async function resolveConversationStoreRoot(context: vscode.ExtensionContext): P
   return path.join(os.tmpdir(), 'openhands-conversations-vscode');
 }
 
+/**
+ * Initialize the OpenHands extension: create logging channel and chat webview, register commands and configuration handlers, and wire up terminal, conversation, and secret-management behavior.
+ *
+ * Performs extension startup work and registers disposables (commands, webview provider, event listeners, and configuration change handlers) on the provided VS Code extension context.
+ *
+ * @param context - The VS Code extension context used to register disposables, access workspace and global state, and resolve extension resources
+ */
 export function activate(context: vscode.ExtensionContext) {
   try {
     const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
@@ -1045,6 +1052,16 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save GitHub token',
   });
 
+  const setElevenLabsApiKey = registerSecretCommand('openhands.setElevenLabsApiKey', {
+    title: 'ElevenLabs API Key',
+    secretKey: 'elevenLabsApiKey',
+    prompt: 'Enter your ElevenLabs API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'xi-...',
+    successMessage: 'ElevenLabs API key saved securely.',
+    clearedMessage: 'ElevenLabs API key cleared.',
+    errorPrefix: 'Failed to save ElevenLabs API key',
+  });
+
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
     title: 'Custom Secret 1',
     secretKey: 'customSecret1',
@@ -1136,6 +1153,7 @@ export function activate(context: vscode.ExtensionContext) {
     setApiKey,
     setSessionApiKey,
     setGithubToken,
+    setElevenLabsApiKey,
     setCustomSecret1,
     setCustomSecret2,
     setCustomSecret3,
