@@ -214,7 +214,10 @@ export async function run(): Promise<void> {
     return hal?.phase === 'awaiting_user' && typeof hal?.lastError === 'string' && hal.lastError.includes('No server available');
   }, 15000);
 
-  await vscode.commands.executeCommand('openhands._webviewAction', { action: 'halReject' });
+  await vscode.commands.executeCommand('openhands._webviewAction', {
+    action: 'halVoiceConfirmDecision',
+    payload: { decision: 'reject' }
+  });
   await pollUntil(async () => {
     const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
     return hal?.decision === 'reject';

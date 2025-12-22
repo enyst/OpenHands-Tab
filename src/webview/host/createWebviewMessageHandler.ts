@@ -11,6 +11,7 @@ import { SettingsManager, type SavedServer } from '../../settings/SettingsManage
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
 import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
+import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLines } from '../../shared/halScript';
 
 export type WebviewHost = {
@@ -38,6 +39,7 @@ type WebviewMessage =
   | { type: 'openAttachment'; uri: string }
   | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
   | { type: 'halTtsRequest'; requestId: string; conversationId: string; stepIndex: number }
+  | { type: 'halVoiceConfirmRequest'; requestId: string; mimeType: string; audioBase64: string }
   | { type: 'command'; command: string; reason?: string }
   | {
     type: 'renderedEventsResponse';
@@ -798,6 +800,31 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           shouldNotify: result.shouldNotify,
           disabled: result.disabled,
         });
+        break;
+      }
+      case 'halVoiceConfirmRequest': {
+        if (typeof message.requestId !== 'string') break;
+        if (typeof message.mimeType !== 'string') break;
+        if (typeof message.audioBase64 !== 'string' || message.audioBase64.length === 0) {
+          void host.postMessage({ type: 'halVoiceConfirmResponse', requestId: message.requestId, ok: false, error: 'No audio provided' });
+          break;
+        }
+
+        const settings = await settingsMgr.get();
+        const result = await classifyHalVoiceDecision({
+          baseUrl: settings.gemini.baseUrl,
+          apiKey: settings.secrets.geminiApiKey ?? '',
+          model: settings.gemini.model,
+          mimeType: message.mimeType,
+          audioBase64: message.audioBase64,
+        });
+
+        if (result.ok) {
+          void host.postMessage({ type: 'halVoiceConfirmResponse', requestId: message.requestId, ok: true, decision: result.decision });
+          break;
+        }
+
+        void host.postMessage({ type: 'halVoiceConfirmResponse', requestId: message.requestId, ok: false, error: result.error });
         break;
       }
       case 'command': {
