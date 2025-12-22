@@ -731,11 +731,17 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
-  // User messages get lighter background for better contrast with agent actions
-  const bgOpacity = isUser ? 0.06 : isAgent ? 0.05 : 0.04;
+  // Agent messages use gradient background; user messages use solid background (applied via className)
+  const bgOpacity = isAgent ? 0.05 : 0.04;
 
   return (
-    <EventContainer accentColor={accentColor} bgOpacity={bgOpacity} index={index} dataTestId="message-event">
+    <EventContainer
+      accentColor={accentColor}
+      bgOpacity={bgOpacity}
+      index={index}
+      dataTestId="message-event"
+      className={isUser ? '!bg-neutral-700' : ''}
+    >
       <div className="flex items-start gap-3">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 flex-shrink-0"
@@ -759,8 +765,16 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           )}
 
           {textContent && (
-            <div className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${isAgent || isUser ? 'text-stone-200' : 'text-stone-300'}`}>
-              {textContent}
+            <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+              {isUser && (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-500/30 text-stone-200 text-xs font-medium mb-2 border border-stone-400/20">
+                  <span className="codicon codicon-account text-[10px]" />
+                  <span>YOU</span>
+                </div>
+              )}
+              <div className={`${isUser ? 'text-stone-100' : isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
+                {textContent}
+              </div>
             </div>
           )}
 
