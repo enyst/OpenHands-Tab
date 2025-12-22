@@ -1,4 +1,4 @@
-import type { Message, ToolCall } from '../types';
+import type { Message, ResponsesReasoningItem, ToolCall } from '../types';
 
 export type LLMProvider = 'openai' | 'litellm_proxy' | 'openrouter' | 'anthropic';
 
@@ -41,6 +41,7 @@ export interface ChatCompletionRequest {
 export type LLMStreamChunk =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; reasoning: string }
+  | { type: 'responses_reasoning_item'; item: ResponsesReasoningItem }
   | { type: 'tool_call_delta'; id: string; name?: string; arguments?: string }
   | { type: 'usage'; inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number }
   | { type: 'finish'; finishReason?: string };

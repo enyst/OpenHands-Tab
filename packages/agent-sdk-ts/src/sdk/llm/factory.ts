@@ -1,6 +1,7 @@
 import { LLMCredentialProvider } from './credentials';
 import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
+import { OpenAIResponsesClient } from './openai-responses';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration } from './types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient } from './registry';
@@ -42,7 +43,13 @@ export class LLMFactory {
     }
 
     const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
-    const base = provider === 'anthropic' ? new AnthropicClient(this.config, apiKey) : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+    const normalizedModel = this.config.model.toLowerCase();
+    const useResponses = provider !== 'anthropic' && normalizedModel.startsWith('gpt-5');
+    const base = provider === 'anthropic'
+      ? new AnthropicClient(this.config, apiKey)
+      : useResponses
+        ? new OpenAIResponsesClient({ ...this.config, provider }, apiKey)
+        : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
 
     if (this.config.usageId) {
       const metrics = new Metrics(this.config.model);
