@@ -157,6 +157,17 @@
             "order": 6,
             "markdownDescription": "Reasoning effort for supported models."
           },
+          "openhands.llm.openaiApiMode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "chat_completions",
+              "responses"
+            ],
+            "default": "auto",
+            "order": 7,
+            "markdownDescription": "For OpenAI GPT-5 models in local mode, choose which API to use. `auto` uses Responses when supported (otherwise Chat Completions)."
+          },
           "openhands.llm.apiVersion": {
             "type": "string",
             "order": 10,

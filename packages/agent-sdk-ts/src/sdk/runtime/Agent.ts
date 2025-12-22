@@ -778,6 +778,7 @@ export class Agent extends EventEmitter {
     const config = {
       provider: s.llm.provider ?? undefined,
       model: s.llm.model ?? '',
+      openaiApiMode: s.llm.openaiApiMode ?? undefined,
       usageId: s.llm.usageId ?? undefined,
       baseUrl: s.llm.baseUrl ?? undefined,
       apiKey: s.secrets?.llmApiKey ?? undefined,

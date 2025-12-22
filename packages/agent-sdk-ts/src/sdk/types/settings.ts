@@ -1,9 +1,11 @@
-import type { LLMProvider } from '../llm/types';
+import type { LLMProvider, OpenAIChatApi } from '../llm/types';
 
 export type LLMSettings = {
   usageId?: string | null;
   provider?: LLMProvider | null;
   model?: string | null;
+  /** OpenAI-specific API selection (local-mode only). */
+  openaiApiMode?: OpenAIChatApi | null;
   baseUrl?: string | null;
   apiVersion?: string | null;
   timeout?: number | null;

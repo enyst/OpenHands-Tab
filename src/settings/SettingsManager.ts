@@ -82,6 +82,19 @@ const normalizeLlmProvider = (value: unknown): LLMSettings['provider'] | undefin
   }
 };
 
+const normalizeOpenaiApiMode = (value: unknown): LLMSettings['openaiApiMode'] | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return undefined;
+  if (trimmed === 'auto') return undefined;
+  switch (trimmed) {
+    case 'chat_completions':
+    case 'responses':
+      return trimmed;
+    default:
+      return undefined;
+  }
+};
+
 const normalizeElevenLabsMode = (value: unknown, defaultValue: ElevenLabsMode): ElevenLabsMode => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   switch (trimmed) {
@@ -146,6 +159,11 @@ export class SettingsManager {
       usageId,
       provider,
       model,
+      openaiApiMode: normalizeOpenaiApiMode(
+        isRemote
+          ? this.adapter.getExplicit<string>('openhands.llm.openaiApiMode')
+          : (this.adapter.get<string | null>('openhands.llm.openaiApiMode', 'auto') ?? 'auto')
+      ),
       baseUrl: normalizeNonEmptyString(
         isRemote
           ? this.adapter.getExplicit<string>('openhands.llm.baseUrl')
@@ -230,6 +248,9 @@ export class SettingsManager {
       if (partial.llm.usageId !== undefined) ops.push(this.adapter.update('openhands.llm.usageId', partial.llm.usageId, target));
       if (partial.llm.provider !== undefined) ops.push(this.adapter.update('openhands.llm.provider', partial.llm.provider, target));
       if (partial.llm.model !== undefined) ops.push(this.adapter.update('openhands.llm.model', partial.llm.model, target));
+      if (partial.llm.openaiApiMode !== undefined) {
+        ops.push(this.adapter.update('openhands.llm.openaiApiMode', partial.llm.openaiApiMode ?? 'auto', target));
+      }
       if (partial.llm.baseUrl !== undefined) ops.push(this.adapter.update('openhands.llm.baseUrl', partial.llm.baseUrl, target));
       if (partial.llm.apiVersion !== undefined) ops.push(this.adapter.update('openhands.llm.apiVersion', partial.llm.apiVersion, target));
       if (partial.llm.timeout !== undefined) ops.push(this.adapter.update('openhands.llm.timeout', partial.llm.timeout, target));

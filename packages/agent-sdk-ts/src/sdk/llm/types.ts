@@ -2,6 +2,8 @@ import type { Message, ResponsesReasoningItem, ToolCall } from '../types';
 
 export type LLMProvider = 'openai' | 'litellm_proxy' | 'openrouter' | 'anthropic';
 
+export type OpenAIChatApi = 'chat_completions' | 'responses';
+
 export interface LLMToolDefinition {
   type: 'function';
   function: {
@@ -15,6 +17,8 @@ export interface LLMConfiguration {
   provider?: LLMProvider;
   model: string;
   usageId?: string | null;
+  /** Only applies to OpenAI provider. */
+  openaiApiMode?: OpenAIChatApi | null;
   baseUrl?: string | null;
   apiKey?: string;
   apiVersion?: string | null;

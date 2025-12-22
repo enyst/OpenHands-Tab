@@ -28,6 +28,7 @@ describe('SettingsManager', () => {
     expect(s.serverUrl).toBeUndefined();
     expect(s.llm.usageId).toBe('default-llm');
     expect(s.llm.provider).toBe('anthropic');
+    expect(s.llm.openaiApiMode).toBeUndefined();
     // Local mode requires a default model for the local Agent to run.
     expect(s.llm.model).toBe('claude-sonnet-4-20250514');
     expect(s.agent.enableSecurityAnalyzer).toBe(false);
@@ -258,6 +259,7 @@ describe('SettingsManager', () => {
         temperature: 0.7,
         topP: 0.9,
         topK: 50,
+        openaiApiMode: 'chat_completions',
         maxInputTokens: 4096,
         maxOutputTokens: 2048,
         reasoningEffort: 'high',
@@ -272,11 +274,24 @@ describe('SettingsManager', () => {
     expect(s.llm.temperature).toBe(0.7);
     expect(s.llm.topP).toBe(0.9);
     expect(s.llm.topK).toBe(50);
+    expect(s.llm.openaiApiMode).toBe('chat_completions');
     expect(s.llm.maxInputTokens).toBe(4096);
     expect(s.llm.maxOutputTokens).toBe(2048);
     expect(s.llm.reasoningEffort).toBe('high');
     expect(s.llm.inputCostPerToken).toBe(0.000001);
     expect(s.llm.outputCostPerToken).toBe(0.000002);
+  });
+
+  it('normalizes openaiApiMode and persists auto', async () => {
+    await mgr.update({ llm: { openaiApiMode: 'responses' } });
+    expect(a.cfg.get('openhands.llm.openaiApiMode')).toBe('responses');
+    let s = await mgr.get();
+    expect(s.llm.openaiApiMode).toBe('responses');
+
+    await mgr.update({ llm: { openaiApiMode: null } });
+    expect(a.cfg.get('openhands.llm.openaiApiMode')).toBe('auto');
+    s = await mgr.get();
+    expect(s.llm.openaiApiMode).toBeUndefined();
   });
 
   it('handles sanitizePositiveInteger with invalid inputs', async () => {
