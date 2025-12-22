@@ -18,12 +18,18 @@ export type ElevenLabsSettings = {
   cache: boolean;
 };
 
+export type GeminiSettings = {
+  model: string;
+  baseUrl: string;
+};
+
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
   elevenlabs: ElevenLabsSettings;
+  gemini: GeminiSettings;
   servers: SavedServer[];
   secrets: {
     sessionApiKey?: string;
@@ -32,6 +38,7 @@ export type OpenHandsSettings = ServerSettings & {
     awsSecretAccessKey?: string;
     githubToken?: string;
     elevenLabsApiKey?: string;
+    geminiApiKey?: string;
     customSecret1?: string;
     customSecret2?: string;
     customSecret3?: string;
@@ -46,6 +53,7 @@ const DEFAULTS: OpenHandsSettings = {
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
   elevenlabs: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },
+  gemini: { model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
   secrets: {}
 };
 
@@ -166,6 +174,14 @@ export class SettingsManager {
       ),
       cache: this.adapter.get<boolean>('openhands.elevenlabs.cache', DEFAULTS.elevenlabs.cache) ?? DEFAULTS.elevenlabs.cache,
     };
+    const gemini: GeminiSettings = {
+      model: normalizeNonEmptyString(
+        this.adapter.get<string | null>('openhands.gemini.model', DEFAULTS.gemini.model) ?? DEFAULTS.gemini.model
+      ) ?? DEFAULTS.gemini.model,
+      baseUrl: normalizeNonEmptyString(
+        this.adapter.get<string | null>('openhands.gemini.baseUrl', DEFAULTS.gemini.baseUrl) ?? DEFAULTS.gemini.baseUrl
+      ) ?? DEFAULTS.gemini.baseUrl,
+    };
     const secrets = {
       sessionApiKey: await this.adapter.getSecret('openhands.sessionApiKey'),
       llmApiKey: await this.adapter.getSecret('openhands.llmApiKey'),
@@ -173,11 +189,12 @@ export class SettingsManager {
       awsSecretAccessKey: await this.adapter.getSecret('openhands.awsSecretAccessKey'),
       githubToken: await this.adapter.getSecret('openhands.githubToken'),
       elevenLabsApiKey: await this.adapter.getSecret('openhands.elevenLabsApiKey'),
+      geminiApiKey: await this.adapter.getSecret('openhands.geminiApiKey'),
       customSecret1: await this.adapter.getSecret('openhands.customSecret1'),
       customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
       customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
     };
-    return { serverUrl, servers, llm, agent, conversation, confirmation, elevenlabs, secrets };
+    return { serverUrl, servers, llm, agent, conversation, confirmation, elevenlabs, gemini, secrets };
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
@@ -262,6 +279,15 @@ export class SettingsManager {
       }
     }
 
+    if (partial.gemini) {
+      if (partial.gemini.model !== undefined) {
+        ops.push(this.adapter.update('openhands.gemini.model', partial.gemini.model, target));
+      }
+      if (partial.gemini.baseUrl !== undefined) {
+        ops.push(this.adapter.update('openhands.gemini.baseUrl', partial.gemini.baseUrl, target));
+      }
+    }
+
     if (partial.secrets) {
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'sessionApiKey')) {
         ops.push(this.adapter.storeSecret('openhands.sessionApiKey', partial.secrets.sessionApiKey));
@@ -280,6 +306,9 @@ export class SettingsManager {
       }
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'elevenLabsApiKey')) {
         ops.push(this.adapter.storeSecret('openhands.elevenLabsApiKey', partial.secrets.elevenLabsApiKey));
+      }
+      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'geminiApiKey')) {
+        ops.push(this.adapter.storeSecret('openhands.geminiApiKey', partial.secrets.geminiApiKey));
       }
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret1')) {
         ops.push(this.adapter.storeSecret('openhands.customSecret1', partial.secrets.customSecret1));
