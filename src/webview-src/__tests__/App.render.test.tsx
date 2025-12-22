@@ -22,6 +22,48 @@ describe('App render', () => {
     expect(screen.getByLabelText('Add context')).toBeInTheDocument();
   });
 
+  it('clears conversation UI when server selection changes', async () => {
+    render(<App />);
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'MessageEvent',
+              source: 'user',
+              llm_message: {
+                role: 'user',
+                content: [{ type: 'text', text: 'hello-server-switch' }],
+              },
+            },
+          },
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getAllByText('hello-server-switch').length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'serverListUpdated',
+            servers: [],
+            serverUrl: 'http://localhost:3000',
+          },
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('hello-server-switch')).not.toBeInTheDocument();
+    });
+  });
+
   it('displays streaming content incrementally', async () => {
     render(<App />);
 

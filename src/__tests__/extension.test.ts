@@ -284,6 +284,42 @@ describe('Chat view behavior', () => {
 
     expect(conv.setSettings).toHaveBeenCalledWith(mockSettings);
   });
+
+  it('starts a fresh conversation on serverUrl changes (no auto-restore)', async () => {
+    await resolveChatView(mockContext);
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const initial = __getLastConversation();
+    expect(initial).toBeTruthy();
+
+    // Even if a saved conversation id exists for the next mode, serverUrl changes should not restore it.
+    (mockContext.workspaceState.get as Mock).mockImplementation((key: string) => {
+      if (key === 'openhands.conversationId.local') return 'local-saved';
+      if (key === 'openhands.conversationId.remote') return 'remote-saved';
+      return undefined;
+    });
+
+    // Switch from remote → local by clearing serverUrl.
+    mockSettings = { ...mockSettings, serverUrl: '' as any };
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', '');
+    (vscode as any).__triggerConfigChange({
+      affectsConfiguration: (key: string) => key === 'openhands.serverUrl',
+    });
+
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const current = __getLastConversation();
+      if (current && current !== initial) break;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    const next = __getLastConversation();
+    expect(next).toBeTruthy();
+    expect(next).not.toBe(initial);
+    expect(next.restoreConversation).not.toHaveBeenCalled();
+
+    // Mode switches clear the saved id for the target scope so no implicit restore can occur later.
+    expect(mockContext.workspaceState.update).toHaveBeenCalledWith('openhands.conversationId.local', undefined);
+  });
 });
 
 describe('Command handlers', () => {

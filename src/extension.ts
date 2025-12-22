@@ -871,7 +871,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean }) {
+  async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean; modeSwitched?: boolean }) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
     lastKnownLlmModel = settings.llm.model ?? null;
@@ -884,7 +884,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
-    let savedId = options?.uiJustCreated ? undefined : context.workspaceState.get<string>(savedIdKey);
+    if (options?.modeSwitched) {
+      // Switching modes should always start a fresh conversation, never restore prior state.
+      resetConversationEventBacklog(undefined);
+      await context.workspaceState.update(savedIdKey, undefined);
+    }
+
+    let savedId = (options?.uiJustCreated || options?.modeSwitched)
+      ? undefined
+      : context.workspaceState.get<string>(savedIdKey);
 
     if (savedId) {
       const looksLocal = savedId.startsWith('local-');
@@ -1366,7 +1374,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Listen for runtime configuration changes
   const onConfigurationChangeBase = createConfigurationChangeHandler({
-    ensureConversationAndConnection: () => ensureConversationAndConnection(),
+    ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
     getConversation: () => conversation,
     setConversation: (next) => {
       conversation = next;
