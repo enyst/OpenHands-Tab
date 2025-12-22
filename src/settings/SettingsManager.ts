@@ -56,6 +56,17 @@ const DEFAULTS: OpenHandsSettings = {
   secrets: {}
 };
 
+const ELEVENLABS_CONFIG_UPDATES: Array<[keyof ElevenLabsSettings, string]> = [
+  ['enabled', 'openhands.elevenlabs.enabled'],
+  ['mode', 'openhands.elevenlabs.mode'],
+  ['userName', 'openhands.elevenlabs.userName'],
+  ['voiceAId', 'openhands.elevenlabs.voiceAId'],
+  ['voiceUserId', 'openhands.elevenlabs.voiceUserId'],
+  ['modelId', 'openhands.elevenlabs.modelId'],
+  ['volume', 'openhands.elevenlabs.volume'],
+  ['cache', 'openhands.elevenlabs.cache'],
+];
+
 const normalizeNonEmptyString = (value: string | null | undefined): string | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || undefined;
@@ -314,29 +325,9 @@ export class SettingsManager {
     }
 
     if (partial.elevenlabs) {
-      if (partial.elevenlabs.enabled !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.enabled', partial.elevenlabs.enabled, target));
-      }
-      if (partial.elevenlabs.mode !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.mode', partial.elevenlabs.mode, target));
-      }
-      if (partial.elevenlabs.userName !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.userName', partial.elevenlabs.userName, target));
-      }
-      if (partial.elevenlabs.voiceAId !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.voiceAId', partial.elevenlabs.voiceAId, target));
-      }
-      if (partial.elevenlabs.voiceUserId !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.voiceUserId', partial.elevenlabs.voiceUserId, target));
-      }
-      if (partial.elevenlabs.modelId !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.modelId', partial.elevenlabs.modelId, target));
-      }
-      if (partial.elevenlabs.volume !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.volume', partial.elevenlabs.volume, target));
-      }
-      if (partial.elevenlabs.cache !== undefined) {
-        ops.push(this.adapter.update('openhands.elevenlabs.cache', partial.elevenlabs.cache, target));
+      for (const [key, configKey] of ELEVENLABS_CONFIG_UPDATES) {
+        const value = partial.elevenlabs[key];
+        if (value !== undefined) ops.push(this.adapter.update(configKey, value, target));
       }
     }
 
