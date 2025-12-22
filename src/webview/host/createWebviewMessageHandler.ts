@@ -53,6 +53,16 @@ type WebviewMessage =
     skillsCount: number;
     attachmentsCount: number;
   }
+  | {
+    type: 'halStateResponse';
+    requestId: string;
+    enabled: boolean;
+    phase: string;
+    eye: string;
+    stepIndex: number | null;
+    decision: string | null;
+    lastError: string | null;
+  }
   | { type: 'webviewConsole'; level: string; args: unknown[] }
   | { type: 'webviewError'; message: string; stack?: string }
   | { type: 'webviewNetwork'; phase: string; id: string; method: string; url: string; status?: number; ok?: boolean }
@@ -285,6 +295,17 @@ export type CreateWebviewMessageHandlerDeps = {
       attachmentsCount: number;
     }
   ) => void;
+  onHalStateResponse: (
+    requestId: string,
+    info: {
+      enabled: boolean;
+      phase: string;
+      eye: string;
+      stepIndex: number | null;
+      decision: string | null;
+      lastError: string | null;
+    }
+  ) => void;
 
   isDevBridgeEnabled: () => boolean;
   getOutputChannel: () => vscode.OutputChannel | undefined;
@@ -320,6 +341,11 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           type: 'serverListUpdated',
           servers: initSettings.servers,
           serverUrl: initSettings.serverUrl ?? '',
+        });
+
+        void host.postMessage({
+          type: 'elevenlabsSettings',
+          elevenlabs: initSettings.elevenlabs,
         });
 
         deps.flushConversationEventBacklog({
@@ -690,6 +716,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           case 'rejectAction':
             await conversation?.rejectAction(message.reason);
             break;
+          case 'teleportAction':
+            void vscode.window.showInformationMessage('Teleport to remote runtime is not implemented yet.');
+            break;
           default:
             console.warn(`Unknown command received from webview: ${message.command}`);
             break;
@@ -713,6 +742,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           selectedContextFiles: message.selectedContextFiles,
           skillsCount: message.skillsCount,
           attachmentsCount: message.attachmentsCount,
+        });
+        break;
+      case 'halStateResponse':
+        deps.onHalStateResponse(message.requestId, {
+          enabled: message.enabled,
+          phase: message.phase,
+          eye: message.eye,
+          stepIndex: message.stepIndex,
+          decision: message.decision,
+          lastError: message.lastError,
         });
         break;
       case 'webviewConsole': {
