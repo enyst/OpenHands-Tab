@@ -5,6 +5,7 @@ import { LocalConversation } from './LocalConversation';
 import type { Event, MessageEvent } from '../types';
 import { isActionEvent, isAgentErrorEvent, isConversationErrorEvent, isMessageEvent, isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
+import { AgentContext, Skill } from '../context';
 
 class FakeLLM implements LLMClient {
   private readonly responses: LLMStreamChunk[][];
@@ -19,6 +20,16 @@ class FakeLLM implements LLMClient {
     for (const chunk of next) {
       yield chunk;
     }
+  }
+}
+
+class RecordingLLM implements LLMClient {
+  requests: ChatCompletionRequest[] = [];
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    this.requests.push(request);
+    yield { type: 'finish' };
   }
 }
 
@@ -184,6 +195,40 @@ describe('LocalConversation', () => {
           process.env[key] = value;
         }
       }
+    }
+  });
+
+  it('includes skill extended_content in LLM requests when agentContext is configured', async () => {
+    const llm = new RecordingLLM();
+    const agentContext = new AgentContext({
+      skills: [
+        new Skill({
+          name: 'e2e-skill',
+          content: 'Hello from skill.',
+          trigger: { type: 'keyword', keywords: ['banana'] },
+        }),
+      ],
+    });
+
+    const conversation = new LocalConversation({
+      settings: baseSettings,
+      llmClient: llm,
+      tools: createDefaultTools(),
+      agentContext,
+    });
+
+    await conversation.sendUserMessage('banana');
+
+    expect(llm.requests).toHaveLength(1);
+    const req = llm.requests[0];
+    const userMessages = req.messages.filter((m) => m.role === 'user');
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].content.map((c) => c.type)).toEqual(['text', 'text']);
+    const extra = userMessages[0].content[1];
+    expect(extra).toEqual(expect.objectContaining({ type: 'text' }));
+    if (extra.type === 'text') {
+      expect(extra.text).toContain('Hello from skill.');
+      expect(extra.text).toContain('<EXTRA_INFO>');
     }
   });
 });

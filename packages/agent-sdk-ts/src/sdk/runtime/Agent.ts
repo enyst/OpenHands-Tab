@@ -705,7 +705,12 @@ export class Agent extends EventEmitter {
     const messages = this.events
       .list()
       .filter(isMessageEvent)
-      .map((event) => event.llm_message);
+      .map((event) => {
+        if (event.source === 'user' && event.extended_content?.length) {
+          return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
+        }
+        return event.llm_message;
+      });
     const tools = this.getToolDefinitions();
     return { systemPrompt, messages, tools };
   }
