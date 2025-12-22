@@ -337,7 +337,7 @@ function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${styles[risk]}`}>
       <span className={`codicon codicon-${icons[risk]} text-[10px]`} />
-      {risk}
+      {risk.toLowerCase()}
     </span>
   );
 }
