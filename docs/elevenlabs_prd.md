@@ -21,7 +21,7 @@ When a local-mode restriction triggers (e.g., “can’t touch root” / “out 
 
 ## Non-goals
 - Not a general “read all messages aloud” feature.
-- Not a replacement for security confirmations and existing UX.
+- Not a replacement for other security confirmations and existing UX. But it should be triggered, if enabled, when security risk is HIGH.
 - Not an MCP-driven runtime flow (MCP is for agent tooling; this is product UX).
 
 ## Users / personas
