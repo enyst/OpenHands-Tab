@@ -87,7 +87,7 @@ npm run lint:fix        # Auto-fix lint issues
 npm run typecheck       # Type check all code
 npm run watch           # Development watch mode
 npm run e2e             # E2E tests
-npm run e2e:agent-server # E2E tests against remote agent-server
+npm run e2e:agent-server  # E2E tests against remote agent-server
 npm run package         # Package extension as VSIX
 ```
 
