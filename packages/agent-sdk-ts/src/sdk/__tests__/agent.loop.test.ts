@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
-import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
+import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent, type Message } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 import { FileEditorTool } from '../../tools';
@@ -153,10 +153,10 @@ describe('Agent loop control', () => {
     expect(secondRequest).toBeTruthy();
 
     const messages = secondRequest?.messages ?? [];
-    const assistantIndex = messages.findIndex((m: any) =>
-      m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.some((c: any) => c?.id === 'call_1')
+    const assistantIndex = messages.findIndex((m: Message) =>
+      m.role === 'assistant' && m.tool_calls?.some((c) => c.id === 'call_1')
     );
-    const toolIndex = messages.findIndex((m: any) => m.role === 'tool' && m.tool_call_id === 'call_1');
+    const toolIndex = messages.findIndex((m: Message) => m.role === 'tool' && m.tool_call_id === 'call_1');
 
     expect(assistantIndex).toBeGreaterThanOrEqual(0);
     expect(toolIndex).toBeGreaterThan(assistantIndex);
