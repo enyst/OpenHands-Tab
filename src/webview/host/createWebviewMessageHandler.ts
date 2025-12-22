@@ -62,7 +62,7 @@ const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 500 * 1024;
 
 const OPENHANDS_DIFF_SCHEME = 'openhands-diff';
-const MAX_STORED_DIFF_DOCUMENTS = 30;
+const MAX_STORED_DIFF_DOCUMENTS = 60;
 
 const diffContentByUri = new Map<string, string>();
 const diffUriQueue: string[] = [];
@@ -88,7 +88,7 @@ function storeDiffDocument(uri: vscode.Uri, content: string): void {
   diffUriQueue.push(key);
   diffEmitter.fire(uri);
 
-  while (diffUriQueue.length > MAX_STORED_DIFF_DOCUMENTS * 2) {
+  while (diffUriQueue.length > MAX_STORED_DIFF_DOCUMENTS) {
     const drop = diffUriQueue.shift();
     if (drop) diffContentByUri.delete(drop);
   }
