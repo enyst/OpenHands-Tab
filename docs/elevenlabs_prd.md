@@ -31,7 +31,7 @@ When a HIGH-risk confirmation triggers (often associated with local-mode restric
 ## Non-goals
 - Not a general “read all messages aloud” feature.
 - Does not change the underlying security model; it only replaces the *UI flow* for `HIGH` risk confirmations when enabled.
-- Not an MCP-driven runtime flow (MCP is for agent tooling; this is product UX).
+- Not an MCP-driven runtime flow. However, the `voice_confirm` mode below does have audio understanding and LLM decision.
 
 ## Users / personas
 - OpenHands-Tab users running **Local Mode** and bumping into safety boundaries.
