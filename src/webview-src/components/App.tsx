@@ -1253,9 +1253,10 @@ export function App() {
   }, [postMessage]);
 
   const handleDeleteConversation = useCallback((id: string) => {
+    if (id === conversationId) return;
     setHistory((prev) => prev.filter((conversation) => conversation.id !== id));
     postMessage({ type: 'deleteConversation', id });
-  }, [postMessage]);
+  }, [conversationId, postMessage]);
 
   // Server selection handlers
   const handleSelectServer = useCallback((url: string) => {

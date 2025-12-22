@@ -179,4 +179,29 @@ describe('HistoryView', () => {
     expect(onDeleteConversation).toHaveBeenCalledTimes(1);
     expect(onDeleteConversation).toHaveBeenCalledWith('abc123');
   });
+
+  it('disables delete for the active conversation', () => {
+    const onClose = vi.fn();
+    const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
+
+    render(
+      <HistoryView
+        isOpen
+        onClose={onClose}
+        conversations={[
+          { id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 1000 },
+          { id: 'def456', firstMessage: 'Refactor prompt', timestamp: 2000 },
+        ]}
+        currentConversationId="def456"
+        onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
+      />
+    );
+
+    act(() => { vi.advanceTimersByTime(150); });
+
+    const deletes = screen.getAllByRole('button', { name: 'Delete conversation' });
+    expect(deletes[0]).toBeDisabled();
+  });
 });

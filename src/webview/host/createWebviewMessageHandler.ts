@@ -543,6 +543,11 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'deleteConversation': {
         const id = message.id;
         if (!id) break;
+        const activeConversationId = conversation?.getConversationId?.();
+        if (activeConversationId && activeConversationId === id) {
+          void vscode.window.showWarningMessage('Cannot delete the active conversation.');
+          break;
+        }
         try {
           if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
             throw new Error('Invalid conversation id');
