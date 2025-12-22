@@ -84,8 +84,9 @@ Note: Gemini also supports speech generation (TTS) via API, but this PRD uses El
 
 References:
 - Gemini Speech Generation docs: https://ai.google.dev/gemini-api/docs/speech-generation
-- Example (Gemini multi-speaker TTS script): [docs/gemini_multispeaker_tts.ts](./gemini_multispeaker_tts.ts)
-- Condensation/teleport summarization prompt template: [docs/condensation_summarizing_prompt.j2](./condensation_summarizing_prompt.j2)
+- Example (Gemini multi-speaker TTS script): [gemini_multispeaker_tts.ts](./gemini_multispeaker_tts.ts)
+- Sample output WAV (Gemini, ~17s): [hal9000.wav](./hal9000.wav)
+- Condensation/teleport summarization prompt template: [condensation_summarizing_prompt.j2](./condensation_summarizing_prompt.j2)
 
 ### Components
 - **Extension host (TypeScript)**:

@@ -5,7 +5,7 @@
 // To run:
 //   npm install @google/genai mime
 //   npm install -D @types/node
-//   GEMINI_API_KEY=... npx tsx docs/gemini_multispeaker_tts.ts
+//   GEMINI_API_KEY=... npx tsx docs/hal/gemini_multispeaker_tts.ts
 //
 // Note: this file is intentionally “as-tested” from the Gemini playground,
 // with small safety fixes (binary write + WAV header sizing).
@@ -179,4 +179,3 @@ function createWavHeader(dataLength: number, options: WavConversionOptions) {
 
   return buffer;
 }
-
