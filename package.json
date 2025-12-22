@@ -140,6 +140,8 @@
           "openhands.llm.temperature": {
             "type": "number",
             "default": 0,
+            "minimum": 0,
+            "maximum": 2,
             "order": 5,
             "markdownDescription": "Sampling temperature (0-2)."
           },
