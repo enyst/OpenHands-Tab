@@ -731,8 +731,8 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
   const handleOpenFile = (file: string) => openWorkspaceFile(file);
 
-  // User messages get solid grey background for clear distinction
-  const bgOpacity = isUser ? 0.06 : isAgent ? 0.05 : 0.04;
+  // Agent messages use gradient background; user messages use solid background (applied via className)
+  const bgOpacity = isAgent ? 0.05 : 0.04;
 
   return (
     <EventContainer
@@ -740,7 +740,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       bgOpacity={bgOpacity}
       index={index}
       dataTestId="message-event"
-      className={isUser ? '[&]:!bg-[#404040]' : ''}
+      className={isUser ? '!bg-neutral-700' : ''}
     >
       <div className="flex items-start gap-3">
         <div
