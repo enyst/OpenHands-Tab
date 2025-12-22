@@ -201,18 +201,6 @@
             "default": "default-llm",
             "order": 30,
             "markdownDescription": "Optional usage_id for local-mode LLM metrics tracking. In remote mode, only applies if explicitly set."
-          },
-          "openhands.gemini.model": {
-            "type": "string",
-            "default": "gemini-2.5-flash",
-            "order": 40,
-            "markdownDescription": "Gemini model used for `voice_confirm` classification."
-          },
-          "openhands.gemini.baseUrl": {
-            "type": "string",
-            "default": "https://generativelanguage.googleapis.com/v1beta",
-            "order": 41,
-            "markdownDescription": "Gemini API base URL (default is Google AI Studio; allow proxies)."
           }
         }
       },
@@ -328,6 +316,18 @@
             "default": true,
             "order": 17,
             "markdownDescription": "Enable caching for generated ElevenLabs audio."
+          },
+          "openhands.gemini.model": {
+            "type": "string",
+            "default": "gemini-2.5-flash",
+            "order": 18,
+            "markdownDescription": "Gemini model used for `voice_confirm` classification."
+          },
+          "openhands.gemini.baseUrl": {
+            "type": "string",
+            "default": "https://generativelanguage.googleapis.com/v1beta",
+            "order": 19,
+            "markdownDescription": "Gemini API base URL (default is Google AI Studio; allow proxies)."
           }
         }
       },
