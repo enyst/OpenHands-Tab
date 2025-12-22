@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
@@ -15,6 +15,14 @@ afterEach(() => {
 function postToWindow(payload: any) {
   window.postMessage(payload, '*');
 }
+
+const mockApi = { postMessage: vi.fn() } as any;
+
+beforeEach(() => {
+  // @ts-expect-error -- VS Code API is injected by host environment during runtime
+  window.acquireVsCodeApi = () => mockApi;
+  mockApi.postMessage.mockClear();
+});
 
 describe('Agent-SDK event rendering', () => {
   it('renders text content from MessageEvent', async () => {
@@ -195,6 +203,38 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: observationEvent });
     expect(await screen.findByText(/Agent read/)).toBeInTheDocument();
     expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
+  });
+
+  it('opens a VS Code diff for file_editor edit observations', async () => {
+    render(<App />);
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'str_replace',
+        path: '/tmp/README.md',
+        prev_exist: true,
+        old_content: 'old content',
+        new_content: 'new content',
+      },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_diff',
+      action_id: 'action_file_editor_diff',
+    } as any;
+
+    postToWindow({ type: 'event', event: observationEvent });
+    const button = await screen.findByRole('button', { name: 'View diff for /tmp/README.md' });
+    fireEvent.click(button);
+
+    expect(mockApi.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'openWorkspaceDiff',
+        path: '/tmp/README.md',
+        oldContent: 'old content',
+        newContent: 'new content',
+      })
+    );
   });
 
   it('allows viewing raw file_editor payloads on demand', async () => {

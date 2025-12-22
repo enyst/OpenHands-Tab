@@ -88,6 +88,11 @@ const openWorkspaceFile = (path: string) => {
   api.postMessage({ type: 'openWorkspaceFile', path });
 };
 
+const openWorkspaceDiff = (path: string, oldContent: string, newContent: string) => {
+  const api = getVscodeApi();
+  api.postMessage({ type: 'openWorkspaceDiff', path, oldContent, newContent });
+};
+
 function InlineFileReference({ path }: { path?: string }) {
   if (!path) {
     return <span className="font-mono text-xs text-stone-400">this path</span>;
@@ -101,6 +106,38 @@ function InlineFileReference({ path }: { path?: string }) {
       title={`Open ${path}`}
     >
       <span className="codicon codicon-file text-brand-400/70" />
+      <span className="truncate max-w-[16rem]">{path}</span>
+      <span className="codicon codicon-go-to-file opacity-40 group-hover:opacity-70 transition-opacity" />
+    </button>
+  );
+}
+
+const normalizeDiffContent = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (value === null) return '';
+  return undefined;
+};
+
+function InlineFileDiffReference({ path, oldContent, newContent }: { path?: string; oldContent: unknown; newContent: unknown }) {
+  if (!path) {
+    return <span className="font-mono text-xs text-stone-400">this path</span>;
+  }
+
+  const oldText = normalizeDiffContent(oldContent);
+  const newText = normalizeDiffContent(newContent);
+  if (oldText === undefined || newText === undefined) {
+    return <InlineFileReference path={path} />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => openWorkspaceDiff(path, oldText, newText)}
+      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.1] text-xs font-mono text-brand-300 align-middle max-w-full transition-all duration-150 group"
+      aria-label={`View diff for ${path}`}
+      title={`View diff for ${path}`}
+    >
+      <span className="codicon codicon-diff text-brand-400/70" />
       <span className="truncate max-w-[16rem]">{path}</span>
       <span className="codicon codicon-go-to-file opacity-40 group-hover:opacity-70 transition-opacity" />
     </button>
@@ -213,7 +250,7 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
       return (
         <div className="text-sm leading-relaxed space-y-1">
           <p>Agent {verb}</p>
-          <InlineFileReference path={path} />
+          <InlineFileDiffReference path={path} oldContent={rawOld} newContent={rawNew} />
           {sizeText && <p className="text-xs opacity-70">File now contains {sizeText}.</p>}
         </div>
       );
@@ -224,7 +261,7 @@ function FileEditorObservationSummary({ observation }: { observation: JsonRecord
       return (
         <div className="text-sm leading-relaxed space-y-1">
           <p>Agent {command === 'insert' ? 'inserted text into' : 'replaced text in'}</p>
-          <InlineFileReference path={path} />
+          <InlineFileDiffReference path={path} oldContent={rawOld} newContent={rawNew} />
           {detail && <p className="text-xs opacity-70">{detail}</p>}
         </div>
       );
