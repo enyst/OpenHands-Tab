@@ -70,24 +70,19 @@ const DEFAULT_HAL_STATE: HalStateSnapshot = {
   lastError: null,
 };
 
+const HAL_PHASES: HalPhase[] = ['idle', 'dialogue', 'awaiting_user', 'listening', 'classifying', 'waiting_remote', 'error'];
 function isHalPhase(value: unknown): value is HalPhase {
-  return (
-    value === 'idle' ||
-    value === 'dialogue' ||
-    value === 'awaiting_user' ||
-    value === 'listening' ||
-    value === 'classifying' ||
-    value === 'waiting_remote' ||
-    value === 'error'
-  );
+  return HAL_PHASES.includes(value as HalPhase);
 }
 
+const HAL_EYES: HalEye[] = ['off', 'dim', 'pulsating'];
 function isHalEye(value: unknown): value is HalEye {
-  return value === 'off' || value === 'dim' || value === 'pulsating';
+  return HAL_EYES.includes(value as HalEye);
 }
 
+const HAL_DECISIONS: HalDecision[] = ['approve_local', 'teleport_remote', 'reject'];
 function isHalDecision(value: unknown): value is HalDecision {
-  return value === 'approve_local' || value === 'teleport_remote' || value === 'reject';
+  return HAL_DECISIONS.includes(value as HalDecision);
 }
 
 let chatView: vscode.WebviewView | undefined;
@@ -536,6 +531,7 @@ function redactStringHeuristics(text: string): string {
   t = t.replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gi, REDACTED);
   t = t.replace(/\bgh[pousr]_[A-Za-z0-9]{12,}\b/gi, REDACTED);
   t = t.replace(/\bgithub_pat_[A-Za-z0-9_]{12,}\b/gi, REDACTED);
+  t = t.replace(/\bxi-[A-Za-z0-9_-]{12,}\b/gi, REDACTED); // ElevenLabs keys
 
   // AWS access key ids (AKIA..., ASIA...)
   t = t.replace(/\b(AKIA|ASIA)[0-9A-Z]{16}\b/g, REDACTED);

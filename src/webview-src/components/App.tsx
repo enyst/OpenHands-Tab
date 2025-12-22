@@ -325,20 +325,12 @@ export function App() {
     };
 
     if (isActionEvent(event)) {
-      const prev = pendingActionsRef.current;
-      const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
-      if (!exists) {
-        const next = [...prev, event];
-        pendingActionsRef.current = next;
-        setPendingActions(next);
-      }
+      setPendingActions((prev) => {
+        const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
+        return exists ? prev : [...prev, event];
+      });
     } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
-      const prev = pendingActionsRef.current;
-      const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
-      if (next.length !== prev.length) {
-        pendingActionsRef.current = next;
-        setPendingActions(next);
-      }
+      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== event.tool_call_id));
       clearSubmissionState();
     } else if (isAgentErrorEvent(event)) {
       showStatusMessage('error', event.error);
@@ -700,18 +692,7 @@ export function App() {
               postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
               break;
             case 'halExit': {
-              clearHalTimer();
-              const key = halActiveKeyRef.current;
-              if (key) {
-                halSuppressedKeyRef.current = key;
-                setHalSuppressedKey(key);
-              }
-              halPhaseRef.current = 'idle';
-              setHalPhase('idle');
-              setHalEye('off');
-              setHalStepIndex(null);
-              setHalDecision(null);
-              setHalLastError(null);
+              handleHalExit();
               break;
             }
           }
@@ -909,20 +890,10 @@ export function App() {
 
   const handleHalTeleport = useCallback(() => {
     setHalDecision('teleport_remote');
-    clearHalTimer();
-    const key = halActiveKeyRef.current;
-    if (key) {
-      halSuppressedKeyRef.current = key;
-      setHalSuppressedKey(key);
-    }
-    halPhaseRef.current = 'idle';
-    setHalPhase('idle');
-    setHalEye('off');
-    setHalStepIndex(null);
-    setHalLastError(null);
+    handleHalExit();
     showStatusMessage('warn', 'Teleport to remote runtime is not implemented yet');
     postMessage({ type: 'command', command: 'teleportAction' });
-  }, [clearHalTimer, postMessage, showStatusMessage]);
+  }, [handleHalExit, postMessage, showStatusMessage]);
 
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
