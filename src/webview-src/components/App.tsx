@@ -218,6 +218,7 @@ export function App() {
   const pendingActionsRef = useRef<ActionEvent[]>([]);
   const agentStatusRef = useRef<string | undefined>(undefined);
   const conversationIdRef = useRef<string | undefined>(undefined);
+  const currentServerUrlRef = useRef<string | undefined>(undefined);
   const elevenlabsRef = useRef<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
 
   // Refs
@@ -282,6 +283,10 @@ export function App() {
   useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  useEffect(() => {
+    currentServerUrlRef.current = currentServerUrl;
+  }, [currentServerUrl]);
 
   useEffect(() => {
     elevenlabsRef.current = elevenlabs;
@@ -663,14 +668,36 @@ export function App() {
             setMode('remote');
           }
           break;
-        case 'serverListUpdated':
+        case 'serverListUpdated': {
           if (Array.isArray(payload.servers)) {
             setServers(payload.servers);
           }
           if (typeof payload.serverUrl === 'string') {
-            setCurrentServerUrl(payload.serverUrl || undefined);
+            const nextUrl = payload.serverUrl || undefined;
+            const prevUrl = currentServerUrlRef.current;
+            currentServerUrlRef.current = nextUrl;
+            setCurrentServerUrl(nextUrl);
+
+            // If the server target changed (Local ↔ Remote or remote server URL changed),
+            // start a fresh conversation UI instead of implicitly resuming prior state.
+            if (prevUrl !== nextUrl) {
+              setHalDisabledConversationId(null);
+              conversationIdRef.current = undefined;
+              setConversationId(undefined);
+              setEvents([]);
+              pendingActionsRef.current = [];
+              setPendingActions([]);
+              agentStatusRef.current = undefined;
+              setAgentStatus(undefined);
+              setStreamingContent(null);
+              eventId.current = 1;
+              const api = getVscodeApi();
+              api.setState?.({});
+              maybeUpdateHalFlow();
+            }
           }
           break;
+        }
         case 'elevenlabsSettings':
           if (payload.elevenlabs && typeof payload.elevenlabs === 'object') {
             const prev = elevenlabsRef.current;

@@ -3,8 +3,13 @@ import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 
 type TerminalLogPtyLike = { ensureNewline?: () => void };
 
+type EnsureConversationOptions = {
+  uiJustCreated?: boolean;
+  modeSwitched?: boolean;
+};
+
 export type CreateConfigurationChangeHandlerDeps = {
-  ensureConversationAndConnection: () => Promise<void>;
+  ensureConversationAndConnection: (options?: EnsureConversationOptions) => Promise<void>;
 
   getConversation: () => ConversationInstance | undefined;
   setConversation: (conversation: ConversationInstance | undefined) => void;
@@ -38,7 +43,7 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
         deps.setTerminalLogPty(undefined);
       }
       deps.setConversation(undefined);
-      await deps.ensureConversationAndConnection();
+      await deps.ensureConversationAndConnection({ modeSwitched: true });
       return;
     }
 
@@ -80,4 +85,3 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
     }
   };
 }
-
