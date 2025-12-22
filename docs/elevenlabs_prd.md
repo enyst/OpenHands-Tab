@@ -1,7 +1,7 @@
 # ElevenLabs API for VS Code — “HAL 9000” fun PRD
 
 ## Summary
-Add an optional, theatrical “HAL 9000” **Restricted Area Protocol** to the OpenHands VS Code extension: when the user/agent attempts a restricted local action (e.g., outside workspace folders or operation with security risk = "HIGH"), the UI shows a pulsating red “eye” and plays a short scripted dialogue (and optional “Pink Panther / elevator music” sting). The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic generation, or (deferred for later, after human tests TTS workflow) via **pre-bundled audio files** for deterministic timing and zero API latency.
+Add an optional, theatrical “HAL 9000” **Restricted Area Protocol** to the OpenHands VS Code extension: when the user/agent attempts a restricted local action (e.g., outside workspace folders or operation with security risk = "HIGH"), the UI shows a pulsating red “eye” and plays a short scripted dialogue (and an optional short music sting). The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic generation, or (deferred for later, after human tests TTS workflow) via **pre-bundled audio files** for deterministic timing and zero API latency.
 
 This PRD is intentionally “fun”/non-critical: it must be easy to disable, safe by default, and must never block core workflows.
 
@@ -47,7 +47,7 @@ Voice A:
 Voice B:
 - “Okay okay, do it.”
 Music:
-- “Rhapsody in Blue final crescendo / elevator music” sting (prefer local file for timing).
+- Short “music sting” (implementation/selection TBD).
 
 ### Accessibility
 - Provide a “Mute/Disable audio” setting and a one-click stop button.
@@ -91,7 +91,7 @@ Even if ElevenLabs provides an MCP server:
 Proposed settings (names TBD):
 - `elevenlabs.enabled`: boolean (default `false`)
 - `elevenlabs.mode`: `bundled` | `api` (default: `api`)
-- `elevenlabs.apiKey`: stored in VS Code Secrets  # already done
+- `elevenlabs.apiKey`: stored in VS Code Secrets (already implemented)
 - `elevenlabs.voiceAId`, `elevenlabs.voiceBId`: string
 - `elevenlabs.modelId`: e.g. `eleven_turbo_v2` (optional)
 - `elevenlabs.volume`: 0.0–1.0
@@ -103,7 +103,13 @@ Proposed settings (names TBD):
 - Cap size (LRU) to avoid disk bloat
 
 ## Error handling
-- If API call fails: fall back to text notification + disable the sequence for the session.
+- If an ElevenLabs API call fails: fall back to a text-only notification and auto-disable the HAL sequence for the **current VS Code window session**.
+  - Definition (“disable for the session”): an in-memory flag that lasts until the extension host is restarted (e.g., VS Code Reload Window) or the user explicitly re-enables the feature (e.g., toggling `elevenlabs.enabled` off/on).
+  - Do not persist this auto-disable state to disk.
+  - Do not spam: show at most one failure notification per session.
+- Retry/backoff strategy (API mode):
+  - No retries for invalid configuration (e.g., auth errors / missing key).
+  - For transient failures (network errors, 5xx, 429): retry up to **2** times (3 attempts total) with exponential backoff (e.g., 250ms, 500ms, 1000ms) and jitter; if still failing, abort the sequence and auto-disable for the session.
 - If webview isn’t ready: queue the trigger and show a standard VS Code notification.
 - Never block the user’s ability to continue working.
 
@@ -130,7 +136,28 @@ Behavior: switches mode/settings and restarts or continues the conversation appr
 
 ### E2E tests
 - Add an E2E action to simulate “restricted area triggered”.
-- Verify `_queryUiState` / a new `_queryHalState` reflects “active → finished”.
+- Verify `openhands._queryUiState` and `openhands._queryHalState` reflect the expected progression (e.g., `active → finished`).
+
+#### `_queryHalState` (test/debug contract)
+Purpose: enable deterministic E2E assertions about the HAL UX without DOM automation.
+
+- Command id: `openhands._queryHalState` (test/debug-only; not user-facing).
+- Behavior: returns a Promise of a JSON-serializable object; if the webview is not available/ready, return a default “idle” state.
+- What it queries: the webview’s HAL presentation state (eye animation + overlay state + audio playback step).
+- Return shape (minimal):
+  - `enabled`: boolean (feature toggle on and not auto-disabled for this session)
+  - `phase`: `idle | active | finished | error`
+  - `eye`: `off | dim | pulsating`
+  - `stepIndex`: number (0-based script step) or `null` when idle
+  - `lastError`: string | null (non-secret, user-safe)
+- Implementation location:
+  - Extension host: `src/extension.ts` registers `openhands._queryHalState` and round-trips a `queryHalState` request to the webview (mirrors `openhands._queryUiState`).
+  - Webview: `src/webview-src/components/App.tsx` handles `queryHalState` and replies with `halStateResponse`.
+- Example E2E usage:
+  ```ts
+  const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+  expect(hal.phase).to.equal('active');
+  ```
 
 ## Security & privacy
 - Never send user prompts/content to ElevenLabs; only send fixed script strings.
@@ -139,14 +166,15 @@ Behavior: switches mode/settings and restarts or continues the conversation appr
 
 ## Rollout plan
 Phase 0:
-- Add scaffolding: webview animation + local bundled audio playback.
+- Add scaffolding: webview animation + API-mode playback behind a feature flag.
 Phase 1:
-- Add optional ElevenLabs API mode behind a feature flag + caching.
+- Add caching + polish: retries/backoff, “stop” UI, and tight error UX.
 Phase 2:
-- Expand scripts / user-customizable voice packs (optional).
+- Add bundled-audio mode (optional), then expand scripts / voice packs (optional).
 
 ## Open questions
-- Where should the “eye” live: Activity Bar view, notification webview, or overlay?
-- Licensing for any recognizable music; prefer generic “elevator jazz” SFX or local original audio.
-- Best trigger conditions: only on specific blocked operations, or also on repeated confirmations?
-
+| Open question | Owner | Target date |
+| --- | --- | --- |
+| Eye placement (overlay vs dedicated view) | Engel | 2026-01-10 |
+| Trigger conditions (what qualifies as “restricted area”) | Engel | 2026-01-10 |
+| Music sting behavior (none vs short generic sting) | Engel | 2026-01-10 |
