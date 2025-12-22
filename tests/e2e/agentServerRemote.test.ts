@@ -69,38 +69,57 @@ async function waitForHealthOrExit(proc: ReturnType<typeof spawn>, url: string, 
   throw new Error(`Timed out waiting for agent-server health at ${url}: ${String(lastError)}`);
 }
 
-function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
-  return new Promise((resolve) => {
-    const pid = proc.pid;
-    if (!pid) return resolve();
-    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
+async function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
+  const pid = proc.pid;
+  if (!pid) return;
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
 
-    const killSignal = 'SIGTERM' as const;
+  const waitForExit = async (timeoutMs: number): Promise<void> => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return;
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, timeoutMs);
+      proc.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  };
+
+  if (process.platform === 'win32') {
     try {
-      if (process.platform !== 'win32') {
-        process.kill(-pid, killSignal);
-      } else {
-        proc.kill(killSignal);
-      }
+      // Best effort: terminate the entire process tree.
+      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
     } catch {
       // ignore
     }
+    await waitForExit(2000);
+    return;
+  }
 
-    const timeout = setTimeout(() => {
-      try {
-        if (process.platform !== 'win32') process.kill(-pid, 'SIGKILL');
-        else proc.kill('SIGKILL');
-      } catch {
-        // ignore
-      }
-      resolve();
-    }, 5000);
+  try {
+    process.kill(-pid, 'SIGTERM');
+  } catch {
+    try {
+      proc.kill('SIGTERM');
+    } catch {
+      // ignore
+    }
+  }
 
-    proc.once('exit', () => {
-      clearTimeout(timeout);
-      resolve();
-    });
-  });
+  await waitForExit(2000);
+  if (proc.exitCode !== null || proc.signalCode !== null) return;
+
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    try {
+      proc.kill('SIGKILL');
+    } catch {
+      // ignore
+    }
+  }
+
+  await waitForExit(2000);
 }
 
 async function startAgentServerWithRetry(
