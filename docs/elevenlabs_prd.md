@@ -238,3 +238,4 @@ Phase 2:
 | Workflow change | On `HIGH` risk, the HAL flow replaces the normal confirmation UI (when enabled). | Engel | 2025-12-22 |
 | Voice B | In `tts_only`, Voice B lines are played via ElevenLabs TTS using `voice_user`; in `voice_confirm`, Voice B is the real user via microphone (for the final decision). | Engel | 2025-12-22 |
 | Mode selection | Default to `tts_only`; require explicit opt-in for `voice_confirm`. | Engel | 2025-12-22 |
+
