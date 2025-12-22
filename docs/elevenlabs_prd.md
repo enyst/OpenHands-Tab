@@ -158,9 +158,12 @@ Proposed settings (names TBD):
 - **Teleport to remote runtime**:
   - Cancel the local confirmation (do not execute the risky local action).
   - Pick the **first** configured remote server in the ServerSelect list.
-    - If no server is available (empty list): show “No server available” and fall back to the standard Reject flow (including the usual reject-reason prompt).
-  - Before starting the new remote conversation: run a one-shot **local** LLM summarization and send **only the summary** as the first user message in the remote conversation (not full JSON event history).
+    - If no server is available (empty list): **abort the HAL flow** (exit overlay/audio), show “No server available”, then proceed with the normal Reject path (including the usual reject-reason prompt).
+  - Before starting the new remote conversation:
+    - Run a one-shot **local** LLM summarization and send **only the summary** as the first user message in the remote conversation (not full JSON event history).
+    - If summarization fails: still teleport; send a note that summarization failed **plus the last 10 events** (Action/Observation/Message only; exclude system prompt/tools/skills).
     - Include repo name + branch name, and a note that uncommitted local changes may not be present in remote.
+    - Do **not** send the system prompt, tool list, or skills list (the remote agent/runtime has its own).
     - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn’t emit them today).
   - Switch to remote mode and start a new conversation on that server.
   - Show the “Teleporting…” overlay and play the “Rhapsody in Blue…” snippet until the remote conversation is ready.
