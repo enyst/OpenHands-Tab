@@ -1,9 +1,5 @@
 import { useMemo, useState } from 'react';
-
-export type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
-export type HalEye = 'off' | 'dim' | 'pulsating';
-
-type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
+import type { HalDecision, HalEye, HalPhase } from '../../shared/halTypes';
 
 type HalOverlayProps = {
   userName: string;

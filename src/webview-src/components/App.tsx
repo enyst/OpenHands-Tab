@@ -24,7 +24,8 @@ import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
-import { HalOverlay, type HalEye } from './HalOverlay';
+import type { ElevenLabsMode, HalDecision, HalEye, HalPhase, HalStateSnapshot } from '../../shared/halTypes';
+import { HalOverlay } from './HalOverlay';
 import {
   SystemPromptEventBlock,
   ActionEventBlock,
@@ -60,26 +61,11 @@ type StatusBannerState = {
   dismissible?: boolean;
 };
 
-type ElevenLabsMode = 'bundled' | 'tts_only' | 'voice_confirm';
-
 type ElevenLabsSettingsSnapshot = {
   enabled: boolean;
   mode: ElevenLabsMode;
   userName: string;
   volume: number;
-};
-
-type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
-type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
-
-type HalStateSnapshot = {
-  enabled: boolean;
-  mode: ElevenLabsMode;
-  phase: HalPhase;
-  eye: HalEye;
-  stepIndex: number | null;
-  decision: HalDecision | null;
-  lastError: string | null;
 };
 
 const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
