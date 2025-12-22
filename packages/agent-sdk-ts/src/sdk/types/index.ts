@@ -18,6 +18,14 @@ export interface ToolCall {
   };
 }
 
+export interface ResponsesReasoningItem {
+  id: string;
+  summary?: string[];
+  content?: string[] | null;
+  encrypted_content?: string;
+  status?: string;
+}
+
 export interface Message {
   role: Role;
   content: Content[];
@@ -27,6 +35,7 @@ export interface Message {
   tool_call_id?: string;
   name?: string;
   reasoning_content?: string;
+  responses_reasoning_item?: ResponsesReasoningItem | null;
 }
 
 export interface EventBase {

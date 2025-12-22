@@ -39,6 +39,9 @@ export class AgentOrchestrator {
         case 'reasoning':
           message.reasoning_content = (message.reasoning_content ?? '') + chunk.reasoning;
           break;
+        case 'responses_reasoning_item':
+          message.responses_reasoning_item = chunk.item;
+          break;
         case 'tool_call_delta': {
           const current = toolCalls[chunk.id] ?? { id: chunk.id, type: 'function', function: { name: chunk.name ?? '', arguments: '' } };
           current.function = {

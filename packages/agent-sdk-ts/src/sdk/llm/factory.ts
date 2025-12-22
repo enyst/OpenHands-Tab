@@ -1,11 +1,12 @@
 import { LLMCredentialProvider } from './credentials';
 import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
+import { OpenAIResponsesClient } from './openai-responses';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration } from './types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient } from './registry';
 import { Metrics } from './metrics';
-import { detectProviderFromBaseUrl } from './provider';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl } from './provider';
 
 export interface LLMFactoryOptions {
   secrets?: SecretRegistry;
@@ -42,7 +43,21 @@ export class LLMFactory {
     }
 
     const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
-    const base = provider === 'anthropic' ? new AnthropicClient(this.config, apiKey) : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+    const normalizedModel = this.config.model.toLowerCase();
+    const normalizeUrl = (value: string | null | undefined): string | undefined => {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (!trimmed) return undefined;
+      return trimmed.replace(/\/+$/, '');
+    };
+    const normalizedBaseUrl = normalizeUrl(this.config.baseUrl);
+    const normalizedDefaultOpenAIBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.openai);
+    const baseUrlSupportsResponses = !normalizedBaseUrl || normalizedBaseUrl === normalizedDefaultOpenAIBaseUrl;
+    const useResponses = provider === 'openai' && normalizedModel.startsWith('gpt-5') && baseUrlSupportsResponses;
+    const base = provider === 'anthropic'
+      ? new AnthropicClient(this.config, apiKey)
+      : useResponses
+        ? new OpenAIResponsesClient({ ...this.config, provider }, apiKey)
+        : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
 
     if (this.config.usageId) {
       const metrics = new Metrics(this.config.model);

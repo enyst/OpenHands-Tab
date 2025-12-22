@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { AgentOrchestrator } from '../runtime';
-import { OpenAICompatibleClient, LLMFactory, LLMCredentialProvider } from '../llm';
+import { OpenAICompatibleClient, OpenAIResponsesClient, LLMFactory, LLMCredentialProvider } from '../llm';
 import type { ChatCompletionRequest, LLMConfiguration } from '../llm';
 import { ConversationState, EventLog } from '../runtime';
 
@@ -109,6 +109,61 @@ describe('OpenAICompatibleClient streaming', () => {
   });
 });
 
+describe('OpenAIResponsesClient (non-stream)', () => {
+  const baseConfig: LLMConfiguration = { model: 'gpt-5-mini', provider: 'openai' };
+
+  const buildRequest = (): ChatCompletionRequest => ({
+    systemPrompt: 'you are a test harness',
+    messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+    tools: [{ type: 'function', function: { name: 'ping' } }],
+  });
+
+  it('parses output text, tool calls, and reasoning item', async () => {
+    const payload = {
+      output: [
+        {
+          type: 'reasoning',
+          id: 'rs_1',
+          summary: [{ type: 'summary_text', text: 'short summary' }],
+          encrypted_content: 'encrypted',
+          status: 'completed',
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Hello' }],
+        },
+        {
+          type: 'function_call',
+          id: 'fc_call_1',
+          call_id: 'fc_call_1',
+          name: 'ping',
+          arguments: '{"ok":true}',
+        },
+      ],
+      usage: { input_tokens: 5, output_tokens: 2, input_tokens_details: { cached_tokens: 1 } },
+    };
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const client = new OpenAIResponsesClient(baseConfig, 'test-key');
+    const orchestrator = new AgentOrchestrator(client);
+
+    const response = await orchestrator.runChat(buildRequest());
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0] ?? '')).toContain('/responses');
+
+    expect(response.message.content[0]).toEqual({ type: 'text', text: 'Hello' });
+    expect(response.message.tool_calls?.[0]).toEqual({
+      id: 'fc_call_1',
+      type: 'function',
+      function: { name: 'ping', arguments: '{"ok":true}' },
+    });
+    expect(response.usage).toEqual({ inputTokens: 5, outputTokens: 2, cacheReadTokens: 1, cacheWriteTokens: undefined });
+    expect(response.message.responses_reasoning_item).toMatchObject({ id: 'rs_1', summary: ['short summary'], encrypted_content: 'encrypted' });
+  });
+});
+
 describe('LLMFactory integration', () => {
   it('uses inline apiKey without registry lookup', async () => {
     const spy = vi.spyOn(LLMCredentialProvider.prototype, 'getApiKey');
@@ -118,6 +173,18 @@ describe('LLMFactory integration', () => {
 
     expect(client).toBeInstanceOf(OpenAICompatibleClient);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('routes GPT-5 models through Responses API', async () => {
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline' });
+    const client = await factory.createClient();
+    expect(client).toBeInstanceOf(OpenAIResponsesClient);
+  });
+
+  it('does not route GPT-5 models through Responses API when baseUrl is custom', async () => {
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', baseUrl: 'http://localhost:4000', apiKey: 'sk-inline' });
+    const client = await factory.createClient();
+    expect(client).toBeInstanceOf(OpenAICompatibleClient);
   });
 
   const maybeIt = process.env.OPENAI_API_KEY ? it : it.skip;
