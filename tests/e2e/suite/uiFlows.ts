@@ -17,11 +17,23 @@ async function pollUntil(
 }
 
 export async function run(): Promise<void> {
+  // Skills: create a temp skill file *before* opening the webview so the initial
+  // requestSkills round-trip can populate the badge without opening the popover.
+  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
+  await fs.mkdir(skillsDir, { recursive: true });
+  const skillPath = path.join(skillsDir, `e2e-skill-${Date.now()}.md`);
+  await fs.writeFile(skillPath, '# E2E Skill\n\nHello from e2e.\n', 'utf8');
+
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
     const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
     return diag?.chat?.hasView && diag?.chat?.webviewReady;
+  }, 15000);
+
+  await pollUntil(async () => {
+    const state: any = await vscode.commands.executeCommand('openhands._queryUiState');
+    return state?.showSkillsPopover === false && typeof state.skillsCount === 'number' && state.skillsCount >= 1;
   }, 15000);
 
   // Context picker: open and toggle a known file
@@ -63,12 +75,7 @@ export async function run(): Promise<void> {
     return Array.isArray(state?.selectedContextFiles) && !state.selectedContextFiles.includes('README.md');
   });
 
-  // Skills: create a temp skill file and ensure Skills popover loads it
-  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
-  await fs.mkdir(skillsDir, { recursive: true });
-  const skillPath = path.join(skillsDir, `e2e-skill-${Date.now()}.md`);
-  await fs.writeFile(skillPath, '# E2E Skill\n\nHello from e2e.\n', 'utf8');
-
+  // Skills: ensure Skills popover loads the temp skill file
   try {
     await vscode.commands.executeCommand('openhands._webviewAction', { action: 'openSkills' });
 
