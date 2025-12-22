@@ -82,6 +82,10 @@ Even if ElevenLabs provides an MCP server:
 
 Note: Gemini also supports speech generation (TTS) via API, but this PRD uses ElevenLabs for the HAL voice and Gemini only for audio understanding (decision classification).
 
+References:
+- Gemini Speech Generation docs: https://ai.google.dev/gemini-api/docs/speech-generation
+- Example (Gemini multi-speaker TTS script): [docs/gemini_multispeaker_tts.ts](./gemini_multispeaker_tts.ts)
+
 ### Components
 - **Extension host (TypeScript)**:
   - Detects HIGH-risk confirmation events / conditions.
