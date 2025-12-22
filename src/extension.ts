@@ -1045,6 +1045,16 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save GitHub token',
   });
 
+  const setElevenLabsApiKey = registerSecretCommand('openhands.setElevenLabsApiKey', {
+    title: 'ElevenLabs API Key',
+    secretKey: 'elevenLabsApiKey',
+    prompt: 'Enter your ElevenLabs API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'xi-...',
+    successMessage: 'ElevenLabs API key saved securely.',
+    clearedMessage: 'ElevenLabs API key cleared.',
+    errorPrefix: 'Failed to save ElevenLabs API key',
+  });
+
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
     title: 'Custom Secret 1',
     secretKey: 'customSecret1',
@@ -1136,6 +1146,7 @@ export function activate(context: vscode.ExtensionContext) {
     setApiKey,
     setSessionApiKey,
     setGithubToken,
+    setElevenLabsApiKey,
     setCustomSecret1,
     setCustomSecret2,
     setCustomSecret3,

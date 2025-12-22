@@ -136,6 +136,11 @@ export class RemoteConversation extends EventEmitter {
         if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
         if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
 
+      const secrets: Record<string, unknown> = {};
+      if (s?.secrets.elevenLabsApiKey) {
+        secrets.ELEVENLABS_API_KEY = { kind: 'StaticSecret', value: s.secrets.elevenLabsApiKey };
+      }
+
       const confirmation_policy: Record<string, unknown> = (() => {
         const p = s?.confirmation.policy || 'never';
         if (p === 'always') return { kind: 'AlwaysConfirm' };
@@ -166,6 +171,7 @@ export class RemoteConversation extends EventEmitter {
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
         workspace: { kind: 'LocalWorkspace', working_dir: this.workspaceRoot },
+        secrets,
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
