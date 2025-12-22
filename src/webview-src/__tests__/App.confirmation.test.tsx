@@ -60,7 +60,7 @@ describe('App - Confirmation Flow', () => {
     const scope = within(dialog);
     // Tool name is shown in the action details
     expect(scope.getAllByText(/terminal/i).length).toBeGreaterThanOrEqual(1);
-    expect(scope.getByText(/HIGH RISK/)).toBeInTheDocument();
+    expect(scope.getByText(/high risk/)).toBeInTheDocument();
     expect(scope.getByText(/Reasoning/)).toBeInTheDocument();
   });
 

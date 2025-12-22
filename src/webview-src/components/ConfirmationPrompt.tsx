@@ -120,7 +120,7 @@ export function ConfirmationPrompt({
                         `}
                       >
                         <span className={`codicon codicon-${action.security_risk === 'HIGH' ? 'shield' : 'warning'} text-[10px]`} />
-                        {action.security_risk} RISK
+                        {action.security_risk.toLowerCase()} risk
                       </span>
                     )}
                   </div>

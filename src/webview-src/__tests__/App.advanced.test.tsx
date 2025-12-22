@@ -832,7 +832,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText('HIGH')).toBeInTheDocument();
+        expect(screen.getByText('high')).toBeInTheDocument();
       });
     });
 
@@ -847,7 +847,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText('MEDIUM')).toBeInTheDocument();
+        expect(screen.getByText('medium')).toBeInTheDocument();
       });
     });
 
@@ -862,7 +862,7 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'event', event: action });
 
       await waitFor(() => {
-        expect(screen.getByText('LOW')).toBeInTheDocument();
+        expect(screen.getByText('low')).toBeInTheDocument();
       });
     });
 
