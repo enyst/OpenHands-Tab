@@ -28,6 +28,7 @@
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setElevenLabsApiKey",
+    "onCommand:openhands.setGeminiApiKey",
     "onCommand:openhands.setCustomSecret1",
     "onCommand:openhands.setCustomSecret2",
     "onCommand:openhands.setCustomSecret3",
@@ -65,6 +66,10 @@
       {
         "command": "openhands.setElevenLabsApiKey",
         "title": "OpenHands: Set ElevenLabs API Key"
+      },
+      {
+        "command": "openhands.setGeminiApiKey",
+        "title": "OpenHands: Set Gemini API Key"
       },
       {
         "command": "openhands.setCustomSecret1",
@@ -312,6 +317,16 @@
           "default": true,
           "markdownDescription": "Enable caching for generated ElevenLabs audio."
         },
+        "openhands.gemini.model": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "markdownDescription": "Gemini model used for `voice_confirm` classification."
+        },
+        "openhands.gemini.baseUrl": {
+          "type": "string",
+          "default": "https://generativelanguage.googleapis.com/v1beta",
+          "markdownDescription": "Gemini API base URL (default is Google AI Studio; allow proxies)."
+        },
         "openhands.secrets.githubToken": {
           "type": "string",
           "default": "",
@@ -323,6 +338,12 @@
           "default": "",
           "editPresentation": "singlelineText",
           "markdownDescription": "**To set your ElevenLabs API key securely:**\n\n[🔑 Configure ElevenLabs API Key](command:openhands.setElevenLabsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json)_"
+        },
+        "openhands.secrets.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "editPresentation": "singlelineText",
+          "markdownDescription": "**To set your Gemini API key securely:**\n\n[🔑 Configure Gemini API Key](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json)_"
         },
         "openhands.secrets.customSecret1": {
           "type": "string",

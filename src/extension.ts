@@ -1136,6 +1136,15 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save ElevenLabs API key',
   });
 
+  const setGeminiApiKey = registerSecretCommand('openhands.setGeminiApiKey', {
+    title: 'Gemini API Key',
+    secretKey: 'geminiApiKey',
+    prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
+    successMessage: 'Gemini API key saved securely.',
+    clearedMessage: 'Gemini API key cleared.',
+    errorPrefix: 'Failed to save Gemini API key',
+  });
+
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
     title: 'Custom Secret 1',
     secretKey: 'customSecret1',
@@ -1244,6 +1253,7 @@ export function activate(context: vscode.ExtensionContext) {
     setSessionApiKey,
     setGithubToken,
     setElevenLabsApiKey,
+    setGeminiApiKey,
     setCustomSecret1,
     setCustomSecret2,
     setCustomSecret3,

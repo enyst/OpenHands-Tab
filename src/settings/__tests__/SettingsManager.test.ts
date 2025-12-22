@@ -40,6 +40,8 @@ describe('SettingsManager', () => {
     expect(s.elevenlabs.modelId).toBeUndefined();
     expect(s.elevenlabs.volume).toBe(1);
     expect(s.elevenlabs.cache).toBe(true);
+    expect(s.gemini.model).toBe('gemini-2.5-flash');
+    expect(s.gemini.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
   });
 
   it('includes a default model in remote mode', async () => {
@@ -74,7 +76,11 @@ describe('SettingsManager', () => {
         volume: 0.25,
         cache: false,
       },
-      secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
+      gemini: {
+        model: 'gemini-2.5-pro',
+        baseUrl: 'https://proxy.example.com/v1beta',
+      },
+      secrets: { sessionApiKey: 'sess', llmApiKey: 'key', geminiApiKey: 'gemini-key' }
     });
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
@@ -98,8 +104,11 @@ describe('SettingsManager', () => {
     expect(s.elevenlabs.modelId).toBe('eleven_turbo_v2');
     expect(s.elevenlabs.volume).toBe(0.25);
     expect(s.elevenlabs.cache).toBe(false);
+    expect(s.gemini.model).toBe('gemini-2.5-pro');
+    expect(s.gemini.baseUrl).toBe('https://proxy.example.com/v1beta');
     expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
+    expect(s.secrets.geminiApiKey).toBe('gemini-key');
   });
 
   it('sanitizes invalid ElevenLabs mode and clamps volume', async () => {
@@ -124,13 +133,15 @@ describe('SettingsManager', () => {
     expect(s2.elevenlabs.volume).toBe(0);
   });
 
-  it('clears secret when undefined is provided', async () => {
-    await mgr.update({ secrets: { llmApiKey: 'abc' } });
+  it('clears secrets when undefined is provided', async () => {
+    await mgr.update({ secrets: { llmApiKey: 'abc', geminiApiKey: 'g1' } });
     let s = await mgr.get();
     expect(s.secrets.llmApiKey).toBe('abc');
-    await mgr.update({ secrets: { llmApiKey: undefined } });
+    expect(s.secrets.geminiApiKey).toBe('g1');
+    await mgr.update({ secrets: { llmApiKey: undefined, geminiApiKey: undefined } });
     s = await mgr.get();
     expect(s.secrets.llmApiKey).toBeUndefined();
+    expect(s.secrets.geminiApiKey).toBeUndefined();
   });
 
   it('updates AWS credentials', async () => {
