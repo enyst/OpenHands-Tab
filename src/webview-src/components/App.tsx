@@ -726,6 +726,7 @@ export function App() {
           const message = typeof error === 'string' && error.trim() ? error.trim() : 'ElevenLabs TTS failed';
           const convoId = conversationIdRef.current;
           if (convoId) setHalDisabledConversationId(convoId);
+          halTeleportInProgressRef.current = false;
           stopHalAudio();
           clearHalTimer();
           halActiveKeyRef.current = null;

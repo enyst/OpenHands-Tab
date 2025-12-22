@@ -6,7 +6,7 @@ type CacheIndex = {
   entries: Record<string, { bytes: number; at: number }>;
 };
 
-const DEFAULT_INDEX: CacheIndex = { version: 1, entries: {} };
+const emptyIndex = (): CacheIndex => ({ version: 1, entries: {} });
 
 function safeJsonParse<T>(value: string): T | undefined {
   try {
@@ -27,7 +27,7 @@ async function fileExists(filePath: string): Promise<boolean> {
 
 export class DiskLruCache {
   private readonly indexPath: string;
-  private index: CacheIndex = DEFAULT_INDEX;
+  private index: CacheIndex = emptyIndex();
   private loaded = false;
 
   constructor(
@@ -82,10 +82,10 @@ export class DiskLruCache {
       if (parsed?.version === 1 && parsed.entries && typeof parsed.entries === 'object') {
         this.index = parsed;
       } else {
-        this.index = DEFAULT_INDEX;
+        this.index = emptyIndex();
       }
     } catch {
-      this.index = DEFAULT_INDEX;
+      this.index = emptyIndex();
     }
   }
 
