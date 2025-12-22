@@ -63,7 +63,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - disable_vision: bool | None
     - seed: int | None
     - safety_settings: list[dict[str, str]] | None
-    - usage_id: string (defaults to 'default')
+    - usage_id: string (defaults to 'default-llm')
     - metadata: dict[str, any]
   - Serialization/secret handling
     - api_key and select fields are masked by default; can be exposed with context={'expose_secrets': True}
@@ -79,29 +79,31 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 4) VS Code settings split (IMPLEMENTED)
 - Keep simple values in VS Code Settings (configuration)
   - openhands.serverUrl: string (default: http://localhost:3000)
-  - openhands.llm.usageId: string (default: 'default-llm') - maps to agent-sdk usage_id
+  - openhands.servers: array of { url: string; label?: string } (saved servers for quick selection)
+  - openhands.terminal.renderProgress: boolean (default: true) — coalesce carriage-return progress in terminal output
+  - openhands.llm.provider: enum ('auto' | 'anthropic' | 'openai' | 'openrouter' | 'litellm_proxy') (default: 'auto') — auto infers from baseUrl when set, else defaults to Anthropic locally
+  - openhands.llm.usageId: string (default: 'default-llm') — maps to agent-sdk usage_id
   - openhands.llm.model: string (default: 'claude-sonnet-4-20250514')
   - openhands.llm.baseUrl: string | null
   - openhands.llm.apiVersion: string | null
+  - openhands.llm.timeout: number | null
   - openhands.llm.temperature: number (default: 0)
   - openhands.llm.topP: number (default: 1)
   - openhands.llm.topK: number | null
   - openhands.llm.maxInputTokens: number | null
   - openhands.llm.maxOutputTokens: number | null
-  - openhands.llm.timeout: number | null
   - openhands.llm.nativeToolCalling: boolean (default: false)
   - openhands.llm.reasoningEffort: enum ('low' | 'medium' | 'high' | 'none') (default: 'none')
   - openhands.conversation.maxIterations: number (default: 50, max: 500)
   - openhands.confirmation.policy: enum ('never' | 'always' | 'risky') (default: 'never')
-  - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'HIGH')
+  - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'MEDIUM')
   - openhands.confirmation.risky.confirmUnknown: boolean (default: true)
   - openhands.agent.enableSecurityAnalyzer: boolean (default: false)
 - Store secrets in VS Code SecretStorage (never in settings.json)
   - Implemented keys:
     - openhands.sessionApiKey (used for X-Session-API-Key / WS query param)
     - openhands.llmApiKey (LLM API key)
-    - openhands.awsAccessKeyId (AWS credentials for Bedrock)
-    - openhands.awsSecretAccessKey (AWS secret key for Bedrock)
+    - (AWS credentials deferred; not implemented yet)
   - Retrieval pattern in extension code
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
     - const llmApiKey = await context.secrets.get('openhands.llmApiKey')

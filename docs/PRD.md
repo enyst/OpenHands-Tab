@@ -114,10 +114,17 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 
 ### Settings (package.json)
 - `openhands.serverUrl` - agent-server URL (blank for local mode)
+- `openhands.servers` - saved server list [{ url, label? }] for quick selection
+- `openhands.terminal.renderProgress` - coalesce carriage-return progress in terminal output
+- `openhands.llm.provider` - 'auto' | 'anthropic' | 'openai' | 'openrouter' | 'litellm_proxy' (auto infers from baseUrl when set; otherwise defaults to Anthropic locally)
 - `openhands.llm.model` - default model
-- `openhands.llm.temperature`, `topP`, `maxOutputTokens`, etc.
-- `openhands.confirmation.policy` - never/always/risky
+- `openhands.llm.baseUrl`, `apiVersion`, `timeout`
+- `openhands.llm.temperature`, `topP`, `topK`, `maxInputTokens`, `maxOutputTokens`
+- `openhands.llm.usageId`, `reasoningEffort`, `nativeToolCalling`
+- `openhands.confirmation.policy` - never/always/risky; `risky.threshold` default MEDIUM; `risky.confirmUnknown`
 - `openhands.conversation.maxIterations` - iteration limit
+
+For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup.md.
 
 ### Connection & Conversation Lifecycle
 - Local mode: SDK runs agent in-process
@@ -150,7 +157,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - No separate “quick actions” view; actions are available in the chat header and via the command palette
 
 ### Chat View Layout
-- **Header**: connection status, settings button, history button
+- **Header**: connection status, server selector, settings button, history button
 - **Main**: message list with streaming events
 - **Bottom**: input area with context picker (@), skills button
 
