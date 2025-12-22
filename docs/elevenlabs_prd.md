@@ -79,7 +79,7 @@ Even if ElevenLabs provides an MCP server:
    - Converts to base64 data URI (or writes to temp/cache and passes a webview URI)
    - Webview plays audio and posts `{ type: 'audioFinished' }` on end
 4) Optional: play local bundled music file in webview
-5) Extension resets UI to idle + shows CTA (switch runtime)
+5) Extension resets UI to idle + it makes all EventBlocks grey-faded, while a dialog box across the middle of the extension webview view shows: "Teleporting to the remote runtime..." and the music is playing (all until the conversation on the remote is ready); a progress indicator runs until the remote connection is established. The initial text about "Teleporting..." fades into "Coffeinating server...", "Deciphering remote protocol...", "Calling reindeer to help teleport..." and again at the end a short "Teleporting to the remote runtime..."
 
 ### Data flow (bundled-audio mode, recommended for v1)
 1) Trigger occurs → `playSequence()`
