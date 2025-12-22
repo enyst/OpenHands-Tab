@@ -91,7 +91,7 @@ Even if ElevenLabs provides an MCP server:
 Proposed settings (names TBD):
 - `elevenlabs.enabled`: boolean (default `false`)
 - `elevenlabs.mode`: `bundled` | `api` (default: `api`)
-- `elevenlabs.apiKey`: stored in VS Code Secrets (never in settings.json)
+- `elevenlabs.apiKey`: stored in VS Code Secrets  # already done
 - `elevenlabs.voiceAId`, `elevenlabs.voiceBId`: string
 - `elevenlabs.modelId`: e.g. `eleven_turbo_v2` (optional)
 - `elevenlabs.volume`: 0.0–1.0
