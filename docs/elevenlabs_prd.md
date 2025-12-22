@@ -130,7 +130,8 @@ Proposed settings (names TBD):
 - `openhands.elevenlabs.volume`: 0.0–1.0
 - `openhands.elevenlabs.cache`: boolean (default `true`)
 - Gemini (only for `voice_confirm`):
-  - `openhands.elevenlabs.geminiModel`: string (default: `gemini-2.5-flash`)
+  - `openhands.gemini.model`: string (default: `gemini-2.5-flash`)
+  - `openhands.gemini.baseUrl`: string (default: Gemini API base URL; allow proxies)
   - Settings UI placeholder: `openhands.secrets.geminiApiKey`
   - Stored securely in SecretStorage: `openhands.geminiApiKey`
 
