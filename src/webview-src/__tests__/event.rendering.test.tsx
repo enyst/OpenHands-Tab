@@ -274,6 +274,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: actionEvent });
     expect(await screen.findByText(/The agent wants to execute a terminal command/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/ls -la/)).toHaveLength(1);
 
     const observationEvent = {
       kind: 'ObservationEvent',
@@ -288,7 +289,12 @@ describe('Agent-SDK event rendering', () => {
       action_id: 'action_terminal_action',
     } as any;
     postToWindow({ type: 'event', event: observationEvent });
-    expect(await screen.findByText(/finished with code 0/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Done\./i)).toBeInTheDocument();
+    expect(screen.getAllByText(/ls -la/)).toHaveLength(1);
+
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    fireEvent.click(toggle);
+    expect(await screen.findByText(/README\.md/)).toBeInTheDocument();
   });
 
 

@@ -282,14 +282,31 @@ function TerminalActionSummary({ action }: { action: JsonRecord | null }): React
   );
 }
 
-function TerminalObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+function TerminalObservationSummary({
+  observation,
+  isExpanded,
+  onToggle,
+}: {
+  observation: JsonRecord;
+  isExpanded: boolean;
+  onToggle: () => void;
+}): React.ReactElement | null {
   const exitCodeNumber = getNumber(observation.exit_code);
   const exitCodeText = exitCodeNumber !== undefined ? exitCodeNumber.toString() : getString(observation.exit_code) ?? 'unknown';
-  const command = getString(observation.command);
+  const summaryText = exitCodeText === '0' ? 'Done.' : `Done (exit code ${exitCodeText}).`;
+  const toggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
   return (
-    <div className="text-sm leading-relaxed space-y-1">
-      <p>The terminal command finished with code {exitCodeText}.</p>
-      <TerminalCommandPreview command={command} />
+    <div className="text-sm leading-relaxed">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 text-left text-xs text-stone-400 hover:text-stone-300 transition-colors bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 hover:bg-white/[0.04]"
+        aria-label={toggleLabel}
+        title={toggleLabel}
+      >
+        <span className="text-sm text-stone-300">{summaryText}</span>
+        <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`} />
+      </button>
     </div>
   );
 }
@@ -527,11 +544,11 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const observationSummary = event.tool_name === 'file_editor'
     ? <FileEditorObservationSummary observation={event.observation} />
     : event.tool_name === 'terminal'
-      ? <TerminalObservationSummary observation={event.observation} />
+      ? <TerminalObservationSummary observation={event.observation} isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
       : null;
   const hasSummary = observationSummary !== null;
   const shouldShowRaw = !hasSummary || isExpanded;
-  const showHeaderToggle = hasSummary;
+  const showHeaderToggle = hasSummary && event.tool_name !== 'terminal';
   const showFooterToggle = !hasSummary && isTruncated;
   const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
   const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
