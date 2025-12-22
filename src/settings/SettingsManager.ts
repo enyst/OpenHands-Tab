@@ -100,6 +100,22 @@ const clampUnitInterval = (value: number | null | undefined, defaultValue: numbe
   return Math.min(1, Math.max(0, value));
 };
 
+const normalizeSavedServer = (value: unknown): SavedServer | null => {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<Record<keyof SavedServer, unknown>>;
+  const url = normalizeNonEmptyString(typeof candidate.url === 'string' ? candidate.url : undefined);
+  if (!url) return null;
+  const label = normalizeNonEmptyString(typeof candidate.label === 'string' ? candidate.label : undefined);
+  return label ? { url, label } : { url };
+};
+
+const normalizeSavedServers = (value: unknown, defaultValue: SavedServer[]): SavedServer[] => {
+  if (!Array.isArray(value)) return defaultValue;
+  return value
+    .map(normalizeSavedServer)
+    .filter((server): server is SavedServer => server !== null);
+};
+
 export class SettingsManager {
   constructor(private adapter: SettingsAdapter) {}
 
@@ -108,7 +124,10 @@ export class SettingsManager {
       this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl
     );
     const isRemote = !!serverUrl;
-    const servers = this.adapter.get<SavedServer[]>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers;
+    const servers = normalizeSavedServers(
+      this.adapter.get<unknown>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers,
+      DEFAULTS.servers
+    );
     const explicitBaseUrl = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.baseUrl'));
     const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
     const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
