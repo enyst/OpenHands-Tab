@@ -51,9 +51,10 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 
 ### Extension Host
 - **Activation + Commands** (`src/extension.ts`)
-- **Connection Manager** (`src/connection/`) - WebSocket + HTTP proxy layer
-- **Session/Conversation Manager** (`src/session/`) - conversation lifecycle
+- **Conversation Manager** (`src/conversation/host/`) - conversation lifecycle
 - **Settings Manager** (`src/settings/`) - VS Code config + SecretStorage
+- **Shared Utilities** (`src/shared/`) - shared types and utilities
+- **Webview Host** (`src/webview/host/`) - webview host integration
 
 ### Webview (React)
 - **Main App** (`src/webview-src/components/App.tsx`)
@@ -69,7 +70,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - **Context Layer** - AgentContext, Skills
 - **Runtime Layer** - AgentOrchestrator, EventLog, ConversationState
 - **LLM Layer** - Anthropic, OpenAI-compatible clients
-- **Tools Layer** - Terminal, FileEditor, TaskTracker, Browser, Glob, Grep
+- **Tools Layer** - Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate
 
 ### Data Flow
 - Webview does not call network directly
@@ -103,7 +104,10 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - **OpenHands: Open** - reveals/focuses the chat sidebar view
 - **OpenHands: Start New Conversation** - starts fresh conversation
 - **OpenHands: Configure** - multi-step configuration wizard
-- **OpenHands: Set API Key** - quick API key setup
+- **OpenHands: Set API Key** - quick LLM API key setup
+- **OpenHands: Set Session API Key** - set session API key for agent-server authentication
+- **OpenHands: Set GitHub Token** - set GitHub token for repository access
+- **OpenHands: Set Custom Secret 1/2/3** - set custom secrets for additional integrations
 - **OpenHands: Reconnect** - restart WebSocket (rarely needed)
 - **OpenHands: Pause Current Run** - pause agent
 - **OpenHands: Resume Current Run** - resume agent
@@ -160,22 +164,29 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 ```
 src/
 ├── extension.ts                 # Entry point, commands
-├── connection/
-│   └── ConnectionManager.ts     # WebSocket/HTTP, conversation lifecycle
-├── session/
+├── conversation/host/
 │   └── ConversationManager.ts   # Conversation state management
 ├── settings/
+│   ├── host/                    # Host-side settings
 │   ├── SettingsManager.ts       # Settings access layer
 │   └── VscodeSettingsAdapter.ts # VS Code implementation
+├── shared/                      # Shared types and utilities
 ├── sidebar/
 │   └── OpenHandsChatViewProvider.ts # Chat sidebar WebviewView provider
+├── webview/host/                # Webview host integration
 └── webview-src/
     ├── webview.tsx              # Entry point
+    ├── __tests__/               # Webview unit tests
+    ├── shared/                  # Shared webview utilities
     └── components/
         ├── App.tsx              # Main component
         ├── EventBlock.tsx       # Event rendering
         ├── InputArea.tsx        # Chat input
         ├── HistoryView.tsx      # Conversation history
+        ├── Header.tsx           # Chat header
+        ├── StatusBanner.tsx     # Status banner
+        ├── ToolbarButtons.tsx   # Toolbar buttons
+        ├── ServerSelector.tsx   # Server selector
         └── ConfirmationPrompt.tsx
 ```
 

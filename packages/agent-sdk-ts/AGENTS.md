@@ -141,6 +141,33 @@ Agent tool implementations:
   - Streams response while enforcing maxBytes limit
   - URL validation (http/https only)
 
+- **`GlobTool`** - File discovery with glob patterns
+  - Glob-style file discovery relative to workspace root
+  - Pattern-to-regex translation with sorted results
+  - 100-file truncation limit
+
+- **`GrepTool`** - Content search with regex
+  - Regex-based content search with optional glob filter
+  - Returns matched files sorted by modification time
+  - Includes truncation safeguards
+
+- **`BrowserUseTool`** - Browser automation
+  - Navigation, clicks, typing, scrolling
+  - Page state/content retrieval with optional screenshots
+  - Tab management (list, switch, close)
+  - Mirrors Python `browser_use` schemas with stubbed execution
+
+- **`PlanningFileEditorTool`** - Restricted file editor for planning
+  - View/create/str_replace/insert commands
+  - Write operations restricted to `PLAN.md`
+  - Read access allowed for all files
+  - Mirrors Python planning file editor schema
+
+- **`DelegateTool`** - Sub-agent delegation
+  - Spawn sub-agent identifiers
+  - Delegate tasks to spawned agents
+  - Validates required fields with zod schemas
+
 - **`IntegratedTerminalRunner`** - VS Code terminal integration
   - Execute commands in VS Code integrated terminal
   - Captures stdout/stderr and exit codes

@@ -17,17 +17,42 @@ npm ci
 # Build everything (SDK + extension + webview)
 npm run build
 
+# Compile TypeScript + Tailwind + webview (faster for development)
+npm run compile
+
+# Build webview only
+npm run build:webview
+
+# Build Tailwind CSS
+npm run build:tailwind
+
 # Run tests
 npm test
 
+# Run tests in watch mode
+npm run test:watch
+
 # Lint
 npm run lint
+
+# Auto-fix lint issues
+npm run lint:fix
 
 # Type check
 npm run typecheck
 
 # Development watch mode
 npm run watch
+
+# E2E tests
+npm run e2e
+
+# E2E tests against remote agent-server
+npm run e2e:agent-server
+
+# Package extension as VSIX
+npm run package
+```
 
 ### Targeted tests
 
@@ -37,6 +62,18 @@ When only specific tests are relevant (e.g., during reviews):
 npx vitest run src/webview-src/__tests__/event.handlers.test.tsx
 ```
 
+### Agent server scripts
+
+```bash
+# Start local agent-server (requires AGENT_SDK_DIR environment variable)
+AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server
+
+# Prepare agent-server (first time setup)
+AGENT_SDK_DIR=~/repos/agent-sdk npm run agent-server:prepare
+
+# Launch VS Code with extension in dev mode
+npm run dev:vscode
+```
 
 # Launch extension in VS Code
 # Press F5 in VS Code, or:
@@ -57,19 +94,24 @@ OpenHands-Tab/
 ├── src/                          # Extension source
 │   ├── extension.ts              # VS Code entry point
 │   ├── __tests__/                # Unit tests (Vitest)
-│   ├── connection/               # ConnectionManager
-│   ├── session/                  # ConversationManager
+│   ├── conversation/host/        # ConversationManager
 │   ├── settings/                 # SettingsManager, adapters
+│   │   └── host/                 # Host-side settings
 │   ├── sidebar/                  # Activity bar view provider
+│   ├── shared/                   # Shared types and utilities
+│   ├── webview/                  # Webview host integration
+│   │   └── host/                 # Host-side webview logic
 │   └── webview-src/              # React webview UI
-│       └── components/           # App, EventBlock, InputArea, etc.
+│       ├── __tests__/            # Webview unit tests
+│       ├── components/           # App, EventBlock, InputArea, Header, etc.
+│       └── shared/               # Shared webview utilities
 ├── packages/agent-sdk-ts/        # TypeScript SDK
 │   └── src/
 │       ├── conversation/         # Conversation API (primary)
 │       ├── context/              # AgentContext, Skills
 │       ├── runtime/              # Orchestrator, EventLog, State
 │       ├── llm/                  # LLM clients (Anthropic, OpenAI)
-│       ├── tools/                # Terminal, FileEditor, etc.
+│       ├── tools/                # Terminal, FileEditor, Browser, Glob, Grep, etc.
 │       └── types/                # Protocol types, guards
 ├── tests/e2e/                    # E2E tests (Mocha)
 ├── docs/                         # Documentation
