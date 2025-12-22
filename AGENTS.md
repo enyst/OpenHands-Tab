@@ -178,7 +178,6 @@ Reviews (do not merge without review):
     uv tool install --force --with fastapi openhands==1.6.0
     ```
   - If you see `Item 'rs_…' of type 'reasoning' was provided without its required following item.` (gpt-5.* “responses” models triggered this): end that tmux session, and restart OpenHands.
-    ```
   - `--exp` UI is noisy to log/copy (ANSI); `GIT_PAGER=cat` + `PAGER=cat` makes paste-back to Mail much easier.
 
 
