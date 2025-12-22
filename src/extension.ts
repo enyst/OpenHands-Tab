@@ -6,6 +6,7 @@ import * as os from 'os';
 import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from './shared/halTeleport';
+import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import {
   AgentContext,
   Conversation,
@@ -41,21 +42,6 @@ type UiStateSnapshot = {
   attachmentsCount: number;
 };
 
-type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
-type HalEye = 'off' | 'dim' | 'pulsating';
-type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
-type ElevenLabsMode = 'bundled' | 'tts_only' | 'voice_confirm';
-
-type HalStateSnapshot = {
-  enabled: boolean;
-  mode: ElevenLabsMode;
-  phase: HalPhase;
-  eye: HalEye;
-  stepIndex: number | null;
-  decision: HalDecision | null;
-  lastError: string | null;
-};
-
 const DEFAULT_UI_STATE: UiStateSnapshot = {
   input: '',
   showContextPicker: false,
@@ -76,30 +62,6 @@ const DEFAULT_HAL_STATE: HalStateSnapshot = {
   decision: null,
   lastError: null,
 };
-
-function isElevenLabsMode(value: unknown): value is ElevenLabsMode {
-  return value === 'bundled' || value === 'tts_only' || value === 'voice_confirm';
-}
-
-function isHalPhase(value: unknown): value is HalPhase {
-  return (
-    value === 'idle' ||
-    value === 'dialogue' ||
-    value === 'awaiting_user' ||
-    value === 'listening' ||
-    value === 'classifying' ||
-    value === 'waiting_remote' ||
-    value === 'error'
-  );
-}
-
-function isHalEye(value: unknown): value is HalEye {
-  return value === 'off' || value === 'dim' || value === 'pulsating';
-}
-
-function isHalDecision(value: unknown): value is HalDecision {
-  return value === 'approve_local' || value === 'teleport_remote' || value === 'reject';
-}
 
 let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;

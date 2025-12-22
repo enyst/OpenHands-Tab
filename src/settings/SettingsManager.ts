@@ -1,11 +1,10 @@
 import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
+import type { ElevenLabsMode } from '../shared/halTypes';
 
 export interface SavedServer {
   url: string;
   label?: string;
 }
-
-export type ElevenLabsMode = 'bundled' | 'tts_only' | 'voice_confirm';
 
 export type ElevenLabsSettings = {
   enabled: boolean;
