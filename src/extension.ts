@@ -37,6 +37,19 @@ type UiStateSnapshot = {
   attachmentsCount: number;
 };
 
+type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
+type HalEye = 'off' | 'dim' | 'pulsating';
+type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
+
+type HalStateSnapshot = {
+  enabled: boolean;
+  phase: HalPhase;
+  eye: HalEye;
+  stepIndex: number | null;
+  decision: HalDecision | null;
+  lastError: string | null;
+};
+
 const DEFAULT_UI_STATE: UiStateSnapshot = {
   input: '',
   showContextPicker: false,
@@ -48,6 +61,35 @@ const DEFAULT_UI_STATE: UiStateSnapshot = {
   attachmentsCount: 0,
 };
 
+const DEFAULT_HAL_STATE: HalStateSnapshot = {
+  enabled: false,
+  phase: 'idle',
+  eye: 'off',
+  stepIndex: null,
+  decision: null,
+  lastError: null,
+};
+
+function isHalPhase(value: unknown): value is HalPhase {
+  return (
+    value === 'idle' ||
+    value === 'dialogue' ||
+    value === 'awaiting_user' ||
+    value === 'listening' ||
+    value === 'classifying' ||
+    value === 'waiting_remote' ||
+    value === 'error'
+  );
+}
+
+function isHalEye(value: unknown): value is HalEye {
+  return value === 'off' || value === 'dim' || value === 'pulsating';
+}
+
+function isHalDecision(value: unknown): value is HalDecision {
+  return value === 'approve_local' || value === 'teleport_remote' || value === 'reject';
+}
+
 let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;
 let conversationMode: 'local' | 'remote' = 'remote';
@@ -56,6 +98,7 @@ let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
 let nextE2ERequestId = 0;
 const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo) => void>();
 const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
+const pendingHalStateRequests = new Map<string, (info: HalStateSnapshot) => void>();
 let chatWebviewReady = false; // Track if chat WebviewView is ready
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
@@ -633,6 +676,19 @@ export function activate(context: vscode.ExtensionContext) {
         onUiStateResponse: (requestId, info) => {
           pendingUiStateRequests.get(requestId)?.(info);
         },
+        onHalStateResponse: (requestId, info) => {
+          const phase = isHalPhase(info.phase) ? info.phase : DEFAULT_HAL_STATE.phase;
+          const eye = isHalEye(info.eye) ? info.eye : DEFAULT_HAL_STATE.eye;
+          const decision = isHalDecision(info.decision) ? info.decision : null;
+          pendingHalStateRequests.get(requestId)?.({
+            enabled: info.enabled === true,
+            phase,
+            eye,
+            stepIndex: typeof info.stepIndex === 'number' ? info.stepIndex : null,
+            decision,
+            lastError: typeof info.lastError === 'string' ? info.lastError : null,
+          });
+        },
         isDevBridgeEnabled: () => devBridgeEnabled,
         getOutputChannel: () => outputChannel,
         fileLog,
@@ -925,6 +981,24 @@ export function activate(context: vscode.ExtensionContext) {
     return (await pending.promise) ?? DEFAULT_UI_STATE;
   });
 
+  // Query HAL presentation state from webview for E2E testing (no DOM automation)
+  const queryHalState = vscode.commands.registerCommand('openhands._queryHalState', async () => {
+    if (!chatView) {
+      return DEFAULT_HAL_STATE;
+    }
+
+    void chatView.show?.(true);
+    const requestId = nextRequestId('halState');
+    const pending = createPendingResponse(pendingHalStateRequests, requestId, 5000);
+    const posted = await chatView.webview.postMessage({ type: 'queryHalState', requestId });
+    if (!posted) {
+      pending.cancel();
+      return DEFAULT_HAL_STATE;
+    }
+
+    return (await pending.promise) ?? DEFAULT_HAL_STATE;
+  });
+
   // Send a test action to the webview for E2E testing (UI flows without DOM automation)
   const webviewAction = vscode.commands.registerCommand(
     'openhands._webviewAction',
@@ -1115,7 +1189,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // Listen for runtime configuration changes
-  const onConfigurationChange = createConfigurationChangeHandler({
+  const onConfigurationChangeBase = createConfigurationChangeHandler({
     ensureConversationAndConnection: () => ensureConversationAndConnection(),
     getConversation: () => conversation,
     setConversation: (next) => {
@@ -1139,6 +1213,21 @@ export function activate(context: vscode.ExtensionContext) {
     getOutputChannel: () => outputChannel,
     renderError,
   });
+  const onConfigurationChange = async (e: vscode.ConfigurationChangeEvent) => {
+    await onConfigurationChangeBase(e);
+
+    if (e.affectsConfiguration('openhands.elevenlabs')) {
+      try {
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+        const settings = await settingsMgr.get();
+        if (chatView && chatWebviewReady) {
+          void chatView.webview.postMessage({ type: 'elevenlabsSettings', elevenlabs: settings.elevenlabs });
+        }
+      } catch (err: unknown) {
+        outputChannel?.appendLine(`[settings] Failed to apply elevenlabs settings update: ${renderError(err)}`);
+      }
+    }
+  };
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(onConfigurationChange));
 
   context.subscriptions.push(
@@ -1147,6 +1236,7 @@ export function activate(context: vscode.ExtensionContext) {
     sendTestEvent,
     queryRenderedEvents,
     queryUiState,
+    queryHalState,
     webviewAction,
     startNew,
     configure,
@@ -1173,6 +1263,7 @@ export function deactivate() {
   terminalLogPty = undefined;
   pendingRenderedEventsRequests.clear();
   pendingUiStateRequests.clear();
+  pendingHalStateRequests.clear();
   chatWebviewReady = false;
   chatLastConversationId = undefined;
   chatLastSeenSeq = undefined;

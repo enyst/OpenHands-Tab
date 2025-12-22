@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   isEvent,
   isSystemPromptEvent,
@@ -23,6 +23,7 @@ import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
+import { HalOverlay, type HalEye } from './HalOverlay';
 import {
   SystemPromptEventBlock,
   ActionEventBlock,
@@ -56,6 +57,36 @@ type StatusBannerState = {
   message: string;
   level: 'info' | 'warn' | 'error';
   dismissible?: boolean;
+};
+
+type ElevenLabsMode = 'bundled' | 'tts_only' | 'voice_confirm';
+
+type ElevenLabsSettingsSnapshot = {
+  enabled: boolean;
+  mode: ElevenLabsMode;
+  userName: string;
+};
+
+type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
+type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
+
+type HalStateSnapshot = {
+  enabled: boolean;
+  phase: HalPhase;
+  eye: HalEye;
+  stepIndex: number | null;
+  decision: HalDecision | null;
+  lastError: string | null;
+};
+
+const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel' };
+const DEFAULT_HAL_STATE: HalStateSnapshot = {
+  enabled: false,
+  phase: 'idle',
+  eye: 'off',
+  stepIndex: null,
+  decision: null,
+  lastError: null,
 };
 
 /**
@@ -154,6 +185,25 @@ export function App() {
   const [servers, setServers] = useState<{ url: string; label?: string }[]>([]);
   const [currentServerUrl, setCurrentServerUrl] = useState<string | undefined>(undefined);
 
+  // HAL / ElevenLabs settings + state (Phase 0: bundled mode only)
+  const [elevenlabs, setElevenlabs] = useState<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
+  const [halPhase, setHalPhase] = useState<HalPhase>('idle');
+  const [halEye, setHalEye] = useState<HalEye>('off');
+  const [halStepIndex, setHalStepIndex] = useState<number | null>(null);
+  const [halDecision, setHalDecision] = useState<HalDecision | null>(null);
+  const [halLastError, setHalLastError] = useState<string | null>(null);
+  const halTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const halActiveKeyRef = useRef<string | null>(null);
+  const [halSuppressedKey, setHalSuppressedKey] = useState<string | null>(null);
+  const halStateRef = useRef<HalStateSnapshot>(DEFAULT_HAL_STATE);
+  const halEnabledRef = useRef<boolean>(false);
+  const halPhaseRef = useRef<HalPhase>('idle');
+  const halSuppressedKeyRef = useRef<string | null>(null);
+  const pendingActionsRef = useRef<ActionEvent[]>([]);
+  const agentStatusRef = useRef<string | undefined>(undefined);
+  const conversationIdRef = useRef<string | undefined>(undefined);
+  const elevenlabsRef = useRef<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
+
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
@@ -190,6 +240,47 @@ export function App() {
     };
   }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, workspaceFiles.length]);
 
+  const halEnabled = elevenlabs.enabled && elevenlabs.mode === 'bundled';
+
+  useEffect(() => {
+    halEnabledRef.current = halEnabled;
+  }, [halEnabled]);
+
+  useEffect(() => {
+    halPhaseRef.current = halPhase;
+  }, [halPhase]);
+
+  useEffect(() => {
+    halSuppressedKeyRef.current = halSuppressedKey;
+  }, [halSuppressedKey]);
+
+  useEffect(() => {
+    pendingActionsRef.current = pendingActions;
+  }, [pendingActions]);
+
+  useEffect(() => {
+    agentStatusRef.current = agentStatus;
+  }, [agentStatus]);
+
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    elevenlabsRef.current = elevenlabs;
+  }, [elevenlabs]);
+
+  useEffect(() => {
+    halStateRef.current = {
+      enabled: halEnabled,
+      phase: halPhase,
+      eye: halEye,
+      stepIndex: halPhase === 'dialogue' ? halStepIndex : null,
+      decision: halDecision,
+      lastError: halLastError,
+    };
+  }, [halDecision, halEnabled, halEye, halLastError, halPhase, halStepIndex]);
+
   // Show status message with debouncing
   const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
     const now = Date.now();
@@ -204,6 +295,7 @@ export function App() {
     if (!isConversationStateUpdateEvent(event)) return false;
 
     if (event.agent_status) {
+      agentStatusRef.current = event.agent_status;
       setAgentStatus(event.agent_status);
       if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
         showStatusMessage('warn', 'Agent is waiting for confirmation');
@@ -233,12 +325,20 @@ export function App() {
     };
 
     if (isActionEvent(event)) {
-      setPendingActions((prev) => {
-        const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
-        return exists ? prev : [...prev, event];
-      });
+      const prev = pendingActionsRef.current;
+      const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
+      if (!exists) {
+        const next = [...prev, event];
+        pendingActionsRef.current = next;
+        setPendingActions(next);
+      }
     } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
-      setPendingActions((prev) => prev.filter((a) => a.tool_call_id !== event.tool_call_id));
+      const prev = pendingActionsRef.current;
+      const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
+      if (next.length !== prev.length) {
+        pendingActionsRef.current = next;
+        setPendingActions(next);
+      }
       clearSubmissionState();
     } else if (isAgentErrorEvent(event)) {
       showStatusMessage('error', event.error);
@@ -247,6 +347,101 @@ export function App() {
       showStatusMessage('warn', 'Conversation paused');
     }
   }, [showStatusMessage]);
+
+  const clearHalTimer = useCallback(() => {
+    if (halTimerRef.current) {
+      clearTimeout(halTimerRef.current);
+      halTimerRef.current = null;
+    }
+  }, []);
+
+  const halDialogueLines = useMemo(() => {
+    const safeUserName = elevenlabs.userName.trim() || DEFAULT_ELEVENLABS_SETTINGS.userName;
+    return [
+      `I'm sorry, ${safeUserName}, I can't let you do that.`,
+      'Do you want me to teleport your conversation to the remote runtime?',
+      'Of course not. It\'s for your own good. Your agent will have more freedom in the remote runtime without affecting your local machine. Want me to transfer you?',
+    ];
+  }, [elevenlabs.userName]);
+
+  const maybeUpdateHalFlow = useCallback(() => {
+    const enabled = halEnabledRef.current;
+    const status = agentStatusRef.current;
+    const pending = pendingActionsRef.current;
+    const firstHighRisk = pending.find((action) => action.security_risk === 'HIGH');
+    const nextKey =
+      enabled && status === 'WAITING_FOR_CONFIRMATION' && firstHighRisk?.tool_call_id
+        ? `${conversationIdRef.current ?? 'unknown'}:${firstHighRisk.tool_call_id}`
+        : null;
+
+    if (!nextKey) {
+      if (halActiveKeyRef.current !== null || halPhaseRef.current !== 'idle' || halSuppressedKeyRef.current !== null) {
+        clearHalTimer();
+        halActiveKeyRef.current = null;
+        halSuppressedKeyRef.current = null;
+        halPhaseRef.current = 'idle';
+        setHalSuppressedKey(null);
+        setHalPhase('idle');
+        setHalEye('off');
+        setHalStepIndex(null);
+        setHalDecision(null);
+        setHalLastError(null);
+      }
+      return;
+    }
+
+    const isNewSession = halActiveKeyRef.current !== nextKey;
+    if (isNewSession) {
+      halActiveKeyRef.current = nextKey;
+      halSuppressedKeyRef.current = null;
+      setHalSuppressedKey(null);
+    }
+
+    if (halSuppressedKeyRef.current === nextKey) {
+      if (halPhaseRef.current !== 'idle') {
+        clearHalTimer();
+        halPhaseRef.current = 'idle';
+        setHalPhase('idle');
+        setHalEye('off');
+        setHalStepIndex(null);
+        setHalDecision(null);
+        setHalLastError(null);
+      }
+      return;
+    }
+
+    if (halPhaseRef.current === 'idle') {
+      clearHalTimer();
+      halPhaseRef.current = 'dialogue';
+      setHalDecision(null);
+      setHalLastError(null);
+      setHalEye('pulsating');
+      setHalPhase('dialogue');
+      setHalStepIndex(0);
+    }
+  }, [clearHalTimer]);
+
+  useEffect(() => {
+    if (halPhase !== 'dialogue') return;
+    if (halStepIndex === null) return;
+
+    clearHalTimer();
+
+    const delayMs = 650;
+    halTimerRef.current = setTimeout(() => {
+      const lastIndex = halDialogueLines.length - 1;
+      if (halStepIndex >= lastIndex) {
+        setHalPhase('awaiting_user');
+        setHalStepIndex(null);
+        return;
+      }
+      setHalStepIndex(halStepIndex + 1);
+    }, delayMs);
+
+    return () => {
+      clearHalTimer();
+    };
+  }, [clearHalTimer, halDialogueLines.length, halPhase, halStepIndex]);
 
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
@@ -260,11 +455,15 @@ export function App() {
 
     const event = incomingEvent;
     handleStreamingUpdate(event);
-    if (handleConversationStateUpdate(event)) return;
+    if (handleConversationStateUpdate(event)) {
+      maybeUpdateHalFlow();
+      return;
+    }
 
     handlePendingActions(event);
+    maybeUpdateHalFlow();
     handleRenderableEvent(event);
-  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingUpdate]);
+  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingUpdate, maybeUpdateHalFlow]);
 
   // Signal webview is ready on mount
   useEffect(() => {
@@ -303,6 +502,7 @@ export function App() {
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
         llmModel?: string | null;
+        elevenlabs?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
         seq?: unknown;
         error?: unknown;
@@ -358,6 +558,26 @@ export function App() {
             setCurrentServerUrl(payload.serverUrl || undefined);
           }
           break;
+        case 'elevenlabsSettings':
+          if (payload.elevenlabs && typeof payload.elevenlabs === 'object') {
+            const prev = elevenlabsRef.current;
+            const next: ElevenLabsSettingsSnapshot = { ...prev };
+            if (typeof payload.elevenlabs?.enabled === 'boolean') next.enabled = payload.elevenlabs.enabled;
+            if (
+              payload.elevenlabs?.mode === 'bundled' ||
+              payload.elevenlabs?.mode === 'tts_only' ||
+              payload.elevenlabs?.mode === 'voice_confirm'
+            ) {
+              next.mode = payload.elevenlabs.mode;
+            }
+            if (typeof payload.elevenlabs?.userName === 'string') next.userName = payload.elevenlabs.userName;
+
+            elevenlabsRef.current = next;
+            halEnabledRef.current = next.enabled && next.mode === 'bundled';
+            setElevenlabs(next);
+            maybeUpdateHalFlow();
+          }
+          break;
         case 'attachmentsSelected':
           if (Array.isArray(payload.attachments)) {
             setAttachments((prev) => {
@@ -392,15 +612,19 @@ export function App() {
           break;
         case 'conversationStarted':
           if (typeof payload.conversationId === 'string') {
+            conversationIdRef.current = payload.conversationId;
             setConversationId(payload.conversationId);
             setEvents([]);
+            pendingActionsRef.current = [];
             setPendingActions([]);
+            agentStatusRef.current = undefined;
             setAgentStatus(undefined);
             setStreamingContent(null);
             eventId.current = 1;
             // No toast: UI clears and restored/started messages will render naturally
             const api = getVscodeApi();
             api.setState?.({ conversationId: payload.conversationId, lastSeenSeq: 0 });
+            maybeUpdateHalFlow();
           }
           break;
         case 'workspaceFiles':
@@ -416,6 +640,12 @@ export function App() {
         case 'queryUiState': {
           if (typeof payload.requestId === 'string') {
             postMessage({ type: 'uiStateResponse', requestId: payload.requestId, ...uiStateRef.current });
+          }
+          break;
+        }
+        case 'queryHalState': {
+          if (typeof payload.requestId === 'string') {
+            postMessage({ type: 'halStateResponse', requestId: payload.requestId, ...halStateRef.current });
           }
           break;
         }
@@ -461,6 +691,29 @@ export function App() {
               postMessage({ type: 'send', text: normalized, contextFiles: [], attachments: [] });
               break;
             }
+            case 'halApprove':
+              setHalDecision('approve_local');
+              postMessage({ type: 'command', command: 'approveAction' });
+              break;
+            case 'halReject':
+              setHalDecision('reject');
+              postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
+              break;
+            case 'halExit': {
+              clearHalTimer();
+              const key = halActiveKeyRef.current;
+              if (key) {
+                halSuppressedKeyRef.current = key;
+                setHalSuppressedKey(key);
+              }
+              halPhaseRef.current = 'idle';
+              setHalPhase('idle');
+              setHalEye('off');
+              setHalStepIndex(null);
+              setHalDecision(null);
+              setHalLastError(null);
+              break;
+            }
           }
           break;
         }
@@ -504,7 +757,7 @@ export function App() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [events, handleEvent, postMessage, showStatusMessage]);
+  }, [clearHalTimer, events, handleEvent, maybeUpdateHalFlow, postMessage, showStatusMessage]);
 
   // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
@@ -629,6 +882,48 @@ export function App() {
     showStatusMessage('info', 'Rejection submitted');
   }, [isSubmitting, postMessage, showStatusMessage]);
 
+  const handleHalExit = useCallback(() => {
+    clearHalTimer();
+    const key = halActiveKeyRef.current;
+    if (key) {
+      halSuppressedKeyRef.current = key;
+      setHalSuppressedKey(key);
+    }
+    halPhaseRef.current = 'idle';
+    setHalPhase('idle');
+    setHalEye('off');
+    setHalStepIndex(null);
+    setHalDecision(null);
+    setHalLastError(null);
+  }, [clearHalTimer]);
+
+  const handleHalApprove = useCallback(() => {
+    setHalDecision('approve_local');
+    handleApprove();
+  }, [handleApprove]);
+
+  const handleHalReject = useCallback((reason?: string) => {
+    setHalDecision('reject');
+    handleReject(reason);
+  }, [handleReject]);
+
+  const handleHalTeleport = useCallback(() => {
+    setHalDecision('teleport_remote');
+    clearHalTimer();
+    const key = halActiveKeyRef.current;
+    if (key) {
+      halSuppressedKeyRef.current = key;
+      setHalSuppressedKey(key);
+    }
+    halPhaseRef.current = 'idle';
+    setHalPhase('idle');
+    setHalEye('off');
+    setHalStepIndex(null);
+    setHalLastError(null);
+    showStatusMessage('warn', 'Teleport to remote runtime is not implemented yet');
+    postMessage({ type: 'command', command: 'teleportAction' });
+  }, [clearHalTimer, postMessage, showStatusMessage]);
+
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
     setShowSkillsPopover(false);
@@ -738,6 +1033,17 @@ export function App() {
   const llmModelLabel = llmModel === undefined
     ? undefined
     : (llmModel || (mode === 'remote' ? 'server default' : 'default'));
+  const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
+  const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
+  const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
+  const halSessionKey =
+    halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
+      ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
+      : null;
+  const shouldShowHalOverlay = halEnabled && hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey;
+  const halUiPhase: HalPhase = halPhase === 'idle' && shouldShowHalOverlay ? 'dialogue' : halPhase;
+  const halUiStepIndex = halUiPhase === 'dialogue' ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1)) : null;
+  const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0] ?? null : null;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -786,8 +1092,25 @@ export function App() {
         )}
       </div>
 
+      {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
+      {shouldShowHalOverlay && (
+        <HalOverlay
+          userName={elevenlabs.userName.trim() || DEFAULT_ELEVENLABS_SETTINGS.userName}
+          phase={halUiPhase}
+          eye={halEye}
+          line={halUiLine}
+          decision={halDecision}
+          lastError={halLastError}
+          isSubmitting={isSubmitting}
+          onApprove={handleHalApprove}
+          onTeleport={handleHalTeleport}
+          onReject={handleHalReject}
+          onExit={handleHalExit}
+        />
+      )}
+
       {/* Confirmation prompt (modal overlay) */}
-      {agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0 && (
+      {hasPendingConfirmation && !shouldShowHalOverlay && (
         <ConfirmationPrompt
           pendingActions={pendingActions}
           onApprove={handleApprove}
