@@ -93,7 +93,8 @@ describe('OpenHands-Tab E2E', function() {
 **Agent-Server Dependency:**
 - For fully integrated tests (send message and read streamed events), ensure the server is reachable
 - In CI, you can launch a local agent-server or point to a remote test instance
-- Inject `SESSION_API_KEY` environment variable if required
+- By default, the agent-server E2E test runs with auth disabled (`SESSION_API_KEY=''`)
+- To run an authenticated agent-server E2E, set `SESSION_API_KEY` in your environment (the test runner forwards it to both the spawned server and the VS Code extension host)
 
 **Test Stability:**
 - Start with smoke tests (activation + command execution + webview created)
