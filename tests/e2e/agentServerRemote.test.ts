@@ -11,6 +11,29 @@ function getDefaultAgentSdkDir(): string {
   return path.join(os.homedir(), 'repos', 'agent-sdk');
 }
 
+type OutputTail = {
+  append: (buf: Buffer) => void;
+  dump: () => string;
+};
+
+function createOutputTail(maxChars: number = 20000): OutputTail {
+  const chunks: string[] = [];
+  let length = 0;
+  return {
+    append: (buf: Buffer) => {
+      const text = buf.toString('utf8');
+      if (!text) return;
+      chunks.push(text);
+      length += text.length;
+      while (length > maxChars && chunks.length > 1) {
+        const removed = chunks.shift() ?? '';
+        length -= removed.length;
+      }
+    },
+    dump: () => chunks.join(''),
+  };
+}
+
 async function getFreePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -27,10 +50,13 @@ async function getFreePort(): Promise<number> {
   });
 }
 
-async function waitForHealth(url: string, timeoutMs: number = 30000): Promise<void> {
+async function waitForHealthOrExit(proc: ReturnType<typeof spawn>, url: string, timeoutMs: number = 30000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastError: unknown;
   while (Date.now() < deadline) {
+    if (proc.exitCode !== null || proc.signalCode !== null) {
+      throw new Error(`Agent-server exited before reporting healthy (exit=${String(proc.exitCode)} signal=${String(proc.signalCode)})`);
+    }
     try {
       const res = await fetch(url, { method: 'GET' });
       if (res.ok) return;
@@ -47,6 +73,7 @@ function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
   return new Promise((resolve) => {
     const pid = proc.pid;
     if (!pid) return resolve();
+    if (proc.exitCode !== null || proc.signalCode !== null) return resolve();
 
     const killSignal = 'SIGTERM' as const;
     try {
@@ -76,6 +103,42 @@ function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
   });
 }
 
+async function startAgentServerWithRetry(
+  agentSdkDir: string,
+  env: Record<string, string | undefined>,
+  maxAttempts: number = 3
+): Promise<{ child: ReturnType<typeof spawn>; serverUrl: string; output: OutputTail }> {
+  const failures: string[] = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const port = await getFreePort();
+    const serverUrl = `http://127.0.0.1:${port}`;
+    const output = createOutputTail();
+    const child = spawn(
+      'uv',
+      ['run', 'python', '-m', 'openhands.agent_server', '--host', '127.0.0.1', '--port', String(port)],
+      {
+        cwd: agentSdkDir,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
+      }
+    );
+
+    child.stdout?.on('data', output.append);
+    child.stderr?.on('data', output.append);
+
+    try {
+      await waitForHealthOrExit(child, `${serverUrl}/health`, 45000);
+      return { child, serverUrl, output };
+    } catch (err) {
+      failures.push(`Attempt ${attempt}/${maxAttempts} (${serverUrl}): ${String(err)}\n${output.dump()}`);
+      await killProcessTree(child);
+    }
+  }
+
+  throw new Error(`Failed to start agent-server after ${maxAttempts} attempts.\n\n${failures.join('\n\n')}`);
+}
+
 describe('OpenHands-Tab Remote Agent-Server E2E', function () {
   this.timeout(180000);
 
@@ -96,10 +159,6 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       this.skip();
     }
 
-    const port = await getFreePort();
-    const serverUrl = `http://127.0.0.1:${port}`;
-
-    const output: string[] = [];
     const env: Record<string, string | undefined> = {
       ...process.env,
       PYTHONUNBUFFERED: '1',
@@ -113,30 +172,10 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       // SESSION_API_KEY in the environment.
       env.SESSION_API_KEY = '';
     }
-    const child = spawn(
-      'uv',
-      ['run', 'python', '-m', 'openhands.agent_server', '--host', '127.0.0.1', '--port', String(port)],
-      {
-        cwd: agentSdkDir,
-        env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: process.platform !== 'win32',
-      }
-    );
 
-    const append = (buf: Buffer) => {
-      output.push(buf.toString('utf8'));
-      // Keep a small tail for failure debugging
-      if (output.join('').length > 20000) {
-        output.splice(0, Math.max(0, output.length - 20));
-      }
-    };
-    child.stdout?.on('data', append);
-    child.stderr?.on('data', append);
+    const { child, serverUrl, output } = await startAgentServerWithRetry(agentSdkDir, env, 3);
 
     try {
-      await waitForHealth(`${serverUrl}/health`, 45000);
-
       const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
       const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
       const extensionTestsPath = path.resolve(__dirname, './suite');
@@ -162,7 +201,7 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
 
       assert.ok(true);
     } catch (err) {
-      console.error('agent-server output (tail):\n', output.join(''));
+      console.error('agent-server output (tail):\n', output.dump());
       throw err;
     } finally {
       await killProcessTree(child);
