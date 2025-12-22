@@ -60,6 +60,10 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     }
   }
 
+  class AgentContext {
+    constructor(_params?: unknown) {}
+  }
+
   const Conversation = vi.fn((options: any) => {
     const emitter = new EventEmitter() as any;
     emitter.mode = options?.serverUrl ? 'remote' : 'local';
@@ -99,6 +103,7 @@ vi.mock('@openhands/agent-sdk-ts', () => {
   }
 
   return {
+    AgentContext,
     Conversation,
     isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),

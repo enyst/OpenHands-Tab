@@ -7,6 +7,7 @@ import { SettingsManager, type OpenHandsSettings } from './settings/SettingsMana
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from './shared/halTeleport';
 import {
+  AgentContext,
   Conversation,
   type ConversationInstance,
   FileEditorTool,
@@ -907,12 +908,18 @@ export function activate(context: vscode.ExtensionContext) {
           : undefined;
       conversationStoreRoot = persistenceDir;
 
+      const agentContext =
+        desiredMode === 'local'
+          ? new AgentContext({ loadUserSkills: true })
+          : undefined;
+
       const conversationOptions = {
         serverUrl: settings.serverUrl ?? undefined,
         settings,
         workspaceRoot,
         tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
         persistenceDir,
+        agentContext,
       };
 
       try {

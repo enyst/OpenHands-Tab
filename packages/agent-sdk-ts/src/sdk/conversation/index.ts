@@ -1,5 +1,6 @@
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
+import type { AgentContext } from '../context';
 import { LocalConversation } from './LocalConversation';
 import { RemoteConversation } from './RemoteConversation';
 
@@ -14,6 +15,7 @@ export interface ConversationFactoryOptions {
   conversationId?: string;
   tools?: ToolDefinition<unknown, unknown>[];
   persistenceDir?: string;
+  agentContext?: AgentContext;
 }
 
 export function Conversation(options: ConversationFactoryOptions): ConversationInstance {
@@ -31,6 +33,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     workspaceRoot: options.workspaceRoot,
     tools: options.tools,
     persistenceDir: options.persistenceDir,
+    agentContext: options.agentContext,
   }) as ConversationInstance;
 }
 
