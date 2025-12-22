@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
-import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent, type Message } from '../types';
+import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 import { FileEditorTool } from '../../tools';
@@ -150,13 +150,13 @@ describe('Agent loop control', () => {
     await agent.run('next message');
 
     const secondRequest = llm.requests[1];
-    expect(secondRequest).toBeTruthy();
+    if (!secondRequest) {
+      throw new Error('Expected a second LLM request after rejecting the tool call.');
+    }
 
-    const messages = secondRequest?.messages ?? [];
-    const assistantIndex = messages.findIndex((m: Message) =>
-      m.role === 'assistant' && m.tool_calls?.some((c) => c.id === 'call_1')
-    );
-    const toolIndex = messages.findIndex((m: Message) => m.role === 'tool' && m.tool_call_id === 'call_1');
+    const { messages } = secondRequest;
+    const assistantIndex = messages.findIndex((m) => m.role === 'assistant' && m.tool_calls?.some((c) => c.id === 'call_1'));
+    const toolIndex = messages.findIndex((m) => m.role === 'tool' && m.tool_call_id === 'call_1');
 
     expect(assistantIndex).toBeGreaterThanOrEqual(0);
     expect(toolIndex).toBeGreaterThan(assistantIndex);
