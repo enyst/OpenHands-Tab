@@ -334,8 +334,13 @@ function SecurityBadge({ risk }: { risk: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN' }
     UNKNOWN: 'question',
   };
 
+  const tooltip = `The model assessed ${risk.toLowerCase()} risk for this action.`;
+
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${styles[risk]}`}>
+    <span
+      title={tooltip}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${styles[risk]}`}
+    >
       <span className={`codicon codicon-${icons[risk]} text-[10px]`} />
       {risk.toLowerCase()}
     </span>
