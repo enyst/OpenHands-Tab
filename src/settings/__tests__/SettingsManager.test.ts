@@ -297,6 +297,22 @@ describe('SettingsManager', () => {
     expect(s.llm.openaiApiMode).toBeUndefined();
   });
 
+  it('normalizes reasoningSummary and persists none', async () => {
+    await mgr.update({ llm: { reasoningSummary: 'detailed' } });
+    expect(a.cfg.get('openhands.llm.reasoningSummary')).toBe('detailed');
+    let s = await mgr.get();
+    expect(s.llm.reasoningSummary).toBe('detailed');
+
+    a.cfg.set('openhands.llm.reasoningSummary', 'wat');
+    s = await mgr.get();
+    expect(s.llm.reasoningSummary).toBeUndefined();
+
+    await mgr.update({ llm: { reasoningSummary: null } });
+    expect(a.cfg.get('openhands.llm.reasoningSummary')).toBe('none');
+    s = await mgr.get();
+    expect(s.llm.reasoningSummary).toBeUndefined();
+  });
+
   it('handles sanitizePositiveInteger with invalid inputs', async () => {
     // Test with invalid maxInputTokens and maxOutputTokens
     await mgr.update({

@@ -178,7 +178,7 @@
             ],
             "default": "none",
             "order": 8,
-            "markdownDescription": "For OpenAI GPT-5 models using the Responses API, request a reasoning summary. `none` omits the summary."
+            "markdownDescription": "For OpenAI GPT-5 models using the Responses API, request a reasoning summary (only when `openhands.llm.reasoningEffort` is not `none`). `none` omits the summary."
           },
           "openhands.llm.apiVersion": {
             "type": "string",
