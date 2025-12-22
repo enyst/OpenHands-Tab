@@ -16,6 +16,7 @@ export const workspace = {
     inspect: vi.fn(),
     update: vi.fn(),
   })),
+  registerTextDocumentContentProvider: vi.fn(() => ({ dispose: vi.fn() })),
   onDidChangeConfiguration: vi.fn((listener: Function) => {
     mockConfigListeners.push(listener);
     const disposable = { dispose: vi.fn() };
@@ -151,6 +152,7 @@ export function __resetMocks() {
   mockWebviewViewProviders.clear();
   // Reset common spies to default implementations
   ;(workspace.getConfiguration as any).mockClear();
+  ;(workspace.registerTextDocumentContentProvider as any).mockClear();
   ;(workspace.onDidChangeConfiguration as any).mockClear();
   ;(window.showInformationMessage as any).mockClear();
   ;(window.showErrorMessage as any).mockClear();

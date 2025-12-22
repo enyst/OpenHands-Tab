@@ -333,6 +333,23 @@ describe('Command handlers', () => {
     expect(conversationInstance.rejectAction).toHaveBeenCalledWith('nope');
   });
 
+  it('opens a diff view for openWorkspaceDiff messages', async () => {
+    const handler = chatView._messageHandler;
+    expect(handler).toBeTypeOf('function');
+
+    (vscode.commands.executeCommand as Mock).mockClear();
+
+    await handler({ type: 'openWorkspaceDiff', path: 'README.md', oldContent: 'before', newContent: 'after' });
+
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+      'vscode.diff',
+      expect.anything(),
+      expect.anything(),
+      expect.stringContaining('Diff:'),
+      expect.objectContaining({ preview: false }),
+    );
+  });
+
   it('returns history from the stable conversation store', async () => {
     const handler = chatView._messageHandler;
     expect(handler).toBeTypeOf('function');
