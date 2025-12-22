@@ -1252,6 +1252,12 @@ export function App() {
     postMessage({ type: 'restoreConversation', id });
   }, [postMessage]);
 
+  const handleDeleteConversation = useCallback((id: string) => {
+    if (id === conversationId) return;
+    setHistory((prev) => prev.filter((conversation) => conversation.id !== id));
+    postMessage({ type: 'deleteConversation', id });
+  }, [conversationId, postMessage]);
+
   // Server selection handlers
   const handleSelectServer = useCallback((url: string) => {
     postMessage({ type: 'selectServer', url });
@@ -1424,6 +1430,7 @@ export function App() {
         conversations={history}
         currentConversationId={conversationId}
         onSelectConversation={handleSelectConversation}
+        onDeleteConversation={handleDeleteConversation}
       />
     </div>
   );

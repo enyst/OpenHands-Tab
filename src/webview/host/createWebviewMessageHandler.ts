@@ -28,6 +28,7 @@ type WebviewMessage =
   | { type: 'openWorkspaceDiff'; path: string; oldContent: string; newContent: string }
   | { type: 'requestHistory' }
   | { type: 'restoreConversation'; id: string }
+  | { type: 'deleteConversation'; id: string }
   | { type: 'getConfig' }
   | { type: 'selectServer'; url: string }
   | { type: 'addServer'; server: SavedServer }
@@ -344,6 +345,61 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
     const outputChannel = deps.getOutputChannel();
     const conversation = deps.getConversation();
 
+    const sendHistoryList = async (): Promise<void> => {
+      try {
+        const convRoot = deps.getConversationStoreRoot() ?? (await deps.resolveConversationStoreRoot());
+        let ids: string[] = [];
+        try {
+          ids = FileStore.listConversations(convRoot);
+        } catch {
+          ids = [];
+        }
+        const conversations = await Promise.all(
+          ids.map(async (id) => {
+            try {
+              const statePath = path.join(convRoot, id, 'state.json');
+              const eventsPath = path.join(convRoot, id, 'events.jsonl');
+              const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
+              const timestamp = stat?.mtimeMs ?? Date.now();
+              let firstMessage: string | undefined;
+              try {
+                const line = await findFirstMessageEventLine(eventsPath);
+                if (line) {
+                  try {
+                    const parsed: unknown = JSON.parse(line);
+                    if (isEvent(parsed) && isMessageEvent(parsed)) {
+                      const msg = parsed.llm_message;
+                      if (msg.role === 'user') {
+                        const textPart = msg.content.find(isTextContent);
+                        if (textPart) firstMessage = textPart.text;
+                      }
+                    }
+                  } catch (err) {
+                    const reason = err instanceof Error ? err.message : String(err);
+                    outputChannel?.appendLine(`[history] Failed to parse MessageEvent for ${id}: ${reason}`);
+                  }
+                }
+              } catch (err) {
+                const code = (err as NodeJS.ErrnoException).code;
+                if (code !== 'ENOENT') {
+                  const reason = err instanceof Error ? err.message : String(err);
+                  outputChannel?.appendLine(`[history] Failed to scan events for ${id}: ${reason}`);
+                }
+              }
+              return { id, timestamp: Math.floor(timestamp), firstMessage };
+            } catch {
+              return { id, timestamp: Date.now() };
+            }
+          })
+        );
+        void host.postMessage({ type: 'historyList', conversations });
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        outputChannel?.appendLine(`[history] ${reason}`);
+        void host.postMessage({ type: 'historyList', conversations: [] });
+      }
+    };
+
     switch (message.type) {
       case 'webviewReady': {
         deps.setWebviewReadyState(message.conversationId, message.lastSeenSeq);
@@ -481,58 +537,35 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         break;
       }
       case 'requestHistory': {
+        await sendHistoryList();
+        break;
+      }
+      case 'deleteConversation': {
+        const id = message.id;
+        if (!id) break;
+        const activeConversationId = conversation?.getConversationId?.();
+        if (activeConversationId && activeConversationId === id) {
+          void vscode.window.showWarningMessage('Cannot delete the active conversation.');
+          break;
+        }
         try {
-          const convRoot = deps.getConversationStoreRoot() ?? (await deps.resolveConversationStoreRoot());
-          let ids: string[] = [];
-          try {
-            ids = FileStore.listConversations(convRoot);
-          } catch {
-            ids = [];
+          if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+            throw new Error('Invalid conversation id');
           }
-          const conversations = await Promise.all(
-            ids.map(async (id) => {
-              try {
-                const statePath = path.join(convRoot, id, 'state.json');
-                const eventsPath = path.join(convRoot, id, 'events.jsonl');
-                const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
-                const timestamp = stat?.mtimeMs ?? Date.now();
-                let firstMessage: string | undefined;
-                try {
-                  const line = await findFirstMessageEventLine(eventsPath);
-                  if (line) {
-                    try {
-                      const parsed: unknown = JSON.parse(line);
-                      if (isEvent(parsed) && isMessageEvent(parsed)) {
-                        const msg = parsed.llm_message;
-                        if (msg.role === 'user') {
-                          const textPart = msg.content.find(isTextContent);
-                          if (textPart) firstMessage = textPart.text;
-                        }
-                      }
-                    } catch (err) {
-                      const reason = err instanceof Error ? err.message : String(err);
-                      outputChannel?.appendLine(`[history] Failed to parse MessageEvent for ${id}: ${reason}`);
-                    }
-                  }
-                } catch (err) {
-                  const code = (err as NodeJS.ErrnoException).code;
-                  if (code !== 'ENOENT') {
-                    const reason = err instanceof Error ? err.message : String(err);
-                    outputChannel?.appendLine(`[history] Failed to scan events for ${id}: ${reason}`);
-                  }
-                }
-                return { id, timestamp: Math.floor(timestamp), firstMessage };
-              } catch {
-                return { id, timestamp: Date.now() };
-              }
-            })
-          );
-          void host.postMessage({ type: 'historyList', conversations });
+          const convRoot = deps.getConversationStoreRoot() ?? (await deps.resolveConversationStoreRoot());
+          const resolvedRoot = path.resolve(convRoot);
+          const targetDir = path.resolve(convRoot, id);
+          const relative = path.relative(resolvedRoot, targetDir);
+          if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+            throw new Error('Invalid conversation id');
+          }
+          await fs.rm(targetDir, { recursive: true, force: true });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[history] ${reason}`);
-          void host.postMessage({ type: 'historyList', conversations: [] });
+          outputChannel?.appendLine(`[history] Failed to delete ${id}: ${reason}`);
+          void vscode.window.showErrorMessage(`Failed to delete conversation: ${reason}`);
         }
+        await sendHistoryList();
         break;
       }
       case 'restoreConversation': {
