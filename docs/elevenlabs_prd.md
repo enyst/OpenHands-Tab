@@ -12,6 +12,8 @@ The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic gen
 
 This PRD is intentionally “fun”/non-critical: it must be easy to disable, safe by default, and must never block core workflows.
 
+Note: the default script addresses “Engel” (demo/Easter-egg vibe). If we want this to be reusable for other users, treat the name as a configurable template parameter (see Settings).
+
 ## Problem statement
 When a HIGH-risk confirmation triggers (often associated with local-mode restrictions like “can’t touch root” / “out of bounds”), users may be confused or annoyed. A clear, memorable, and slightly comedic feedback loop can:
 - Make the restriction obvious and user-controlled (approve / reject / teleport).
@@ -54,7 +56,7 @@ Notes:
 
 ### Script (initial draft)
 Voice A (HAL-ish):
-- “I’m sorry, Engel, I can’t let you do that.”
+- “I’m sorry, {userName}, I can’t let you do that.” (default `{userName} = Engel`)
 - “Do you want me to teleport your conversation to the remote runtime?”
 Voice B (user):
 - “You’re enjoying that phrase, aren’t you?”
@@ -118,6 +120,7 @@ Note: Gemini also supports speech generation (TTS) via API, but this PRD uses El
 Proposed settings (names TBD):
 - `openhands.elevenlabs.enabled`: boolean (default `false`)
 - `openhands.elevenlabs.mode`: `bundled` | `tts_only` | `voice_confirm` (default: `tts_only`)
+- `openhands.elevenlabs.userName`: string (default: `Engel`) — used only for templated script lines in the HAL flow
 - API key:
   - Settings UI placeholder: `openhands.secrets.elevenLabsApiKey`
   - Stored securely in SecretStorage: `openhands.elevenLabsApiKey` (already implemented)
