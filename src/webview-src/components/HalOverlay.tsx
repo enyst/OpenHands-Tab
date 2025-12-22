@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { HalDecision, HalEye, HalPhase } from '../../shared/halTypes';
+import type { ElevenLabsMode, HalDecision, HalEye, HalPhase } from '../../shared/halTypes';
 
 type HalOverlayProps = {
   userName: string;
+  mode: ElevenLabsMode;
   phase: HalPhase;
   eye: HalEye;
   line: string | null;
@@ -10,6 +11,11 @@ type HalOverlayProps = {
   lastError: string | null;
   isSubmitting: boolean;
   startWithRejectInput?: boolean;
+  voiceConfirmFallbackToButtons?: boolean;
+  onStartVoiceConfirm?: () => void;
+  onStopVoiceConfirm?: () => void;
+  onCancelVoiceConfirm?: () => void;
+  onUseButtonsInstead?: () => void;
   onApprove: () => void;
   onTeleport: () => void;
   onReject: (reason?: string) => void;
@@ -18,6 +24,7 @@ type HalOverlayProps = {
 
 export function HalOverlay({
   userName,
+  mode,
   phase,
   eye,
   line,
@@ -25,6 +32,11 @@ export function HalOverlay({
   lastError,
   isSubmitting,
   startWithRejectInput,
+  voiceConfirmFallbackToButtons,
+  onStartVoiceConfirm,
+  onStopVoiceConfirm,
+  onCancelVoiceConfirm,
+  onUseButtonsInstead,
   onApprove,
   onTeleport,
   onReject,
@@ -41,13 +53,23 @@ export function HalOverlay({
 
   const subtitle = useMemo(() => {
     if (phase === 'dialogue') return `Hello, ${userName}.`;
-    if (phase === 'awaiting_user') return 'Please choose an action.';
+    if (phase === 'awaiting_user') {
+      if (mode === 'voice_confirm' && !voiceConfirmFallbackToButtons) return 'Hold to talk (voice decision).';
+      return 'Please choose an action.';
+    }
+    if (phase === 'listening') return 'Listening…';
+    if (phase === 'classifying') return 'Classifying decision…';
     if (phase === 'waiting_remote') return 'Preparing remote runtime…';
     if (phase === 'error') return 'The HAL flow encountered an error.';
     return '';
-  }, [phase, userName]);
+  }, [mode, phase, userName, voiceConfirmFallbackToButtons]);
 
-  const showDecisionButtons = phase === 'awaiting_user' && !showRejectInput;
+  const showVoiceConfirmControls =
+    mode === 'voice_confirm' &&
+    !voiceConfirmFallbackToButtons &&
+    decision === null &&
+    (phase === 'awaiting_user' || phase === 'listening' || phase === 'classifying');
+  const showDecisionButtons = phase === 'awaiting_user' && decision === null && !showRejectInput && !showVoiceConfirmControls;
 
   const canSubmit = !isSubmitting && phase === 'awaiting_user';
 
@@ -125,6 +147,71 @@ export function HalOverlay({
             {phase === 'dialogue' && (
               <div className="mt-3 text-xs text-stone-500">
                 {decision ? `Decision: ${decision}` : '…'}
+              </div>
+            )}
+
+            {decision && phase !== 'dialogue' && (
+              <div className="mt-3 text-xs text-stone-500">
+                Decision: {decision}
+              </div>
+            )}
+
+            {showVoiceConfirmControls && (
+              <div className="mt-4">
+                <div className="text-xs text-stone-400">
+                  Say one of: <span className="text-stone-200">approve locally</span>, <span className="text-stone-200">teleport</span>, or{' '}
+                  <span className="text-stone-200">reject</span>.
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                  {phase === 'awaiting_user' && (
+                    <button
+                      type="button"
+                      onClick={onStartVoiceConfirm}
+                      disabled={!canSubmit}
+                      className="px-4 py-2.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 text-white text-sm font-medium transition-all shadow-glow-sm hover:from-brand-400 hover:to-brand-500 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="codicon codicon-mic" />
+                      Record decision
+                    </button>
+                  )}
+                  {phase === 'listening' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={onCancelVoiceConfirm}
+                        disabled={isSubmitting}
+                        className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:bg-white/[0.08] hover:text-stone-300 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onStopVoiceConfirm}
+                        disabled={isSubmitting}
+                        className="px-4 py-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-200 text-sm font-medium transition-all border border-red-400/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        <span className="codicon codicon-primitive-square" />
+                        Stop
+                      </button>
+                    </>
+                  )}
+                  {phase === 'classifying' && (
+                    <div className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-300 text-sm font-medium flex items-center gap-2">
+                      <span className="codicon codicon-loading animate-spin" />
+                      Working…
+                    </div>
+                  )}
+                  {(phase === 'awaiting_user' || phase === 'listening' || phase === 'classifying') && (
+                    <button
+                      type="button"
+                      onClick={onUseButtonsInstead}
+                      disabled={isSubmitting}
+                      className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:bg-white/[0.08] hover:text-stone-300 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Use buttons instead
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

@@ -15,7 +15,7 @@ import {
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
-import { getHalDialogueLines, normalizeHalUserName, type HalScriptLine } from '../../shared/halScript';
+import { getHalDialogueLinesForMode, normalizeHalUserName, type HalScriptLine } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
 
 // Component imports
@@ -180,27 +180,35 @@ export function App() {
   const [halDisabledConversationId, setHalDisabledConversationId] = useState<string | null>(null);
   const [halPhase, setHalPhase] = useState<HalPhase>('idle');
   const [halEye, setHalEye] = useState<HalEye>('off');
-  const [halStepIndex, setHalStepIndex] = useState<number | null>(null);
-  const [halDecision, setHalDecision] = useState<HalDecision | null>(null);
-  const [halLastError, setHalLastError] = useState<string | null>(null);
-  const [halForceRejectInput, setHalForceRejectInput] = useState(false);
-  const [halTeleporting, setHalTeleporting] = useState(false);
-  const halTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const halStepIndexRef = useRef<number | null>(null);
-  const halDialogueRef = useRef<HalScriptLine[]>([]);
-  const halTtsRequestIdRef = useRef<string | null>(null);
-  const halTtsRequestedKeyRef = useRef<string | null>(null);
-  const halAudioRef = useRef<HTMLAudioElement | null>(null);
-  const halAudioUrlRef = useRef<string | null>(null);
-  const halAudioPlayTokenRef = useRef(0);
-  const halTtsRequestSeqRef = useRef(0);
-  const halActiveKeyRef = useRef<string | null>(null);
-  const [halSuppressedKey, setHalSuppressedKey] = useState<string | null>(null);
-  const halStateRef = useRef<HalStateSnapshot>(DEFAULT_HAL_STATE);
-  const halEnabledRef = useRef<boolean>(false);
-  const halPhaseRef = useRef<HalPhase>('idle');
-  const halSuppressedKeyRef = useRef<string | null>(null);
-  const halTeleportInProgressRef = useRef(false);
+    const [halStepIndex, setHalStepIndex] = useState<number | null>(null);
+    const [halDecision, setHalDecision] = useState<HalDecision | null>(null);
+    const [halLastError, setHalLastError] = useState<string | null>(null);
+    const [halForceRejectInput, setHalForceRejectInput] = useState(false);
+    const [halTeleporting, setHalTeleporting] = useState(false);
+    const [halVoiceConfirmFallbackKey, setHalVoiceConfirmFallbackKey] = useState<string | null>(null);
+    const halTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const halStepIndexRef = useRef<number | null>(null);
+    const halDialogueRef = useRef<HalScriptLine[]>([]);
+    const halTtsRequestIdRef = useRef<string | null>(null);
+    const halTtsRequestedKeyRef = useRef<string | null>(null);
+    const halAudioRef = useRef<HTMLAudioElement | null>(null);
+    const halAudioUrlRef = useRef<string | null>(null);
+    const halAudioPlayTokenRef = useRef(0);
+    const halTtsRequestSeqRef = useRef(0);
+    const halVoiceConfirmFallbackKeyRef = useRef<string | null>(null);
+    const halVoiceConfirmRequestIdRef = useRef<string | null>(null);
+    const halVoiceConfirmSeqRef = useRef(0);
+    const halVoiceDiscardNextStopRef = useRef(false);
+    const halVoiceStreamRef = useRef<MediaStream | null>(null);
+    const halVoiceRecorderRef = useRef<MediaRecorder | null>(null);
+    const halVoiceChunksRef = useRef<Blob[]>([]);
+    const halActiveKeyRef = useRef<string | null>(null);
+    const [halSuppressedKey, setHalSuppressedKey] = useState<string | null>(null);
+    const halStateRef = useRef<HalStateSnapshot>(DEFAULT_HAL_STATE);
+    const halEnabledRef = useRef<boolean>(false);
+    const halPhaseRef = useRef<HalPhase>('idle');
+    const halSuppressedKeyRef = useRef<string | null>(null);
+    const halTeleportInProgressRef = useRef(false);
   const pendingActionsRef = useRef<ActionEvent[]>([]);
   const agentStatusRef = useRef<string | undefined>(undefined);
   const conversationIdRef = useRef<string | undefined>(undefined);
@@ -254,9 +262,13 @@ export function App() {
     halPhaseRef.current = halPhase;
   }, [halPhase]);
 
-  useEffect(() => {
-    halSuppressedKeyRef.current = halSuppressedKey;
-  }, [halSuppressedKey]);
+    useEffect(() => {
+      halSuppressedKeyRef.current = halSuppressedKey;
+    }, [halSuppressedKey]);
+
+    useEffect(() => {
+      halVoiceConfirmFallbackKeyRef.current = halVoiceConfirmFallbackKey;
+    }, [halVoiceConfirmFallbackKey]);
 
   useEffect(() => {
     pendingActionsRef.current = pendingActions;
@@ -282,24 +294,65 @@ export function App() {
     halStepIndexRef.current = halStepIndex;
   }, [halStepIndex]);
 
-  const stopHalAudio = useCallback(() => {
-    halAudioPlayTokenRef.current += 1;
-    const audio = halAudioRef.current;
-    if (audio) {
-      try {
-        audio.pause();
-      } catch {}
-      audio.src = '';
-    }
-    if (halAudioUrlRef.current) {
-      try {
-        URL.revokeObjectURL(halAudioUrlRef.current);
-      } catch {}
-      halAudioUrlRef.current = null;
-    }
-    halTtsRequestIdRef.current = null;
-    halTtsRequestedKeyRef.current = null;
-  }, []);
+    const stopHalAudio = useCallback(() => {
+      halAudioPlayTokenRef.current += 1;
+      const audio = halAudioRef.current;
+      if (audio) {
+        try {
+          audio.pause();
+        } catch {}
+        audio.src = '';
+      }
+      if (halAudioUrlRef.current) {
+        try {
+          URL.revokeObjectURL(halAudioUrlRef.current);
+        } catch {}
+        halAudioUrlRef.current = null;
+      }
+      halTtsRequestIdRef.current = null;
+      halTtsRequestedKeyRef.current = null;
+    }, []);
+
+    const cleanupHalVoiceConfirm = useCallback(() => {
+      const recorder = halVoiceRecorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        try {
+          halVoiceDiscardNextStopRef.current = true;
+          recorder.stop();
+        } catch {}
+      }
+      halVoiceRecorderRef.current = null;
+      halVoiceChunksRef.current = [];
+      const stream = halVoiceStreamRef.current;
+      if (stream) {
+        for (const track of stream.getTracks()) {
+          try {
+            track.stop();
+          } catch {}
+        }
+      }
+      halVoiceStreamRef.current = null;
+      halVoiceConfirmRequestIdRef.current = null;
+    }, []);
+
+    const blobToBase64 = (blob: Blob): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result;
+          if (typeof result !== 'string') {
+            reject(new Error('Failed to read recorded audio.'));
+            return;
+          }
+          const comma = result.indexOf(',');
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => {
+          const error = reader.error ?? new Error('Failed to read recorded audio.');
+          reject(error);
+        };
+        reader.readAsDataURL(blob);
+      });
 
   useEffect(() => {
     halStateRef.current = {
@@ -387,11 +440,16 @@ export function App() {
     }
   }, []);
 
-  const halDialogueLines = useMemo(() => getHalDialogueLines(elevenlabs.userName), [elevenlabs.userName]);
+  const halDialogueLines = useMemo(
+    () => getHalDialogueLinesForMode(elevenlabs.userName, elevenlabs.mode),
+    [elevenlabs.mode, elevenlabs.userName]
+  );
 
-  useEffect(() => {
-    halDialogueRef.current = halDialogueLines;
-  }, [halDialogueLines]);
+    useEffect(() => {
+      halDialogueRef.current = halDialogueLines;
+    }, [halDialogueLines]);
+
+    const getHalConversationKey = useCallback(() => conversationIdRef.current ?? 'unknown', []);
 
   const maybeUpdateHalFlow = useCallback(() => {
     if (halTeleportInProgressRef.current) return;
@@ -406,15 +464,16 @@ export function App() {
         ? `${conversationIdRef.current ?? 'unknown'}:${firstHighRisk.tool_call_id}`
         : null;
 
-    if (!nextKey) {
-      if (halActiveKeyRef.current !== null || halPhaseRef.current !== 'idle' || halSuppressedKeyRef.current !== null) {
-        clearHalTimer();
-        stopHalAudio();
-        halActiveKeyRef.current = null;
-        halSuppressedKeyRef.current = null;
-        halPhaseRef.current = 'idle';
-        setHalSuppressedKey(null);
-        setHalPhase('idle');
+      if (!nextKey) {
+        if (halActiveKeyRef.current !== null || halPhaseRef.current !== 'idle' || halSuppressedKeyRef.current !== null) {
+          clearHalTimer();
+          stopHalAudio();
+          cleanupHalVoiceConfirm();
+          halActiveKeyRef.current = null;
+          halSuppressedKeyRef.current = null;
+          halPhaseRef.current = 'idle';
+          setHalSuppressedKey(null);
+          setHalPhase('idle');
         setHalEye('off');
         setHalStepIndex(null);
         setHalDecision(null);
@@ -433,14 +492,15 @@ export function App() {
       setHalForceRejectInput(false);
     }
 
-    if (halSuppressedKeyRef.current === nextKey) {
-      if (halPhaseRef.current !== 'idle') {
-        clearHalTimer();
-        stopHalAudio();
-        halPhaseRef.current = 'idle';
-        setHalPhase('idle');
-        setHalEye('off');
-        setHalStepIndex(null);
+      if (halSuppressedKeyRef.current === nextKey) {
+        if (halPhaseRef.current !== 'idle') {
+          clearHalTimer();
+          stopHalAudio();
+          cleanupHalVoiceConfirm();
+          halPhaseRef.current = 'idle';
+          setHalPhase('idle');
+          setHalEye('off');
+          setHalStepIndex(null);
         setHalDecision(null);
         setHalLastError(null);
       }
@@ -457,7 +517,7 @@ export function App() {
       setHalPhase('dialogue');
       setHalStepIndex(0);
     }
-  }, [clearHalTimer, halDisabledConversationId, stopHalAudio]);
+    }, [clearHalTimer, cleanupHalVoiceConfirm, halDisabledConversationId, stopHalAudio]);
 
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
@@ -533,19 +593,288 @@ export function App() {
     });
   }, [postMessage]);
 
-  useEffect(() => {
-    if (halPhase !== 'dialogue') return;
-    if (halStepIndex === null) return;
-    const mode = elevenlabsRef.current.mode;
-    if (mode !== 'tts_only' && mode !== 'voice_confirm') return;
-    const convoId = conversationIdRef.current;
-    if (!convoId) return;
-    if (halDisabledConversationId === convoId) return;
-    const key = `${convoId}:${halStepIndex}:${mode}`;
-    if (halTtsRequestedKeyRef.current === key) return;
-    halTtsRequestedKeyRef.current = key;
-    requestHalTts({ conversationId: convoId, stepIndex: halStepIndex });
-  }, [halDisabledConversationId, halPhase, halStepIndex, requestHalTts]);
+    useEffect(() => {
+      if (halPhase !== 'dialogue') return;
+      if (halStepIndex === null) return;
+      const mode = elevenlabsRef.current.mode;
+      if (mode !== 'tts_only' && mode !== 'voice_confirm') return;
+      const convoId = conversationIdRef.current;
+      if (!convoId) return;
+      if (halDisabledConversationId === convoId) return;
+      const key = `${convoId}:${halStepIndex}:${mode}`;
+      if (halTtsRequestedKeyRef.current === key) return;
+      halTtsRequestedKeyRef.current = key;
+      requestHalTts({ conversationId: convoId, stepIndex: halStepIndex });
+    }, [halDisabledConversationId, halPhase, halStepIndex, requestHalTts]);
+
+    const disableVoiceConfirmForConversation = useCallback((message: string) => {
+      const key = getHalConversationKey();
+      setHalVoiceConfirmFallbackKey(key);
+      halVoiceConfirmFallbackKeyRef.current = key;
+      cleanupHalVoiceConfirm();
+      setHalLastError(message);
+      halPhaseRef.current = 'awaiting_user';
+      setHalPhase('awaiting_user');
+      setHalEye('pulsating');
+      showStatusMessage('warn', message);
+    }, [cleanupHalVoiceConfirm, getHalConversationKey, showStatusMessage]);
+
+    const handleStartVoiceConfirm = useCallback(() => {
+      void (async () => {
+        if (halPhaseRef.current !== 'awaiting_user') return;
+        if (elevenlabsRef.current.mode !== 'voice_confirm') return;
+        if (halVoiceConfirmFallbackKeyRef.current === getHalConversationKey()) return;
+        if (
+          typeof navigator === 'undefined' ||
+          typeof navigator.mediaDevices?.getUserMedia !== 'function' ||
+          typeof MediaRecorder === 'undefined'
+        ) {
+          disableVoiceConfirmForConversation('Microphone is unavailable in this environment. Using buttons instead.');
+          return;
+        }
+
+        const conversationKey = getHalConversationKey();
+        const sessionKey = halActiveKeyRef.current;
+
+        cleanupHalVoiceConfirm();
+        halVoiceDiscardNextStopRef.current = false;
+        halVoiceChunksRef.current = [];
+        setHalLastError(null);
+        halPhaseRef.current = 'listening';
+        setHalPhase('listening');
+        setHalEye('pulsating');
+
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          disableVoiceConfirmForConversation(`Microphone permission denied or unavailable: ${reason}`);
+          return;
+        }
+
+        if (halPhaseRef.current !== 'listening' || getHalConversationKey() !== conversationKey || halActiveKeyRef.current !== sessionKey) {
+          for (const track of stream.getTracks()) {
+            try {
+              track.stop();
+            } catch {}
+          }
+          return;
+        }
+
+        const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+        const mimeType = candidates.find((t) => {
+          try {
+            return MediaRecorder.isTypeSupported(t);
+          } catch {
+            return false;
+          }
+        });
+        let recorder: MediaRecorder;
+        try {
+          recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          for (const track of stream.getTracks()) {
+            try {
+              track.stop();
+            } catch {}
+          }
+          disableVoiceConfirmForConversation(`Microphone recording is not supported: ${reason}`);
+          return;
+        }
+
+        halVoiceStreamRef.current = stream;
+        halVoiceRecorderRef.current = recorder;
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            halVoiceChunksRef.current.push(e.data);
+          }
+        };
+        recorder.onstop = () => {
+          void (async () => {
+            const shouldDiscard = halVoiceDiscardNextStopRef.current;
+            halVoiceDiscardNextStopRef.current = false;
+
+            const chunks = halVoiceChunksRef.current;
+            halVoiceChunksRef.current = [];
+            halVoiceRecorderRef.current = null;
+            const activeStream = halVoiceStreamRef.current;
+            halVoiceStreamRef.current = null;
+            if (activeStream) {
+              for (const track of activeStream.getTracks()) {
+                try {
+                  track.stop();
+                } catch {}
+              }
+            }
+
+            if (shouldDiscard) return;
+            if (chunks.length === 0) {
+              disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
+              return;
+            }
+
+            try {
+              const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
+              if (blob.size === 0) {
+                disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
+                return;
+              }
+              const audioBase64 = await blobToBase64(blob);
+              if (!audioBase64) {
+                disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
+                return;
+              }
+              const requestId = `halVoiceConfirm:${Date.now().toString(36)}:${(halVoiceConfirmSeqRef.current++).toString(36)}`;
+              halVoiceConfirmRequestIdRef.current = requestId;
+              setHalLastError(null);
+              halPhaseRef.current = 'classifying';
+              setHalPhase('classifying');
+              setHalEye('pulsating');
+              postMessage({
+                type: 'halVoiceConfirmRequest',
+                requestId,
+                mimeType: blob.type || 'audio/webm',
+                audioBase64,
+              });
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : String(err);
+              disableVoiceConfirmForConversation(`Failed to process recorded audio: ${reason}`);
+            }
+          })();
+        };
+
+        try {
+          recorder.start();
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          for (const track of stream.getTracks()) {
+            try {
+              track.stop();
+            } catch {}
+          }
+          disableVoiceConfirmForConversation(`Failed to start recording: ${reason}`);
+          return;
+        }
+      })();
+    }, [cleanupHalVoiceConfirm, disableVoiceConfirmForConversation, getHalConversationKey, postMessage]);
+
+    const handleStopVoiceConfirm = useCallback(() => {
+      if (halPhaseRef.current !== 'listening') return;
+      const recorder = halVoiceRecorderRef.current;
+      if (!recorder) return;
+      if (recorder.state === 'inactive') return;
+      try {
+        recorder.stop();
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        disableVoiceConfirmForConversation(`Failed to stop recording: ${reason}`);
+      }
+    }, [disableVoiceConfirmForConversation]);
+
+    const handleCancelVoiceConfirm = useCallback(() => {
+      if (halPhaseRef.current !== 'listening') return;
+      halVoiceDiscardNextStopRef.current = true;
+      const recorder = halVoiceRecorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        try {
+          recorder.stop();
+        } catch {}
+      }
+      cleanupHalVoiceConfirm();
+      setHalLastError(null);
+      halPhaseRef.current = 'awaiting_user';
+      setHalPhase('awaiting_user');
+      setHalEye('pulsating');
+    }, [cleanupHalVoiceConfirm]);
+
+    const handleUseButtonsInstead = useCallback(() => {
+      const key = getHalConversationKey();
+      setHalVoiceConfirmFallbackKey(key);
+      halVoiceConfirmFallbackKeyRef.current = key;
+      cleanupHalVoiceConfirm();
+      setHalLastError(null);
+      halPhaseRef.current = 'awaiting_user';
+      setHalPhase('awaiting_user');
+      setHalEye('pulsating');
+      showStatusMessage('info', 'Switched to button decision for this conversation.');
+    }, [cleanupHalVoiceConfirm, getHalConversationKey, showStatusMessage]);
+
+  const handleApprove = useCallback(() => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    submissionTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      submissionTimeoutRef.current = null;
+      showStatusMessage('warn', 'Confirmation timed out - please try again');
+    }, 30000);
+
+    postMessage({ type: 'command', command: 'approveAction' });
+    showStatusMessage('info', 'Approval submitted');
+  }, [isSubmitting, postMessage, showStatusMessage]);
+
+  const handleReject = useCallback((reason?: string) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    submissionTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      submissionTimeoutRef.current = null;
+      showStatusMessage('warn', 'Confirmation timed out - please try again');
+    }, 30000);
+
+    postMessage({ type: 'command', command: 'rejectAction', reason });
+    showStatusMessage('info', 'Rejection submitted');
+  }, [isSubmitting, postMessage, showStatusMessage]);
+
+  const handleHalExit = useCallback(() => {
+    clearHalTimer();
+    stopHalAudio();
+    cleanupHalVoiceConfirm();
+    halTeleportInProgressRef.current = false;
+    setHalTeleporting(false);
+    setHalForceRejectInput(false);
+    const key = halActiveKeyRef.current;
+    if (key) {
+      halSuppressedKeyRef.current = key;
+      setHalSuppressedKey(key);
+    }
+    halPhaseRef.current = 'idle';
+    setHalPhase('idle');
+    setHalEye('off');
+    setHalStepIndex(null);
+    setHalDecision(null);
+    setHalLastError(null);
+  }, [cleanupHalVoiceConfirm, clearHalTimer, stopHalAudio]);
+
+  const handleHalApprove = useCallback(() => {
+    setHalDecision('approve_local');
+    handleApprove();
+  }, [handleApprove]);
+
+  const handleHalReject = useCallback((reason?: string) => {
+    setHalDecision('reject');
+    handleReject(reason);
+  }, [handleReject]);
+
+  const handleHalTeleport = useCallback(() => {
+    setHalDecision('teleport_remote');
+    clearHalTimer();
+    stopHalAudio();
+    cleanupHalVoiceConfirm();
+    halTeleportInProgressRef.current = true;
+    setHalTeleporting(true);
+    setHalForceRejectInput(false);
+    halPhaseRef.current = 'waiting_remote';
+    setHalPhase('waiting_remote');
+    setHalEye('pulsating');
+    setHalStepIndex(null);
+    setHalLastError(null);
+    showStatusMessage('info', 'Teleporting to remote runtime…');
+    postMessage({ type: 'command', command: 'teleportAction' });
+  }, [cleanupHalVoiceConfirm, clearHalTimer, postMessage, showStatusMessage, stopHalAudio]);
 
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
@@ -664,14 +993,16 @@ export function App() {
             currentServerUrlRef.current = nextUrl;
             setCurrentServerUrl(nextUrl);
 
-            // If the server target changed (Local ↔ Remote or remote server URL changed),
-            // start a fresh conversation UI instead of implicitly resuming prior state.
-            if (prevUrl !== nextUrl) {
-              setHalDisabledConversationId(null);
-              conversationIdRef.current = undefined;
-              setConversationId(undefined);
-              setEvents([]);
-              pendingActionsRef.current = [];
+              // If the server target changed (Local ↔ Remote or remote server URL changed),
+              // start a fresh conversation UI instead of implicitly resuming prior state.
+              if (prevUrl !== nextUrl) {
+                setHalDisabledConversationId(null);
+                setHalVoiceConfirmFallbackKey(null);
+                cleanupHalVoiceConfirm();
+                conversationIdRef.current = undefined;
+                setConversationId(undefined);
+                setEvents([]);
+                pendingActionsRef.current = [];
               setPendingActions([]);
               agentStatusRef.current = undefined;
               setAgentStatus(undefined);
@@ -707,7 +1038,7 @@ export function App() {
             maybeUpdateHalFlow();
           }
           break;
-        case 'halTtsResponse': {
+          case 'halTtsResponse': {
           const currentRequestId = halTtsRequestIdRef.current;
           const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
           if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) break;
@@ -738,11 +1069,12 @@ export function App() {
           const error = (payload as { error?: unknown } | undefined)?.error;
           const message = typeof error === 'string' && error.trim() ? error.trim() : 'ElevenLabs TTS failed';
           const convoId = conversationIdRef.current;
-          if (convoId) setHalDisabledConversationId(convoId);
-          halTeleportInProgressRef.current = false;
-          stopHalAudio();
-          clearHalTimer();
-          halActiveKeyRef.current = null;
+            if (convoId) setHalDisabledConversationId(convoId);
+            halTeleportInProgressRef.current = false;
+            stopHalAudio();
+            clearHalTimer();
+            cleanupHalVoiceConfirm();
+            halActiveKeyRef.current = null;
           halSuppressedKeyRef.current = null;
           setHalSuppressedKey(null);
           halPhaseRef.current = 'idle';
@@ -753,13 +1085,52 @@ export function App() {
           setHalLastError(null);
           setHalForceRejectInput(false);
           setHalTeleporting(false);
-          if (shouldNotify) showStatusMessage('error', `HAL audio disabled for this conversation: ${message}`);
-          break;
-        }
-        case 'attachmentsSelected':
-          if (Array.isArray(payload.attachments)) {
-            setAttachments((prev) => {
-              const existing = new Set(prev.map((a) => a.uri));
+            if (shouldNotify) showStatusMessage('error', `HAL audio disabled for this conversation: ${message}`);
+            break;
+          }
+          case 'halVoiceConfirmResponse': {
+            const currentRequestId = halVoiceConfirmRequestIdRef.current;
+            const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
+            if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) break;
+            halVoiceConfirmRequestIdRef.current = null;
+
+            const ok = (payload as { ok?: unknown } | undefined)?.ok;
+            if (ok === true) {
+              const decision = (payload as { decision?: unknown } | undefined)?.decision;
+              if (decision === 'teleport_remote') {
+                handleHalTeleport();
+                break;
+              }
+              if (decision === 'approve_local') {
+                halPhaseRef.current = 'awaiting_user';
+                setHalPhase('awaiting_user');
+                setHalEye('pulsating');
+                setHalDecision('approve_local');
+                handleApprove();
+                break;
+              }
+              if (decision === 'reject') {
+                halPhaseRef.current = 'awaiting_user';
+                setHalPhase('awaiting_user');
+                setHalEye('pulsating');
+                setHalDecision('reject');
+                handleReject(undefined);
+                break;
+              }
+
+              disableVoiceConfirmForConversation('Gemini returned an invalid decision. Using buttons instead.');
+              break;
+            }
+
+            const error = (payload as { error?: unknown } | undefined)?.error;
+            const message = typeof error === 'string' && error.trim() ? error.trim() : 'Gemini classification failed';
+            disableVoiceConfirmForConversation(message);
+            break;
+          }
+          case 'attachmentsSelected':
+            if (Array.isArray(payload.attachments)) {
+              setAttachments((prev) => {
+                const existing = new Set(prev.map((a) => a.uri));
               const next = [...prev];
               for (const a of payload.attachments ?? []) {
                 if (!a || typeof a.uri !== 'string' || typeof a.label !== 'string') continue;
@@ -814,14 +1185,16 @@ export function App() {
           showStatusMessage('error', message);
           break;
         }
-        case 'conversationStarted':
-          if (typeof payload.conversationId === 'string') {
-            setHalDisabledConversationId(null);
-            if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
-              halTeleportInProgressRef.current = false;
-              setHalTeleporting(false);
-              setHalForceRejectInput(false);
-              clearHalTimer();
+          case 'conversationStarted':
+            if (typeof payload.conversationId === 'string') {
+              setHalDisabledConversationId(null);
+              setHalVoiceConfirmFallbackKey(null);
+              cleanupHalVoiceConfirm();
+              if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
+                halTeleportInProgressRef.current = false;
+                setHalTeleporting(false);
+                setHalForceRejectInput(false);
+                clearHalTimer();
               stopHalAudio();
               halActiveKeyRef.current = null;
               halSuppressedKeyRef.current = null;
@@ -875,7 +1248,7 @@ export function App() {
           const action = (payload as { action: string }).action;
           const rawPayload = (payload as { payload?: unknown }).payload;
 
-          switch (action) {
+            switch (action) {
             case 'openContext':
               setShowSkillsPopover(false);
               setShowContextPicker(true);
@@ -920,27 +1293,59 @@ export function App() {
               setHalDecision('reject');
               postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
               break;
-            case 'halTeleport':
-              setHalDecision('teleport_remote');
-              clearHalTimer();
-              stopHalAudio();
-              halTeleportInProgressRef.current = true;
-              setHalTeleporting(true);
-              setHalForceRejectInput(false);
-              halPhaseRef.current = 'waiting_remote';
+              case 'halTeleport':
+                setHalDecision('teleport_remote');
+                clearHalTimer();
+                stopHalAudio();
+                cleanupHalVoiceConfirm();
+                halTeleportInProgressRef.current = true;
+                setHalTeleporting(true);
+                setHalForceRejectInput(false);
+                halPhaseRef.current = 'waiting_remote';
               setHalPhase('waiting_remote');
               setHalEye('pulsating');
               setHalStepIndex(null);
               setHalLastError(null);
-              showStatusMessage('info', 'Teleporting to remote runtime…');
-              postMessage({ type: 'command', command: 'teleportAction' });
-              break;
-            case 'halExit': {
-              clearHalTimer();
-              stopHalAudio();
-              halTeleportInProgressRef.current = false;
-              setHalTeleporting(false);
-              setHalForceRejectInput(false);
+                showStatusMessage('info', 'Teleporting to remote runtime…');
+                postMessage({ type: 'command', command: 'teleportAction' });
+                break;
+              case 'halVoiceConfirmDecision': {
+                const decision = (rawPayload as { decision?: unknown } | undefined)?.decision;
+                if (decision !== 'approve_local' && decision !== 'teleport_remote' && decision !== 'reject') break;
+                cleanupHalVoiceConfirm();
+                setHalForceRejectInput(false);
+                setHalLastError(null);
+                setHalEye('pulsating');
+                if (decision === 'teleport_remote') {
+                  setHalDecision('teleport_remote');
+                  halTeleportInProgressRef.current = true;
+                  setHalTeleporting(true);
+                  halPhaseRef.current = 'waiting_remote';
+                  setHalPhase('waiting_remote');
+                  setHalStepIndex(null);
+                  showStatusMessage('info', 'Teleporting to remote runtime…');
+                  postMessage({ type: 'command', command: 'teleportAction' });
+                  break;
+                }
+                // approve_local / reject: mimic the non-voice button flow (no mic/network required).
+                halPhaseRef.current = 'awaiting_user';
+                setHalPhase('awaiting_user');
+                setHalStepIndex(null);
+                setHalDecision(decision);
+                if (decision === 'approve_local') {
+                  postMessage({ type: 'command', command: 'approveAction' });
+                } else {
+                  postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
+                }
+                break;
+              }
+              case 'halExit': {
+                clearHalTimer();
+                stopHalAudio();
+                cleanupHalVoiceConfirm();
+                halTeleportInProgressRef.current = false;
+                setHalTeleporting(false);
+                setHalForceRejectInput(false);
               const key = halActiveKeyRef.current;
               if (key) {
                 halSuppressedKeyRef.current = key;
@@ -997,7 +1402,22 @@ export function App() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [clearHalTimer, events, handleEvent, handleHalAudioFinished, maybeUpdateHalFlow, playHalAudioBytes, postMessage, showStatusMessage, stopHalAudio]);
+  }, [
+    cleanupHalVoiceConfirm,
+    clearHalTimer,
+    disableVoiceConfirmForConversation,
+    events,
+    handleApprove,
+    handleEvent,
+    handleHalAudioFinished,
+    handleHalTeleport,
+    handleReject,
+    maybeUpdateHalFlow,
+    playHalAudioBytes,
+    postMessage,
+    showStatusMessage,
+    stopHalAudio,
+  ]);
 
   // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
@@ -1093,77 +1513,6 @@ export function App() {
       attachments: attachments.map((a) => a.uri),
     });
   }, [attachments, input, postMessage, selectedContextFiles]);
-
-  const handleApprove = useCallback(() => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    submissionTimeoutRef.current = setTimeout(() => {
-      setIsSubmitting(false);
-      submissionTimeoutRef.current = null;
-      showStatusMessage('warn', 'Confirmation timed out - please try again');
-    }, 30000);
-
-    postMessage({ type: 'command', command: 'approveAction' });
-    showStatusMessage('info', 'Approval submitted');
-  }, [isSubmitting, postMessage, showStatusMessage]);
-
-  const handleReject = useCallback((reason?: string) => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    submissionTimeoutRef.current = setTimeout(() => {
-      setIsSubmitting(false);
-      submissionTimeoutRef.current = null;
-      showStatusMessage('warn', 'Confirmation timed out - please try again');
-    }, 30000);
-
-    postMessage({ type: 'command', command: 'rejectAction', reason });
-    showStatusMessage('info', 'Rejection submitted');
-  }, [isSubmitting, postMessage, showStatusMessage]);
-
-  const handleHalExit = useCallback(() => {
-    clearHalTimer();
-    halTeleportInProgressRef.current = false;
-    setHalTeleporting(false);
-    setHalForceRejectInput(false);
-    const key = halActiveKeyRef.current;
-    if (key) {
-      halSuppressedKeyRef.current = key;
-      setHalSuppressedKey(key);
-    }
-    halPhaseRef.current = 'idle';
-    setHalPhase('idle');
-    setHalEye('off');
-    setHalStepIndex(null);
-    setHalDecision(null);
-    setHalLastError(null);
-  }, [clearHalTimer]);
-
-  const handleHalApprove = useCallback(() => {
-    setHalDecision('approve_local');
-    handleApprove();
-  }, [handleApprove]);
-
-  const handleHalReject = useCallback((reason?: string) => {
-    setHalDecision('reject');
-    handleReject(reason);
-  }, [handleReject]);
-
-  const handleHalTeleport = useCallback(() => {
-    setHalDecision('teleport_remote');
-    clearHalTimer();
-    halTeleportInProgressRef.current = true;
-    setHalTeleporting(true);
-    setHalForceRejectInput(false);
-    halPhaseRef.current = 'waiting_remote';
-    setHalPhase('waiting_remote');
-    setHalEye('pulsating');
-    setHalStepIndex(null);
-    setHalLastError(null);
-    showStatusMessage('info', 'Teleporting to remote runtime…');
-    postMessage({ type: 'command', command: 'teleportAction' });
-  }, [clearHalTimer, postMessage, showStatusMessage]);
 
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
@@ -1280,13 +1629,16 @@ export function App() {
   const llmModelLabel = llmModel === undefined
     ? undefined
     : (llmModel || (mode === 'remote' ? 'server default' : 'default'));
-  const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
-  const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
-  const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
-  const halSessionKey =
-    halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
-      ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
-      : null;
+    const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
+    const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
+    const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
+    const halConversationKey = conversationId ?? 'unknown';
+    const voiceConfirmFallbackToButtons =
+      elevenlabs.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
+    const halSessionKey =
+      halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
+        ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
+        : null;
   const shouldShowHalOverlay =
     halEnabled && (halPhase === 'waiting_remote' || (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey));
   const halUiPhase: HalPhase = halPhase === 'idle' && shouldShowHalOverlay ? 'dialogue' : halPhase;
@@ -1341,23 +1693,29 @@ export function App() {
       </div>
 
       {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
-      {shouldShowHalOverlay && (
-        <HalOverlay
-          key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
-          userName={normalizeHalUserName(elevenlabs.userName)}
-          phase={halUiPhase}
-          eye={halEye}
-          line={halUiLine}
-          decision={halDecision}
-          lastError={halLastError}
-          isSubmitting={isSubmitting || halTeleporting}
-          startWithRejectInput={halForceRejectInput}
-          onApprove={handleHalApprove}
-          onTeleport={handleHalTeleport}
-          onReject={handleHalReject}
-          onExit={handleHalExit}
-        />
-      )}
+        {shouldShowHalOverlay && (
+          <HalOverlay
+            key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
+            userName={normalizeHalUserName(elevenlabs.userName)}
+            mode={elevenlabs.mode}
+            phase={halUiPhase}
+            eye={halEye}
+            line={halUiLine}
+            decision={halDecision}
+            lastError={halLastError}
+            isSubmitting={isSubmitting || halTeleporting}
+            startWithRejectInput={halForceRejectInput}
+            voiceConfirmFallbackToButtons={voiceConfirmFallbackToButtons}
+            onStartVoiceConfirm={handleStartVoiceConfirm}
+            onStopVoiceConfirm={handleStopVoiceConfirm}
+            onCancelVoiceConfirm={handleCancelVoiceConfirm}
+            onUseButtonsInstead={handleUseButtonsInstead}
+            onApprove={handleHalApprove}
+            onTeleport={handleHalTeleport}
+            onReject={handleHalReject}
+            onExit={handleHalExit}
+          />
+        )}
 
       {/* Confirmation prompt (modal overlay) */}
       {hasPendingConfirmation && !shouldShowHalOverlay && (
