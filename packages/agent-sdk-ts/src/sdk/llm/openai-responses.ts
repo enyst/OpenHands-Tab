@@ -112,8 +112,8 @@ const toResponsesTool = (tool: LLMToolDefinition): ResponsesToolParam => ({
 
 const toResponsesReasoningInputItem = (reasoning: ResponsesReasoningItem): ResponsesReasoningInputItem | undefined => {
   if (!reasoning.id) return undefined;
-  const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text', text }));
-  const content = reasoning.content?.length ? reasoning.content.map((text) => ({ type: 'reasoning_text', text })) : undefined;
+  const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text' as const, text }));
+  const content = reasoning.content?.length ? reasoning.content.map((text) => ({ type: 'reasoning_text' as const, text })) : undefined;
   return {
     type: 'reasoning',
     id: reasoning.id,
