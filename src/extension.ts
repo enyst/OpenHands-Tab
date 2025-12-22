@@ -43,9 +43,11 @@ type UiStateSnapshot = {
 type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
 type HalEye = 'off' | 'dim' | 'pulsating';
 type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
+type ElevenLabsMode = 'bundled' | 'tts_only' | 'voice_confirm';
 
 type HalStateSnapshot = {
   enabled: boolean;
+  mode: ElevenLabsMode;
   phase: HalPhase;
   eye: HalEye;
   stepIndex: number | null;
@@ -66,12 +68,17 @@ const DEFAULT_UI_STATE: UiStateSnapshot = {
 
 const DEFAULT_HAL_STATE: HalStateSnapshot = {
   enabled: false,
+  mode: 'tts_only',
   phase: 'idle',
   eye: 'off',
   stepIndex: null,
   decision: null,
   lastError: null,
 };
+
+function isElevenLabsMode(value: unknown): value is ElevenLabsMode {
+  return value === 'bundled' || value === 'tts_only' || value === 'voice_confirm';
+}
 
 function isHalPhase(value: unknown): value is HalPhase {
   return (
@@ -755,11 +762,13 @@ export function activate(context: vscode.ExtensionContext) {
           pendingUiStateRequests.get(requestId)?.(info);
         },
         onHalStateResponse: (requestId, info) => {
+          const mode = isElevenLabsMode(info.mode) ? info.mode : DEFAULT_HAL_STATE.mode;
           const phase = isHalPhase(info.phase) ? info.phase : DEFAULT_HAL_STATE.phase;
           const eye = isHalEye(info.eye) ? info.eye : DEFAULT_HAL_STATE.eye;
           const decision = isHalDecision(info.decision) ? info.decision : null;
           pendingHalStateRequests.get(requestId)?.({
             enabled: info.enabled === true,
+            mode,
             phase,
             eye,
             stepIndex: typeof info.stepIndex === 'number' ? info.stepIndex : null,

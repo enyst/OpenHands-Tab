@@ -104,7 +104,7 @@ export async function run(): Promise<void> {
 
   await pollUntil(async () => {
     const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
-    return hal?.enabled === true;
+    return hal?.enabled === true && hal?.mode === 'bundled';
   }, 15000);
 
   const highRiskToolCallId = `call_hal_high_${Date.now()}`;

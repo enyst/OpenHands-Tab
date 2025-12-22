@@ -15,6 +15,7 @@ import {
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
+import { getHalDialogueLines, normalizeHalUserName, type HalScriptLine } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
 
 // Component imports
@@ -65,6 +66,7 @@ type ElevenLabsSettingsSnapshot = {
   enabled: boolean;
   mode: ElevenLabsMode;
   userName: string;
+  volume: number;
 };
 
 type HalPhase = 'idle' | 'dialogue' | 'awaiting_user' | 'listening' | 'classifying' | 'waiting_remote' | 'error';
@@ -72,6 +74,7 @@ type HalDecision = 'approve_local' | 'teleport_remote' | 'reject';
 
 type HalStateSnapshot = {
   enabled: boolean;
+  mode: ElevenLabsMode;
   phase: HalPhase;
   eye: HalEye;
   stepIndex: number | null;
@@ -79,9 +82,10 @@ type HalStateSnapshot = {
   lastError: string | null;
 };
 
-const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel' };
+const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
 const DEFAULT_HAL_STATE: HalStateSnapshot = {
   enabled: false,
+  mode: DEFAULT_ELEVENLABS_SETTINGS.mode,
   phase: 'idle',
   eye: 'off',
   stepIndex: null,
@@ -187,6 +191,7 @@ export function App() {
 
   // HAL / ElevenLabs settings + state (Phase 0: bundled mode only)
   const [elevenlabs, setElevenlabs] = useState<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
+  const [halDisabledConversationId, setHalDisabledConversationId] = useState<string | null>(null);
   const [halPhase, setHalPhase] = useState<HalPhase>('idle');
   const [halEye, setHalEye] = useState<HalEye>('off');
   const [halStepIndex, setHalStepIndex] = useState<number | null>(null);
@@ -195,6 +200,14 @@ export function App() {
   const [halForceRejectInput, setHalForceRejectInput] = useState(false);
   const [halTeleporting, setHalTeleporting] = useState(false);
   const halTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const halStepIndexRef = useRef<number | null>(null);
+  const halDialogueRef = useRef<HalScriptLine[]>([]);
+  const halTtsRequestIdRef = useRef<string | null>(null);
+  const halTtsRequestedKeyRef = useRef<string | null>(null);
+  const halAudioRef = useRef<HTMLAudioElement | null>(null);
+  const halAudioUrlRef = useRef<string | null>(null);
+  const halAudioPlayTokenRef = useRef(0);
+  const halTtsRequestSeqRef = useRef(0);
   const halActiveKeyRef = useRef<string | null>(null);
   const [halSuppressedKey, setHalSuppressedKey] = useState<string | null>(null);
   const halStateRef = useRef<HalStateSnapshot>(DEFAULT_HAL_STATE);
@@ -243,7 +256,8 @@ export function App() {
     };
   }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, workspaceFiles.length]);
 
-  const halEnabled = elevenlabs.enabled && elevenlabs.mode === 'bundled';
+  const halSupportedMode = elevenlabs.mode === 'bundled' || elevenlabs.mode === 'tts_only' || elevenlabs.mode === 'voice_confirm';
+  const halEnabled = elevenlabs.enabled && halSupportedMode && halDisabledConversationId !== conversationId;
 
   useEffect(() => {
     halEnabledRef.current = halEnabled;
@@ -274,15 +288,39 @@ export function App() {
   }, [elevenlabs]);
 
   useEffect(() => {
+    halStepIndexRef.current = halStepIndex;
+  }, [halStepIndex]);
+
+  const stopHalAudio = useCallback(() => {
+    halAudioPlayTokenRef.current += 1;
+    const audio = halAudioRef.current;
+    if (audio) {
+      try {
+        audio.pause();
+      } catch {}
+      audio.src = '';
+    }
+    if (halAudioUrlRef.current) {
+      try {
+        URL.revokeObjectURL(halAudioUrlRef.current);
+      } catch {}
+      halAudioUrlRef.current = null;
+    }
+    halTtsRequestIdRef.current = null;
+    halTtsRequestedKeyRef.current = null;
+  }, []);
+
+  useEffect(() => {
     halStateRef.current = {
       enabled: halEnabled,
+      mode: elevenlabs.mode,
       phase: halPhase,
       eye: halEye,
       stepIndex: halPhase === 'dialogue' ? halStepIndex : null,
       decision: halDecision,
       lastError: halLastError,
     };
-  }, [halDecision, halEnabled, halEye, halLastError, halPhase, halStepIndex]);
+  }, [elevenlabs.mode, halDecision, halEnabled, halEye, halLastError, halPhase, halStepIndex]);
 
   // Show status message with debouncing
   const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
@@ -358,29 +396,29 @@ export function App() {
     }
   }, []);
 
-  const halDialogueLines = useMemo(() => {
-    const safeUserName = elevenlabs.userName.trim() || DEFAULT_ELEVENLABS_SETTINGS.userName;
-    return [
-      `I'm sorry, ${safeUserName}, I can't let you do that.`,
-      'Do you want me to teleport your conversation to the remote runtime?',
-      'Of course not. It\'s for your own good. Your agent will have more freedom in the remote runtime without affecting your local machine. Want me to transfer you?',
-    ];
-  }, [elevenlabs.userName]);
+  const halDialogueLines = useMemo(() => getHalDialogueLines(elevenlabs.userName), [elevenlabs.userName]);
+
+  useEffect(() => {
+    halDialogueRef.current = halDialogueLines;
+  }, [halDialogueLines]);
 
   const maybeUpdateHalFlow = useCallback(() => {
     if (halTeleportInProgressRef.current) return;
     const enabled = halEnabledRef.current;
+    const isDisabledForConversation =
+      Boolean(conversationIdRef.current) && halDisabledConversationId === conversationIdRef.current;
     const status = agentStatusRef.current;
     const pending = pendingActionsRef.current;
     const firstHighRisk = pending.find((action) => action.security_risk === 'HIGH');
     const nextKey =
-      enabled && status === 'WAITING_FOR_CONFIRMATION' && firstHighRisk?.tool_call_id
+      enabled && !isDisabledForConversation && status === 'WAITING_FOR_CONFIRMATION' && firstHighRisk?.tool_call_id
         ? `${conversationIdRef.current ?? 'unknown'}:${firstHighRisk.tool_call_id}`
         : null;
 
     if (!nextKey) {
       if (halActiveKeyRef.current !== null || halPhaseRef.current !== 'idle' || halSuppressedKeyRef.current !== null) {
         clearHalTimer();
+        stopHalAudio();
         halActiveKeyRef.current = null;
         halSuppressedKeyRef.current = null;
         halPhaseRef.current = 'idle';
@@ -407,6 +445,7 @@ export function App() {
     if (halSuppressedKeyRef.current === nextKey) {
       if (halPhaseRef.current !== 'idle') {
         clearHalTimer();
+        stopHalAudio();
         halPhaseRef.current = 'idle';
         setHalPhase('idle');
         setHalEye('off');
@@ -419,6 +458,7 @@ export function App() {
 
     if (halPhaseRef.current === 'idle') {
       clearHalTimer();
+      stopHalAudio();
       halPhaseRef.current = 'dialogue';
       setHalDecision(null);
       setHalLastError(null);
@@ -426,11 +466,12 @@ export function App() {
       setHalPhase('dialogue');
       setHalStepIndex(0);
     }
-  }, [clearHalTimer]);
+  }, [clearHalTimer, halDisabledConversationId, stopHalAudio]);
 
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
     if (halStepIndex === null) return;
+    if (elevenlabsRef.current.mode !== 'bundled') return;
 
     clearHalTimer();
 
@@ -449,6 +490,71 @@ export function App() {
       clearHalTimer();
     };
   }, [clearHalTimer, halDialogueLines.length, halPhase, halStepIndex]);
+
+  const handleHalAudioFinished = useCallback(() => {
+    if (halPhaseRef.current !== 'dialogue') return;
+    const currentIndex = halStepIndexRef.current;
+    if (currentIndex === null) return;
+    const lastIndex = halDialogueRef.current.length - 1;
+    if (currentIndex >= lastIndex) {
+      setHalPhase('awaiting_user');
+      setHalStepIndex(null);
+      return;
+    }
+    setHalStepIndex(currentIndex + 1);
+  }, []);
+
+  const playHalAudioBytes = useCallback((bytes: Uint8Array, volume: number) => {
+    stopHalAudio();
+    const token = halAudioPlayTokenRef.current;
+    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    halAudioUrlRef.current = url;
+
+    const audio = new Audio(url);
+    halAudioRef.current = audio;
+    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
+    audio.onended = () => {
+      if (halAudioPlayTokenRef.current !== token) return;
+      stopHalAudio();
+      handleHalAudioFinished();
+    };
+    audio.onerror = () => {
+      if (halAudioPlayTokenRef.current !== token) return;
+      stopHalAudio();
+      handleHalAudioFinished();
+    };
+    void audio.play().catch(() => {
+      if (halAudioPlayTokenRef.current !== token) return;
+      stopHalAudio();
+      handleHalAudioFinished();
+    });
+  }, [handleHalAudioFinished, stopHalAudio]);
+
+  const requestHalTts = useCallback((params: { conversationId: string; stepIndex: number }) => {
+    const requestId = `halTts:${Date.now().toString(36)}:${(halTtsRequestSeqRef.current++).toString(36)}`;
+    halTtsRequestIdRef.current = requestId;
+    postMessage({
+      type: 'halTtsRequest',
+      requestId,
+      conversationId: params.conversationId,
+      stepIndex: params.stepIndex,
+    });
+  }, [postMessage]);
+
+  useEffect(() => {
+    if (halPhase !== 'dialogue') return;
+    if (halStepIndex === null) return;
+    const mode = elevenlabsRef.current.mode;
+    if (mode !== 'tts_only' && mode !== 'voice_confirm') return;
+    const convoId = conversationIdRef.current;
+    if (!convoId) return;
+    if (halDisabledConversationId === convoId) return;
+    const key = `${convoId}:${halStepIndex}:${mode}`;
+    if (halTtsRequestedKeyRef.current === key) return;
+    halTtsRequestedKeyRef.current = key;
+    requestHalTts({ conversationId: convoId, stepIndex: halStepIndex });
+  }, [halDisabledConversationId, halPhase, halStepIndex, requestHalTts]);
 
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
@@ -578,13 +684,65 @@ export function App() {
               next.mode = payload.elevenlabs.mode;
             }
             if (typeof payload.elevenlabs?.userName === 'string') next.userName = payload.elevenlabs.userName;
+            if (typeof payload.elevenlabs?.volume === 'number' && Number.isFinite(payload.elevenlabs.volume)) {
+              next.volume = Math.min(1, Math.max(0, payload.elevenlabs.volume));
+            }
 
             elevenlabsRef.current = next;
-            halEnabledRef.current = next.enabled && next.mode === 'bundled';
+            halEnabledRef.current = next.enabled && (next.mode === 'bundled' || next.mode === 'tts_only' || next.mode === 'voice_confirm');
             setElevenlabs(next);
             maybeUpdateHalFlow();
           }
           break;
+        case 'halTtsResponse': {
+          const currentRequestId = halTtsRequestIdRef.current;
+          const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
+          if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) break;
+          halTtsRequestIdRef.current = null;
+
+          const ok = (payload as { ok?: unknown } | undefined)?.ok;
+          if (ok === true) {
+            const base64 = (payload as { audioBase64?: unknown } | undefined)?.audioBase64;
+            if (typeof base64 !== 'string' || base64.length === 0) {
+              handleHalAudioFinished();
+              break;
+            }
+            const volume = (payload as { volume?: unknown } | undefined)?.volume;
+            try {
+              const raw = atob(base64);
+              const bytes = new Uint8Array(raw.length);
+              for (let i = 0; i < raw.length; i += 1) {
+                bytes[i] = raw.charCodeAt(i);
+              }
+              playHalAudioBytes(bytes, typeof volume === 'number' ? volume : elevenlabsRef.current.volume);
+            } catch {
+              handleHalAudioFinished();
+            }
+            break;
+          }
+
+          const shouldNotify = (payload as { shouldNotify?: unknown } | undefined)?.shouldNotify === true;
+          const error = (payload as { error?: unknown } | undefined)?.error;
+          const message = typeof error === 'string' && error.trim() ? error.trim() : 'ElevenLabs TTS failed';
+          const convoId = conversationIdRef.current;
+          if (convoId) setHalDisabledConversationId(convoId);
+          halTeleportInProgressRef.current = false;
+          stopHalAudio();
+          clearHalTimer();
+          halActiveKeyRef.current = null;
+          halSuppressedKeyRef.current = null;
+          setHalSuppressedKey(null);
+          halPhaseRef.current = 'idle';
+          setHalPhase('idle');
+          setHalEye('off');
+          setHalStepIndex(null);
+          setHalDecision(null);
+          setHalLastError(null);
+          setHalForceRejectInput(false);
+          setHalTeleporting(false);
+          if (shouldNotify) showStatusMessage('error', `HAL audio disabled for this conversation: ${message}`);
+          break;
+        }
         case 'attachmentsSelected':
           if (Array.isArray(payload.attachments)) {
             setAttachments((prev) => {
@@ -645,11 +803,13 @@ export function App() {
         }
         case 'conversationStarted':
           if (typeof payload.conversationId === 'string') {
+            setHalDisabledConversationId(null);
             if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
               halTeleportInProgressRef.current = false;
               setHalTeleporting(false);
               setHalForceRejectInput(false);
               clearHalTimer();
+              stopHalAudio();
               halActiveKeyRef.current = null;
               halSuppressedKeyRef.current = null;
               setHalSuppressedKey(null);
@@ -750,6 +910,7 @@ export function App() {
             case 'halTeleport':
               setHalDecision('teleport_remote');
               clearHalTimer();
+              stopHalAudio();
               halTeleportInProgressRef.current = true;
               setHalTeleporting(true);
               setHalForceRejectInput(false);
@@ -763,6 +924,7 @@ export function App() {
               break;
             case 'halExit': {
               clearHalTimer();
+              stopHalAudio();
               halTeleportInProgressRef.current = false;
               setHalTeleporting(false);
               setHalForceRejectInput(false);
@@ -822,7 +984,7 @@ export function App() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [clearHalTimer, events, handleEvent, maybeUpdateHalFlow, postMessage, showStatusMessage]);
+  }, [clearHalTimer, events, handleEvent, handleHalAudioFinished, maybeUpdateHalFlow, playHalAudioBytes, postMessage, showStatusMessage, stopHalAudio]);
 
   // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
@@ -1110,7 +1272,7 @@ export function App() {
     halEnabled && (halPhase === 'waiting_remote' || (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey));
   const halUiPhase: HalPhase = halPhase === 'idle' && shouldShowHalOverlay ? 'dialogue' : halPhase;
   const halUiStepIndex = halUiPhase === 'dialogue' ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1)) : null;
-  const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0] ?? null : null;
+  const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0]?.text ?? null : null;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -1163,7 +1325,7 @@ export function App() {
       {shouldShowHalOverlay && (
         <HalOverlay
           key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
-          userName={elevenlabs.userName.trim() || DEFAULT_ELEVENLABS_SETTINGS.userName}
+          userName={normalizeHalUserName(elevenlabs.userName)}
           phase={halUiPhase}
           eye={halEye}
           line={halUiLine}
