@@ -60,7 +60,9 @@ describe('App - Confirmation Flow', () => {
     const scope = within(dialog);
     // Tool name is shown in the action details
     expect(scope.getAllByText(/terminal/i).length).toBeGreaterThanOrEqual(1);
-    expect(scope.getByText(/high risk/)).toBeInTheDocument();
+    const riskBadge = scope.getByText(/high risk/);
+    expect(riskBadge).toBeInTheDocument();
+    expect(riskBadge.closest('[title]')).toHaveAttribute('title', 'The model assessed high risk for this action.');
     expect(scope.getByText(/Reasoning/)).toBeInTheDocument();
   });
 

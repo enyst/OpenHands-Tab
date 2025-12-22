@@ -111,6 +111,7 @@ export function ConfirmationPrompt({
                     </div>
                     {action.security_risk && action.security_risk !== 'UNKNOWN' && (
                       <span
+                        title={`The model assessed ${action.security_risk.toLowerCase()} risk for this action.`}
                         className={`
                           inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border
                           ${action.security_risk === 'HIGH' ? 'bg-red-500/15 text-red-300 border-red-400/30' :
