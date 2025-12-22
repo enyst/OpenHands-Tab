@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
-import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
+import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent, type Message } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 import { FileEditorTool } from '../../tools';
@@ -27,6 +27,22 @@ class SequencedLLM implements LLMClient {
 
   async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     void _request;
+    const seq = this.sequences[this.idx] ?? [];
+    this.idx += 1;
+    for (const chunk of seq) {
+      yield chunk;
+    }
+  }
+}
+
+class RecordingLLM implements LLMClient {
+  private idx = 0;
+  requests: ChatCompletionRequest[] = [];
+
+  constructor(private readonly sequences: LLMStreamChunk[][]) {}
+
+  async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    this.requests.push(request);
     const seq = this.sequences[this.idx] ?? [];
     this.idx += 1;
     for (const chunk of seq) {
@@ -99,6 +115,51 @@ describe('Agent loop control', () => {
     expect(eventsAfterApproval.some(isObservationEvent)).toBe(true);
     const toolMessages = eventsAfterApproval.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
     expect(toolMessages.length).toBe(1);
+  });
+
+  it('emits a tool message when the user rejects a tool call (avoids stale tool_call_id)', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input) => ({ value: (input as { value: string }).value }),
+      execute: async (args) => ({ echoed: args.value }),
+    };
+
+    const llm = new RecordingLLM([
+      [
+        { type: 'text', text: 'Using tool' },
+        { type: 'tool_call_delta', id: 'call_1', name: 'echo', arguments: '{"value":"hi"}' },
+        { type: 'finish' },
+      ],
+      [
+        { type: 'text', text: 'Continuing' },
+        { type: 'finish' },
+      ],
+    ]);
+
+    const agent = new Agent({
+      settings: { ...baseSettings, confirmation: { policy: 'always' }, conversation: { maxIterations: 2 } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('run tool');
+    agent.rejectAction('nope');
+    await agent.run('next message');
+
+    const secondRequest = llm.requests[1];
+    expect(secondRequest).toBeTruthy();
+
+    const messages = secondRequest?.messages ?? [];
+    const assistantIndex = messages.findIndex((m: Message) =>
+      m.role === 'assistant' && m.tool_calls?.some((c) => c.id === 'call_1')
+    );
+    const toolIndex = messages.findIndex((m: Message) => m.role === 'tool' && m.tool_call_id === 'call_1');
+
+    expect(assistantIndex).toBeGreaterThanOrEqual(0);
+    expect(toolIndex).toBeGreaterThan(assistantIndex);
   });
 
   it('prompts for confirmation before accessing files outside the workspace', async () => {
