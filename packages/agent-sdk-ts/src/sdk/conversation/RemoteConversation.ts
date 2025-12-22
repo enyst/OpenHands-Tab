@@ -11,6 +11,15 @@ interface ConversationHistoryPage {
   next_page_id?: string | null;
 }
 
+type StaticSecret = { kind: 'StaticSecret'; value: string };
+
+const toStaticSecret = (value: unknown): StaticSecret | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return { kind: 'StaticSecret', value: trimmed };
+};
+
 const normalizeRemoteServerUrl = (raw: string): string => {
   let url = raw.trim();
   if (!url) return url;
@@ -136,22 +145,16 @@ export class RemoteConversation extends EventEmitter {
         if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
         if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
 
-      const secrets: Record<string, unknown> = {};
-      if (s?.secrets.elevenLabsApiKey) {
-        secrets.ELEVENLABS_API_KEY = { kind: 'StaticSecret', value: s.secrets.elevenLabsApiKey };
-      }
-      if (s?.secrets.githubToken) {
-        secrets.GITHUB_TOKEN = { kind: 'StaticSecret', value: s.secrets.githubToken };
-      }
-      if (s?.secrets.customSecret1) {
-        secrets.CUSTOM_SECRET_1 = { kind: 'StaticSecret', value: s.secrets.customSecret1 };
-      }
-      if (s?.secrets.customSecret2) {
-        secrets.CUSTOM_SECRET_2 = { kind: 'StaticSecret', value: s.secrets.customSecret2 };
-      }
-      if (s?.secrets.customSecret3) {
-        secrets.CUSTOM_SECRET_3 = { kind: 'StaticSecret', value: s.secrets.customSecret3 };
-      }
+      const typedSecrets: Record<string, StaticSecret> = {};
+      const maybeSetSecret = (key: string, value: unknown) => {
+        const secret = toStaticSecret(value);
+        if (secret) typedSecrets[key] = secret;
+      };
+      maybeSetSecret('ELEVENLABS_API_KEY', s?.secrets.elevenLabsApiKey);
+      maybeSetSecret('GITHUB_TOKEN', s?.secrets.githubToken);
+      maybeSetSecret('CUSTOM_SECRET_1', s?.secrets.customSecret1);
+      maybeSetSecret('CUSTOM_SECRET_2', s?.secrets.customSecret2);
+      maybeSetSecret('CUSTOM_SECRET_3', s?.secrets.customSecret3);
 
       const confirmation_policy: Record<string, unknown> = (() => {
         const p = s?.confirmation.policy || 'never';
@@ -183,7 +186,7 @@ export class RemoteConversation extends EventEmitter {
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
         workspace: { kind: 'LocalWorkspace', working_dir: this.workspaceRoot },
-        secrets,
+        secrets: typedSecrets,
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
