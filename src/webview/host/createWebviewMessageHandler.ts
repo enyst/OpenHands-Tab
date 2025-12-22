@@ -789,7 +789,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
               await vscode.commands.executeCommand('openhands._teleportToRemoteRuntime');
             } catch (err) {
               const reason = err instanceof Error ? err.message : String(err);
-              void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
+              outputChannel?.appendLine(`[teleportAction] ${reason}`);
             }
             break;
           default:
