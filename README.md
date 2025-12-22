@@ -45,7 +45,10 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 ### Configuration
 
 - **OpenHands: Configure** - Set up server URL, LLM settings, API keys
-- **OpenHands: Set API Key** - Quick API key configuration
+- **OpenHands: Set API Key** - Quick LLM API key configuration
+- **OpenHands: Set Session API Key** - Set session API key for agent-server authentication
+- **OpenHands: Set GitHub Token** - Set GitHub token for repository access
+- **OpenHands: Set Custom Secret 1/2/3** - Set custom secrets for additional integrations
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
 ## Documentation
@@ -69,17 +72,23 @@ This is an npm workspace with two packages:
 The SDK provides:
 - `Conversation` API for local/remote agent execution
 - LLM clients (Anthropic, OpenAI-compatible)
-- Tools (Terminal, FileEditor, TaskTracker, Browser)
+- Tools (Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate)
 - Protocol types and event handling
 
 ## Commands
 
 ```bash
-npm run build     # Build SDK + extension + webview
-npm test          # Run all tests
-npm run lint      # Lint all code
-npm run watch     # Development watch mode
-npm run e2e       # E2E tests
+npm run build           # Build SDK + extension + webview
+npm run compile         # Compile TypeScript + Tailwind + webview (faster)
+npm test                # Run all tests
+npm run test:watch      # Run tests in watch mode
+npm run lint            # Lint all code
+npm run lint:fix        # Auto-fix lint issues
+npm run typecheck       # Type check all code
+npm run watch           # Development watch mode
+npm run e2e             # E2E tests
+npm run e2e:agent-server  # E2E tests against remote agent-server
+npm run package         # Package extension as VSIX
 ```
 
 ## License
