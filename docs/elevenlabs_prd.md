@@ -1,7 +1,7 @@
 # ElevenLabs API for VS Code — “HAL 9000” fun PRD
 
 ## Summary
-Add an optional, theatrical “HAL 9000” **Restricted Area Protocol** to the OpenHands VS Code extension: when the user/agent attempts a restricted local action (e.g., outside workspace folders or operation with security risk = "HIGH"), the UI shows a pulsating red “eye” and plays a short scripted dialogue (and an optional short music sting). The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic generation, or (deferred for later, after human tests TTS workflow) via **pre-bundled audio files** for deterministic timing and zero API latency.
+Add an optional, theatrical “HAL 9000” **Restricted Area Protocol** to the OpenHands VS Code extension: when the user/agent attempts a restricted local action (e.g., outside workspace folders or operation with security risk = "HIGH"), the UI shows a pulsating red “eye” and plays a short scripted dialogue (plus an optional “Rhapsody in Blue final crescendo / elevator music” sting). The script can be played via **ElevenLabs Text-to-Speech (TTS)** for dynamic generation, or (deferred for later, after human tests TTS workflow) via **pre-bundled audio files** for deterministic timing and zero API latency.
 
 This PRD is intentionally “fun”/non-critical: it must be easy to disable, safe by default, and must never block core workflows.
 
@@ -47,7 +47,7 @@ Voice A:
 Voice B:
 - “Okay okay, do it.”
 Music:
-- Short “music sting” (implementation/selection TBD).
+- “Rhapsody in Blue final crescendo / elevator music” sting (while waiting for remote runtime to load).
 
 ### Accessibility
 - Provide a “Mute/Disable audio” setting and a one-click stop button.
@@ -78,8 +78,12 @@ Even if ElevenLabs provides an MCP server:
    - Extension calls ElevenLabs `text-to-speech/{voiceId}` (audio/mpeg)
    - Converts to base64 data URI (or writes to temp/cache and passes a webview URI)
    - Webview plays audio and posts `{ type: 'audioFinished' }` on end
-4) Webview plays local bundled music file when the dialogue is done
-5) Extension resets UI to idle + it makes all EventBlocks grey-faded, while a dialog box across the middle of the extension webview view shows: "Teleporting to the remote runtime..." and the music is playing (all until the conversation on the remote is ready); a progress indicator runs until the remote connection is established. The initial text about "Teleporting..." fades into "Coffeinating server...", "Deciphering remote protocol...", "Calling reindeer to help teleport..." and again at the end a short "Teleporting to the remote runtime..."
+4) Extension initiates/awaits remote runtime transfer (implementation TBD).
+5) While waiting for the remote runtime to load the conversation:
+   - Webview overlays a centered “HAL” UI state (see Decisions below)
+   - Webview plays the “Rhapsody in Blue final crescendo / elevator music” sting
+   - Overlay copy cycles (e.g., “Teleporting…”, “Caffeinating server…”, “Deciphering remote protocol…”, “Calling reindeer…”, “Teleporting…”)
+6) When the remote conversation is ready: stop the sting (fade out if supported) and reset the UI back to normal rendering.
 
 ### Data flow (bundled-audio mode, deferred for later)
 1) Trigger occurs → `playSequence()`
@@ -103,10 +107,10 @@ Proposed settings (names TBD):
 - Cap size (LRU) to avoid disk bloat
 
 ## Error handling
-- If an ElevenLabs API call fails: fall back to a text-only notification and auto-disable the HAL sequence for the **current VS Code window session**.
-  - Definition (“disable for the session”): an in-memory flag that lasts until the extension host is restarted (e.g., VS Code Reload Window) or the user explicitly re-enables the feature (e.g., toggling `elevenlabs.enabled` off/on).
+- If an ElevenLabs API call fails: fall back to a text-only notification and auto-disable the HAL sequence for the **current conversation**.
+  - Definition (“disable for the session”): an in-memory flag scoped to the current conversation id/run; it resets automatically when the user starts a new conversation (so the next conversation can try again if it hits a HIGH-risk confirmation).
   - Do not persist this auto-disable state to disk.
-  - Do not spam: show at most one failure notification per session.
+  - Do not spam: show at most one failure notification per conversation.
 - Retry/backoff strategy (API mode):
   - No retries for invalid configuration (e.g., auth errors / missing key).
   - For transient failures (network errors, 5xx, 429): retry up to **2** times (3 attempts total) with exponential backoff (e.g., 250ms, 500ms, 1000ms) and jitter; if still failing, abort the sequence and auto-disable for the session.
@@ -145,7 +149,7 @@ Purpose: enable deterministic E2E assertions about the HAL UX without DOM automa
 - Behavior: returns a Promise of a JSON-serializable object; if the webview is not available/ready, return a default “idle” state.
 - What it queries: the webview’s HAL presentation state (eye animation + overlay state + audio playback step).
 - Return shape (minimal):
-  - `enabled`: boolean (feature toggle on and not auto-disabled for this session)
+  - `enabled`: boolean (feature toggle on and not auto-disabled for this conversation)
   - `phase`: `idle | active | finished | error`
   - `eye`: `off | dim | pulsating`
   - `stepIndex`: number (0-based script step) or `null` when idle
@@ -172,9 +176,10 @@ Phase 1:
 Phase 2:
 - Add bundled-audio mode (optional), then expand scripts / voice packs (optional).
 
-## Open questions
-| Open question | Owner | Target date |
-| --- | --- | --- |
-| Eye placement (overlay vs dedicated view) | Engel | 2026-01-10 |
-| Trigger conditions (what qualifies as “restricted area”) | Engel | 2026-01-10 |
-| Music sting behavior (none vs short generic sting) | Engel | 2026-01-10 |
+## Decisions (Q&A)
+
+| Topic | Decision | Owner | Date |
+| --- | --- | --- | --- |
+| Eye placement | Overlay inside the chat webview view; horizontally centered; vertically just above the prompt area. | Engel | 2025-12-22 |
+| Trigger conditions | Only trigger (if enabled) when the agent response includes a confirmation risk and it is `HIGH`. | Engel | 2025-12-22 |
+| Music sting | Play a snippet while waiting for remote runtime to load the conversation (during the “Teleporting…” overlay). | Engel | 2025-12-22 |
