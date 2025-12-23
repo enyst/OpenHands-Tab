@@ -1,18 +1,20 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
 import { Agent, EventLog } from '..';
-import { isAgentErrorEvent, isMessageEvent, type TextContent } from '../../types';
+import { isAgentErrorEvent, isConversationErrorEvent, isMessageEvent, type TextContent } from '../../types';
 import type { ToolDefinition } from '../../types/tools';
 import type { OpenHandsSettings } from '../../types/settings';
 
 class MockLLM implements LLMClient {
+  requests: ChatCompletionRequest[] = [];
+
   constructor(private readonly chunks: LLMStreamChunk[]) {}
 
-  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
-    void _request;
+  async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    this.requests.push(request);
     for (const chunk of this.chunks) {
       yield chunk;
     }
@@ -27,7 +29,19 @@ const baseSettings: OpenHandsSettings = {
   secrets: {},
 };
 
-const createWorkspaceRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-errors-'));
+const workspaceRoots: string[] = [];
+
+afterEach(() => {
+  for (const root of workspaceRoots.splice(0)) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+const createWorkspaceRoot = (): string => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-tool-errors-'));
+  workspaceRoots.push(root);
+  return root;
+};
 
 describe('Agent tool call error handling', () => {
   it('emits tool messages when parsing tool arguments fails', async () => {
@@ -193,5 +207,77 @@ describe('Agent tool call error handling', () => {
     const textContent = toolMessages[0].llm_message.content[0] as TextContent;
     // Python SDK sends plain text matching error message
     expect(textContent.text).toContain('execution exploded');
+  });
+
+  it('emits ConversationErrorEvent (and no tool message) for conversation-level tool execution failures', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<Record<string, unknown>, unknown> = {
+      name: 'browser',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => {
+        throw new Error('Global fetch API is unavailable in this runtime');
+      },
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Try browser' },
+      { type: 'tool_call_delta', id: 'call_fetch_missing', name: 'browser', arguments: '{"url":"https://example.com"}' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('browse');
+
+    const events = log.list();
+    expect(events.filter(isAgentErrorEvent)).toHaveLength(0);
+
+    const conversationError = events.find(isConversationErrorEvent);
+    expect(conversationError).toBeDefined();
+    expect(conversationError?.code).toBe('missing_fetch_api');
+
+    const toolMessages = events.filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'tool');
+    expect(toolMessages).toHaveLength(0);
+
+    expect(agent.state.snapshot.status).toBe('IDLE');
+  });
+
+  it('sanitizes orphan tool_calls from future requests after conversation-level tool failures', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<Record<string, unknown>, unknown> = {
+      name: 'browser',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => {
+        throw new Error('Global fetch API is unavailable in this runtime');
+      },
+    };
+    const llm = new MockLLM([
+      { type: 'text', text: 'Try browser' },
+      { type: 'tool_call_delta', id: 'call_fetch_missing', name: 'browser', arguments: '{"url":"https://example.com"}' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: { ...baseSettings, conversation: { maxIterations: 2 } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('browse');
+    await agent.run('retry after failure');
+
+    expect(llm.requests).toHaveLength(2);
+    const secondRequest = llm.requests[1];
+    const hasOrphanedToolCalls = secondRequest.messages.some(
+      (message) => message.role === 'assistant' && message.tool_calls?.some((call) => call.id === 'call_fetch_missing'),
+    );
+    expect(hasOrphanedToolCalls).toBe(false);
   });
 });
