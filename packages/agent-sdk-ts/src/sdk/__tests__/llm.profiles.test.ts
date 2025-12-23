@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import type { LLMConfiguration } from '../llm';
-import { LLMProfileValidationError, listProfiles, loadProfile, saveProfile, validateProfile } from '../llm';
+import { DEFAULT_LLM_PROFILE_IDS, LLMProfileValidationError, ensureDefaultProfiles, listProfiles, loadProfile, saveProfile, validateProfile } from '../llm';
 
 const makeTempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'llm-profiles-'));
 
@@ -108,6 +108,23 @@ describe('LLM profiles', () => {
         LLMProfileValidationError,
       );
       expect(() => loadProfile('../evil', { rootDir: dir })).toThrow(LLMProfileValidationError);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('seeds canonical default profiles when requested', () => {
+    const dir = makeTempDir();
+    try {
+      expect(listProfiles({ rootDir: dir })).toEqual([]);
+      expect(ensureDefaultProfiles({ rootDir: dir })).toEqual([...DEFAULT_LLM_PROFILE_IDS]);
+      expect(listProfiles({ rootDir: dir })).toEqual([...DEFAULT_LLM_PROFILE_IDS]);
+
+      for (const id of DEFAULT_LLM_PROFILE_IDS) {
+        const loaded = loadProfile(id, { rootDir: dir });
+        expect(loaded.profileId).toBe(id);
+        expect(typeof loaded.config.model).toBe('string');
+      }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

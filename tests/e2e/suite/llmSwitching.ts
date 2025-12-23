@@ -89,6 +89,17 @@ export async function run(): Promise<void> {
     }, 15000);
 
     const cfg = vscode.workspace.getConfiguration();
+    const setLlmConfig = async (
+      config: Record<string, unknown>,
+      options: { reconnect?: boolean } = {},
+    ): Promise<void> => {
+      for (const [key, value] of Object.entries(config)) {
+        await cfg.update(`openhands.llm.${key}`, value, vscode.ConfigurationTarget.Global);
+      }
+      if (options.reconnect ?? true) {
+        await vscode.commands.executeCommand('openhands.reconnect');
+      }
+    };
 
     // Force local mode + short runs for E2E.
     await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
@@ -99,12 +110,13 @@ export async function run(): Promise<void> {
     await cfg.update('openhands.agent.enableSecurityAnalyzer', false, vscode.ConfigurationTarget.Global);
 
     // 1) Anthropic
-    await cfg.update('openhands.llm.provider', 'anthropic', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.model', 'claude-sonnet-4-20250514', vscode.ConfigurationTarget.Global);
-    await vscode.commands.executeCommand('openhands.reconnect');
+    await setLlmConfig({
+      profileId: null,
+      provider: 'anthropic',
+      baseUrl: mock.baseUrl,
+      model: 'claude-sonnet-4-20250514',
+    });
     await vscode.commands.executeCommand('openhands.startNewConversation');
-    await vscode.commands.executeCommand('openhands.reconnect');
     await sendAndWaitForRequestPath({
       text: 'E2E step 1: anthropic',
       expectedPath: '/messages',
@@ -112,11 +124,13 @@ export async function run(): Promise<void> {
     });
 
     // 2) OpenAI-compatible (chat_completions)
-    await cfg.update('openhands.llm.provider', 'openai', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.openaiApiMode', 'chat_completions', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.model', 'gpt-4o-mini', vscode.ConfigurationTarget.Global);
-    await vscode.commands.executeCommand('openhands.reconnect');
+    await setLlmConfig({
+      profileId: null,
+      provider: 'openai',
+      openaiApiMode: 'chat_completions',
+      baseUrl: mock.baseUrl,
+      model: 'gpt-4o-mini',
+    });
     await sendAndWaitForRequestPath({
       text: 'E2E step 2: openai chat',
       expectedPath: '/chat/completions',
@@ -124,11 +138,13 @@ export async function run(): Promise<void> {
     });
 
     // 3) OpenAI GPT-5 auto mode + custom baseUrl should fall back to chat_completions.
-    await cfg.update('openhands.llm.provider', 'openai', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.openaiApiMode', 'auto', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.model', 'gpt-5-mini', vscode.ConfigurationTarget.Global);
-    await vscode.commands.executeCommand('openhands.reconnect');
+    await setLlmConfig({
+      profileId: null,
+      provider: 'openai',
+      openaiApiMode: 'auto',
+      baseUrl: mock.baseUrl,
+      model: 'gpt-5-mini',
+    });
     await sendAndWaitForRequestPath({
       text: 'E2E step 3: openai gpt-5 auto (custom baseUrl)',
       expectedPath: '/chat/completions',
@@ -136,11 +152,13 @@ export async function run(): Promise<void> {
     });
 
     // 4) OpenAI Responses API (gpt-5 + openaiApiMode=responses)
-    await cfg.update('openhands.llm.provider', 'openai', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.openaiApiMode', 'responses', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.model', 'gpt-5-mini', vscode.ConfigurationTarget.Global);
-    await vscode.commands.executeCommand('openhands.reconnect');
+    await setLlmConfig({
+      profileId: null,
+      provider: 'openai',
+      openaiApiMode: 'responses',
+      baseUrl: mock.baseUrl,
+      model: 'gpt-5-mini',
+    });
     await sendAndWaitForRequestPath({
       text: 'E2E step 4: openai responses',
       expectedPath: '/responses',
@@ -148,11 +166,13 @@ export async function run(): Promise<void> {
     });
 
     // 5) Provider variation: openrouter adds extra headers and still hits chat_completions.
-    await cfg.update('openhands.llm.provider', 'openrouter', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.openaiApiMode', 'chat_completions', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.llm.model', 'google/gemini-2.0-flash', vscode.ConfigurationTarget.Global);
-    await vscode.commands.executeCommand('openhands.reconnect');
+    await setLlmConfig({
+      profileId: null,
+      provider: 'openrouter',
+      openaiApiMode: 'chat_completions',
+      baseUrl: mock.baseUrl,
+      model: 'google/gemini-2.0-flash',
+    });
     await sendAndWaitForRequestPath({
       text: 'E2E step 5: openrouter header check',
       expectedPath: '/chat/completions',
@@ -171,6 +191,34 @@ export async function run(): Promise<void> {
     if (!referer || !title) {
       throw new Error(`Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`);
     }
+
+    // 6) LLM profile selection: Sonnet profile should override raw provider/model.
+    await setLlmConfig({
+      profileId: 'sonnet-45',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      openaiApiMode: 'chat_completions',
+      baseUrl: mock.baseUrl,
+    });
+    await sendAndWaitForRequestPath({
+      text: 'E2E step 6: profile sonnet-45',
+      expectedPath: '/messages',
+      getRequests: () => mock.requests,
+    });
+
+    // 7) LLM profile selection: gpt-5-mini profile should override raw provider/model.
+    await setLlmConfig({
+      profileId: 'gpt-5-mini',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-20250514',
+      openaiApiMode: 'auto',
+      baseUrl: mock.baseUrl,
+    });
+    await sendAndWaitForRequestPath({
+      text: 'E2E step 7: profile gpt-5-mini',
+      expectedPath: '/chat/completions',
+      getRequests: () => mock.requests,
+    });
 
     // Basic sanity: at least one request per step.
     const paths = mock.requests.map((r) => r.path);
