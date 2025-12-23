@@ -2,7 +2,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { AgentOrchestrator } from '../runtime';
 import { DEFAULT_RETRY_OPTIONS, OpenAICompatibleClient, OpenAIResponsesClient, GeminiClient, LLMFactory, LLMCredentialProvider } from '../llm';
 import type { ChatCompletionRequest, LLMConfiguration } from '../llm';
-import { ConversationState, EventLog } from '../runtime';
+import { ConversationState, EventLog, SecretRegistry } from '../runtime';
 
 const encoder = new TextEncoder();
 
@@ -286,6 +286,18 @@ describe('LLMFactory integration', () => {
 
     expect(client).toBeInstanceOf(OpenAICompatibleClient);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('uses provider default API key from SecretRegistry when apiKey is unset', async () => {
+    const secrets = new SecretRegistry();
+    secrets.register('OPENAI_API_KEY', 'sk-storage');
+    const spy = vi.spyOn(secrets, 'get');
+
+    const factory = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai' }, { secrets });
+    const client = await factory.createClient();
+
+    expect(client).toBeInstanceOf(OpenAICompatibleClient);
+    expect(spy).toHaveBeenCalledWith('OPENAI_API_KEY');
   });
 
   it('routes GPT-5 models through Responses API', async () => {

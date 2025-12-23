@@ -14,6 +14,7 @@ import {
   type ConversationInstance,
   FileEditorTool,
   LLMFactory,
+  SecretRegistry,
   TaskTrackerTool,
   TerminalTool,
   type BashEvent,
@@ -570,21 +571,18 @@ async function resolveGitContext(workspaceRoot: string | undefined): Promise<{ r
   }
 }
 
-async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string): Promise<string> {
+async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string, secrets: SecretRegistry): Promise<string> {
   const model = normalizeNonEmptyString(settings.llm.model) ?? '';
   if (!model) {
     throw new Error('LLM model is not configured');
   }
   const apiKey = normalizeNonEmptyString(settings.secrets.llmApiKey);
-  if (!apiKey) {
-    throw new Error('Missing LLM API key');
-  }
 
   const factory = new LLMFactory({
     provider: settings.llm.provider ?? undefined,
     model,
     baseUrl: normalizeNonEmptyString(settings.llm.baseUrl),
-    apiKey,
+    apiKey: apiKey ?? undefined,
     apiVersion: normalizeNonEmptyString(settings.llm.apiVersion),
     timeoutSeconds: settings.llm.timeout ?? undefined,
     temperature: settings.llm.temperature ?? undefined,
@@ -595,7 +593,7 @@ async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string
     reasoningEffort: settings.llm.reasoningEffort ?? undefined,
     inputCostPerToken: settings.llm.inputCostPerToken ?? undefined,
     outputCostPerToken: settings.llm.outputCostPerToken ?? undefined,
-  });
+  }, { secrets });
 
   const client = await factory.createClient();
   const request = {
@@ -699,6 +697,8 @@ export function activate(context: vscode.ExtensionContext) {
     console.warn('[OpenHands] Failed to create output channel:', err);
     outputChannel = undefined;
   }
+
+  const secretRegistry = new SecretRegistry(context.secrets);
 
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
@@ -889,6 +889,7 @@ export function activate(context: vscode.ExtensionContext) {
         settings,
         workspaceRoot,
         tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
+        secrets: secretRegistry,
         persistenceDir,
         agentContext,
       };
@@ -1229,7 +1230,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       let firstRemoteMessage: string;
       try {
-        const summary = await summarizeWithLocalLlm(settings, prompt);
+        const summary = await summarizeWithLocalLlm(settings, prompt, secretRegistry);
         firstRemoteMessage = `${intro}\n\n---\n\n${summary}`;
       } catch (err) {
         const last10 = takeLastTeleportableEvents(backlogEvents, TELEPORT_FALLBACK_EVENT_LIMIT).map((e) => safeStringify(e));
@@ -1342,6 +1343,72 @@ export function activate(context: vscode.ExtensionContext) {
       }
     });
 
+  const registerSecretStorageCommand = (
+    commandId: string,
+    options: {
+      title: string;
+      storageKey: string;
+      prompt: string;
+      placeHolder?: string;
+      successMessage: string;
+      clearedMessage: string;
+      errorPrefix: string;
+    }
+  ) =>
+    vscode.commands.registerCommand(commandId, async () => {
+      try {
+        const currentValue = await context.secrets.get(options.storageKey);
+        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
+
+        if (isCurrentlySet) {
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+            ],
+            {
+              title: options.title,
+              placeHolder: 'Choose an action',
+              canPickMany: false,
+            }
+          );
+          if (!action) return;
+
+          if (action.value === 'clear') {
+            const confirmed = await vscode.window.showWarningMessage(
+              `Clear ${options.title}?`,
+              { modal: true },
+              'Clear'
+            );
+            if (confirmed !== 'Clear') return;
+
+            await context.secrets.delete(options.storageKey);
+            secretRegistry.set(options.storageKey, undefined);
+            vscode.window.showInformationMessage(options.clearedMessage);
+            return;
+          }
+        }
+
+        const value = await vscode.window.showInputBox({
+          title: options.title,
+          password: true,
+          prompt: options.prompt,
+          placeHolder: options.placeHolder,
+        });
+
+        if (value === undefined) return;
+        const trimmed = value.trim();
+        if (!trimmed) return;
+
+        await context.secrets.store(options.storageKey, trimmed);
+        secretRegistry.set(options.storageKey, trimmed);
+        vscode.window.showInformationMessage(options.successMessage);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
+      }
+    });
+
   const setApiKey = registerSecretCommand('openhands.setApiKey', {
     title: 'LLM API Key',
     secretKey: 'llmApiKey',
@@ -1350,6 +1417,56 @@ export function activate(context: vscode.ExtensionContext) {
     successMessage: 'LLM API Key saved securely.',
     clearedMessage: 'LLM API Key cleared.',
     errorPrefix: 'Failed to save API Key',
+  });
+
+  const setOpenAiApiKey = registerSecretStorageCommand('openhands.setOpenAiApiKey', {
+    title: 'OpenAI API Key',
+    storageKey: 'OPENAI_API_KEY',
+    prompt: 'Enter your OpenAI API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-...',
+    successMessage: 'OpenAI API key saved securely.',
+    clearedMessage: 'OpenAI API key cleared.',
+    errorPrefix: 'Failed to save OpenAI API key',
+  });
+
+  const setAnthropicApiKey = registerSecretStorageCommand('openhands.setAnthropicApiKey', {
+    title: 'Anthropic API Key',
+    storageKey: 'ANTHROPIC_API_KEY',
+    prompt: 'Enter your Anthropic API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-ant-...',
+    successMessage: 'Anthropic API key saved securely.',
+    clearedMessage: 'Anthropic API key cleared.',
+    errorPrefix: 'Failed to save Anthropic API key',
+  });
+
+  const setOpenRouterApiKey = registerSecretStorageCommand('openhands.setOpenRouterApiKey', {
+    title: 'OpenRouter API Key',
+    storageKey: 'OPENROUTER_API_KEY',
+    prompt: 'Enter your OpenRouter API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-or-...',
+    successMessage: 'OpenRouter API key saved securely.',
+    clearedMessage: 'OpenRouter API key cleared.',
+    errorPrefix: 'Failed to save OpenRouter API key',
+  });
+
+  const setLiteLlmApiKey = registerSecretStorageCommand('openhands.setLiteLlmApiKey', {
+    title: 'LiteLLM Proxy API Key',
+    storageKey: 'LITELLM_API_KEY',
+    prompt: 'Enter your LiteLLM Proxy API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-...',
+    successMessage: 'LiteLLM Proxy API key saved securely.',
+    clearedMessage: 'LiteLLM Proxy API key cleared.',
+    errorPrefix: 'Failed to save LiteLLM Proxy API key',
+  });
+
+  const setGeminiLlmApiKey = registerSecretStorageCommand('openhands.setGeminiLlmApiKey', {
+    title: 'Gemini API Key (LLM)',
+    storageKey: 'GEMINI_API_KEY',
+    prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'AIza...',
+    successMessage: 'Gemini API key saved securely.',
+    clearedMessage: 'Gemini API key cleared.',
+    errorPrefix: 'Failed to save Gemini API key',
   });
 
   const setSessionApiKey = registerSecretCommand('openhands.setSessionApiKey', {
@@ -1382,9 +1499,9 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const setGeminiApiKey = registerSecretCommand('openhands.setGeminiApiKey', {
-    title: 'Gemini API Key',
+    title: 'Gemini API Key (HAL)',
     secretKey: 'geminiApiKey',
-    prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
+    prompt: 'Enter your Gemini API key for HAL decision classification. It will be stored securely in VS Code SecretStorage.',
     successMessage: 'Gemini API key saved securely.',
     clearedMessage: 'Gemini API key cleared.',
     errorPrefix: 'Failed to save Gemini API key',
@@ -1499,6 +1616,11 @@ export function activate(context: vscode.ExtensionContext) {
     teleportToRemoteRuntime,
     configure,
     setApiKey,
+    setOpenAiApiKey,
+    setAnthropicApiKey,
+    setOpenRouterApiKey,
+    setLiteLlmApiKey,
+    setGeminiLlmApiKey,
     setSessionApiKey,
     setGithubToken,
     setElevenLabsApiKey,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ConversationState, EventLog, SecretRegistry, AsyncLock } from '../runtime';
 import { isConversationStateUpdateEvent } from '../types';
 
@@ -21,6 +21,16 @@ describe('SecretRegistry', () => {
     registry.register('token', 'abc');
     await expect(registry.get('token')).resolves.toBe('abc');
   });
+
+  it('reads secrets from SecretStorage when provided', async () => {
+    const storage = {
+      get: vi.fn(async (key: string) => (key === 'OPENAI_API_KEY' ? 'sk-storage' : undefined)),
+    };
+    const registry = new SecretRegistry(storage as any);
+
+    await expect(registry.get('OPENAI_API_KEY')).resolves.toBe('sk-storage');
+    expect(storage.get).toHaveBeenCalledWith('OPENAI_API_KEY');
+  });
 });
 
 describe('AsyncLock', () => {
@@ -40,4 +50,3 @@ describe('AsyncLock', () => {
     expect(order).toEqual([1, 2]);
   });
 });
-

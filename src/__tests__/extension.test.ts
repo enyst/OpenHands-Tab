@@ -64,6 +64,12 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     constructor(_params?: unknown) {}
   }
 
+  class SecretRegistry {
+    constructor(_storage?: unknown) {}
+
+    set = vi.fn();
+  }
+
   const Conversation = vi.fn((options: any) => {
     const emitter = new EventEmitter() as any;
     emitter.mode = options?.serverUrl ? 'remote' : 'local';
@@ -105,6 +111,7 @@ vi.mock('@openhands/agent-sdk-ts', () => {
   return {
     AgentContext,
     Conversation,
+    SecretRegistry,
     isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),
     isBashExit: vi.fn((event: any) => event?.type === 'BashExit'),
