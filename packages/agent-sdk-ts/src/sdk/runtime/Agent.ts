@@ -728,7 +728,7 @@ export class Agent extends EventEmitter {
 
   private buildChatRequest() {
     const systemPrompt = this.buildSystemPrompt();
-    const messages = this.events
+    const rawMessages = this.events
       .list()
       .filter(isMessageEvent)
       .map((event) => {
@@ -737,8 +737,69 @@ export class Agent extends EventEmitter {
         }
         return event.llm_message;
       });
+    const messages = this.sanitizeChatMessages(rawMessages);
     const tools = this.getToolDefinitions();
     return { systemPrompt, messages, tools };
+  }
+
+  // OpenAI-compatible providers require that assistant tool_calls are followed by tool messages for each tool_call_id.
+  // If we encounter conversation-level tool execution failures, we intentionally do not emit tool messages; sanitize
+  // orphan tool_calls from the next request to avoid poisoning the conversation history.
+  private sanitizeChatMessages(messages: Message[]): Message[] {
+    const sanitized: Array<Message | null> = [];
+
+    let pendingAssistantIndex: number | null = null;
+    let pendingAssistantMessage: Message | null = null;
+    let pendingToolResponseIds = new Set<string>();
+
+    const hasMeaningfulAssistantContent = (message: Message): boolean => {
+      if (message.responses_reasoning_item) return true;
+      if (typeof message.reasoning_content === 'string' && message.reasoning_content.trim().length > 0) return true;
+      return message.content.some((part) => (part.type === 'text' ? part.text.trim().length > 0 : true));
+    };
+
+    const flushPendingAssistant = () => {
+      if (pendingAssistantIndex === null || !pendingAssistantMessage) return;
+
+      const originalToolCalls = pendingAssistantMessage.tool_calls ?? [];
+      const matchingToolCalls = originalToolCalls.filter((call) => pendingToolResponseIds.has(call.id));
+
+      if (matchingToolCalls.length === 0) {
+        const withoutToolCalls: Message = { ...pendingAssistantMessage, tool_calls: undefined };
+        sanitized[pendingAssistantIndex] = hasMeaningfulAssistantContent(withoutToolCalls) ? withoutToolCalls : null;
+      } else {
+        sanitized[pendingAssistantIndex] = { ...pendingAssistantMessage, tool_calls: matchingToolCalls };
+      }
+
+      pendingAssistantIndex = null;
+      pendingAssistantMessage = null;
+      pendingToolResponseIds = new Set<string>();
+    };
+
+    for (const message of messages) {
+      if (message.role === 'assistant') {
+        flushPendingAssistant();
+
+        if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+          pendingAssistantIndex = sanitized.length;
+          pendingAssistantMessage = message;
+          pendingToolResponseIds = new Set<string>();
+        }
+
+        sanitized.push(message);
+        continue;
+      }
+
+      if (pendingAssistantMessage && message.role === 'tool' && typeof message.tool_call_id === 'string') {
+        pendingToolResponseIds.add(message.tool_call_id);
+      }
+
+      sanitized.push(message);
+    }
+
+    flushPendingAssistant();
+
+    return sanitized.filter((message): message is Message => Boolean(message));
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {
