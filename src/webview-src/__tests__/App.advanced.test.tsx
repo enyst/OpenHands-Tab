@@ -855,10 +855,13 @@ describe('App - Advanced Test Coverage', () => {
         expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
       });
 
-      postToWindow({ type: 'workspaceFiles', files: ['README.md', 'src/index.ts'] });
-
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
+        act(() => {
+          window.dispatchEvent(new MessageEvent('message', {
+            data: { type: 'workspaceFiles', files: ['README.md', 'src/index.ts'] }
+          }));
+        });
+        expect(screen.getByText('README.md')).toBeInTheDocument();
       });
 
       fireEvent.click(screen.getByText('README.md'));
