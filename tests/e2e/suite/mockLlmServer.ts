@@ -172,17 +172,23 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
         return;
       }
 
-      if (path === '/chat/completions') {
+      const normalizedPath = path.startsWith('/api/v1/')
+        ? path.slice('/api/v1'.length)
+        : path.startsWith('/v1/')
+          ? path.slice('/v1'.length)
+          : path;
+
+      if (normalizedPath === '/chat/completions') {
         sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');
         return;
       }
 
-      if (path === '/responses') {
+      if (normalizedPath === '/responses') {
         sendOpenAiResponsesJson(res, 'OK (responses)');
         return;
       }
 
-      if (path === '/messages') {
+      if (normalizedPath === '/messages') {
         sendAnthropicMessagesSse(res, 'OK (anthropic)');
         return;
       }
