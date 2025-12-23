@@ -210,7 +210,6 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
  * Status message debouncing configuration
  */
 const STATUS_DEBOUNCE_MS = 600;
-let lastStatusMessage = { level: '' as 'info' | 'warn' | 'error', message: '', at: 0 };
 
 /**
  * Main App component: React webview root for OpenHands extension.
@@ -242,6 +241,9 @@ export function App() {
   // UI state
   const [statusBanner, setStatusBanner] = useState<StatusBannerState | null>(
     { message: 'Initializing…', level: 'info' }
+  );
+  const lastStatusMessageRef = useRef<{ level: 'info' | 'warn' | 'error'; message: string; at: number }>(
+    { level: 'info', message: '', at: 0 }
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -461,10 +463,11 @@ export function App() {
   // Show status message with debouncing
   const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
     const now = Date.now();
-    if (lastStatusMessage.level === level && lastStatusMessage.message === message && now - lastStatusMessage.at < STATUS_DEBOUNCE_MS) {
+    const prev = lastStatusMessageRef.current;
+    if (prev.level === level && prev.message === message && now - prev.at < STATUS_DEBOUNCE_MS) {
       return;
     }
-    lastStatusMessage = { level, message, at: now };
+    lastStatusMessageRef.current = { level, message, at: now };
     setStatusBanner({ message, level });
   }, []);
 
