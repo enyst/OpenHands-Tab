@@ -116,6 +116,12 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - LLM defaults: user-level defaults, overridable per workspace
   - Secrets: always global SecretStorage (per machine), not synced in settings
 
+Gemini note (main agent LLM):
+- The extension’s `openhands.gemini.*` settings are used for HAL `voice_confirm` decision classification only.
+- The main agent LLM does not support the native Gemini API yet; to use Gemini models today, use an OpenAI-compatible proxy:
+  - OpenRouter: set `openhands.llm.provider = openrouter` and use an OpenRouter Gemini model id like `google/gemini-2.0-flash`.
+  - LiteLLM: run a LiteLLM OpenAI-compatible proxy and set `openhands.llm.provider = litellm_proxy` + `openhands.llm.baseUrl` to the proxy URL.
+
 5) Practical mapping at runtime
 - Start New Conversation request body (extension → server)
   - agent.llm: built from

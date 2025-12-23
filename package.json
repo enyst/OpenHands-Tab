@@ -110,7 +110,7 @@
             "type": "string",
             "default": "claude-sonnet-4-20250514",
             "order": 1,
-            "markdownDescription": "Default model name for LLM requests."
+            "markdownDescription": "Default model name for LLM requests.\n\nTip: to use Gemini models today, select `openhands.llm.provider = openrouter` and set this to an OpenRouter Gemini model id like `google/gemini-2.0-flash`."
           },
           "openhands.llm.apiKey": {
             "type": "string",
@@ -135,7 +135,7 @@
             ],
             "default": "auto",
             "order": 4,
-            "markdownDescription": "LLM provider selection. Use `auto` to infer from `openhands.llm.baseUrl` when set; otherwise local mode defaults to Anthropic."
+            "markdownDescription": "LLM provider selection. Use `auto` to infer from `openhands.llm.baseUrl` when set; otherwise local mode defaults to Anthropic.\n\nGemini note: the main agent LLM does not support the native Gemini API yet. To use Gemini models today, use `openrouter` (recommended) or `litellm_proxy`."
           },
           "openhands.llm.temperature": {
             "type": "number",

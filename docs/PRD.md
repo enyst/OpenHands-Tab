@@ -124,6 +124,10 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - `openhands.confirmation.policy` - never/always/risky; `risky.threshold` default MEDIUM; `risky.confirmUnknown`
 - `openhands.conversation.maxIterations` - iteration limit
 
+Gemini note:
+- `openhands.gemini.*` is used for HAL `voice_confirm` decision classification only (not the agent’s main LLM).
+- To use Gemini models as the main agent LLM today, route via an OpenAI-compatible proxy: OpenRouter (`openhands.llm.provider = openrouter`) or a LiteLLM proxy (`openhands.llm.provider = litellm_proxy`).
+
 For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup.md.
 
 ### Connection & Conversation Lifecycle
