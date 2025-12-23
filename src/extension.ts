@@ -11,6 +11,7 @@ import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { safeStringify } from './shared/safeStringify';
 import { getGlobalStorageBaseDir } from './shared/pastedImages';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
+import { ConversationEventBacklog, type BufferedConversationEvent } from './conversation/eventBacklog';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
 import {
   AgentContext,
@@ -89,12 +90,7 @@ let verboseEventLogging = false;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
-type BufferedConversationEvent = { seq: number; event: Event };
-const conversationEventBacklog: Array<BufferedConversationEvent | undefined> = [];
-let conversationEventBacklogStart = 0;
-let conversationEventBacklogSize = 0;
-let conversationEventSeq = 0;
-let activeConversationId: string | undefined;
+const eventBacklog = new ConversationEventBacklog({ maxSize: MAX_EVENT_BACKLOG });
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
 const MAX_TEST_EVENTS = MAX_EVENT_BACKLOG;
 const sentTestEvents: Event[] = [];
@@ -164,33 +160,15 @@ function fileLog(line: string) {
 }
 
 function resetConversationEventBacklog(conversationId: string | undefined) {
-  activeConversationId = conversationId;
-  conversationEventSeq = 0;
-  conversationEventBacklogStart = 0;
-  conversationEventBacklogSize = 0;
-  conversationEventBacklog.length = 0;
+  eventBacklog.reset(conversationId);
 }
 
 function bufferConversationEvent(event: Event): number {
-  conversationEventSeq += 1;
-  const item: BufferedConversationEvent = { seq: conversationEventSeq, event };
-  if (conversationEventBacklogSize < MAX_EVENT_BACKLOG) {
-    const idx = (conversationEventBacklogStart + conversationEventBacklogSize) % MAX_EVENT_BACKLOG;
-    conversationEventBacklog[idx] = item;
-    conversationEventBacklogSize += 1;
-  } else {
-    conversationEventBacklog[conversationEventBacklogStart] = item;
-    conversationEventBacklogStart = (conversationEventBacklogStart + 1) % MAX_EVENT_BACKLOG;
-  }
-  return conversationEventSeq;
+  return eventBacklog.push(event);
 }
 
 function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
-  for (let i = 0; i < conversationEventBacklogSize; i += 1) {
-    const idx = (conversationEventBacklogStart + i) % MAX_EVENT_BACKLOG;
-    const item = conversationEventBacklog[idx];
-    if (item) yield item;
-  }
+  yield* eventBacklog.iter();
 }
 
 function flushConversationEventBacklog(params: {
@@ -198,44 +176,18 @@ function flushConversationEventBacklog(params: {
   clientConversationId?: string;
   clientLastSeenSeq?: number;
 }) {
-  const currentConversationId = activeConversationId ?? conversation?.getConversationId();
-  if (!currentConversationId) {
-    return;
-  }
+  const webview = chatView?.webview;
+  const transformEvent = webview
+    ? (event: Event) => transformEventForWebviewWithPastedImages(event, { webview, pastedImagesBaseDir })
+    : undefined;
 
-  const earliestSeq = conversationEventBacklogSize > 0 ? conversationEventSeq - conversationEventBacklogSize + 1 : undefined;
-  const latestSeq = conversationEventBacklogSize > 0 ? conversationEventSeq : undefined;
-  const lastSeenSeq = params.clientLastSeenSeq;
-
-  const lastSeenIsValid = typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq);
-  const isInRange = lastSeenIsValid && (earliestSeq === undefined || lastSeenSeq >= earliestSeq - 1);
-  const needsFullReplay = params.clientConversationId !== currentConversationId || !isInRange;
-
-  if (needsFullReplay) {
-    void params.postMessage({ type: 'conversationStarted', conversationId: currentConversationId });
-    for (const item of iterConversationEventBacklog()) {
-      const webview = chatView?.webview;
-      const event = webview
-        ? transformEventForWebviewWithPastedImages(item.event, { webview, pastedImagesBaseDir })
-        : item.event;
-      void params.postMessage({ type: 'event', seq: item.seq, event });
-    }
-    return;
-  }
-
-  if (latestSeq === undefined || lastSeenSeq === undefined || lastSeenSeq >= latestSeq) {
-    return;
-  }
-
-  for (const item of iterConversationEventBacklog()) {
-    if (item.seq > lastSeenSeq) {
-      const webview = chatView?.webview;
-      const event = webview
-        ? transformEventForWebviewWithPastedImages(item.event, { webview, pastedImagesBaseDir })
-        : item.event;
-      void params.postMessage({ type: 'event', seq: item.seq, event });
-    }
-  }
+  eventBacklog.flushToClient({
+    postMessage: params.postMessage,
+    clientConversationId: params.clientConversationId,
+    clientLastSeenSeq: params.clientLastSeenSeq,
+    fallbackConversationId: conversation?.getConversationId(),
+    transformEvent,
+  });
 }
 
 const normalizeTerminalNewlines = (text: string): string => text.replace(/\r?\n/g, '\r\n');
@@ -999,9 +951,9 @@ export function activate(context: vscode.ExtensionContext) {
         clientLastSeenSeq: chatLastSeenSeq,
       },
       eventBacklog: {
-        activeConversationId,
-        size: conversationEventBacklogSize,
-        latestSeq: conversationEventSeq,
+        activeConversationId: eventBacklog.getConversationId(),
+        size: eventBacklog.getSize(),
+        latestSeq: eventBacklog.getLatestSeq() ?? 0,
       },
       hasConversation: !!conversation,
       conversationId: conversation?.getConversationId(),
@@ -1058,9 +1010,9 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     return {
-      activeConversationId,
-      size: conversationEventBacklogSize,
-      latestSeq: conversationEventSeq,
+      activeConversationId: eventBacklog.getConversationId(),
+      size: eventBacklog.getSize(),
+      latestSeq: eventBacklog.getLatestSeq() ?? 0,
       lastEventSeq,
       lastEventKind,
       lastUserMessageSeq,
