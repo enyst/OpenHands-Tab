@@ -14,11 +14,41 @@ export type HalTtsResult =
   | { ok: true; bytes: Uint8Array }
   | { ok: false; error: string; kind: ElevenLabsErrorKind; disabled: boolean; shouldNotify: boolean };
 
-export class TtsConversationGate {
-  private readonly disabled = new Set<string>();
-  private readonly notified = new Set<string>();
+type CappedSetOptions = { maxSize: number };
 
-  constructor(private readonly tts: ElevenLabsTtsService) {}
+class CappedSet {
+  private readonly map = new Map<string, true>();
+  private readonly maxSize: number;
+
+  constructor(opts: CappedSetOptions) {
+    this.maxSize = Math.max(1, opts.maxSize);
+  }
+
+  has(value: string): boolean {
+    return this.map.has(value);
+  }
+
+  add(value: string): void {
+    if (this.map.has(value)) return;
+    this.map.set(value, true);
+    if (this.map.size <= this.maxSize) return;
+    const oldest = this.map.keys().next().value;
+    if (oldest) this.map.delete(oldest);
+  }
+}
+
+export class TtsConversationGate {
+  private readonly disabled: CappedSet;
+  private readonly notified: CappedSet;
+
+  constructor(
+    private readonly tts: ElevenLabsTtsService,
+    opts?: { maxTrackedConversationIds?: number }
+  ) {
+    const maxTrackedConversationIds = opts?.maxTrackedConversationIds ?? 200;
+    this.disabled = new CappedSet({ maxSize: maxTrackedConversationIds });
+    this.notified = new CappedSet({ maxSize: maxTrackedConversationIds });
+  }
 
   async synthesize(req: HalTtsRequest): Promise<HalTtsResult> {
     if (this.disabled.has(req.conversationId)) {
@@ -51,4 +81,3 @@ export class TtsConversationGate {
     }
   }
 }
-
