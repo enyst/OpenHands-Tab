@@ -114,6 +114,19 @@ export const validateProfile = (payload: unknown): LLMConfiguration => {
     throw new LLMProfileValidationError('Profile must include a non-empty "model" string');
   }
 
+  if ('profileId' in payload && payload.profileId !== undefined && payload.profileId !== null) {
+    if (typeof payload.profileId !== 'string') {
+      throw new LLMProfileValidationError('profileId must be a string or null');
+    }
+    assertValidProfileId(payload.profileId);
+  }
+
+  if ('profileName' in payload && payload.profileName !== undefined && payload.profileName !== null) {
+    if (typeof payload.profileName !== 'string' || !payload.profileName.trim()) {
+      throw new LLMProfileValidationError('profileName must be a non-empty string or null');
+    }
+  }
+
   if ('provider' in payload && payload.provider !== undefined && payload.provider !== null) {
     if (!isLLMProvider(payload.provider)) {
       throw new LLMProfileValidationError(`Unsupported provider: ${JSON.stringify(payload.provider)}`);
