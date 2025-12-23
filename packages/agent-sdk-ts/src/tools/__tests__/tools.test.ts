@@ -155,6 +155,8 @@ describe('FileEditorTool', () => {
 
   it('directory view skips unreadable child directories', async () => {
     if (process.platform === 'win32') return;
+    // Root can read any directory regardless of permissions, so skip this test
+    if (process.getuid?.() === 0) return;
 
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
