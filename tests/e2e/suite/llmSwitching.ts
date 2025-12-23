@@ -195,14 +195,14 @@ export async function run(): Promise<void> {
 
     // 6) LLM profile selection: Sonnet profile should override raw provider/model.
     await setLlmConfig({
-      profileId: 'sonnet-4',
+      profileId: 'sonnet-45',
       provider: 'openai',
       model: 'gpt-4o-mini',
       openaiApiMode: 'chat_completions',
       baseUrl: mock.baseUrl,
     });
     await sendAndWaitForRequestPath({
-      text: 'E2E step 6: profile sonnet-4',
+      text: 'E2E step 6: profile sonnet-45',
       expectedPath: '/messages',
       getRequests: () => mock.requests,
     });

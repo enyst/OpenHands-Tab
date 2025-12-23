@@ -333,7 +333,7 @@ export const DEFAULT_LLM_PROFILE_IDS = [
   'gemini-flash',
   'gpt-5',
   'gpt-5-mini',
-  'sonnet-4',
+  'sonnet-45',
 ] as const;
 
 export type DefaultLlmProfileId = typeof DEFAULT_LLM_PROFILE_IDS[number];
@@ -367,12 +367,12 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
     },
   },
   {
-    profileId: 'sonnet-4',
+    profileId: 'sonnet-45',
     config: {
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.anthropic,
-      profileName: 'Sonnet 4',
+      profileName: 'Sonnet 4.5',
     },
   },
 ];
