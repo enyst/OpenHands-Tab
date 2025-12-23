@@ -25,6 +25,7 @@ import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
+import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
 
 export type AgentRunInput = string | Message;
 
@@ -524,7 +525,15 @@ export class Agent extends EventEmitter {
         }
       }
       this.state.setStatus('RUNNING');
-      await this.executeTool(pending.toolCall, pending.actionEvent, pending.args);
+      try {
+        await this.executeTool(pending.toolCall, pending.actionEvent, pending.args);
+      } catch (error) {
+        if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
+          this.events.push(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
+        }
+        this.state.setStatus('IDLE');
+        throw error;
+      }
       await this.runLoop();
     });
   }
@@ -581,7 +590,8 @@ export class Agent extends EventEmitter {
     try {
       orchestrator = await this.getOrchestrator();
     } catch (error) {
-      this.events.push(this.toConversationErrorEvent(error));
+      const classified = classifyError(error, { stage: 'llm_init' });
+      this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
       this.state.setStatus('IDLE');
       // Allow a future retry after settings/secrets are updated.
       this.orchestratorPromise = undefined;
@@ -615,7 +625,8 @@ export class Agent extends EventEmitter {
       try {
         response = await orchestrator.runChat(request);
       } catch (error) {
-        this.events.push(this.toConversationErrorEvent(error));
+        const classified = classifyError(error, { stage: 'llm_request' });
+        this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
         this.state.setStatus('IDLE');
         break;
       }
@@ -689,7 +700,12 @@ export class Agent extends EventEmitter {
 
         try {
           await this.executeTool(toolCall, recordedAction, actionArgs);
-        } catch {
+        } catch (error) {
+          if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
+            this.events.push(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
+            this.state.setStatus('IDLE');
+            return lastAssistantMessage;
+          }
           toolExecutionFailed = true;
           // Continue processing other tool calls but mark this iteration as failed
         }
@@ -819,9 +835,9 @@ export class Agent extends EventEmitter {
     return factory.createClient();
   }
 
-  private toConversationErrorEvent(error: unknown): Event {
-    const message = stringifyErrorWithCause(error);
-    const code = this.classifyConversationError(message);
+  private toConversationErrorEvent(error: unknown, options?: { code?: string; message?: string }): Event {
+    const message = options?.message ?? stringifyErrorWithCause(error);
+    const code = options?.code ?? classifyConversationErrorCode(message);
     const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
     const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
     const configuredProvider = this.options.settings?.llm?.provider ?? undefined;
@@ -846,13 +862,6 @@ export class Agent extends EventEmitter {
 
     const detail = `${message} (${contextParts.join(', ')})`;
     return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail } as Event;
-  }
-
-  private classifyConversationError(message: string): string | undefined {
-    if (message.includes('Missing API key for LLM provider')) return 'missing_llm_api_key';
-    if (message.includes('LLM model is not configured')) return 'llm_model_not_configured';
-    if (message.startsWith('LLM request failed')) return 'llm_request_failed';
-    return undefined;
   }
 
   private ensureSystemPrompt() {
@@ -914,8 +923,8 @@ export class Agent extends EventEmitter {
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
-      const errText = `Error validating args ${raw} for tool '${toolCall.function.name}': ${e instanceof Error ? e.message : String(e)}`;
-      this.emitToolError(toolCall, errText);
+      const classified = classifyError(e, { stage: 'tool_args', toolName: toolCall.function.name, rawArgs: raw });
+      this.emitToolError(toolCall, classified.message);
       return undefined;
     }
   }
@@ -973,17 +982,18 @@ export class Agent extends EventEmitter {
     if (!tool) {
       const available = Array.from(this.tools.keys());
       const errText = `Tool '${toolCall.function.name}' not found. Available: ${JSON.stringify(available)}`;
-      this.emitToolError(toolCall, errText);
-      throw new Error(errText);
+      const classified = classifyError(errText, { stage: 'tool_lookup', toolName: toolCall.function.name });
+      this.emitToolError(toolCall, classified.message);
+      throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
     }
 
     let validated;
     try {
       validated = tool.validate(args);
     } catch (e) {
-      const errText = `Error validating args ${toolCall.function.arguments} for tool '${tool.name}': ${e instanceof Error ? e.message : String(e)}`;
-      this.emitToolError(toolCall, errText);
-      throw new Error(errText);
+      const classified = classifyError(e, { stage: 'tool_validation', toolName: tool.name, rawArgs: toolCall.function.arguments });
+      this.emitToolError(toolCall, classified.message);
+      throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
     }
 
     try {
@@ -1020,10 +1030,17 @@ export class Agent extends EventEmitter {
       };
       this.events.push(toolMessage);
     } catch (e) {
-      const errText = e instanceof Error ? e.message : String(e);
-      // Treat execution failures as agent-visible errors so the LLM can self-correct
-      this.emitToolError(toolCall, errText);
-      throw e;
+      const classified = classifyError(e, { stage: 'tool_execute', toolName: tool.name });
+      if (classified.classification === 'agent') {
+        // Treat execution failures as agent-visible errors so the LLM can self-correct.
+        this.emitToolError(toolCall, classified.message);
+        throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
+      }
+      throw new ClassifiedToolExecutionError({
+        classification: 'conversation',
+        message: classified.message,
+        ...(classified.code ? { code: classified.code } : {}),
+      });
     }
   }
 
