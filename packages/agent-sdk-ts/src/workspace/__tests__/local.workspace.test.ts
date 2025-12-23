@@ -26,6 +26,21 @@ describe('LocalWorkspace', () => {
       expect(content).toBe('hello');
     });
 
+    it('reads file bytes inside the sandbox', async () => {
+      const { workspace } = await makeWorkspace((dir) => created.push(dir));
+      const payload = Buffer.from([0, 1, 2, 3, 255]);
+      await workspace.writeFile('bytes.bin', payload);
+      const read = await workspace.readFileBytes('bytes.bin');
+      expect(read).toEqual(payload);
+    });
+
+    it('enforces maxBytes in readFileBytes', async () => {
+      const { workspace } = await makeWorkspace((dir) => created.push(dir));
+      const payload = Buffer.alloc(2 * 1024 * 1024, 1);
+      await workspace.writeFile('big.bin', payload);
+      await expect(workspace.readFileBytes('big.bin', { maxBytes: 1024 * 1024 })).rejects.toThrowError(/too large/i);
+    });
+
     it('blocks path traversal attacks', async () => {
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
       const vectors = [
