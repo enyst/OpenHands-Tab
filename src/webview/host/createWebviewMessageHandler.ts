@@ -5,8 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as readline from 'readline';
 import { TextDecoder } from 'util';
-import { FileStore } from '@openhands/agent-sdk-ts';
-import { isEvent, isMessageEvent, isTextContent } from '@openhands/agent-sdk-ts';
+import { FileStore, isEvent, isMessageEvent, isTextContent, listProfiles } from '@openhands/agent-sdk-ts';
 import { SettingsManager, type SavedServer } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -32,6 +31,7 @@ type WebviewMessage =
   | { type: 'restoreConversation'; id: string }
   | { type: 'deleteConversation'; id: string }
   | { type: 'getConfig' }
+  | { type: 'setLlmProfileId'; profileId: string | null }
   | { type: 'selectServer'; url: string }
   | { type: 'addServer'; server: SavedServer }
   | { type: 'removeServer'; url: string }
@@ -373,6 +373,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
     const outputChannel = deps.getOutputChannel();
     const conversation = deps.getConversation();
 
+    const listAvailableLlmProfiles = (): string[] => {
+      try {
+        return listProfiles();
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        outputChannel?.appendLine(`[llm] Failed to list profiles: ${reason}`);
+        return [];
+      }
+    };
+
     const sendHistoryList = async (): Promise<void> => {
       try {
         const convRoot = deps.getConversationStoreRoot() ?? (await deps.resolveConversationStoreRoot());
@@ -441,6 +451,12 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           mode: deps.getConversationMode(),
           llmProfileLabel: deps.getLastKnownLlmLabel(),
           llmModel: deps.getLastKnownLlmLabel(),
+        });
+
+        void host.postMessage({
+          type: 'llmProfilesUpdated',
+          profiles: listAvailableLlmProfiles(),
+          activeProfileId: initSettings.llm.profileId ?? null,
         });
 
         void host.postMessage({
@@ -585,6 +601,28 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'getConfig': {
         const settings = await settingsMgr.get();
         void host.postMessage({ type: 'config', serverUrl: settings.serverUrl ?? null, mode: deps.getConversationMode() });
+        break;
+      }
+      case 'setLlmProfileId': {
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        await settingsMgr.update({ llm: { profileId } });
+
+        const updated = await settingsMgr.get();
+        deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(updated));
+
+        void host.postMessage({
+          type: 'status',
+          status: conversation?.getStatus() ?? 'offline',
+          mode: deps.getConversationMode(),
+          llmProfileLabel: deps.getLastKnownLlmLabel(),
+          llmModel: deps.getLastKnownLlmLabel(),
+        });
+
+        void host.postMessage({
+          type: 'llmProfilesUpdated',
+          profiles: listAvailableLlmProfiles(),
+          activeProfileId: updated.llm.profileId ?? null,
+        });
         break;
       }
       case 'selectServer': {

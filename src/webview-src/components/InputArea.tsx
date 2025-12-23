@@ -7,9 +7,11 @@ interface InputAreaProps {
   onSubmit: () => void;
   disabled?: boolean;
   placeholder?: string;
-  // LLM model display
-  modelLabel?: string;
-  onOpenModelSettings?: () => void;
+  // LLM profile selector
+  llmProfileId: string | null;
+  llmProfiles: string[];
+  llmProfileLabel?: string | null;
+  onSelectLlmProfileId: (profileId: string | null) => void;
   // Context picker
   onOpenContext: () => void;
   contextCount?: number;
@@ -33,8 +35,10 @@ export function InputArea({
   onSubmit,
   disabled = false,
   placeholder = 'Ask OpenHands anything...',
-  modelLabel,
-  onOpenModelSettings,
+  llmProfileId,
+  llmProfiles,
+  llmProfileLabel,
+  onSelectLlmProfileId,
   onOpenContext,
   contextCount = 0,
   onOpenSkills,
@@ -158,35 +162,12 @@ export function InputArea({
 
         {/* Accessory buttons row */}
         <div className="flex items-center gap-2 mt-3">
-	          {modelLabel !== undefined && (
-	            <button
-	              type="button"
-	              onClick={onOpenModelSettings}
-              className={`
-                inline-flex items-center gap-2
-                px-3 py-2 rounded-lg
-                text-xs font-medium
-                transition-all duration-200
-                border
-                focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-                ${onOpenModelSettings
-                  ? 'bg-white/[0.04] text-stone-400 border-white/[0.06] hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]'
-                  : 'bg-white/[0.02] text-stone-600 border-white/[0.03] cursor-not-allowed'
-	              }
-	            `}
-	              aria-label="LLM model"
-	              title={
-	                onOpenModelSettings
-	                  ? `LLM model: ${modelLabel} (click to change in settings)`
-	                  : `LLM model: ${modelLabel}`
-	              }
-	              disabled={!onOpenModelSettings}
-	            >
-              <span className="codicon codicon-symbol-parameter text-[13px] text-brand-400/70" />
-              <span className="text-stone-500">Model</span>
-              <span className="font-mono text-stone-300 truncate max-w-[14rem]">{modelLabel}</span>
-            </button>
-          )}
+          <LlmProfileSelector
+            profileId={llmProfileId}
+            profiles={llmProfiles}
+            fallbackLabel={llmProfileLabel}
+            onSelect={onSelectLlmProfileId}
+          />
 
           <AccessoryButton
             icon="mention"
@@ -272,6 +253,122 @@ interface AccessoryButtonProps {
   onClick: () => void;
   badge?: number;
   comingSoon?: boolean;
+}
+
+interface LlmProfileSelectorProps {
+  profileId: string | null;
+  profiles: string[];
+  fallbackLabel?: string | null;
+  onSelect: (profileId: string | null) => void;
+}
+
+function LlmProfileSelector({ profileId, profiles, fallbackLabel, onSelect }: LlmProfileSelectorProps) {
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useCloseOnEscapeAndOutsideClick({ isOpen, onClose: () => setIsOpen(false), ref: popoverRef, delay: 100 });
+
+  const shown = profileId ?? 'None';
+  const tooltip = profileId
+    ? `LLM profile: ${profileId}`
+    : `LLM profile: None${fallbackLabel ? ` (using ${fallbackLabel})` : ''}`;
+  const sanitizedProfiles = profiles.filter((id) => typeof id === 'string' && id.trim().length > 0);
+
+  const handleSelect = (next: string | null) => {
+    onSelect(next);
+    setIsOpen(false);
+  };
+
+  const isSelected = (candidate: string | null) => candidate === profileId;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className={`
+          inline-flex items-center gap-2
+          px-3 py-2 rounded-lg
+          text-xs font-medium
+          transition-all duration-200
+          border
+          focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+          bg-white/[0.04] text-stone-400 border-white/[0.06]
+          hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]
+        `}
+        aria-label="LLM profile"
+        title={tooltip}
+      >
+        <span className="codicon codicon-symbol-parameter text-[13px] text-brand-400/70" />
+        <span className="font-mono text-stone-300 truncate max-w-[14rem]">{shown}</span>
+        <span className={`codicon codicon-chevron-${isOpen ? 'up' : 'down'} text-[12px] opacity-70`} />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={popoverRef}
+          className="absolute bottom-full left-0 mb-2 w-72 bg-[var(--vscode-editor-background)] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+        >
+          <div className="px-4 py-3 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <span className="codicon codicon-symbol-parameter text-brand-400" />
+              <h3 className="font-semibold text-sm">LLM Profile</h3>
+            </div>
+          </div>
+
+          <div className="p-2 space-y-1" role="listbox" aria-label="LLM profiles">
+            <button
+              type="button"
+              onClick={() => handleSelect(null)}
+              role="option"
+              aria-selected={isSelected(null)}
+              className={`
+                w-full text-left px-3 py-2 rounded-lg
+                text-sm
+                transition-colors duration-150
+                hover:bg-white/10
+                flex items-center gap-2
+                ${isSelected(null) ? 'bg-brand-500/20 text-brand-300' : 'text-stone-300'}
+              `}
+            >
+              <span className="codicon codicon-circle-slash" />
+              <span className="flex-1">None</span>
+              {isSelected(null) && <span className="codicon codicon-check text-brand-400" />}
+            </button>
+
+            {sanitizedProfiles.length === 0 ? (
+              <div className="px-3 py-2 text-sm opacity-60">No profiles found</div>
+            ) : (
+              sanitizedProfiles.map((id) => {
+                const selected = isSelected(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => handleSelect(id)}
+                    role="option"
+                    aria-selected={selected}
+                    className={`
+                      w-full text-left px-3 py-2 rounded-lg
+                      text-sm
+                      transition-colors duration-150
+                      hover:bg-white/10
+                      flex items-center gap-2
+                      ${selected ? 'bg-brand-500/20 text-brand-300' : 'text-stone-300'}
+                    `}
+                  >
+                    <span className="codicon codicon-symbol-misc" />
+                    <span className="flex-1 font-mono truncate">{id}</span>
+                    {selected && <span className="codicon codicon-check text-brand-400" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AccessoryButton({ icon, label, onClick, badge, comingSoon }: AccessoryButtonProps) {
