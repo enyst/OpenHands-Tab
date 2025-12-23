@@ -26,6 +26,14 @@ export interface SaveProfileOptions extends LLMProfileStoreOptions {
   includeSecrets?: boolean;
 }
 
+const warnedOnce = new Set<string>();
+
+const warnOnce = (key: string, message: string, error: unknown): void => {
+  if (warnedOnce.has(key)) return;
+  warnedOnce.add(key);
+  console.warn(message, error);
+};
+
 const expandHomeDir = (value: string): string => {
   if (value === '~') return os.homedir();
   if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2));
@@ -221,15 +229,28 @@ const stripSecrets = (config: LLMConfiguration): LLMConfiguration => {
   return sanitized;
 };
 
+const ensureDefaultProfilesForDefaultStore = (rootDir: string, options: LLMProfileStoreOptions): void => {
+  if (options.rootDir) return;
+  try {
+    ensureDefaultProfiles({ ...options, rootDir });
+  } catch (error) {
+    warnOnce(
+      `ensure-default-profiles:${rootDir}`,
+      `[agent-sdk-ts] Failed to ensure default LLM profiles in ${rootDir}:`,
+      error,
+    );
+  }
+};
+
+/**
+ * Lists available LLM profile ids.
+ *
+ * When using the default store (`~/.openhands/llm-profiles`), this will best-effort seed a few
+ * canonical profiles on first use.
+ */
 export const listProfiles = (options: LLMProfileStoreOptions = {}): string[] => {
   const rootDir = resolveRootDir(options);
-  if (!options.rootDir) {
-    try {
-      ensureDefaultProfiles();
-    } catch {
-      // Best-effort; listing should still work even if we cannot seed defaults.
-    }
-  }
+  ensureDefaultProfilesForDefaultStore(rootDir, options);
   if (!fs.existsSync(rootDir)) return [];
 
   const profileIds: string[] = [];
@@ -246,15 +267,15 @@ export const listProfiles = (options: LLMProfileStoreOptions = {}): string[] => 
   return profileIds.sort((a, b) => a.localeCompare(b));
 };
 
+/**
+ * Loads an LLM profile stored on disk.
+ *
+ * When using the default store (`~/.openhands/llm-profiles`), this will best-effort seed a few
+ * canonical profiles on first use.
+ */
 export const loadProfile = (profileId: string, options: LLMProfileStoreOptions = {}): LLMProfile => {
   const rootDir = resolveRootDir(options);
-  if (!options.rootDir) {
-    try {
-      ensureDefaultProfiles();
-    } catch {
-      // Best-effort; loading user profiles should still report missing profiles.
-    }
-  }
+  ensureDefaultProfilesForDefaultStore(rootDir, options);
   const filePath = getProfilePath(profileId, rootDir);
   if (!fs.existsSync(filePath)) {
     throw new LLMProfileValidationError(`Profile '${profileId}' not found`);
@@ -312,7 +333,7 @@ export const DEFAULT_LLM_PROFILE_IDS = [
   'gemini-flash',
   'gpt-5',
   'gpt-5-mini',
-  'sonnet-45',
+  'sonnet-4',
 ] as const;
 
 export type DefaultLlmProfileId = typeof DEFAULT_LLM_PROFILE_IDS[number];
@@ -346,12 +367,12 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
     },
   },
   {
-    profileId: 'sonnet-45',
+    profileId: 'sonnet-4',
     config: {
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.anthropic,
-      profileName: 'Sonnet 4.5',
+      profileName: 'Sonnet 4',
     },
   },
 ];
@@ -366,8 +387,13 @@ export const ensureDefaultProfiles = (options: LLMProfileStoreOptions = {}): Def
       if (fs.existsSync(filePath)) continue;
       saveProfile(entry.profileId, entry.config, { ...options, includeSecrets: false });
       created.push(entry.profileId);
-    } catch {
+    } catch (error) {
       // Best-effort; users may have a read-only profile directory.
+      warnOnce(
+        `create-default-profile:${rootDir}:${entry.profileId}`,
+        `[agent-sdk-ts] Failed to create default LLM profile '${entry.profileId}':`,
+        error,
+      );
     }
   }
 
