@@ -18,6 +18,10 @@ export interface LLMToolDefinition {
 export interface LLMConfiguration {
   provider?: LLMProvider;
   model: string;
+  /** Optional LLM profile identifier (filename stem under ~/.openhands/llm-profiles/). */
+  profileId?: string | null;
+  /** User-facing profile label; preferred for UI over raw model name. */
+  profileName?: string | null;
   usageId?: string | null;
   /** Only applies to OpenAI provider. */
   openaiApiMode?: OpenAIChatApi | null;
