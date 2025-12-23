@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
-import { startMockLlmServer } from './mockLlmServer';
+import { startMockLlmServer, type MockLlmRequest } from './mockLlmServer';
 
 type WebviewActionResult = {
   sent?: boolean;
@@ -16,8 +16,8 @@ async function sendAndWaitForRequestPath(options: {
   text: string;
   expectedPath: string;
   timeoutMs?: number;
-  getRequests: () => Array<{ path: string }>;
-}): Promise<void> {
+  getRequests: () => MockLlmRequest[];
+}): Promise<MockLlmRequest> {
   const { text, expectedPath, timeoutMs = 45000, getRequests } = options;
   const beforeReqCount = getRequests().length;
   const beforeDiag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
@@ -68,6 +68,15 @@ async function sendAndWaitForRequestPath(options: {
       `- lastError: ${JSON.stringify(afterError)}`,
     );
   }
+
+  const last = getRequests()
+    .slice(beforeReqCount)
+    .filter((r) => r.path === expectedPath)
+    .slice(-1)[0];
+  if (!last) {
+    throw new Error(`Expected mock request (${expectedPath}) after send, but none was recorded`);
+  }
+  return last;
 }
 
 export async function run(): Promise<void> {
@@ -143,11 +152,21 @@ export async function run(): Promise<void> {
       baseUrl: v1BaseUrl,
       model: 'gpt-4o-mini',
     });
-    await sendAndWaitForRequestPath({
+    const openaiChatReq = await sendAndWaitForRequestPath({
       text: 'E2E step 2: openai chat',
       expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
     });
+    const openaiChatJson = openaiChatReq.json;
+    if (!openaiChatJson || typeof openaiChatJson !== 'object' || Array.isArray(openaiChatJson)) {
+      throw new Error('Expected OpenAI chat_completions request to contain a JSON object body');
+    }
+    if (!('messages' in openaiChatJson)) {
+      throw new Error('Expected OpenAI chat_completions request body to contain `messages`');
+    }
+    if ('input' in openaiChatJson) {
+      throw new Error('Expected OpenAI chat_completions request body to not contain `input`');
+    }
 
     // 3) OpenAI GPT-5 auto mode + custom baseUrl should fall back to chat_completions.
     await setLlmConfig({
@@ -171,11 +190,21 @@ export async function run(): Promise<void> {
       baseUrl: v1BaseUrl,
       model: 'gpt-5-mini',
     });
-    await sendAndWaitForRequestPath({
+    const openaiResponsesReq = await sendAndWaitForRequestPath({
       text: 'E2E step 4: openai responses',
       expectedPath: expectedPaths.openaiResponses,
       getRequests: () => mock.requests,
     });
+    const openaiResponsesJson = openaiResponsesReq.json;
+    if (!openaiResponsesJson || typeof openaiResponsesJson !== 'object' || Array.isArray(openaiResponsesJson)) {
+      throw new Error('Expected OpenAI responses request to contain a JSON object body');
+    }
+    if (!('input' in openaiResponsesJson)) {
+      throw new Error('Expected OpenAI responses request body to contain `input`');
+    }
+    if ('messages' in openaiResponsesJson) {
+      throw new Error('Expected OpenAI responses request body to not contain `messages`');
+    }
 
     // 5) Provider variation: openrouter adds extra headers and still hits chat_completions.
     await setLlmConfig({
