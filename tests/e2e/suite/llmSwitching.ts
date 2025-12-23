@@ -236,12 +236,26 @@ export async function run(): Promise<void> {
 
     // 8) LLM profile selection: Sonnet profile should override raw provider/model.
     await setLlmConfig({
-      profileId: 'sonnet-45',
+      profileId: null,
       provider: 'openai',
       model: 'gpt-4o-mini',
       openaiApiMode: 'chat_completions',
       baseUrl: v1BaseUrl,
     });
+
+    const setProfile = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
+      action: 'setLlmProfileId',
+      payload: { profileId: 'sonnet-45' },
+    });
+    if (!setProfile?.sent) {
+      throw new Error(`setLlmProfileId action was not sent: ${JSON.stringify(setProfile)}`);
+    }
+
+    await pollUntil(async () => {
+      const inspected = vscode.workspace.getConfiguration().inspect<string>('openhands.llm.profileId');
+      const value = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue;
+      return value === 'sonnet-45';
+    }, 15000);
     await sendAndWaitForRequestPath({
       text: 'E2E step 8: profile sonnet-45',
       expectedPath: expectedPaths.anthropicMessages,
