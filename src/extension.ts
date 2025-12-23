@@ -96,6 +96,7 @@ let conversationEventBacklogSize = 0;
 let conversationEventSeq = 0;
 let activeConversationId: string | undefined;
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
+const MAX_TEST_EVENTS = MAX_EVENT_BACKLOG;
 const sentTestEvents: Event[] = [];
 // Track which command_ids have already printed an exit summary to avoid duplicates
 const printedExitFor = new Set<string>();
@@ -1056,6 +1057,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Test command to send mock events to webview for E2E testing
   const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
     sentTestEvents.push(event);
+    if (sentTestEvents.length > MAX_TEST_EVENTS) {
+      sentTestEvents.splice(0, sentTestEvents.length - MAX_TEST_EVENTS);
+    }
     const seq = bufferConversationEvent(event);
     if (chatView) {
       const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event };
@@ -1139,6 +1143,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensureConversationAndConnection();
+    sentTestEvents.length = 0;
     await conversation?.startNewConversation();
   });
 
@@ -1203,6 +1208,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       await settingsMgr.update({ serverUrl: firstServerUrl });
       await ensureConversationAndConnection({ uiJustCreated: true });
+      sentTestEvents.length = 0;
       await conversation?.startNewConversation();
       await conversation?.sendUserMessage(firstRemoteMessage);
     } catch (err) {
@@ -1604,4 +1610,5 @@ export function deactivate() {
   conversationStoreRoot = undefined;
   resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
+  sentTestEvents.length = 0;
 }
