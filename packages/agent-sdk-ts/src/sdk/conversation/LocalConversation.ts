@@ -19,6 +19,7 @@ export interface LocalConversationOptions {
   workspaceRoot?: string;
   llmClient?: LLMClient;
   tools?: ToolDefinition<unknown, unknown>[];
+  secrets?: SecretRegistry;
   persistenceDir?: string;
   persistence?: ConversationPersistence;
   agentContext?: AgentContext;
@@ -53,7 +54,7 @@ export class LocalConversation extends EventEmitter {
     this.state = new ConversationState({ eventLog: this.events, persistence: this.persistence });
     this.customLlmClient = options.llmClient;
     this.tools = options.tools ?? [];
-    this.secrets = new SecretRegistry();
+    this.secrets = options.secrets ?? new SecretRegistry();
     this.agentContext = options.agentContext;
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();

@@ -26,7 +26,7 @@ describe('SettingsManager', () => {
   it('returns defaults when unset', async () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBeUndefined();
-    expect(s.llm.usageId).toBe('default-llm');
+    expect(s.llm.usageId).toBeUndefined();
     expect(s.llm.provider).toBe('anthropic');
     expect(s.llm.openaiApiMode).toBeUndefined();
     expect(s.llm.reasoningSummary).toBeUndefined();
