@@ -119,51 +119,51 @@ export class RemoteConversation extends EventEmitter {
     this.serverUrl = normalizeRemoteServerUrl(url);
   }
 
-    async startNewConversation(): Promise<string | undefined> {
-      try {
-        if (this.ws) {
-          this.ws.removeAllListeners();
-          this.ws.close();
-          this.ws = undefined;
+  async startNewConversation(): Promise<string | undefined> {
+    try {
+      if (this.ws) {
+        this.ws.removeAllListeners();
+        this.ws.close();
+        this.ws = undefined;
+      }
+      this.clearWsHandshakeTimer();
+      this.seenEventIds.clear();
+      this.setStatus('connecting');
+      const base = this.serverUrl.replace(/\/$/, '');
+      const s = this.settings;
+      const llm: Record<string, unknown> = {};
+      const toOptionalString = (value: unknown): string | undefined => {
+        if (typeof value === 'string') return value.trim() || undefined;
+        if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+          const text = String(value).trim();
+          return text.length > 0 ? text : undefined;
         }
-        this.clearWsHandshakeTimer();
-        this.seenEventIds.clear();
-        this.setStatus('connecting');
-        const base = this.serverUrl.replace(/\/$/, '');
-        const s = this.settings;
-        const llm: Record<string, unknown> = {};
-        const toOptionalString = (value: unknown): string | undefined => {
-          if (typeof value === 'string') return value.trim() || undefined;
-          if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-            const text = String(value).trim();
-            return text.length > 0 ? text : undefined;
-          }
-          return undefined;
-        };
-        const usageId = toOptionalString(s?.llm.usageId);
-        const profileId = toOptionalString(s?.llm.profileId);
-        const model = toOptionalString(s?.llm.model);
-        const baseUrl = toOptionalString(s?.llm.baseUrl);
-        const apiVersion = toOptionalString(s?.llm.apiVersion);
-        if (usageId) llm.usage_id = usageId;
-        if (profileId) llm.profile_id = profileId;
-        if (model) llm.model = model;
-        if (baseUrl) llm.base_url = baseUrl;
-        if (apiVersion) llm.api_version = apiVersion;
-        if (s?.llm.timeout !== undefined) llm.timeout = s.llm.timeout;
-        if (s?.llm.temperature !== undefined) llm.temperature = s.llm.temperature;
-        if (s?.llm.topP !== undefined) llm.top_p = s.llm.topP;
-        if (s?.llm.topK !== undefined) llm.top_k = s.llm.topK;
-        if (typeof s?.llm.maxInputTokens === 'number' && s.llm.maxInputTokens > 0) {
-          llm.max_input_tokens = Math.trunc(s.llm.maxInputTokens);
-        }
-        if (typeof s?.llm.maxOutputTokens === 'number' && s.llm.maxOutputTokens > 0) {
-          llm.max_output_tokens = Math.trunc(s.llm.maxOutputTokens);
-        }
-        if (s?.llm.reasoningEffort !== undefined) llm.reasoning_effort = s.llm.reasoningEffort;
-        if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
-        if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
-        if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
+        return undefined;
+      };
+      const usageId = toOptionalString(s?.llm.usageId);
+      const profileId = toOptionalString(s?.llm.profileId);
+      const model = toOptionalString(s?.llm.model);
+      const baseUrl = toOptionalString(s?.llm.baseUrl);
+      const apiVersion = toOptionalString(s?.llm.apiVersion);
+      if (usageId) llm.usage_id = usageId;
+      if (profileId) llm.profile_id = profileId;
+      if (model) llm.model = model;
+      if (baseUrl) llm.base_url = baseUrl;
+      if (apiVersion) llm.api_version = apiVersion;
+      if (s?.llm.timeout !== undefined) llm.timeout = s.llm.timeout;
+      if (s?.llm.temperature !== undefined) llm.temperature = s.llm.temperature;
+      if (s?.llm.topP !== undefined) llm.top_p = s.llm.topP;
+      if (s?.llm.topK !== undefined) llm.top_k = s.llm.topK;
+      if (typeof s?.llm.maxInputTokens === 'number' && s.llm.maxInputTokens > 0) {
+        llm.max_input_tokens = Math.trunc(s.llm.maxInputTokens);
+      }
+      if (typeof s?.llm.maxOutputTokens === 'number' && s.llm.maxOutputTokens > 0) {
+        llm.max_output_tokens = Math.trunc(s.llm.maxOutputTokens);
+      }
+      if (s?.llm.reasoningEffort !== undefined) llm.reasoning_effort = s.llm.reasoningEffort;
+      if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
+      if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
+      if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
 
       const typedSecrets: Record<string, StaticSecret> = {};
       const maybeSetSecret = (key: string, value: unknown) => {
@@ -203,9 +203,9 @@ export class RemoteConversation extends EventEmitter {
       const workspace = this.workspace ?? { kind: 'LocalWorkspace', working_dir: this.workspaceRoot };
       const tools = this.tools ?? defaultTools;
       const req = {
-          agent: {
-            llm,
-            tools,
+        agent: {
+          llm,
+          tools,
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
         workspace,
@@ -216,12 +216,12 @@ export class RemoteConversation extends EventEmitter {
       const res = await this.fetchWithTimeout(`${base}/api/conversations`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(req)
+        body: JSON.stringify(req),
       }, RemoteConversation.httpTimeoutMs);
-        if (!res.ok) {
-          const info = await res.text().catch(() => '');
-          const status = res.status;
-          let userMessage = `Failed to start conversation (HTTP ${status})`;
+      if (!res.ok) {
+        const info = await res.text().catch(() => '');
+        const status = res.status;
+        let userMessage = `Failed to start conversation (HTTP ${status})`;
         if (status === 401 || status === 403) {
           userMessage += '. Authentication failed - check your Session API Key in settings.';
         } else if (status === 404) {

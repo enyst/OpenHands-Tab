@@ -1659,20 +1659,26 @@ export function App() {
   const llmModelLabel = llmProfileLabel === undefined
     ? undefined
     : (llmProfileLabel || (mode === 'remote' ? 'server default' : 'default'));
-    const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
-    const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
-    const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
-    const halConversationKey = conversationId ?? 'unknown';
-    const voiceConfirmFallbackToButtons =
-      elevenlabs.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
-    const halSessionKey =
-      halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
-        ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
-        : null;
+
+  const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
+  const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
+  const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
+  const halConversationKey = conversationId ?? 'unknown';
+  const voiceConfirmFallbackToButtons =
+    elevenlabs.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
+  const halSessionKey =
+    halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
+      ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
+      : null;
   const shouldShowHalOverlay =
-    halEnabled && (halPhase === 'waiting_remote' || (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey));
+    halEnabled && (
+      halPhase === 'waiting_remote' ||
+      (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey)
+    );
   const halUiPhase: HalPhase = halPhase === 'idle' && shouldShowHalOverlay ? 'dialogue' : halPhase;
-  const halUiStepIndex = halUiPhase === 'dialogue' ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1)) : null;
+  const halUiStepIndex = halUiPhase === 'dialogue'
+    ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1))
+    : null;
   const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0]?.text ?? null : null;
 
   return (
