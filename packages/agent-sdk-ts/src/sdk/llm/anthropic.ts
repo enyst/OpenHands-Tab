@@ -131,7 +131,10 @@ export class AnthropicClient implements LLMClient {
     while (attempt <= this.retry.maxRetries) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), (this.config.timeoutSeconds ?? (DEFAULT_TIMEOUT_MS / 1000)) * 1000);
+        const effectiveSeconds = (typeof this.config.timeoutSeconds === 'number' && this.config.timeoutSeconds > 0)
+          ? this.config.timeoutSeconds
+          : (DEFAULT_TIMEOUT_MS / 1000);
+        const timeout = setTimeout(() => controller.abort(), effectiveSeconds * 1000);
         const response = await fetch(this.requestUrl(), {
           method: 'POST',
           headers: this.requestHeaders(),

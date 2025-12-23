@@ -14,6 +14,7 @@ Each test file orchestrates a VS Code instance and runs a specific test suite:
 - **history.test.ts**: Tests conversation history and restore functionality
 - **messaging.test.ts**: Tests message events and rendering
 - **serverSelection.test.ts**: Tests server selection and local/remote mode switching
+- **llmSwitching.test.ts**: Tests switching LLM provider/model/api mode (local, mock server)
 - **confirmation.test.ts**: Tests action confirmation workflow with security levels
 - **errorHandling.test.ts**: Tests error events and error state handling
 - **agentServerRemote.test.ts**: (Optional) Starts a local python agent-server and tests remote mode end-to-end (gated by `E2E_AGENT_SERVER=1`)
@@ -27,6 +28,7 @@ These run inside VS Code and execute the actual tests:
 - **suite/history.ts**: Tests conversation state and event backlog
 - **suite/messaging.ts**: Tests message event rendering and multi-part content
 - **suite/serverSelection.ts**: Tests mode switching and diagnostics state
+- **suite/llmSwitching.ts**: Exercises local LLM switching against a mock server
 - **suite/confirmation.ts**: Tests actions with different security risk levels
 - **suite/errorHandling.ts**: Tests error events and recovery
 
