@@ -124,13 +124,60 @@ describe('App toolbar interactions', () => {
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openSkill', path: '/tmp/skill.md' });
   });
 
-  it.skip('supports arrow navigation in workspace file picker', async () => {
-    // Keyboard navigation is not implemented in the current design
-    // Skipping this test until keyboard navigation is added
+  it('supports arrow navigation in workspace file picker', async () => {
+    render(<App />);
+    const input = document.getElementById('openhands-chat-input') as HTMLInputElement;
+    expect(input).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: '@' } });
+    Object.defineProperty(input, 'selectionStart', { value: 1, configurable: true });
+    Object.defineProperty(input, 'selectionEnd', { value: 1, configurable: true });
+    fireEvent.select(input);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'workspaceFiles', files: ['a.txt', 'b.txt', 'c.txt'] }
+      }));
+    });
+
+    const searchInput = await screen.findByPlaceholderText('Search files...');
+
+    fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(input.value).toContain('@b.txt');
+    });
   });
 
-  it.skip('handles skill selection via keyboard', async () => {
-    // Keyboard navigation is not implemented in the current design
-    // Skipping this test until keyboard navigation is added
+  it('handles skill selection via keyboard', async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getAllByLabelText('Skills')[0]);
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestSkills' });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'skillsList',
+          skills: [
+            { label: 'Skill One', path: '/tmp/skill1.md' },
+            { label: 'Skill Two', path: '/tmp/skill2.md' },
+          ],
+        }
+      }));
+    });
+
+    const searchInput = await screen.findByPlaceholderText('Search skills...');
+    fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openSkill', path: '/tmp/skill2.md' });
+    });
   });
 });

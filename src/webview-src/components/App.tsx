@@ -1958,23 +1958,27 @@ export function App() {
         />
 
         {/* Context picker popover */}
-        <ContextPicker
-          isOpen={showContextPicker}
-          onClose={() => setShowContextPicker(false)}
-          files={workspaceFiles}
-          selectedFiles={selectedContextFiles}
-          onToggleFile={handleToggleContextFile}
-          searchQuery={contextQuery}
-          onSearchChange={setContextQuery}
-        />
+        {showContextPicker && (
+          <ContextPicker
+            isOpen
+            onClose={() => setShowContextPicker(false)}
+            files={workspaceFiles}
+            selectedFiles={selectedContextFiles}
+            onToggleFile={handleToggleContextFile}
+            searchQuery={contextQuery}
+            onSearchChange={setContextQuery}
+          />
+        )}
 
         {/* Skills popover */}
-        <SkillsPopover
-          isOpen={showSkillsPopover}
-          onClose={() => setShowSkillsPopover(false)}
-          skills={skills}
-          onOpenSkill={handleOpenSkill}
-        />
+        {showSkillsPopover && (
+          <SkillsPopover
+            isOpen
+            onClose={() => setShowSkillsPopover(false)}
+            skills={skills}
+            onOpenSkill={handleOpenSkill}
+          />
+        )}
       </div>
 
       {/* History view (slide-over panel) */}

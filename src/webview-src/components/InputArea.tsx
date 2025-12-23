@@ -492,14 +492,46 @@ export function ContextPicker({
   onSearchChange,
 }: ContextPickerProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: popoverRef, delay: 100 });
-
-  if (!isOpen) return null;
 
   const filteredFiles = files.filter((file) =>
     file.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const listboxId = 'context-picker-listbox';
+  const safeActiveIndex = filteredFiles.length > 0 ? Math.min(activeIndex, filteredFiles.length - 1) : 0;
+  const activeOptionId = filteredFiles.length > 0 ? `context-picker-option-${safeActiveIndex}` : undefined;
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(() => Math.min(safeActiveIndex + 1, Math.max(filteredFiles.length - 1, 0)));
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(() => Math.max(safeActiveIndex - 1, 0));
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      const file = filteredFiles[safeActiveIndex];
+      if (!file) return;
+      e.preventDefault();
+      onToggleFile(file);
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -518,8 +550,14 @@ export function ContextPicker({
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
+          onChange={(e) => {
+            onSearchChange(e.target.value);
+            setActiveIndex(0);
+          }}
+          onKeyDown={handleSearchKeyDown}
           placeholder="Search files..."
+          aria-controls={listboxId}
+          aria-activedescendant={activeOptionId}
           className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/30"
           autoFocus
         />
@@ -532,14 +570,16 @@ export function ContextPicker({
             No matches
           </div>
         ) : (
-          <div className="p-2 space-y-0.5" role="listbox">
-            {filteredFiles.map((file) => {
+          <div className="p-2 space-y-0.5" role="listbox" id={listboxId}>
+            {filteredFiles.map((file, index) => {
               const isSelected = selectedFiles.includes(file);
+              const isActive = index === safeActiveIndex;
               return (
                 <button
                   key={file}
                   onClick={() => onToggleFile(file)}
                   role="option"
+                  id={`context-picker-option-${index}`}
                   aria-label={file}
                   aria-selected={isSelected ? 'true' : 'false'}
                   className={`
@@ -549,6 +589,8 @@ export function ContextPicker({
                     flex items-center gap-2
                     ${isSelected
                       ? 'bg-brand-500/15 text-brand-300 border border-brand-500/20'
+                      : isActive
+                        ? 'bg-white/[0.06] text-stone-200 border border-white/[0.16]'
                       : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300 border border-transparent'
                     }
                   `}
@@ -592,8 +634,45 @@ export function SkillsPopover({
   onOpenSkill,
 }: SkillsPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: popoverRef, delay: 100 });
+
+  const filteredSkills = skills.filter((skill) =>
+    skill.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const listboxId = 'skills-picker-listbox';
+  const safeActiveIndex = filteredSkills.length > 0 ? Math.min(activeIndex, filteredSkills.length - 1) : 0;
+  const activeOptionId = filteredSkills.length > 0 ? `skills-picker-option-${safeActiveIndex}` : undefined;
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex(() => Math.min(safeActiveIndex + 1, Math.max(filteredSkills.length - 1, 0)));
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex(() => Math.max(safeActiveIndex - 1, 0));
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      const skill = filteredSkills[safeActiveIndex];
+      if (!skill) return;
+      e.preventDefault();
+      onOpenSkill(skill.path);
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose();
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -611,37 +690,59 @@ export function SkillsPopover({
           <span className="codicon codicon-mortar-board text-violet-400" />
           <h3 className="font-semibold text-sm text-stone-200">Available Skills</h3>
         </div>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setActiveIndex(0);
+          }}
+          onKeyDown={handleSearchKeyDown}
+          placeholder="Search skills..."
+          aria-controls={listboxId}
+          aria-activedescendant={activeOptionId}
+          className="mt-2 w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/30"
+          autoFocus
+        />
       </div>
 
       {/* Skills list */}
       <div className="overflow-y-auto max-h-64">
-        {skills.length === 0 ? (
+        {filteredSkills.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-stone-500">
             No skills found
           </div>
         ) : (
-          <div className="p-2 space-y-0.5" role="listbox" aria-label="Skills">
-            {skills.map((skill) => (
+          <div className="p-2 space-y-0.5" role="listbox" aria-label="Skills" id={listboxId}>
+            {filteredSkills.map((skill, index) => {
+              const isActive = index === safeActiveIndex;
+              return (
               <button
                 key={skill.path}
                 onClick={() => onOpenSkill(skill.path)}
                 role="option"
+                id={`skills-picker-option-${index}`}
                 aria-label={skill.label}
                 aria-selected="false"
-                className="
+                className={`
                   w-full text-left px-3 py-2 rounded-lg
-                  text-sm text-stone-400
+                  text-sm
                   transition-all duration-150
-                  hover:bg-white/[0.04] hover:text-stone-300
                   flex items-center gap-2
                   group
-                "
+                  ${isActive
+                    ? 'bg-white/[0.06] text-stone-200 border border-white/[0.16]'
+                    : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300 border border-transparent'
+                  }
+                `}
+                data-active={isActive ? 'true' : 'false'}
               >
                 <span className="codicon codicon-file-code text-violet-400/70" />
                 <span className="flex-1 truncate">{skill.label}</span>
                 <span className="codicon codicon-arrow-right text-stone-600 group-hover:text-stone-400 transition-colors" />
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
