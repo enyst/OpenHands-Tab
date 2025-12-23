@@ -23,6 +23,15 @@ export class SecretRegistry {
     this.secrets.set(name, value);
   }
 
+  set(name: string, value: string | undefined): void {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) {
+      this.secrets.delete(name);
+      return;
+    }
+    this.secrets.set(name, trimmed);
+  }
+
   async get(name: string): Promise<string | undefined> {
     if (this.secrets.has(name)) {
       return this.secrets.get(name);
@@ -48,5 +57,9 @@ export class SecretRegistry {
 
   getRegisteredValues(): string[] {
     return Array.from(this.secrets.values());
+  }
+
+  getRegisteredNames(): string[] {
+    return Array.from(this.secrets.keys());
   }
 }

@@ -228,6 +228,16 @@ export class Agent extends EventEmitter {
     this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
     this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
     this.debug = settings?.agent?.debug ?? false;
+    this.syncToolSecrets(settings);
+  }
+
+  private syncToolSecrets(settings: OpenHandsSettings): void {
+    const s = settings?.secrets;
+    this.secrets.set('GITHUB_TOKEN', s?.githubToken);
+    this.secrets.set('CUSTOM_SECRET_1', s?.customSecret1);
+    this.secrets.set('CUSTOM_SECRET_2', s?.customSecret2);
+    this.secrets.set('CUSTOM_SECRET_3', s?.customSecret3);
+    this.secrets.set('ELEVENLABS_API_KEY', s?.elevenLabsApiKey);
   }
 
   private getSecretValuesForMasking(): string[] {
@@ -1022,6 +1032,9 @@ export class Agent extends EventEmitter {
     const payload = result as { command?: string; stdout?: string; stderr?: string; exitCode?: number };
     const commandId = toolCall.id;
     const timestamp = new Date().toISOString();
+    const command = this.maskSecretsInText(payload.command ?? toolCall.function.arguments);
+    const stdout = payload.stdout ? this.maskSecretsInText(payload.stdout) : null;
+    const stderr = payload.stderr ? this.maskSecretsInText(payload.stderr) : null;
     const events: BashEvent[] = [
       {
         id: randomUUID(),
@@ -1029,7 +1042,7 @@ export class Agent extends EventEmitter {
         timestamp,
         command_id: commandId,
         order: 0,
-        command: payload.command ?? toolCall.function.arguments,
+        command,
       },
       {
         id: randomUUID(),
@@ -1038,8 +1051,8 @@ export class Agent extends EventEmitter {
         command_id: commandId,
         order: 1,
         exit_code: payload.exitCode ?? 0,
-        stdout: payload.stdout ?? null,
-        stderr: payload.stderr ?? null,
+        stdout,
+        stderr,
       },
     ];
     events.forEach((evt) => this.options.onTerminalEvent?.(evt));

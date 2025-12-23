@@ -4,7 +4,7 @@ import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
 import { Agent, EventLog } from '..';
-import { isMessageEvent, type TextContent } from '../../types';
+import { isBashCommand, isBashOutput, isMessageEvent, type BashEvent, type TextContent } from '../../types';
 import type { ToolDefinition } from '../../types/tools';
 import type { OpenHandsSettings } from '../../types/settings';
 import { SecretRegistry } from '../SecretRegistry';
@@ -91,6 +91,60 @@ describe('Agent tool message formatting', () => {
     const observation = observations[0] as unknown as { observation?: Record<string, unknown> };
     expect(JSON.stringify(observation.observation)).not.toContain(secretValue);
     expect(JSON.stringify(observation.observation)).toContain('***');
+  });
+
+  it('masks secrets in BashEvents emitted from the terminal tool', async () => {
+    const secretValue = 'ghp_BASHEVENTSECRET1234567890';
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: { githubToken: secretValue },
+    };
+    const log = new EventLog();
+    const terminalEvents: BashEvent[] = [];
+
+    const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
+      name: 'terminal',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => ({
+        command: `echo ${secretValue}`,
+        exitCode: 0,
+        stdout: `hello ${secretValue}`,
+        stderr: '',
+        timeout: false,
+      }),
+    };
+
+    const llm = new MockLLM([
+      { type: 'text', text: 'Running terminal' },
+      { type: 'tool_call_delta', id: 'call_terminal', name: 'terminal', arguments: JSON.stringify({ command: `echo ${secretValue}` }) },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+      onTerminalEvent: (event) => terminalEvents.push(event),
+    });
+
+    await agent.run('run terminal');
+
+    const bashCommand = terminalEvents.find(isBashCommand);
+    expect(bashCommand).toBeDefined();
+    expect(bashCommand?.command).not.toContain(secretValue);
+    expect(bashCommand?.command).toContain('***');
+
+    const bashOutput = terminalEvents.find(isBashOutput);
+    expect(bashOutput).toBeDefined();
+    const combined = `${bashOutput?.stdout ?? ''}${bashOutput?.stderr ?? ''}`;
+    expect(combined).toContain('hello');
+    expect(combined).not.toContain(secretValue);
+    expect(combined).toContain('***');
   });
 
   it('serializes non-plain tool results in ObservationEvent payloads', async () => {
