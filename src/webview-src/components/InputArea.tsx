@@ -23,6 +23,10 @@ interface InputAreaProps {
   attachments?: Array<{ uri: string; label: string }>;
   onOpenAttachment?: (uri: string) => void;
   onRemoveAttachment?: (uri: string) => void;
+  // Inline images (clipboard paste)
+  inlineImages?: Array<{ id: string; dataUrl: string; label: string }>;
+  onPasteImageFiles?: (files: File[]) => void;
+  onRemoveInlineImage?: (id: string) => void;
   // MCP (placeholder for future)
   onOpenMCP?: () => void;
   // Selection tracking (for mention-style context)
@@ -47,6 +51,9 @@ export function InputArea({
   attachments = [],
   onOpenAttachment,
   onRemoveAttachment,
+  inlineImages = [],
+  onPasteImageFiles,
+  onRemoveInlineImage,
   onOpenMCP,
   onSelectionChange,
 }: InputAreaProps) {
@@ -88,6 +95,26 @@ export function InputArea({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (disabled || !onPasteImageFiles) return;
+
+    const items = e.clipboardData?.items;
+    if (!items || items.length === 0) return;
+
+    const imageFiles: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.kind !== 'file') continue;
+      if (typeof item.type !== 'string' || !item.type.startsWith('image/')) continue;
+      const file = item.getAsFile();
+      if (file) imageFiles.push(file);
+    }
+
+    if (imageFiles.length === 0) return;
+
+    e.preventDefault();
+    onPasteImageFiles(imageFiles);
+  };
+
   return (
     <div className="sticky bottom-0 z-30 border-t border-white/[0.06] bg-[var(--vscode-editor-background)]/95 backdrop-blur-md">
       <div className="px-4 py-4">
@@ -120,6 +147,7 @@ export function InputArea({
             onSelect={() => emitSelection(textareaRef.current)}
             onFocus={() => { setIsFocused(true); emitSelection(textareaRef.current); }}
             onBlur={() => setIsFocused(false)}
+            onPaste={handlePaste}
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
@@ -236,6 +264,35 @@ export function InputArea({
                     title="Remove"
                   >
                     <span className="codicon codicon-close" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {inlineImages.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {inlineImages.map((img) => (
+              <div
+                key={img.id}
+                className="relative h-16 w-16 rounded-lg overflow-hidden bg-white/[0.04] border border-white/[0.06]"
+                title={img.label}
+              >
+                <img
+                  src={img.dataUrl}
+                  alt={img.label}
+                  className="h-full w-full object-cover"
+                />
+                {onRemoveInlineImage && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveInlineImage(img.id)}
+                    className="absolute top-1 right-1 h-5 w-5 rounded-md bg-black/60 text-stone-200 hover:bg-black/70 flex items-center justify-center"
+                    aria-label={`Remove pasted image ${img.label}`}
+                    title="Remove"
+                  >
+                    <span className="codicon codicon-close text-[11px]" />
                   </button>
                 )}
               </div>
