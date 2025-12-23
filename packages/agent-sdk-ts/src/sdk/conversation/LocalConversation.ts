@@ -1,5 +1,14 @@
 import EventEmitter from 'events';
-import { Agent, AsyncLock, ConversationState, EventLog, FileStore, SecretRegistry, ConversationStats } from '../runtime';
+import {
+  Agent,
+  AsyncLock,
+  ConversationState,
+  ConversationStats,
+  EventLog,
+  FileStore,
+  SecretRegistry,
+  type PersistedLlmConfig,
+} from '../runtime';
 import type { LLMClient } from '../llm';
 import type { BashEvent, Event } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
@@ -10,6 +19,11 @@ import type { RegistryEvent } from '../llm/registry';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
+
+const toOptionalNonEmptyString = (value: unknown): string | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed ? trimmed : undefined;
+};
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
@@ -76,6 +90,7 @@ export class LocalConversation extends EventEmitter {
   setSettings(settings: OpenHandsSettings) {
     this.settings = settings;
     this.agent.setSettings(settings);
+    this.persistLlmConfig();
   }
 
   startNewConversation(): Promise<string | undefined> {
@@ -98,6 +113,7 @@ export class LocalConversation extends EventEmitter {
     // Online and persistence wiring for new conversation
     this.setStatus('online');
     this.initializePersistence();
+    this.persistLlmConfig();
     this.state.persistSnapshot();
 
     this.emit('conversationStarted', this.conversationId);
@@ -132,6 +148,7 @@ export class LocalConversation extends EventEmitter {
       this.persistence = store;
       this.events.attachPersistence(store);
       this.state.attachPersistence(store);
+      this.restorePersistedLlmConfig(store);
 
       // Notify UI first so it clears any previous render before we stream restored events
       this.emit('conversationStarted', id);
@@ -244,6 +261,88 @@ export class LocalConversation extends EventEmitter {
     this.persistence = this.persistence ?? new FileStore({ rootDir, conversationId: this.conversationId });
     this.events.attachPersistence(this.persistence);
     this.state.attachPersistence(this.persistence);
+  }
+
+  private persistLlmConfig(): void {
+    if (!this.conversationId) return;
+    if (!this.persistence?.writeLlmConfig) return;
+
+    const llm = this.settings.llm ?? {};
+    const profileId = toOptionalNonEmptyString(llm.profileId);
+    const model = toOptionalNonEmptyString(llm.model);
+    const config: PersistedLlmConfig = {};
+    if (profileId) {
+      config.profileId = profileId;
+    } else {
+      if (llm.provider) config.provider = llm.provider;
+      if (model) config.model = model;
+    }
+
+    const usageId = toOptionalNonEmptyString(llm.usageId);
+    if (usageId) config.usageId = usageId;
+
+    if (llm.openaiApiMode) config.openaiApiMode = llm.openaiApiMode;
+
+    const baseUrl = toOptionalNonEmptyString(llm.baseUrl);
+    if (baseUrl) config.baseUrl = baseUrl;
+    const apiVersion = toOptionalNonEmptyString(llm.apiVersion);
+    if (apiVersion) config.apiVersion = apiVersion;
+
+    if (typeof llm.timeout === 'number' && Number.isFinite(llm.timeout)) config.timeoutSeconds = llm.timeout;
+    if (typeof llm.temperature === 'number' && Number.isFinite(llm.temperature)) config.temperature = llm.temperature;
+    if (typeof llm.topP === 'number' && Number.isFinite(llm.topP)) config.topP = llm.topP;
+    if (typeof llm.topK === 'number' && Number.isFinite(llm.topK)) config.topK = llm.topK;
+    if (typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens)) {
+      config.maxInputTokens = llm.maxInputTokens;
+    }
+    if (typeof llm.maxOutputTokens === 'number' && Number.isFinite(llm.maxOutputTokens)) {
+      config.maxOutputTokens = llm.maxOutputTokens;
+    }
+
+    if (llm.reasoningEffort) config.reasoningEffort = llm.reasoningEffort;
+    if (llm.reasoningSummary) config.reasoningSummary = llm.reasoningSummary;
+
+    if (typeof llm.inputCostPerToken === 'number' && Number.isFinite(llm.inputCostPerToken)) {
+      config.inputCostPerToken = llm.inputCostPerToken;
+    }
+    if (typeof llm.outputCostPerToken === 'number' && Number.isFinite(llm.outputCostPerToken)) {
+      config.outputCostPerToken = llm.outputCostPerToken;
+    }
+
+    if (!Object.keys(config).length) return;
+    this.persistence.writeLlmConfig(config);
+  }
+
+  private restorePersistedLlmConfig(store: ConversationPersistence): void {
+    if (!store.readLlmConfig) return;
+    const persisted = store.readLlmConfig();
+    if (!persisted) return;
+    if (!persisted.profileId && !persisted.model) return;
+
+    const existing = this.settings.llm ?? {};
+    const merged: OpenHandsSettings['llm'] = {
+      ...existing,
+      profileId: persisted.profileId ?? undefined,
+      provider: persisted.provider ?? undefined,
+      model: persisted.model ?? undefined,
+      usageId: persisted.usageId ?? undefined,
+      openaiApiMode: persisted.openaiApiMode ?? undefined,
+      baseUrl: persisted.baseUrl ?? undefined,
+      apiVersion: persisted.apiVersion ?? undefined,
+      timeout: persisted.timeoutSeconds ?? undefined,
+      temperature: persisted.temperature ?? undefined,
+      topP: persisted.topP ?? undefined,
+      topK: persisted.topK ?? undefined,
+      maxInputTokens: persisted.maxInputTokens ?? undefined,
+      maxOutputTokens: persisted.maxOutputTokens ?? undefined,
+      reasoningEffort: persisted.reasoningEffort ?? undefined,
+      reasoningSummary: persisted.reasoningSummary ?? undefined,
+      inputCostPerToken: persisted.inputCostPerToken ?? undefined,
+      outputCostPerToken: persisted.outputCostPerToken ?? undefined,
+    };
+
+    this.settings = { ...this.settings, llm: merged };
+    this.agent.setSettings(this.settings);
   }
 }
 
