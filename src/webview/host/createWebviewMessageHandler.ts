@@ -13,6 +13,7 @@ import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
 import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLinesForMode } from '../../shared/halScript';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
+import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 export type WebviewHost = {
@@ -21,6 +22,13 @@ export type WebviewHost = {
 
 const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 500 * 1024;
+const MAX_PASTED_IMAGE_BYTES = 350 * 1024;
+
+async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
+  const filePath = getPastedImagePath(baseDir, imageId);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, bytes);
+}
 
 const OPENHANDS_DIFF_SCHEME = 'openhands-diff';
 const MAX_STORED_DIFF_DOCUMENTS = 60;
@@ -762,9 +770,39 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             .filter((u): u is vscode.Uri => u !== undefined)
           : [];
 
+        const globalStorageBaseDir = getGlobalStorageBaseDir(context.globalStorageUri?.fsPath);
+        const pastedImages = new Map<string, Uint8Array>();
+        const rewriteResult = rewriteDataImageMarkdown(baseText, (dataUrl) => {
+          const parsed = parseBase64DataImageUrl(dataUrl);
+          if (!parsed) return { url: '' };
+          if (parsed.bytes.length > MAX_PASTED_IMAGE_BYTES) return { url: '' };
+          pastedImages.set(parsed.imageId, parsed.bytes);
+          return { url: `${OPENHANDS_IMAGE_URL_PREFIX}${parsed.imageId}` };
+        });
+
+        let sanitizedText = rewriteResult.text;
+        if (pastedImages.size > 0) {
+          const failed = new Set<string>();
+          for (const [imageId, bytes] of pastedImages.entries()) {
+            try {
+              await persistPastedImage(globalStorageBaseDir, imageId, bytes);
+            } catch (err) {
+              failed.add(imageId);
+              const reason = err instanceof Error ? err.message : String(err);
+              outputChannel?.appendLine(`[pasted-images] Failed to persist ${imageId}: ${reason}`);
+            }
+          }
+          if (failed.size > 0) {
+            sanitizedText = rewriteOpenHandsImageUrls(sanitizedText, (imageId) => (failed.has(imageId) ? '' : undefined));
+            void vscode.window.showWarningMessage(`Some pasted images could not be saved (${failed.size}). They were omitted from the message.`);
+          }
+        } else if (rewriteResult.rewritten > 0) {
+          void vscode.window.showWarningMessage('Some pasted images were not supported and were omitted from the message.');
+        }
+
         const attachmentsText = await buildAttachmentBlocks(attachmentUris);
 
-        let finalText = baseText;
+        let finalText = sanitizedText;
         if (attachmentsText) {
           finalText += attachmentsText;
         }

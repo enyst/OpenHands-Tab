@@ -27,9 +27,12 @@ export class OpenHandsChatViewProvider implements vscode.WebviewViewProvider {
   resolveWebviewView(webviewView: vscode.WebviewView): void {
     this.disposeViewDisposables();
 
+    const mediaRoot = vscode.Uri.joinPath(this.context.extensionUri, 'media');
+    const pastedImagesRoot = vscode.Uri.joinPath(this.context.globalStorageUri, 'pasted-images');
+
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')],
+      localResourceRoots: [mediaRoot, pastedImagesRoot],
     };
 
     webviewView.webview.html = getWebviewHtml(this.context, webviewView.webview);
