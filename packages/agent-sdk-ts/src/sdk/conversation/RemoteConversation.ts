@@ -3,6 +3,9 @@ import WebSocket from 'ws';
 import type { BashEvent, Event, Message } from '../types';
 import { isEvent as isAgentEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
+import type { LLMProfileStoreOptions } from '../llm/profiles';
+import { loadProfile } from '../llm/profiles';
+import type { LLMConfiguration } from '../llm/types';
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
@@ -48,6 +51,7 @@ export interface RemoteConversationOptions {
   tools?: RemoteConversationTool[];
   workspace?: RemoteConversationWorkspace;
   conversationId?: string;
+  profileStoreOptions?: LLMProfileStoreOptions;
 }
 
 export type RemoteConversationEventMap = {
@@ -75,6 +79,7 @@ export class RemoteConversation extends EventEmitter {
   private readonly workspaceRoot: string;
   private readonly tools?: RemoteConversationTool[];
   private readonly workspace?: RemoteConversationWorkspace;
+  private readonly profileStoreOptions?: LLMProfileStoreOptions;
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
@@ -87,6 +92,7 @@ export class RemoteConversation extends EventEmitter {
     this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
     this.tools = options.tools;
     this.workspace = options.workspace;
+    this.profileStoreOptions = options.profileStoreOptions;
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
@@ -145,22 +151,65 @@ export class RemoteConversation extends EventEmitter {
       const model = toOptionalString(s?.llm.model);
       const baseUrl = toOptionalString(s?.llm.baseUrl);
       const apiVersion = toOptionalString(s?.llm.apiVersion);
-      if (usageId) llm.usage_id = usageId;
-      if (profileId) llm.profile_id = profileId;
-      if (model) llm.model = model;
-      if (baseUrl) llm.base_url = baseUrl;
-      if (apiVersion) llm.api_version = apiVersion;
-      if (s?.llm.timeout !== undefined) llm.timeout = s.llm.timeout;
-      if (s?.llm.temperature !== undefined) llm.temperature = s.llm.temperature;
-      if (s?.llm.topP !== undefined) llm.top_p = s.llm.topP;
-      if (s?.llm.topK !== undefined) llm.top_k = s.llm.topK;
-      if (typeof s?.llm.maxInputTokens === 'number' && s.llm.maxInputTokens > 0) {
-        llm.max_input_tokens = Math.trunc(s.llm.maxInputTokens);
+
+      const profileConfig: LLMConfiguration | null = (() => {
+        if (!profileId) return null;
+        try {
+          const profile = loadProfile(profileId, this.profileStoreOptions);
+          return profile.config;
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          throw new Error(`Failed to load LLM profile '${profileId}': ${reason}`);
+        }
+      })();
+
+      // NOTE: profileId is a local alias only. Remote agent-server rejects unknown llm fields
+      // (like `profile_id`) with strict schema validation.
+      const profileUsageId = toOptionalString(profileConfig?.usageId);
+      const profileModel = profileConfig ? toOptionalString(profileConfig.model) : undefined;
+      const profileBaseUrl = toOptionalString(profileConfig?.baseUrl);
+      const profileApiVersion = toOptionalString(profileConfig?.apiVersion);
+
+      const effectiveUsageId = usageId ?? profileUsageId;
+      const effectiveModel = profileModel ?? model;
+      const effectiveBaseUrl = baseUrl ?? profileBaseUrl;
+      const effectiveApiVersion = apiVersion ?? profileApiVersion;
+
+      if (effectiveUsageId) llm.usage_id = effectiveUsageId;
+      if (effectiveModel) llm.model = effectiveModel;
+      if (effectiveBaseUrl) llm.base_url = effectiveBaseUrl;
+      if (effectiveApiVersion) llm.api_version = effectiveApiVersion;
+
+      const effectiveTimeout = s?.llm.timeout ?? profileConfig?.timeoutSeconds;
+      if (typeof effectiveTimeout === 'number' && Number.isFinite(effectiveTimeout)) {
+        llm.timeout = effectiveTimeout;
       }
-      if (typeof s?.llm.maxOutputTokens === 'number' && s.llm.maxOutputTokens > 0) {
-        llm.max_output_tokens = Math.trunc(s.llm.maxOutputTokens);
+      const effectiveTemperature = s?.llm.temperature ?? profileConfig?.temperature;
+      if (typeof effectiveTemperature === 'number' && Number.isFinite(effectiveTemperature)) {
+        llm.temperature = effectiveTemperature;
       }
-      if (s?.llm.reasoningEffort !== undefined) llm.reasoning_effort = s.llm.reasoningEffort;
+      const effectiveTopP = s?.llm.topP ?? profileConfig?.topP;
+      if (typeof effectiveTopP === 'number' && Number.isFinite(effectiveTopP)) {
+        llm.top_p = effectiveTopP;
+      }
+      const effectiveTopK = s?.llm.topK ?? profileConfig?.topK;
+      if (typeof effectiveTopK === 'number' && Number.isFinite(effectiveTopK)) {
+        llm.top_k = effectiveTopK;
+      }
+
+      const maxInputTokens = s?.llm.maxInputTokens ?? profileConfig?.maxInputTokens;
+      if (typeof maxInputTokens === 'number' && Number.isFinite(maxInputTokens) && maxInputTokens > 0) {
+        llm.max_input_tokens = Math.trunc(maxInputTokens);
+      }
+      const maxOutputTokens = s?.llm.maxOutputTokens ?? profileConfig?.maxOutputTokens;
+      if (typeof maxOutputTokens === 'number' && Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
+        llm.max_output_tokens = Math.trunc(maxOutputTokens);
+      }
+
+      const effectiveReasoningEffort = s?.llm.reasoningEffort ?? profileConfig?.reasoningEffort;
+      if (typeof effectiveReasoningEffort === 'string' && effectiveReasoningEffort) {
+        llm.reasoning_effort = effectiveReasoningEffort;
+      }
       if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
       if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
       if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;

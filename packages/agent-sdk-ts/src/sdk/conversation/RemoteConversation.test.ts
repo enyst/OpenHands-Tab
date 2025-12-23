@@ -1,7 +1,11 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OpenHandsSettings } from '../types/settings';
 import type { RemoteConversationTool, RemoteConversationWorkspace } from './RemoteConversation';
 import { RemoteConversation } from './RemoteConversation';
+import { saveProfile } from '../llm/profiles';
 
 const baseSettings: OpenHandsSettings = {
   llm: { model: 'test-model' },
@@ -15,6 +19,59 @@ describe('RemoteConversation', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('expands profileId into server-supported llm fields without sending profile_id', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+    const fetchSpy = vi.fn((_url: string, init?: RequestInit) => {
+      void _url;
+      void init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'conv-profile' }),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const profilesRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-llm-profiles-'));
+    try {
+      saveProfile(
+        'gpt-5',
+        { provider: 'openai', model: 'gpt-5', baseUrl: 'http://profile.example' },
+        { rootDir: profilesRoot }
+      );
+
+      const settings: OpenHandsSettings = {
+        ...baseSettings,
+        llm: {
+          model: 'settings-model-should-not-win',
+          profileId: 'gpt-5',
+          baseUrl: 'http://override.example',
+        },
+      };
+
+      const conversation = new RemoteConversation({
+        serverUrl: 'http://localhost:3000',
+        settings,
+        profileStoreOptions: { rootDir: profilesRoot },
+      });
+
+      await conversation.startNewConversation();
+
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
+      const parsed = JSON.parse(init?.body as string) as { agent: { llm: Record<string, unknown> } };
+      expect(parsed.agent.llm.profile_id).toBeUndefined();
+      expect(parsed.agent.llm.model).toBe('gpt-5');
+      expect(parsed.agent.llm.base_url).toBe('http://override.example');
+    } finally {
+      fs.rmSync(profilesRoot, { recursive: true, force: true });
+    }
   });
 
   it('passes provided tools and workspace through to POST /api/conversations', async () => {
