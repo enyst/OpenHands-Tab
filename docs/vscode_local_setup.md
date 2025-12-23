@@ -141,6 +141,33 @@ In the Dev Host window, use the commands:
 - OpenHands: Open — reveals the chat sidebar view
 - OpenHands: Start New Conversation — starts a new conversation
 
+## (Optional) Run the Python Agent-Server with Debug Logs
+
+If you want to test **remote mode** against the Python agent-server, start it in a separate terminal. This repo includes a helper script (`npm run agent-server`) that launches `python -m openhands.agent_server` from a local `OpenHands/software-agent-sdk` checkout.
+
+Recommended debugging env vars:
+- `PYTHONUNBUFFERED=1` for unbuffered logs
+- `LOG_LEVEL=DEBUG` (or `INFO`)
+- `DEBUG=1` to force debug logging
+- `OH_ENABLE_VSCODE=0 OH_ENABLE_VNC=0 OH_PRELOAD_TOOLS=0` to keep startup lightweight (similar to CI)
+
+Example (copy/paste):
+```bash
+AGENT_SDK_DIR=~/repos/agent-sdk \
+PYTHONUNBUFFERED=1 \
+LOG_LEVEL=DEBUG \
+DEBUG=1 \
+OH_ENABLE_VSCODE=0 \
+OH_ENABLE_VNC=0 \
+OH_PRELOAD_TOOLS=0 \
+PORT=3000 \
+npm run agent-server
+```
+
+Notes:
+- If you set `SESSION_API_KEY`, you must also set it in VS Code via “OpenHands: Set Session API Key”.
+- Avoid `DEBUG_LLM=1` unless you know what you’re doing: it prompts for confirmation and may expose secrets in logs.
+
 ## Logs and Diagnostics
 - Extension host logs:
   - View → Output → select the OpenHands output channel
