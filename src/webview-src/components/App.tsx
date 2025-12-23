@@ -1409,7 +1409,14 @@ export function App() {
           break;
         case 'skillsList':
           if (Array.isArray(payload.skills)) {
-            setSkills(payload.skills);
+            setSkills(
+              payload.skills.filter((skill): skill is { label: string; path: string } => (
+                typeof skill === 'object'
+                && skill !== null
+                && typeof (skill as { label?: unknown }).label === 'string'
+                && typeof (skill as { path?: unknown }).path === 'string'
+              ))
+            );
           }
           break;
         case 'queryUiState': {

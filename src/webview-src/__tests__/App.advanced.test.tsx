@@ -594,12 +594,31 @@ describe('App - Advanced Test Coverage', () => {
       });
     });
 
-    it.skip('handles malformed skills list', async () => {
-      // TODO: The implementation doesn't filter malformed skills data.
-      // In production, the extension (listSkillFiles in extension.ts) only sends
-      // properly formatted { label, path } objects from .md files, so this scenario
-      // shouldn't occur. However, defensive filtering in the UI would be better.
-      // Skipping until implementation adds validation/filtering of skills data.
+    it('handles malformed skills list', async () => {
+      render(<App />);
+
+      await userEvent.click(screen.getByLabelText('Skills'));
+
+      postToWindow({
+        type: 'skillsList',
+        skills: [
+          { label: 'Good skill', path: '/tmp/good.md' },
+          { label: 'Another good skill', path: '/tmp/good2.md' },
+          { label: 123, path: '/tmp/bad1.md' },
+          { label: 'Missing path' },
+          { path: '/tmp/bad2.md' },
+          null,
+          'not-an-object',
+        ],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('Good skill')).toBeInTheDocument();
+        expect(screen.getByText('Another good skill')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText('Missing path')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('option')).toHaveLength(2);
     });
 
     it('handles empty input submission', async () => {
