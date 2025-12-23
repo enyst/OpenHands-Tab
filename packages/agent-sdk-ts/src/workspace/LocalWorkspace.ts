@@ -475,6 +475,79 @@ export class LocalWorkspace {
     return readFileAsync(safeTargetPath, encoding);
   }
 
+  async readFileBytes(targetPath: string, options: { maxBytes?: number } = {}): Promise<Buffer> {
+    const resolved = this.resolvePath(targetPath);
+    const parentDir = path.dirname(resolved);
+    const root = this.getContainingDirRoot(parentDir) ?? undefined;
+
+    let canonicalParentDir: string;
+    try {
+      canonicalParentDir = await fs.promises.realpath(parentDir);
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+        throw new Error(`readFileBytes failed: parent directory does not exist: ${parentDir}`);
+      }
+      throw error;
+    }
+
+    const stableParentDir = await this.revalidateDirectory(
+      'readFileBytes',
+      'read',
+      'parent directory',
+      parentDir,
+      resolved,
+      canonicalParentDir,
+      root,
+      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
+    );
+
+    const constants = fs.constants as Record<string, number>;
+    const noFollow =
+      os.platform() === 'win32'
+        ? 0
+        : typeof constants.O_NOFOLLOW === 'number'
+          ? constants.O_NOFOLLOW
+          : 0;
+
+    const safeTargetPath = path.join(stableParentDir, path.basename(resolved));
+    const maxBytes = options.maxBytes;
+
+    const formatTooLargeError = (sizeBytes: number): Error => {
+      const mb = sizeBytes / 1024 / 1024;
+      const maxMb = typeof maxBytes === 'number' ? maxBytes / 1024 / 1024 : 0;
+      const maxLabel = Number.isInteger(maxMb) ? String(maxMb) : maxMb.toFixed(1);
+      return new Error(`File is too large (${mb.toFixed(1)}MB). Maximum allowed size is ${maxLabel}MB.`);
+    };
+
+    if (noFollow) {
+      const handle = await fs.promises.open(safeTargetPath, constants.O_RDONLY | noFollow);
+      try {
+        const stat = await handle.stat();
+        if (!stat.isFile()) {
+          throw new Error(`readFileBytes failed: path is not a file: ${safeTargetPath}`);
+        }
+        if (typeof maxBytes === 'number' && stat.size > maxBytes) {
+          throw formatTooLargeError(stat.size);
+        }
+        return await handle.readFile();
+      } finally {
+        await handle.close();
+      }
+    }
+
+    const stat = await fs.promises.lstat(safeTargetPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`readFileBytes failed: refusing to read symlink path: ${safeTargetPath}`);
+    }
+    if (!stat.isFile()) {
+      throw new Error(`readFileBytes failed: path is not a file: ${safeTargetPath}`);
+    }
+    if (typeof maxBytes === 'number' && stat.size > maxBytes) {
+      throw formatTooLargeError(stat.size);
+    }
+    return readFileAsync(safeTargetPath);
+  }
+
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { BrowserTool, FileEditorTool, OUTPUT_CLIP_MARKER, TaskTrackerTool, TerminalTool } from '..';
 import { LocalWorkspace } from '../../workspace';
 
@@ -176,6 +176,47 @@ describe('FileEditorTool', () => {
       expect(listing).toContain('skipped unreadable: unreadable');
     } finally {
       await fs.promises.chmod(path.join(dir, 'unreadable'), 0o755);
+    }
+  });
+
+  it('rejects view when the parent becomes a symlink mid-read', async () => {
+    if (process.platform === 'win32') return;
+
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new FileEditorTool();
+
+    await tool.execute(tool.validate({ command: 'create', path: 'parent/inside.txt', file_text: 'hello' }), { workspace });
+
+    const canonicalParentDir = workspace.resolvePath('parent');
+    const redirectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-tools-redirect-view-'));
+    created.push(redirectDir);
+    await fs.promises.writeFile(path.join(redirectDir, 'inside.txt'), 'secret', 'utf8');
+
+    let swapped = false;
+    const swapParent = async () => {
+      if (swapped) return;
+      swapped = true;
+      const backupDir = `${canonicalParentDir}-bak`;
+      await fs.promises.rename(canonicalParentDir, backupDir);
+      await fs.promises.symlink(redirectDir, canonicalParentDir, 'dir');
+    };
+
+    const originalRealpath = fs.promises.realpath;
+    const realpathSpy = vi.spyOn(fs.promises, 'realpath').mockImplementation(async (targetPath, ...args) => {
+      const targetString = targetPath instanceof Buffer ? targetPath.toString() : String(targetPath);
+      const result = await originalRealpath.call(fs.promises, targetPath as never, ...(args as never[]));
+      if (!swapped && targetString === canonicalParentDir) {
+        await swapParent();
+      }
+      return result;
+    });
+
+    try {
+      await expect(tool.execute(tool.validate({ command: 'view', path: 'parent/inside.txt' }), { workspace }))
+        .rejects.toThrowError(/symlink|escapes|parent/i);
+    } finally {
+      realpathSpy.mockRestore();
     }
   });
 

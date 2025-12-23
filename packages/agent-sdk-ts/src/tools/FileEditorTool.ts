@@ -1,6 +1,5 @@
 import fs from 'fs/promises';
 import path from 'path';
-import type { Dirent } from 'node:fs';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
@@ -195,10 +194,10 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       case 'view': {
         const stat = await fs.stat(resolved);
         if (stat.isDirectory()) {
-          const { text } = await this.viewDirectory(resolved, ws.root);
+          const { text } = await this.viewDirectory(resolved, ws);
           return { command: 'view', path: resolved, prev_exist: true, old_content: null, new_content: text };
         }
-        const buffer = await this.readValidatedFile(resolved, extension);
+        const buffer = await this.readValidatedFile(resolved, extension, ws);
         if (IMAGE_EXTENSIONS.has(extension)) {
           return this.viewImage(resolved, extension, buffer);
         }
@@ -233,7 +232,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         if (IMAGE_EXTENSIONS.has(extension) || extension === PDF_EXTENSION) {
           throw new Error(`str_replace failed: refusing to edit binary file type: ${extension}`);
         }
-        const buffer = await this.readValidatedFile(resolved, extension);
+        const buffer = await this.readValidatedFile(resolved, extension, ws);
         const prev = buffer.toString('utf8');
         const oldStr = args.old_str ?? '';
         if (oldStr.length === 0) {
@@ -260,7 +259,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         if (IMAGE_EXTENSIONS.has(extension) || extension === PDF_EXTENSION) {
           throw new Error(`insert failed: refusing to edit binary file type: ${extension}`);
         }
-        const buffer = await this.readValidatedFile(resolved, extension);
+        const buffer = await this.readValidatedFile(resolved, extension, ws);
         const prev = buffer.toString('utf8');
         const lines = prev.split(/\r?\n/);
         const insertion = args.new_str ?? '';
@@ -276,7 +275,7 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
         return { command: 'insert', path: resolved, prev_exist: true, old_content: prev, new_content: updated };
       }
       case 'undo_edit': {
-        const current = await this.readOptionalFile(resolved);
+        const current = await this.readOptionalFile(resolved, ws);
 
         const stack = this.undoHistory.get(resolved);
         if (!stack || stack.length === 0) {
@@ -309,17 +308,8 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     }
   }
 
-  private async readValidatedFile(absPath: string, extension: string): Promise<Buffer> {
-    const stat = await fs.stat(absPath);
-    if (!stat.isFile()) {
-      throw new Error(`Path is not a file: ${absPath}`);
-    }
-    if (stat.size > MAX_FILE_SIZE_BYTES) {
-      const mb = stat.size / 1024 / 1024;
-      throw new Error(`File is too large (${mb.toFixed(1)}MB). Maximum allowed size is 10MB.`);
-    }
-
-    const buffer = await fs.readFile(absPath);
+  private async readValidatedFile(absPath: string, extension: string, workspace: ToolContext['workspace']): Promise<Buffer> {
+    const buffer = await workspace.readFileBytes(absPath, { maxBytes: MAX_FILE_SIZE_BYTES });
     const binaryAllowed = IMAGE_EXTENSIONS.has(extension) || extension === PDF_EXTENSION;
     if (!binaryAllowed && isProbablyBinary(buffer)) {
       throw new Error('File appears to be binary and this file type cannot be read or edited by this tool.');
@@ -327,7 +317,8 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     return buffer;
   }
 
-  private async viewDirectory(absPath: string, workspaceRoot: string): Promise<{ text: string }> {
+  private async viewDirectory(absPath: string, workspace: ToolContext['workspace']): Promise<{ text: string }> {
+    const workspaceRoot = workspace.root;
     const toDisplayPath = (absolutePath: string): string => {
       const relative = path.relative(workspaceRoot, absolutePath);
       if (!relative || relative === '') return '.';
@@ -335,12 +326,12 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       return relative;
     };
 
-    const topEntries = await fs.readdir(absPath, { withFileTypes: true });
+    const topEntries = await workspace.list(absPath);
     const hiddenCount = topEntries.filter((entry) => entry.name.startsWith('.')).length;
 
     const visibleTop = topEntries
       .filter((entry) => !entry.name.startsWith('.'))
-      .map((entry) => ({ name: entry.name, abs: path.join(absPath, entry.name), isDir: entry.isDirectory() }))
+      .map((entry) => ({ name: entry.name, abs: entry.path, isDir: entry.isDirectory }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     const displayRoot = toDisplayPath(absPath);
@@ -351,16 +342,16 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
       lines.push(`${entry.isDir ? 'd' : 'f'} ${displayEntry}`);
       if (!entry.isDir) continue;
 
-      let childEntries: Dirent[];
+      let childEntries: Awaited<ReturnType<ToolContext['workspace']['list']>>;
       try {
-        childEntries = await fs.readdir(entry.abs, { withFileTypes: true });
+        childEntries = await workspace.list(entry.abs);
       } catch {
         lines.push(`skipped unreadable: ${displayEntry}`);
         continue;
       }
       const visibleChildren = childEntries
         .filter((child) => !child.name.startsWith('.'))
-        .map((child) => ({ name: child.name, abs: path.join(entry.abs, child.name), isDir: child.isDirectory() }))
+        .map((child) => ({ name: child.name, abs: child.path, isDir: child.isDirectory }))
         .sort((a, b) => a.name.localeCompare(b.name));
       for (const child of visibleChildren) {
         const displayChild = toDisplayPath(child.abs);
@@ -474,9 +465,9 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
     return true;
   }
 
-  private async readOptionalFile(absPath: string): Promise<string | null> {
+  private async readOptionalFile(absPath: string, workspace: ToolContext['workspace']): Promise<string | null> {
     try {
-      return await fs.readFile(absPath, 'utf8');
+      return await workspace.readFile(absPath, 'utf8');
     } catch {
       return null;
     }
