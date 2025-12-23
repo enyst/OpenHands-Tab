@@ -281,14 +281,17 @@ export class GeminiClient implements LLMClient {
           ? this.config.timeoutSeconds
           : (DEFAULT_TIMEOUT_MS / 1000);
         const timeout = setTimeout(() => controller.abort(), effectiveSeconds * 1000);
-
-        const response = await fetch(this.requestUrl(), {
-          method: 'POST',
-          headers: this.requestHeaders(),
-          body: JSON.stringify(toRequestBody(this.config, request)),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
+        let response: Response;
+        try {
+          response = await fetch(this.requestUrl(), {
+            method: 'POST',
+            headers: this.requestHeaders(),
+            body: JSON.stringify(toRequestBody(this.config, request)),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
 
         if (!response.ok) {
           const shouldRetry = this.retry.retryOn(response.status) && attempt < this.retry.maxRetries;

@@ -107,13 +107,16 @@ export class LLMFactory {
         // Cache miss; create a fresh client.
       }
     }
-    const base = provider === 'anthropic'
-      ? new AnthropicClient(this.config, apiKey)
-      : provider === 'gemini'
-        ? new GeminiClient({ ...this.config, provider }, apiKey)
-        : useResponses
-          ? new OpenAIResponsesClient({ ...this.config, provider }, apiKey)
-          : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+    let base: LLMClient;
+    if (provider === 'anthropic') {
+      base = new AnthropicClient(this.config, apiKey);
+    } else if (provider === 'gemini') {
+      base = new GeminiClient({ ...this.config, provider }, apiKey);
+    } else if (useResponses) {
+      base = new OpenAIResponsesClient({ ...this.config, provider }, apiKey);
+    } else {
+      base = new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+    }
 
     if (derivedUsageId) {
       const metrics = new Metrics(this.config.model);
