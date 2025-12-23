@@ -1,4 +1,45 @@
-import type { SavedServer } from '../settings/SettingsManager';
+import type { BashEvent, Event } from '@openhands/agent-sdk-ts';
+import type { OpenHandsSettings, SavedServer } from '../settings/SettingsManager';
+
+export type HostToWebviewMessage =
+  | {
+    type: 'status';
+    status: string;
+    mode: 'local' | 'remote';
+    llmProfileLabel?: string | null;
+    llmModel?: string | null;
+  }
+  | { type: 'error'; error: string }
+  | { type: 'llmProfilesUpdated'; profiles: string[]; activeProfileId: string | null }
+  | { type: 'serverListUpdated'; servers: SavedServer[]; serverUrl: string }
+  | { type: 'elevenlabsSettings'; elevenlabs: OpenHandsSettings['elevenlabs'] }
+  | {
+    type: 'historyList';
+    conversations: Array<{
+      id: string;
+      title?: string;
+      firstMessage?: string;
+      timestamp: number;
+      messageCount?: number;
+    }>;
+  }
+  | { type: 'workspaceFiles'; files: string[] }
+  | { type: 'skillsList'; skills: Array<{ label: string; path: string }> }
+  | { type: 'attachmentsSelected'; attachments: Array<{ uri: string; label: string; sizeBytes?: number }> }
+  | { type: 'config'; serverUrl: string | null; mode: 'local' | 'remote' }
+  | { type: 'conversationStarted'; conversationId: string }
+  | { type: 'event'; seq?: number; event: Event }
+  | { type: 'terminalEvent'; event: BashEvent }
+  | { type: 'queryRenderedEvents'; requestId: string }
+  | { type: 'queryUiState'; requestId: string }
+  | { type: 'queryHalState'; requestId: string }
+  | { type: 'e2eAction'; action: string; payload?: unknown }
+  | { type: 'halTeleportUnavailable'; error: string }
+  | { type: 'halTeleportFailed'; error: string }
+  | { type: 'halTtsResponse'; requestId: string; ok: true; audioBase64: string; volume: number }
+  | { type: 'halTtsResponse'; requestId: string; ok: false; error: string; shouldNotify?: boolean; disabled?: boolean }
+  | { type: 'halVoiceConfirmResponse'; requestId: string; ok: true; decision: string }
+  | { type: 'halVoiceConfirmResponse'; requestId: string; ok: false; error: string };
 
 export type WebviewToHostMessage =
   | { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number }
@@ -59,4 +100,3 @@ export type WebviewToHostMessage =
   | { type: 'webviewError'; message: string; stack?: string }
   | { type: 'webviewNetwork'; phase: string; id: string; method: string; url: string; status?: number; ok?: boolean }
   | { type: 'webviewWebSocket'; phase: string; url: string; code?: number; reason?: string };
-

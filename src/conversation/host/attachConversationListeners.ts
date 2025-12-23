@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { BashEvent, ConversationInstance, Event } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
+import type { HostToWebviewMessage } from '../../shared/webviewMessages';
 
 export type AttachConversationListenersDeps = {
   context: vscode.ExtensionContext;
@@ -21,7 +22,10 @@ export type AttachConversationListenersDeps = {
   handleTerminalEvent: (event: BashEvent) => void;
 };
 
-function postToChatIfVisible(deps: Pick<AttachConversationListenersDeps, 'getChatView' | 'isChatWebviewReady'>, message: unknown) {
+function postToChatIfVisible(
+  deps: Pick<AttachConversationListenersDeps, 'getChatView' | 'isChatWebviewReady'>,
+  message: HostToWebviewMessage
+) {
   const view = deps.getChatView();
   if (!view || !deps.isChatWebviewReady() || !view.visible) return;
   void view.webview.postMessage(message);
@@ -94,7 +98,8 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     const view = deps.getChatView();
     if (!view || !deps.isChatWebviewReady() || !view.visible) return;
     const transformed = deps.transformEventForWebview ? deps.transformEventForWebview(ev, view.webview) : ev;
-    void view.webview.postMessage({ ...payload, event: transformed });
+    const message: HostToWebviewMessage = { ...payload, event: transformed };
+    void view.webview.postMessage(message);
   });
 
   conversation.on('error', (err: unknown) => {
