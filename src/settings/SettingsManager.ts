@@ -170,6 +170,7 @@ export class SettingsManager {
     const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
     const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
     const usageId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId'));
+    const profileId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.profileId'));
     const explicitModel = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.model'));
     // Always provide a model name, even in remote mode: the python agent-server requires it in StartConversationRequest.
     const model = explicitModel ?? normalizeNonEmptyString(
@@ -179,6 +180,7 @@ export class SettingsManager {
       // Omit usageId unless explicitly configured (local-mode SDK can derive a stable id per config).
       // Always provide a model so LocalConversation and RemoteConversation can start reliably.
       usageId,
+      profileId,
       provider,
       model,
       openaiApiMode: normalizeOpenaiApiMode(
@@ -273,6 +275,7 @@ export class SettingsManager {
 
     if (partial.llm) {
       if (partial.llm.usageId !== undefined) ops.push(this.adapter.update('openhands.llm.usageId', partial.llm.usageId, target));
+      if (partial.llm.profileId !== undefined) ops.push(this.adapter.update('openhands.llm.profileId', partial.llm.profileId, target));
       if (partial.llm.provider !== undefined) ops.push(this.adapter.update('openhands.llm.provider', partial.llm.provider, target));
       if (partial.llm.model !== undefined) ops.push(this.adapter.update('openhands.llm.model', partial.llm.model, target));
       if (partial.llm.openaiApiMode !== undefined) {

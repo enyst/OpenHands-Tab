@@ -858,13 +858,16 @@ export class Agent extends EventEmitter {
   }
 
   private createLlmClientFromSettings(): Promise<LLMClient> {
-    if (!this.options.settings.llm?.model) {
+    const s = this.options.settings;
+    const profileId = toOptionalNonEmptyString(s.llm?.profileId);
+    const model = toOptionalNonEmptyString(s.llm?.model);
+    if (!profileId && !model) {
       return Promise.reject(new Error('LLM model is not configured'));
     }
-    const s = this.options.settings;
     const config = {
+      profileId,
       provider: s.llm.provider ?? undefined,
-      model: s.llm.model ?? '',
+      model: model ?? '',
       openaiApiMode: s.llm.openaiApiMode ?? undefined,
       usageId: s.llm.usageId ?? undefined,
       baseUrl: s.llm.baseUrl ?? undefined,

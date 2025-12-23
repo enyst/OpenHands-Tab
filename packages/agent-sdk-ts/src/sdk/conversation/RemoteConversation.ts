@@ -141,10 +141,12 @@ export class RemoteConversation extends EventEmitter {
           return undefined;
         };
         const usageId = toOptionalString(s?.llm.usageId);
+        const profileId = toOptionalString(s?.llm.profileId);
         const model = toOptionalString(s?.llm.model);
         const baseUrl = toOptionalString(s?.llm.baseUrl);
         const apiVersion = toOptionalString(s?.llm.apiVersion);
         if (usageId) llm.usage_id = usageId;
+        if (profileId) llm.profile_id = profileId;
         if (model) llm.model = model;
         if (baseUrl) llm.base_url = baseUrl;
         if (apiVersion) llm.api_version = apiVersion;

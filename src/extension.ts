@@ -7,6 +7,7 @@ import { SettingsManager, type OpenHandsSettings } from './settings/SettingsMana
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from './shared/halTeleport';
 import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
+import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import {
   AgentContext,
   Conversation,
@@ -77,7 +78,7 @@ let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
 let conversationStoreRoot: string | undefined;
-let lastKnownLlmModel: string | null = null;
+let lastKnownLlmLabel: string | null = null;
 let verboseEventLogging = false;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
@@ -713,10 +714,10 @@ export function activate(context: vscode.ExtensionContext) {
           chatLastConversationId = conversationId;
           chatLastSeenSeq = lastSeenSeq;
         },
-        setLastKnownLlmModel: (model) => {
-          lastKnownLlmModel = model;
+        setLastKnownLlmLabel: (label) => {
+          lastKnownLlmLabel = label;
         },
-        getLastKnownLlmModel: () => lastKnownLlmModel,
+        getLastKnownLlmLabel: () => lastKnownLlmLabel,
         flushConversationEventBacklog,
         onRenderedEventsResponse: (requestId, info) => {
           pendingRenderedEventsRequests.get(requestId)?.(info);
@@ -836,7 +837,7 @@ export function activate(context: vscode.ExtensionContext) {
   async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean; modeSwitched?: boolean }) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
-    lastKnownLlmModel = settings.llm.model ?? null;
+    lastKnownLlmLabel = resolveConfiguredLlmLabel(settings);
 
     const cfg = vscode.workspace.getConfiguration();
     verboseEventLogging = Boolean(settings.agent?.debug) || Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
@@ -916,7 +917,7 @@ export function activate(context: vscode.ExtensionContext) {
         getChatView: () => chatView,
         isChatWebviewReady: () => chatWebviewReady,
         getConversationMode: () => conversationMode,
-        getLastKnownLlmModel: () => lastKnownLlmModel,
+        getLastKnownLlmLabel: () => lastKnownLlmLabel,
         isVerboseEventLogging: () => verboseEventLogging,
         bufferConversationEvent,
         resetConversationEventBacklog,
@@ -946,7 +947,8 @@ export function activate(context: vscode.ExtensionContext) {
         type: 'status',
         status: conversation?.getStatus() ?? 'offline',
         mode: conversationMode,
-        llmModel: lastKnownLlmModel,
+        llmProfileLabel: lastKnownLlmLabel,
+        llmModel: lastKnownLlmLabel,
       });
     }
   }
