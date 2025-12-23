@@ -11,6 +11,7 @@ import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { safeStringify } from './shared/safeStringify';
 import { getGlobalStorageBaseDir } from './shared/pastedImages';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
+import type { HostToWebviewMessage } from './shared/webviewMessages';
 import {
   AgentContext,
   Conversation,
@@ -179,7 +180,7 @@ function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
 }
 
 function flushConversationEventBacklog(params: {
-  postMessage: (message: unknown) => Thenable<boolean>;
+  postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
   clientConversationId?: string;
   clientLastSeenSeq?: number;
 }) {
@@ -733,7 +734,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     if (chatView && chatWebviewReady && chatView.visible) {
-      void chatView.webview.postMessage({ type: 'terminalEvent', event });
+      void chatView.webview.postMessage({ type: 'terminalEvent', event } satisfies HostToWebviewMessage);
     }
 
     if (conversationMode !== 'local') {
@@ -902,7 +903,7 @@ export function activate(context: vscode.ExtensionContext) {
         mode: conversationMode,
         llmProfileLabel: lastKnownLlmLabel,
         llmModel: lastKnownLlmLabel,
-      });
+      } satisfies HostToWebviewMessage);
     }
   }
 
@@ -1059,7 +1060,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (chatView) {
       const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event };
       if (typeof seq === 'number') payload.seq = seq;
-      void chatView.webview.postMessage(payload);
+      void chatView.webview.postMessage(payload satisfies HostToWebviewMessage);
     }
     return { sent: true, buffered: true, seq };
   });
@@ -1073,7 +1074,7 @@ export function activate(context: vscode.ExtensionContext) {
     void chatView.show?.(true);
     const requestId = nextRequestId('renderedEvents');
     const pending = createPendingResponse(pendingRenderedEventsRequests, requestId, 5000);
-    const posted = await chatView.webview.postMessage({ type: 'queryRenderedEvents', requestId });
+    const posted = await chatView.webview.postMessage({ type: 'queryRenderedEvents', requestId } satisfies HostToWebviewMessage);
     if (!posted) {
       pending.cancel();
       return { count: 0, eventTypes: [] };
@@ -1097,7 +1098,7 @@ export function activate(context: vscode.ExtensionContext) {
     void chatView.show?.(true);
     const requestId = nextRequestId('uiState');
     const pending = createPendingResponse(pendingUiStateRequests, requestId, 5000);
-    const posted = await chatView.webview.postMessage({ type: 'queryUiState', requestId });
+    const posted = await chatView.webview.postMessage({ type: 'queryUiState', requestId } satisfies HostToWebviewMessage);
     if (!posted) {
       pending.cancel();
       return DEFAULT_UI_STATE;
@@ -1115,7 +1116,7 @@ export function activate(context: vscode.ExtensionContext) {
     void chatView.show?.(true);
     const requestId = nextRequestId('halState');
     const pending = createPendingResponse(pendingHalStateRequests, requestId, 5000);
-    const posted = await chatView.webview.postMessage({ type: 'queryHalState', requestId });
+    const posted = await chatView.webview.postMessage({ type: 'queryHalState', requestId } satisfies HostToWebviewMessage);
     if (!posted) {
       pending.cancel();
       return DEFAULT_HAL_STATE;
@@ -1131,7 +1132,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (!chatView) return { sent: false };
       if (!req || typeof req.action !== 'string' || req.action.length === 0) return { sent: false };
       void chatView.show?.(true);
-      const sent = await chatView.webview.postMessage({ type: 'e2eAction', action: req.action, payload: req.payload });
+      const sent = await chatView.webview.postMessage({ type: 'e2eAction', action: req.action, payload: req.payload } satisfies HostToWebviewMessage);
       return { sent };
     }
   );
@@ -1142,7 +1143,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
-    const postToWebview = (message: unknown) => {
+    const postToWebview = (message: HostToWebviewMessage) => {
       if (!chatView || !chatWebviewReady) return false;
       void chatView.webview.postMessage(message);
       return true;
@@ -1544,7 +1545,7 @@ export function activate(context: vscode.ExtensionContext) {
         const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const settings = await settingsMgr.get();
         if (chatView && chatWebviewReady) {
-          void chatView.webview.postMessage({ type: 'elevenlabsSettings', elevenlabs: settings.elevenlabs });
+          void chatView.webview.postMessage({ type: 'elevenlabsSettings', elevenlabs: settings.elevenlabs } satisfies HostToWebviewMessage);
         }
       } catch (err: unknown) {
         outputChannel?.appendLine(`[settings] Failed to apply elevenlabs settings update: ${renderError(err)}`);

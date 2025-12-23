@@ -14,10 +14,10 @@ import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLinesForMode } from '../../shared/halScript';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
-import type { WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
 
 export type WebviewHost = {
-  postMessage: (message: unknown) => Thenable<boolean>;
+  postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
 };
 
 const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
