@@ -30,6 +30,7 @@ import {
   isTextContent,
 } from '@openhands/agent-sdk-ts';
 import { getVscodeApi } from '../shared/vscodeApi';
+import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 import { SecurityRiskBadge } from './SecurityRiskBadge';
 
 // ============================================================================
@@ -87,19 +88,21 @@ const formatSizeDelta = (previous?: number, next?: number): string | undefined =
   return 'File size changed by ' + sign + delta.toLocaleString() + ' ' + unit + '.';
 };
 
-const openWorkspaceFile = (path: string) => {
+const postMessage = (message: WebviewToHostMessage) => {
   const api = getVscodeApi();
-  api.postMessage({ type: 'openWorkspaceFile', path });
+  api.postMessage(message);
+};
+
+const openWorkspaceFile = (path: string) => {
+  postMessage({ type: 'openWorkspaceFile', path });
 };
 
 const openWorkspaceDiff = (path: string, oldContent: string, newContent: string) => {
-  const api = getVscodeApi();
-  api.postMessage({ type: 'openWorkspaceDiff', path, oldContent, newContent });
+  postMessage({ type: 'openWorkspaceDiff', path, oldContent, newContent });
 };
 
 const openMarkdownLink = (href: string) => {
-  const api = getVscodeApi();
-  api.postMessage({ type: 'openMarkdownLink', href });
+  postMessage({ type: 'openMarkdownLink', href });
 };
 
 function MarkdownLink({
