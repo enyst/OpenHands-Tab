@@ -9,7 +9,7 @@ export function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode
   const csp = [
     `default-src 'none'`,
     `img-src ${webview.cspSource} data:`,
-    `media-src ${webview.cspSource} blob: data:`,
+    `media-src ${webview.cspSource} blob:`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
     `font-src ${webview.cspSource}`,
     `script-src ${webview.cspSource}`,

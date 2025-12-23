@@ -628,6 +628,7 @@ export function App() {
 
     return () => {
       clearHalTimer();
+      stopHalAudio();
     };
   }, [
     advanceBundledDialogueAfterDelay,
