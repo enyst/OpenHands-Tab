@@ -863,33 +863,33 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           <span className={`codicon codicon-${icon} text-sm`} style={{ color: accentColor }} />
         </div>
 
-	        <div className="flex-1 min-w-0">
-	          {(showRoleLabel || message.created_at) && (
-	            <div className="flex items-center gap-2 mb-2">
-	              {showRoleLabel && (
-	                <div className={`font-semibold text-sm ${isAgent ? 'text-amber-200' : 'text-stone-300'}`}>{roleLabel}</div>
-	              )}
-	              {message.created_at && (
-	                <div className={`text-xs text-stone-500 ${showRoleLabel ? '' : 'ml-auto'}`}>
-	                  {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-	                </div>
-	              )}
-	            </div>
-	          )}
+        <div className="flex-1 min-w-0">
+          {(showRoleLabel || message.created_at) && (
+            <div className="flex items-center gap-2 mb-2">
+              {showRoleLabel && (
+                <div className={`font-semibold text-sm ${isAgent ? 'text-amber-200' : 'text-stone-300'}`}>{roleLabel}</div>
+              )}
+              {message.created_at && (
+                <div className={`text-xs text-stone-500 ${showRoleLabel ? '' : 'ml-auto'}`}>
+                  {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              )}
+            </div>
+          )}
 
-	          {textContent && (
-	            <div className="text-sm leading-relaxed break-words">
-	              {isUser && (
-	                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-500/30 text-stone-200 text-xs font-medium mb-2 border border-stone-400/20">
-	                  <span className="codicon codicon-account text-[10px]" />
-	                  <span>YOU</span>
-	                </div>
-	              )}
-	              <div className={`${isUser ? 'text-stone-100' : isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
-	                <MarkdownMessage text={textContent} />
-	              </div>
-	            </div>
-	          )}
+          {textContent && (
+            <div className="text-sm leading-relaxed break-words">
+              {isUser && (
+                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-500/30 text-stone-200 text-xs font-medium mb-2 border border-stone-400/20">
+                  <span className="codicon codicon-account text-[10px]" />
+                  <span>YOU</span>
+                </div>
+              )}
+              <div className={`${isUser ? 'text-stone-100' : isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
+                <MarkdownMessage text={textContent} />
+              </div>
+            </div>
+          )}
 
           {attachments.length > 0 && (
             <div className="mt-3 pt-3 border-t border-white/[0.06]">
