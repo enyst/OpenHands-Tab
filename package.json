@@ -129,13 +129,14 @@
             "enum": [
               "auto",
               "anthropic",
+              "gemini",
               "openai",
               "openrouter",
               "litellm_proxy"
             ],
             "default": "auto",
             "order": 4,
-            "markdownDescription": "LLM provider selection. Use `auto` to infer from `openhands.llm.baseUrl` when set; otherwise local mode defaults to Anthropic."
+            "markdownDescription": "LLM provider selection. Use `auto` to infer from `openhands.llm.baseUrl` when set.\n\nNotes:\n- Local mode defaults to Anthropic when provider/baseUrl are unset.\n- `gemini` uses the native Gemini API (baseUrl default: https://generativelanguage.googleapis.com/v1beta)."
           },
           "openhands.llm.temperature": {
             "type": "number",

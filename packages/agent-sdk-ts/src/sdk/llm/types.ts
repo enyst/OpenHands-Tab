@@ -1,6 +1,6 @@
 import type { Message, ResponsesReasoningItem, ToolCall } from '../types';
 
-export type LLMProvider = 'openai' | 'litellm_proxy' | 'openrouter' | 'anthropic';
+export type LLMProvider = 'openai' | 'litellm_proxy' | 'openrouter' | 'anthropic' | 'gemini';
 
 export type OpenAIChatApi = 'chat_completions' | 'responses';
 

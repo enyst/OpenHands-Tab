@@ -3,6 +3,7 @@ import { LLMCredentialProvider } from './credentials';
 import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
 import { OpenAIResponsesClient } from './openai-responses';
+import { GeminiClient } from './gemini';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration } from './types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient, llmRegistryKeyToString, toLLMRegistryKey } from './registry';
@@ -108,9 +109,11 @@ export class LLMFactory {
     }
     const base = provider === 'anthropic'
       ? new AnthropicClient(this.config, apiKey)
-      : useResponses
-        ? new OpenAIResponsesClient({ ...this.config, provider }, apiKey)
-        : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
+      : provider === 'gemini'
+        ? new GeminiClient({ ...this.config, provider }, apiKey)
+        : useResponses
+          ? new OpenAIResponsesClient({ ...this.config, provider }, apiKey)
+          : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
 
     if (derivedUsageId) {
       const metrics = new Metrics(this.config.model);
@@ -134,6 +137,8 @@ export class LLMFactory {
         return 'LITELLM_API_KEY';
       case 'anthropic':
         return 'ANTHROPIC_API_KEY';
+      case 'gemini':
+        return 'GEMINI_API_KEY';
       default:
         return 'OPENAI_API_KEY';
     }
