@@ -99,7 +99,20 @@ let activeConversationId: string | undefined;
 const MAX_TEST_EVENTS = MAX_EVENT_BACKLOG;
 const sentTestEvents: Event[] = [];
 // Track which command_ids have already printed an exit summary to avoid duplicates
-const printedExitFor = new Set<string>();
+const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
+const printedExitFor = new Map<string, true>();
+
+function markPrintedExitFor(commandId: string): void {
+  // LRU-ish: bump recency on re-add
+  if (printedExitFor.has(commandId)) {
+    printedExitFor.delete(commandId);
+  }
+  printedExitFor.set(commandId, true);
+
+  if (printedExitFor.size <= MAX_PRINTED_EXIT_FOR) return;
+  const oldest = printedExitFor.keys().next().value;
+  if (oldest) printedExitFor.delete(oldest);
+}
 
 function nextRequestId(prefix: string): string {
   nextE2ERequestId += 1;
@@ -773,13 +786,13 @@ export function activate(context: vscode.ExtensionContext) {
         if (cid && typeof code === 'number' && !printedExitFor.has(cid)) {
           terminalLogPty.ensureNewline?.();
           terminalLogPty.writeLine(`[Process exited with code ${code}]`);
-          printedExitFor.add(cid);
+          markPrintedExitFor(cid);
         }
       } else if (isBashExit(event)) {
         terminalLogPty.ensureNewline?.();
         terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
         if ('command_id' in event && (event as { command_id?: string }).command_id) {
-          printedExitFor.add((event as { command_id?: string }).command_id as string);
+          markPrintedExitFor((event as { command_id?: string }).command_id as string);
         }
       }
     } catch (e) {
@@ -803,6 +816,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (options?.modeSwitched) {
       // Switching modes should always start a fresh conversation, never restore prior state.
       resetConversationEventBacklog(undefined);
+      printedExitFor.clear();
       await context.workspaceState.update(savedIdKey, undefined);
     }
 
@@ -1144,6 +1158,7 @@ export function activate(context: vscode.ExtensionContext) {
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensureConversationAndConnection();
     sentTestEvents.length = 0;
+    printedExitFor.clear();
     await conversation?.startNewConversation();
   });
 
@@ -1209,6 +1224,7 @@ export function activate(context: vscode.ExtensionContext) {
       await settingsMgr.update({ serverUrl: firstServerUrl });
       await ensureConversationAndConnection({ uiJustCreated: true });
       sentTestEvents.length = 0;
+      printedExitFor.clear();
       await conversation?.startNewConversation();
       await conversation?.sendUserMessage(firstRemoteMessage);
     } catch (err) {
@@ -1611,4 +1627,5 @@ export function deactivate() {
   resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
   sentTestEvents.length = 0;
+  printedExitFor.clear();
 }
