@@ -128,10 +128,41 @@ function MarkdownLink({
   );
 }
 
+const ALLOWED_DATA_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']);
+const MAX_DATA_IMAGE_URL_CHARS = 1_000_000;
+
+function isAllowedDataImageUrl(url: string): boolean {
+  const trimmed = typeof url === 'string' ? url.trim() : '';
+  if (!trimmed.startsWith('data:')) return false;
+  if (trimmed.length > MAX_DATA_IMAGE_URL_CHARS) return false;
+
+  const match = /^data:([^;,]+)[;,]/.exec(trimmed);
+  const mime = match?.[1]?.toLowerCase();
+  if (!mime) return false;
+  if (!mime.startsWith('image/')) return false;
+  return ALLOWED_DATA_IMAGE_MIME_TYPES.has(mime);
+}
+
 function MarkdownMessage({ text }: { text: string }) {
+  const safeUrlTransform = (url: string) => {
+    const trimmed = typeof url === 'string' ? url.trim() : '';
+    if (!trimmed) return '';
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return trimmed; // Windows absolute path
+
+    const schemeMatch = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.exec(trimmed);
+    if (!schemeMatch) return trimmed;
+
+    const scheme = schemeMatch[0].slice(0, -1).toLowerCase();
+    if (scheme === 'http' || scheme === 'https' || scheme === 'mailto') return trimmed;
+    if (scheme === 'data' && isAllowedDataImageUrl(trimmed)) return trimmed;
+
+    return '';
+  };
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkBreaks]}
+      urlTransform={safeUrlTransform}
       components={{
         a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
         img: ({ src, alt }) => {
@@ -139,10 +170,19 @@ function MarkdownMessage({ text }: { text: string }) {
           const cleanAlt = typeof alt === 'string' ? alt.trim() : '';
           const label = cleanAlt || cleanSrc || 'image';
 
-          if (cleanSrc) {
-            return <MarkdownLink href={src}>{label}</MarkdownLink>;
+          if (!cleanSrc) return <span className="text-stone-400">{label}</span>;
+
+          if (isAllowedDataImageUrl(cleanSrc)) {
+            return (
+              <img
+                src={cleanSrc}
+                alt={cleanAlt}
+                className="max-w-full rounded-lg border border-white/[0.06] shadow-event my-2"
+              />
+            );
           }
-          return <span className="text-stone-400">{label}</span>;
+
+          return <MarkdownLink href={src}>{label}</MarkdownLink>;
         },
         p: ({ children }) => <p className="mt-2 first:mt-0 leading-relaxed">{children}</p>,
         ul: ({ children }) => <ul className="mt-2 first:mt-0 list-disc pl-6 space-y-1">{children}</ul>,

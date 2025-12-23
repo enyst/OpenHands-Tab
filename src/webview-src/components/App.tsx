@@ -62,6 +62,13 @@ type StatusBannerState = {
   dismissible?: boolean;
 };
 
+type InlineImageAttachment = {
+  id: string;
+  label: string;
+  dataUrl: string;
+  sizeBytes: number;
+};
+
 type ElevenLabsSettingsSnapshot = {
   enabled: boolean;
   mode: ElevenLabsMode;
@@ -92,6 +99,47 @@ const DEFAULT_HAL_UI_STATE: HalUiState = {
 
 const DEFAULT_BUNDLED_DIALOGUE_DELAY_MS = 650;
 const DEFAULT_BUNDLED_AUDIO_EXTENSION = 'wav';
+
+const MAX_PASTED_IMAGE_BYTES = 350 * 1024;
+const MAX_PASTED_IMAGES = 4;
+
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Failed to read image.'));
+        return;
+      }
+      resolve(result);
+    };
+    reader.onerror = () => {
+      const error = reader.error ?? new Error('Failed to read image.');
+      reject(error);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function escapeMarkdownAltText(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/[\r\n]+/g, ' ').trim();
+}
+
+function mimeTypeToExtension(mimeType: string): string {
+  const subtype = mimeType.split('/')[1] ?? '';
+  if (subtype === 'jpeg') return 'jpg';
+  if (subtype === 'svg+xml') return 'svg';
+  if (subtype) return subtype;
+  return 'png';
+}
+
+function normalizePastedImageLabel(file: File): string {
+  const name = typeof file.name === 'string' ? file.name.trim() : '';
+  if (name) return name.replace(/[\r\n]+/g, ' ').trim();
+  const ext = mimeTypeToExtension(file.type);
+  return `pasted-image.${ext}`;
+}
 
 function getOpenHandsMediaBaseUri(): string | null {
   if (typeof document === 'undefined') return null;
@@ -188,6 +236,7 @@ export function App() {
 
   // Attachments state
   const [attachments, setAttachments] = useState<Array<{ uri: string; label: string; sizeBytes?: number }>>([]);
+  const [inlineImages, setInlineImages] = useState<InlineImageAttachment[]>([]);
 
   // UI state
   const [statusBanner, setStatusBanner] = useState<StatusBannerState | null>(
@@ -416,6 +465,59 @@ export function App() {
     }
     lastStatusMessage = { level, message, at: now };
     setStatusBanner({ message, level });
+  }, []);
+
+  const handlePasteImageFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+
+    const nextImages: InlineImageAttachment[] = [];
+    let didSkipLarge = false;
+    let didSkipSvg = false;
+    const remainingSlots = Math.max(0, MAX_PASTED_IMAGES - inlineImages.length);
+    if (remainingSlots === 0) {
+      showStatusMessage('warn', `You can paste up to ${MAX_PASTED_IMAGES} images per message.`);
+      return;
+    }
+
+    for (const file of files) {
+      if (nextImages.length >= remainingSlots) break;
+      if (!file.type.startsWith('image/')) continue;
+      if (file.type === 'image/svg+xml') {
+        didSkipSvg = true;
+        continue;
+      }
+      if (file.size > MAX_PASTED_IMAGE_BYTES) {
+        didSkipLarge = true;
+        continue;
+      }
+
+      try {
+        const dataUrl = await readBlobAsDataUrl(file);
+        nextImages.push({
+          id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          label: normalizePastedImageLabel(file),
+          dataUrl,
+          sizeBytes: file.size,
+        });
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        showStatusMessage('error', `Failed to paste image: ${reason}`);
+      }
+    }
+
+    if (didSkipLarge) {
+      showStatusMessage('warn', `Some images were too large to paste (max ${Math.trunc(MAX_PASTED_IMAGE_BYTES / 1024)}KB).`);
+    }
+    if (didSkipSvg) {
+      showStatusMessage('warn', 'SVG images are not supported for pasted images.');
+    }
+
+    if (nextImages.length === 0) return;
+    setInlineImages((prev) => [...prev, ...nextImages].slice(0, MAX_PASTED_IMAGES));
+  }, [inlineImages.length, showStatusMessage]);
+
+  const handleRemoveInlineImage = useCallback((id: string) => {
+    setInlineImages((prev) => prev.filter((img) => img.id !== id));
   }, []);
 
   const handleConversationStateUpdate = useCallback((event: Event) => {
@@ -1532,6 +1634,7 @@ export function App() {
     setInput('');
     setSelectedContextFiles([]);
     setAttachments([]);
+    setInlineImages([]);
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage]);
 
@@ -1550,7 +1653,11 @@ export function App() {
 
   const handleSendMessage = useCallback(() => {
     const text = input.trim();
-    if (!text) return;
+    const imageMarkdown = inlineImages
+      .map((img) => `![${escapeMarkdownAltText(img.label)}](${img.dataUrl})`)
+      .join('\n\n');
+    const finalText = [text, imageMarkdown].filter(Boolean).join('\n\n');
+    if (!finalText) return;
 
     setInput('');
     setShowContextPicker(false);
@@ -1558,14 +1665,15 @@ export function App() {
     setContextQuery('');
     setSelectedContextFiles([]);
     setAttachments([]);
+    setInlineImages([]);
     selectionRef.current = { start: 0, end: 0 };
     postMessage({
       type: 'send',
-      text,
+      text: finalText,
       contextFiles: selectedContextFiles.slice(),
       attachments: attachments.map((a) => a.uri),
     });
-  }, [attachments, input, postMessage, selectedContextFiles]);
+  }, [attachments, inlineImages, input, postMessage, selectedContextFiles]);
 
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
@@ -1821,6 +1929,9 @@ export function App() {
           attachments={attachments}
           onOpenAttachment={handleOpenAttachment}
           onRemoveAttachment={handleRemoveAttachment}
+          inlineImages={inlineImages}
+          onPasteImageFiles={(files) => { void handlePasteImageFiles(files); }}
+          onRemoveInlineImage={handleRemoveInlineImage}
           onSelectionChange={handleSelectionChange}
         />
 
