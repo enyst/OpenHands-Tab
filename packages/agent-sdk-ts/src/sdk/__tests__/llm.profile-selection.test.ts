@@ -41,5 +41,27 @@ describe('LLMFactory profile selection', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
-});
 
+  it('falls back to raw LLM config when profileId is unset', async () => {
+    const registry = new LLMRegistry();
+    const stats = new ConversationStats();
+    registry.subscribe((event) => stats.registerLlm(event));
+
+    const factory = new LLMFactory(
+      {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        usageId: 'default',
+        apiKey: 'sk-inline',
+      },
+      { registry },
+    );
+
+    const client = await factory.createClient();
+    expect(client).toBeInstanceOf(TrackedLLMClient);
+    const tracked = client as TrackedLLMClient;
+    expect(tracked.modelName).toBe('gpt-5-mini');
+    expect(tracked.label).toBe('gpt-5-mini');
+    expect(stats.usageToLabels.default).toBe('gpt-5-mini');
+  });
+});
