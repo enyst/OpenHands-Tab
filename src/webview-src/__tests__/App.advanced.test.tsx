@@ -300,6 +300,32 @@ describe('App - Advanced Test Coverage', () => {
       });
     });
 
+    it('does not reset auto-dismiss timer for identical status banners', async () => {
+      vi.useFakeTimers();
+      render(<App />);
+
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', status: 'online', mode: 'remote' } }));
+      });
+
+      expect(screen.getByText(/Connected to server/)).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      // Re-send same status; should not reset the auto-dismiss timer.
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { data: { type: 'status', status: 'online', mode: 'remote' } }));
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      expect(screen.queryByText(/Connected to server/)).not.toBeInTheDocument();
+    });
+
     it('keeps the status row mounted when auto-dismiss hides the banner', async () => {
       vi.useFakeTimers();
       render(<App />);

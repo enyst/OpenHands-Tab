@@ -1161,14 +1161,29 @@ export function App() {
             if (typeof label === 'string' || label === null) {
               setLlmProfileLabel(label);
             }
-            if (payload.mode === 'local') {
-              setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
-            } else if (payload.status === 'connecting') {
-              setStatusBanner({ message: 'Connecting to server…', level: 'info' });
-            } else if (payload.status === 'online') {
-              setStatusBanner({ message: 'Connected to server', level: 'info' });
-            } else if (payload.status === 'offline') {
-              setStatusBanner({ message: 'Disconnected from server', level: 'warn' });
+            const nextBanner: StatusBannerState | null =
+              payload.mode === 'local'
+                ? { message: 'Local mode: running without remote server', level: 'info', dismissible: false }
+                : payload.status === 'connecting'
+                  ? { message: 'Connecting to server…', level: 'info' }
+                  : payload.status === 'online'
+                    ? { message: 'Connected to server', level: 'info' }
+                    : payload.status === 'offline'
+                      ? { message: 'Disconnected from server', level: 'warn' }
+                      : null;
+
+            if (nextBanner) {
+              setStatusBanner((prev) => {
+                if (!prev) return nextBanner;
+                if (
+                  prev.message === nextBanner.message
+                  && prev.level === nextBanner.level
+                  && prev.dismissible === nextBanner.dismissible
+                ) {
+                  return prev;
+                }
+                return nextBanner;
+              });
             }
           }
           break;
