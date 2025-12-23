@@ -79,6 +79,7 @@ export async function run(): Promise<void> {
       ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
       OPENROUTER_API_KEY: Boolean(process.env.OPENROUTER_API_KEY),
       LITELLM_API_KEY: Boolean(process.env.LITELLM_API_KEY),
+      GEMINI_API_KEY: Boolean(process.env.GEMINI_API_KEY),
     });
 
     await vscode.commands.executeCommand('openhands.open');
@@ -192,7 +193,21 @@ export async function run(): Promise<void> {
       throw new Error(`Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`);
     }
 
-    // 6) LLM profile selection: Sonnet profile should override raw provider/model.
+    // 6) Gemini native API (streamGenerateContent SSE).
+    await setLlmConfig({
+      profileId: null,
+      provider: 'gemini',
+      openaiApiMode: null,
+      baseUrl: `${mock.baseUrl}/v1beta`,
+      model: 'gemini-2.5-flash',
+    });
+    await sendAndWaitForRequestPath({
+      text: 'E2E step 6: gemini',
+      expectedPath: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
+      getRequests: () => mock.requests,
+    });
+
+    // 7) LLM profile selection: Sonnet profile should override raw provider/model.
     await setLlmConfig({
       profileId: 'sonnet-45',
       provider: 'openai',
@@ -201,12 +216,12 @@ export async function run(): Promise<void> {
       baseUrl: mock.baseUrl,
     });
     await sendAndWaitForRequestPath({
-      text: 'E2E step 6: profile sonnet-45',
+      text: 'E2E step 7: profile sonnet-45',
       expectedPath: '/messages',
       getRequests: () => mock.requests,
     });
 
-    // 7) LLM profile selection: gpt-5-mini profile should override raw provider/model.
+    // 8) LLM profile selection: gpt-5-mini profile should override raw provider/model.
     await setLlmConfig({
       profileId: 'gpt-5-mini',
       provider: 'anthropic',
@@ -215,14 +230,14 @@ export async function run(): Promise<void> {
       baseUrl: mock.baseUrl,
     });
     await sendAndWaitForRequestPath({
-      text: 'E2E step 7: profile gpt-5-mini',
+      text: 'E2E step 8: profile gpt-5-mini',
       expectedPath: '/chat/completions',
       getRequests: () => mock.requests,
     });
 
     // Basic sanity: at least one request per step.
     const paths = mock.requests.map((r) => r.path);
-    const required = ['/messages', '/chat/completions', '/responses'];
+    const required = ['/messages', '/chat/completions', '/responses', '/v1beta/models/gemini-2.5-flash:streamGenerateContent'];
     for (const p of required) {
       if (!paths.includes(p)) throw new Error(`Missing required mock request path: ${p} (saw: ${paths.join(', ')})`);
     }

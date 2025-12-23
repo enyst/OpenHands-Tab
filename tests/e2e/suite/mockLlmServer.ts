@@ -107,6 +107,22 @@ function sendOpenAiResponsesJson(res: http.ServerResponse, text: string): void {
   res.end(JSON.stringify(payload));
 }
 
+function sendGeminiStreamGenerateContentSse(res: http.ServerResponse, text: string): void {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  res.write(
+    `data: ${JSON.stringify({
+      candidates: [{ content: { role: 'model', parts: [{ text }] } }],
+      usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+    })}\n`,
+  );
+  res.write('data: [DONE]\n');
+  res.end();
+}
+
 export async function startMockLlmServer(): Promise<MockLlmServer> {
   const requests: MockLlmRequest[] = [];
   const port = await getFreePort();
@@ -168,6 +184,14 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
 
       if (path === '/messages') {
         sendAnthropicMessagesSse(res, 'OK (anthropic)');
+        return;
+      }
+
+      if (
+        (path.startsWith('/models/') || path.startsWith('/v1beta/models/')) &&
+        path.endsWith(':streamGenerateContent')
+      ) {
+        sendGeminiStreamGenerateContentSse(res, 'OK (gemini)');
         return;
       }
 

@@ -42,6 +42,7 @@ describe('OpenHands-Tab LLM Switching E2E', function () {
         ANTHROPIC_API_KEY: 'e2e-anthropic-key',
         OPENROUTER_API_KEY: 'e2e-openrouter-key',
         LITELLM_API_KEY: 'e2e-litellm-key',
+        GEMINI_API_KEY: 'e2e-gemini-key',
       }
     });
 
