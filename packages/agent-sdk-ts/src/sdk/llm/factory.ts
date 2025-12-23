@@ -36,43 +36,50 @@ export class LLMFactory {
       return trimmed.length ? trimmed : undefined;
     };
     const hashString = (input: string): string => createHash('sha256').update(input).digest('hex');
-      const stableStringifyHeaders = (headers: Record<string, string> | undefined): string | undefined => {
-        if (!headers) return undefined;
-        const entries = Object.entries(headers).sort(([a], [b]) => a.localeCompare(b));
-        return JSON.stringify(Object.fromEntries(entries));
-      };
+    const stableStringifyHeaders = (headers: Record<string, string> | undefined): string | undefined => {
+      if (!headers) return undefined;
+      const entries = Object.entries(headers).sort(([a], [b]) => a.localeCompare(b));
+      return JSON.stringify(Object.fromEntries(entries));
+    };
 
-      const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
+    const provider = this.config.provider ?? detectProviderFromBaseUrl(this.config.baseUrl);
 
-      const inlineApiKey =
-        typeof this.config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(this.config.apiKey)
-          ? this.config.apiKey
-          : undefined;
-      const apiKey =
-        inlineApiKey ??
-        (await this.credentialProvider.getApiKey(
-          this.config.apiKey ?? this.preferredKeys ?? this.getDefaultApiKeyName(provider),
-        ));
-      if (!apiKey) {
-        throw new Error('Missing API key for LLM provider');
-      }
+    const inlineApiKey =
+      typeof this.config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(this.config.apiKey)
+        ? this.config.apiKey
+        : undefined;
+    const apiKey =
+      inlineApiKey ??
+      (await this.credentialProvider.getApiKey(
+        this.config.apiKey ?? this.preferredKeys ?? this.getDefaultApiKeyName(provider),
+      ));
+    if (!apiKey) {
+      throw new Error('Missing API key for LLM provider');
+    }
 
-      const normalizedModel = this.config.model.toLowerCase();
-      const openaiApiMode = provider === 'openai' ? this.config.openaiApiMode ?? undefined : undefined;
-      const normalizeUrl = (value: string | null | undefined): string | undefined => {
-        const trimmed = typeof value === 'string' ? value.trim() : '';
-        if (!trimmed) return undefined;
+    const normalizedModel = this.config.model.toLowerCase();
+    const openaiApiMode = provider === 'openai' ? this.config.openaiApiMode ?? undefined : undefined;
+    const normalizeUrl = (value: string | null | undefined): string | undefined => {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (!trimmed) return undefined;
       return trimmed.replace(/\/+$/, '');
     };
     const normalizedBaseUrl = normalizeUrl(this.config.baseUrl);
     const normalizedDefaultOpenAIBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.openai);
     const baseUrlSupportsResponses = !normalizedBaseUrl || normalizedBaseUrl === normalizedDefaultOpenAIBaseUrl;
     const isGpt5 = normalizedModel.startsWith('gpt-5');
-    const useResponses = provider === 'openai'
-      && isGpt5
-      && (openaiApiMode === 'responses' || (openaiApiMode !== 'chat_completions' && baseUrlSupportsResponses));
-    const effectiveOpenaiApiMode = provider === 'openai' ? (useResponses ? 'responses' : 'chat_completions') : undefined;
-    const registryKey = toLLMRegistryKey({ ...this.config, provider, openaiApiMode: effectiveOpenaiApiMode });
+    const useResponses =
+      provider === 'openai' &&
+      isGpt5 &&
+      (openaiApiMode === 'responses' ||
+        (openaiApiMode !== 'chat_completions' && baseUrlSupportsResponses));
+    const effectiveOpenaiApiMode =
+      provider === 'openai' ? (useResponses ? 'responses' : 'chat_completions') : undefined;
+    const registryKey = toLLMRegistryKey({
+      ...this.config,
+      provider,
+      openaiApiMode: effectiveOpenaiApiMode,
+    });
 
     const explicitUsageId = normalizeOptionalString(this.config.usageId);
     const derivedUsageId = (() => {
@@ -121,7 +128,13 @@ export class LLMFactory {
 
     if (derivedUsageId) {
       const metrics = new Metrics(this.config.model);
-      const tracked = new TrackedLLMClient({ inner: base, usageId: derivedUsageId, modelName: this.config.model, metrics, onMetricsUpdate: this.onMetricsUpdate });
+      const tracked = new TrackedLLMClient({
+        inner: base,
+        usageId: derivedUsageId,
+        modelName: this.config.model,
+        metrics,
+        onMetricsUpdate: this.onMetricsUpdate,
+      });
       this.registry?.switchLlm(tracked, registryKey);
       return tracked;
     }
@@ -129,17 +142,20 @@ export class LLMFactory {
     return base;
   }
 
-    requestFromDefaults(messages: ChatCompletionRequest['messages'], systemPrompt: string): ChatCompletionRequest {
-      return { systemPrompt, messages };
-    }
+  requestFromDefaults(
+    messages: ChatCompletionRequest['messages'],
+    systemPrompt: string,
+  ): ChatCompletionRequest {
+    return { systemPrompt, messages };
+  }
 
-    private getDefaultApiKeyName(provider: LLMProvider): string {
-      switch (provider) {
-        case 'openrouter':
-          return 'OPENROUTER_API_KEY';
-        case 'litellm_proxy':
-          return 'LITELLM_API_KEY';
-        case 'anthropic':
+  private getDefaultApiKeyName(provider: LLMProvider): string {
+    switch (provider) {
+      case 'openrouter':
+        return 'OPENROUTER_API_KEY';
+      case 'litellm_proxy':
+        return 'LITELLM_API_KEY';
+      case 'anthropic':
         return 'ANTHROPIC_API_KEY';
       case 'gemini':
         return 'GEMINI_API_KEY';
