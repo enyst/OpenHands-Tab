@@ -219,7 +219,7 @@ export const loadProfile = (profileId: string, options: LLMProfileStoreOptions =
   const rootDir = resolveRootDir(options);
   const filePath = getProfilePath(profileId, rootDir);
   if (!fs.existsSync(filePath)) {
-    throw new Error(`Profile '${profileId}' not found`);
+    throw new LLMProfileValidationError(`Profile '${profileId}' not found`);
   }
 
   const content = fs.readFileSync(filePath, 'utf8');
@@ -252,7 +252,16 @@ export const saveProfile = (
   const json = `${JSON.stringify(payload, null, 2)}\n`;
   const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
   fs.writeFileSync(tmpPath, json, { encoding: 'utf8', mode: 0o600 });
-  fs.renameSync(tmpPath, filePath);
+  try {
+    fs.renameSync(tmpPath, filePath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch {
+      // Best-effort cleanup.
+    }
+    throw error;
+  }
   try {
     fs.chmodSync(filePath, 0o600);
   } catch {
