@@ -268,10 +268,12 @@ function LlmProfileSelector({ profileId, profiles, fallbackLabel, onSelect }: Ll
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose: () => setIsOpen(false), ref: popoverRef, delay: 100 });
 
-  const shown = profileId ?? 'None';
+  const normalizedFallbackLabel = typeof fallbackLabel === 'string' ? fallbackLabel.trim() : '';
+  const fallback = normalizedFallbackLabel || 'default';
+  const shown = profileId ?? fallback;
   const tooltip = profileId
     ? `LLM profile: ${profileId}`
-    : `LLM profile: None${fallbackLabel ? ` (using ${fallbackLabel})` : ''}`;
+    : `LLM profile: None (using ${fallback})`;
   const sanitizedProfiles = profiles.filter((id) => typeof id === 'string' && id.trim().length > 0);
 
   const handleSelect = (next: string | null) => {

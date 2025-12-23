@@ -42,16 +42,19 @@ describe('App toolbar interactions', () => {
     expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('gpt-4.1');
   });
 
-  it('shows None when no LLM profile is configured', async () => {
+  it('shows the effective model label when no LLM profile is configured', async () => {
     render(<App />);
 
     await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
+      }));
       window.dispatchEvent(new MessageEvent('message', {
         data: { type: 'llmProfilesUpdated', profiles: ['gpt-4.1', 'gpt-5'], activeProfileId: null }
       }));
     });
 
-    expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('None');
+    expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('gpt-4.1');
   });
 
   it('updates the LLM profile when selected in the dropdown', async () => {
