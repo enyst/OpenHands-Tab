@@ -259,31 +259,35 @@ export class LocalWorkspace {
     }
   }
 
-  private async revalidateWriteFileParentDir(
-    requestedDir: string,
+  private async revalidateDirectory(
+    operation: string,
+    verb: string,
+    subject: string,
+    directoryPath: string,
     absPath: string,
     expectedCanonicalDir: string,
     containingRoot: string | undefined,
-    options: { requireDirectory: boolean; throwIfMissing: boolean },
+    options: { requireDirectory: boolean; throwIfMissing: boolean; notDirectorySubject?: string },
   ): Promise<string> {
     let parentStat: fs.Stats;
     try {
-      parentStat = await fs.promises.lstat(requestedDir);
+      parentStat = await fs.promises.lstat(directoryPath);
     } catch (error) {
       if (options.throwIfMissing) {
-        throw new Error(`writeFile failed: parent directory does not exist: ${requestedDir}`);
+        throw new Error(`${operation} failed: ${subject} does not exist: ${directoryPath}`);
       }
       throw error;
     }
 
     if (parentStat.isSymbolicLink()) {
-      throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${requestedDir}`);
+      throw new Error(`${operation} failed: refusing to ${verb} through symlink ${subject}: ${directoryPath}`);
     }
     if (options.requireDirectory && !parentStat.isDirectory()) {
-      throw new Error(`writeFile failed: parent is not a directory: ${requestedDir}`);
+      const notDirectorySubject = options.notDirectorySubject ?? subject;
+      throw new Error(`${operation} failed: ${notDirectorySubject} is not a directory: ${directoryPath}`);
     }
 
-    const canonicalDir = await fs.promises.realpath(requestedDir);
+    const canonicalDir = await fs.promises.realpath(directoryPath);
     if (containingRoot) {
       const rel = path.relative(containingRoot, canonicalDir);
       if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
@@ -291,7 +295,7 @@ export class LocalWorkspace {
       }
     }
     if (canonicalDir !== expectedCanonicalDir) {
-      throw new Error(`writeFile failed: parent directory changed during write: ${requestedDir}`);
+      throw new Error(`${operation} failed: ${subject} changed during ${verb}: ${directoryPath}`);
     }
 
     return canonicalDir;
@@ -352,7 +356,10 @@ export class LocalWorkspace {
     if (noFollow) {
       // `O_NOFOLLOW` only protects the final path component; re-validate the parent directory
       // immediately before opening so a late parent symlink swap can't redirect the write.
-      const canonicalDirBeforeOpen = await this.revalidateWriteFileParentDir(
+      const canonicalDirBeforeOpen = await this.revalidateDirectory(
+        'writeFile',
+        'write',
+        'parent directory',
         requestedDir,
         absPath,
         canonicalDir,
@@ -386,7 +393,7 @@ export class LocalWorkspace {
         handle = undefined;
 
         // Re-check parent just before renaming to avoid late symlink swaps.
-        await this.revalidateWriteFileParentDir(requestedDir, absPath, canonicalDir, containingRoot, {
+        await this.revalidateDirectory('writeFile', 'write', 'parent directory', requestedDir, absPath, canonicalDir, containingRoot, {
           requireDirectory: false,
           throwIfMissing: false,
         });
@@ -418,7 +425,54 @@ export class LocalWorkspace {
 
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    return readFileAsync(resolved, encoding);
+    const parentDir = path.dirname(resolved);
+    const root = this.getContainingDirRoot(parentDir) ?? undefined;
+
+    let canonicalParentDir: string;
+    try {
+      canonicalParentDir = await fs.promises.realpath(parentDir);
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+        throw new Error(`readFile failed: parent directory does not exist: ${parentDir}`);
+      }
+      throw error;
+    }
+
+    const stableParentDir = await this.revalidateDirectory(
+      'readFile',
+      'read',
+      'parent directory',
+      parentDir,
+      resolved,
+      canonicalParentDir,
+      root,
+      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
+    );
+
+    const constants = fs.constants as Record<string, number>;
+    const noFollow =
+      os.platform() === 'win32'
+        ? 0
+        : typeof constants.O_NOFOLLOW === 'number'
+          ? constants.O_NOFOLLOW
+          : 0;
+
+    const safeTargetPath = path.join(stableParentDir, path.basename(resolved));
+    if (noFollow) {
+      const handle = await fs.promises.open(safeTargetPath, constants.O_RDONLY | noFollow);
+      try {
+        const buf = await handle.readFile();
+        return buf.toString(encoding);
+      } finally {
+        await handle.close();
+      }
+    }
+
+    const stat = await fs.promises.lstat(safeTargetPath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`readFile failed: refusing to read symlink path: ${safeTargetPath}`);
+    }
+    return readFileAsync(safeTargetPath, encoding);
   }
 
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
@@ -451,12 +505,60 @@ export class LocalWorkspace {
 
   async remove(targetPath: string): Promise<void> {
     const resolved = this.resolvePath(targetPath);
-    await rm(resolved, { force: true, recursive: true });
+    const parentDir = path.dirname(resolved);
+    const root = this.getContainingDirRoot(parentDir) ?? undefined;
+    if (!root) {
+      const kind = this.allowedRoots.get(resolved);
+      if (kind !== 'file') {
+        throw new Error(`remove failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
+      }
+    }
+
+    let canonicalParentDir: string;
+    try {
+      canonicalParentDir = await fs.promises.realpath(parentDir);
+    } catch (error) {
+      if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+
+    const stableParentDir = await this.revalidateDirectory(
+      'remove',
+      'remove',
+      'parent directory',
+      parentDir,
+      resolved,
+      canonicalParentDir,
+      root,
+      { requireDirectory: true, throwIfMissing: false, notDirectorySubject: 'parent' },
+    );
+
+    const safeTargetPath = path.join(stableParentDir, path.basename(resolved));
+    await rm(safeTargetPath, { force: true, recursive: true });
   }
 
   async list(targetPath = '.'): Promise<DirectoryEntry[]> {
     const resolved = this.resolvePath(targetPath);
-    const entries = await readdir(resolved, { withFileTypes: true });
+    const root = this.getContainingDirRoot(resolved);
+    if (!root) {
+      throw new Error(`list failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
+    }
+
+    const canonicalDir = await fs.promises.realpath(resolved);
+    const stableDir = await this.revalidateDirectory(
+      'list',
+      'list',
+      'directory',
+      resolved,
+      resolved,
+      canonicalDir,
+      root,
+      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'path' },
+    );
+
+    const entries = await readdir(stableDir, { withFileTypes: true });
     return entries.map((entry) => ({
       name: entry.name,
       path: path.join(targetPath, entry.name),
