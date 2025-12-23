@@ -548,8 +548,8 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           break;
         }
 
-        const withoutFragment = raw.split('#')[0] ?? raw;
-        const withoutQuery = withoutFragment.split('?')[0] ?? withoutFragment;
+        const withoutFragment = raw.split('#')[0];
+        const withoutQuery = withoutFragment.split('?')[0];
         const inputPath = withoutQuery.trim();
         if (!inputPath) break;
 

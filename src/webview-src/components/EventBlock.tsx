@@ -132,12 +132,11 @@ function MarkdownMessage({ text }: { text: string }) {
       components={{
         a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
         img: ({ src, alt }) => {
-          const label = (typeof alt === 'string' && alt.trim())
-            ? alt.trim()
-            : (typeof src === 'string' && src.trim())
-              ? src.trim()
-              : 'image';
-          if (typeof src === 'string' && src.trim()) {
+          const cleanSrc = typeof src === 'string' ? src.trim() : '';
+          const cleanAlt = typeof alt === 'string' ? alt.trim() : '';
+          const label = cleanAlt || cleanSrc || 'image';
+
+          if (cleanSrc) {
             return <MarkdownLink href={src}>{label}</MarkdownLink>;
           }
           return <span className="text-stone-400">{label}</span>;
