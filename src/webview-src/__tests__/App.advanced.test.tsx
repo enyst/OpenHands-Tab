@@ -836,9 +836,36 @@ describe('App - Advanced Test Coverage', () => {
   });
 
   describe('Context file insertion', () => {
-    it.skip('inserts context file with proper spacing at cursor position', async () => {
-      // Cursor position tracking during file insertion is complex
-      // Skipping this test for now - basic file insertion is tested elsewhere
+    it('inserts context file with proper spacing at cursor position', async () => {
+      render(<App />);
+
+      const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+      expect(textarea).toBeTruthy();
+
+      const initial = 'Please read@rethen';
+      const caret = initial.indexOf('@') + 1 + 2; // after "@re"
+
+      Object.defineProperty(textarea, 'selectionStart', { value: caret, configurable: true });
+      Object.defineProperty(textarea, 'selectionEnd', { value: caret, configurable: true });
+      fireEvent.select(textarea);
+
+      fireEvent.change(textarea, { target: { value: initial } });
+
+      await waitFor(() => {
+        expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+      });
+
+      postToWindow({ type: 'workspaceFiles', files: ['README.md', 'src/index.ts'] });
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('README.md'));
+
+      await waitFor(() => {
+        expect(textarea.value).toBe('Please read @README.md then');
+      });
     });
 
     it('filters workspace files based on query', async () => {

@@ -1735,7 +1735,10 @@ export function App() {
       const start = mentionStartRef.current;
       const before = input.slice(0, start);
       const after = input.slice(caret);
-      const inserted = `@${file} `;
+      const mention = `@${file}`;
+      const needsLeadingSpace = before.length > 0 && !/\s$/.test(before);
+      const needsTrailingSpace = after.length > 0 && !/^\s/.test(after);
+      const inserted = `${needsLeadingSpace ? ' ' : ''}${mention}${needsTrailingSpace ? ' ' : ''}`;
       const next = before + inserted + after;
       setInput(next);
 
