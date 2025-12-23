@@ -67,6 +67,22 @@ describe('FileStore', () => {
     replayedState.loadEvents(persistence.readEvents());
     expect(replayedState.snapshot).toEqual(state.snapshot);
   });
+
+  it('persists and restores LLM config', () => {
+    const dir = makeTempDir('conversation-llm-config-');
+    const persistence = new FileStore({ rootDir: dir, conversationId: 'conv-llm' });
+    persistence.writeLlmConfig?.({
+      profileId: 'sonnet-45',
+      baseUrl: 'http://example.test',
+      temperature: 0.25,
+    });
+
+    expect(persistence.readLlmConfig?.()).toEqual({
+      profileId: 'sonnet-45',
+      baseUrl: 'http://example.test',
+      temperature: 0.25,
+    });
+  });
 });
 
 describe('LocalConversation persistence', () => {
@@ -100,6 +116,61 @@ describe('LocalConversation persistence', () => {
     const restoredState = (restored as unknown as { state: ConversationState }).state.snapshot;
     expect(restoredState.iteration).toBe(initialState.iteration);
     expect(restoredState.values.llm_usage).toEqual(initialState.values.llm_usage);
+  });
+
+  it('restores persisted LLM config on conversation restore', async () => {
+    const dir = makeTempDir('local-conversation-llm-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const llm = new MockLLM([{ type: 'text', text: 'hello' }, { type: 'finish' }]);
+
+    const conversation = new LocalConversation({
+      settings: { ...baseSettings, llm: { profileId: 'sonnet-45' } },
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('hello');
+
+    const restored = new LocalConversation({
+      settings: { ...baseSettings, llm: { model: 'restored-model' } },
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+    restored.restoreConversation(id!);
+
+    const restoredSettings = (restored as unknown as { settings: OpenHandsSettings }).settings;
+    expect(restoredSettings.llm.profileId).toBe('sonnet-45');
+    expect(restoredSettings.llm.model).toBeUndefined();
+  });
+
+  it('ignores corrupted persisted LLM config', async () => {
+    const dir = makeTempDir('local-conversation-llm-corrupt-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const llm = new MockLLM([{ type: 'text', text: 'hello' }, { type: 'finish' }]);
+
+    const conversation = new LocalConversation({
+      settings: { ...baseSettings, llm: { profileId: 'sonnet-45' } },
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('hello');
+
+    fs.writeFileSync(path.join(dir, id!, 'llm.json'), '{not-json', 'utf8');
+
+    const restored = new LocalConversation({
+      settings: { ...baseSettings, llm: { model: 'restored-model' } },
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+
+    expect(() => restored.restoreConversation(id!)).not.toThrow();
+    const restoredSettings = (restored as unknown as { settings: OpenHandsSettings }).settings;
+    expect(restoredSettings.llm.model).toBe('restored-model');
   });
 
   it('continues conversation after restoration', async () => {
