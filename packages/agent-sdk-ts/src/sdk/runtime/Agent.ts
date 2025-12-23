@@ -748,7 +748,7 @@ export class Agent extends EventEmitter {
   private buildSystemPrompt(): string {
     let systemPrompt = SYSTEM_PROMPT;
     if (this.agentContext) {
-      const suffix = this.agentContext.getSystemMessageSuffix();
+      const suffix = this.agentContext.getSystemMessageSuffix({ secretNames: this.secrets.getRegisteredNames() });
       if (suffix) {
         systemPrompt += '\n\n' + suffix;
       }

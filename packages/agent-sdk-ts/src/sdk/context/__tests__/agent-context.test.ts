@@ -138,7 +138,18 @@ describe('AgentContext', () => {
       const context = new AgentContext({ skills: [repoSkill] });
       const suffix = context.getSystemMessageSuffix();
 
-      expect(suffix).toBe('## coding-standards\n\nUse TypeScript strict mode.');
+      expect(suffix).toBe(
+        [
+          '<REPO_CONTEXT>',
+          "The following information has been included based on several files defined in user's repository.",
+          'Please follow them while working.',
+          '',
+          '[BEGIN context from [coding-standards]]',
+          'Use TypeScript strict mode.',
+          '[END Context]',
+          '</REPO_CONTEXT>',
+        ].join('\n'),
+      );
     });
 
     it('combines multiple repo skills', () => {
@@ -148,8 +159,21 @@ describe('AgentContext', () => {
       const context = new AgentContext({ skills: [skill1, skill2] });
       const suffix = context.getSystemMessageSuffix();
 
-      expect(suffix).toContain('## style\n\nStyle guide');
-      expect(suffix).toContain('## security\n\nSecurity rules');
+      expect(suffix).toBe(
+        [
+          '<REPO_CONTEXT>',
+          "The following information has been included based on several files defined in user's repository.",
+          'Please follow them while working.',
+          '',
+          '[BEGIN context from [style]]',
+          'Style guide',
+          '[END Context]',
+          '[BEGIN context from [security]]',
+          'Security rules',
+          '[END Context]',
+          '</REPO_CONTEXT>',
+        ].join('\n'),
+      );
     });
 
     it('excludes knowledge skills from system suffix', () => {
@@ -163,8 +187,10 @@ describe('AgentContext', () => {
       const context = new AgentContext({ skills: [repoSkill, knowledgeSkill] });
       const suffix = context.getSystemMessageSuffix();
 
-      expect(suffix).toContain('repo');
-      expect(suffix).not.toContain('knowledge');
+      expect(suffix).toContain('[BEGIN context from [repo]]');
+      expect(suffix).toContain('Repo');
+      expect(suffix).not.toContain('[BEGIN context from [knowledge]]');
+      expect(suffix).not.toContain('Knowledge');
     });
 
     it('appends custom system message suffix', () => {
@@ -176,7 +202,9 @@ describe('AgentContext', () => {
       });
       const suffix = context.getSystemMessageSuffix();
 
-      expect(suffix).toContain('## repo\n\nRepo');
+      expect(suffix).toContain('<REPO_CONTEXT>');
+      expect(suffix).toContain('[BEGIN context from [repo]]');
+      expect(suffix).toContain('Repo');
       expect(suffix).toContain('Current date: 2025-01-15');
     });
 
@@ -194,6 +222,39 @@ describe('AgentContext', () => {
       });
 
       expect(context.getSystemMessageSuffix()).toBe('Trimmed');
+    });
+
+    it('renders custom secrets section when provided', () => {
+      const context = new AgentContext();
+      const suffix = context.getSystemMessageSuffix({ secretNames: ['GITHUB_TOKEN', 'API_KEY'] });
+
+      expect(suffix).toContain('<CUSTOM_SECRETS>');
+      expect(suffix).toContain('### Credential Access');
+      expect(suffix).toContain('Automatic secret injection');
+      expect(suffix).toContain('**$GITHUB_TOKEN**');
+      expect(suffix).toContain('**$API_KEY**');
+      expect(suffix).toContain('</CUSTOM_SECRETS>');
+    });
+
+    it('renders repo context and custom secrets when both apply', () => {
+      const repoSkill = new Skill({ name: 'security_rules', content: 'Always validate user input.', trigger: null });
+      const context = new AgentContext({ skills: [repoSkill] });
+      const suffix = context.getSystemMessageSuffix({ secretNames: ['GITHUB_TOKEN'] });
+
+      expect(suffix).toContain('<REPO_CONTEXT>');
+      expect(suffix).toContain('[BEGIN context from [security_rules]]');
+      expect(suffix).toContain('Always validate user input.');
+      expect(suffix).toContain('<CUSTOM_SECRETS>');
+      expect(suffix).toContain('**$GITHUB_TOKEN**');
+    });
+
+    it('renders custom suffix and custom secrets when both apply', () => {
+      const context = new AgentContext({ systemMessageSuffix: 'Additional custom instructions.' });
+      const suffix = context.getSystemMessageSuffix({ secretNames: ['API_KEY'] });
+
+      expect(suffix).toContain('Additional custom instructions.');
+      expect(suffix).toContain('<CUSTOM_SECRETS>');
+      expect(suffix).toContain('**$API_KEY**');
     });
   });
 
