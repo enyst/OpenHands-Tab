@@ -82,6 +82,7 @@ module.exports = [
       'no-console': 'off',
       'no-undef': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-tabs': 'error',
       'prefer-const': 'error',
       'no-var': 'error',
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
@@ -143,6 +144,7 @@ module.exports = [
       '@typescript-eslint/no-empty-function': 'off',
       '@typescript-eslint/no-unsafe-function-type': 'off',
       'no-empty': 'off',
+      'no-tabs': 'error',
     },
   },
 ];
