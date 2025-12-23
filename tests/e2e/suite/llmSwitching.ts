@@ -172,6 +172,32 @@ export async function run(): Promise<void> {
       throw new Error(`Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`);
     }
 
+    // 6) LLM profile selection: Sonnet profile should override raw provider/model.
+    await cfg.update('openhands.llm.profileId', 'sonnet-45', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.provider', 'openai', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.model', 'gpt-4o-mini', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.openaiApiMode', 'chat_completions', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
+    await vscode.commands.executeCommand('openhands.reconnect');
+    await sendAndWaitForRequestPath({
+      text: 'E2E step 6: profile sonnet-45',
+      expectedPath: '/messages',
+      getRequests: () => mock.requests,
+    });
+
+    // 7) LLM profile selection: gpt-5-mini profile should override raw provider/model.
+    await cfg.update('openhands.llm.profileId', 'gpt-5-mini', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.provider', 'anthropic', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.model', 'claude-sonnet-4-20250514', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.openaiApiMode', 'auto', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.llm.baseUrl', mock.baseUrl, vscode.ConfigurationTarget.Global);
+    await vscode.commands.executeCommand('openhands.reconnect');
+    await sendAndWaitForRequestPath({
+      text: 'E2E step 7: profile gpt-5-mini',
+      expectedPath: '/chat/completions',
+      getRequests: () => mock.requests,
+    });
+
     // Basic sanity: at least one request per step.
     const paths = mock.requests.map((r) => r.path);
     const required = ['/messages', '/chat/completions', '/responses'];

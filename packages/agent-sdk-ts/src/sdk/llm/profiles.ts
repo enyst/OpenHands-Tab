@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { LLMConfiguration, LLMProvider, OpenAIChatApi, ReasoningSummary } from './types';
+import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 
 export const DEFAULT_LLM_PROFILES_DIR = path.join(os.homedir(), '.openhands', 'llm-profiles');
 
@@ -222,6 +223,13 @@ const stripSecrets = (config: LLMConfiguration): LLMConfiguration => {
 
 export const listProfiles = (options: LLMProfileStoreOptions = {}): string[] => {
   const rootDir = resolveRootDir(options);
+  if (!options.rootDir) {
+    try {
+      ensureDefaultProfiles();
+    } catch {
+      // Best-effort; listing should still work even if we cannot seed defaults.
+    }
+  }
   if (!fs.existsSync(rootDir)) return [];
 
   const profileIds: string[] = [];
@@ -240,6 +248,13 @@ export const listProfiles = (options: LLMProfileStoreOptions = {}): string[] => 
 
 export const loadProfile = (profileId: string, options: LLMProfileStoreOptions = {}): LLMProfile => {
   const rootDir = resolveRootDir(options);
+  if (!options.rootDir) {
+    try {
+      ensureDefaultProfiles();
+    } catch {
+      // Best-effort; loading user profiles should still report missing profiles.
+    }
+  }
   const filePath = getProfilePath(profileId, rootDir);
   if (!fs.existsSync(filePath)) {
     throw new LLMProfileValidationError(`Profile '${profileId}' not found`);
@@ -291,4 +306,70 @@ export const saveProfile = (
   } catch {
     // Best-effort on platforms that support chmod.
   }
+};
+
+export const DEFAULT_LLM_PROFILE_IDS = [
+  'gemini-flash',
+  'gpt-5',
+  'gpt-5-mini',
+  'sonnet-45',
+] as const;
+
+export type DefaultLlmProfileId = typeof DEFAULT_LLM_PROFILE_IDS[number];
+
+const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMConfiguration }> = [
+  {
+    profileId: 'gemini-flash',
+    config: {
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      baseUrl: DEFAULT_PROVIDER_BASE_URLS.gemini,
+      profileName: 'Gemini Flash',
+    },
+  },
+  {
+    profileId: 'gpt-5',
+    config: {
+      provider: 'openai',
+      model: 'gpt-5',
+      baseUrl: DEFAULT_PROVIDER_BASE_URLS.openai,
+      profileName: 'GPT-5',
+    },
+  },
+  {
+    profileId: 'gpt-5-mini',
+    config: {
+      provider: 'openai',
+      model: 'gpt-5-mini',
+      baseUrl: DEFAULT_PROVIDER_BASE_URLS.openai,
+      profileName: 'GPT-5 Mini',
+    },
+  },
+  {
+    profileId: 'sonnet-45',
+    config: {
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-20250514',
+      baseUrl: DEFAULT_PROVIDER_BASE_URLS.anthropic,
+      profileName: 'Sonnet 4.5',
+    },
+  },
+];
+
+export const ensureDefaultProfiles = (options: LLMProfileStoreOptions = {}): DefaultLlmProfileId[] => {
+  const rootDir = resolveRootDir(options);
+  const created: DefaultLlmProfileId[] = [];
+
+  for (const entry of DEFAULT_LLM_PROFILES) {
+    try {
+      const filePath = getProfilePath(entry.profileId, rootDir);
+      if (fs.existsSync(filePath)) continue;
+      saveProfile(entry.profileId, entry.config, { ...options, includeSecrets: false });
+      created.push(entry.profileId);
+    } catch {
+      // Best-effort; users may have a read-only profile directory.
+    }
+  }
+
+  return created;
 };
