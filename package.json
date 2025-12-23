@@ -26,6 +26,11 @@
     "onCommand:openhands.startNewConversation",
     "onCommand:openhands.configure",
     "onCommand:openhands.setApiKey",
+    "onCommand:openhands.setOpenAiApiKey",
+    "onCommand:openhands.setAnthropicApiKey",
+    "onCommand:openhands.setOpenRouterApiKey",
+    "onCommand:openhands.setLiteLlmApiKey",
+    "onCommand:openhands.setGeminiLlmApiKey",
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setElevenLabsApiKey",
@@ -61,6 +66,26 @@
         "title": "OpenHands: Set API Key"
       },
       {
+        "command": "openhands.setOpenAiApiKey",
+        "title": "OpenHands: Set OpenAI API Key"
+      },
+      {
+        "command": "openhands.setAnthropicApiKey",
+        "title": "OpenHands: Set Anthropic API Key"
+      },
+      {
+        "command": "openhands.setOpenRouterApiKey",
+        "title": "OpenHands: Set OpenRouter API Key"
+      },
+      {
+        "command": "openhands.setLiteLlmApiKey",
+        "title": "OpenHands: Set LiteLLM Proxy API Key"
+      },
+      {
+        "command": "openhands.setGeminiLlmApiKey",
+        "title": "OpenHands: Set Gemini API Key (LLM)"
+      },
+      {
         "command": "openhands.setSessionApiKey",
         "title": "OpenHands: Set Session API Key"
       },
@@ -74,7 +99,7 @@
       },
       {
         "command": "openhands.setGeminiApiKey",
-        "title": "OpenHands: Set Gemini API Key"
+        "title": "OpenHands: Set Gemini API Key (HAL)"
       },
       {
         "command": "openhands.setCustomSecret1",
@@ -466,17 +491,52 @@
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
           },
-          "openhands.secrets.geminiApiKey": {
+          "openhands.secrets.openaiApiKey": {
             "type": "string",
             "default": "",
             "order": 3,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Gemini API key securely:**\n\n[🔑 Configure Gemini API Key](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json)_"
+            "markdownDescription": "**To set your OpenAI API key securely:**\n\n[🔑 Configure OpenAI API Key](command:openhands.setOpenAiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `OPENAI_API_KEY`.)_"
+          },
+          "openhands.secrets.anthropicApiKey": {
+            "type": "string",
+            "default": "",
+            "order": 4,
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**To set your Anthropic API key securely:**\n\n[🔑 Configure Anthropic API Key](command:openhands.setAnthropicApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `ANTHROPIC_API_KEY`.)_"
+          },
+          "openhands.secrets.openrouterApiKey": {
+            "type": "string",
+            "default": "",
+            "order": 5,
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**To set your OpenRouter API key securely:**\n\n[🔑 Configure OpenRouter API Key](command:openhands.setOpenRouterApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `OPENROUTER_API_KEY`.)_"
+          },
+          "openhands.secrets.litellmApiKey": {
+            "type": "string",
+            "default": "",
+            "order": 6,
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**To set your LiteLLM Proxy API key securely:**\n\n[🔑 Configure LiteLLM Proxy API Key](command:openhands.setLiteLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `LITELLM_API_KEY`.)_"
+          },
+          "openhands.secrets.geminiLlmApiKey": {
+            "type": "string",
+            "default": "",
+            "order": 7,
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**To set your Gemini API key for LLM requests securely:**\n\n[🔑 Configure Gemini API Key (LLM)](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
+          },
+          "openhands.secrets.geminiApiKey": {
+            "type": "string",
+            "default": "",
+            "order": 8,
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**To set your Gemini API key for HAL decision classification securely:**\n\n[🔑 Configure Gemini API Key (HAL)](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `openhands.geminiApiKey`.)_"
           },
           "openhands.secrets.elevenLabsApiKey": {
             "type": "string",
             "default": "",
-            "order": 4,
+            "order": 9,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your ElevenLabs API key securely:**\n\n[🔑 Configure ElevenLabs API Key](command:openhands.setElevenLabsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json)_"
           },
