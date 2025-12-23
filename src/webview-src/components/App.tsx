@@ -1395,10 +1395,14 @@ export function App() {
             const type = eventSnapshots[index] ?? 'unknown';
             const marker = (event as { e2e_marker?: unknown }).e2e_marker;
             const toolCallId = (event as { tool_call_id?: unknown }).tool_call_id;
+            const role = type === 'MessageEvent'
+              ? (event as { llm_message?: { role?: unknown } }).llm_message?.role
+              : undefined;
             return {
               type,
               marker: typeof marker === 'string' ? marker : undefined,
               toolCallId: typeof toolCallId === 'string' ? toolCallId : undefined,
+              role: typeof role === 'string' ? role : undefined,
             };
           });
           if (typeof payload.requestId === 'string') {

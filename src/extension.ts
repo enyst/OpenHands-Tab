@@ -991,6 +991,59 @@ export function activate(context: vscode.ExtensionContext) {
     };
   });
 
+  // Internal: return the last error event from the buffered backlog (for E2E + debugging).
+  const queryLastError = vscode.commands.registerCommand('openhands._queryLastError', () => {
+    let last: { seq: number; event: Event } | undefined;
+    for (const item of iterConversationEventBacklog()) {
+      if (item.event.kind === 'ConversationErrorEvent' || item.event.kind === 'AgentErrorEvent') {
+        last = { seq: item.seq, event: item.event };
+      }
+    }
+    if (!last) return null;
+
+    const e = last.event as unknown as Record<string, unknown>;
+    const payload: Record<string, unknown> = {
+      seq: last.seq,
+      kind: e.kind,
+      source: e.source,
+    };
+    if (typeof e.code === 'string') payload.code = e.code;
+    if (typeof e.detail === 'string') payload.detail = e.detail;
+    if (typeof e.error === 'string') payload.error = e.error;
+    if (typeof e.tool_name === 'string') payload.tool_name = e.tool_name;
+    if (typeof e.tool_call_id === 'string') payload.tool_call_id = e.tool_call_id;
+    return payload;
+  });
+
+  // Internal: summarize the in-memory event backlog for deterministic E2E checks.
+  const queryBacklogSummary = vscode.commands.registerCommand('openhands._queryBacklogSummary', () => {
+    let lastEventKind: string | undefined;
+    let lastEventSeq: number | undefined;
+    let lastAssistantMessageSeq: number | undefined;
+    let lastUserMessageSeq: number | undefined;
+
+    for (const item of iterConversationEventBacklog()) {
+      lastEventKind = item.event.kind;
+      lastEventSeq = item.seq;
+
+      if (item.event.kind === 'MessageEvent') {
+        const role = (item.event as unknown as { llm_message?: { role?: unknown } }).llm_message?.role;
+        if (role === 'assistant') lastAssistantMessageSeq = item.seq;
+        if (role === 'user') lastUserMessageSeq = item.seq;
+      }
+    }
+
+    return {
+      activeConversationId,
+      size: conversationEventBacklogSize,
+      latestSeq: conversationEventSeq,
+      lastEventSeq,
+      lastEventKind,
+      lastUserMessageSeq,
+      lastAssistantMessageSeq,
+    };
+  });
+
   // Test command to send mock events to webview for E2E testing
   const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
     sentTestEvents.push(event);
@@ -1379,6 +1432,8 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     open,
     diag,
+    queryLastError,
+    queryBacklogSummary,
     sendTestEvent,
     queryRenderedEvents,
     queryUiState,

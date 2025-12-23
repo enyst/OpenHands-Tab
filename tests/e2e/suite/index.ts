@@ -49,6 +49,11 @@ export async function run(): Promise<void> {
     return runAgentServerRemoteTest();
   }
 
+  if (testName === 'llmSwitching') {
+    const { run: runLlmSwitchingTest } = await import('./llmSwitching');
+    return runLlmSwitchingTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness
