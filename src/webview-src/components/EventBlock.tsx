@@ -130,6 +130,7 @@ function MarkdownLink({
 
 const ALLOWED_DATA_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']);
 const MAX_DATA_IMAGE_URL_CHARS = 1_000_000;
+const ALLOWED_WEBVIEW_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 
 function isAllowedDataImageUrl(url: string): boolean {
   const trimmed = typeof url === 'string' ? url.trim() : '';
@@ -141,6 +142,23 @@ function isAllowedDataImageUrl(url: string): boolean {
   if (!mime) return false;
   if (!mime.startsWith('image/')) return false;
   return ALLOWED_DATA_IMAGE_MIME_TYPES.has(mime);
+}
+
+function isAllowedWebviewImageUrl(url: string): boolean {
+  const trimmed = typeof url === 'string' ? url.trim() : '';
+  if (!trimmed) return false;
+  if (trimmed.length > MAX_DATA_IMAGE_URL_CHARS) return false;
+
+  const schemeMatch = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.exec(trimmed);
+  if (!schemeMatch) return false;
+
+  const scheme = schemeMatch[0].slice(0, -1).toLowerCase();
+  if (scheme !== 'vscode-webview-resource' && scheme !== 'vscode-resource' && scheme !== 'vscode-webview') {
+    return false;
+  }
+
+  const withoutQuery = trimmed.split(/[?#]/)[0].toLowerCase();
+  return ALLOWED_WEBVIEW_IMAGE_EXTENSIONS.some((ext) => withoutQuery.endsWith(ext));
 }
 
 function MarkdownMessage({ text }: { text: string }) {
@@ -155,6 +173,7 @@ function MarkdownMessage({ text }: { text: string }) {
     const scheme = schemeMatch[0].slice(0, -1).toLowerCase();
     if (scheme === 'http' || scheme === 'https' || scheme === 'mailto') return trimmed;
     if (scheme === 'data' && isAllowedDataImageUrl(trimmed)) return trimmed;
+    if (isAllowedWebviewImageUrl(trimmed)) return trimmed;
 
     return '';
   };
@@ -172,7 +191,7 @@ function MarkdownMessage({ text }: { text: string }) {
 
           if (!cleanSrc) return <span className="text-stone-400">{label}</span>;
 
-          if (isAllowedDataImageUrl(cleanSrc)) {
+          if (isAllowedDataImageUrl(cleanSrc) || isAllowedWebviewImageUrl(cleanSrc)) {
             return (
               <img
                 src={cleanSrc}

@@ -9,6 +9,8 @@ import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPO
 import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { safeStringify } from './shared/safeStringify';
+import { getGlobalStorageBaseDir } from './shared/pastedImages';
+import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
 import {
   AgentContext,
   Conversation,
@@ -72,6 +74,7 @@ let conversationMode: 'local' | 'remote' = 'remote';
 let terminal: vscode.Terminal | undefined;
 let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
 let nextE2ERequestId = 0;
+let pastedImagesBaseDir = getGlobalStorageBaseDir(undefined);
 const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo) => void>();
 const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
 const pendingHalStateRequests = new Map<string, (info: HalStateSnapshot) => void>();
@@ -196,7 +199,11 @@ function flushConversationEventBacklog(params: {
   if (needsFullReplay) {
     void params.postMessage({ type: 'conversationStarted', conversationId: currentConversationId });
     for (const item of iterConversationEventBacklog()) {
-      void params.postMessage({ type: 'event', seq: item.seq, event: item.event });
+      const webview = chatView?.webview;
+      const event = webview
+        ? transformEventForWebviewWithPastedImages(item.event, { webview, pastedImagesBaseDir })
+        : item.event;
+      void params.postMessage({ type: 'event', seq: item.seq, event });
     }
     return;
   }
@@ -207,7 +214,11 @@ function flushConversationEventBacklog(params: {
 
   for (const item of iterConversationEventBacklog()) {
     if (item.seq > lastSeenSeq) {
-      void params.postMessage({ type: 'event', seq: item.seq, event: item.event });
+      const webview = chatView?.webview;
+      const event = webview
+        ? transformEventForWebviewWithPastedImages(item.event, { webview, pastedImagesBaseDir })
+        : item.event;
+      void params.postMessage({ type: 'event', seq: item.seq, event });
     }
   }
 }
@@ -638,6 +649,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
 
   const secretRegistry = new SecretRegistry(context.secrets);
+  pastedImagesBaseDir = getGlobalStorageBaseDir(context.globalStorageUri?.fsPath);
 
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
@@ -861,6 +873,7 @@ export function activate(context: vscode.ExtensionContext) {
         isVerboseEventLogging: () => verboseEventLogging,
         bufferConversationEvent,
         resetConversationEventBacklog,
+        transformEventForWebview: (event, webview) => transformEventForWebviewWithPastedImages(event, { webview, pastedImagesBaseDir }),
         safeStringify,
         renderError,
         handleTerminalEvent,

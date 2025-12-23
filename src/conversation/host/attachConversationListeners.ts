@@ -12,6 +12,7 @@ export type AttachConversationListenersDeps = {
   getConversationMode: () => 'local' | 'remote';
   getLastKnownLlmLabel: () => string | null;
   isVerboseEventLogging: () => boolean;
+  transformEventForWebview?: (event: Event, webview: vscode.Webview) => Event;
 
   bufferConversationEvent: (event: Event) => number;
   resetConversationEventBacklog: (conversationId: string | undefined) => void;
@@ -90,8 +91,10 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     const seq = shouldBufferForReplay ? deps.bufferConversationEvent(ev) : undefined;
     const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event: ev };
     if (typeof seq === 'number') payload.seq = seq;
-
-    postToChatIfVisible(deps, payload);
+    const view = deps.getChatView();
+    if (!view || !deps.isChatWebviewReady() || !view.visible) return;
+    const transformed = deps.transformEventForWebview ? deps.transformEventForWebview(ev, view.webview) : ev;
+    void view.webview.postMessage({ ...payload, event: transformed });
   });
 
   conversation.on('error', (err: unknown) => {

@@ -118,6 +118,24 @@ describe('Pasted images', () => {
     expect(await screen.findByAltText('preview')).toBeInTheDocument();
   });
 
+  it('renders markdown vscode-webview-resource images as an <img>', async () => {
+    render(<App />);
+    postToWindow({ type: 'status', status: 'online', mode: 'local' });
+
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: '![local](vscode-webview-resource://test/pasted-images/abcd.png)' }],
+      },
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+
+    expect(await screen.findByAltText('local')).toBeInTheDocument();
+  });
+
   it('does not render SVG data:image payloads', async () => {
     render(<App />);
     postToWindow({ type: 'status', status: 'online', mode: 'local' });
