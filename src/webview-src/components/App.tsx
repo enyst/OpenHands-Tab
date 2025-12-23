@@ -37,6 +37,7 @@ import {
   MessageEventBlock,
   StreamingMessageBlock,
 } from './EventBlock';
+import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type RenderedEvent = { id: number; event: Event };
 
@@ -273,7 +274,7 @@ export function App() {
   });
 
   // Post message helper
-  const postMessage = useCallback((msg: unknown) => {
+  const postMessage = useCallback((msg: WebviewToHostMessage) => {
     const api = getVscodeApi();
     api.postMessage(msg);
   }, []);
@@ -1001,13 +1002,13 @@ export function App() {
     let didRequestSkills = false;
     const sendReady = () => {
       const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
-      const payload: { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number } = { type: 'webviewReady' };
+      const payload: WebviewToHostMessage = { type: 'webviewReady' };
       if (typeof state.conversationId === 'string') payload.conversationId = state.conversationId;
       if (typeof state.lastSeenSeq === 'number') payload.lastSeenSeq = state.lastSeenSeq;
-      vscodeApi.postMessage(payload);
+      postMessage(payload);
       if (!didRequestSkills) {
         didRequestSkills = true;
-        vscodeApi.postMessage({ type: 'requestSkills' });
+        postMessage({ type: 'requestSkills' });
       }
     };
 
@@ -1020,7 +1021,7 @@ export function App() {
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, []);
+  }, [postMessage]);
 
   // Message handler: processes incoming messages from extension host
   useEffect(() => {
