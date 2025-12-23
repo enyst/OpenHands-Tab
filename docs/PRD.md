@@ -116,6 +116,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - `openhands.serverUrl` - agent-server URL (blank for local mode)
 - `openhands.servers` - saved server list [{ url, label? }] for quick selection
 - `openhands.terminal.renderProgress` - coalesce carriage-return progress in terminal output
+- `openhands.llm.profileId` - optional LLM profile id from `~/.openhands/llm-profiles` (local alias; remote mode expands into `agent.llm` fields, no `profile_id` sent)
 - `openhands.llm.provider` - 'auto' | 'anthropic' | 'gemini' | 'openai' | 'openrouter' | 'litellm_proxy' (auto infers from baseUrl when set; otherwise defaults to Anthropic locally)
 - `openhands.llm.model` - default model
 - `openhands.llm.baseUrl`, `apiVersion`, `timeout`
@@ -129,6 +130,7 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 ### Connection & Conversation Lifecycle
 - Local mode: SDK runs agent in-process
 - Remote mode: WebSocket to agent-server
+- LLM Profiles (remote): agent-server schema is strict and rejects unknown fields (e.g. `llm.profile_id`), so the extension/SDK resolves `openhands.llm.profileId` locally and expands it into the existing `agent.llm` payload (model/baseUrl/etc).
 - Conversation ID stored in workspaceState
 - Auto-reconnect with exponential backoff
 

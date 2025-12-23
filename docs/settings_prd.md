@@ -76,11 +76,30 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - All LLM parameters configurable via settings or configuration wizard
   - ConnectionManager builds agent.llm payload dynamically from settings
 
+3a) LLM Profiles (local alias + remote expansion)
+- Motivation
+  - Profiles are a small JSON file containing a reusable LLM config (model/provider/baseUrl/etc).
+  - Users select a profile via `openhands.llm.profileId`.
+- Storage
+  - Profiles live at `~/.openhands/llm-profiles/<profileId>.json`.
+  - `profileId` is a file name, not a server-side identifier.
+- Remote compatibility constraint
+  - The agent-server `StartConversationRequest` schema is strict and currently rejects unknown fields like `llm.profile_id`.
+  - Therefore, treat `openhands.llm.profileId` as a **local alias only** for now.
+  - In remote mode, the extension/SDK must load the profile locally and expand it into the existing `agent.llm` payload (only server-supported fields).
+  - Do **not** send `profile_id` to the server until the agent-server supports it.
+- Merge rules (profile + explicit overrides)
+  - Base = profile config.
+  - Canonical: `provider` + `model` from profile (these should not be overridden by defaults).
+  - Apply explicit `openhands.llm.*` overrides only for optional knobs (e.g., `baseUrl`, `apiVersion`, `timeout`, `temperature`, token limits, reasoning settings).
+  - Keep local-only fields local (e.g., `headers` are never sent to the server).
+
 4) VS Code settings split (IMPLEMENTED)
 - Keep simple values in VS Code Settings (configuration)
   - openhands.serverUrl: string (default: http://localhost:3000)
   - openhands.servers: array of { url: string; label?: string } (saved servers for quick selection)
   - openhands.terminal.renderProgress: boolean (default: true) — coalesce carriage-return progress in terminal output
+  - openhands.llm.profileId: string | null (default: null) — selects a profile from `~/.openhands/llm-profiles` (local alias; expanded into `agent.llm` for remote mode)
   - openhands.llm.provider: enum ('auto' | 'anthropic' | 'gemini' | 'openai' | 'openrouter' | 'litellm_proxy') (default: 'auto') — auto infers from baseUrl when set, else defaults to Anthropic locally
   - openhands.llm.usageId: string (default: 'default-llm') — maps to agent-sdk usage_id
   - openhands.llm.model: string (default: 'claude-sonnet-4-20250514')
