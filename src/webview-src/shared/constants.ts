@@ -1,0 +1,1 @@
+export const MAX_RENDERED_EVENTS = 2000;
