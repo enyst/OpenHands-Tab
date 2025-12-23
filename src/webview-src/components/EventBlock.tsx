@@ -162,7 +162,7 @@ function isAllowedWebviewImageUrl(url: string): boolean {
 }
 
 function MarkdownMessage({ text }: { text: string }) {
-  const safeUrlTransform = (url: string) => {
+  const safeUrlTransform = (url: string, key?: string) => {
     const trimmed = typeof url === 'string' ? url.trim() : '';
     if (!trimmed) return '';
     if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return trimmed; // Windows absolute path
@@ -172,8 +172,10 @@ function MarkdownMessage({ text }: { text: string }) {
 
     const scheme = schemeMatch[0].slice(0, -1).toLowerCase();
     if (scheme === 'http' || scheme === 'https' || scheme === 'mailto') return trimmed;
-    if (scheme === 'data' && isAllowedDataImageUrl(trimmed)) return trimmed;
-    if (isAllowedWebviewImageUrl(trimmed)) return trimmed;
+    if (key === 'src') {
+      if (scheme === 'data' && isAllowedDataImageUrl(trimmed)) return trimmed;
+      if (isAllowedWebviewImageUrl(trimmed)) return trimmed;
+    }
 
     return '';
   };
