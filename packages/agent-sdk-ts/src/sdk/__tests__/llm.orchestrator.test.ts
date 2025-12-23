@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { AgentOrchestrator } from '../runtime';
-import { OpenAICompatibleClient, OpenAIResponsesClient, GeminiClient, LLMFactory, LLMCredentialProvider } from '../llm';
+import { DEFAULT_RETRY_OPTIONS, OpenAICompatibleClient, OpenAIResponsesClient, GeminiClient, LLMFactory, LLMCredentialProvider } from '../llm';
 import type { ChatCompletionRequest, LLMConfiguration } from '../llm';
 import { ConversationState, EventLog } from '../runtime';
 
@@ -92,7 +92,11 @@ describe('OpenAICompatibleClient streaming', () => {
       .mockResolvedValueOnce(createStreamResponse('failed', 500))
       .mockResolvedValueOnce(createStreamResponse(stream));
 
-    const client = new OpenAICompatibleClient({ ...baseConfig, timeoutSeconds: 1 }, 'retry-key');
+    const client = new OpenAICompatibleClient(
+      { ...baseConfig, timeoutSeconds: 1 },
+      'retry-key',
+      { ...DEFAULT_RETRY_OPTIONS, baseDelayMs: 0, maxDelayMs: 0 },
+    );
     const orchestrator = new AgentOrchestrator(client);
     const response = await orchestrator.runChat(buildRequest());
 
@@ -151,7 +155,11 @@ describe('GeminiClient streaming', () => {
       .mockResolvedValueOnce(createStreamResponse('failed', 500))
       .mockResolvedValueOnce(createStreamResponse(stream));
 
-    const client = new GeminiClient({ ...baseConfig, timeoutSeconds: 1 }, 'retry-key');
+    const client = new GeminiClient(
+      { ...baseConfig, timeoutSeconds: 1 },
+      'retry-key',
+      { ...DEFAULT_RETRY_OPTIONS, baseDelayMs: 0, maxDelayMs: 0 },
+    );
     const orchestrator = new AgentOrchestrator(client);
     const response = await orchestrator.runChat(buildRequest());
 
