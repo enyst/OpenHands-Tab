@@ -11,6 +11,8 @@ const SENSITIVE_HEADERS = new Set([
   'set-cookie',
 ]);
 
+const PATH_PREFIXES = ['/api/v1', '/v1'] as const;
+
 export type MockLlmRequest = {
   method: string;
   path: string;
@@ -172,11 +174,8 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
         return;
       }
 
-      const normalizedPath = path.startsWith('/api/v1/')
-        ? path.slice('/api/v1'.length)
-        : path.startsWith('/v1/')
-          ? path.slice('/v1'.length)
-          : path;
+      const prefix = PATH_PREFIXES.find((p) => path.startsWith(p + '/'));
+      const normalizedPath = prefix ? path.slice(prefix.length) : path;
 
       if (normalizedPath === '/chat/completions') {
         sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');

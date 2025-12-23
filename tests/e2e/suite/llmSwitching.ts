@@ -110,17 +110,28 @@ export async function run(): Promise<void> {
     await cfg.update('openhands.confirmation.policy', 'never', vscode.ConfigurationTarget.Global);
     await cfg.update('openhands.agent.enableSecurityAnalyzer', false, vscode.ConfigurationTarget.Global);
 
+    const v1BaseUrl = `${mock.baseUrl}/v1`;
+    const apiV1BaseUrl = `${mock.baseUrl}/api/v1`;
+
+    const expectedPaths = {
+      anthropicMessages: '/v1/messages',
+      openaiChatCompletions: '/v1/chat/completions',
+      openaiResponses: '/v1/responses',
+      openrouterChatCompletions: '/api/v1/chat/completions',
+      geminiStreamGenerateContent: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
+    } as const;
+
     // 1) Anthropic
     await setLlmConfig({
       profileId: null,
       provider: 'anthropic',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
       model: 'claude-sonnet-4-20250514',
     });
     await vscode.commands.executeCommand('openhands.startNewConversation');
     await sendAndWaitForRequestPath({
       text: 'E2E step 1: anthropic',
-      expectedPath: '/v1/messages',
+      expectedPath: expectedPaths.anthropicMessages,
       getRequests: () => mock.requests,
     });
 
@@ -129,12 +140,12 @@ export async function run(): Promise<void> {
       profileId: null,
       provider: 'openai',
       openaiApiMode: 'chat_completions',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
       model: 'gpt-4o-mini',
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 2: openai chat',
-      expectedPath: '/v1/chat/completions',
+      expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
     });
 
@@ -143,12 +154,12 @@ export async function run(): Promise<void> {
       profileId: null,
       provider: 'openai',
       openaiApiMode: 'auto',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
       model: 'gpt-5-mini',
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 3: openai gpt-5 auto (custom baseUrl)',
-      expectedPath: '/v1/chat/completions',
+      expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
     });
 
@@ -157,12 +168,12 @@ export async function run(): Promise<void> {
       profileId: null,
       provider: 'openai',
       openaiApiMode: 'responses',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
       model: 'gpt-5-mini',
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 4: openai responses',
-      expectedPath: '/v1/responses',
+      expectedPath: expectedPaths.openaiResponses,
       getRequests: () => mock.requests,
     });
 
@@ -171,21 +182,21 @@ export async function run(): Promise<void> {
       profileId: null,
       provider: 'openrouter',
       openaiApiMode: 'chat_completions',
-      baseUrl: `${mock.baseUrl}/api/v1`,
+      baseUrl: apiV1BaseUrl,
       model: 'google/gemini-2.0-flash',
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 5: openrouter header check',
-      expectedPath: '/api/v1/chat/completions',
+      expectedPath: expectedPaths.openrouterChatCompletions,
       getRequests: () => mock.requests,
     });
 
     const openrouterReq = mock.requests
       .slice()
       .reverse()
-      .find((r) => r.path === '/api/v1/chat/completions');
+      .find((r) => r.path === expectedPaths.openrouterChatCompletions);
     if (!openrouterReq) {
-      throw new Error('Expected an OpenRouter /api/v1/chat/completions request');
+      throw new Error(`Expected an OpenRouter ${expectedPaths.openrouterChatCompletions} request`);
     }
     const referer = openrouterReq.headers['http-referer'];
     const title = openrouterReq.headers['x-title'];
@@ -200,12 +211,12 @@ export async function run(): Promise<void> {
       profileId: null,
       provider: 'litellm_proxy',
       openaiApiMode: 'chat_completions',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
       model: 'gpt-4o-mini',
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 6: litellm_proxy',
-      expectedPath: '/v1/chat/completions',
+      expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
     });
 
@@ -219,7 +230,7 @@ export async function run(): Promise<void> {
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 7: gemini',
-      expectedPath: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
+      expectedPath: expectedPaths.geminiStreamGenerateContent,
       getRequests: () => mock.requests,
     });
 
@@ -229,11 +240,11 @@ export async function run(): Promise<void> {
       provider: 'openai',
       model: 'gpt-4o-mini',
       openaiApiMode: 'chat_completions',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 8: profile sonnet-45',
-      expectedPath: '/v1/messages',
+      expectedPath: expectedPaths.anthropicMessages,
       getRequests: () => mock.requests,
     });
 
@@ -243,26 +254,26 @@ export async function run(): Promise<void> {
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       openaiApiMode: 'auto',
-      baseUrl: `${mock.baseUrl}/v1`,
+      baseUrl: v1BaseUrl,
     });
     await sendAndWaitForRequestPath({
       text: 'E2E step 9: profile gpt-5-mini',
-      expectedPath: '/v1/chat/completions',
+      expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
     });
 
     // Basic sanity: at least one request per step.
-    const paths = mock.requests.map((r) => r.path);
+    const requestPaths = mock.requests.map((r) => r.path);
     const required = [
-      '/api/v1/chat/completions',
-      '/v1/chat/completions',
-      '/v1/messages',
-      '/v1/responses',
-      '/v1beta/models/gemini-2.5-flash:streamGenerateContent'
+      expectedPaths.openrouterChatCompletions,
+      expectedPaths.openaiChatCompletions,
+      expectedPaths.anthropicMessages,
+      expectedPaths.openaiResponses,
+      expectedPaths.geminiStreamGenerateContent
     ];
     for (const p of required) {
-      if (!paths.includes(p)) {
-        throw new Error(`Missing required mock request path: ${p} (saw: ${paths.join(', ')})`);
+      if (!requestPaths.includes(p)) {
+        throw new Error(`Missing required mock request path: ${p} (saw: ${requestPaths.join(', ')})`);
       }
     }
 
