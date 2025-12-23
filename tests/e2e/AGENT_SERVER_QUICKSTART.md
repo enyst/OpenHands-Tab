@@ -9,6 +9,8 @@ Option A: agent-sdk local (recommended for developers)
   2) `cd ~/repos/agent-sdk && make build` (optional; `uv run` will usually work without it)
   3) Start server from this repo:
      - `AGENT_SDK_DIR=~/repos/agent-sdk PORT=3000 ./scripts/start-agent-server.sh`
+     - Debugging tip (verbose logs + lightweight startup):
+       - `AGENT_SDK_DIR=~/repos/agent-sdk PYTHONUNBUFFERED=1 LOG_LEVEL=DEBUG DEBUG=1 OH_ENABLE_VSCODE=0 OH_ENABLE_VNC=0 OH_PRELOAD_TOOLS=0 PORT=3000 ./scripts/start-agent-server.sh`
      - Or manually (from `~/repos/agent-sdk`): `uv run python -m openhands.agent_server --host 127.0.0.1 --port 3000`
   4) In VS Code (Extension Dev Host), set openhands.serverUrl to <http://localhost:3000>
 
