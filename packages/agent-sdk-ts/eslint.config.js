@@ -30,6 +30,7 @@ module.exports = [
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      'no-tabs': 'error',
       'prefer-const': 'error',
       eqeqeq: ['error', 'always'],
     },
@@ -51,6 +52,7 @@ module.exports = [
       ...eslint.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'off',
+      'no-tabs': 'error',
     },
   },
 ];
