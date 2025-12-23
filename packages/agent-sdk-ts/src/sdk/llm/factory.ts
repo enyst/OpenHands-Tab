@@ -62,7 +62,7 @@ export class LLMFactory {
       for (const [key, value] of Object.entries(this.config)) {
         if (value === undefined) continue;
         if (key === 'profileId' || key === 'profileName' || key === 'provider' || key === 'model') continue;
-        (merged as Record<string, unknown>)[key] = value;
+        (merged as unknown as Record<string, unknown>)[key] = value;
       }
       return merged;
     })();
