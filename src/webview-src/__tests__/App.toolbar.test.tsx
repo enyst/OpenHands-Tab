@@ -30,28 +30,42 @@ describe('App toolbar interactions', () => {
     });
   });
 
-  it('shows the configured LLM model in the input row', async () => {
+  it('shows the configured LLM profile in the input row', async () => {
     render(<App />);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
+        data: { type: 'llmProfilesUpdated', profiles: ['gpt-4.1', 'gpt-5'], activeProfileId: 'gpt-4.1' }
       }));
     });
 
-    expect(await screen.findByLabelText('LLM model')).toHaveTextContent('gpt-4.1');
+    expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('gpt-4.1');
   });
 
-  it('shows a default label when no LLM model is configured', async () => {
+  it('shows None when no LLM profile is configured', async () => {
     render(<App />);
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: null }
+        data: { type: 'llmProfilesUpdated', profiles: ['gpt-4.1', 'gpt-5'], activeProfileId: null }
       }));
     });
 
-    expect(await screen.findByLabelText('LLM model')).toHaveTextContent('default');
+    expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('None');
+  });
+
+  it('updates the LLM profile when selected in the dropdown', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'llmProfilesUpdated', profiles: ['gpt-4.1', 'gpt-5'], activeProfileId: null }
+      }));
+    });
+
+    fireEvent.click(await screen.findByLabelText('LLM profile'));
+    fireEvent.click(await screen.findByText('gpt-5'));
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'setLlmProfileId', profileId: 'gpt-5' });
   });
 
   it('requests workspace files and inserts context mention at cursor', async () => {

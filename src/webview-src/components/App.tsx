@@ -171,6 +171,8 @@ export function App() {
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [llmProfileLabel, setLlmProfileLabel] = useState<string | null | undefined>(undefined);
+  const [llmProfileId, setLlmProfileId] = useState<string | null>(null);
+  const [llmProfiles, setLlmProfiles] = useState<string[]>([]);
 
   // Events and conversation state
   const [events, setEvents] = useState<RenderedEvent[]>([]);
@@ -1031,6 +1033,8 @@ export function App() {
         mode?: 'local' | 'remote';
         llmProfileLabel?: string | null;
         llmModel?: string | null;
+        profiles?: string[];
+        activeProfileId?: string | null;
         elevenlabs?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
         seq?: unknown;
@@ -1065,6 +1069,15 @@ export function App() {
             }
           }
           break;
+        case 'llmProfilesUpdated': {
+          if (Array.isArray(payload.profiles)) {
+            setLlmProfiles(payload.profiles.filter((id): id is string => typeof id === 'string'));
+          }
+          if (typeof payload.activeProfileId === 'string' || payload.activeProfileId === null) {
+            setLlmProfileId(payload.activeProfileId);
+          }
+          break;
+        }
         case 'configUpdated':
           if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
             const url = payload.serverUrl || undefined;
@@ -1654,11 +1667,13 @@ export function App() {
     postMessage({ type: 'switchToLocal' });
   }, [postMessage]);
 
+  const handleSelectLlmProfileId = useCallback((profileId: string | null) => {
+    setLlmProfileId(profileId);
+    postMessage({ type: 'setLlmProfileId', profileId });
+  }, [postMessage]);
+
   // Derived state: conversation is empty when no events and no streaming
   const isEmptyConversation = events.length === 0 && streamingContent === null;
-  const llmModelLabel = llmProfileLabel === undefined
-    ? undefined
-    : (llmProfileLabel || (mode === 'remote' ? 'server default' : 'default'));
 
   const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
   const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
@@ -1784,8 +1799,10 @@ export function App() {
           onChange={handleInputChange}
           onSubmit={handleSendMessage}
           disabled={status === 'offline'}
-          modelLabel={llmModelLabel}
-          onOpenModelSettings={handleOpenSettings}
+          llmProfileId={llmProfileId}
+          llmProfiles={llmProfiles}
+          llmProfileLabel={llmProfileLabel}
+          onSelectLlmProfileId={handleSelectLlmProfileId}
           onOpenContext={handleOpenContext}
           contextCount={selectedContextFiles.length}
           onOpenSkills={handleOpenSkills}
