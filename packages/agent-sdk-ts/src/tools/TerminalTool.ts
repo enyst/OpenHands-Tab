@@ -78,6 +78,32 @@ class TerminalSession {
     );
   }
 
+  async injectSecretsFromCommand(
+    command: string,
+    secrets: { getRegisteredNames: () => string[]; get: (name: string) => Promise<string | undefined> },
+  ): Promise<void> {
+    const trimmed = command.trim();
+    if (!trimmed) return;
+    const names = secrets.getRegisteredNames();
+    if (!names.length) return;
+
+    const lower = trimmed.toLowerCase();
+    const updates: Record<string, string> = {};
+
+    for (const name of names) {
+      const candidate = typeof name === 'string' ? name.trim() : '';
+      if (!candidate) continue;
+      if (!lower.includes(candidate.toLowerCase())) continue;
+      const value = await secrets.get(candidate);
+      if (!value) continue;
+      updates[candidate] = value;
+    }
+
+    for (const [key, value] of Object.entries(updates)) {
+      this.env[key] = value;
+    }
+  }
+
   private async killRunning(signal: SupportedSignal): Promise<void> {
     const running = this.running;
     if (!running) return;
@@ -503,21 +529,27 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
         this.session = new TerminalSession(context.workspace.root);
       }
 
+      const isInput = args.is_input ?? false;
+      const command = args.command ?? '';
+      if (!isInput && context.secrets) {
+        await this.session.injectSecretsFromCommand(command, context.secrets);
+      }
+
       const timeoutSeconds =
         typeof args.timeout === 'number' && Number.isFinite(args.timeout)
           ? args.timeout
           : DEFAULT_NO_CHANGE_TIMEOUT_SECONDS;
 
       const result = await this.session.execute({
-        command: args.command ?? '',
-        is_input: args.is_input ?? false,
+        command,
+        is_input: isInput,
         timeoutSeconds,
       });
 
       const exitCode = result.exitCode;
-      const command = result.command ?? args.command ?? '';
+      const resolvedCommand = result.command ?? command;
       return {
-        command,
+        command: resolvedCommand,
         stdout: result.stdout,
         stderr: result.stderr,
         exit_code: exitCode,

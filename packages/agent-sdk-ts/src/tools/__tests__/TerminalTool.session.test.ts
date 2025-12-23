@@ -4,6 +4,7 @@ import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { TerminalTool } from '../TerminalTool';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import { SecretRegistry } from '../../sdk/runtime/SecretRegistry';
 
 const makeWorkspace = async () => {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'terminal-tool-session-'));
@@ -18,6 +19,24 @@ afterEach(async () => {
 });
 
 describe('TerminalTool session behavior', () => {
+  it('injects registered secrets into the command environment when referenced', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+    const secrets = new SecretRegistry();
+    secrets.register('GITHUB_TOKEN', 'ghp_example123');
+
+    const result = await tool.execute(
+      tool.validate({ command: 'node -e "process.stdout.write(process.env.GITHUB_TOKEN||\'\')"', timeout: 0.2 }),
+      { workspace, secrets },
+    );
+
+    expect(result.exit_code).toBe(0);
+    expect((result.stdout ?? '').trim()).toBe('ghp_example123');
+
+    await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
+  });
+
   it('persists working directory across commands', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
