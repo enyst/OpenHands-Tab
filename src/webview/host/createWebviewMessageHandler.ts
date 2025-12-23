@@ -13,6 +13,7 @@ import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
 import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
 import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLinesForMode } from '../../shared/halScript';
+import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 
 export type WebviewHost = {
   postMessage: (message: unknown) => Thenable<boolean>;
@@ -298,8 +299,8 @@ export type CreateWebviewMessageHandlerDeps = {
   resolveConversationStoreRoot: () => Promise<string>;
 
   setWebviewReadyState: (conversationId?: string, lastSeenSeq?: number) => void;
-  setLastKnownLlmModel: (model: string | null) => void;
-  getLastKnownLlmModel: () => string | null;
+  setLastKnownLlmLabel: (label: string | null) => void;
+  getLastKnownLlmLabel: () => string | null;
 
   flushConversationEventBacklog: (args: {
     postMessage: WebviewHost['postMessage'];
@@ -432,13 +433,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         deps.setWebviewReadyState(message.conversationId, message.lastSeenSeq);
 
         const initSettings = await settingsMgr.get();
-        deps.setLastKnownLlmModel(initSettings.llm.model ?? null);
+        deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(initSettings));
 
         void host.postMessage({
           type: 'status',
           status: conversation?.getStatus() ?? 'offline',
           mode: deps.getConversationMode(),
-          llmModel: deps.getLastKnownLlmModel(),
+          llmProfileLabel: deps.getLastKnownLlmLabel(),
+          llmModel: deps.getLastKnownLlmLabel(),
         });
 
         void host.postMessage({

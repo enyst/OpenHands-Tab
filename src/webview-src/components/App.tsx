@@ -170,7 +170,7 @@ export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-  const [llmModel, setLlmModel] = useState<string | null | undefined>(undefined);
+  const [llmProfileLabel, setLlmProfileLabel] = useState<string | null | undefined>(undefined);
 
   // Events and conversation state
   const [events, setEvents] = useState<RenderedEvent[]>([]);
@@ -1029,6 +1029,7 @@ export function App() {
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
+        llmProfileLabel?: string | null;
         llmModel?: string | null;
         elevenlabs?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
@@ -1049,8 +1050,9 @@ export function App() {
             if (payload.mode === 'local' || payload.mode === 'remote') {
               setMode(payload.mode);
             }
-            if (typeof payload.llmModel === 'string' || payload.llmModel === null) {
-              setLlmModel(payload.llmModel);
+            const label = payload.llmProfileLabel !== undefined ? payload.llmProfileLabel : payload.llmModel;
+            if (typeof label === 'string' || label === null) {
+              setLlmProfileLabel(label);
             }
             if (payload.mode === 'local') {
               setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
@@ -1654,23 +1656,29 @@ export function App() {
 
   // Derived state: conversation is empty when no events and no streaming
   const isEmptyConversation = events.length === 0 && streamingContent === null;
-  const llmModelLabel = llmModel === undefined
+  const llmModelLabel = llmProfileLabel === undefined
     ? undefined
-    : (llmModel || (mode === 'remote' ? 'server default' : 'default'));
-    const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
-    const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
-    const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
-    const halConversationKey = conversationId ?? 'unknown';
-    const voiceConfirmFallbackToButtons =
-      elevenlabs.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
-    const halSessionKey =
-      halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
-        ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
-        : null;
+    : (llmProfileLabel || (mode === 'remote' ? 'server default' : 'default'));
+
+  const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
+  const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
+  const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
+  const halConversationKey = conversationId ?? 'unknown';
+  const voiceConfirmFallbackToButtons =
+    elevenlabs.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
+  const halSessionKey =
+    halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
+      ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
+      : null;
   const shouldShowHalOverlay =
-    halEnabled && (halPhase === 'waiting_remote' || (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey));
+    halEnabled && (
+      halPhase === 'waiting_remote' ||
+      (hasPendingConfirmation && hasHighRiskPendingAction && halSuppressedKey !== halSessionKey)
+    );
   const halUiPhase: HalPhase = halPhase === 'idle' && shouldShowHalOverlay ? 'dialogue' : halPhase;
-  const halUiStepIndex = halUiPhase === 'dialogue' ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1)) : null;
+  const halUiStepIndex = halUiPhase === 'dialogue'
+    ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1))
+    : null;
   const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0]?.text ?? null : null;
 
   return (

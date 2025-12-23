@@ -10,7 +10,7 @@ export type AttachConversationListenersDeps = {
   getChatView: () => vscode.WebviewView | undefined;
   isChatWebviewReady: () => boolean;
   getConversationMode: () => 'local' | 'remote';
-  getLastKnownLlmModel: () => string | null;
+  getLastKnownLlmLabel: () => string | null;
   isVerboseEventLogging: () => boolean;
 
   bufferConversationEvent: (event: Event) => number;
@@ -36,7 +36,8 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
       type: 'status',
       status: s,
       mode: deps.getConversationMode(),
-      llmModel: deps.getLastKnownLlmModel(),
+      llmProfileLabel: deps.getLastKnownLlmLabel(),
+      llmModel: deps.getLastKnownLlmLabel(),
     });
   });
 

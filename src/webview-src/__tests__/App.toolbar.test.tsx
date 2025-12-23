@@ -35,7 +35,7 @@ describe('App toolbar interactions', () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'status', status: 'online', mode: 'local', llmModel: 'gpt-4.1' }
+        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
       }));
     });
 
@@ -47,7 +47,7 @@ describe('App toolbar interactions', () => {
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
-        data: { type: 'status', status: 'online', mode: 'local', llmModel: null }
+        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: null }
       }));
     });
 

@@ -27,6 +27,7 @@ describe('SettingsManager', () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBeUndefined();
     expect(s.llm.usageId).toBeUndefined();
+    expect(s.llm.profileId).toBeUndefined();
     expect(s.llm.provider).toBe('anthropic');
     expect(s.llm.openaiApiMode).toBeUndefined();
     expect(s.llm.reasoningSummary).toBeUndefined();
@@ -73,6 +74,7 @@ describe('SettingsManager', () => {
       serverUrl: 'http://example:1234',
       llm: {
         usageId: 'my-usage',
+        profileId: 'gpt-5',
         provider: 'openrouter',
         model: 'foo',
         baseUrl: 'https://api.example.com',
@@ -101,6 +103,7 @@ describe('SettingsManager', () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
     expect(s.llm.usageId).toBe('my-usage');
+    expect(s.llm.profileId).toBe('gpt-5');
     expect(s.llm.provider).toBe('openrouter');
     expect(s.llm.model).toBe('foo');
     expect(s.llm.baseUrl).toBe('https://api.example.com');

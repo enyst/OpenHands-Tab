@@ -106,6 +106,12 @@
         "title": "OpenHands: LLM",
         "order": 1,
         "properties": {
+          "openhands.llm.profileId": {
+            "type": "string",
+            "default": "",
+            "order": 0,
+            "markdownDescription": "Optional LLM profile identifier (filename stem). When set, OpenHands loads the effective provider/model/baseUrl/etc from `~/.openhands/llm-profiles/<profileId>.json`."
+          },
           "openhands.llm.model": {
             "type": "string",
             "default": "claude-sonnet-4-20250514",
