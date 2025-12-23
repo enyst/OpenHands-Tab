@@ -188,52 +188,66 @@ export async function run(): Promise<void> {
       throw new Error('Expected an OpenRouter /chat/completions request');
     }
     const referer = openrouterReq.headers['http-referer'];
-    const title = openrouterReq.headers['x-title'];
-    if (!referer || !title) {
-      throw new Error(`Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`);
-    }
+	    const title = openrouterReq.headers['x-title'];
+	    if (!referer || !title) {
+	      throw new Error(`Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`);
+	    }
 
-    // 6) Gemini native API (streamGenerateContent SSE).
-    await setLlmConfig({
-      profileId: null,
-      provider: 'gemini',
-      openaiApiMode: null,
-      baseUrl: `${mock.baseUrl}/v1beta`,
-      model: 'gemini-2.5-flash',
-    });
-    await sendAndWaitForRequestPath({
-      text: 'E2E step 6: gemini',
-      expectedPath: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
-      getRequests: () => mock.requests,
-    });
+	    // 6) litellm_proxy is OpenAI-compatible.
+	    await setLlmConfig({
+	      profileId: null,
+	      provider: 'litellm_proxy',
+	      openaiApiMode: 'chat_completions',
+	      baseUrl: mock.baseUrl,
+	      model: 'gpt-4o-mini',
+	    });
+	    await sendAndWaitForRequestPath({
+	      text: 'E2E step 6: litellm_proxy',
+	      expectedPath: '/chat/completions',
+	      getRequests: () => mock.requests,
+	    });
 
-    // 7) LLM profile selection: Sonnet profile should override raw provider/model.
-    await setLlmConfig({
-      profileId: 'sonnet-45',
-      provider: 'openai',
-      model: 'gpt-4o-mini',
+	    // 7) Gemini native API (streamGenerateContent SSE).
+	    await setLlmConfig({
+	      profileId: null,
+	      provider: 'gemini',
+	      openaiApiMode: null,
+	      baseUrl: `${mock.baseUrl}/v1beta`,
+	      model: 'gemini-2.5-flash',
+	    });
+	    await sendAndWaitForRequestPath({
+	      text: 'E2E step 7: gemini',
+	      expectedPath: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
+	      getRequests: () => mock.requests,
+	    });
+
+	    // 8) LLM profile selection: Sonnet profile should override raw provider/model.
+	    await setLlmConfig({
+	      profileId: 'sonnet-45',
+	      provider: 'openai',
+	      model: 'gpt-4o-mini',
       openaiApiMode: 'chat_completions',
       baseUrl: mock.baseUrl,
-    });
-    await sendAndWaitForRequestPath({
-      text: 'E2E step 7: profile sonnet-45',
-      expectedPath: '/messages',
-      getRequests: () => mock.requests,
-    });
+	    });
+	    await sendAndWaitForRequestPath({
+	      text: 'E2E step 8: profile sonnet-45',
+	      expectedPath: '/messages',
+	      getRequests: () => mock.requests,
+	    });
 
-    // 8) LLM profile selection: gpt-5-mini profile should override raw provider/model.
-    await setLlmConfig({
-      profileId: 'gpt-5-mini',
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
+	    // 9) LLM profile selection: gpt-5-mini profile should override raw provider/model.
+	    await setLlmConfig({
+	      profileId: 'gpt-5-mini',
+	      provider: 'anthropic',
+	      model: 'claude-sonnet-4-20250514',
       openaiApiMode: 'auto',
       baseUrl: mock.baseUrl,
-    });
-    await sendAndWaitForRequestPath({
-      text: 'E2E step 8: profile gpt-5-mini',
-      expectedPath: '/chat/completions',
-      getRequests: () => mock.requests,
-    });
+	    });
+	    await sendAndWaitForRequestPath({
+	      text: 'E2E step 9: profile gpt-5-mini',
+	      expectedPath: '/chat/completions',
+	      getRequests: () => mock.requests,
+	    });
 
     // Basic sanity: at least one request per step.
     const paths = mock.requests.map((r) => r.path);
