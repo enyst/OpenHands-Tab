@@ -351,6 +351,34 @@ describe('Command handlers', () => {
     expect(conversationInstance.startNewConversation).toHaveBeenCalled();
   });
 
+  it('starts a new conversation to explain the editor selection', async () => {
+    (vscode.window as any).activeTextEditor = {
+      selection: {
+        isEmpty: false,
+        start: { line: 3, character: 2 },
+        end: { line: 5, character: 10 },
+      },
+      document: {
+        languageId: 'typescript',
+        uri: {
+          scheme: 'file',
+          fsPath: '/test/workspace/src/example.ts',
+          toString: () => 'file:///test/workspace/src/example.ts',
+        },
+        getText: vi.fn(() => 'const x = 1;'),
+      },
+    };
+
+    await vscode.commands.executeCommand('openhands.explainSelection');
+
+    expect(conversationInstance.startNewConversation).toHaveBeenCalled();
+    expect(conversationInstance.sendUserMessage).toHaveBeenCalled();
+    const message = (conversationInstance.sendUserMessage as unknown as Mock).mock.calls[0]?.[0] as string;
+    expect(message).toContain('Please explain this code:');
+    expect(message).toContain('/test/workspace/src/example.ts:4:3-6:11');
+    expect(message).toContain('const x = 1;');
+  });
+
   it('sends reconnect/pause/resume commands', async () => {
     await vscode.commands.executeCommand('openhands.reconnect');
     await vscode.commands.executeCommand('openhands.pauseCurrentRun');

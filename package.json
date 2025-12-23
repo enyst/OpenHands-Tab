@@ -22,6 +22,7 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:openhands.open",
+    "onCommand:openhands.explainSelection",
     "onCommand:openhands.startNewConversation",
     "onCommand:openhands.configure",
     "onCommand:openhands.setApiKey",
@@ -42,6 +43,10 @@
       {
         "command": "openhands.open",
         "title": "OpenHands: Open"
+      },
+      {
+        "command": "openhands.explainSelection",
+        "title": "OpenHands: Explain Selection"
       },
       {
         "command": "openhands.startNewConversation",
@@ -100,6 +105,28 @@
         "title": "OpenHands: Diagnostics (Internal)"
       }
     ],
+    "submenus": [
+      {
+        "id": "openhands.editorContext",
+        "label": "OpenHands"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "openhands.editorContext",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "navigation@90"
+        }
+      ],
+      "openhands.editorContext": [
+        {
+          "command": "openhands.explainSelection",
+          "when": "editorTextFocus && editorHasSelection",
+          "group": "1_explain"
+        }
+      ]
+    },
     "configuration": [
       {
         "type": "object",
