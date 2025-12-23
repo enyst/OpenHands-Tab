@@ -17,6 +17,7 @@ import {
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 import { getHalDialogueLinesForMode, normalizeHalUserName, type HalScriptLine, type HalVoice } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
+import { MAX_RENDERED_EVENTS } from '../shared/constants';
 
 // Component imports
 import { Header } from './Header';
@@ -1079,7 +1080,10 @@ export function App() {
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
 
-    setEvents((ev) => [...ev, { id: eventId.current++, event }]);
+    setEvents((ev) => {
+      const next = [...ev, { id: eventId.current++, event }];
+      return next.length > MAX_RENDERED_EVENTS ? next.slice(-MAX_RENDERED_EVENTS) : next;
+    });
   }, []);
 
   // Handle incoming events
