@@ -1363,6 +1363,15 @@ export function App() {
               postMessage({ type: 'send', text: normalized, contextFiles: [], attachments: [] });
               break;
             }
+            case 'setLlmProfileId': {
+              const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;
+              if (profileIdRaw === undefined) break;
+              if (profileIdRaw !== null && typeof profileIdRaw !== 'string') break;
+              const profileId = profileIdRaw;
+              setLlmProfileId(profileId);
+              postMessage({ type: 'setLlmProfileId', profileId });
+              break;
+            }
             case 'halApprove':
               setHalDecision('approve_local');
               postMessage({ type: 'command', command: 'approveAction' });
