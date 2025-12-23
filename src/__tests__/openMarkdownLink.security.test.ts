@@ -65,6 +65,18 @@ describe('openMarkdownLink security rules', () => {
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
   });
 
+  it('opens mailto links via vscode.env.openExternal', async () => {
+    const handler = createHandler();
+
+    await handler({ type: 'openMarkdownLink', href: 'mailto:test@example.com' } as any);
+
+    expect((vscode as any).env.openExternal).toHaveBeenCalledTimes(1);
+    const uriArg = ((vscode as any).env.openExternal as any).mock.calls[0][0] as vscode.Uri;
+    expect(uriArg.scheme).toBe('mailto');
+    expect((vscode.workspace as any).openTextDocument).not.toHaveBeenCalled();
+    expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+  });
+
   it('does not open javascript: links externally', async () => {
     const handler = createHandler();
 
@@ -104,4 +116,3 @@ describe('openMarkdownLink security rules', () => {
     expect((vscode.workspace as any).openTextDocument).not.toHaveBeenCalled();
   });
 });
-

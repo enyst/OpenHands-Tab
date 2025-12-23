@@ -480,10 +480,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const raw = typeof message.href === 'string' ? message.href.trim() : '';
         if (!raw || raw.startsWith('#')) break;
 
-        // Only allow http(s) links and workspace-internal file links.
-        if (/^https?:\/\//i.test(raw)) {
+        // Only allow http(s)/mailto links and workspace-internal file links.
+        if (/^https?:\/\//i.test(raw) || /^mailto:/i.test(raw)) {
           const uri = safeParseUri(raw);
-          if (!uri || (uri.scheme !== 'http' && uri.scheme !== 'https')) {
+          if (!uri || (uri.scheme !== 'http' && uri.scheme !== 'https' && uri.scheme !== 'mailto')) {
             void vscode.window.showErrorMessage('Blocked unsafe link.');
             break;
           }
