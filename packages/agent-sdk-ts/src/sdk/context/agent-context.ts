@@ -86,17 +86,57 @@ export class AgentContext {
    * - Conversation instructions (e.g., user preferences, task details)
    * - Repository-specific instructions (collected from repo skills)
    */
-  getSystemMessageSuffix(): string | null {
+  getSystemMessageSuffix(options?: { secretNames?: string[] }): string | null {
     const repoSkills = this.skills.filter((s) => s.trigger === null);
 
-    const repoSkillContent = repoSkills
-      .map((skill) => `## ${skill.name}\n\n${skill.content}`)
-      .join('\n\n');
+    const parts: string[] = [];
 
-    const suffix = [repoSkillContent, this.systemMessageSuffix?.trim()]
-      .filter(Boolean)
-      .join('\n\n');
+    if (repoSkills.length) {
+      const repoSkillContent = repoSkills
+        .map((skill) => `[BEGIN context from [${skill.name}]]\n${skill.content}\n[END Context]`)
+        .join('\n');
+      parts.push(
+        [
+          '<REPO_CONTEXT>',
+          "The following information has been included based on several files defined in user's repository.",
+          'Please follow them while working.',
+          '',
+          repoSkillContent,
+          '</REPO_CONTEXT>',
+        ].join('\n'),
+      );
+    }
 
+    const customSuffix = this.systemMessageSuffix?.trim();
+    if (customSuffix) {
+      parts.push(customSuffix);
+    }
+
+    const secretNames = (options?.secretNames ?? [])
+      .map((name) => (typeof name === 'string' ? name.trim() : ''))
+      .filter(Boolean);
+    if (secretNames.length) {
+      const normalizedSecretNames = Array.from(new Set(secretNames)).sort();
+      const listedSecrets = normalizedSecretNames.map((name) => `* **$${name}**`).join('\n');
+      parts.push(
+        [
+          '<CUSTOM_SECRETS>',
+          '### Credential Access',
+          '* Automatic secret injection: When you reference a registered secret key in your bash command, the secret value will be automatically exported as an environment variable before your command executes.',
+          '* How to use secrets: Simply reference the secret key in your command (e.g., `echo ${GITHUB_TOKEN:0:8}` or `curl -H "Authorization: Bearer $API_KEY" https://api.example.com`). The system will detect the key name in your command text and export it as environment variable before it executes your command.',
+          '* Secret detection: The system performs case-insensitive matching to find secret keys in your command text. If a registered secret key appears anywhere in your command, its value will be made available as an environment variable.',
+          '* Security: Secret values are automatically masked in command output to prevent accidental exposure. You will see `***` instead of the actual secret value in the output.',
+          '* Refreshing expired secrets: Some secrets (like GITHUB_TOKEN) may be updated periodically or expire over time. If a secret stops working (e.g., authentication failures), try using it again in a new command - the system should automatically use the refreshed value. For example, if GITHUB_TOKEN was used in a git remote URL and later expired, you can update the remote URL with the current token: `git remote set-url origin https://${GITHUB_TOKEN}@github.com/username/repo.git` to pick up the refreshed token value.',
+          '* If it still fails, report it to the user.',
+          '',
+          'You have access to the following environment variables',
+          listedSecrets,
+          '</CUSTOM_SECRETS>',
+        ].join('\n'),
+      );
+    }
+
+    const suffix = parts.join('\n\n');
     return suffix || null;
   }
 
