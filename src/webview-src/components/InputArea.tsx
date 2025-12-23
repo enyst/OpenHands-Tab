@@ -83,14 +83,14 @@ export function InputArea({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && value.trim()) {
+      if (!disabled && (value.trim() || inlineImages.length > 0)) {
         onSubmit();
       }
     }
   };
 
   const handleSubmit = () => {
-    if (!disabled && value.trim()) {
+    if (!disabled && (value.trim() || inlineImages.length > 0)) {
       onSubmit();
     }
   };
@@ -105,6 +105,7 @@ export function InputArea({
     for (const item of Array.from(items)) {
       if (item.kind !== 'file') continue;
       if (typeof item.type !== 'string' || !item.type.startsWith('image/')) continue;
+      if (item.type === 'image/svg+xml') continue;
       const file = item.getAsFile();
       if (file) imageFiles.push(file);
     }
@@ -114,6 +115,8 @@ export function InputArea({
     e.preventDefault();
     onPasteImageFiles(imageFiles);
   };
+
+  const canSend = value.trim().length > 0 || inlineImages.length > 0;
 
   return (
     <div className="sticky bottom-0 z-30 border-t border-white/[0.06] bg-[var(--vscode-editor-background)]/95 backdrop-blur-md">
@@ -169,14 +172,14 @@ export function InputArea({
           {/* Send button */}
           <button
             onClick={handleSubmit}
-            disabled={disabled || !value.trim()}
+            disabled={disabled || !canSend}
             className={`
               absolute right-2 bottom-2
               h-9 w-9 rounded-lg
               flex items-center justify-center
               transition-all duration-200
               focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-              ${value.trim() && !disabled
+              ${canSend && !disabled
                 ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
                 : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'
               }

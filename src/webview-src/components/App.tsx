@@ -472,10 +472,20 @@ export function App() {
 
     const nextImages: InlineImageAttachment[] = [];
     let didSkipLarge = false;
+    let didSkipSvg = false;
+    const remainingSlots = Math.max(0, MAX_PASTED_IMAGES - inlineImages.length);
+    if (remainingSlots === 0) {
+      showStatusMessage('warn', `You can paste up to ${MAX_PASTED_IMAGES} images per message.`);
+      return;
+    }
 
     for (const file of files) {
-      if (nextImages.length >= MAX_PASTED_IMAGES) break;
+      if (nextImages.length >= remainingSlots) break;
       if (!file.type.startsWith('image/')) continue;
+      if (file.type === 'image/svg+xml') {
+        didSkipSvg = true;
+        continue;
+      }
       if (file.size > MAX_PASTED_IMAGE_BYTES) {
         didSkipLarge = true;
         continue;
@@ -498,10 +508,13 @@ export function App() {
     if (didSkipLarge) {
       showStatusMessage('warn', `Some images were too large to paste (max ${Math.trunc(MAX_PASTED_IMAGE_BYTES / 1024)}KB).`);
     }
+    if (didSkipSvg) {
+      showStatusMessage('warn', 'SVG images are not supported for pasted images.');
+    }
 
     if (nextImages.length === 0) return;
     setInlineImages((prev) => [...prev, ...nextImages].slice(0, MAX_PASTED_IMAGES));
-  }, [showStatusMessage]);
+  }, [inlineImages.length, showStatusMessage]);
 
   const handleRemoveInlineImage = useCallback((id: string) => {
     setInlineImages((prev) => prev.filter((img) => img.id !== id));
@@ -1640,12 +1653,11 @@ export function App() {
 
   const handleSendMessage = useCallback(() => {
     const text = input.trim();
-    if (!text) return;
-
     const imageMarkdown = inlineImages
       .map((img) => `![${escapeMarkdownAltText(img.label)}](${img.dataUrl})`)
       .join('\n\n');
-    const finalText = imageMarkdown ? `${text}\n\n${imageMarkdown}` : text;
+    const finalText = [text, imageMarkdown].filter(Boolean).join('\n\n');
+    if (!finalText) return;
 
     setInput('');
     setShowContextPicker(false);

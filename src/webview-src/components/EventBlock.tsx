@@ -128,6 +128,21 @@ function MarkdownLink({
   );
 }
 
+const ALLOWED_DATA_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']);
+const MAX_DATA_IMAGE_URL_CHARS = 1_000_000;
+
+function isAllowedDataImageUrl(url: string): boolean {
+  const trimmed = typeof url === 'string' ? url.trim() : '';
+  if (!trimmed.startsWith('data:')) return false;
+  if (trimmed.length > MAX_DATA_IMAGE_URL_CHARS) return false;
+
+  const match = /^data:([^;,]+)[;,]/.exec(trimmed);
+  const mime = match?.[1]?.toLowerCase();
+  if (!mime) return false;
+  if (!mime.startsWith('image/')) return false;
+  return ALLOWED_DATA_IMAGE_MIME_TYPES.has(mime);
+}
+
 function MarkdownMessage({ text }: { text: string }) {
   const safeUrlTransform = (url: string) => {
     const trimmed = typeof url === 'string' ? url.trim() : '';
@@ -139,7 +154,7 @@ function MarkdownMessage({ text }: { text: string }) {
 
     const scheme = schemeMatch[0].slice(0, -1).toLowerCase();
     if (scheme === 'http' || scheme === 'https' || scheme === 'mailto') return trimmed;
-    if (scheme === 'data' && trimmed.startsWith('data:image/')) return trimmed;
+    if (scheme === 'data' && isAllowedDataImageUrl(trimmed)) return trimmed;
 
     return '';
   };
@@ -157,7 +172,7 @@ function MarkdownMessage({ text }: { text: string }) {
 
           if (!cleanSrc) return <span className="text-stone-400">{label}</span>;
 
-          if (cleanSrc.startsWith('data:image/')) {
+          if (isAllowedDataImageUrl(cleanSrc)) {
             return (
               <img
                 src={cleanSrc}
