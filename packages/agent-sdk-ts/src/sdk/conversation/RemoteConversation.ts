@@ -13,6 +13,16 @@ interface ConversationHistoryPage {
 
 type StaticSecret = { kind: 'StaticSecret'; value: string };
 
+export type RemoteConversationTool = {
+  name: string;
+  params?: Record<string, unknown>;
+};
+
+export type RemoteConversationWorkspace = {
+  kind: string;
+  [key: string]: unknown;
+};
+
 const toStaticSecret = (value: unknown): StaticSecret | undefined => {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
@@ -35,6 +45,8 @@ export interface RemoteConversationOptions {
   serverUrl: string;
   settings: OpenHandsSettings;
   workspaceRoot?: string;
+  tools?: RemoteConversationTool[];
+  workspace?: RemoteConversationWorkspace;
   conversationId?: string;
 }
 
@@ -61,6 +73,8 @@ export class RemoteConversation extends EventEmitter {
   private readonly retryMaxMs = 15000;
   private readonly maxReconnectRetries = 6;
   private readonly workspaceRoot: string;
+  private readonly tools?: RemoteConversationTool[];
+  private readonly workspace?: RemoteConversationWorkspace;
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
@@ -71,6 +85,8 @@ export class RemoteConversation extends EventEmitter {
     this.serverUrl = normalizeRemoteServerUrl(options.serverUrl);
     this.settings = options.settings;
     this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
+    this.tools = options.tools;
+    this.workspace = options.workspace;
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
@@ -177,17 +193,20 @@ export class RemoteConversation extends EventEmitter {
         return Math.min(500, Math.max(1, n));
       })();
       const headers = this.getAuthHeaders();
-        const req = {
+      const defaultTools: RemoteConversationTool[] = [
+        { name: 'terminal' },
+        { name: 'file_editor' },
+        { name: 'task_tracker' },
+      ];
+      const workspace = this.workspace ?? { kind: 'LocalWorkspace', working_dir: this.workspaceRoot };
+      const tools = this.tools ?? defaultTools;
+      const req = {
           agent: {
             llm,
-            tools: [
-            { name: 'terminal' },
-            { name: 'file_editor' },
-            { name: 'task_tracker' }
-          ],
+            tools,
           security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
         },
-        workspace: { kind: 'LocalWorkspace', working_dir: this.workspaceRoot },
+        workspace,
         secrets: typedSecrets,
         confirmation_policy,
         max_iterations: clampedMaxIterations,
