@@ -201,6 +201,9 @@ const stripSecrets = (config: LLMConfiguration): LLMConfiguration => {
   if (typeof sanitized.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(sanitized.apiKey)) {
     delete sanitized.apiKey;
   }
+  // Headers can plausibly contain auth material (Authorization, x-api-key, etc.).
+  // In "no secrets" mode, be conservative and do not persist headers.
+  delete sanitized.headers;
   return sanitized;
 };
 
@@ -208,11 +211,18 @@ export const listProfiles = (options: LLMProfileStoreOptions = {}): string[] => 
   const rootDir = resolveRootDir(options);
   if (!fs.existsSync(rootDir)) return [];
 
-  return fs
-    .readdirSync(rootDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
-    .map((entry) => entry.name.slice(0, -'.json'.length))
-    .sort((a, b) => a.localeCompare(b));
+  const profileIds: string[] = [];
+  for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const profileId = entry.name.slice(0, -'.json'.length);
+    try {
+      assertValidProfileId(profileId);
+      profileIds.push(profileId);
+    } catch {
+      // Ignore files that cannot possibly be loaded.
+    }
+  }
+  return profileIds.sort((a, b) => a.localeCompare(b));
 };
 
 export const loadProfile = (profileId: string, options: LLMProfileStoreOptions = {}): LLMProfile => {
@@ -248,6 +258,7 @@ export const saveProfile = (
   const includeSecrets = options.includeSecrets ?? false;
   const payload = includeSecrets ? { ...config } : stripSecrets(config);
   delete (payload as { profileId?: unknown }).profileId;
+  validateProfile(payload);
 
   const json = `${JSON.stringify(payload, null, 2)}\n`;
   const tmpPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;

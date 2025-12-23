@@ -27,15 +27,27 @@ describe('LLM profiles', () => {
     }
   });
 
-  it('omits inline apiKey when includeSecrets=false', () => {
+  it('omits inline apiKey and headers when includeSecrets=false', () => {
     const dir = makeTempDir();
     try {
-      saveProfile('no-secrets', { provider: 'openai', model: 'gpt-5', apiKey: 'sk-secret' }, { rootDir: dir });
+      saveProfile(
+        'no-secrets',
+        {
+          provider: 'openai',
+          model: 'gpt-5',
+          apiKey: 'sk-secret',
+          headers: { Authorization: 'Bearer sk-secret', 'X-Title': 'not-a-secret' },
+        },
+        { rootDir: dir },
+      );
       const filePath = path.join(dir, 'no-secrets.json');
       const payload = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, unknown>;
 
       expect(payload.apiKey).toBeUndefined();
-      expect(loadProfile('no-secrets', { rootDir: dir }).config.apiKey).toBeUndefined();
+      expect(payload.headers).toBeUndefined();
+      const loaded = loadProfile('no-secrets', { rootDir: dir }).config;
+      expect(loaded.apiKey).toBeUndefined();
+      expect(loaded.headers).toBeUndefined();
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -67,6 +79,28 @@ describe('LLM profiles', () => {
     expect(validateProfile({ model: 'gpt-5', provider: 'openai' }).model).toBe('gpt-5');
   });
 
+  it('validates profiles before saving', () => {
+    const dir = makeTempDir();
+    try {
+      expect(() => saveProfile('invalid', { model: '' } as unknown as LLMConfiguration, { rootDir: dir })).toThrow(
+        LLMProfileValidationError,
+      );
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores invalid profile ids when listing files on disk', () => {
+    const dir = makeTempDir();
+    try {
+      fs.writeFileSync(path.join(dir, 'bad name.json'), '{}', 'utf8');
+      saveProfile('good', { model: 'gpt-5' }, { rootDir: dir });
+      expect(listProfiles({ rootDir: dir })).toEqual(['good']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('rejects invalid profile ids', () => {
     const dir = makeTempDir();
     try {
@@ -79,4 +113,3 @@ describe('LLM profiles', () => {
     }
   });
 });
-
