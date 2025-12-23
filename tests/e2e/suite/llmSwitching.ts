@@ -190,10 +190,26 @@ export async function run(): Promise<void> {
     const referer = openrouterReq.headers['http-referer'];
     const title = openrouterReq.headers['x-title'];
     if (!referer || !title) {
-      throw new Error(`Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`);
+      throw new Error(
+        `Expected OpenRouter headers on request. http-referer=${String(referer)} x-title=${String(title)}`,
+      );
     }
 
-    // 6) Gemini native API (streamGenerateContent SSE).
+    // 6) litellm_proxy is OpenAI-compatible.
+    await setLlmConfig({
+      profileId: null,
+      provider: 'litellm_proxy',
+      openaiApiMode: 'chat_completions',
+      baseUrl: mock.baseUrl,
+      model: 'gpt-4o-mini',
+    });
+    await sendAndWaitForRequestPath({
+      text: 'E2E step 6: litellm_proxy',
+      expectedPath: '/chat/completions',
+      getRequests: () => mock.requests,
+    });
+
+    // 7) Gemini native API (streamGenerateContent SSE).
     await setLlmConfig({
       profileId: null,
       provider: 'gemini',
@@ -202,12 +218,12 @@ export async function run(): Promise<void> {
       model: 'gemini-2.5-flash',
     });
     await sendAndWaitForRequestPath({
-      text: 'E2E step 6: gemini',
+      text: 'E2E step 7: gemini',
       expectedPath: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
       getRequests: () => mock.requests,
     });
 
-    // 7) LLM profile selection: Sonnet profile should override raw provider/model.
+    // 8) LLM profile selection: Sonnet profile should override raw provider/model.
     await setLlmConfig({
       profileId: 'sonnet-45',
       provider: 'openai',
@@ -216,12 +232,12 @@ export async function run(): Promise<void> {
       baseUrl: mock.baseUrl,
     });
     await sendAndWaitForRequestPath({
-      text: 'E2E step 7: profile sonnet-45',
+      text: 'E2E step 8: profile sonnet-45',
       expectedPath: '/messages',
       getRequests: () => mock.requests,
     });
 
-    // 8) LLM profile selection: gpt-5-mini profile should override raw provider/model.
+    // 9) LLM profile selection: gpt-5-mini profile should override raw provider/model.
     await setLlmConfig({
       profileId: 'gpt-5-mini',
       provider: 'anthropic',
@@ -230,16 +246,23 @@ export async function run(): Promise<void> {
       baseUrl: mock.baseUrl,
     });
     await sendAndWaitForRequestPath({
-      text: 'E2E step 8: profile gpt-5-mini',
+      text: 'E2E step 9: profile gpt-5-mini',
       expectedPath: '/chat/completions',
       getRequests: () => mock.requests,
     });
 
     // Basic sanity: at least one request per step.
     const paths = mock.requests.map((r) => r.path);
-    const required = ['/messages', '/chat/completions', '/responses', '/v1beta/models/gemini-2.5-flash:streamGenerateContent'];
+    const required = [
+      '/messages',
+      '/chat/completions',
+      '/responses',
+      '/v1beta/models/gemini-2.5-flash:streamGenerateContent'
+    ];
     for (const p of required) {
-      if (!paths.includes(p)) throw new Error(`Missing required mock request path: ${p} (saw: ${paths.join(', ')})`);
+      if (!paths.includes(p)) {
+        throw new Error(`Missing required mock request path: ${p} (saw: ${paths.join(', ')})`);
+      }
     }
 
     console.log('✓ LLM switching E2E test passed');
