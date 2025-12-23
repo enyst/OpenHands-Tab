@@ -8,3 +8,4 @@ export * from './factory';
 export * from './provider';
 export * from './metrics';
 export * from './registry';
+export * from './profiles';
