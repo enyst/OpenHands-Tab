@@ -267,7 +267,7 @@ export class LocalWorkspace {
     absPath: string,
     expectedCanonicalDir: string,
     containingRoot: string | undefined,
-    options: { requireDirectory: boolean; throwIfMissing: boolean },
+    options: { requireDirectory: boolean; throwIfMissing: boolean; notDirectorySubject?: string },
   ): Promise<string> {
     let parentStat: fs.Stats;
     try {
@@ -283,7 +283,7 @@ export class LocalWorkspace {
       throw new Error(`${operation} failed: refusing to ${verb} through symlink ${subject}: ${directoryPath}`);
     }
     if (options.requireDirectory && !parentStat.isDirectory()) {
-      const notDirectorySubject = subject.endsWith(' directory') ? subject.slice(0, -' directory'.length) : subject;
+      const notDirectorySubject = options.notDirectorySubject ?? subject;
       throw new Error(`${operation} failed: ${notDirectorySubject} is not a directory: ${directoryPath}`);
     }
 
@@ -426,7 +426,7 @@ export class LocalWorkspace {
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = this.getContainingDirRoot(parentDir);
+    const root = this.getContainingDirRoot(parentDir) ?? undefined;
 
     let canonicalParentDir: string;
     try {
@@ -445,8 +445,8 @@ export class LocalWorkspace {
       parentDir,
       resolved,
       canonicalParentDir,
-      root ?? undefined,
-      { requireDirectory: true, throwIfMissing: true },
+      root,
+      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
     );
 
     const constants = fs.constants as Record<string, number>;
@@ -506,7 +506,7 @@ export class LocalWorkspace {
   async remove(targetPath: string): Promise<void> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = this.getContainingDirRoot(parentDir);
+    const root = this.getContainingDirRoot(parentDir) ?? undefined;
     if (!root) {
       const kind = this.allowedRoots.get(resolved);
       if (kind !== 'file') {
@@ -531,8 +531,8 @@ export class LocalWorkspace {
       parentDir,
       resolved,
       canonicalParentDir,
-      root ?? undefined,
-      { requireDirectory: true, throwIfMissing: false },
+      root,
+      { requireDirectory: true, throwIfMissing: false, notDirectorySubject: 'parent' },
     );
 
     const safeTargetPath = path.join(stableParentDir, path.basename(resolved));
@@ -555,7 +555,7 @@ export class LocalWorkspace {
       resolved,
       canonicalDir,
       root,
-      { requireDirectory: true, throwIfMissing: true },
+      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'path' },
     );
 
     const entries = await readdir(stableDir, { withFileTypes: true });
