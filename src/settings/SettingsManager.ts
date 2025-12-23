@@ -47,7 +47,7 @@ export type OpenHandsSettings = ServerSettings & {
 const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
   servers: [],
-  llm: { usageId: 'default-llm', provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+  llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
   agent: { enableSecurityAnalyzer: false, debug: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
@@ -168,18 +168,14 @@ export class SettingsManager {
     const explicitBaseUrl = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.baseUrl'));
     const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
     const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
-    const usageId = normalizeNonEmptyString(
-      isRemote
-        ? this.adapter.getExplicit<string>('openhands.llm.usageId')
-        : (this.adapter.get<string | null>('openhands.llm.usageId', DEFAULTS.llm.usageId) ?? DEFAULTS.llm.usageId)
-    );
+    const usageId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId'));
     const explicitModel = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.model'));
     // Always provide a model name, even in remote mode: the python agent-server requires it in StartConversationRequest.
     const model = explicitModel ?? normalizeNonEmptyString(
       this.adapter.get<string | null>('openhands.llm.model', DEFAULTS.llm.model) ?? DEFAULTS.llm.model
     );
     const llm: LLMSettings = {
-      // In remote mode, omit usageId unless explicitly configured.
+      // Omit usageId unless explicitly configured (local-mode SDK can derive a stable id per config).
       // Always provide a model so LocalConversation and RemoteConversation can start reliably.
       usageId,
       provider,

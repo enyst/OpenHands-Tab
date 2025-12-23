@@ -223,9 +223,8 @@
           },
           "openhands.llm.usageId": {
             "type": "string",
-            "default": "default-llm",
             "order": 30,
-            "markdownDescription": "Optional usage_id for local-mode LLM metrics tracking. In remote mode, only applies if explicitly set."
+            "markdownDescription": "Optional usage_id for LLM metrics tracking. If unset in local mode, the SDK derives a stable id per provider/model/config so switching models preserves per-client metrics."
           }
         }
       },

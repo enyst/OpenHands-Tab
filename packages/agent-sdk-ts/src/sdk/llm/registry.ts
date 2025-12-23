@@ -1,11 +1,56 @@
 import type { LLMClient } from './types';
+import type { LLMConfiguration, LLMProvider, OpenAIChatApi } from './types';
 import type { Metrics } from './metrics';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl } from './provider';
 
 export type RegistryEvent = { llm: TrackedLLMClient };
+
+export type LLMRegistryKey = {
+  provider: LLMProvider;
+  model: string;
+  baseUrl?: string;
+  openaiApiMode?: OpenAIChatApi;
+  apiVersion?: string;
+};
+
+const normalizeUrl = (value: string | null | undefined): string | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return undefined;
+  return trimmed.replace(/\/+$/, '');
+};
+
+export const toLLMRegistryKey = (config: LLMConfiguration): LLMRegistryKey => {
+  const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
+  const effectiveBaseUrl = normalizeUrl(config.baseUrl) ?? normalizeUrl(DEFAULT_PROVIDER_BASE_URLS[provider]);
+  const normalizedModel = config.model.toLowerCase();
+  const configuredOpenaiApiMode = provider === 'openai' ? (config.openaiApiMode ?? undefined) : undefined;
+  const normalizedConfiguredBaseUrl = normalizeUrl(config.baseUrl);
+  const normalizedDefaultOpenAIBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.openai);
+  const baseUrlSupportsResponses = !normalizedConfiguredBaseUrl || normalizedConfiguredBaseUrl === normalizedDefaultOpenAIBaseUrl;
+  const useResponses = provider === 'openai'
+    && normalizedModel.startsWith('gpt-5')
+    && (configuredOpenaiApiMode === 'responses' || (configuredOpenaiApiMode !== 'chat_completions' && baseUrlSupportsResponses));
+  const effectiveOpenaiApiMode = provider === 'openai' ? (useResponses ? 'responses' : 'chat_completions') : undefined;
+  return {
+    provider,
+    model: config.model,
+    baseUrl: effectiveBaseUrl,
+    openaiApiMode: effectiveOpenaiApiMode,
+    apiVersion: normalizeUrl(config.apiVersion),
+  };
+};
+
+export const llmRegistryKeyToString = (key: LLMRegistryKey): string => {
+  const baseUrl = key.baseUrl ?? '';
+  const apiVersion = key.apiVersion ?? '';
+  const openaiApiMode = key.provider === 'openai' ? (key.openaiApiMode ?? '') : '';
+  return `${key.provider}|${key.model}|${baseUrl}|${openaiApiMode}|${apiVersion}`;
+};
 
 export class LLMRegistry {
   readonly registryId: string;
   private usageToLLM = new Map<string, TrackedLLMClient>();
+  private keyToLLM = new Map<string, TrackedLLMClient>();
   private subscriber?: (event: RegistryEvent) => void;
 
   constructor() {
@@ -26,9 +71,12 @@ export class LLMRegistry {
     this.switchLlm(llm);
   }
 
-  switchLlm(llm: TrackedLLMClient): void {
+  switchLlm(llm: TrackedLLMClient, key?: LLMRegistryKey): void {
     const id = llm.usageId;
     this.usageToLLM.set(id, llm);
+    if (key) {
+      this.keyToLLM.set(llmRegistryKeyToString(key), llm);
+    }
     this.notify({ llm });
   }
 
@@ -36,6 +84,17 @@ export class LLMRegistry {
     const llm = this.usageToLLM.get(usageId);
     if (!llm) throw new Error(`Usage ID '${usageId}' not found in registry`);
     return llm;
+  }
+
+  getByKey(key: LLMRegistryKey): TrackedLLMClient {
+    const encoded = llmRegistryKeyToString(key);
+    const llm = this.keyToLLM.get(encoded);
+    if (!llm) throw new Error(`LLM key '${encoded}' not found in registry`);
+    return llm;
+  }
+
+  getByConfig(config: LLMConfiguration): TrackedLLMClient {
+    return this.getByKey(toLLMRegistryKey(config));
   }
 
   listUsageIds(): string[] { return Array.from(this.usageToLLM.keys()); }
@@ -46,7 +105,7 @@ export class TrackedLLMClient implements LLMClient {
   readonly usageId: string;
   readonly modelName: string;
   readonly metrics: Metrics;
-  private readonly onMetricsUpdate?: (usageId: string, metrics: Metrics) => void;
+  private onMetricsUpdate?: (usageId: string, metrics: Metrics) => void;
 
   constructor(params: { inner: LLMClient; usageId: string; modelName: string; metrics: Metrics; onMetricsUpdate?: (usageId: string, metrics: Metrics) => void }) {
     this.inner = params.inner;
@@ -54,6 +113,10 @@ export class TrackedLLMClient implements LLMClient {
     this.modelName = params.modelName;
     this.metrics = params.metrics;
     this.onMetricsUpdate = params.onMetricsUpdate;
+  }
+
+  setOnMetricsUpdate(cb?: (usageId: string, metrics: Metrics) => void): void {
+    this.onMetricsUpdate = cb;
   }
 
   async *streamChat(request: import('./types').ChatCompletionRequest): AsyncGenerator<import('./types').LLMStreamChunk> {

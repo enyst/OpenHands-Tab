@@ -1,10 +1,11 @@
+import { createHash } from 'crypto';
 import { LLMCredentialProvider } from './credentials';
 import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
 import { OpenAIResponsesClient } from './openai-responses';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration } from './types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
-import { LLMRegistry, TrackedLLMClient } from './registry';
+import { LLMRegistry, TrackedLLMClient, llmRegistryKeyToString, toLLMRegistryKey } from './registry';
 import { Metrics } from './metrics';
 import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl } from './provider';
 
@@ -29,6 +30,17 @@ export class LLMFactory {
   }
 
   async createClient(): Promise<LLMClient> {
+    const normalizeOptionalString = (value: unknown): string | undefined => {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      return trimmed.length ? trimmed : undefined;
+    };
+    const hashString = (input: string): string => createHash('sha256').update(input).digest('hex');
+    const stableStringifyHeaders = (headers: Record<string, string> | undefined): string | undefined => {
+      if (!headers) return undefined;
+      const entries = Object.entries(headers).sort(([a], [b]) => a.localeCompare(b));
+      return JSON.stringify(Object.fromEntries(entries));
+    };
+
     const inlineApiKey =
       typeof this.config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(this.config.apiKey)
         ? this.config.apiKey
@@ -57,16 +69,53 @@ export class LLMFactory {
     const useResponses = provider === 'openai'
       && isGpt5
       && (openaiApiMode === 'responses' || (openaiApiMode !== 'chat_completions' && baseUrlSupportsResponses));
+    const effectiveOpenaiApiMode = provider === 'openai' ? (useResponses ? 'responses' : 'chat_completions') : undefined;
+    const registryKey = toLLMRegistryKey({ ...this.config, provider, openaiApiMode: effectiveOpenaiApiMode });
+
+    const explicitUsageId = normalizeOptionalString(this.config.usageId);
+    const derivedUsageId = (() => {
+      if (explicitUsageId) return explicitUsageId;
+      if (!this.registry) return undefined;
+      const fingerprint = {
+        key: llmRegistryKeyToString(registryKey),
+        timeoutSeconds: this.config.timeoutSeconds ?? null,
+        temperature: this.config.temperature ?? null,
+        topP: this.config.topP ?? null,
+        topK: this.config.topK ?? null,
+        maxInputTokens: this.config.maxInputTokens ?? null,
+        maxOutputTokens: this.config.maxOutputTokens ?? null,
+        reasoningEffort: this.config.reasoningEffort ?? null,
+        reasoningSummary: this.config.reasoningSummary ?? null,
+        headers: stableStringifyHeaders(this.config.headers),
+        inputCostPerToken: this.config.inputCostPerToken ?? null,
+        outputCostPerToken: this.config.outputCostPerToken ?? null,
+        apiKeyHash: hashString(apiKey).slice(0, 16),
+      };
+      const digest = hashString(JSON.stringify(fingerprint)).slice(0, 12);
+      return `${registryKey.provider}:${registryKey.model}:${digest}`;
+    })();
+
+    if (derivedUsageId && !explicitUsageId && this.registry) {
+      try {
+        const cached = this.registry.get(derivedUsageId);
+        cached.setOnMetricsUpdate(this.onMetricsUpdate);
+        // Re-announce selection so stats/UI have a consistent "current llm" signal.
+        this.registry.switchLlm(cached, registryKey);
+        return cached;
+      } catch {
+        // Cache miss; create a fresh client.
+      }
+    }
     const base = provider === 'anthropic'
       ? new AnthropicClient(this.config, apiKey)
       : useResponses
         ? new OpenAIResponsesClient({ ...this.config, provider }, apiKey)
         : new OpenAICompatibleClient({ ...this.config, provider }, apiKey);
 
-    if (this.config.usageId) {
+    if (derivedUsageId) {
       const metrics = new Metrics(this.config.model);
-      const tracked = new TrackedLLMClient({ inner: base, usageId: this.config.usageId, modelName: this.config.model, metrics, onMetricsUpdate: this.onMetricsUpdate });
-      this.registry?.switchLlm(tracked);
+      const tracked = new TrackedLLMClient({ inner: base, usageId: derivedUsageId, modelName: this.config.model, metrics, onMetricsUpdate: this.onMetricsUpdate });
+      this.registry?.switchLlm(tracked, registryKey);
       return tracked;
     }
 
