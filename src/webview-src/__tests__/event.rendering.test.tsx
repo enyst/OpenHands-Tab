@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
 import type {
@@ -38,6 +38,78 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText('Hello world')).toBeInTheDocument();
     expect(await screen.findByText('OpenHands says')).toBeInTheDocument();
+  });
+
+  it('renders message markdown (inline code, fenced code, links)', async () => {
+    render(<App />);
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Use `npm test` to run unit tests.',
+              '',
+              '```ts',
+              "console.log('hi');",
+              '```',
+              '',
+              'See [docs](https://example.com).',
+            ].join('\n'),
+          },
+        ],
+      },
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+
+    const inlineCode = await screen.findByText('npm test');
+    expect(inlineCode.tagName).toBe('CODE');
+
+    const fenced = await screen.findByText(/console\.log/);
+    expect(fenced.closest('pre')).not.toBeNull();
+
+    const link = await screen.findByRole('button', { name: 'docs' });
+    fireEvent.click(link);
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openMarkdownLink', href: 'https://example.com' });
+  });
+
+  it('keeps attachment blocks as preformatted text', async () => {
+    render(<App />);
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Hello',
+              '',
+              '----- BEGIN ATTACHMENT: foo.txt -----',
+              '**bold**',
+              '----- END ATTACHMENT: foo.txt -----',
+            ].join('\n'),
+          },
+        ],
+      },
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+
+    expect(await screen.findByText('Hello')).toBeInTheDocument();
+    const messageBlock = await screen.findByTestId('message-event');
+    expect(within(messageBlock).getByText('Attachments')).toBeInTheDocument();
+
+    const summary = within(messageBlock).getByText('foo.txt');
+    fireEvent.click(summary);
+
+    const attachmentText = within(messageBlock).getByText('**bold**');
+    expect(attachmentText.closest('pre')).not.toBeNull();
   });
 
   it('renders user messages correctly', async () => {

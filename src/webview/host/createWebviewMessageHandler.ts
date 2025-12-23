@@ -26,6 +26,7 @@ type WebviewMessage =
   | { type: 'requestSkills' }
   | { type: 'openSkill'; path: string }
   | { type: 'openWorkspaceFile'; path: string }
+  | { type: 'openMarkdownLink'; href: string }
   | { type: 'openWorkspaceDiff'; path: string; oldContent: string; newContent: string }
   | { type: 'requestHistory' }
   | { type: 'restoreConversation'; id: string }
@@ -523,6 +524,50 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           void vscode.window.showErrorMessage(`Failed to open file: ${reason}`);
+        }
+        break;
+      }
+      case 'openMarkdownLink': {
+        const raw = typeof message.href === 'string' ? message.href.trim() : '';
+        if (!raw || raw.startsWith('#')) break;
+
+        // Only allow http(s) links and workspace-internal file links.
+        if (/^https?:\/\//i.test(raw)) {
+          const uri = safeParseUri(raw);
+          if (!uri || (uri.scheme !== 'http' && uri.scheme !== 'https')) {
+            void vscode.window.showErrorMessage('Blocked unsafe link.');
+            break;
+          }
+          await vscode.env.openExternal(uri);
+          break;
+        }
+
+        const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!wsRoot) {
+          void vscode.window.showErrorMessage('Cannot open link: no workspace folder is open.');
+          break;
+        }
+
+        const withoutFragment = raw.split('#')[0];
+        const withoutQuery = withoutFragment.split('?')[0];
+        const inputPath = withoutQuery.trim();
+        if (!inputPath) break;
+
+        const resolvedPath = path.isAbsolute(inputPath) ? path.resolve(inputPath) : path.resolve(wsRoot, inputPath);
+        const rel = path.relative(wsRoot, resolvedPath);
+        const inWorkspace = rel && !rel.startsWith('..') && !path.isAbsolute(rel);
+        if (!inWorkspace) {
+          void vscode.window.showErrorMessage('Blocked unsafe link.');
+          break;
+        }
+
+        try {
+          await fs.stat(resolvedPath);
+          const document = await vscode.workspace.openTextDocument(vscode.Uri.file(resolvedPath));
+          await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void vscode.window.showErrorMessage(`Failed to open link: ${reason}`);
         }
         break;
       }

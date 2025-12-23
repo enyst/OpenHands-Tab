@@ -14,7 +14,10 @@
  * - StreamingMessageBlock: Live LLM response streaming
  */
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 import {
   type ActionEvent,
   type ObservationEvent,
@@ -93,6 +96,85 @@ const openWorkspaceDiff = (path: string, oldContent: string, newContent: string)
   const api = getVscodeApi();
   api.postMessage({ type: 'openWorkspaceDiff', path, oldContent, newContent });
 };
+
+const openMarkdownLink = (href: string) => {
+  const api = getVscodeApi();
+  api.postMessage({ type: 'openMarkdownLink', href });
+};
+
+function MarkdownLink({
+  href,
+  children,
+}: {
+  href?: string;
+  children: ReactNode;
+}) {
+  const safeHref = typeof href === 'string' ? href : '';
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        if (!safeHref.trim()) return;
+        openMarkdownLink(safeHref);
+      }}
+      className="text-brand-300 underline decoration-white/20 hover:decoration-white/40 hover:text-brand-200 transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
+
+function MarkdownMessage({ text }: { text: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkBreaks]}
+      components={{
+        a: ({ href, children }) => <MarkdownLink href={href}>{children}</MarkdownLink>,
+        img: ({ src, alt }) => {
+          const cleanSrc = typeof src === 'string' ? src.trim() : '';
+          const cleanAlt = typeof alt === 'string' ? alt.trim() : '';
+          const label = cleanAlt || cleanSrc || 'image';
+
+          if (cleanSrc) {
+            return <MarkdownLink href={src}>{label}</MarkdownLink>;
+          }
+          return <span className="text-stone-400">{label}</span>;
+        },
+        p: ({ children }) => <p className="mt-2 first:mt-0 leading-relaxed">{children}</p>,
+        ul: ({ children }) => <ul className="mt-2 first:mt-0 list-disc pl-6 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="mt-2 first:mt-0 list-decimal pl-6 space-y-1">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        blockquote: ({ children }) => (
+          <blockquote className="mt-2 first:mt-0 pl-3 border-l-2 border-white/[0.12] text-stone-300 italic">
+            {children}
+          </blockquote>
+        ),
+        hr: () => <hr className="my-3 border-white/[0.08]" />,
+        h1: ({ children }) => <h1 className="text-lg font-semibold mt-3 first:mt-0">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-base font-semibold mt-3 first:mt-0">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-semibold mt-3 first:mt-0">{children}</h3>,
+        pre: ({ children }) => (
+          <pre className="mt-2 first:mt-0 font-mono bg-black/20 border border-white/[0.04] rounded-lg p-3 leading-relaxed text-xs overflow-auto whitespace-pre [&_code]:bg-transparent [&_code]:border-0 [&_code]:px-0 [&_code]:py-0 [&_code]:rounded-none">
+            {children}
+          </pre>
+        ),
+        code: ({ className, children }) => (
+          <code
+            className={[
+              'px-1.5 py-0.5 rounded-md bg-black/25 border border-white/[0.06] font-mono text-xs text-stone-200',
+              typeof className === 'string' ? className : '',
+            ].filter(Boolean).join(' ')}
+          >
+            {children}
+          </code>
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
+}
 
 function InlineFileReference({ path }: { path?: string }) {
   if (!path) {
@@ -796,7 +878,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           )}
 
           {textContent && (
-            <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+            <div className="text-sm leading-relaxed break-words">
               {isUser && (
                 <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-500/30 text-stone-200 text-xs font-medium mb-2 border border-stone-400/20">
                   <span className="codicon codicon-account text-[10px]" />
@@ -804,7 +886,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
                 </div>
               )}
               <div className={`${isUser ? 'text-stone-100' : isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
-                {textContent}
+                <MarkdownMessage text={textContent} />
               </div>
             </div>
           )}
