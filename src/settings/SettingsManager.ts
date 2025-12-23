@@ -87,6 +87,7 @@ const normalizeLlmProvider = (value: unknown): LLMSettings['provider'] | undefin
     case 'openrouter':
     case 'litellm_proxy':
     case 'anthropic':
+    case 'gemini':
       return trimmed;
     default:
       return undefined;

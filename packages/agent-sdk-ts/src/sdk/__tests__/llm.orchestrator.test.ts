@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { AgentOrchestrator } from '../runtime';
-import { OpenAICompatibleClient, OpenAIResponsesClient, LLMFactory, LLMCredentialProvider } from '../llm';
+import { DEFAULT_RETRY_OPTIONS, OpenAICompatibleClient, OpenAIResponsesClient, GeminiClient, LLMFactory, LLMCredentialProvider } from '../llm';
 import type { ChatCompletionRequest, LLMConfiguration } from '../llm';
 import { ConversationState, EventLog } from '../runtime';
 
@@ -92,7 +92,11 @@ describe('OpenAICompatibleClient streaming', () => {
       .mockResolvedValueOnce(createStreamResponse('failed', 500))
       .mockResolvedValueOnce(createStreamResponse(stream));
 
-    const client = new OpenAICompatibleClient({ ...baseConfig, timeoutSeconds: 1 }, 'retry-key');
+    const client = new OpenAICompatibleClient(
+      { ...baseConfig, timeoutSeconds: 1 },
+      'retry-key',
+      { ...DEFAULT_RETRY_OPTIONS, baseDelayMs: 0, maxDelayMs: 0 },
+    );
     const orchestrator = new AgentOrchestrator(client);
     const response = await orchestrator.runChat(buildRequest());
 
@@ -103,6 +107,69 @@ describe('OpenAICompatibleClient streaming', () => {
   it('propagates failure after retries', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse('error', 500));
     const client = new OpenAICompatibleClient(baseConfig, 'bad-key');
+    const orchestrator = new AgentOrchestrator(client);
+
+    await expect(orchestrator.runChat(buildRequest())).rejects.toThrow(/LLM request failed/);
+  });
+});
+
+describe('GeminiClient streaming', () => {
+  const baseConfig: LLMConfiguration = { model: 'gemini-2.5-flash', provider: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' };
+
+  const buildRequest = (): ChatCompletionRequest => ({
+    systemPrompt: 'you are a test harness',
+    messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+    tools: [{ type: 'function', function: { name: 'ping' } }],
+  });
+
+  it('streams text, tool calls, and updates state', async () => {
+    const sse = [
+      'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hello"}]}}]}',
+      'data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"ping","args":{"ok":true}}}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":2}}',
+      'data: [DONE]',
+    ].join('\n');
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse(sse));
+    const state = new ConversationState({ eventLog: new EventLog() });
+    const client = new GeminiClient(baseConfig, 'test-key');
+    const orchestrator = new AgentOrchestrator(client, { state });
+
+    const response = await orchestrator.runChat(buildRequest());
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.message.content[0]).toEqual({ type: 'text', text: 'Hello' });
+    expect(response.message.tool_calls?.[0].function.name).toBe('ping');
+    expect(response.message.tool_calls?.[0].function.arguments).toContain('ok');
+    expect(state.snapshot.values.llm_stream).toBe('Hello');
+    expect(String(state.snapshot.values.llm_tool_call)).toContain('gemini_call_');
+  });
+
+  it('retries on server errors', async () => {
+    const stream = [
+      'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Hi"}]}}]}',
+      'data: [DONE]',
+    ].join('\n');
+
+    const fetchMock = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(createStreamResponse('failed', 500))
+      .mockResolvedValueOnce(createStreamResponse(stream));
+
+    const client = new GeminiClient(
+      { ...baseConfig, timeoutSeconds: 1 },
+      'retry-key',
+      { ...DEFAULT_RETRY_OPTIONS, baseDelayMs: 0, maxDelayMs: 0 },
+    );
+    const orchestrator = new AgentOrchestrator(client);
+    const response = await orchestrator.runChat(buildRequest());
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content[0].type).toBe('text');
+  });
+
+  it('propagates failure after retries', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse('error', 500));
+    const client = new GeminiClient(baseConfig, 'bad-key');
     const orchestrator = new AgentOrchestrator(client);
 
     await expect(orchestrator.runChat(buildRequest())).rejects.toThrow(/LLM request failed/);

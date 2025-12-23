@@ -1,0 +1,320 @@
+import { DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions } from './types';
+import type { Content, Message, ToolCall } from '../types';
+import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
+
+const decoder = new TextDecoder();
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+type GeminiRole = 'user' | 'model';
+
+type GeminiPart =
+  | { text: string }
+  | { functionCall: { name: string; args?: unknown } }
+  | { functionResponse: { name: string; response?: unknown } };
+
+type GeminiContent = {
+  role: GeminiRole;
+  parts: GeminiPart[];
+};
+
+type GeminiFunctionDeclaration = {
+  name: string;
+  description?: string;
+  parameters?: unknown;
+};
+
+type GeminiGenerateContentRequest = {
+  systemInstruction?: { parts: Array<{ text: string }> };
+  contents: GeminiContent[];
+  tools?: Array<{ functionDeclarations: GeminiFunctionDeclaration[] }>;
+  toolConfig?: { functionCallingConfig: { mode: 'AUTO' } };
+  generationConfig?: {
+    temperature?: number;
+    topP?: number;
+    topK?: number;
+    maxOutputTokens?: number;
+  };
+};
+
+type GeminiStreamCandidatePart =
+  | { text?: string }
+  | { functionCall?: { name?: string; args?: unknown } };
+
+type GeminiStreamResponse = {
+  candidates?: Array<{
+    content?: {
+      role?: string;
+      parts?: GeminiStreamCandidatePart[];
+    };
+  }>;
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
+};
+
+const normalizeUrl = (value: string | null | undefined): string | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (!trimmed) return undefined;
+  return trimmed.replace(/\/+$/, '');
+};
+
+const reduceTextContent = (content: Content[]): string =>
+  content
+    .filter((item) => item.type === 'text')
+    .map((item) => item.text)
+    .join('\n');
+
+const toGeminiPartsForMessage = (message: Message): GeminiPart[] => {
+  if (message.role === 'tool') {
+    const toolName = (message.name ?? '').trim() || 'unknown_tool';
+    const text = reduceTextContent(message.content).trim();
+    return [
+      {
+        functionResponse: {
+          name: toolName,
+          response: {
+            content: text,
+            ...(message.tool_call_id ? { tool_call_id: message.tool_call_id } : {}),
+          },
+        },
+      },
+    ];
+  }
+
+  const parts: GeminiPart[] = [];
+
+  for (const item of message.content) {
+    if (item.type === 'text') {
+      parts.push({ text: item.text });
+    }
+  }
+
+  if (Array.isArray(message.tool_calls)) {
+    for (const call of message.tool_calls) {
+      const args = (() => {
+        const raw = typeof call.function.arguments === 'string' ? call.function.arguments : '';
+        if (!raw.trim()) return {};
+        try {
+          return JSON.parse(raw) as unknown;
+        } catch {
+          return { __raw: raw };
+        }
+      })();
+      parts.push({ functionCall: { name: call.function.name, args } });
+    }
+  }
+
+  return parts;
+};
+
+const toGeminiContents = (messages: Message[]): GeminiContent[] => {
+  const contents: GeminiContent[] = [];
+  for (const message of messages) {
+    if (message.role === 'system') {
+      // System prompt is handled separately as systemInstruction.
+      continue;
+    }
+
+    const parts = toGeminiPartsForMessage(message);
+    if (!parts.length) continue;
+
+    const role: GeminiRole = message.role === 'assistant' ? 'model' : 'user';
+    contents.push({ role, parts });
+  }
+  return contents;
+};
+
+const toGeminiTools = (tools: ChatCompletionRequest['tools']): GeminiGenerateContentRequest['tools'] | undefined => {
+  if (!tools?.length) return undefined;
+  const functionDeclarations: GeminiFunctionDeclaration[] = tools.map((tool) => ({
+    name: tool.function.name,
+    description: tool.function.description,
+    parameters: tool.function.parameters,
+  }));
+  return [{ functionDeclarations }];
+};
+
+const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest): GeminiGenerateContentRequest => {
+  const systemPrompt = typeof request.systemPrompt === 'string' ? request.systemPrompt.trim() : '';
+  const tools = toGeminiTools(request.tools);
+  const generationConfig: GeminiGenerateContentRequest['generationConfig'] = {
+    temperature: typeof config.temperature === 'number' ? config.temperature : undefined,
+    topP: typeof config.topP === 'number' ? config.topP : undefined,
+    topK: typeof config.topK === 'number' ? config.topK : undefined,
+    maxOutputTokens: typeof config.maxOutputTokens === 'number' ? config.maxOutputTokens : undefined,
+  };
+
+  const body: GeminiGenerateContentRequest = {
+    ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
+    contents: toGeminiContents(request.messages),
+    ...(tools ? { tools, toolConfig: { functionCallingConfig: { mode: 'AUTO' } } } : {}),
+    ...(Object.values(generationConfig).some((value) => value !== undefined) ? { generationConfig } : {}),
+  };
+  return body;
+};
+
+const parseSseLines = async function* (response: Response): AsyncGenerator<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let newlineIndex = buffer.indexOf('\n');
+    while (newlineIndex !== -1) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (line.startsWith('data:')) {
+        const payload = line.slice(5).trim();
+        if (payload) yield payload;
+      }
+      newlineIndex = buffer.indexOf('\n');
+    }
+  }
+  if (buffer.length) {
+    const payload = buffer.replace(/^data:/, '').trim();
+    if (payload) yield payload;
+  }
+};
+
+const normalizeToolCall = (call: { name?: string; args?: unknown }, index: number): ToolCall => ({
+  id: `gemini_call_${index}`,
+  type: 'function',
+  function: {
+    name: typeof call.name === 'string' ? call.name : '',
+    arguments: JSON.stringify(call.args ?? {}),
+  },
+});
+
+export class GeminiClient implements LLMClient {
+  private readonly config: LLMConfiguration;
+  private readonly apiKey: string;
+  private readonly retry: RetryOptions;
+
+  constructor(config: LLMConfiguration, apiKey: string, retry: RetryOptions = DEFAULT_RETRY_OPTIONS) {
+    this.config = config;
+    this.apiKey = apiKey;
+    this.retry = retry;
+  }
+
+  async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    const response = await this.fetchWithRetry(request);
+
+    let emittedText = '';
+    let toolCallIndex = 0;
+    let finished = false;
+
+    for await (const payload of parseSseLines(response)) {
+      if (payload === '[DONE]') {
+        yield { type: 'finish' };
+        finished = true;
+        break;
+      }
+
+      let parsed: GeminiStreamResponse;
+      try {
+        parsed = JSON.parse(payload) as GeminiStreamResponse;
+      } catch {
+        continue;
+      }
+
+      const parts = parsed.candidates?.[0]?.content?.parts ?? [];
+      const chunkText = parts
+        .flatMap((part) => ('text' in part && typeof part.text === 'string' ? [part.text] : []))
+        .join('');
+
+      if (chunkText) {
+        const delta = chunkText.startsWith(emittedText) ? chunkText.slice(emittedText.length) : chunkText;
+        if (delta) {
+          emittedText = chunkText.startsWith(emittedText) ? chunkText : `${emittedText}${delta}`;
+          yield { type: 'text', text: delta };
+        }
+      }
+
+      for (const part of parts) {
+        const call = 'functionCall' in part ? (part.functionCall ?? undefined) : undefined;
+        if (!call || typeof call !== 'object') continue;
+        const toolCall = normalizeToolCall(call, toolCallIndex);
+        toolCallIndex += 1;
+        yield { type: 'tool_call_delta', id: toolCall.id, name: toolCall.function.name, arguments: toolCall.function.arguments };
+      }
+
+      const usage = parsed.usageMetadata;
+      if (usage && (typeof usage.promptTokenCount === 'number' || typeof usage.candidatesTokenCount === 'number')) {
+        yield { type: 'usage', inputTokens: usage.promptTokenCount, outputTokens: usage.candidatesTokenCount };
+      }
+    }
+
+    if (!finished) {
+      yield { type: 'finish' };
+    }
+  }
+
+  private requestUrl(): string {
+    const baseUrl = normalizeUrl(this.config.baseUrl) ?? normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.gemini) ?? DEFAULT_PROVIDER_BASE_URLS.gemini;
+    return `${baseUrl}/models/${encodeURIComponent(this.config.model)}:streamGenerateContent?alt=sse`;
+  }
+
+  private requestHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      ...(this.config.headers ?? {}),
+      'x-goog-api-key': this.apiKey,
+    };
+    return headers;
+  }
+
+  private async fetchWithRetry(request: ChatCompletionRequest): Promise<Response> {
+    let attempt = 0;
+    let delayMs = this.retry.baseDelayMs;
+    let lastError: Error | undefined;
+
+    while (attempt <= this.retry.maxRetries) {
+      try {
+        const controller = new AbortController();
+        const effectiveSeconds = (typeof this.config.timeoutSeconds === 'number' && this.config.timeoutSeconds > 0)
+          ? this.config.timeoutSeconds
+          : (DEFAULT_TIMEOUT_MS / 1000);
+        const timeout = setTimeout(() => controller.abort(), effectiveSeconds * 1000);
+        let response: Response;
+        try {
+          response = await fetch(this.requestUrl(), {
+            method: 'POST',
+            headers: this.requestHeaders(),
+            body: JSON.stringify(toRequestBody(this.config, request)),
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+
+        if (!response.ok) {
+          const shouldRetry = this.retry.retryOn(response.status) && attempt < this.retry.maxRetries;
+          if (shouldRetry) {
+            await delay(delayMs);
+            delayMs = Math.min(this.retry.maxDelayMs, delayMs * 2);
+            attempt += 1;
+            continue;
+          }
+          const detail = await response.text().catch(() => '');
+          throw new Error(`LLM request failed (HTTP ${response.status}): ${detail.slice(0, 500)}`);
+        }
+
+        return response;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt >= this.retry.maxRetries) break;
+        await delay(delayMs);
+        delayMs = Math.min(this.retry.maxDelayMs, delayMs * 2);
+        attempt += 1;
+      }
+    }
+
+    throw lastError ?? new Error('LLM request failed');
+  }
+}
