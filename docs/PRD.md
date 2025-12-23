@@ -116,7 +116,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - `openhands.serverUrl` - agent-server URL (blank for local mode)
 - `openhands.servers` - saved server list [{ url, label? }] for quick selection
 - `openhands.terminal.renderProgress` - coalesce carriage-return progress in terminal output
-- `openhands.llm.provider` - 'auto' | 'anthropic' | 'openai' | 'openrouter' | 'litellm_proxy' (auto infers from baseUrl when set; otherwise defaults to Anthropic locally)
+- `openhands.llm.provider` - 'auto' | 'anthropic' | 'gemini' | 'openai' | 'openrouter' | 'litellm_proxy' (auto infers from baseUrl when set; otherwise defaults to Anthropic locally)
 - `openhands.llm.model` - default model
 - `openhands.llm.baseUrl`, `apiVersion`, `timeout`
 - `openhands.llm.temperature`, `topP`, `topK`, `maxInputTokens`, `maxOutputTokens`

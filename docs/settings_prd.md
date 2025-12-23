@@ -81,7 +81,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.serverUrl: string (default: http://localhost:3000)
   - openhands.servers: array of { url: string; label?: string } (saved servers for quick selection)
   - openhands.terminal.renderProgress: boolean (default: true) — coalesce carriage-return progress in terminal output
-  - openhands.llm.provider: enum ('auto' | 'anthropic' | 'openai' | 'openrouter' | 'litellm_proxy') (default: 'auto') — auto infers from baseUrl when set, else defaults to Anthropic locally
+  - openhands.llm.provider: enum ('auto' | 'anthropic' | 'gemini' | 'openai' | 'openrouter' | 'litellm_proxy') (default: 'auto') — auto infers from baseUrl when set, else defaults to Anthropic locally
   - openhands.llm.usageId: string (default: 'default-llm') — maps to agent-sdk usage_id
   - openhands.llm.model: string (default: 'claude-sonnet-4-20250514')
   - openhands.llm.baseUrl: string | null
