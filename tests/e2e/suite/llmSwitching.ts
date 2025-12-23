@@ -117,7 +117,6 @@ export async function run(): Promise<void> {
       model: 'claude-sonnet-4-20250514',
     });
     await vscode.commands.executeCommand('openhands.startNewConversation');
-    await vscode.commands.executeCommand('openhands.reconnect');
     await sendAndWaitForRequestPath({
       text: 'E2E step 1: anthropic',
       expectedPath: '/messages',
