@@ -588,7 +588,6 @@ export function App() {
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
         llmProfileLabel?: string | null;
-        llmModel?: string | null;
         profiles?: string[];
         activeProfileId?: string | null;
         profileId?: unknown;
@@ -617,7 +616,7 @@ export function App() {
             if (payload.mode === 'local' || payload.mode === 'remote') {
               setMode(payload.mode);
             }
-            const label = payload.llmProfileLabel !== undefined ? payload.llmProfileLabel : payload.llmModel;
+            const label = payload.llmProfileLabel;
             if (typeof label === 'string' || label === null) {
               setLlmProfileLabel(label);
             }

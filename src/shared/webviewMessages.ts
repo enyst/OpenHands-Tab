@@ -8,7 +8,6 @@ export type HostToWebviewMessage =
     status: string;
     mode: 'local' | 'remote';
     llmProfileLabel?: string | null;
-    llmModel?: string | null;
   }
   | { type: 'error'; error: string }
   | { type: 'statusMessage'; level: 'info' | 'warn' | 'error'; message: string; autoDismiss?: boolean; autoDismissDelay?: number }

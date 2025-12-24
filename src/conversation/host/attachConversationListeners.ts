@@ -42,7 +42,6 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
       status: s,
       mode: deps.getConversationMode(),
       llmProfileLabel: deps.getLastKnownLlmLabel(),
-      llmModel: deps.getLastKnownLlmLabel(),
     });
   });
 

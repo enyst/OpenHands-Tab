@@ -664,7 +664,6 @@ export function activate(context: vscode.ExtensionContext) {
         status: conversation?.getStatus() ?? 'offline',
         mode: conversationMode,
         llmProfileLabel: lastKnownLlmLabel,
-        llmModel: lastKnownLlmLabel,
       } satisfies HostToWebviewMessage);
     }
   }
