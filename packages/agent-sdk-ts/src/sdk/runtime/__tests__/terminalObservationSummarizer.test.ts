@@ -114,4 +114,40 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
       expect(prompt.text).toContain('(empty)');
     }
   });
+
+  it('respects maxPromptChars for tiny limits', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('OK');
+
+    await summarizeTerminalObservationWithGeminiFlash(
+      { command: 'echo hello', exitCode: 0, stdout: 'hello\n', stderr: '' },
+      { secrets, llmClient: llm, maxPromptChars: 1 }
+    );
+
+    expect(llm.requests).toHaveLength(1);
+    const prompt = llm.requests[0].messages[0].content[0];
+    expect(prompt.type).toBe('text');
+    if (prompt.type === 'text') {
+      expect(prompt.text.length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('respects maxPromptChars when only the clip marker fits', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('OK');
+    const maxPromptChars = '<output clipped>'.length + 2;
+
+    await summarizeTerminalObservationWithGeminiFlash(
+      { command: 'echo hello', exitCode: 0, stdout: 'hello\n', stderr: '' },
+      { secrets, llmClient: llm, maxPromptChars }
+    );
+
+    expect(llm.requests).toHaveLength(1);
+    const prompt = llm.requests[0].messages[0].content[0];
+    expect(prompt.type).toBe('text');
+    if (prompt.type === 'text') {
+      expect(prompt.text).toContain('<output clipped>');
+      expect(prompt.text.length).toBeLessThanOrEqual(maxPromptChars);
+    }
+  });
 });

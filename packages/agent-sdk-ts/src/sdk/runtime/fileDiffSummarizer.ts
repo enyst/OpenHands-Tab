@@ -31,9 +31,14 @@ const toNonNegativeInt = (value: unknown): number => {
 const clipTextMiddle = (text: string, maxChars: number): string => {
   if (maxChars <= 0) return '';
   if (text.length <= maxChars) return text;
-  const available = maxChars - CLIP_MARKER.length - 2;
-  const half = Math.max(0, Math.floor(available / 2));
-  return `${text.slice(0, half)}\n${CLIP_MARKER}\n${text.slice(-half)}`;
+  const markerBudget = CLIP_MARKER.length + 2;
+  if (maxChars < markerBudget) return text.slice(0, maxChars);
+  const available = maxChars - markerBudget;
+  const headLen = Math.ceil(available / 2);
+  const tailLen = Math.floor(available / 2);
+  const head = text.slice(0, headLen);
+  const tail = tailLen === 0 ? '' : text.slice(-tailLen);
+  return `${head}\n${CLIP_MARKER}\n${tail}`;
 };
 
 const getLineCount = (text: string): number => {
