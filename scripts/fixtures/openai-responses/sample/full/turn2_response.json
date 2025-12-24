@@ -1,0 +1,75 @@
+{
+  "id": "resp_06f59747cdd2be1a01694c2f3002dc81959fa061fa8152f83e",
+  "object": "response",
+  "created_at": 1766600496,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1766600502,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": 1024,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_06f59747cdd2be1a01694c2f303d948195ab35a5d72f53a4a4",
+      "type": "reasoning",
+      "encrypted_content": "gAAAAABpTC82Dhmpkn4Zv-gWlPNZ4JxvdJ-aA1wySM8GUDUsVTmc4xc0Tk1V0f4Mmfua_STloO5IK03dhV6_Hz3DIVkiak5Wo7KCnFUCXkdzCaEdUXCaYtB-tb4Q53E2N0qmLlp1Ol4AgRlHuimS0UQtIxa8C4W9mxXfNZ7Rutrfect5xi86QaR7YFXa_lU_ZXWIKve6zD-H9qcW-76t-zH6DI6vIscu0dAcod0cA0q_gNAOVk9qOdutn8Wo8JwJi5FeF7DAqmy_XD8xIZyfKGBjEKQB8enfg3a5DDlXnZLGkhxxNR7rnK6i7oDV2dc25O8o7TxCdNeHn2Nt3gzZZIM8P8Qe1uNqEtkHOSLvhMqfJdkbE5_X1vlwNFiikU-ShgLmKPdiKkCiIzu4UVbVx2D4B72gw9PXQDI5JJG7lbIBNKlG6ZNgc_4S0Tdn4dMaRJuqPxjIyfrdS5pYCEosIzN6ZDLAIOqqoCp7b2JrzR9_zicieJItD6KVeTXULi0uCn4ZPP9_9n3OHEKFmoJHMoE1S5e293dgNahkg83xiDkzzzOSW7igVFiQBoZNxm-TKlngy5MinHKiacYBcTNIZ_qTRjinQ5oVZiuttkC-Txf6UVsa1gzYQXukj4qn7aRdeAEvzVqcKoymTTg5n6jHuz7vdIZAcJCJ-63noD8pE7xh5gFPo-2ewIZCmPrAABSkqNdyFjVagnvlsLUj_xQwtqtfTRzenE_h5iKu9U_ENcnrZEYs8fZiYRSAayce7c44aEtd6oCojQURm5qG8PLxajEBmGIS4O2cvjVrgwXiVbXjg8iOzu2_TGnNvrMcDv3kvjJgGqOjaEyxC4Ihm-XyCqg6zignehM6qsciMf6eUt-h6qxy2jl1_cvhaTNG5Gt_AOXsnXg6q0LoIXK-ZH2b0Ob22HaTJo4VlEaZVjWSI8huRl77BRwt4a8JbEihVMc2n2Hz3JC08j1VAw42vM7WsWMM91su_NXZdFkQu43jM5znfzZMu9XhPM-Vw_1bK8-qs0IKUiehhbE8a4AqOdQDHm7tNlyJXx2pS7kY6Wjirw4nJdrcx-6kIamt5xfOJ3kKbX1X93EAu6AOeclhJkN6Hnxn2n3nHlQz4lk0rNSdK3xLjMLMy55d9zt669hmyNpm_ZVge3CAHEUey8iYw6rJIqQY2xv8FYcit_HcKc0QxMEi0IDpWmkxwz1txR8FndqLp6wFDqccNAFo8nYU3q2TDkiVW1uZGGjFvLOva2sh_kt-97jpQg3XhidrfIPOZM9j4jdW-MqSkgSfnsCOM_T_Acblq52Bzt5lWRadN1OhGhy24-YfkiN0VFYGsEDsVK7N-ejQ7GF3YsYsI_VeETAaJa1hJJ2raMB5ALdets8rxNbZ91kSnTFYewG-sQPC09tulXgjy1tYshDoN12OikZ6-gVCdNF6kEyrmDfe3rBZVD1QE2YiApVp6nEy7kqhLH4wKgxRd8TFF-JYVFpWnLtOjawz6nqCjNYZvP-Mao-Gh7sRN4iGjYn8i6amUDF1tpQpqIHun-Q87bZdyX_lcdy2WSXNzex6SYddmbcJ7iuTSMWTxbNPZJAYgTpUxYl4xPc4H04wLR8XIMBt98hSAm6AFcnqk39gQ_jURj50mUc_uP2NT8YxkMe2etG0ei0ld7DwcTiB4q29inp1NeHw7jQEX9FQAP1-29172HFuOTAIDoLPfeLQXkkjOdJIRhvY3LGv6ixlUVSAEaDsZ6FaDNPP5TbbziC0S2Lglz8MWFXKujn1JUlJZ1VYDyJkusE6J9D1yl_1Ryt5F_Pkug0Af2k5pBf5Z74Ewb_Sn64fWh8Vv-QwZBPYRnxXgCM2UzWILZ4ajT4CLg5H57pCOhgpyjBEBBa1LtFYBNiAZFWixW3CVABWagj-ExoJ3dnj123CfOELsSqiVeogYOXYR0TouN-R1Fu_8_PgKZbpeJPv_gMO2LlB6XVBa7QXQsiZtj6N4GzCPDlZIH2yc_XcARpJzfTEQ0LqSWUBPt5tgIdsX8ArIqJ3Bv1RJZJspaLJZmDYopMg8WVY6B2tzH_nAumAGaLLtMMF8fUHbfsLZ3xxc4vyrtU-2FXrOh-UzpustKpHDWOZ7za_J4khsKWFkrDdeYcwnekNqCOQNcaCVxivnS6Gkf5WLJJW2dGneJVbTeLfRsO5jsHVmmQZVtvLJQyKc_CEhEVNNr6Eiac6OD9NEoLCAZNN7YdW9cPLmtgfqLPlqpjWl7EIzPQP8r8VGGZB8wYYJtvkcsu8NziWxXtuD6j7jUNsj9oCy1Lhh3mIEKZEluSYlOZfwqXtfXv94R1fLsBblrCvByKltq-kO4sktrQaZCZ_eIxrUK0pMJblQRlxoQX_TZB5ups4MGs97aa8l4r2QS6pO7iOJchjjQdSHfkn5DJvKRshKoYh7Fy4oxnzrle5R0gtcy6d3b-SVfjyT4GsuDLQEFzFq1EEFFHlwqw7WX4iaJ4jnXqBbS6oBT4cX2ZRBbs_IV5sBJYR8niHY13MvH6OLLOkX5scagqO5CG43F2GU_J8UoKZryzVMEXGep_Ari_5ytGKVfPlJQI3I6Oy8MOqxpoYlUPI5SNth49ltPNteJ5-FhKS4USjYk2WfLwDu9IAqU5TP15eyLYzE_NHA-Yi4NSUXLOGL6lFiOSLl4BtVevjKO6Z5C1NJlW2s5wg9ZA4NGjS4E1ts2nzq3WEd0G6XmHgEIGEYBFx6eWfPR5PE6FusAPAHDg=",
+      "summary": []
+    },
+    {
+      "id": "msg_06f59747cdd2be1a01694c2f3521408195ab178de5be7d5db6",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "Because it's the simplest program that demonstrates how to write, compile (or interpret), and run code while producing visible output, letting beginners verify their toolchain and learn basic syntax and I/O. It also became a tradition after appearing in early programming texts like Kernighan and Ritchie's The C Programming Language, so many tutorials use it as a consistent, low-friction starting point."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": "detailed"
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 49,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 339,
+    "output_tokens_details": {
+      "reasoning_tokens": 256
+    },
+    "total_tokens": 388
+  },
+  "user": null,
+  "metadata": {}
+}

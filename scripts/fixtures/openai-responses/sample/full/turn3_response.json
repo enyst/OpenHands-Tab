@@ -1,0 +1,84 @@
+{
+  "id": "resp_06f59747cdd2be1a01694c2f3678c481958cea7a110bc5eac5",
+  "object": "response",
+  "created_at": 1766600502,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1766600510,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": 1024,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_06f59747cdd2be1a01694c2f36d20c8195bc708e0e482cd0dd",
+      "type": "reasoning",
+      "encrypted_content": "gAAAAABpTC8-asIYMM9hHaGzwY3dtfv3hYkiEmHxyKRjhNjwose0RCq0VDBHgRJy-qhqN9rQ1c6JGBMyOvHAAzryqP8RdbCqgWjfFIKUJWEU832IM_NJlyAPrCBKjwU82YQWZtjjeETxbo5Td5OfWS4I3IZfRGuxxBWwRHr7HbBIKivs5GSwnlda7eQ_RDLleWbsXxxgpaPoSwYsMhAaTlBv_fVntj-Dq4sf5IQMEVnZKP_lcEW-gyfW89cjuF8Pup7eKyEZAq7meK3PJ2gb00MItIBqAB2nu0ZJmqWuMgJzbu5PSUG72dZAg7eY2B7Vr6S4KrVxdYD1elppbkAlblfLmfy3uqsv6WwaOpyzCG6Vu7CW60-Q7rf_Inyqi3tkdx1FCh4gcK5-4G22OIy05Wzy0R_tX-hF4RJSgty_9f976bRqQo-zwomhjOz2oZJS6jzeyFsQ3MT-suHahR3SHvT9lN_s4qYe5Mk9ietFZ8-EKfE5RuF5fSCMdd0JL4zQu9wF3_PJsTiygz9yIlRIevvsvg7vg1_ZdlmLEdVE8FtUA-IW7GMbbZMg6gZf3gZ8tiSvYj8qTVMtNpjL1k02kCVxBc2rRC7fOz5RJs3_FRxthhryhIbMeuTy-Qt__VSX9jFAWzAXDg9EhiEWmHcXy_XvCwVIatzgH0PKOADAATb0xr_JOxJxh7_zWkOXdJjr-wEvP5t4p35RPxndJZDCf4wVJ1y2QrB-A4F0jIwSJgFtpgEw9lEtFSrHj1TEvl9vPRcH8GH3Hc4Gaf3udPbB8Ki7XlBl1WsVK2Z9bSAoAfbQF_dqBNSA2Mu6qKqeeUMpYx7Jzpj6tNktQfrhPw1-5jq_b7i2VcC-APYSn3QTzlThSVubkTZAAjH49yuX3f7a_nABhIXYmLoUO3LE58ScwJAgBnSTES9Nlw36sykLdMUlLngUsICj0M9Heib8ieAORBb039G4iAPbkOzYjhnfXB6HnkHnFQk2TcP1zNHcqbPHmafltVIu6bvMpiQB4XabgX8SVEz08rJv0AI-xE2_yJQtcS3E1Vhaa_SqlK2wQDqiRG-JkX-ORYa4MqKpSB11jl6NQP-gRAC-z9ydc656iw3WehS1fx_8a3lsTQralzUgjKRD-uwD7nG8fK5tEV6YFLQA-EqBwnueWJ_JYh_3WJKPQBnZT-3UbS6B5VFI3TkF0c6BKJD4XjK4FUUtOK--VifjAuFNSNoCIB1h9sXcEPmZrPTA6u0S81iewUpnshi8NFbw3dPIwY3B8uADDxcauGH6mVpdecXY5Lxr23VxEdICpoOwePACA2aSmAX5iHAmb2xvahsvB2lXVjmr49PomDRTQ0PTYPTr4VB3JcgN_Wm2LItRBeice0ea97s-Q6p9Y2myGd2WeeL925ya6Z3HGNv-WSh7CMaz-QrWZGA3xhlhtAUNpgLM3pCrIrvDnEZcETAdetNAdQwNhIf1itUXcsyMOg6E9wQHYOwD7hBTG5MpPaLt4gHXPNIT5grzxja00wG6-KY3puUmrDY9f8YyEN33Kd6fR80DA8_rXoSFbzAQ1-GlHdyiu9S7ETSvgoXgBGiYf6z3ea_f2y151n2mt_vxoBYEkmwXdJEv3yMUExFWIJihMCE0cL1bcQXGS0dIEfiGQrhUK34XnXd_p1jXuGbaJc3gNcRX5aVGuquXp39McQf__Kh3cboq6nRQZYRd6WehEelDkzaRW3HFCr6ZD5WxyFTc611fYI1l3Ntnmcxr2ZXBosddTlqiKNmSV8qG52XN8AFt8Tj2it9CoS0DqzhSmTvYKcpCcdpqaBX2D6XELIwD1s_izrC4HdB353NMZD5Y_p9lqx3nMoI0FLLPA_Fid4QLaXX_JdXXESA-livlnIoT-Cr-K2NL8jGUakOSkwSiBFyEZ1tadChCdNtLB-4mCTLlVBCanmEXUOy1FNl8CMD0WwrF4ivg6jQLeJk6Glp5kqDLxSMx5QQWy4q2_8_TIIiatl7oO1RTkLFoTkFz7aePQNn_8rckYUpU0kjKzPaCdM36OzaMMcJglGDQyeUXsKNLvmEAGqbsUhLAv0EVVZp1EBNFjHX_TaOSKoGv6OSrQYmXaPFYPkL0hPxA3qCAZFLDUe6QCYVmyVw3f37wYuFdlC6yZHxLSOFue0afrK6c-vDYvaccZym-R7axzIRou_N9pUP4UADVuHkipOslOqk2XvTLZP3YXYkNfrPBPl3-Qj7GWBypKnr79nox-XM6TAsfkO5gCG8dqJTpL7HFWocNwPGBw8oxeYoG642HgZQ-oqk6oX9Wvd1Q_mM98ORdYWED2tECMp4E15l8_Dbiure7ZSNMn24jE0NmYO-wLlF6wX-I2aews653RgzMx9TdNXu438iyEbvBhHh0YCYKL2x7vx8xmtAC7zDqTOo-FRRmQx-Kt3vNhlfK44CmnF4hA3AavE2ZYJLVHnsZ58v2XEKghv0XxnEVasuEAGeETofG01m8d3r4b5AuQ1vzd7fBG8N-qgdRUQopVd2GZ3yReThkEVLJtVjJaQTbB61lWIs4kLFBhMtxSlwh7q-Et5PUSI0qRPPGGdDdYEQ74w9qW-daktV_zC8MUxZRTnZ6eD2W-K8J4YohIwxmaSPEzi5yBUaV42cqpS6V36zYH5uWYjQEOwWks73cpGQrHy_I60RJBR92lDQQ9Z6jQkCnL_x_bj8XLl8tuTNxSGpr0_Qa0LCGVzr1Sp8ZXH_OW7NtNnOTajL2nF2GxyEr5zMI65as90_6V0Y_Tm5_fLnewRp2Ma9cC20cazSpEiGS5bga0Ilhii57b_-hvQ9d18Cprja8U3PJrkFTq6L-6QxxQ8ts8o_wSSP-uxQkkPHQek4r_eFpDIGfDzp_SK-TGiagkopd7ZREnOtPKyNoELF7j7ipuUDEplOw0Es_Qlu0bgKy3kndq4QFPw5BnpbX-eAKPIzBQ1LJQzfx3H3VO2Xw3r9TTqYQugR5vGaNX8-S21_E3H9LcD109wjaywaGyTVip5-c2UPm7VM3",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "When testing APIs in stateless mode with store=false, a key lesson is that each request must contain all necessary context, as no session state is retained. This means including explicit authentication and ensuring the test cases are self-contained, which makes them easier to reproduce. Additionally, since responses depend on the provided inputs, it's critical to manage logging and ensure the full payload is included for each call to maintain reproducibility."
+        },
+        {
+          "type": "summary_text",
+          "text": "When testing APIs in stateless mode (store=false), each request must be self-contained, meaning it should include authentication, context, and any prior state since the server doesn't retain session information. This requirement makes tests deterministic and easier to reproduce, but it also demands careful setup and teardown while managing idempotency, rate limits, and logging since you can\u2019t rely on stored history. I think this nicely captures the important aspects of using stateless APIs!"
+        }
+      ]
+    },
+    {
+      "id": "msg_06f59747cdd2be1a01694c2f3e6330819598f9d2e0ad3246ff",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "When testing APIs in stateless mode (store=false), each request must be self-contained \u2014 include authentication, context, and any prior state needed \u2014 because the server won't retain session information between calls. This makes tests more reproducible and forces explicit setup/teardown, but requires careful handling of idempotency, rate limits, and external logging since you can't rely on stored history."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": "detailed"
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 158,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 338,
+    "output_tokens_details": {
+      "reasoning_tokens": 256
+    },
+    "total_tokens": 496
+  },
+  "user": null,
+  "metadata": {}
+}
