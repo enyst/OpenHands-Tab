@@ -5,7 +5,6 @@ import * as path from 'path';
 import * as os from 'os';
 import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
-import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from './shared/halTeleport';
 import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
@@ -15,6 +14,7 @@ import { cleanupPastedImages } from './shared/pastedImagesCleanup';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
 import { ConversationEventBacklog, type BufferedConversationEvent } from './conversation/eventBacklog';
 import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminalLogPseudoterminal';
+import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
 import {
   AgentContext,
@@ -36,39 +36,11 @@ import { attachConversationListeners } from './conversation/host/attachConversat
 import { createConfigurationChangeHandler } from './settings/host/createConfigurationChangeHandler';
 import { createWebviewMessageHandler } from './webview/host/createWebviewMessageHandler';
 
-type RenderedEventsInfo = {
-  count: number;
-  eventTypes: string[];
-  events?: Array<{ type: string; marker?: string; toolCallId?: string }>;
-};
-type UiStateSnapshot = {
-  input: string;
-  showContextPicker: boolean;
-  showSkillsPopover: boolean;
-  showHistory: boolean;
-  workspaceFilesCount: number;
-  selectedContextFiles: string[];
-  skillsCount: number;
-  attachmentsCount: number;
-};
-
-const DEFAULT_UI_STATE: UiStateSnapshot = {
-  input: '',
-  showContextPicker: false,
-  showSkillsPopover: false,
-  showHistory: false,
-  workspaceFilesCount: 0,
-  selectedContextFiles: [],
-  skillsCount: 0,
-  attachmentsCount: 0,
-};
-
 let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;
 let conversationMode: 'local' | 'remote' = 'remote';
 let terminal: vscode.Terminal | undefined;
 let terminalLogPty: OpenHandsTerminalLogPseudoterminal | undefined;
-let nextE2ERequestId = 0;
 let pastedImagesBaseDir = getGlobalStorageBaseDir(undefined);
 const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo) => void>();
 const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
@@ -104,35 +76,6 @@ function markPrintedExitFor(commandId: string): void {
   if (printedExitFor.size <= MAX_PRINTED_EXIT_FOR) return;
   const oldest = printedExitFor.keys().next().value;
   if (oldest) printedExitFor.delete(oldest);
-}
-
-function nextRequestId(prefix: string): string {
-  nextE2ERequestId += 1;
-  return `${prefix}-${Date.now().toString(36)}-${nextE2ERequestId}`;
-}
-
-function createPendingResponse<T>(
-  map: Map<string, (value: T) => void>,
-  requestId: string,
-  timeoutMs: number
-): { promise: Promise<T | undefined>; cancel: () => void } {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const promise = new Promise<T | undefined>((resolve) => {
-    timer = setTimeout(() => {
-      map.delete(requestId);
-      resolve(undefined);
-    }, timeoutMs);
-    map.set(requestId, (value: T) => {
-      if (timer) clearTimeout(timer);
-      map.delete(requestId);
-      resolve(value);
-    });
-  });
-  const cancel = () => {
-    if (timer) clearTimeout(timer);
-    map.delete(requestId);
-  };
-  return { promise, cancel };
 }
 
 // Dev logging/instrumentation toggle and file sink
@@ -791,254 +734,38 @@ export function activate(context: vscode.ExtensionContext) {
     await conversation.sendUserMessage(prompt);
   });
 
-  // Diagnostics command for E2E tests and troubleshooting
-  const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? '';
-  const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
-    return {
-      chat: {
-        hasView: !!chatView,
-        visible: chatView?.visible ?? false,
-        webviewReady: chatWebviewReady,
-        clientConversationId: chatLastConversationId,
-        clientLastSeenSeq: chatLastSeenSeq,
-      },
-      eventBacklog: {
-        activeConversationId: eventBacklog.getConversationId(),
-        size: eventBacklog.getSize(),
-        latestSeq: eventBacklog.getLatestSeq() ?? 0,
-      },
-      hasConversation: !!conversation,
-      conversationId: conversation?.getConversationId(),
-      status: conversation?.getStatus(),
-      mode: conversationMode,
-      serverUrl: getServerUrl(),
-      terminal: {
-        hasTerminal: !!terminal,
-        received: receivedTerminalEvents.length,
-      },
-    };
+  const diagnosticsCommands = registerDiagnosticsCommands({
+    context,
+    getChatView: () => chatView,
+    getChatWebviewReady: () => chatWebviewReady,
+    getChatLastConversationId: () => chatLastConversationId,
+    getChatLastSeenSeq: () => chatLastSeenSeq,
+    eventBacklog,
+    iterConversationEventBacklog,
+    bufferConversationEvent,
+    sentTestEvents,
+    maxTestEvents: MAX_TEST_EVENTS,
+    pendingRenderedEventsRequests,
+    pendingUiStateRequests,
+    pendingHalStateRequests,
+    ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
+    printedExitFor,
+    secretRegistry,
+    getConversation: () => conversation,
+    getConversationMode: () => conversationMode,
+    getTerminal: () => terminal,
+    getReceivedTerminalEventsCount: () => receivedTerminalEvents.length,
+    getOutputChannel: () => outputChannel,
+    renderError,
+    resolveGitContext,
+    summarizeWithLocalLlm,
   });
-
-  // Internal: return the last error event from the buffered backlog (for E2E + debugging).
-  const queryLastError = vscode.commands.registerCommand('openhands._queryLastError', () => {
-    let last: { seq: number; event: Event } | undefined;
-    for (const item of iterConversationEventBacklog()) {
-      if (item.event.kind === 'ConversationErrorEvent' || item.event.kind === 'AgentErrorEvent') {
-        last = { seq: item.seq, event: item.event };
-      }
-    }
-    if (!last) return null;
-
-    const e = last.event as unknown as Record<string, unknown>;
-    const payload: Record<string, unknown> = {
-      seq: last.seq,
-      kind: e.kind,
-      source: e.source,
-    };
-    if (typeof e.code === 'string') payload.code = e.code;
-    if (typeof e.detail === 'string') payload.detail = e.detail;
-    if (typeof e.error === 'string') payload.error = e.error;
-    if (typeof e.tool_name === 'string') payload.tool_name = e.tool_name;
-    if (typeof e.tool_call_id === 'string') payload.tool_call_id = e.tool_call_id;
-    return payload;
-  });
-
-  // Internal: summarize the in-memory event backlog for deterministic E2E checks.
-  const queryBacklogSummary = vscode.commands.registerCommand('openhands._queryBacklogSummary', () => {
-    let lastEventKind: string | undefined;
-    let lastEventSeq: number | undefined;
-    let lastAssistantMessageSeq: number | undefined;
-    let lastUserMessageSeq: number | undefined;
-
-    for (const item of iterConversationEventBacklog()) {
-      lastEventKind = item.event.kind;
-      lastEventSeq = item.seq;
-
-      if (item.event.kind === 'MessageEvent') {
-        const role = (item.event as unknown as { llm_message?: { role?: unknown } }).llm_message?.role;
-        if (role === 'assistant') lastAssistantMessageSeq = item.seq;
-        if (role === 'user') lastUserMessageSeq = item.seq;
-      }
-    }
-
-    return {
-      activeConversationId: eventBacklog.getConversationId(),
-      size: eventBacklog.getSize(),
-      latestSeq: eventBacklog.getLatestSeq() ?? 0,
-      lastEventSeq,
-      lastEventKind,
-      lastUserMessageSeq,
-      lastAssistantMessageSeq,
-    };
-  });
-
-  // Test command to send mock events to webview for E2E testing
-  const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
-    sentTestEvents.push(event);
-    if (sentTestEvents.length > MAX_TEST_EVENTS) {
-      sentTestEvents.splice(0, sentTestEvents.length - MAX_TEST_EVENTS);
-    }
-    const seq = bufferConversationEvent(event);
-    if (chatView) {
-      const payload: { type: 'event'; event: Event; seq?: number } = { type: 'event', event };
-      if (typeof seq === 'number') payload.seq = seq;
-      void chatView.webview.postMessage(payload satisfies HostToWebviewMessage);
-    }
-    return { sent: true, buffered: true, seq };
-  });
-
-  // Query rendered events from webview for E2E testing
-  const queryRenderedEvents = vscode.commands.registerCommand('openhands._queryRenderedEvents', async () => {
-    if (!chatView) {
-      return { count: 0, eventTypes: [] };
-    }
-
-    void chatView.show?.(true);
-    const requestId = nextRequestId('renderedEvents');
-    const pending = createPendingResponse(pendingRenderedEventsRequests, requestId, 5000);
-    const posted = await chatView.webview.postMessage({ type: 'queryRenderedEvents', requestId } satisfies HostToWebviewMessage);
-    if (!posted) {
-      pending.cancel();
-      return { count: 0, eventTypes: [] };
-    }
-
-    const info = await pending.promise;
-    if (info) return info;
-
-    // Fallback: if webview didn't respond (e.g., not yet ready), assume events equal to sentTestEvents
-    const filtered = sentTestEvents.filter((e) => e.kind !== 'ConversationStateUpdateEvent');
-    const types = filtered.map((e) => e.kind ?? 'unknown');
-    return { count: types.length, eventTypes: types };
-  });
-
-  // Query UI state from webview for E2E testing (toolbar + popovers)
-  const queryUiState = vscode.commands.registerCommand('openhands._queryUiState', async () => {
-    if (!chatView) {
-      return DEFAULT_UI_STATE;
-    }
-
-    void chatView.show?.(true);
-    const requestId = nextRequestId('uiState');
-    const pending = createPendingResponse(pendingUiStateRequests, requestId, 5000);
-    const posted = await chatView.webview.postMessage({ type: 'queryUiState', requestId } satisfies HostToWebviewMessage);
-    if (!posted) {
-      pending.cancel();
-      return DEFAULT_UI_STATE;
-    }
-
-    return (await pending.promise) ?? DEFAULT_UI_STATE;
-  });
-
-  // Query HAL presentation state from webview for E2E testing (no DOM automation)
-  const queryHalState = vscode.commands.registerCommand('openhands._queryHalState', async () => {
-    if (!chatView) {
-      return DEFAULT_HAL_STATE;
-    }
-
-    void chatView.show?.(true);
-    const requestId = nextRequestId('halState');
-    const pending = createPendingResponse(pendingHalStateRequests, requestId, 5000);
-    const posted = await chatView.webview.postMessage({ type: 'queryHalState', requestId } satisfies HostToWebviewMessage);
-    if (!posted) {
-      pending.cancel();
-      return DEFAULT_HAL_STATE;
-    }
-
-    return (await pending.promise) ?? DEFAULT_HAL_STATE;
-  });
-
-  // Send a test action to the webview for E2E testing (UI flows without DOM automation)
-  const webviewAction = vscode.commands.registerCommand(
-    'openhands._webviewAction',
-    async (req: { action: string; payload?: unknown } | undefined) => {
-      if (!chatView) return { sent: false };
-      if (!req || typeof req.action !== 'string' || req.action.length === 0) return { sent: false };
-      void chatView.show?.(true);
-      const sent = await chatView.webview.postMessage({ type: 'e2eAction', action: req.action, payload: req.payload } satisfies HostToWebviewMessage);
-      return { sent };
-    }
-  );
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
     await ensureConversationAndConnection();
     sentTestEvents.length = 0;
     printedExitFor.clear();
     await conversation?.startNewConversation();
-  });
-
-  const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
-    const postToWebview = (message: HostToWebviewMessage) => {
-      if (!chatView || !chatWebviewReady) return false;
-      void chatView.webview.postMessage(message);
-      return true;
-    };
-
-    try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-      const settings = await settingsMgr.get();
-
-      const firstServerUrl = typeof settings.servers?.[0]?.url === 'string' ? settings.servers[0].url.trim() : '';
-      if (!firstServerUrl) {
-        const message = 'No server available';
-        outputChannel?.appendLine(`[hal.teleport] ${message}`);
-        const posted = postToWebview({ type: 'halTeleportUnavailable', error: message });
-        if (!posted) {
-          void vscode.window.showErrorMessage(message);
-        }
-        return;
-      }
-
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      const { repoName, branchName } = await resolveGitContext(workspaceRoot);
-      const introLines = [
-        'Teleported from the local VS Code runtime after a HIGH-risk confirmation.',
-        `Repo: ${repoName}`,
-        `Branch: ${branchName}`,
-        'Note: uncommitted local changes may not be present remotely.',
-      ];
-      const intro = introLines.join('\n');
-
-      const backlogEvents = Array.from(iterConversationEventBacklog(), (item) => item.event);
-      const summaryEvents = takeLastTeleportableEvents(backlogEvents, TELEPORT_SUMMARY_EVENT_LIMIT);
-      const prompt = renderCondensationSummarizingPrompt({
-        previousSummary: '',
-        eventStrings: summaryEvents.map((e) => safeStringify(e)),
-      });
-
-      let firstRemoteMessage: string;
-      try {
-        const summary = await summarizeWithLocalLlm(settings, prompt, secretRegistry);
-        firstRemoteMessage = `${intro}\n\n---\n\n${summary}`;
-      } catch (err) {
-        const last10 = takeLastTeleportableEvents(backlogEvents, TELEPORT_FALLBACK_EVENT_LIMIT).map((e) => safeStringify(e));
-        const reason = renderError(err);
-        const block = last10.map((e) => `<EVENT>\n${e}\n</EVENT>`).join('\n\n');
-        firstRemoteMessage = `${intro}\n\n---\n\nTeleport summary failed: ${reason}\n\nLast 10 events (Action/Observation/Message only):\n\n${block}`;
-      }
-
-      try {
-        await conversation?.rejectAction('Teleported to remote runtime');
-      } catch (err) {
-        outputChannel?.appendLine(`[hal.teleport] Failed to reject local confirmation: ${renderError(err)}`);
-      }
-
-      // Ensure we always start a new remote conversation instead of restoring a prior one.
-      await context.workspaceState.update('openhands.conversationId.remote', undefined);
-
-      await settingsMgr.update({ serverUrl: firstServerUrl });
-      await ensureConversationAndConnection({ uiJustCreated: true });
-      sentTestEvents.length = 0;
-      printedExitFor.clear();
-      await conversation?.startNewConversation();
-      await conversation?.sendUserMessage(firstRemoteMessage);
-    } catch (err) {
-      const reason = renderError(err);
-      outputChannel?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
-      const posted = postToWebview({ type: 'halTeleportFailed', error: reason });
-      if (!posted) {
-        void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
-      }
-    }
   });
 
   const configure = vscode.commands.registerCommand('openhands.configure', async () => {
@@ -1383,16 +1110,8 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     open,
     explainSelection,
-    diag,
-    queryLastError,
-    queryBacklogSummary,
-    sendTestEvent,
-    queryRenderedEvents,
-    queryUiState,
-    queryHalState,
-    webviewAction,
+    ...diagnosticsCommands,
     startNew,
-    teleportToRemoteRuntime,
     configure,
     setApiKey,
     setOpenAiApiKey,
