@@ -330,6 +330,8 @@ export function LlmProfilesView(props: {
 
   const sortedProfiles = useMemo(() => [...profiles].sort((a, b) => a.localeCompare(b)), [profiles]);
   const advancedErrorCount = useMemo(() => ADVANCED_FIELD_KEYS.reduce((count, key) => (errors[key] ? count + 1 : count), 0), [errors]);
+  const advancedSettingsLabelId = 'llmProfilesAdvancedSettingsLabel';
+  const advancedSettingsPanelId = 'llmProfilesAdvancedSettingsPanel';
 
   const refreshApiKeyStatus = useCallback(async (profileId: string) => {
     if (activeProfileIdRef.current !== profileId) return;
@@ -832,14 +834,16 @@ export function LlmProfilesView(props: {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                   <button
                     type="button"
-                    onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                    onClick={() => setIsAdvancedOpen((prev) => !prev)}
                     className="w-full flex items-center justify-between gap-3 text-left"
                     aria-label={isAdvancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
+                    aria-expanded={isAdvancedOpen}
+                    aria-controls={advancedSettingsPanelId}
                     title={isAdvancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
                   >
                     <div className="flex items-center gap-2">
                       <span className="codicon codicon-settings text-stone-400" />
-                      <span className="text-sm font-medium text-stone-200">Advanced settings</span>
+                      <span id={advancedSettingsLabelId} className="text-sm font-medium text-stone-200">Advanced settings</span>
                       {advancedErrorCount > 0 && !isAdvancedOpen && (
                         <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-200 border border-red-500/20">
                           {advancedErrorCount} issue{advancedErrorCount === 1 ? '' : 's'}
@@ -850,7 +854,12 @@ export function LlmProfilesView(props: {
                   </button>
 
                   {isAdvancedOpen && (
-                    <div className="mt-4 space-y-6">
+                    <div
+                      id={advancedSettingsPanelId}
+                      role="region"
+                      aria-labelledby={advancedSettingsLabelId}
+                      className="mt-4 space-y-6"
+                    >
                       <div>
                         <FieldLabel label="API Version" />
                         <div className="mt-2">
