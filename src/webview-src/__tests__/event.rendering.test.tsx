@@ -353,18 +353,43 @@ describe('Agent-SDK event rendering', () => {
         command: 'ls -la',
         exit_code: 0,
         stdout: 'README.md',
+        summary: 'Listed the working directory contents and printed README.md.',
       },
       tool_name: 'terminal',
       tool_call_id: 'call_terminal_action',
       action_id: 'action_terminal_action',
     } as any;
     postToWindow({ type: 'event', event: observationEvent });
-    expect(await screen.findByText(/Done\./i)).toBeInTheDocument();
+    expect(await screen.findByText(/Listed the working directory contents/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Done\./i)).toBeNull();
     expect(screen.getAllByText(/ls -la/)).toHaveLength(1);
 
     const toggle = await screen.findByRole('button', { name: /Show tool result/i });
     fireEvent.click(toggle);
-    expect(await screen.findByText(/README\.md/)).toBeInTheDocument();
+    expect(await screen.findByText(/"stdout": "README\.md"/)).toBeInTheDocument();
+  });
+
+  it('falls back to Done for terminal observations without summary', async () => {
+    render(<App />);
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'echo hello',
+        exit_code: 0,
+        stdout: 'hello',
+      },
+      tool_name: 'terminal',
+      tool_call_id: 'call_terminal_fallback',
+      action_id: 'action_terminal_fallback',
+    } as any;
+
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/Done\./i)).toBeInTheDocument();
+
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    fireEvent.click(toggle);
+    expect(await screen.findByText(/hello/)).toBeInTheDocument();
   });
 
 
