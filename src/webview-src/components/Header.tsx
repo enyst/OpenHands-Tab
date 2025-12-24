@@ -12,6 +12,7 @@ interface HeaderProps {
     totalCost: number;
     costIsKnown: boolean;
   };
+  onOpenProfiles: () => void;
   onNewConversation: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
@@ -154,6 +155,7 @@ export function Header({
   currentServerUrl,
   servers,
   totals,
+  onOpenProfiles,
   onNewConversation,
   onOpenHistory,
   onOpenSettings,
@@ -255,6 +257,12 @@ export function Header({
             icon="history"
             label="History"
             onClick={onOpenHistory}
+          />
+
+          <IconButton
+            icon="symbol-parameter"
+            label="LLM Profiles"
+            onClick={onOpenProfiles}
           />
 
           <IconButton
