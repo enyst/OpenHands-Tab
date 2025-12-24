@@ -84,8 +84,25 @@ describe('ConversationStats', () => {
     // Ensure we don't double-count if we register again (though registerLlm is usually called once per client init)
     // But if we did:
     newStats.registerLlm({ llm: { usageId: 'persistent', metrics: m2 } });
-    // Should not merge again because _restored_usage_ids prevents it
+    // Should not merge again because it's the same live metrics object
     expect(m2.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(7);
+  });
+
+  it('preserves accumulated metrics when replacing the metrics object multiple times', () => {
+    const stats = new ConversationStats();
+    const m1 = makeMetrics(2);
+    stats.registerLlm({ llm: { usageId: 'switchy', metrics: m1 } });
+
+    const m2 = new Metrics('m');
+    stats.registerLlm({ llm: { usageId: 'switchy', metrics: m2 } });
+    expect(m2.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(2);
+
+    m2.addTokenUsage({ promptTokens: 3, completionTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, contextWindow: 0, responseId: 'more' });
+    expect(m2.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(5);
+
+    const m3 = new Metrics('m');
+    stats.registerLlm({ llm: { usageId: 'switchy', metrics: m3 } });
+    expect(m3.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(5);
   });
 
   it('combines accumulated cost across usage ids (best-effort)', () => {

@@ -58,12 +58,13 @@ export class ConversationStats {
   registerLlm(event: { llm: { usageId: string; metrics: Metrics; label?: string } }): void {
     const llm = event.llm;
     const usageId = llm.usageId;
-    if (usageId in this.usageToMetrics && !this.restoredUsageIds.has(usageId)) {
-      // restore existing metrics into llm
-      llm.metrics.merge(this.usageToMetrics[usageId]);
+    const existing = this.usageToMetrics[usageId];
+    if (existing && existing !== llm.metrics) {
+      // Preserve accumulated metrics when the client is rebuilt for the same usageId (e.g. profile switching).
+      llm.metrics.merge(existing);
       this.restoredUsageIds.add(usageId);
     }
-    // Ensure we track the live metrics object
+    // Ensure we track the live metrics object.
     this.usageToMetrics[usageId] = llm.metrics;
     if (llm.label) {
       this.usageToLabels[usageId] = llm.label;
