@@ -618,7 +618,10 @@
   },
   "files": [
     "dist/**",
-    "media/**",
+    "media/*.js",
+    "media/*.css",
+    "media/*.ttf",
+    "media/icons/**",
     "node_modules/ws/**",
     "package.json",
     "README.md",
