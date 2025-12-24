@@ -687,7 +687,7 @@ export function SkillsPopover({
       {/* Header */}
       <div className="px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
-          <span className="codicon codicon-mortar-board text-violet-400" />
+          <span className="codicon codicon-mortar-board text-brand-400" />
           <h3 className="font-semibold text-sm text-stone-200">Available Skills</h3>
         </div>
         <input
@@ -737,7 +737,7 @@ export function SkillsPopover({
                 `}
                 data-active={isActive ? 'true' : 'false'}
               >
-                <span className="codicon codicon-file-code text-violet-400/70" />
+                <span className="codicon codicon-file-code text-brand-400/70" />
                 <span className="flex-1 truncate">{skill.label}</span>
                 <span className="codicon codicon-arrow-right text-stone-600 group-hover:text-stone-400 transition-colors" />
               </button>

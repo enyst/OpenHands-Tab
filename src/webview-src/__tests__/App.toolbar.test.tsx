@@ -120,6 +120,11 @@ describe('App toolbar interactions', () => {
       }));
     });
 
+    const skillOption = screen.getByRole('option', { name: 'Example Skill' });
+    const icon = skillOption.querySelector('.codicon-file-code');
+    expect(icon).toBeTruthy();
+    expect(icon).toHaveClass('text-brand-400/70');
+
     fireEvent.click(screen.getByText('Example Skill'));
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'openSkill', path: '/tmp/skill.md' });
   });
