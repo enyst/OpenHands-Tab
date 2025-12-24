@@ -101,11 +101,13 @@ export async function run(): Promise<void> {
     await update('openhands.confirmation.policy', 'never');
     await update('openhands.agent.enableSecurityAnalyzer', false);
 
+    const v1BaseUrl = `${mock.baseUrl}/v1`;
+
     // Base LLM config (used when no profile is selected).
     await update('openhands.llm.profileId', '');
     await update('openhands.llm.provider', 'anthropic');
     await update('openhands.llm.model', 'claude-e2e');
-    await update('openhands.llm.baseUrl', mock.baseUrl);
+    await update('openhands.llm.baseUrl', v1BaseUrl);
 
     await vscode.commands.executeCommand('openhands.reconnect');
     await vscode.commands.executeCommand('openhands.startNewConversation');
@@ -116,7 +118,7 @@ export async function run(): Promise<void> {
       profile: {
         provider: 'openai',
         model: 'gpt-4o-mini',
-        baseUrl: mock.baseUrl,
+        baseUrl: v1BaseUrl,
         openaiApiMode: 'chat_completions',
       },
     });
@@ -125,7 +127,7 @@ export async function run(): Promise<void> {
       profile: {
         provider: 'openai',
         model: 'gpt-5-mini',
-        baseUrl: mock.baseUrl,
+        baseUrl: v1BaseUrl,
         openaiApiMode: 'responses',
       },
     });
@@ -178,4 +180,3 @@ export async function run(): Promise<void> {
     await mock.close();
   }
 }
-
