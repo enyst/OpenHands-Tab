@@ -7,3 +7,4 @@ export * from './AgentOrchestrator';
 export * from './persistence';
 export * from './ConversationStats';
 export * from './fileDiffSummarizer';
+export * from './terminalObservationSummarizer';
