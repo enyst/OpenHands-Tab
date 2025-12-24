@@ -157,6 +157,13 @@ describe('Agent-SDK event rendering', () => {
 
   it('renders SystemPromptEvent', async () => {
     render(<App />);
+    postToWindow({
+      type: 'skillsList',
+      skills: [
+        { label: 'react-skill', path: '/skills/react-skill.md' },
+        { label: 'typescript-skill', path: '/skills/typescript-skill.md' },
+      ],
+    });
     const ev = {
       kind: 'SystemPromptEvent',
       source: 'agent' as const,
@@ -167,7 +174,18 @@ describe('Agent-SDK event rendering', () => {
     const toggle = await screen.findByRole('button', { name: /Show system prompt/i });
     fireEvent.click(toggle);
     expect(await screen.findByText(/You are a helpful AI assistant designed for testing/)).toBeInTheDocument();
-    expect(await screen.findByText(/3 tools available/)).toBeInTheDocument();
+
+    const skillsRow = await screen.findByRole('button', { name: /2 skills loaded/i });
+    const toolsRow = await screen.findByRole('button', { name: /3 tools available/i });
+
+    fireEvent.click(skillsRow);
+    expect(await screen.findByText('react-skill')).toBeInTheDocument();
+    expect(await screen.findByText('typescript-skill')).toBeInTheDocument();
+
+    fireEvent.click(toolsRow);
+    expect(await screen.findByText('bash')).toBeInTheDocument();
+    expect(await screen.findByText('read')).toBeInTheDocument();
+    expect(await screen.findByText('write')).toBeInTheDocument();
   });
 
   it('renders ActionEvent', async () => {
