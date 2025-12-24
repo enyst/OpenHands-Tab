@@ -16,15 +16,23 @@ export async function run(): Promise<void> {
 
   const cmdId = `e2e_cmd_${Date.now().toString(36)}`;
   let order = 0;
-  const cmd: BashCommand = { type: 'BashCommand', command: 'long_task', command_id: cmdId, id: `cmd-${order}`, timestamp: new Date().toISOString(), order: order++ };
+  const nextBase = (type: BashEvent['type']) => ({
+    id: `e2e-${cmdId}-${order}`,
+    type,
+    timestamp: new Date().toISOString(),
+    command_id: cmdId,
+    order: order++,
+  });
+
+  const cmd: BashEvent = { ...nextBase('BashCommand'), command: 'long_task' };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', cmd);
 
   for (let i = 0; i < 50; i++) {
-    const out: BashOutput = { type: 'BashOutput', command_id: cmdId, stdout: `step ${i}\r`, stderr: null, exit_code: null, id: `out-${order}`, timestamp: new Date().toISOString(), order: order++ };
+    const out: BashEvent = { ...nextBase('BashOutput'), exit_code: null, stdout: `step ${i}\r`, stderr: null };
     await vscode.commands.executeCommand('openhands._injectTerminalEvent', out);
   }
 
-  const exit: BashExit = { type: 'BashExit', command_id: cmdId, exit_code: 0, id: `exit-${order}`, timestamp: new Date().toISOString(), order: order++ };
+  const exit: BashEvent = { ...nextBase('BashExit'), exit_code: 0 };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
   // Ensure terminal exists and we saw lots of events (coalesced)

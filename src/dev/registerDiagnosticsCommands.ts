@@ -9,7 +9,7 @@ import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
-import type { ConversationInstance, SecretRegistry, Event, BashEvent } from '@openhands/agent-sdk-ts';
+import { isBashEvent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
 
 export type TerminalLogInfo = {
   hasTerminal: boolean;

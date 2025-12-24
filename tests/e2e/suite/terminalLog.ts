@@ -16,21 +16,34 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.reconnect');
 
   // Inject a Bash command + many CR progress updates + exit. This bypasses needing an actual shell.
+  const cmdId = 'e2e_cmd_1';
   let order = 0;
-  const command_id = 'e2e_cmd_1';
-  const cmd: BashCommand = { type: 'BashCommand', command: 'progress_task', command_id, id: `cmd-${order}`, timestamp: new Date().toISOString(), order: order++ };
+  const nextBase = (type: BashEvent['type']) => ({
+    id: `e2e-${cmdId}-${order}`,
+    type,
+    timestamp: new Date().toISOString(),
+    command_id: cmdId,
+    order: order++,
+  });
+
+  const cmd: BashEvent = { ...nextBase('BashCommand'), command: 'progress_task' };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', cmd);
 
-  const makeOutput = (i: number): BashOutput => ({ type: 'BashOutput', command_id, stdout: `progress ${i}%\r`, stderr: null, exit_code: null, id: `out-${order}`, timestamp: new Date().toISOString(), order: order++ });
+  const makeOutput = (i: number): BashEvent => ({
+    ...nextBase('BashOutput'),
+    exit_code: null,
+    stdout: `progress ${i}%\r`,
+    stderr: null,
+  });
   for (let i = 1; i <= 10; i++) {
     await vscode.commands.executeCommand('openhands._injectTerminalEvent', makeOutput(i));
   }
   // Final newline-terminated line to flush progress
-  const final: BashOutput = { type: 'BashOutput', command_id, stdout: 'done\n', stderr: null, exit_code: null, id: `out-${order}`, timestamp: new Date().toISOString(), order: order++ };
+  const final: BashEvent = { ...nextBase('BashOutput'), exit_code: null, stdout: 'done\n', stderr: null };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', final);
 
   // Exit event (should render only one [Process exited] footer)
-  const exit: BashExit = { type: 'BashExit', command_id, exit_code: 0, id: `exit-${order}`, timestamp: new Date().toISOString(), order: order++ };
+  const exit: BashEvent = { ...nextBase('BashExit'), exit_code: 0 };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
   // Verify diagnostics reflect terminal received events and that terminal exists
