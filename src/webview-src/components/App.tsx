@@ -19,6 +19,7 @@ import { getHalDialogueLinesForMode, normalizeHalUserName, type HalScriptLine, t
 import { getVscodeApi } from '../shared/vscodeApi';
 import { MAX_RENDERED_EVENTS } from '../shared/constants';
 import { DEFAULT_HAL_STATE } from '../../shared/halDefaults';
+import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../shared/pasteLimits';
 
 // Component imports
 import { Header } from './Header';
@@ -94,9 +95,6 @@ const DEFAULT_HAL_UI_STATE: HalUiState = {
 
 const DEFAULT_BUNDLED_DIALOGUE_DELAY_MS = 650;
 const DEFAULT_BUNDLED_AUDIO_EXTENSION = 'wav';
-
-const MAX_PASTED_IMAGE_BYTES = 350 * 1024;
-const MAX_PASTED_IMAGES = 4;
 
 function readBlobAsDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {

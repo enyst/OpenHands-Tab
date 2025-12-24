@@ -11,6 +11,7 @@ import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLinesForMode } from '../../shared/halScript';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
+import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 import { getConversationHistoryList } from './conversationHistory';
@@ -22,8 +23,6 @@ import { resolveWorkspaceFilePath } from './workspacePaths';
 export type WebviewHost = {
   postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
 };
-
-const MAX_PASTED_IMAGE_BYTES = 350 * 1024;
 
 async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
   const filePath = getPastedImagePath(baseDir, imageId);
