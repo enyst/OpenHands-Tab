@@ -398,7 +398,14 @@ export function TerminalObservationSummary({
 }): React.ReactElement | null {
   const exitCodeNumber = getNumber(observation.exit_code);
   const exitCodeText = exitCodeNumber !== undefined ? exitCodeNumber.toString() : getString(observation.exit_code) ?? 'unknown';
-  const summaryText = exitCodeText === '0' ? 'Done.' : `Done (exit code ${exitCodeText}).`;
+  const metadata = observation.metadata;
+  const metadataSummary =
+    metadata && typeof metadata === 'object' && 'summary' in metadata
+      ? getString((metadata as Record<string, unknown>).summary)
+      : undefined;
+  const geminiSummary = getString(observation.summary) ?? metadataSummary;
+  const trimmedGeminiSummary = geminiSummary?.trim() ? geminiSummary.trim() : undefined;
+  const summaryText = trimmedGeminiSummary ?? (exitCodeText === '0' ? 'Done.' : `Done (exit code ${exitCodeText}).`);
   const toggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
   return (
     <div className="text-sm leading-relaxed">
