@@ -116,7 +116,7 @@ const toResponsesReasoningInputItem = (reasoning: ResponsesReasoningItem): Respo
   // the `rs_*` id as a server-stored reference and returns 404 when store=false.
   // IMPORTANT: `encrypted_content` must be round-tripped exactly as received (opaque blob).
   const encrypted = reasoning.encrypted_content;
-  if (typeof encrypted !== 'string' || encrypted.length === 0) return undefined;
+  if (typeof encrypted !== 'string' || encrypted.trim().length === 0) return undefined;
 
   const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text' as const, text }));
   return {
