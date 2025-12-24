@@ -636,45 +636,34 @@ export function LlmProfilesView(props: {
           </div>
 
           {/* Right: editor */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {topError && (
-              <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {topError}
-              </div>
-            )}
-
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div>
-                <div className="text-sm text-stone-500">
-                  {mode === 'create' ? 'Create a new profile' : 'Edit profile'}
-                </div>
-                <div className="text-lg font-semibold text-stone-100 mt-1">
-                  {mode === 'create' ? (form.name.trim() ? form.name.trim() : 'New profile') : (selectedProfileId ?? '—')}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="px-6 py-5 border-b border-white/[0.06]">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm text-stone-500">
+                    {mode === 'create' ? 'Create a new profile' : 'Edit profile'}
+                  </div>
+                  <div className="text-lg font-semibold text-stone-100 mt-1">
+                    {mode === 'create' ? (form.name.trim() ? form.name.trim() : 'New profile') : (selectedProfileId ?? '—')}
+                  </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => { void handleSave(); }}
-                disabled={saving || loadingProfile}
-                className={`
-                  inline-flex items-center gap-2 px-4 py-2 rounded-lg
-                  text-sm font-medium
-                  transition-all
-                  border
-                  ${saving || loadingProfile
-                    ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                    : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
-                `}
-              >
-                <span className={`codicon codicon-${saving ? 'loading' : 'save'} ${saving ? 'animate-spin' : ''}`} />
-                {saving ? 'Saving…' : 'Save'}
-              </button>
             </div>
 
-            {loadingProfile ? (
-              <div className="text-sm text-stone-500">Loading profile…</div>
-            ) : (
-              <div className="space-y-6">
+            <div
+              className="flex-1 overflow-y-auto px-6 py-6"
+              style={{ scrollbarGutter: 'stable' }}
+            >
+              {topError && (
+                <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {topError}
+                </div>
+              )}
+
+              {loadingProfile ? (
+                <div className="text-sm text-stone-500">Loading profile…</div>
+              ) : (
+                <div className="space-y-6">
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -1055,8 +1044,38 @@ export function LlmProfilesView(props: {
                     </div>
                   )}
                 </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-white/[0.06] bg-[var(--vscode-editor-background)]">
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1] transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void handleSave(); }}
+                  disabled={saving || loadingProfile}
+                  className={`
+                    inline-flex items-center gap-2 px-4 py-2 rounded-lg
+                    text-sm font-medium
+                    transition-all
+                    border
+                    ${saving || loadingProfile
+                      ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
+                      : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
+                  `}
+                >
+                  <span className={`codicon codicon-${saving ? 'loading' : 'save'} ${saving ? 'animate-spin' : ''}`} />
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
