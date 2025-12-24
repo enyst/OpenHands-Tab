@@ -9,14 +9,21 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const [isExpanded, setIsExpanded] = useState(false);
   const observationString = JSON.stringify(event.observation, null, 2);
   const isTruncated = observationString.length > 2000;
+  const isFileEditObservation = (() => {
+    if (event.tool_name !== 'file_editor') return false;
+    const candidate = (event.observation as Record<string, unknown> | null) ?? null;
+    if (!candidate || typeof candidate !== 'object') return false;
+    const command = typeof candidate.command === 'string' ? candidate.command : '';
+    return command === 'insert' || command === 'str_replace';
+  })();
   const observationSummary = event.tool_name === 'file_editor'
     ? <FileEditorObservationSummary observation={event.observation} />
     : event.tool_name === 'terminal'
       ? <TerminalObservationSummary observation={event.observation} isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
       : null;
   const hasSummary = observationSummary !== null;
-  const shouldShowRaw = !hasSummary || isExpanded;
-  const showHeaderToggle = hasSummary && event.tool_name !== 'terminal';
+  const shouldShowRaw = isFileEditObservation ? false : !hasSummary || isExpanded;
+  const showHeaderToggle = hasSummary && event.tool_name !== 'terminal' && !isFileEditObservation;
   const showFooterToggle = !hasSummary && isTruncated;
   const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
   const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
@@ -73,4 +80,3 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
     </EventContainer>
   );
 }
-
