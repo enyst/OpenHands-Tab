@@ -100,6 +100,26 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const elevenlabsCacheMaxBytes = 50 * 1024 * 1024;
   let elevenlabsTtsGate: TtsConversationGate | null = null;
 
+  const validateProfileId = (profileId: string): void => {
+    if (!profileId.trim()) {
+      throw new Error('Profile id must be a non-empty string');
+    }
+    if (profileId !== profileId.trim()) {
+      throw new Error('Profile id must not have leading/trailing whitespace');
+    }
+    if (profileId.includes('/') || profileId.includes('\\')) {
+      throw new Error('Profile id must not contain path separators');
+    }
+    if (!/^[a-zA-Z0-9._-]+$/.test(profileId)) {
+      throw new Error('Profile id contains invalid characters');
+    }
+  };
+
+  const getProfileApiKeySecretKey = (profileId: string): string => {
+    validateProfileId(profileId);
+    return `openhands.llmProfileApiKey.${profileId}`;
+  };
+
   const getElevenlabsTtsGate = (): TtsConversationGate => {
     if (elevenlabsTtsGate) return elevenlabsTtsGate;
     const baseDir = context.globalStorageUri?.fsPath || path.join(os.tmpdir(), 'oh-tab-global-storage');
@@ -422,6 +442,47 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           void host.postMessage({ type: 'llmProfileSaveResponse', requestId, ok: false, profileId, error: reason });
+        }
+        break;
+      }
+      case 'llmProfileApiKeyStatusRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        if (!requestId || !profileId) break;
+
+        try {
+          const key = getProfileApiKeySecretKey(profileId);
+          const stored = await context.secrets.get(key);
+          void host.postMessage({
+            type: 'llmProfileApiKeyStatusResponse',
+            requestId,
+            ok: true,
+            profileId,
+            hasKey: typeof stored === 'string' && stored.trim().length > 0,
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfileApiKeyStatusResponse', requestId, ok: false, profileId, error: reason });
+        }
+        break;
+      }
+      case 'llmProfileApiKeySetRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        const apiKey = typeof message.apiKey === 'string' ? message.apiKey.trim() : '';
+        if (!requestId || !profileId) break;
+
+        try {
+          const key = getProfileApiKeySecretKey(profileId);
+          if (!apiKey) {
+            await context.secrets.delete(key);
+          } else {
+            await context.secrets.store(key, apiKey);
+          }
+          void host.postMessage({ type: 'llmProfileApiKeySetResponse', requestId, ok: true, profileId });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfileApiKeySetResponse', requestId, ok: false, profileId, error: reason });
         }
         break;
       }

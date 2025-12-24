@@ -13,6 +13,7 @@ import {
   isConversationStateUpdateEvent,
   type Event,
   type ActionEvent,
+  type LLMConfiguration,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 import { normalizeHalUserName } from '../../shared/halScript';
@@ -30,6 +31,7 @@ import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
+import { LlmProfilesView } from './LlmProfilesView';
 import { isHalDecision, type HalPhase } from '../../shared/halTypes';
 import { HalOverlay } from './HalOverlay';
 import {
@@ -76,6 +78,8 @@ const INITIAL_CONVERSATION_TOTALS: ConversationTotals = {
   costIsKnown: false,
 };
 
+const LLM_PROFILES_REQUEST_TIMEOUT_MS = 15_000;
+
 const computeConversationTotalsFromStats = (value: unknown): ConversationTotals | null => {
   const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
     !!candidate && typeof candidate === 'object';
@@ -112,6 +116,38 @@ const computeConversationTotalsFromStats = (value: unknown): ConversationTotals 
 
   return { contextTokens, totalTokens, totalCost, costIsKnown };
 };
+
+type PendingLlmProfilesRequest =
+  | {
+    kind: 'list';
+    resolve: (profiles: string[]) => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+  | {
+    kind: 'load';
+    resolve: (profile: LLMConfiguration) => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+  | {
+    kind: 'save';
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+  | {
+    kind: 'apiKeyStatus';
+    resolve: (hasKey: boolean) => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+  | {
+    kind: 'apiKeySet';
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  };
 
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
@@ -184,6 +220,7 @@ export function App() {
   const { statusBanner, setStatusBanner, showStatusMessage } = useStatusMessages({ message: 'Initializing…', level: 'info' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showLlmProfiles, setShowLlmProfiles] = useState(false);
 
   // Context picker state
   const [showContextPicker, setShowContextPicker] = useState(false);
@@ -231,6 +268,72 @@ export function App() {
     const api = getVscodeApi();
     api.postMessage(msg);
   }, []);
+
+  const llmProfilesRequestSeqRef = useRef(1);
+  const pendingLlmProfilesRequestsRef = useRef<Map<string, PendingLlmProfilesRequest>>(new Map());
+
+  const createLlmProfilesRequestId = (kind: string): string =>
+    `llmProfiles:${kind}:${llmProfilesRequestSeqRef.current++}`;
+
+  const listLlmProfiles = useCallback(async (): Promise<string[]> => {
+    const requestId = createLlmProfilesRequestId('list');
+    return await new Promise<string[]>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingLlmProfilesRequestsRef.current.delete(requestId);
+        reject(new Error('Timed out listing LLM profiles'));
+      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
+      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'list', resolve, reject, timeout });
+      postMessage({ type: 'llmProfilesListRequest', requestId });
+    });
+  }, [postMessage]);
+
+  const loadLlmProfile = useCallback(async (profileId: string): Promise<LLMConfiguration> => {
+    const requestId = createLlmProfilesRequestId('load');
+    return await new Promise<LLMConfiguration>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingLlmProfilesRequestsRef.current.delete(requestId);
+        reject(new Error('Timed out loading LLM profile'));
+      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
+      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'load', resolve, reject, timeout });
+      postMessage({ type: 'llmProfileLoadRequest', requestId, profileId });
+    });
+  }, [postMessage]);
+
+  const saveLlmProfile = useCallback(async (profileId: string, profile: LLMConfiguration): Promise<void> => {
+    const requestId = createLlmProfilesRequestId('save');
+    return await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingLlmProfilesRequestsRef.current.delete(requestId);
+        reject(new Error('Timed out saving LLM profile'));
+      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
+      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'save', resolve, reject, timeout });
+      postMessage({ type: 'llmProfileSaveRequest', requestId, profileId, profile });
+    });
+  }, [postMessage]);
+
+  const getLlmProfileApiKeyStatus = useCallback(async (profileId: string): Promise<boolean> => {
+    const requestId = createLlmProfilesRequestId('apiKeyStatus');
+    return await new Promise<boolean>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingLlmProfilesRequestsRef.current.delete(requestId);
+        reject(new Error('Timed out fetching LLM profile API key status'));
+      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
+      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'apiKeyStatus', resolve, reject, timeout });
+      postMessage({ type: 'llmProfileApiKeyStatusRequest', requestId, profileId });
+    });
+  }, [postMessage]);
+
+  const setLlmProfileApiKey = useCallback(async (profileId: string, apiKey: string): Promise<void> => {
+    const requestId = createLlmProfilesRequestId('apiKeySet');
+    return await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingLlmProfilesRequestsRef.current.delete(requestId);
+        reject(new Error('Timed out setting LLM profile API key'));
+      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
+      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'apiKeySet', resolve, reject, timeout });
+      postMessage({ type: 'llmProfileApiKeySetRequest', requestId, profileId, apiKey });
+    });
+  }, [postMessage]);
 
   const { inlineImages, setInlineImages, handlePasteImageFiles, handleRemoveInlineImage } = useInlineImageAttachments({
     showStatusMessage,
@@ -470,6 +573,7 @@ export function App() {
       const payload = event.data as {
         type?: string;
         requestId?: string;
+        ok?: unknown;
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
         mode?: 'local' | 'remote';
@@ -477,6 +581,9 @@ export function App() {
         llmModel?: string | null;
         profiles?: string[];
         activeProfileId?: string | null;
+        profileId?: unknown;
+        profile?: unknown;
+        hasKey?: unknown;
         elevenlabs?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
         seq?: unknown;
@@ -549,6 +656,81 @@ export function App() {
           if (typeof payload.activeProfileId === 'string' || payload.activeProfileId === null) {
             setLlmProfileId(payload.activeProfileId);
           }
+          break;
+        }
+        case 'llmProfilesListResponse': {
+          const requestId = payload.requestId;
+          if (typeof requestId !== 'string') break;
+          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
+          if (!pending || pending.kind !== 'list') break;
+          pendingLlmProfilesRequestsRef.current.delete(requestId);
+          clearTimeout(pending.timeout);
+          if (payload.ok === true && Array.isArray(payload.profiles)) {
+            pending.resolve(payload.profiles.filter((id): id is string => typeof id === 'string' && id.trim().length > 0));
+            break;
+          }
+          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to list LLM profiles';
+          pending.reject(new Error(reason));
+          break;
+        }
+        case 'llmProfileLoadResponse': {
+          const requestId = payload.requestId;
+          if (typeof requestId !== 'string') break;
+          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
+          if (!pending || pending.kind !== 'load') break;
+          pendingLlmProfilesRequestsRef.current.delete(requestId);
+          clearTimeout(pending.timeout);
+          if (payload.ok === true && payload.profile && typeof payload.profile === 'object') {
+            pending.resolve(payload.profile as LLMConfiguration);
+            break;
+          }
+          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to load LLM profile';
+          pending.reject(new Error(reason));
+          break;
+        }
+        case 'llmProfileSaveResponse': {
+          const requestId = payload.requestId;
+          if (typeof requestId !== 'string') break;
+          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
+          if (!pending || pending.kind !== 'save') break;
+          pendingLlmProfilesRequestsRef.current.delete(requestId);
+          clearTimeout(pending.timeout);
+          if (payload.ok === true) {
+            pending.resolve();
+            break;
+          }
+          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to save LLM profile';
+          pending.reject(new Error(reason));
+          break;
+        }
+        case 'llmProfileApiKeyStatusResponse': {
+          const requestId = payload.requestId;
+          if (typeof requestId !== 'string') break;
+          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
+          if (!pending || pending.kind !== 'apiKeyStatus') break;
+          pendingLlmProfilesRequestsRef.current.delete(requestId);
+          clearTimeout(pending.timeout);
+          if (payload.ok === true && typeof payload.hasKey === 'boolean') {
+            pending.resolve(payload.hasKey);
+            break;
+          }
+          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to fetch LLM profile API key status';
+          pending.reject(new Error(reason));
+          break;
+        }
+        case 'llmProfileApiKeySetResponse': {
+          const requestId = payload.requestId;
+          if (typeof requestId !== 'string') break;
+          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
+          if (!pending || pending.kind !== 'apiKeySet') break;
+          pendingLlmProfilesRequestsRef.current.delete(requestId);
+          clearTimeout(pending.timeout);
+          if (payload.ok === true) {
+            pending.resolve();
+            break;
+          }
+          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to set LLM profile API key';
+          pending.reject(new Error(reason));
           break;
         }
         case 'configUpdated':
@@ -903,6 +1085,10 @@ export function App() {
     postMessage({ type: 'requestHistory' });
   }, [postMessage]);
 
+  const handleOpenLlmProfiles = useCallback(() => {
+    setShowLlmProfiles(true);
+  }, []);
+
   const handleOpenSettings = useCallback(() => {
     postMessage({ type: 'openSettingsPage' });
   }, [postMessage]);
@@ -1087,6 +1273,7 @@ export function App() {
         currentServerUrl={currentServerUrl}
         servers={servers}
         totals={conversationTotals}
+        onOpenProfiles={handleOpenLlmProfiles}
         onNewConversation={handleStartNewConversation}
         onOpenHistory={handleOpenHistory}
         onOpenSettings={handleOpenSettings}
@@ -1223,6 +1410,17 @@ export function App() {
           />
         )}
       </div>
+
+      {/* LLM Profiles view (slide-over panel) */}
+      <LlmProfilesView
+        isOpen={showLlmProfiles}
+        onClose={() => setShowLlmProfiles(false)}
+        listProfiles={listLlmProfiles}
+        loadProfile={loadLlmProfile}
+        saveProfile={saveLlmProfile}
+        getApiKeyStatus={getLlmProfileApiKeyStatus}
+        setApiKey={setLlmProfileApiKey}
+      />
 
       {/* History view (slide-over panel) */}
       <HistoryView
