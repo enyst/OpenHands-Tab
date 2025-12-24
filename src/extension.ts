@@ -7,6 +7,7 @@ import { SettingsManager, type OpenHandsSettings } from './settings/SettingsMana
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from './shared/halTeleport';
 import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
+import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { safeStringify } from './shared/safeStringify';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, isValidPastedImageId } from './shared/pastedImages';
@@ -60,16 +61,6 @@ const DEFAULT_UI_STATE: UiStateSnapshot = {
   selectedContextFiles: [],
   skillsCount: 0,
   attachmentsCount: 0,
-};
-
-const DEFAULT_HAL_STATE: HalStateSnapshot = {
-  enabled: false,
-  mode: 'tts_only',
-  phase: 'idle',
-  eye: 'off',
-  stepIndex: null,
-  decision: null,
-  lastError: null,
 };
 
 let chatView: vscode.WebviewView | undefined;
