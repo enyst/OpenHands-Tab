@@ -1,0 +1,22 @@
+# Exclude large and development-only files from the VSIX
+
+# Media screenshots used for README/docs only
+media/screenshots/**
+
+# Source and dev files not needed at runtime
+src/**
+docs/**
+test/**
+tests/**
+scripts/**
+.github/**
+.husky/**
+.vscode/**
+
+# Maps and miscellaneous
+**/*.map
+*.code-workspace
+esbuild.webview.mjs
+tailwind.config.js
+tsconfig*.json
+vitest.config.ts
