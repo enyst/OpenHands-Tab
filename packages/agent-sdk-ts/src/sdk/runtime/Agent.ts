@@ -5,7 +5,7 @@ import { AgentOrchestrator } from './AgentOrchestrator';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
-import type { LLMClient, LLMToolDefinition } from '../llm';
+import type { ChatCompletionRequest, LLMClient, LLMToolDefinition } from '../llm';
 import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import {
@@ -39,6 +39,7 @@ export interface AgentOptions {
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   llmClient?: LLMClient;
+  toolSummarizerClient?: LLMClient;
   tools?: ToolDefinition<unknown, unknown>[];
   events?: EventLog;
   state?: ConversationState;
@@ -104,6 +105,10 @@ function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): s
   const tail = text.slice(-half);
   return `${head}\n${TOOL_MESSAGE_CLIP_MARKER}\n${tail}`;
 }
+
+const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash';
+const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
+const TOOL_SUMMARY_MAX_CHARS = 1_000;
 
 function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
   if (error instanceof Error) {
@@ -203,6 +208,11 @@ export class Agent extends EventEmitter {
   private readonly registry?: import('../llm').LLMRegistry;
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
   private debug: boolean;
+  private summarizeToolCallsEnabled = false;
+  private pendingToolSummaries: Array<{ toolName: string; summary: string }> = [];
+  private toolSummarizerClient?: LLMClient;
+  private toolSummarizerInitPromise?: Promise<LLMClient>;
+  private toolSummarizerFailed = false;
   private secretValuesForMaskingCache: { signature: string; values: string[] } | null = null;
 
   constructor(private readonly options: AgentOptions) {
@@ -229,6 +239,16 @@ export class Agent extends EventEmitter {
     this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
     this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
     this.debug = settings?.agent?.debug ?? false;
+    this.summarizeToolCallsEnabled = settings?.agent?.summarizeToolCalls ?? false;
+    if (!this.summarizeToolCallsEnabled) {
+      this.pendingToolSummaries = [];
+    }
+    // If the user updates settings/secrets, allow retrying tool summarization.
+    this.toolSummarizerFailed = false;
+    if (!this.options.toolSummarizerClient) {
+      this.toolSummarizerClient = undefined;
+      this.toolSummarizerInitPromise = undefined;
+    }
     this.syncToolSecrets(settings);
   }
 
@@ -378,6 +398,84 @@ export class Agent extends EventEmitter {
     } catch {
       return Object.prototype.toString.call(result);
     }
+  }
+
+  private async maybeSummarizeToolCall(toolCall: ToolCall, result: unknown): Promise<void> {
+    if (!this.summarizeToolCallsEnabled) return;
+    if (this.toolSummarizerFailed) return;
+
+    try {
+      const summary = await this.summarizeToolCall(toolCall, result);
+      if (!summary) return;
+      this.pendingToolSummaries.push({ toolName: toolCall.function.name, summary });
+    } catch (error) {
+      this.toolSummarizerFailed = true;
+      if (this.debug) {
+        console.warn('[Agent] Tool call summarization failed; disabling for this session:', error);
+      }
+    }
+  }
+
+  private async summarizeToolCall(toolCall: ToolCall, result: unknown): Promise<string | undefined> {
+    const client = await this.getToolSummarizerClient();
+    const toolName = toolCall.function.name;
+    const rawArgs = toOptionalNonEmptyString(toolCall.function.arguments) ?? '';
+    const safeArgs = rawArgs ? redactAndTruncateArgs(rawArgs) : '';
+
+    const formatted = this.formatToolMessageText(toolCall, result);
+    const masked = this.maskSecretsInText(formatted);
+    const clipped = truncateToolMessage(masked, TOOL_SUMMARY_PROMPT_MAX_CHARS);
+
+    const prompt = [
+      'Write a concise (1–3 sentence) summary of a tool execution performed by an autonomous coding agent.',
+      '- Focus on the action taken and key outcome.',
+      '- Do not include secrets or long output excerpts.',
+      '',
+      `Tool: ${toolName}`,
+      `Arguments: ${safeArgs || '(none)'}`,
+      '',
+      'Result (redacted + clipped):',
+      clipped || '(empty)',
+    ].join('\n');
+
+    const request: ChatCompletionRequest = {
+      systemPrompt: 'You summarize tool executions for an autonomous coding agent.',
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+    };
+
+    let text = '';
+    for await (const chunk of client.streamChat(request)) {
+      if (chunk.type === 'text') text += chunk.text;
+    }
+
+    const summary = this.maskSecretsInText(text).trim();
+    if (!summary) return undefined;
+
+    return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS) + '…' : summary;
+  }
+
+  private async getToolSummarizerClient(): Promise<LLMClient> {
+    if (this.options.toolSummarizerClient) return this.options.toolSummarizerClient;
+    if (this.toolSummarizerClient) return this.toolSummarizerClient;
+    if (this.toolSummarizerInitPromise) return this.toolSummarizerInitPromise;
+
+    this.toolSummarizerInitPromise = (async () => {
+      const factory = new LLMFactory(
+        {
+          profileId: TOOL_SUMMARY_PROFILE_ID,
+          model: TOOL_SUMMARY_PROFILE_ID,
+          usageId: 'tool-summarizer',
+          temperature: 0.2,
+          maxOutputTokens: 256,
+        },
+        { secrets: this.secrets },
+      );
+      const client = await factory.createClient();
+      this.toolSummarizerClient = client;
+      return client;
+    })();
+
+    return this.toolSummarizerInitPromise;
   }
 
   /**
@@ -630,6 +728,7 @@ export class Agent extends EventEmitter {
         this.state.setStatus('IDLE');
         break;
       }
+      this.pendingToolSummaries = [];
 
       const assistantEvent: MessageEvent = {
         kind: 'MessageEvent',
@@ -737,9 +836,32 @@ export class Agent extends EventEmitter {
         }
         return event.llm_message;
       });
-    const messages = this.sanitizeChatMessages(rawMessages);
+    const messages = (() => {
+      const sanitized = this.sanitizeChatMessages(rawMessages);
+      const summaryMessage = this.buildToolSummaryMessage();
+      return summaryMessage ? [...sanitized, summaryMessage] : sanitized;
+    })();
     const tools = this.getToolDefinitions();
     return { systemPrompt, messages, tools };
+  }
+
+  private buildToolSummaryMessage(): Message | undefined {
+    if (!this.summarizeToolCallsEnabled) return undefined;
+    if (!this.pendingToolSummaries.length) return undefined;
+
+    if (this.pendingToolSummaries.length === 1) {
+      const only = this.pendingToolSummaries[0];
+      return {
+        role: 'assistant',
+        content: [{ type: 'text', text: `Tool summary (${only.toolName}): ${only.summary}` }],
+      };
+    }
+
+    const lines = [
+      'Tool summaries:',
+      ...this.pendingToolSummaries.map((entry) => `- ${entry.toolName}: ${entry.summary}`),
+    ];
+    return { role: 'assistant', content: [{ type: 'text', text: lines.join('\n') }] };
   }
 
   // OpenAI-compatible providers require that assistant tool_calls are followed by tool messages for each tool_call_id.
@@ -1093,6 +1215,8 @@ export class Agent extends EventEmitter {
         },
       };
       this.events.push(toolMessage);
+
+      await this.maybeSummarizeToolCall(toolCall, result);
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_execute', toolName: tool.name });
       if (classified.classification === 'agent') {
