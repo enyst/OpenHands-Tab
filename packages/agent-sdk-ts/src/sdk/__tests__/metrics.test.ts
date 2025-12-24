@@ -60,4 +60,29 @@ describe('Metrics', () => {
     const snap = m.getSnapshot();
     expect(snap.accumulatedCost).toBeCloseTo(0.07);
   });
+
+  it('computes cost from token usage when cost rates are configured', () => {
+    const m = new Metrics('priced-model', { inputCostPerToken: 0.001, outputCostPerToken: 0.002 });
+    m.addTokenUsage({
+      promptTokens: 100,
+      completionTokens: 50,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      contextWindow: 0,
+      responseId: 'r1',
+    });
+
+    expect(m.accumulatedCost).toBeCloseTo(0.2);
+
+    m.addTokenUsage({
+      promptTokens: 10,
+      completionTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      contextWindow: 0,
+      responseId: 'r2',
+    });
+
+    expect(m.accumulatedCost).toBeCloseTo(0.21);
+  });
 });
