@@ -33,6 +33,11 @@ export type ServerSettings = {
 export type AgentSettings = {
   enableSecurityAnalyzer?: boolean;
   debug?: boolean;
+  /**
+   * When enabled, generates short summaries of tool executions (using the `gemini-flash` LLM profile)
+   * and injects them into the next agent LLM request as additional context.
+   */
+  summarizeToolCalls?: boolean;
 };
 
 export type ConversationSettings = {
