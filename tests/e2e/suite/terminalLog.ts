@@ -18,19 +18,19 @@ export async function run(): Promise<void> {
   // Inject a Bash command + many CR progress updates + exit. This bypasses needing an actual shell.
   const cmdId = 'e2e_cmd_1';
   let order = 0;
-  const nextBase = (type: BashEvent['type']) => ({
+  const nextBase = () => ({
     id: `e2e-${cmdId}-${order}`,
-    type,
     timestamp: new Date().toISOString(),
     command_id: cmdId,
     order: order++,
   });
 
-  const cmd: BashEvent = { ...nextBase('BashCommand'), command: 'progress_task' };
+  const cmd: BashEvent = { ...nextBase(), type: 'BashCommand', command: 'progress_task' };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', cmd);
 
   const makeOutput = (i: number): BashEvent => ({
-    ...nextBase('BashOutput'),
+    ...nextBase(),
+    type: 'BashOutput',
     exit_code: null,
     stdout: `progress ${i}%\r`,
     stderr: null,
@@ -39,11 +39,11 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('openhands._injectTerminalEvent', makeOutput(i));
   }
   // Final newline-terminated line to flush progress
-  const final: BashEvent = { ...nextBase('BashOutput'), exit_code: null, stdout: 'done\n', stderr: null };
+  const final: BashEvent = { ...nextBase(), type: 'BashOutput', exit_code: null, stdout: 'done\n', stderr: null };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', final);
 
   // Exit event (should render only one [Process exited] footer)
-  const exit: BashEvent = { ...nextBase('BashExit'), exit_code: 0 };
+  const exit: BashEvent = { ...nextBase(), type: 'BashExit', exit_code: 0 };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
   // Verify diagnostics reflect terminal received events and that terminal exists

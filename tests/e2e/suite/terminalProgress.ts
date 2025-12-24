@@ -16,23 +16,22 @@ export async function run(): Promise<void> {
 
   const cmdId = `e2e_cmd_${Date.now().toString(36)}`;
   let order = 0;
-  const nextBase = (type: BashEvent['type']) => ({
+  const nextBase = () => ({
     id: `e2e-${cmdId}-${order}`,
-    type,
     timestamp: new Date().toISOString(),
     command_id: cmdId,
     order: order++,
   });
 
-  const cmd: BashEvent = { ...nextBase('BashCommand'), command: 'long_task' };
+  const cmd: BashEvent = { ...nextBase(), type: 'BashCommand', command: 'long_task' };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', cmd);
 
   for (let i = 0; i < 50; i++) {
-    const out: BashEvent = { ...nextBase('BashOutput'), exit_code: null, stdout: `step ${i}\r`, stderr: null };
+    const out: BashEvent = { ...nextBase(), type: 'BashOutput', exit_code: null, stdout: `step ${i}\r`, stderr: null };
     await vscode.commands.executeCommand('openhands._injectTerminalEvent', out);
   }
 
-  const exit: BashEvent = { ...nextBase('BashExit'), exit_code: 0 };
+  const exit: BashEvent = { ...nextBase(), type: 'BashExit', exit_code: 0 };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
   // Ensure terminal exists and we saw lots of events (coalesced)
