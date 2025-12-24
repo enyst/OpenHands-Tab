@@ -45,6 +45,26 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     }
   });
 
+  it('masks registered secrets even when short', async () => {
+    const secrets = new SecretRegistry();
+    secrets.set('SHORT_SECRET', 'abc');
+
+    const llm = new RecordingLLM('Printed abc.');
+    const summary = await summarizeTerminalObservationWithGeminiFlash(
+      { command: 'echo abc', exitCode: 0, stdout: 'abc\n', stderr: '' },
+      { secrets, llmClient: llm, maxPromptChars: 10_000 }
+    );
+
+    expect(summary).toBe('Printed ***.');
+    expect(llm.requests).toHaveLength(1);
+    const prompt = llm.requests[0].messages[0].content[0];
+    expect(prompt.type).toBe('text');
+    if (prompt.type === 'text') {
+      expect(prompt.text).not.toContain('abc');
+      expect(prompt.text).toContain('***');
+    }
+  });
+
   it('falls back to deterministic summary when gemini fails', async () => {
     const secrets = new SecretRegistry();
     const summary = await summarizeTerminalObservationWithGeminiFlash(
@@ -64,5 +84,17 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     );
 
     expect(summary).toBe('Done.');
+  });
+
+  it('never returns more than maxSummaryChars', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('abcdefghij');
+    const summary = await summarizeTerminalObservationWithGeminiFlash(
+      { command: 'echo hello', exitCode: 0, stdout: 'hello\n', stderr: '' },
+      { secrets, llmClient: llm, maxSummaryChars: 5 }
+    );
+
+    expect(summary).toBe('abcd…');
+    expect(summary.length).toBe(5);
   });
 });
