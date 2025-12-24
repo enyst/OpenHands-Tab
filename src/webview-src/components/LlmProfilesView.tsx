@@ -348,6 +348,7 @@ export function LlmProfilesView(props: {
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [useCustomBaseUrl, setUseCustomBaseUrl] = useState(false);
 
   const sortedProfiles = useMemo(() => [...profiles].sort((a, b) => a.localeCompare(b)), [profiles]);
   const advancedErrorCount = useMemo(() => ADVANCED_FIELD_KEYS.reduce((count, key) => (errors[key] ? count + 1 : count), 0), [errors]);
@@ -400,6 +401,7 @@ export function LlmProfilesView(props: {
     setApiKeySaving(false);
     setApiKeyError(null);
     setIsAdvancedOpen(false);
+    setUseCustomBaseUrl(false);
   }, []);
 
   const startEdit = useCallback(async (profileId: string) => {
@@ -413,11 +415,14 @@ export function LlmProfilesView(props: {
     setShowApiKeyEditor(false);
     setApiKeyInput('');
     setIsAdvancedOpen(false);
+    setUseCustomBaseUrl(false);
     setLoadingProfile(true);
     try {
       const config = await loadProfile(profileId);
       if (activeProfileIdRef.current !== profileId) return;
       setForm(toFormState(profileId, config));
+      const initialBaseUrl = typeof config.baseUrl === 'string' ? config.baseUrl.trim() : '';
+      setUseCustomBaseUrl(Boolean(initialBaseUrl));
     } catch (err) {
       if (activeProfileIdRef.current !== profileId) return;
       setTopError(err instanceof Error ? err.message : String(err));
@@ -830,15 +835,36 @@ export function LlmProfilesView(props: {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <FieldLabel label="Base URL" />
-                    <div className="mt-2">
-                      <InputField
-                        value={form.baseUrl}
-                        onChange={(v) => update('baseUrl', v)}
-                        placeholder="https://api.openai.com/v1"
-                      />
-                      <FieldError message={errors.baseUrl} />
+                    <div className="flex items-center justify-between gap-3">
+                      <FieldLabel label="Base URL" />
+                      <label className="flex items-center gap-2 text-xs text-stone-300 select-none">
+                        <input
+                          type="checkbox"
+                          checked={useCustomBaseUrl}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            setUseCustomBaseUrl(next);
+                            if (!next) update('baseUrl', '');
+                          }}
+                          className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0"
+                        />
+                        Use custom base URL
+                      </label>
                     </div>
+                    {useCustomBaseUrl ? (
+                      <div className="mt-2">
+                        <InputField
+                          value={form.baseUrl}
+                          onChange={(v) => update('baseUrl', v)}
+                          placeholder="https://api.openai.com/v1"
+                        />
+                        <FieldError message={errors.baseUrl} />
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-xs text-stone-500">
+                        Using provider default.
+                      </div>
+                    )}
                   </div>
 
                   <div>

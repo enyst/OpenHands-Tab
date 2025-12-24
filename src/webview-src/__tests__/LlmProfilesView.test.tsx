@@ -184,4 +184,37 @@ describe('LLM Profiles view', () => {
       expect(getLastPostedOfType('openMarkdownLink')?.href).toBe('https://openrouter.ai/docs');
     });
   });
+
+  it('supports a Use custom base URL toggle', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    expect(screen.queryByPlaceholderText('https://api.openai.com/v1')).not.toBeInTheDocument();
+
+    const toggle = await screen.findByRole('checkbox', { name: 'Use custom base URL' });
+    fireEvent.click(toggle);
+
+    const baseUrlInput = await screen.findByPlaceholderText('https://api.openai.com/v1');
+    fireEvent.change(baseUrlInput, { target: { value: 'https://example.com/v1' } });
+    expect(baseUrlInput).toHaveValue('https://example.com/v1');
+
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('https://api.openai.com/v1')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(toggle);
+    const baseUrlInput2 = await screen.findByPlaceholderText('https://api.openai.com/v1');
+    expect(baseUrlInput2).toHaveValue('');
+  });
 });
