@@ -114,4 +114,38 @@ describe('LLM Profiles view', () => {
 
     expect(screen.queryByDisplayValue('sk-test')).not.toBeInTheDocument();
   });
+
+  it('supports a collapsible Advanced settings section', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Show advanced settings' })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('API Version')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
+    expect(await screen.findByText('API Version')).toBeInTheDocument();
+
+    const topPInput = screen.getByPlaceholderText('1');
+    fireEvent.change(topPInput, { target: { value: 'abc' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    expect(screen.queryByText('API Version')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('button', { name: 'Hide advanced settings' })).toBeInTheDocument();
+    expect(await screen.findByText('Must be a valid number')).toBeInTheDocument();
+  });
 });
