@@ -99,4 +99,26 @@ describe('summarizeFileChangesWithGeminiFlash', () => {
     expect(summary).toBe('abcd…');
     expect(summary?.length).toBe(5);
   });
+
+  it('respects maxPromptChars for tiny limits', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('OK');
+
+    await summarizeFileChangesWithGeminiFlash(
+      {
+        kind: 'contents',
+        filePath: 'src/example.ts',
+        oldContent: 'old\n',
+        newContent: 'new\n',
+      },
+      { secrets, llmClient: llm, maxPromptChars: 1 }
+    );
+
+    expect(llm.requests).toHaveLength(1);
+    const prompt = llm.requests[0].messages[0].content[0];
+    expect(prompt.type).toBe('text');
+    if (prompt.type === 'text') {
+      expect(prompt.text.length).toBeLessThanOrEqual(1);
+    }
+  });
 });
