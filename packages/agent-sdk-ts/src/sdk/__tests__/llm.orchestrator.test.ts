@@ -313,6 +313,46 @@ describe('OpenAIResponsesClient (non-stream)', () => {
     ))).toBe(true);
   });
 
+  it('round-trips encrypted_content exactly (store=false)', async () => {
+    const payload = {
+      output: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Hello' }],
+        },
+      ],
+      usage: { input_tokens: 5, output_tokens: 2 },
+    };
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const client = new OpenAIResponsesClient(baseConfig, 'test-key');
+    const orchestrator = new AgentOrchestrator(client);
+
+    const encryptedContent = 'encrypted\n';
+    await orchestrator.runChat({
+      systemPrompt: 'you are a test harness',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'previous answer' }],
+          responses_reasoning_item: { id: 'rs_1', summary: ['short summary'], encrypted_content: encryptedContent },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'follow up' }] },
+      ],
+      tools: [{ type: 'function', function: { name: 'ping' } }],
+    });
+
+    const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+    const reasoningItem = Array.isArray(body?.input)
+      ? body.input.find((item: { type?: unknown; id?: unknown }) => item.type === 'reasoning' && item.id === 'rs_1')
+      : undefined;
+
+    expect(reasoningItem?.encrypted_content).toBe(encryptedContent);
+  });
+
   it('includes reasoning summary in Responses request body when configured', async () => {
     const payload = {
       output: [
