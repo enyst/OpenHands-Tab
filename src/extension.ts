@@ -755,6 +755,9 @@ export function activate(context: vscode.ExtensionContext) {
     getConversationMode: () => conversationMode,
     getTerminal: () => terminal,
     getReceivedTerminalEventsCount: () => receivedTerminalEvents.length,
+    getRecentTerminalEvents: (max = 10) => receivedTerminalEvents.slice(-Math.max(0, Math.min(max, MAX_TERMINAL_EVENTS))),
+    onTerminalEvent: (event) => handleTerminalEvent(event),
+
     getOutputChannel: () => outputChannel,
     renderError,
     resolveGitContext,
