@@ -42,9 +42,7 @@ type ResponsesReasoningInputItem = {
   type: 'reasoning';
   id: string;
   summary: Array<{ type: 'summary_text'; text: string }>;
-  content?: Array<{ type: 'reasoning_text'; text: string }>;
-  encrypted_content?: string;
-  status?: string;
+  encrypted_content: string;
 };
 
 type ResponsesInputItem =
@@ -112,15 +110,19 @@ const toResponsesTool = (tool: LLMToolDefinition): ResponsesToolParam => ({
 
 const toResponsesReasoningInputItem = (reasoning: ResponsesReasoningItem): ResponsesReasoningInputItem | undefined => {
   if (!reasoning.id) return undefined;
+
+  // In stateless mode (store=false) we can only safely re-send reasoning items if the response included
+  // `encrypted_content` (requested via include: ['reasoning.encrypted_content']). Otherwise OpenAI treats
+  // the `rs_*` id as a server-stored reference and returns 404 when store=false.
+  const encrypted = typeof reasoning.encrypted_content === 'string' ? reasoning.encrypted_content.trim() : '';
+  if (!encrypted) return undefined;
+
   const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text' as const, text }));
-  const content = reasoning.content?.length ? reasoning.content.map((text) => ({ type: 'reasoning_text' as const, text })) : undefined;
   return {
     type: 'reasoning',
     id: reasoning.id,
     summary,
-    ...(content ? { content } : {}),
-    ...(reasoning.encrypted_content ? { encrypted_content: reasoning.encrypted_content } : {}),
-    ...(reasoning.status ? { status: reasoning.status } : {}),
+    encrypted_content: encrypted,
   };
 };
 
@@ -207,6 +209,7 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   model: config.model,
   instructions: request.systemPrompt,
   input: toResponsesInputItems(request.messages),
+  include: ['reasoning.encrypted_content'],
   tools: request.tools?.length ? request.tools.map(toResponsesTool) : undefined,
   tool_choice: request.tools?.length ? 'auto' : undefined,
   store: false,
