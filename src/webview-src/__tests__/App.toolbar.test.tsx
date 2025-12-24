@@ -30,6 +30,60 @@ describe('App toolbar interactions', () => {
     });
   });
 
+  it('shows and updates conversation totals from stats events', async () => {
+    render(<App />);
+
+    const totalsRow = await screen.findByTestId('header-totals-row');
+    expect(totalsRow).toHaveTextContent('Context:');
+    expect(totalsRow).toHaveTextContent('Total cost:');
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'event',
+          event: {
+            kind: 'ConversationStateUpdateEvent',
+            key: 'stats',
+            value: {
+              usage_to_metrics: {
+                default: {
+                  accumulated_cost: 0.0123,
+                  accumulated_token_usage: { prompt_tokens: 10, completion_tokens: 5 },
+                },
+              },
+            },
+          },
+        },
+      }));
+    });
+
+    expect(totalsRow).toHaveTextContent('Context: 10 tokens');
+    expect(totalsRow).toHaveTextContent('Total cost: $0.0123');
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'event',
+          event: {
+            kind: 'ConversationStateUpdateEvent',
+            key: 'stats',
+            value: {
+              usage_to_metrics: {
+                default: {
+                  accumulated_cost: 0,
+                  accumulated_token_usage: { prompt_tokens: 12, completion_tokens: 0 },
+                },
+              },
+            },
+          },
+        },
+      }));
+    });
+
+    expect(totalsRow).toHaveTextContent('Context: 12 tokens');
+    expect(totalsRow).toHaveTextContent('Total cost: —');
+  });
+
   it('shows the configured LLM profile in the input row', async () => {
     render(<App />);
 

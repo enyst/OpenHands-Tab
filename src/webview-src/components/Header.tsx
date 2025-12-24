@@ -7,6 +7,11 @@ interface HeaderProps {
   conversationId?: string;
   currentServerUrl?: string;
   servers: SavedServer[];
+  totals: {
+    contextTokens: number;
+    totalCost: number;
+    costIsKnown: boolean;
+  };
   onNewConversation: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
@@ -148,6 +153,7 @@ export function Header({
   conversationId,
   currentServerUrl,
   servers,
+  totals,
   onNewConversation,
   onOpenHistory,
   onOpenSettings,
@@ -158,6 +164,11 @@ export function Header({
   onSwitchToLocal,
 }: HeaderProps) {
   const [showServerSelector, setShowServerSelector] = useState(false);
+  const formatInt = (value: number) => Math.max(0, Math.trunc(value)).toLocaleString();
+  const formatCost = (value: number) => {
+    const clamped = Number.isFinite(value) ? Math.max(0, value) : 0;
+    return `$${clamped.toFixed(4)}`;
+  };
 
   // Get display name using shared helper for consistency
   const getServerDisplayName = () => {
@@ -267,6 +278,24 @@ export function Header({
               <span>Connecting...</span>
             </div>
           )}
+        </div>
+      </div>
+
+      <div
+        className="px-4 pb-2 text-xs text-stone-500 flex items-center justify-between gap-4"
+        data-testid="header-totals-row"
+      >
+        <div className="flex items-center gap-1.5">
+          <span>Context:</span>{' '}
+          <span className="font-mono text-stone-300">{formatInt(totals.contextTokens)}</span>{' '}
+          <span>tokens</span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span>Total cost:</span>{' '}
+          <span className="font-mono text-stone-300">
+            {totals.costIsKnown ? formatCost(totals.totalCost) : '—'}
+          </span>
         </div>
       </div>
     </header>
