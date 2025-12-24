@@ -18,7 +18,7 @@ describe('App render', () => {
     render(<App />);
     expect(screen.getByText('OpenHands')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Ask OpenHands anything...')).toBeInTheDocument();
-    expect(screen.getByLabelText('New')).toBeInTheDocument();
+    expect(screen.getByLabelText('Start new conversation')).toBeInTheDocument();
     expect(screen.getByLabelText('Add context')).toBeInTheDocument();
   });
 
