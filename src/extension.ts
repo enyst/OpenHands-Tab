@@ -819,10 +819,13 @@ export function activate(context: vscode.ExtensionContext) {
           markPrintedExitFor(cid);
         }
       } else if (isBashExit(event)) {
-        terminalLogPty.ensureNewline?.();
-        terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
-        if ('command_id' in event && (event as { command_id?: string }).command_id) {
-          markPrintedExitFor((event as { command_id?: string }).command_id as string);
+        const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
+        if (!cid || !printedExitFor.has(cid)) {
+          terminalLogPty.ensureNewline?.();
+          terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
+        }
+        if (cid) {
+          markPrintedExitFor(cid);
         }
       }
     } catch (e) {
