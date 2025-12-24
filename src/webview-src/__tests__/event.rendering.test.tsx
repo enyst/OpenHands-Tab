@@ -330,6 +330,32 @@ describe('Agent-SDK event rendering', () => {
     fireEvent.click(toggle);
     expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();
   });
+
+  it('renders Gemini summaries for file_editor edit observations and hides raw payload', async () => {
+    render(<App />);
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        command: 'str_replace',
+        path: '/tmp/README.md',
+        prev_exist: true,
+        old_content: 'SECRET FILE CONTENT',
+        new_content: 'PUBLIC FILE CONTENT',
+        summary: 'Replaced the greeting line in README.md.',
+      },
+      tool_name: 'file_editor',
+      tool_call_id: 'call_file_editor_summary',
+      action_id: 'action_file_editor_summary',
+    } as any;
+
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/Replaced the greeting line/i)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'View diff for /tmp/README.md' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Show tool result/i })).toBeNull();
+    expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
+  });
+
   it('renders friendly summaries for terminal events', async () => {
     render(<App />);
     const actionEvent = {

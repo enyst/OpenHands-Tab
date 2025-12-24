@@ -336,6 +336,7 @@ export function FileEditorObservationSummary({ observation }: { observation: Jso
   const rawNew = observation.new_content;
   const oldLength = getCharCount(rawOld);
   const newLength = getCharCount(rawNew);
+  const summary = getString(observation.summary)?.trim();
 
   if (!isFileEditorCommand(command)) return null;
 
@@ -365,7 +366,7 @@ export function FileEditorObservationSummary({ observation }: { observation: Jso
       const detail = formatSizeDelta(oldLength, newLength);
       return (
         <div className="text-sm leading-relaxed space-y-1">
-          <p>Agent {command === 'insert' ? 'inserted text into' : 'replaced text in'}</p>
+          {summary ? <p>{summary}</p> : <p>Agent {command === 'insert' ? 'inserted text into' : 'replaced text in'}</p>}
           <InlineFileDiffReference path={path} oldContent={rawOld} newContent={rawNew} />
           {detail && <p className="text-xs opacity-70">{detail}</p>}
         </div>

@@ -26,6 +26,7 @@ import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
+import { summarizeFileChangesWithGeminiFlash } from './fileDiffSummarizer';
 import { SYSTEM_PROMPT } from './systemPrompt';
 
 export type AgentRunInput = string | Message;
@@ -1213,22 +1214,23 @@ export class Agent extends EventEmitter {
     try {
       const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
       const result = await tool.execute(validated, context);
+      const enrichedResult = await this.maybeAttachFileDiffSummary(toolCall, result);
 
       if (toolCall.function.name === 'terminal') {
-        this.emitTerminalEvents(toolCall, result);
+        this.emitTerminalEvents(toolCall, enrichedResult);
       }
 
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: deepTruncate(this.maskSecretsInUnknown(result)) as Record<string, unknown>,
+        observation: deepTruncate(this.maskSecretsInUnknown(enrichedResult)) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
       } as Event;
       this.events.push(observation);
 
-      const formatted = this.formatToolMessageText(toolCall, result);
+      const formatted = this.formatToolMessageText(toolCall, enrichedResult);
       const masked = this.maskSecretsInText(formatted);
       const clipped = truncateToolMessage(masked);
 
@@ -1244,7 +1246,7 @@ export class Agent extends EventEmitter {
       };
       this.events.push(toolMessage);
 
-      await this.maybeSummarizeToolCall(toolCall, result);
+      await this.maybeSummarizeToolCall(toolCall, enrichedResult);
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_execute', toolName: tool.name });
       if (classified.classification === 'agent') {
@@ -1257,6 +1259,43 @@ export class Agent extends EventEmitter {
         message: classified.message,
         ...(classified.code ? { code: classified.code } : {}),
       });
+    }
+  }
+
+  private async maybeAttachFileDiffSummary(toolCall: ToolCall, result: unknown): Promise<unknown> {
+    if (toolCall.function.name !== 'file_editor') return result;
+    if (!this.summarizeToolCallsEnabled) return result;
+    if (this.toolSummarizerFailed) return result;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+
+    const record = result as Record<string, unknown>;
+    const command = toOptionalNonEmptyString(record.command);
+    if (command !== 'insert' && command !== 'str_replace') return result;
+
+    if (typeof record.summary === 'string' && record.summary.trim()) return result;
+
+    const filePath = toOptionalNonEmptyString(record.path);
+    const oldContent = record.old_content;
+    const newContent = record.new_content;
+    const oldText = typeof oldContent === 'string' ? oldContent : oldContent === null ? '' : undefined;
+    const newText = typeof newContent === 'string' ? newContent : newContent === null ? '' : undefined;
+    if (!filePath || oldText === undefined || newText === undefined) return result;
+
+    try {
+      const llmClient = await this.getToolSummarizerClient();
+      const summary = await summarizeFileChangesWithGeminiFlash(
+        { kind: 'contents', filePath, oldContent: oldText, newContent: newText },
+        { secrets: this.secrets, llmClient },
+      );
+      if (!summary) return result;
+
+      return { ...record, summary };
+    } catch (error) {
+      this.toolSummarizerFailed = true;
+      if (this.debug) {
+        console.warn('[Agent] File diff summarization failed; disabling for this session:', error);
+      }
+      return result;
     }
   }
 
