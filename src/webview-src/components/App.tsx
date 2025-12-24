@@ -62,6 +62,57 @@ type ConversationsList = Array<{
   messageCount?: number;
 }>;
 
+type ConversationTotals = {
+  contextTokens: number;
+  totalTokens: number;
+  totalCost: number;
+  costIsKnown: boolean;
+};
+
+const INITIAL_CONVERSATION_TOTALS: ConversationTotals = {
+  contextTokens: 0,
+  totalTokens: 0,
+  totalCost: 0,
+  costIsKnown: false,
+};
+
+const computeConversationTotalsFromStats = (value: unknown): ConversationTotals | null => {
+  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
+    !!candidate && typeof candidate === 'object';
+  const asFiniteNumber = (raw: unknown): number | null => {
+    const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+    return Number.isFinite(num) ? num : null;
+  };
+
+  if (!isRecord(value)) return null;
+  const usageToMetricsRaw = value.usage_to_metrics ?? value.usageToMetrics ?? value.service_to_metrics ?? value.serviceToMetrics;
+  if (!isRecord(usageToMetricsRaw)) return null;
+
+  let contextTokens = 0;
+  let completionTokens = 0;
+  let totalCost = 0;
+
+  for (const metricRaw of Object.values(usageToMetricsRaw)) {
+    if (!isRecord(metricRaw)) continue;
+    const costRaw = metricRaw.accumulatedCost ?? metricRaw.accumulated_cost;
+    const cost = asFiniteNumber(costRaw);
+    if (cost !== null && cost > 0) totalCost += cost;
+
+    const usageRaw = metricRaw.accumulatedTokenUsage ?? metricRaw.accumulated_token_usage;
+    if (!isRecord(usageRaw)) continue;
+    const prompt = asFiniteNumber(usageRaw.promptTokens ?? usageRaw.prompt_tokens);
+    if (prompt !== null && prompt > 0) contextTokens += prompt;
+    const completion = asFiniteNumber(usageRaw.completionTokens ?? usageRaw.completion_tokens);
+    if (completion !== null && completion > 0) completionTokens += completion;
+  }
+
+  const totalTokens = contextTokens + completionTokens;
+  // Best-effort: treat cost as "known" only once we have non-zero usage + non-zero cost.
+  const costIsKnown = totalTokens > 0 && totalCost > 0;
+
+  return { contextTokens, totalTokens, totalCost, costIsKnown };
+};
+
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
  */
@@ -119,6 +170,7 @@ export function App() {
   const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
   const [pendingActions, setPendingActions] = useState<ActionEvent[]>([]);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
+  const [conversationTotals, setConversationTotals] = useState<ConversationTotals>(INITIAL_CONVERSATION_TOTALS);
   const eventId = useRef(1);
 
   // Input state
@@ -296,6 +348,23 @@ export function App() {
         showStatusMessage('warn', 'Agent is waiting for confirmation');
       }
       lastAgentStatusRef.current = event.agent_status;
+    }
+
+    if (event.key === 'stats') {
+      const totals = computeConversationTotalsFromStats(event.value);
+      if (totals) {
+        setConversationTotals((prev) => {
+          if (
+            prev.contextTokens === totals.contextTokens
+            && prev.totalTokens === totals.totalTokens
+            && prev.totalCost === totals.totalCost
+            && prev.costIsKnown === totals.costIsKnown
+          ) {
+            return prev;
+          }
+          return totals;
+        });
+      }
     }
 
     return true;
@@ -519,6 +588,7 @@ export function App() {
               agentStatusRef.current = undefined;
               setAgentStatus(undefined);
               setStreamingContent(null);
+              setConversationTotals(INITIAL_CONVERSATION_TOTALS);
               eventId.current = 1;
               const api = getVscodeApi();
               api.setState?.({});
@@ -819,6 +889,7 @@ export function App() {
     setPendingActions([]);
     setAgentStatus(undefined);
     setStreamingContent(null);
+    setConversationTotals(INITIAL_CONVERSATION_TOTALS);
     eventId.current = 1;
     setInput('');
     setSelectedContextFiles([]);
@@ -1015,6 +1086,7 @@ export function App() {
         conversationId={conversationId}
         currentServerUrl={currentServerUrl}
         servers={servers}
+        totals={conversationTotals}
         onNewConversation={handleStartNewConversation}
         onOpenHistory={handleOpenHistory}
         onOpenSettings={handleOpenSettings}
