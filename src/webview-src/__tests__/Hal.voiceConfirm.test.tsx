@@ -3,10 +3,7 @@ import { render, screen, act, waitFor, cleanup, fireEvent } from '@testing-libra
 import React from 'react';
 import { App } from '../components/App';
 import type { ActionEvent, ConversationStateUpdateEvent } from '@openhands/agent-sdk-ts';
-
-function postToWindow(payload: any) {
-  window.postMessage(payload, '*');
-}
+import { postToWindow } from './testUtils';
 
 describe('HAL voice_confirm', () => {
   const mockApi = { postMessage: vi.fn() } as any;

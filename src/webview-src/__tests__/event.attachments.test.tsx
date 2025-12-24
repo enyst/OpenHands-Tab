@@ -3,14 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import React from 'react';
 import { App } from '../components/App';
 import type { MessageEvent as AgentMessageEvent } from '@openhands/agent-sdk-ts';
+import { postToWindow } from './testUtils';
 
 afterEach(() => {
   cleanup();
 });
-
-function postToWindow(payload: unknown) {
-  window.postMessage(payload, '*');
-}
 
 describe('Attachment marker parsing', () => {
   it('does not treat end-marker substrings inside content as end markers', async () => {

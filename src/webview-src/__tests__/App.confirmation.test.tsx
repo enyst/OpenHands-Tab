@@ -4,10 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
 import type { ActionEvent, ConversationStateUpdateEvent } from '@openhands/agent-sdk-ts';
-
-function postToWindow(payload: any) {
-  window.postMessage(payload, '*');
-}
+import { postToWindow } from './testUtils';
 
 describe('App - Confirmation Flow', () => {
   const mockApi = { postMessage: vi.fn() } as any;

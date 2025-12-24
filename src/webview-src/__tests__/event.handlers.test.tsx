@@ -2,10 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
-
-function postToWindow(payload: unknown) {
-  window.postMessage(payload, '*');
-}
+import { postToWindow } from './testUtils';
 
 describe('App event handling helpers', () => {
   const mockApi = { postMessage: vi.fn() };

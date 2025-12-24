@@ -3,15 +3,12 @@ import { render, screen, waitFor, cleanup, act, fireEvent } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
+import { postToWindow } from './testUtils';
 import type {
   ActionEvent,
   ConversationStateUpdateEvent,
   AgentErrorEvent,
 } from '@openhands/agent-sdk-ts';
-
-function postToWindow(payload: unknown) {
-  window.postMessage(payload, '*');
-}
 
 describe('App - Advanced Test Coverage', () => {
   const mockApi = { postMessage: vi.fn() };

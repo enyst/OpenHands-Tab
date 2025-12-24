@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
+import { postToWindow } from './testUtils';
 
 const mockApi = { postMessage: vi.fn() };
 
@@ -46,9 +47,7 @@ describe('App actions post messages to extension', () => {
     render(<App />);
 
     // Set status to online so input is enabled
-    await act(async () => {
-      window.postMessage({ type: 'status', status: 'online', mode: 'remote' }, '*');
-    });
+    postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
     await userEvent.click(screen.getAllByLabelText('Add context')[0]);
     expect(await screen.findByPlaceholderText('Search files...')).toBeInTheDocument();
@@ -65,21 +64,15 @@ describe('App actions post messages to extension', () => {
     render(<App />);
 
     // Set status to online so input is enabled
-    await act(async () => {
-      window.postMessage({ type: 'status', status: 'online', mode: 'remote' }, '*');
-    });
+    postToWindow({ type: 'status', status: 'online', mode: 'remote' });
 
     await userEvent.click(screen.getAllByLabelText('Skills')[0]);
 
-    await act(async () => {
-      window.dispatchEvent(new MessageEvent('message', {
-        data: {
-          type: 'skillsList',
-          skills: [
-            { label: 'Alpha', path: '/tmp/a.md' }
-          ]
-        }
-      }));
+    postToWindow({
+      type: 'skillsList',
+      skills: [
+        { label: 'Alpha', path: '/tmp/a.md' },
+      ],
     });
 
     mockApi.postMessage.mockClear();
