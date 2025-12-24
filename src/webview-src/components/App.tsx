@@ -152,8 +152,16 @@ type PendingLlmProfilesRequest =
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
  */
-function EventBlock({ event, index }: { event: Event; index: number }) {
-  if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} index={index} />;
+function EventBlock({
+  event,
+  index,
+  skills,
+}: {
+  event: Event;
+  index: number;
+  skills: { label: string; path: string }[];
+}) {
+  if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} index={index} skills={skills} />;
   if (isActionEvent(event)) return <ActionEventBlock event={event} index={index} />;
   if (isObservationEvent(event)) return <ObservationEventBlock event={event} index={index} />;
   if (isUserRejectObservation(event)) return <UserRejectBlock event={event} index={index} />;
@@ -1369,7 +1377,7 @@ export function App() {
         ) : (
           <>
             {events.map((ev, index) => (
-              <EventBlock key={ev.id} event={ev.event} index={index} />
+              <EventBlock key={ev.id} event={ev.event} index={index} skills={skills} />
             ))}
             {streamingContent !== null && (
               <StreamingMessageBlock content={streamingContent} />
