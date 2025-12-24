@@ -148,4 +148,40 @@ describe('LLM Profiles view', () => {
     expect(await screen.findByRole('button', { name: 'Hide advanced settings' })).toBeInTheDocument();
     expect(await screen.findByText('Must be a valid number')).toBeInTheDocument();
   });
+
+  it('offers a Provider docs link based on the selected provider', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
+      candidate.querySelector('option[value="openai"]') !== null
+    ));
+    if (!providerSelect) throw new Error('Failed to find provider select');
+
+    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Provider docs' }));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('openMarkdownLink')).toBeTruthy();
+    });
+
+    expect(getLastPostedOfType('openMarkdownLink')?.href).toBe('https://platform.openai.com/docs');
+
+    fireEvent.change(providerSelect, { target: { value: 'openrouter' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Provider docs' }));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('openMarkdownLink')?.href).toBe('https://openrouter.ai/docs');
+    });
+  });
 });

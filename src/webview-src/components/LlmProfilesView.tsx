@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
+import { getVscodeApi } from '../shared/vscodeApi';
+import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type ProfileFormMode = 'create' | 'edit';
 
@@ -66,6 +68,25 @@ const ADVANCED_FIELD_KEYS: Array<keyof ProfileFormState> = [
   'inputCostPerToken',
   'outputCostPerToken',
 ];
+
+type Provider = Exclude<ProfileFormState['provider'], ''>;
+
+const PROVIDER_DOCS_URLS: Record<Provider, string> = {
+  openai: 'https://platform.openai.com/docs',
+  anthropic: 'https://docs.anthropic.com/en/docs',
+  openrouter: 'https://openrouter.ai/docs',
+  litellm_proxy: 'https://docs.litellm.ai/docs',
+  gemini: 'https://ai.google.dev/gemini-api/docs',
+};
+
+const postMessage = (message: WebviewToHostMessage) => {
+  const api = getVscodeApi();
+  api.postMessage(message);
+};
+
+const openMarkdownLink = (href: string) => {
+  postMessage({ type: 'openMarkdownLink', href });
+};
 
 const toFormState = (profileId: string, config: LLMConfiguration): ProfileFormState => {
   const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -462,6 +483,7 @@ export function LlmProfilesView(props: {
 
   const selectedIsActive = (candidate: string) => candidate === selectedProfileId;
   const canEditApiKey = mode === 'edit' && !!selectedProfileId && !loadingProfile;
+  const providerDocsUrl = form.provider ? PROVIDER_DOCS_URLS[form.provider] : null;
 
   const apiKeyStatusLabel = (() => {
     if (!canEditApiKey) return '—';
@@ -763,7 +785,20 @@ export function LlmProfilesView(props: {
                   </div>
 
                   <div>
-                    <FieldLabel label="Provider" />
+                    <div className="flex items-center justify-between gap-2">
+                      <FieldLabel label="Provider" />
+                      {providerDocsUrl && (
+                        <button
+                          type="button"
+                          onClick={() => openMarkdownLink(providerDocsUrl)}
+                          className="text-xs text-brand-300 underline decoration-white/20 hover:decoration-white/40 hover:text-brand-200 transition-colors"
+                          aria-label="Provider docs"
+                          title="Open provider docs"
+                        >
+                          Provider docs <span className="codicon codicon-link-external text-[11px]" />
+                        </button>
+                      )}
+                    </div>
                     <div className="mt-2">
                       <SelectField
                         value={form.provider}
