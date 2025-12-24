@@ -79,6 +79,22 @@ const PROVIDER_DOCS_URLS: Record<Provider, string> = {
   gemini: 'https://ai.google.dev/gemini-api/docs',
 };
 
+const PROVIDER_LABELS: Record<Provider, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  litellm_proxy: 'LiteLLM',
+  gemini: 'Gemini',
+};
+
+const PROVIDER_API_KEY_URLS: Partial<Record<Provider, string>> = {
+  openai: 'https://platform.openai.com/api-keys',
+  anthropic: 'https://console.anthropic.com/settings/keys',
+  openrouter: 'https://openrouter.ai/keys',
+  litellm_proxy: 'https://docs.litellm.ai/docs/proxy/virtual_keys',
+  gemini: 'https://aistudio.google.com/app/apikey',
+};
+
 const postMessage = (message: WebviewToHostMessage) => {
   const api = getVscodeApi();
   api.postMessage(message);
@@ -489,6 +505,8 @@ export function LlmProfilesView(props: {
   const selectedIsActive = (candidate: string) => candidate === selectedProfileId;
   const canEditApiKey = mode === 'edit' && !!selectedProfileId && !loadingProfile;
   const providerDocsUrl = form.provider ? PROVIDER_DOCS_URLS[form.provider] : null;
+  const providerLabel = form.provider ? PROVIDER_LABELS[form.provider] : null;
+  const providerApiKeyUrl = form.provider ? (PROVIDER_API_KEY_URLS[form.provider] ?? null) : null;
 
   const apiKeyStatusLabel = (() => {
     if (!canEditApiKey) return '—';
@@ -660,10 +678,23 @@ export function LlmProfilesView(props: {
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-sm font-medium text-stone-200">API key</div>
-                      <div className="text-xs text-stone-500 mt-0.5">
-                        Stored in VS Code Secret Storage. Not saved to disk.
+                      <div className="text-sm font-medium text-stone-200">
+                        {providerLabel ? `${providerLabel} API key` : 'API key'}
                       </div>
+                      <div className="text-xs text-stone-500 mt-0.5">
+                        API keys are stored securely in VS Code Secret Storage. Not saved to disk.
+                      </div>
+                      {providerLabel && providerApiKeyUrl && (
+                        <button
+                          type="button"
+                          onClick={() => openMarkdownLink(providerApiKeyUrl)}
+                          className="mt-1 text-xs text-brand-300 underline decoration-white/20 hover:decoration-white/40 hover:text-brand-200 transition-colors"
+                          aria-label={`Get ${providerLabel} API Key`}
+                          title={`Get ${providerLabel} API Key`}
+                        >
+                          Get {providerLabel} API Key <span className="codicon codicon-link-external text-[11px]" />
+                        </button>
+                      )}
                     </div>
 
                     {canEditApiKey ? (
