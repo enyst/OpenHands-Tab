@@ -89,35 +89,6 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     expect(response.profile.headers).toBeUndefined();
   });
 
-  it('supports explicitly loading secrets when includeSecrets=true', async () => {
-    saveSdkProfile(
-      'secret',
-      {
-        provider: 'openai',
-        model: 'gpt-5-mini',
-        apiKey: 'sk-test-inline',
-        headers: { Authorization: 'Bearer secret' },
-      },
-      { rootDir: tmpDir, includeSecrets: true },
-    );
-
-    const { handler, postMessage } = createHandler();
-    await handler({ type: 'llmProfileLoadRequest', requestId: 'req1', profileId: 'secret', includeSecrets: true });
-
-    const response = postMessage.mock.calls
-      .map((args) => args[0])
-      .find((payload) => payload?.type === 'llmProfileLoadResponse' && payload.requestId === 'req1') as any;
-
-    expect(response).toMatchObject({
-      type: 'llmProfileLoadResponse',
-      requestId: 'req1',
-      ok: true,
-      profileId: 'secret',
-    });
-    expect(response.profile.apiKey).toBe('sk-test-inline');
-    expect(response.profile.headers).toEqual({ Authorization: 'Bearer secret' });
-  });
-
   it('saves profiles with includeSecrets=false by default', async () => {
     const { handler, postMessage } = createHandler();
 
@@ -144,21 +115,4 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     expect(content).not.toContain('sk-test-inline');
     expect(content).not.toContain('Authorization');
   });
-
-  it('deletes profiles from disk', async () => {
-    saveSdkProfile('todelete', { model: 'gpt-5' }, { rootDir: tmpDir, includeSecrets: false });
-
-    const { handler, postMessage } = createHandler();
-    await handler({ type: 'llmProfileDeleteRequest', requestId: 'req1', profileId: 'todelete' });
-
-    expect(postMessage).toHaveBeenCalledWith({
-      type: 'llmProfileDeleteResponse',
-      requestId: 'req1',
-      ok: true,
-      profileId: 'todelete',
-    });
-
-    await expect(fs.stat(path.join(tmpDir, 'todelete.json'))).rejects.toThrow();
-  });
 });
-

@@ -19,8 +19,6 @@ export type HostToWebviewMessage =
   | { type: 'llmProfileLoadResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileSaveResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileSaveResponse'; requestId: string; ok: false; profileId: string; error: string }
-  | { type: 'llmProfileDeleteResponse'; requestId: string; ok: true; profileId: string }
-  | { type: 'llmProfileDeleteResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'serverListUpdated'; servers: SavedServer[]; serverUrl: string }
   | { type: 'elevenlabsSettings'; elevenlabs: OpenHandsSettings['elevenlabs'] }
   | {
@@ -67,9 +65,8 @@ export type WebviewToHostMessage =
   | { type: 'getConfig' }
   | { type: 'setLlmProfileId'; profileId: string | null }
   | { type: 'llmProfilesListRequest'; requestId: string }
-  | { type: 'llmProfileLoadRequest'; requestId: string; profileId: string; includeSecrets?: boolean }
-  | { type: 'llmProfileSaveRequest'; requestId: string; profileId: string; profile: unknown; includeSecrets?: boolean }
-  | { type: 'llmProfileDeleteRequest'; requestId: string; profileId: string }
+  | { type: 'llmProfileLoadRequest'; requestId: string; profileId: string }
+  | { type: 'llmProfileSaveRequest'; requestId: string; profileId: string; profile: unknown }
   | { type: 'selectServer'; url: string }
   | { type: 'addServer'; server: SavedServer }
   | { type: 'removeServer'; url: string }

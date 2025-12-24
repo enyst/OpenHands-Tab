@@ -387,11 +387,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'llmProfileLoadRequest': {
         const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
-        const includeSecrets = message.includeSecrets === true;
         if (!requestId || !profileId) break;
 
         try {
-          const profile = llmProfilesStore.loadProfile(profileId, { ...llmProfileStoreOptions(), includeSecrets });
+          const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
           void host.postMessage({
             type: 'llmProfileLoadResponse',
             requestId,
@@ -408,11 +407,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'llmProfileSaveRequest': {
         const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
-        const includeSecrets = message.includeSecrets === true;
         if (!requestId || !profileId) break;
 
         try {
-          llmProfilesStore.saveProfile(profileId, message.profile, { ...llmProfileStoreOptions(), includeSecrets });
+          llmProfilesStore.saveProfile(profileId, message.profile, llmProfileStoreOptions());
           void host.postMessage({ type: 'llmProfileSaveResponse', requestId, ok: true, profileId });
 
           const updated = await settingsMgr.get();
@@ -424,31 +422,6 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           void host.postMessage({ type: 'llmProfileSaveResponse', requestId, ok: false, profileId, error: reason });
-        }
-        break;
-      }
-      case 'llmProfileDeleteRequest': {
-        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
-        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
-        if (!requestId || !profileId) break;
-
-        try {
-          await llmProfilesStore.deleteProfile(profileId, llmProfileStoreOptions());
-          void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: true, profileId });
-
-          const updated = await settingsMgr.get();
-          if (updated.llm.profileId === profileId) {
-            await settingsMgr.update({ llm: { profileId: '' } });
-          }
-          const refreshed = await settingsMgr.get();
-          void host.postMessage({
-            type: 'llmProfilesUpdated',
-            profiles: listAvailableLlmProfiles(),
-            activeProfileId: refreshed.llm.profileId ?? null,
-          });
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: false, profileId, error: reason });
         }
         break;
       }
