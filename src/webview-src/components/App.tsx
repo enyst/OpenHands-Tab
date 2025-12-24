@@ -18,6 +18,7 @@ import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/
 import { getHalDialogueLinesForMode, normalizeHalUserName, type HalScriptLine, type HalVoice } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
 import { MAX_RENDERED_EVENTS } from '../shared/constants';
+import { DEFAULT_HAL_STATE } from '../../shared/halDefaults';
 
 // Component imports
 import { Header } from './Header';
@@ -78,15 +79,6 @@ type ElevenLabsSettingsSnapshot = {
 };
 
 const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
-const DEFAULT_HAL_STATE: HalStateSnapshot = {
-  enabled: false,
-  mode: DEFAULT_ELEVENLABS_SETTINGS.mode,
-  phase: 'idle',
-  eye: 'off',
-  stepIndex: null,
-  decision: null,
-  lastError: null,
-};
 
 type HalUiState = Pick<HalStateSnapshot, 'phase' | 'eye' | 'stepIndex' | 'decision' | 'lastError'>;
 
