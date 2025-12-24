@@ -45,7 +45,7 @@ const resolveRootDir = (options: LLMProfileStoreOptions = {}): string => {
   return path.resolve(expandHomeDir(rootDir));
 };
 
-const assertValidProfileId = (profileId: string): void => {
+export const assertValidProfileId = (profileId: string): void => {
   if (!profileId.trim()) {
     throw new LLMProfileValidationError('Profile id must be a non-empty string');
   }
