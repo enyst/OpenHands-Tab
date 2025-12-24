@@ -97,4 +97,21 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     expect(summary).toBe('abcd…');
     expect(summary.length).toBe(5);
   });
+
+  it('honors maxOutputChars=0 (does not include stdout in prompt)', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('OK');
+    await summarizeTerminalObservationWithGeminiFlash(
+      { command: 'echo', exitCode: 0, stdout: 'from-stdout\n', stderr: '' },
+      { secrets, llmClient: llm, maxOutputChars: 0, maxPromptChars: 10_000 }
+    );
+
+    expect(llm.requests).toHaveLength(1);
+    const prompt = llm.requests[0].messages[0].content[0];
+    expect(prompt.type).toBe('text');
+    if (prompt.type === 'text') {
+      expect(prompt.text).not.toContain('from-stdout');
+      expect(prompt.text).toContain('(empty)');
+    }
+  });
 });

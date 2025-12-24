@@ -24,8 +24,9 @@ const DEFAULT_MAX_PROMPT_CHARS = 6_000;
 const DEFAULT_MAX_SUMMARY_CHARS = 1_000;
 const CLIP_MARKER = '<output clipped>';
 
-const toNonNegativeInt = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+const resolveNonNegativeIntOption = (value: unknown, defaultValue: number): number => {
+  if (value === undefined) return defaultValue;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
   return Math.max(0, Math.trunc(value));
 };
 
@@ -70,15 +71,22 @@ const getGeminiFlashClient = async (secrets: SecretRegistry): Promise<LLMClient>
   return factory.createClient();
 };
 
+const truncateSummary = (text: string, maxChars: number): string => {
+  if (maxChars <= 0) return '';
+  if (text.length <= maxChars) return text;
+  if (maxChars === 1) return '…';
+  return text.slice(0, maxChars - 1) + '…';
+};
+
 export async function summarizeTerminalObservationWithGeminiFlash(
   input: TerminalObservationInput,
   options: SummarizeTerminalObservationOptions
 ): Promise<string> {
-  const maxOutputChars = toNonNegativeInt(options.maxOutputChars) || DEFAULT_MAX_OUTPUT_CHARS;
-  const maxPromptChars = toNonNegativeInt(options.maxPromptChars) || DEFAULT_MAX_PROMPT_CHARS;
-  const maxSummaryChars = toNonNegativeInt(options.maxSummaryChars) || DEFAULT_MAX_SUMMARY_CHARS;
+  const maxOutputChars = resolveNonNegativeIntOption(options.maxOutputChars, DEFAULT_MAX_OUTPUT_CHARS);
+  const maxPromptChars = resolveNonNegativeIntOption(options.maxPromptChars, DEFAULT_MAX_PROMPT_CHARS);
+  const maxSummaryChars = resolveNonNegativeIntOption(options.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS);
 
-  const fallback = summarizeExitCodeFallback(input.exitCode);
+  const fallback = truncateSummary(summarizeExitCodeFallback(input.exitCode), maxSummaryChars);
   const stdout = typeof input.stdout === 'string' ? input.stdout.trimEnd() : '';
   const stderr = typeof input.stderr === 'string' ? input.stderr.trimEnd() : '';
   const output = stdout && stderr ? `${stdout}\n${stderr}` : stdout || stderr;
@@ -112,9 +120,7 @@ export async function summarizeTerminalObservationWithGeminiFlash(
     }
     const summary = maskSecrets(text, options.secrets).trim();
     if (!summary) return fallback;
-    if (summary.length <= maxSummaryChars) return summary;
-    if (maxSummaryChars === 1) return '…';
-    return summary.slice(0, maxSummaryChars - 1) + '…';
+    return truncateSummary(summary, maxSummaryChars);
   } catch {
     return fallback;
   }
