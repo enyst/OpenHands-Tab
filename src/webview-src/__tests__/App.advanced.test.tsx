@@ -523,7 +523,7 @@ describe('App - Advanced Test Coverage', () => {
 
       expect(input.value).toBe('Some text');
 
-      const newChatBtn = screen.getByLabelText('New');
+      const newChatBtn = screen.getByLabelText('Start new conversation');
       await userEvent.click(newChatBtn);
 
       expect(input.value).toBe('');

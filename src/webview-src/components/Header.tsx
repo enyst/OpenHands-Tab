@@ -65,47 +65,6 @@ function StatusIndicator({ status }: { status: 'online' | 'offline' | 'connectin
   );
 }
 
-function HeaderButton({
-  icon,
-  label,
-  onClick,
-  disabled = false,
-  variant = 'default',
-}: {
-  icon: string;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  variant?: 'default' | 'primary';
-}) {
-  const baseClasses = `
-    relative inline-flex items-center justify-center
-    h-9 px-3.5 rounded-lg
-    text-sm font-medium
-    transition-all duration-200
-    focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-    disabled:opacity-40 disabled:cursor-not-allowed
-  `;
-
-  const variantClasses = variant === 'primary'
-    ? 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:shadow-glow-sm hover:border-brand-500/40'
-    : 'bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]';
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`${baseClasses} ${variantClasses}`}
-      aria-label={label}
-      title={label}
-    >
-      <span className={`codicon codicon-${icon} mr-2 text-sm`} />
-      <span>{label}</span>
-    </button>
-  );
-}
-
 function IconButton({
   icon,
   label,
@@ -244,12 +203,7 @@ export function Header({
 
         {/* Right side - Actions */}
         <div className="flex items-center gap-2">
-          <HeaderButton
-            icon="add"
-            label="New"
-            onClick={onNewConversation}
-            variant="primary"
-          />
+          <IconButton icon="add" label="Start new conversation" onClick={onNewConversation} />
 
           <div className="w-px h-6 bg-white/[0.08]" />
 
