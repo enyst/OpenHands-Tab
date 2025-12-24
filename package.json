@@ -621,8 +621,6 @@
     "media/*.js",
     "media/*.css",
     "media/*.ttf",
-    "media/*.png",
-    "media/*.woff",
     "media/icons/**",
     "node_modules/ws/**",
     "package.json",
