@@ -929,6 +929,25 @@ export function App() {
               postMessage({ type: 'setLlmProfileId', profileId });
               break;
             }
+            case 'openLlmProfilesView': {
+              const mode = (rawPayload as { mode?: unknown } | undefined)?.mode;
+              const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;
+              setShowLlmProfiles(true);
+              if (mode === 'create') {
+                setLlmProfilesOpenRequest({ mode: 'create' });
+                break;
+              }
+              if (mode === 'edit' && typeof profileIdRaw === 'string' && profileIdRaw.trim()) {
+                setLlmProfilesOpenRequest({ mode: 'edit', profileId: profileIdRaw.trim() });
+                break;
+              }
+              setLlmProfilesOpenRequest(null);
+              break;
+            }
+            case 'closeLlmProfilesView':
+              setShowLlmProfiles(false);
+              setLlmProfilesOpenRequest(null);
+              break;
             case 'halApprove':
               handleHalApprove();
               break;

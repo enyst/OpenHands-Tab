@@ -3,10 +3,12 @@ import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsMan
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from '../shared/halTeleport';
 import { DEFAULT_HAL_STATE } from '../shared/halDefaults';
+import { resolveConfiguredLlmLabel } from '../shared/llmProfiles';
 import { safeStringify } from '../shared/safeStringify';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
+import * as llmProfilesStore from '../webview/host/llmProfilesStore';
 import type { ConversationInstance, SecretRegistry, Event } from '@openhands/agent-sdk-ts';
 
 export type RenderedEventsInfo = {
@@ -106,6 +108,12 @@ function createPendingResponse<T>(
 }
 
 export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDeps): vscode.Disposable[] {
+  const postToWebview = async (message: HostToWebviewMessage): Promise<boolean> => {
+    const chatView = deps.getChatView();
+    if (!chatView || !deps.getChatWebviewReady()) return false;
+    return chatView.webview.postMessage(message);
+  };
+
   // Diagnostics command for E2E tests and troubleshooting
   const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? '';
   const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
@@ -283,13 +291,6 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
   );
 
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
-    const postToWebview = (message: HostToWebviewMessage) => {
-      const chatView = deps.getChatView();
-      if (!chatView || !deps.getChatWebviewReady()) return false;
-      void chatView.webview.postMessage(message);
-      return true;
-    };
-
     try {
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
       const settings = await settingsMgr.get();
@@ -298,7 +299,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       if (!firstServerUrl) {
         const message = 'No server available';
         deps.getOutputChannel()?.appendLine(`[hal.teleport] ${message}`);
-        const posted = postToWebview({ type: 'halTeleportUnavailable', error: message });
+        const posted = await postToWebview({ type: 'halTeleportUnavailable', error: message });
         if (!posted) {
           void vscode.window.showErrorMessage(message);
         }
@@ -351,11 +352,119 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     } catch (err) {
       const reason = deps.renderError(err);
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
-      const posted = postToWebview({ type: 'halTeleportFailed', error: reason });
+      const posted = await postToWebview({ type: 'halTeleportFailed', error: reason });
       if (!posted) {
         void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
       }
     }
+  });
+
+  const getProfileApiKeySecretKey = (profileId: string): string => `openhands.llmProfileApiKey.${profileId}`;
+
+  const broadcastLlmProfilesUpdated = async (): Promise<void> => {
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    const settings = await settingsMgr.get();
+    await postToWebview({
+      type: 'llmProfilesUpdated',
+      profiles: llmProfilesStore.listProfiles(),
+      activeProfileId: settings.llm.profileId ?? null,
+    });
+  };
+
+  const openProfilesView = vscode.commands.registerCommand('openhands._openProfilesView', async (raw: unknown) => {
+    await vscode.commands.executeCommand('openhands.open');
+    await deps.ensureConversationAndConnection({ uiJustCreated: true });
+
+    const mode = (raw as { mode?: unknown } | undefined)?.mode;
+    const profileIdRaw = (raw as { profileId?: unknown } | undefined)?.profileId;
+    const payload: Record<string, unknown> = {};
+    if (mode === 'create' || mode === 'edit') payload.mode = mode;
+    if (typeof profileIdRaw === 'string') payload.profileId = profileIdRaw;
+
+    return await vscode.commands.executeCommand('openhands._webviewAction', { action: 'openLlmProfilesView', payload });
+  });
+
+  const createProfile = vscode.commands.registerCommand('openhands._createProfile', async (raw: unknown) => {
+    const profileId = typeof (raw as { profileId?: unknown } | undefined)?.profileId === 'string'
+      ? ((raw as { profileId: string }).profileId).trim()
+      : '';
+    if (!profileId) throw new Error('profileId is required');
+    const profile = (raw as { profile?: unknown } | undefined)?.profile;
+    if (profile === undefined) throw new Error('profile is required');
+
+    const existing = llmProfilesStore.listProfiles();
+    if (existing.includes(profileId)) throw new Error(`Profile '${profileId}' already exists`);
+
+    llmProfilesStore.saveProfile(profileId, profile);
+    await broadcastLlmProfilesUpdated();
+    return { ok: true, profileId };
+  });
+
+  const updateProfile = vscode.commands.registerCommand('openhands._updateProfile', async (raw: unknown) => {
+    const profileId = typeof (raw as { profileId?: unknown } | undefined)?.profileId === 'string'
+      ? ((raw as { profileId: string }).profileId).trim()
+      : '';
+    if (!profileId) throw new Error('profileId is required');
+    const profile = (raw as { profile?: unknown } | undefined)?.profile;
+    const patch = (raw as { patch?: unknown } | undefined)?.patch;
+
+    const existing = llmProfilesStore.listProfiles();
+    if (!existing.includes(profileId)) throw new Error(`Profile '${profileId}' not found`);
+
+    if (profile !== undefined) {
+      llmProfilesStore.saveProfile(profileId, profile);
+      await broadcastLlmProfilesUpdated();
+      return { ok: true, profileId };
+    }
+
+    if (!patch || typeof patch !== 'object') throw new Error('patch must be an object');
+    const current = llmProfilesStore.loadProfile(profileId).config;
+    const next = { ...current, ...(patch as Record<string, unknown>) };
+    llmProfilesStore.saveProfile(profileId, next);
+    await broadcastLlmProfilesUpdated();
+    return { ok: true, profileId };
+  });
+
+  const selectProfile = vscode.commands.registerCommand('openhands._selectProfile', async (raw: unknown) => {
+    const nestedProfileId = (raw as { profileId?: unknown } | undefined)?.profileId;
+    const profileIdRaw = nestedProfileId === undefined ? raw : nestedProfileId;
+    if (profileIdRaw !== null && typeof profileIdRaw !== 'string') {
+      throw new Error('profileId must be a string or null');
+    }
+    const profileId = typeof profileIdRaw === 'string' ? profileIdRaw.trim() : '';
+
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    await settingsMgr.update({ llm: { profileId } }, 'global');
+    await deps.ensureConversationAndConnection();
+
+    const updated = await settingsMgr.get();
+    const label = resolveConfiguredLlmLabel(updated);
+    await postToWebview({
+      type: 'status',
+      status: deps.getConversation()?.getStatus() ?? 'offline',
+      mode: deps.getConversationMode(),
+      llmProfileLabel: label,
+      llmModel: label,
+    });
+    await broadcastLlmProfilesUpdated();
+    return { ok: true, profileId: updated.llm.profileId ?? null };
+  });
+
+  const setProfileApiKey = vscode.commands.registerCommand('openhands._setProfileApiKey', async (raw: unknown) => {
+    const profileId = typeof (raw as { profileId?: unknown } | undefined)?.profileId === 'string'
+      ? ((raw as { profileId: string }).profileId).trim()
+      : '';
+    if (!profileId) throw new Error('profileId is required');
+    const apiKeyRaw = (raw as { apiKey?: unknown } | undefined)?.apiKey;
+    const apiKey = typeof apiKeyRaw === 'string' ? apiKeyRaw.trim() : '';
+
+    const key = getProfileApiKeySecretKey(profileId);
+    if (!apiKey) {
+      await deps.context.secrets.delete(key);
+      return { ok: true, profileId, hasKey: false };
+    }
+    await deps.context.secrets.store(key, apiKey);
+    return { ok: true, profileId, hasKey: true };
   });
 
   return [
@@ -368,6 +477,10 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     queryHalState,
     webviewAction,
     teleportToRemoteRuntime,
+    openProfilesView,
+    createProfile,
+    updateProfile,
+    selectProfile,
+    setProfileApiKey,
   ];
 }
-
