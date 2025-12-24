@@ -15,15 +15,16 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.reconnect');
 
   const cmdId = `e2e_cmd_${Date.now().toString(36)}`;
-  const cmd: BashEvent = { type: 'BashCommand', command: 'long_task', command_id: cmdId, cwd: process.cwd() } as any;
+  let order = 0;
+  const cmd: BashCommand = { type: 'BashCommand', command: 'long_task', command_id: cmdId, id: `cmd-${order}`, timestamp: new Date().toISOString(), order: order++ };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', cmd);
 
   for (let i = 0; i < 50; i++) {
-    const out: BashEvent = { type: 'BashOutput', command_id: cmdId, stdout: `step ${i}\r` } as any;
+    const out: BashOutput = { type: 'BashOutput', command_id: cmdId, stdout: `step ${i}\r`, stderr: null, exit_code: null, id: `out-${order}`, timestamp: new Date().toISOString(), order: order++ };
     await vscode.commands.executeCommand('openhands._injectTerminalEvent', out);
   }
 
-  const exit: BashEvent = { type: 'BashExit', command_id: cmdId, exit_code: 0 } as any;
+  const exit: BashExit = { type: 'BashExit', command_id: cmdId, exit_code: 0, id: `exit-${order}`, timestamp: new Date().toISOString(), order: order++ };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
   // Ensure terminal exists and we saw lots of events (coalesced)
