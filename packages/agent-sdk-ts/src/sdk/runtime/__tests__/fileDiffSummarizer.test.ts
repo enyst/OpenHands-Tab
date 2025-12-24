@@ -82,6 +82,42 @@ describe('summarizeFileChangesWithGeminiFlash', () => {
     expect(llm.requests).toHaveLength(0);
   });
 
+  it('honors explicit maxSummaryChars=0 (skips summarization)', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('should not be called');
+
+    const summary = await summarizeFileChangesWithGeminiFlash(
+      {
+        kind: 'contents',
+        filePath: 'src/example.ts',
+        oldContent: 'const a = 1;\n',
+        newContent: 'const a = 2;\n',
+      },
+      { secrets, llmClient: llm, maxPromptChars: 10_000, maxSummaryChars: 0 }
+    );
+
+    expect(summary).toBeUndefined();
+    expect(llm.requests).toHaveLength(0);
+  });
+
+  it('honors explicit maxPromptChars=0 (skips summarization)', async () => {
+    const secrets = new SecretRegistry();
+    const llm = new RecordingLLM('should not be called');
+
+    const summary = await summarizeFileChangesWithGeminiFlash(
+      {
+        kind: 'contents',
+        filePath: 'src/example.ts',
+        oldContent: 'const a = 1;\n',
+        newContent: 'const a = 2;\n',
+      },
+      { secrets, llmClient: llm, maxPromptChars: 0, maxSummaryChars: 10 }
+    );
+
+    expect(summary).toBeUndefined();
+    expect(llm.requests).toHaveLength(0);
+  });
+
   it('never returns more than maxSummaryChars', async () => {
     const secrets = new SecretRegistry();
     const llm = new RecordingLLM('abcdefghij');
