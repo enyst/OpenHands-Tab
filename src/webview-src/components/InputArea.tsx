@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
+import { useCloseOnEscapeAndOutsideClick, type CloseReason } from './useCloseOnEscapeAndOutsideClick';
 
 interface InputAreaProps {
   value: string;
@@ -535,7 +535,7 @@ function AccessoryButton({ icon, label, onClick, badge, comingSoon }: AccessoryB
 {/* Context Picker Popover */}
 interface ContextPickerProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (reason: CloseReason) => void;
   files: string[];
   selectedFiles: string[];
   onToggleFile: (file: string) => void;
@@ -588,7 +588,7 @@ export function ContextPicker({
 
     if (e.key === 'Escape') {
       e.preventDefault();
-      onClose();
+      onClose('escape');
     }
   };
 
@@ -683,7 +683,7 @@ interface Skill {
 
 interface SkillsPopoverProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (reason: CloseReason) => void;
   skills: Skill[];
   onOpenSkill: (path: string) => void;
 }
@@ -731,7 +731,7 @@ export function SkillsPopover({
 
     if (e.key === 'Escape') {
       e.preventDefault();
-      onClose();
+      onClose('escape');
     }
   };
 

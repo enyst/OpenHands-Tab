@@ -230,6 +230,7 @@ export function App() {
   const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
   const [isMentionActive, setIsMentionActive] = useState(false);
   const mentionStartRef = useRef<number | null>(null);
+  const suppressMentionOnceRef = useRef(false);
 
   // Skills state
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
@@ -1048,6 +1049,14 @@ export function App() {
     const before = text.slice(0, caret);
     const at = before.lastIndexOf('@');
 
+    // If we intentionally closed the picker (e.g. Esc), avoid reopening immediately on the focus/selection event.
+    if (suppressMentionOnceRef.current) {
+      suppressMentionOnceRef.current = false;
+      if (at !== -1 && !/\s/.test(before.slice(at + 1))) {
+        return;
+      }
+    }
+
     // Clear mention if no @ or whitespace after @
     if (at === -1 || /\s/.test(before.slice(at + 1))) {
       if (isMentionActive) {
@@ -1163,6 +1172,33 @@ export function App() {
       return willBeOpen;
     });
   }, [postMessage]);
+
+  const focusInputAtEnd = useCallback(() => {
+    const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
+    if (!textarea) return;
+    textarea.focus();
+    const pos = textarea.value.length;
+    try {
+      textarea.setSelectionRange(pos, pos);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleCloseContextPicker = useCallback((reason: 'escape' | 'outside') => {
+    setShowContextPicker(false);
+
+    if (reason !== 'escape') {
+      return;
+    }
+
+    // When Esc closes the picker, return focus to the input and prevent the mention logic from reopening it.
+    setIsMentionActive(false);
+    setContextQuery('');
+    mentionStartRef.current = null;
+    suppressMentionOnceRef.current = true;
+    focusInputAtEnd();
+  }, [focusInputAtEnd]);
 
   // Attachments handlers
   const handleOpenAttachments = useCallback(() => {
@@ -1424,7 +1460,7 @@ export function App() {
         {showContextPicker && (
           <ContextPicker
             isOpen
-            onClose={() => setShowContextPicker(false)}
+            onClose={handleCloseContextPicker}
             files={workspaceFiles}
             selectedFiles={selectedContextFiles}
             onToggleFile={handleToggleContextFile}
@@ -1434,14 +1470,14 @@ export function App() {
         )}
 
         {/* Skills popover */}
-        {showSkillsPopover && (
-          <SkillsPopover
-            isOpen
-            onClose={() => setShowSkillsPopover(false)}
-            skills={skills}
-            onOpenSkill={handleOpenSkill}
-          />
-        )}
+      {showSkillsPopover && (
+        <SkillsPopover
+          isOpen
+          onClose={() => setShowSkillsPopover(false)}
+          skills={skills}
+          onOpenSkill={handleOpenSkill}
+        />
+      )}
       </div>
 
       {/* LLM Profiles view (slide-over panel) */}

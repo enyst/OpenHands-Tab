@@ -163,6 +163,56 @@ describe('App toolbar interactions', () => {
     expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
   });
 
+  it('closes the context picker on Esc and returns focus to the input', async () => {
+    render(<App />);
+    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+    expect(input).toBeTruthy();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
+      }));
+    });
+
+    fireEvent.change(input, { target: { value: '@' } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'workspaceFiles', files: ['src/index.ts', 'README.md'] }
+      }));
+    });
+
+    expect(await screen.findByPlaceholderText('Search files...')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('src/index.ts'));
+
+    await waitFor(() => {
+      expect(input.value).toContain('@src/index.ts');
+    });
+
+    // Blur input (user clicked elsewhere)
+    input.blur();
+
+    // Clicking back into the input near the mention re-opens the picker.
+    input.setSelectionRange(input.value.length, input.value.length);
+    input.focus();
+    fireEvent.select(input);
+
+    const searchInput = await screen.findByPlaceholderText('Search files...');
+    fireEvent.keyDown(searchInput, { key: 'Escape' });
+
+    expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(input);
+    expect(input.selectionStart).toBe(input.value.length);
+    expect(input.selectionEnd).toBe(input.value.length);
+  });
+
   it('requests skills and opens selected skill file', async () => {
     render(<App />);
     fireEvent.click(screen.getAllByLabelText('Skills')[0]);
