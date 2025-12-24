@@ -185,6 +185,33 @@ describe('LLM Profiles view', () => {
     });
   });
 
+  it('offers a Get <Provider> API Key helper action', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
+      candidate.querySelector('option[value="openai"]') !== null
+    ));
+    if (!providerSelect) throw new Error('Failed to find provider select');
+
+    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Get OpenAI API Key' }));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('openMarkdownLink')?.href).toBe('https://platform.openai.com/api-keys');
+    });
+  });
+
   it('supports a Use custom base URL toggle', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
