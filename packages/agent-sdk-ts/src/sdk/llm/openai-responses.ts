@@ -38,20 +38,10 @@ type ResponsesFunctionCallOutputInputItem = {
   output: string;
 };
 
-type ResponsesReasoningInputItem = {
-  type: 'reasoning';
-  id: string;
-  summary: Array<{ type: 'summary_text'; text: string }>;
-  content?: Array<{ type: 'reasoning_text'; text: string }>;
-  encrypted_content?: string;
-  status?: string;
-};
-
 type ResponsesInputItem =
   | ResponsesMessageInputItem
   | ResponsesFunctionCallInputItem
-  | ResponsesFunctionCallOutputInputItem
-  | ResponsesReasoningInputItem;
+  | ResponsesFunctionCallOutputInputItem;
 
 type ResponsesToolParam = {
   type: 'function';
@@ -110,20 +100,6 @@ const toResponsesTool = (tool: LLMToolDefinition): ResponsesToolParam => ({
   strict: false,
 });
 
-const toResponsesReasoningInputItem = (reasoning: ResponsesReasoningItem): ResponsesReasoningInputItem | undefined => {
-  if (!reasoning.id) return undefined;
-  const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text' as const, text }));
-  const content = reasoning.content?.length ? reasoning.content.map((text) => ({ type: 'reasoning_text' as const, text })) : undefined;
-  return {
-    type: 'reasoning',
-    id: reasoning.id,
-    summary,
-    ...(content ? { content } : {}),
-    ...(reasoning.encrypted_content ? { encrypted_content: reasoning.encrypted_content } : {}),
-    ...(reasoning.status ? { status: reasoning.status } : {}),
-  };
-};
-
 const toResponsesInputItems = (messages: Message[]): ResponsesInputItem[] => {
   const items: ResponsesInputItem[] = [];
 
@@ -151,11 +127,6 @@ const toResponsesInputItems = (messages: Message[]): ResponsesInputItem[] => {
     }
 
     if (message.role === 'assistant') {
-      if (message.responses_reasoning_item) {
-        const reasoningItem = toResponsesReasoningInputItem(message.responses_reasoning_item);
-        if (reasoningItem) items.push(reasoningItem);
-      }
-
       const content: ResponsesMessageInputItem['content'] = [];
       for (const part of message.content) {
         if (part.type === 'text' && part.text) {
