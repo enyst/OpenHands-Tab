@@ -26,6 +26,7 @@ import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
+import { SYSTEM_PROMPT } from './systemPrompt';
 
 export type AgentRunInput = string | Message;
 
@@ -50,7 +51,6 @@ export interface AgentOptions {
   conversationStats?: import('./ConversationStats').ConversationStats;
 }
 
-const SYSTEM_PROMPT = 'You are OpenHands, an autonomous AI agent running inside VS Code.';
 const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 // Simple utility to cap logged/tool result sizes
