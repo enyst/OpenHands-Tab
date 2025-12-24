@@ -1002,9 +1002,7 @@ export class Agent extends EventEmitter {
     const configuredApiKeyIsReference =
       typeof configuredApiKey === 'string' && /^[A-Z0-9_]+$/.test(configuredApiKey);
     const configuredApiKeyInline = configuredApiKeyIsReference ? undefined : configuredApiKey;
-    if (configuredApiKeyInline) {
-      this.secrets.set('openhands.llmApiKey', configuredApiKeyInline);
-    }
+    this.secrets.set('openhands.llmApiKey', configuredApiKeyInline);
 
     const preferredApiKeys = (() => {
       if (!profileId || !isSafeProfileId(profileId)) return undefined;
