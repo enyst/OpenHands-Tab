@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
+import * as childProcess from 'child_process';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -15,6 +16,7 @@ import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/we
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 import { getConversationHistoryList } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
+import { resolveGitHeadDiffContents } from './gitHeadDiff';
 import * as llmProfilesStore from './llmProfilesStore';
 import { listSkillFiles } from './skills';
 import { listWorkspaceFiles } from './workspaceFiles';
@@ -23,6 +25,19 @@ import { resolveWorkspaceFilePath } from './workspacePaths';
 export type WebviewHost = {
   postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
 };
+
+function execFileText(command: string, args: string[], cwd?: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    childProcess.execFile(command, args, { cwd }, (err, stdout, stderr) => {
+      if (err) {
+        const message = typeof stderr === 'string' && stderr.trim().length > 0 ? stderr.trim() : err.message;
+        reject(new Error(message));
+        return;
+      }
+      resolve(typeof stdout === 'string' ? stdout : String(stdout));
+    });
+  });
+}
 
 async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
   const filePath = getPastedImagePath(baseDir, imageId);
@@ -309,7 +324,25 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           break;
         }
         try {
-          await showWorkspaceDiff({ context, filePath: p, oldContent: message.oldContent, newContent: message.newContent });
+          let oldContent = message.oldContent;
+          let newContent = message.newContent;
+
+          if (message.preferGitHead === true) {
+            const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            const { resolvedPath } = resolveWorkspaceFilePath(p);
+            const resolved = await resolveGitHeadDiffContents({
+              workspaceRoot: wsRoot,
+              resolvedPath,
+              fallbackOldContent: oldContent,
+              fallbackNewContent: newContent,
+              execFileText,
+              readFileText: (filePath) => fs.readFile(filePath, 'utf8'),
+            });
+            oldContent = resolved.oldContent;
+            newContent = resolved.newContent;
+          }
+
+          await showWorkspaceDiff({ context, filePath: p, oldContent, newContent });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           void vscode.window.showErrorMessage(`Failed to open diff: ${reason}`);

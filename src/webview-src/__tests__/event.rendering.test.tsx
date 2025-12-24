@@ -302,6 +302,7 @@ describe('Agent-SDK event rendering', () => {
         path: '/tmp/README.md',
         oldContent: 'old content',
         newContent: 'new content',
+        preferGitHead: true,
       })
     );
   });

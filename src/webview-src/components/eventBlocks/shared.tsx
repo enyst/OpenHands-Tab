@@ -60,8 +60,14 @@ export const openWorkspaceFile = (path: string) => {
   postMessage({ type: 'openWorkspaceFile', path });
 };
 
-export const openWorkspaceDiff = (path: string, oldContent: string, newContent: string) => {
-  postMessage({ type: 'openWorkspaceDiff', path, oldContent, newContent });
+export const openWorkspaceDiff = (path: string, oldContent: string, newContent: string, options?: { preferGitHead?: boolean }) => {
+  postMessage({
+    type: 'openWorkspaceDiff',
+    path,
+    oldContent,
+    newContent,
+    ...(options?.preferGitHead ? { preferGitHead: true } : {}),
+  });
 };
 
 export const openMarkdownLink = (href: string) => {
@@ -242,7 +248,7 @@ function InlineFileDiffReference({ path, oldContent, newContent }: { path?: stri
   return (
     <button
       type="button"
-      onClick={() => openWorkspaceDiff(path, oldText, newText)}
+      onClick={() => openWorkspaceDiff(path, oldText, newText, { preferGitHead: true })}
       className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/[0.1] text-xs font-mono text-brand-300 align-middle max-w-full transition-all duration-150 group"
       aria-label={`View diff for ${path}`}
       title={`View diff for ${path}`}
@@ -478,4 +484,3 @@ export function EventContainer({
     </div>
   );
 }
-

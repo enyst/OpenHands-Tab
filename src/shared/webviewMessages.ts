@@ -62,7 +62,7 @@ export type WebviewToHostMessage =
   | { type: 'openSkill'; path: string }
   | { type: 'openWorkspaceFile'; path: string }
   | { type: 'openMarkdownLink'; href: string }
-  | { type: 'openWorkspaceDiff'; path: string; oldContent: string; newContent: string }
+  | { type: 'openWorkspaceDiff'; path: string; oldContent: string; newContent: string; preferGitHead?: boolean }
   | { type: 'requestHistory' }
   | { type: 'restoreConversation'; id: string }
   | { type: 'deleteConversation'; id: string }
