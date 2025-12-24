@@ -173,6 +173,32 @@ export function InputArea({
             }}
           />
 
+          {/* Attachments button (icon-only) */}
+          {onOpenAttachments && (
+            <button
+              type="button"
+              onClick={onOpenAttachments}
+              className={`
+                absolute right-2 top-2
+                h-9 w-9 rounded-lg
+                flex items-center justify-center
+                transition-all duration-200
+                focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+                bg-white/[0.06] text-stone-300 border border-white/[0.04]
+                hover:bg-white/[0.08] hover:border-white/[0.1]
+              `}
+              aria-label="Attachments"
+              title="Attachments"
+            >
+              <span className="codicon codicon-attach" />
+              {attachments.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm">
+                  {attachments.length}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Send button */}
           <button
             onClick={handleSubmit}
@@ -219,15 +245,6 @@ export function InputArea({
             onClick={onOpenSkills}
             badge={skillsCount > 0 ? skillsCount : undefined}
           />
-
-          {onOpenAttachments && (
-            <AccessoryButton
-              icon="file"
-              label="Attachments"
-              onClick={onOpenAttachments}
-              badge={attachments.length > 0 ? attachments.length : undefined}
-            />
-          )}
 
           {onOpenMCP && (
             <AccessoryButton
