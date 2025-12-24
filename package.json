@@ -304,10 +304,16 @@
             "order": 2,
             "markdownDescription": "Enable local-mode debug events (e.g., llm_request/tool_call_raw)."
           },
-          "openhands.devBridge.enabled": {
+          "openhands.agent.summarizeToolCalls": {
             "type": "boolean",
             "default": false,
             "order": 3,
+            "markdownDescription": "Generate short `gemini-flash` summaries for tool calls (requires a Gemini API key)."
+          },
+          "openhands.devBridge.enabled": {
+            "type": "boolean",
+            "default": false,
+            "order": 4,
             "markdownDescription": "Enable webview→extension debug logging bridge (Output channel + file in extension log path)."
           }
         }

@@ -10,6 +10,7 @@ export type HostToWebviewMessage =
     llmModel?: string | null;
   }
   | { type: 'error'; error: string }
+  | { type: 'statusMessage'; level: 'info' | 'warn' | 'error'; message: string; autoDismiss?: boolean; autoDismissDelay?: number }
   | { type: 'llmProfilesUpdated'; profiles: string[]; activeProfileId: string | null }
   | { type: 'serverListUpdated'; servers: SavedServer[]; serverUrl: string }
   | { type: 'elevenlabsSettings'; elevenlabs: OpenHandsSettings['elevenlabs'] }

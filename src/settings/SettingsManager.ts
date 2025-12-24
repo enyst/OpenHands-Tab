@@ -48,7 +48,7 @@ const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
   servers: [],
   llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
-  agent: { enableSecurityAnalyzer: false, debug: false },
+  agent: { enableSecurityAnalyzer: false, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
   elevenlabs: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },
@@ -212,6 +212,7 @@ export class SettingsManager {
     const agent: AgentSettings = {
       enableSecurityAnalyzer: this.adapter.get<boolean>('openhands.agent.enableSecurityAnalyzer', DEFAULTS.agent.enableSecurityAnalyzer) ?? DEFAULTS.agent.enableSecurityAnalyzer,
       debug: this.adapter.get<boolean>('openhands.agent.debug', DEFAULTS.agent.debug) ?? DEFAULTS.agent.debug,
+      summarizeToolCalls: this.adapter.get<boolean>('openhands.agent.summarizeToolCalls', DEFAULTS.agent.summarizeToolCalls) ?? DEFAULTS.agent.summarizeToolCalls,
     };
     const conversation: ConversationSettings = {
       maxIterations: this.adapter.get<number>('openhands.conversation.maxIterations', DEFAULTS.conversation.maxIterations) ?? DEFAULTS.conversation.maxIterations,
@@ -303,6 +304,9 @@ export class SettingsManager {
       }
       if (partial.agent.debug !== undefined) {
         ops.push(this.adapter.update('openhands.agent.debug', partial.agent.debug, target));
+      }
+      if (partial.agent.summarizeToolCalls !== undefined) {
+        ops.push(this.adapter.update('openhands.agent.summarizeToolCalls', partial.agent.summarizeToolCalls, target));
       }
     }
 

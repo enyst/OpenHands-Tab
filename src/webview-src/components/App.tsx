@@ -61,6 +61,8 @@ type StatusBannerState = {
   message: string;
   level: 'info' | 'warn' | 'error';
   dismissible?: boolean;
+  autoDismiss?: boolean;
+  autoDismissDelay?: number;
 };
 
 type InlineImageAttachment = {
@@ -461,14 +463,18 @@ export function App() {
   }, [elevenlabs.mode, halDecision, halEnabled, halEye, halLastError, halPhase, halStepIndex]);
 
   // Show status message with debouncing
-  const showStatusMessage = useCallback((level: 'info' | 'warn' | 'error', message: string) => {
+  const showStatusMessage = useCallback((
+    level: 'info' | 'warn' | 'error',
+    message: string,
+    options?: { autoDismiss?: boolean; autoDismissDelay?: number },
+  ) => {
     const now = Date.now();
     const prev = lastStatusMessageRef.current;
     if (prev.level === level && prev.message === message && now - prev.at < STATUS_DEBOUNCE_MS) {
       return;
     }
     lastStatusMessageRef.current = { level, message, at: now };
-    setStatusBanner({ message, level });
+    setStatusBanner({ message, level, autoDismiss: options?.autoDismiss, autoDismissDelay: options?.autoDismissDelay });
   }, []);
 
   const handlePasteImageFiles = useCallback(async (files: File[]) => {
@@ -1155,6 +1161,10 @@ export function App() {
         conversations?: ConversationsList;
         servers?: { url: string; label?: string }[];
         attachments?: Array<{ uri: string; label: string; sizeBytes?: number }>;
+        level?: unknown;
+        message?: unknown;
+        autoDismiss?: unknown;
+        autoDismissDelay?: unknown;
       };
 
       switch (payload?.type) {
@@ -1194,6 +1204,18 @@ export function App() {
             }
           }
           break;
+        case 'statusMessage': {
+          const level = payload.level;
+          const message = payload.message;
+          if ((level === 'info' || level === 'warn' || level === 'error') && typeof message === 'string' && message.trim()) {
+            const autoDismiss = payload.autoDismiss === true;
+            const autoDismissDelay = typeof payload.autoDismissDelay === 'number' && Number.isFinite(payload.autoDismissDelay)
+              ? Math.max(0, payload.autoDismissDelay)
+              : undefined;
+            showStatusMessage(level, message.trim(), { autoDismiss, autoDismissDelay });
+          }
+          break;
+        }
         case 'llmProfilesUpdated': {
           if (Array.isArray(payload.profiles)) {
             setLlmProfiles(payload.profiles.filter((id): id is string => typeof id === 'string'));
@@ -1939,7 +1961,8 @@ export function App() {
               level={statusBanner.level}
               dismissible={statusBanner.dismissible}
               onDismiss={() => setStatusBanner(null)}
-              autoDismiss={statusBanner.level !== 'error'}
+              autoDismiss={statusBanner.autoDismiss ?? statusBanner.level !== 'error'}
+              autoDismissDelay={statusBanner.autoDismissDelay}
             />
           )}
         </div>
