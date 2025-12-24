@@ -114,8 +114,9 @@ const toResponsesReasoningInputItem = (reasoning: ResponsesReasoningItem): Respo
   // In stateless mode (store=false) we can only safely re-send reasoning items if the response included
   // `encrypted_content` (requested via include: ['reasoning.encrypted_content']). Otherwise OpenAI treats
   // the `rs_*` id as a server-stored reference and returns 404 when store=false.
-  const encrypted = typeof reasoning.encrypted_content === 'string' ? reasoning.encrypted_content.trim() : '';
-  if (!encrypted) return undefined;
+  // IMPORTANT: `encrypted_content` must be round-tripped exactly as received (opaque blob).
+  const encrypted = reasoning.encrypted_content;
+  if (typeof encrypted !== 'string' || encrypted.length === 0) return undefined;
 
   const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text' as const, text }));
   return {
