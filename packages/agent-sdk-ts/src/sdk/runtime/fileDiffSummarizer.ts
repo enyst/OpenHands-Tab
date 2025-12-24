@@ -23,8 +23,9 @@ const DEFAULT_MAX_PROMPT_CHARS = 4_000;
 const DEFAULT_MAX_SUMMARY_CHARS = 1_000;
 const CLIP_MARKER = '<diff clipped>';
 
-const toNonNegativeInt = (value: unknown): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+const resolveNonNegativeIntOption = (value: unknown, defaultValue: number): number => {
+  if (value === undefined) return defaultValue;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
   return Math.max(0, Math.trunc(value));
 };
 
@@ -138,8 +139,9 @@ export async function summarizeFileChangesWithGeminiFlash(
   input: FileChangeInput,
   options: SummarizeFileChangesOptions
 ): Promise<string | undefined> {
-  const maxPromptChars = toNonNegativeInt(options.maxPromptChars) || DEFAULT_MAX_PROMPT_CHARS;
-  const maxSummaryChars = toNonNegativeInt(options.maxSummaryChars) || DEFAULT_MAX_SUMMARY_CHARS;
+  const maxPromptChars = resolveNonNegativeIntOption(options.maxPromptChars, DEFAULT_MAX_PROMPT_CHARS);
+  const maxSummaryChars = resolveNonNegativeIntOption(options.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS);
+  if (maxPromptChars <= 0 || maxSummaryChars <= 0) return undefined;
 
   const { oldContent, newContent } =
     input.kind === 'git_refs'
@@ -184,7 +186,6 @@ export async function summarizeFileChangesWithGeminiFlash(
   const summary = maskSecrets(text, options.secrets).trim();
   if (!summary) return undefined;
   if (summary.length <= maxSummaryChars) return summary;
-  if (maxSummaryChars <= 0) return undefined;
   if (maxSummaryChars === 1) return '…';
   return summary.slice(0, maxSummaryChars - 1) + '…';
 }
