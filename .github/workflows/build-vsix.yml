@@ -80,7 +80,7 @@ jobs:
       - name: Package VSIX
         id: package
         run: |
-          npx vsce package --no-yarn --allow-missing-repository --allow-star-activation
+          npx vsce package --no-yarn --allow-missing-repository --allow-star-activation --follow-symlinks
           VSIX_FILE=$(ls -1 *.vsix | head -n1)
           echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
           echo "vsix_name=$(basename "$VSIX_FILE")" >> $GITHUB_OUTPUT
