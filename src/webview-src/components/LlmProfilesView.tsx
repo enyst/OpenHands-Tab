@@ -54,6 +54,19 @@ const EMPTY_FORM: ProfileFormState = {
   outputCostPerToken: '',
 };
 
+const ADVANCED_FIELD_KEYS: Array<keyof ProfileFormState> = [
+  'apiVersion',
+  'temperature',
+  'topP',
+  'topK',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'reasoningEffort',
+  'reasoningSummary',
+  'inputCostPerToken',
+  'outputCostPerToken',
+];
+
 const toFormState = (profileId: string, config: LLMConfiguration): ProfileFormState => {
   const strOrEmpty = (v: unknown): string => (typeof v === 'string' ? v : '');
   const numOrEmpty = (v: unknown): string => (typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
@@ -313,8 +326,12 @@ export function LlmProfilesView(props: {
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   const sortedProfiles = useMemo(() => [...profiles].sort((a, b) => a.localeCompare(b)), [profiles]);
+  const advancedErrorCount = useMemo(() => ADVANCED_FIELD_KEYS.reduce((count, key) => (errors[key] ? count + 1 : count), 0), [errors]);
+  const advancedSettingsLabelId = 'llmProfilesAdvancedSettingsLabel';
+  const advancedSettingsPanelId = 'llmProfilesAdvancedSettingsPanel';
 
   const refreshApiKeyStatus = useCallback(async (profileId: string) => {
     if (activeProfileIdRef.current !== profileId) return;
@@ -361,6 +378,7 @@ export function LlmProfilesView(props: {
     setApiKeyInput('');
     setApiKeySaving(false);
     setApiKeyError(null);
+    setIsAdvancedOpen(false);
   }, []);
 
   const startEdit = useCallback(async (profileId: string) => {
@@ -373,6 +391,7 @@ export function LlmProfilesView(props: {
     setApiKeyError(null);
     setShowApiKeyEditor(false);
     setApiKeyInput('');
+    setIsAdvancedOpen(false);
     setLoadingProfile(true);
     try {
       const config = await loadProfile(profileId);
@@ -404,7 +423,11 @@ export function LlmProfilesView(props: {
     setSaveAttempted(true);
     const nextErrors = validateForm(mode, form);
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (Object.keys(nextErrors).length > 0) {
+      const hasAdvancedErrors = ADVANCED_FIELD_KEYS.some((key) => Boolean(nextErrors[key]));
+      if (hasAdvancedErrors) setIsAdvancedOpen(true);
+      return;
+    }
 
     const profileId = form.name.trim();
     const config = buildProfileConfig(form);
@@ -784,18 +807,6 @@ export function LlmProfilesView(props: {
                   </div>
 
                   <div>
-                    <FieldLabel label="API Version" />
-                    <div className="mt-2">
-                      <InputField
-                        value={form.apiVersion}
-                        onChange={(v) => update('apiVersion', v)}
-                        placeholder="optional"
-                      />
-                      <FieldError message={errors.apiVersion} />
-                    </div>
-                  </div>
-
-                  <div>
                     <FieldLabel label="OpenAI API mode" />
                     <div className="mt-2">
                       <SelectField
@@ -810,9 +821,7 @@ export function LlmProfilesView(props: {
                       <FieldError message={errors.openaiApiMode} />
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <FieldLabel label="Timeout (seconds)" />
                     <div className="mt-2">
@@ -820,92 +829,139 @@ export function LlmProfilesView(props: {
                       <FieldError message={errors.timeoutSeconds} />
                     </div>
                   </div>
-                  <div>
-                    <FieldLabel label="Temperature" />
-                    <div className="mt-2">
-                      <InputField value={form.temperature} onChange={(v) => update('temperature', v)} placeholder="0.2" />
-                      <FieldError message={errors.temperature} />
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="Top P" />
-                    <div className="mt-2">
-                      <InputField value={form.topP} onChange={(v) => update('topP', v)} placeholder="1" />
-                      <FieldError message={errors.topP} />
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="Top K" />
-                    <div className="mt-2">
-                      <InputField value={form.topK} onChange={(v) => update('topK', v)} placeholder="optional" />
-                      <FieldError message={errors.topK} />
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="Max input tokens" />
-                    <div className="mt-2">
-                      <InputField value={form.maxInputTokens} onChange={(v) => update('maxInputTokens', v)} placeholder="optional" />
-                      <FieldError message={errors.maxInputTokens} />
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="Max output tokens" />
-                    <div className="mt-2">
-                      <InputField value={form.maxOutputTokens} onChange={(v) => update('maxOutputTokens', v)} placeholder="optional" />
-                      <FieldError message={errors.maxOutputTokens} />
-                    </div>
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <FieldLabel label="Reasoning effort" />
-                    <div className="mt-2">
-                      <SelectField
-                        value={form.reasoningEffort}
-                        onChange={(v) => update('reasoningEffort', v as ProfileFormState['reasoningEffort'])}
-                      >
-                        <option value="">default</option>
-                        <option value="none">none</option>
-                        <option value="low">low</option>
-                        <option value="medium">medium</option>
-                        <option value="high">high</option>
-                      </SelectField>
-                      <FieldError message={errors.reasoningEffort} />
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsAdvancedOpen((prev) => !prev)}
+                    className="w-full flex items-center justify-between gap-3 text-left"
+                    aria-label={isAdvancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
+                    aria-expanded={isAdvancedOpen}
+                    aria-controls={advancedSettingsPanelId}
+                    title={isAdvancedOpen ? 'Hide advanced settings' : 'Show advanced settings'}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="codicon codicon-settings text-stone-400" />
+                      <span id={advancedSettingsLabelId} className="text-sm font-medium text-stone-200">Advanced settings</span>
+                      {advancedErrorCount > 0 && !isAdvancedOpen && (
+                        <span className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-200 border border-red-500/20">
+                          {advancedErrorCount} issue{advancedErrorCount === 1 ? '' : 's'}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="Reasoning summary" />
-                    <div className="mt-2">
-                      <SelectField
-                        value={form.reasoningSummary}
-                        onChange={(v) => update('reasoningSummary', v as ProfileFormState['reasoningSummary'])}
-                      >
-                        <option value="">default</option>
-                        <option value="auto">auto</option>
-                        <option value="concise">concise</option>
-                        <option value="detailed">detailed</option>
-                      </SelectField>
-                      <FieldError message={errors.reasoningSummary} />
-                    </div>
-                  </div>
-                </div>
+                    <span className={`codicon codicon-chevron-${isAdvancedOpen ? 'up' : 'down'} text-[10px] text-stone-400`} />
+                  </button>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <FieldLabel label="Input cost per token" />
-                    <div className="mt-2">
-                      <InputField value={form.inputCostPerToken} onChange={(v) => update('inputCostPerToken', v)} placeholder="optional" />
-                      <FieldError message={errors.inputCostPerToken} />
+                  {isAdvancedOpen && (
+                    <div
+                      id={advancedSettingsPanelId}
+                      role="region"
+                      aria-labelledby={advancedSettingsLabelId}
+                      className="mt-4 space-y-6"
+                    >
+                      <div>
+                        <FieldLabel label="API Version" />
+                        <div className="mt-2">
+                          <InputField
+                            value={form.apiVersion}
+                            onChange={(v) => update('apiVersion', v)}
+                            placeholder="optional"
+                          />
+                          <FieldError message={errors.apiVersion} />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <FieldLabel label="Temperature" />
+                          <div className="mt-2">
+                            <InputField value={form.temperature} onChange={(v) => update('temperature', v)} placeholder="0.2" />
+                            <FieldError message={errors.temperature} />
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel label="Top P" />
+                          <div className="mt-2">
+                            <InputField value={form.topP} onChange={(v) => update('topP', v)} placeholder="1" />
+                            <FieldError message={errors.topP} />
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel label="Top K" />
+                          <div className="mt-2">
+                            <InputField value={form.topK} onChange={(v) => update('topK', v)} placeholder="optional" />
+                            <FieldError message={errors.topK} />
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel label="Max input tokens" />
+                          <div className="mt-2">
+                            <InputField value={form.maxInputTokens} onChange={(v) => update('maxInputTokens', v)} placeholder="optional" />
+                            <FieldError message={errors.maxInputTokens} />
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel label="Max output tokens" />
+                          <div className="mt-2">
+                            <InputField value={form.maxOutputTokens} onChange={(v) => update('maxOutputTokens', v)} placeholder="optional" />
+                            <FieldError message={errors.maxOutputTokens} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel label="Reasoning effort" />
+                          <div className="mt-2">
+                            <SelectField
+                              value={form.reasoningEffort}
+                              onChange={(v) => update('reasoningEffort', v as ProfileFormState['reasoningEffort'])}
+                            >
+                              <option value="">default</option>
+                              <option value="none">none</option>
+                              <option value="low">low</option>
+                              <option value="medium">medium</option>
+                              <option value="high">high</option>
+                            </SelectField>
+                            <FieldError message={errors.reasoningEffort} />
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel label="Reasoning summary" />
+                          <div className="mt-2">
+                            <SelectField
+                              value={form.reasoningSummary}
+                              onChange={(v) => update('reasoningSummary', v as ProfileFormState['reasoningSummary'])}
+                            >
+                              <option value="">default</option>
+                              <option value="auto">auto</option>
+                              <option value="concise">concise</option>
+                              <option value="detailed">detailed</option>
+                            </SelectField>
+                            <FieldError message={errors.reasoningSummary} />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel label="Input cost per token" />
+                          <div className="mt-2">
+                            <InputField value={form.inputCostPerToken} onChange={(v) => update('inputCostPerToken', v)} placeholder="optional" />
+                            <FieldError message={errors.inputCostPerToken} />
+                          </div>
+                        </div>
+                        <div>
+                          <FieldLabel label="Output cost per token" />
+                          <div className="mt-2">
+                            <InputField value={form.outputCostPerToken} onChange={(v) => update('outputCostPerToken', v)} placeholder="optional" />
+                            <FieldError message={errors.outputCostPerToken} />
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="Output cost per token" />
-                    <div className="mt-2">
-                      <InputField value={form.outputCostPerToken} onChange={(v) => update('outputCostPerToken', v)} placeholder="optional" />
-                      <FieldError message={errors.outputCostPerToken} />
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
