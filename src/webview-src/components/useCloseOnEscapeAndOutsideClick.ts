@@ -19,9 +19,15 @@ export function useCloseOnEscapeAndOutsideClick(
 
     const handleClickOutside = (e: MouseEvent) => {
       const el = ref.current;
-      if (el && !el.contains(e.target as Node)) {
-        onClose('outside');
-      }
+      if (!el) return;
+
+      const path = e.composedPath?.();
+      if (Array.isArray(path) && path.includes(el)) return;
+
+      const target = e.target;
+      if (target instanceof Node && el.contains(target)) return;
+
+      onClose('outside');
     };
 
     const timer = window.setTimeout(() => {

@@ -181,8 +181,7 @@ export function ServerSelector({
                     )}
                   </button>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={() => {
                       onRemoveServer(server.url);
                     }}
                     className="p-1 rounded hover:bg-red-500/20 hover:text-red-400 opacity-50 hover:opacity-100 transition-all"
@@ -245,8 +244,7 @@ export function ServerSelector({
         ) : (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={() => {
               setShowAddForm(true);
             }}
             className="w-full px-4 py-3 text-sm text-left hover:bg-white/5 transition-colors flex items-center gap-2"
