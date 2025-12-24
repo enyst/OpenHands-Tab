@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import * as childProcess from 'child_process';
+import { assertValidProfileId, LLMProfileValidationError } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -116,17 +117,13 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   let elevenlabsTtsGate: TtsConversationGate | null = null;
 
   const validateProfileId = (profileId: string): void => {
-    if (!profileId.trim()) {
-      throw new Error('Profile id must be a non-empty string');
-    }
-    if (profileId !== profileId.trim()) {
-      throw new Error('Profile id must not have leading/trailing whitespace');
-    }
-    if (profileId.includes('/') || profileId.includes('\\')) {
-      throw new Error('Profile id must not contain path separators');
-    }
-    if (!/^[a-zA-Z0-9._-]+$/.test(profileId)) {
-      throw new Error('Profile id contains invalid characters');
+    try {
+      assertValidProfileId(profileId);
+    } catch (err) {
+      if (err instanceof LLMProfileValidationError) {
+        throw new Error(err.message);
+      }
+      throw err;
     }
   };
 
