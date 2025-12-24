@@ -46,7 +46,7 @@ const maskSecrets = (text: string, secrets: SecretRegistry): string => {
   const values = secrets
     .getRegisteredValues()
     .map((value) => value.trim())
-    .filter((value) => value.length >= 8)
+    .filter((value) => value.length > 0)
     .sort((a, b) => b.length - a.length);
   for (const value of values) {
     masked = masked.replaceAll(value, '***');
@@ -178,6 +178,8 @@ export async function summarizeFileChangesWithGeminiFlash(
 
   const summary = maskSecrets(text, options.secrets).trim();
   if (!summary) return undefined;
-  return summary.length > maxSummaryChars ? summary.slice(0, maxSummaryChars) + '…' : summary;
+  if (summary.length <= maxSummaryChars) return summary;
+  if (maxSummaryChars <= 0) return undefined;
+  if (maxSummaryChars === 1) return '…';
+  return summary.slice(0, maxSummaryChars - 1) + '…';
 }
-
