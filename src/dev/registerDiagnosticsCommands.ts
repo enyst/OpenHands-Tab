@@ -426,7 +426,8 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
   });
 
   const selectProfile = vscode.commands.registerCommand('openhands._selectProfile', async (raw: unknown) => {
-    const profileIdRaw = (raw as { profileId?: unknown } | undefined)?.profileId ?? raw;
+    const nestedProfileId = (raw as { profileId?: unknown } | undefined)?.profileId;
+    const profileIdRaw = nestedProfileId === undefined ? raw : nestedProfileId;
     if (profileIdRaw !== null && typeof profileIdRaw !== 'string') {
       throw new Error('profileId must be a string or null');
     }
