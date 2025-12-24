@@ -4,6 +4,10 @@ import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideCli
 
 type ProfileFormMode = 'create' | 'edit';
 
+export type LlmProfilesViewOpenRequest =
+  | { mode: 'create' }
+  | { mode: 'edit'; profileId: string };
+
 type ProfileFormState = {
   name: string;
   provider: '' | 'openai' | 'anthropic' | 'openrouter' | 'litellm_proxy' | 'gemini';
@@ -272,6 +276,7 @@ function SelectField(props: {
 export function LlmProfilesView(props: {
   isOpen: boolean;
   onClose: () => void;
+  openRequest?: LlmProfilesViewOpenRequest | null;
   listProfiles: () => Promise<string[]>;
   loadProfile: (profileId: string) => Promise<LLMConfiguration>;
   saveProfile: (profileId: string, profile: LLMConfiguration) => Promise<void>;
@@ -281,6 +286,7 @@ export function LlmProfilesView(props: {
   const {
     isOpen,
     onClose,
+    openRequest,
     listProfiles,
     loadProfile,
     saveProfile,
@@ -384,6 +390,15 @@ export function LlmProfilesView(props: {
       void refreshApiKeyStatus(profileId);
     }
   }, [loadProfile, refreshApiKeyStatus]);
+
+  useEffect(() => {
+    if (!isOpen || !openRequest) return;
+    if (openRequest.mode === 'create') {
+      startCreate();
+      return;
+    }
+    void startEdit(openRequest.profileId);
+  }, [isOpen, openRequest, startCreate, startEdit]);
 
   const handleSave = useCallback(async () => {
     setSaveAttempted(true);

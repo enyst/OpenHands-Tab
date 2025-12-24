@@ -31,7 +31,7 @@ import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
-import { LlmProfilesView } from './LlmProfilesView';
+import { LlmProfilesView, type LlmProfilesViewOpenRequest } from './LlmProfilesView';
 import { isHalDecision, type HalPhase } from '../../shared/halTypes';
 import { HalOverlay } from './HalOverlay';
 import {
@@ -221,6 +221,7 @@ export function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showLlmProfiles, setShowLlmProfiles] = useState(false);
+  const [llmProfilesOpenRequest, setLlmProfilesOpenRequest] = useState<LlmProfilesViewOpenRequest | null>(null);
 
   // Context picker state
   const [showContextPicker, setShowContextPicker] = useState(false);
@@ -1086,6 +1087,17 @@ export function App() {
   }, [postMessage]);
 
   const handleOpenLlmProfiles = useCallback(() => {
+    setLlmProfilesOpenRequest(null);
+    setShowLlmProfiles(true);
+  }, []);
+
+  const handleOpenLlmProfilesCreate = useCallback(() => {
+    setLlmProfilesOpenRequest({ mode: 'create' });
+    setShowLlmProfiles(true);
+  }, []);
+
+  const handleOpenLlmProfilesEdit = useCallback((profileId: string) => {
+    setLlmProfilesOpenRequest({ mode: 'edit', profileId });
     setShowLlmProfiles(true);
   }, []);
 
@@ -1373,6 +1385,8 @@ export function App() {
           llmProfiles={llmProfiles}
           llmProfileLabel={llmProfileLabel}
           onSelectLlmProfileId={handleSelectLlmProfileId}
+          onOpenLlmProfilesCreate={handleOpenLlmProfilesCreate}
+          onOpenLlmProfilesEdit={handleOpenLlmProfilesEdit}
           onOpenContext={handleOpenContext}
           contextCount={selectedContextFiles.length}
           onOpenSkills={handleOpenSkills}
@@ -1415,6 +1429,7 @@ export function App() {
       <LlmProfilesView
         isOpen={showLlmProfiles}
         onClose={() => setShowLlmProfiles(false)}
+        openRequest={llmProfilesOpenRequest}
         listProfiles={listLlmProfiles}
         loadProfile={loadLlmProfile}
         saveProfile={saveLlmProfile}
