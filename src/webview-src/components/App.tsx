@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   isEvent,
   isSystemPromptEvent,
@@ -15,11 +15,14 @@ import {
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
-import { getHalDialogueLinesForMode, normalizeHalUserName, type HalScriptLine, type HalVoice } from '../../shared/halScript';
+import { normalizeHalUserName } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
 import { MAX_RENDERED_EVENTS } from '../shared/constants';
-import { DEFAULT_HAL_STATE } from '../../shared/halDefaults';
 import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../shared/pasteLimits';
+import { escapeMarkdownAltText } from './app/pastedImages';
+import { useHalFlow, type ElevenLabsSettingsSnapshot } from './app/useHalFlow';
+import { useInlineImageAttachments } from './app/useInlineImageAttachments';
+import { useStatusMessages, type StatusBannerState } from './app/useStatusMessages';
 
 // Component imports
 import { Header } from './Header';
@@ -27,7 +30,7 @@ import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
-import { isElevenLabsMode, isHalDecision, type ElevenLabsMode, type HalDecision, type HalEye, type HalPhase, type HalStateSnapshot } from '../../shared/halTypes';
+import { isHalDecision, type HalPhase } from '../../shared/halTypes';
 import { HalOverlay } from './HalOverlay';
 import {
   SystemPromptEventBlock,
@@ -58,105 +61,6 @@ type ConversationsList = Array<{
   timestamp: number;
   messageCount?: number;
 }>;
-
-type StatusBannerState = {
-  message: string;
-  level: 'info' | 'warn' | 'error';
-  dismissible?: boolean;
-  autoDismiss?: boolean;
-  autoDismissDelay?: number;
-};
-
-type InlineImageAttachment = {
-  id: string;
-  label: string;
-  dataUrl: string;
-  sizeBytes: number;
-};
-
-type ElevenLabsSettingsSnapshot = {
-  enabled: boolean;
-  mode: ElevenLabsMode;
-  userName: string;
-  volume: number;
-};
-
-const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
-
-type HalUiState = Pick<HalStateSnapshot, 'phase' | 'eye' | 'stepIndex' | 'decision' | 'lastError'>;
-
-const DEFAULT_HAL_UI_STATE: HalUiState = {
-  phase: 'idle',
-  eye: 'off',
-  stepIndex: null,
-  decision: null,
-  lastError: null,
-};
-
-const DEFAULT_BUNDLED_DIALOGUE_DELAY_MS = 650;
-const DEFAULT_BUNDLED_AUDIO_EXTENSION = 'wav';
-
-function readBlobAsDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Failed to read image.'));
-        return;
-      }
-      resolve(result);
-    };
-    reader.onerror = () => {
-      const error = reader.error ?? new Error('Failed to read image.');
-      reject(error);
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
-function escapeMarkdownAltText(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/[\r\n]+/g, ' ').trim();
-}
-
-function mimeTypeToExtension(mimeType: string): string {
-  const subtype = mimeType.split('/')[1] ?? '';
-  if (subtype === 'jpeg') return 'jpg';
-  if (subtype === 'svg+xml') return 'svg';
-  if (subtype) return subtype;
-  return 'png';
-}
-
-function normalizePastedImageLabel(file: File): string {
-  const name = typeof file.name === 'string' ? file.name.trim() : '';
-  if (name) return name.replace(/[\r\n]+/g, ' ').trim();
-  const ext = mimeTypeToExtension(file.type);
-  return `pasted-image.${ext}`;
-}
-
-function getOpenHandsMediaBaseUri(): string | null {
-  if (typeof document === 'undefined') return null;
-  const meta = document.querySelector('meta[name="openhands-media-base"]');
-  if (!meta) return null;
-  const content = (meta as HTMLMetaElement).content?.trim() ?? '';
-  return content || null;
-}
-
-function buildMediaUrl(relativePath: string): string | null {
-  const base = getOpenHandsMediaBaseUri();
-  if (!base) return null;
-  const normalizedBase = base.endsWith('/') ? base : `${base}/`;
-  const rel = relativePath.replace(/^\/+/, '');
-  return `${normalizedBase}${rel}`;
-}
-
-function getBundledHalClipUrl(voice: HalVoice, stepIndex: number): string | null {
-  return buildMediaUrl(`hal/bundled/${voice}/${stepIndex}.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
-}
-
-function getBundledHalMusicStingUrl(): string | null {
-  return buildMediaUrl(`hal/bundled/music_sting.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
-}
 
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
@@ -199,11 +103,6 @@ function EventBlock({ event, index }: { event: Event; index: number }) {
 }
 
 /**
- * Status message debouncing configuration
- */
-const STATUS_DEBOUNCE_MS = 600;
-
-/**
  * Main App component: React webview root for OpenHands extension.
  */
 export function App() {
@@ -228,15 +127,9 @@ export function App() {
 
   // Attachments state
   const [attachments, setAttachments] = useState<Array<{ uri: string; label: string; sizeBytes?: number }>>([]);
-  const [inlineImages, setInlineImages] = useState<InlineImageAttachment[]>([]);
 
   // UI state
-  const [statusBanner, setStatusBanner] = useState<StatusBannerState | null>(
-    { message: 'Initializing…', level: 'info' }
-  );
-  const lastStatusMessageRef = useRef<{ level: 'info' | 'warn' | 'error'; message: string; at: number }>(
-    { level: 'info', message: '', at: 0 }
-  );
+  const { statusBanner, setStatusBanner, showStatusMessage } = useStatusMessages({ message: 'Initializing…', level: 'info' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -259,47 +152,11 @@ export function App() {
   const [servers, setServers] = useState<{ url: string; label?: string }[]>([]);
   const [currentServerUrl, setCurrentServerUrl] = useState<string | undefined>(undefined);
 
-  // HAL / ElevenLabs settings + state (Phase 0: bundled mode only)
-  const [elevenlabs, setElevenlabs] = useState<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
-  const [halDisabledConversationId, setHalDisabledConversationId] = useState<string | null>(null);
-  const [halPhase, setHalPhase] = useState<HalPhase>('idle');
-  const [halEye, setHalEye] = useState<HalEye>('off');
-  const [halStepIndex, setHalStepIndex] = useState<number | null>(null);
-  const [halDecision, setHalDecision] = useState<HalDecision | null>(null);
-  const [halLastError, setHalLastError] = useState<string | null>(null);
-  const [halForceRejectInput, setHalForceRejectInput] = useState(false);
-  const [halTeleporting, setHalTeleporting] = useState(false);
-  const [halVoiceConfirmFallbackKey, setHalVoiceConfirmFallbackKey] = useState<string | null>(null);
-  const halTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const halStepIndexRef = useRef<number | null>(null);
-  const halDialogueRef = useRef<HalScriptLine[]>([]);
-  const halTtsRequestIdRef = useRef<string | null>(null);
-  const halTtsRequestedKeyRef = useRef<string | null>(null);
-  const halAudioRef = useRef<HTMLAudioElement | null>(null);
-  const halAudioUrlRef = useRef<string | null>(null);
-  const halAudioPlayTokenRef = useRef(0);
-  const halBundledAudioKeyRef = useRef<string | null>(null);
-  const halBundledMusicKeyRef = useRef<string | null>(null);
-  const halTtsRequestSeqRef = useRef(0);
-  const halVoiceConfirmFallbackKeyRef = useRef<string | null>(null);
-  const halVoiceConfirmRequestIdRef = useRef<string | null>(null);
-  const halVoiceConfirmSeqRef = useRef(0);
-  const halVoiceDiscardNextStopRef = useRef(false);
-  const halVoiceStreamRef = useRef<MediaStream | null>(null);
-  const halVoiceRecorderRef = useRef<MediaRecorder | null>(null);
-  const halVoiceChunksRef = useRef<Blob[]>([]);
-  const halActiveKeyRef = useRef<string | null>(null);
-  const [halSuppressedKey, setHalSuppressedKey] = useState<string | null>(null);
-  const halStateRef = useRef<HalStateSnapshot>(DEFAULT_HAL_STATE);
-  const halEnabledRef = useRef<boolean>(false);
-  const halPhaseRef = useRef<HalPhase>('idle');
-  const halSuppressedKeyRef = useRef<string | null>(null);
-  const halTeleportInProgressRef = useRef(false);
+  // Conversation refs (used for HAL + event processing without stale closures)
   const pendingActionsRef = useRef<ActionEvent[]>([]);
   const agentStatusRef = useRef<string | undefined>(undefined);
   const conversationIdRef = useRef<string | undefined>(undefined);
   const currentServerUrlRef = useRef<string | undefined>(undefined);
-  const elevenlabsRef = useRef<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
 
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -323,6 +180,12 @@ export function App() {
     api.postMessage(msg);
   }, []);
 
+  const { inlineImages, setInlineImages, handlePasteImageFiles, handleRemoveInlineImage } = useInlineImageAttachments({
+    showStatusMessage,
+    maxImages: MAX_PASTED_IMAGES,
+    maxBytesPerImage: MAX_PASTED_IMAGE_BYTES,
+  });
+
   // Keep a snapshot for E2E state queries without re-registering message listeners on every keystroke.
   useEffect(() => {
     uiStateRef.current = {
@@ -337,24 +200,75 @@ export function App() {
     };
   }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, workspaceFiles.length]);
 
-  const halSupportedMode = elevenlabs.mode === 'bundled' || elevenlabs.mode === 'tts_only' || elevenlabs.mode === 'voice_confirm';
-  const halEnabled = elevenlabs.enabled && halSupportedMode && halDisabledConversationId !== conversationId;
+  const handleApprove = useCallback(() => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-  useEffect(() => {
-    halEnabledRef.current = halEnabled;
-  }, [halEnabled]);
+    submissionTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      submissionTimeoutRef.current = null;
+      showStatusMessage('warn', 'Confirmation timed out - please try again');
+    }, 30000);
 
-  useEffect(() => {
-    halPhaseRef.current = halPhase;
-  }, [halPhase]);
+    postMessage({ type: 'command', command: 'approveAction' });
+    showStatusMessage('info', 'Approval submitted');
+  }, [isSubmitting, postMessage, showStatusMessage]);
 
-  useEffect(() => {
-    halSuppressedKeyRef.current = halSuppressedKey;
-  }, [halSuppressedKey]);
+  const handleReject = useCallback((reason?: string) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-  useEffect(() => {
-    halVoiceConfirmFallbackKeyRef.current = halVoiceConfirmFallbackKey;
-  }, [halVoiceConfirmFallbackKey]);
+    submissionTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      submissionTimeoutRef.current = null;
+      showStatusMessage('warn', 'Confirmation timed out - please try again');
+    }, 30000);
+
+    postMessage({ type: 'command', command: 'rejectAction', reason });
+    showStatusMessage('info', 'Rejection submitted');
+  }, [isSubmitting, postMessage, showStatusMessage]);
+
+  const {
+    elevenlabs,
+    applyElevenlabsSettings,
+    halEnabled,
+    halPhase,
+    halEye,
+    halStepIndex,
+    halDecision,
+    halLastError,
+    halForceRejectInput,
+    halTeleporting,
+    halVoiceConfirmFallbackKey,
+    halSuppressedKey,
+    halDialogueLines,
+    halStateRef,
+    maybeUpdateHalFlow,
+    handleStartVoiceConfirm,
+    handleStopVoiceConfirm,
+    handleCancelVoiceConfirm,
+    handleUseButtonsInstead,
+    handleHalExit,
+    handleHalApprove,
+    handleHalReject,
+    handleHalTeleport,
+    handleHalTtsResponse,
+    applyHalVoiceConfirmDecision,
+    handleHalVoiceConfirmResponse,
+    handleHalTeleportUnavailable,
+    handleHalTeleportFailed,
+    handleConversationStarted,
+    resetForServerTargetChange,
+  } = useHalFlow({
+    conversationId,
+    conversationIdRef,
+    pendingActionsRef,
+    agentStatusRef,
+    postMessage,
+    showStatusMessage,
+    handleApprove,
+    handleReject,
+  });
 
   useEffect(() => {
     pendingActionsRef.current = pendingActions;
@@ -371,154 +285,6 @@ export function App() {
   useEffect(() => {
     currentServerUrlRef.current = currentServerUrl;
   }, [currentServerUrl]);
-
-  useEffect(() => {
-    elevenlabsRef.current = elevenlabs;
-  }, [elevenlabs]);
-
-  useEffect(() => {
-    halStepIndexRef.current = halStepIndex;
-  }, [halStepIndex]);
-
-  const stopHalAudio = useCallback(() => {
-    halAudioPlayTokenRef.current += 1;
-    const audio = halAudioRef.current;
-    if (audio) {
-      try {
-        audio.pause();
-      } catch {}
-      audio.src = '';
-    }
-    if (halAudioUrlRef.current) {
-      try {
-        URL.revokeObjectURL(halAudioUrlRef.current);
-      } catch {}
-      halAudioUrlRef.current = null;
-    }
-    halTtsRequestIdRef.current = null;
-    halTtsRequestedKeyRef.current = null;
-  }, []);
-
-  const cleanupHalVoiceConfirm = useCallback(() => {
-    const recorder = halVoiceRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      try {
-        halVoiceDiscardNextStopRef.current = true;
-        recorder.stop();
-      } catch {}
-    }
-    halVoiceRecorderRef.current = null;
-    halVoiceChunksRef.current = [];
-    const stream = halVoiceStreamRef.current;
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        try {
-          track.stop();
-        } catch {}
-      }
-    }
-    halVoiceStreamRef.current = null;
-    halVoiceConfirmRequestIdRef.current = null;
-  }, []);
-
-    const blobToBase64 = (blob: Blob): Promise<string> =>
-      new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result;
-          if (typeof result !== 'string') {
-            reject(new Error('Failed to read recorded audio.'));
-            return;
-          }
-          const comma = result.indexOf(',');
-          resolve(comma >= 0 ? result.slice(comma + 1) : result);
-        };
-        reader.onerror = () => {
-          const error = reader.error ?? new Error('Failed to read recorded audio.');
-          reject(error);
-        };
-        reader.readAsDataURL(blob);
-      });
-
-  useEffect(() => {
-    halStateRef.current = {
-      enabled: halEnabled,
-      mode: elevenlabs.mode,
-      phase: halPhase,
-      eye: halEye,
-      stepIndex: halPhase === 'dialogue' ? halStepIndex : null,
-      decision: halDecision,
-      lastError: halLastError,
-    };
-  }, [elevenlabs.mode, halDecision, halEnabled, halEye, halLastError, halPhase, halStepIndex]);
-
-  // Show status message with debouncing
-  const showStatusMessage = useCallback((
-    level: 'info' | 'warn' | 'error',
-    message: string,
-    options?: { autoDismiss?: boolean; autoDismissDelay?: number },
-  ) => {
-    const now = Date.now();
-    const prev = lastStatusMessageRef.current;
-    if (prev.level === level && prev.message === message && now - prev.at < STATUS_DEBOUNCE_MS) {
-      return;
-    }
-    lastStatusMessageRef.current = { level, message, at: now };
-    setStatusBanner({ message, level, autoDismiss: options?.autoDismiss, autoDismissDelay: options?.autoDismissDelay });
-  }, []);
-
-  const handlePasteImageFiles = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
-
-    const nextImages: InlineImageAttachment[] = [];
-    let didSkipLarge = false;
-    let didSkipSvg = false;
-    const remainingSlots = Math.max(0, MAX_PASTED_IMAGES - inlineImages.length);
-    if (remainingSlots === 0) {
-      showStatusMessage('warn', `You can paste up to ${MAX_PASTED_IMAGES} images per message.`);
-      return;
-    }
-
-    for (const file of files) {
-      if (nextImages.length >= remainingSlots) break;
-      if (!file.type.startsWith('image/')) continue;
-      if (file.type === 'image/svg+xml') {
-        didSkipSvg = true;
-        continue;
-      }
-      if (file.size > MAX_PASTED_IMAGE_BYTES) {
-        didSkipLarge = true;
-        continue;
-      }
-
-      try {
-        const dataUrl = await readBlobAsDataUrl(file);
-        nextImages.push({
-          id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-          label: normalizePastedImageLabel(file),
-          dataUrl,
-          sizeBytes: file.size,
-        });
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        showStatusMessage('error', `Failed to paste image: ${reason}`);
-      }
-    }
-
-    if (didSkipLarge) {
-      showStatusMessage('warn', `Some images were too large to paste (max ${Math.trunc(MAX_PASTED_IMAGE_BYTES / 1024)}KB).`);
-    }
-    if (didSkipSvg) {
-      showStatusMessage('warn', 'SVG images are not supported for pasted images.');
-    }
-
-    if (nextImages.length === 0) return;
-    setInlineImages((prev) => [...prev, ...nextImages].slice(0, MAX_PASTED_IMAGES));
-  }, [inlineImages.length, showStatusMessage]);
-
-  const handleRemoveInlineImage = useCallback((id: string) => {
-    setInlineImages((prev) => prev.filter((img) => img.id !== id));
-  }, []);
 
   const handleConversationStateUpdate = useCallback((event: Event) => {
     if (!isConversationStateUpdateEvent(event)) return false;
@@ -576,505 +342,6 @@ export function App() {
       showStatusMessage('warn', 'Conversation paused');
     }
   }, [showStatusMessage]);
-
-  const clearHalTimer = useCallback(() => {
-    if (halTimerRef.current) {
-      clearTimeout(halTimerRef.current);
-      halTimerRef.current = null;
-    }
-  }, []);
-
-  const setHalSuppressedKeySynced = useCallback((next: string | null) => {
-    halSuppressedKeyRef.current = next;
-    setHalSuppressedKey(next);
-  }, []);
-
-  const resetHalUiState = useCallback((overrides: Partial<HalUiState> = {}) => {
-    const next: HalUiState = { ...DEFAULT_HAL_UI_STATE, ...overrides };
-    halPhaseRef.current = next.phase;
-    setHalPhase(next.phase);
-    setHalEye(next.eye);
-    setHalStepIndex(next.stepIndex);
-    setHalDecision(next.decision);
-    setHalLastError(next.lastError);
-  }, []);
-
-  const cleanupHalFlow = useCallback(() => {
-    clearHalTimer();
-    stopHalAudio();
-    cleanupHalVoiceConfirm();
-  }, [clearHalTimer, cleanupHalVoiceConfirm, stopHalAudio]);
-
-  const halDialogueLines = useMemo(
-    () => getHalDialogueLinesForMode(elevenlabs.userName, elevenlabs.mode),
-    [elevenlabs.mode, elevenlabs.userName]
-  );
-
-  useEffect(() => {
-    halDialogueRef.current = halDialogueLines;
-  }, [halDialogueLines]);
-
-  const getHalConversationKey = useCallback(() => conversationIdRef.current ?? 'unknown', []);
-
-  const maybeUpdateHalFlow = useCallback(() => {
-    if (halTeleportInProgressRef.current) return;
-    const enabled = halEnabledRef.current;
-    const convoId = conversationIdRef.current;
-    const isDisabledForConversation = Boolean(convoId) && halDisabledConversationId === convoId;
-    const status = agentStatusRef.current;
-    const pending = pendingActionsRef.current;
-    const firstHighRisk = pending.find((action) => action.security_risk === 'HIGH');
-    const nextKey =
-      enabled && !isDisabledForConversation && status === 'WAITING_FOR_CONFIRMATION' && firstHighRisk?.tool_call_id
-        ? `${convoId ?? 'unknown'}:${firstHighRisk.tool_call_id}`
-        : null;
-
-    if (!nextKey) {
-      if (halActiveKeyRef.current !== null || halPhaseRef.current !== 'idle' || halSuppressedKeyRef.current !== null) {
-        cleanupHalFlow();
-        halActiveKeyRef.current = null;
-        setHalSuppressedKeySynced(null);
-        resetHalUiState();
-        setHalForceRejectInput(false);
-        setHalTeleporting(false);
-      }
-      return;
-    }
-
-    const isNewSession = halActiveKeyRef.current !== nextKey;
-    if (isNewSession) {
-      halActiveKeyRef.current = nextKey;
-      setHalSuppressedKeySynced(null);
-      setHalForceRejectInput(false);
-    }
-
-    if (halSuppressedKeyRef.current === nextKey) {
-      if (halPhaseRef.current !== 'idle') {
-        cleanupHalFlow();
-        resetHalUiState();
-      }
-      return;
-    }
-
-    if (halPhaseRef.current === 'idle') {
-      clearHalTimer();
-      stopHalAudio();
-      resetHalUiState({ phase: 'dialogue', eye: 'pulsating', stepIndex: 0 });
-    }
-  }, [clearHalTimer, cleanupHalFlow, halDisabledConversationId, resetHalUiState, setHalSuppressedKeySynced, stopHalAudio]);
-
-  const handleHalAudioFinished = useCallback(() => {
-    if (halPhaseRef.current !== 'dialogue') return;
-    const currentIndex = halStepIndexRef.current;
-    if (currentIndex === null) return;
-    const lastIndex = halDialogueRef.current.length - 1;
-    if (currentIndex >= lastIndex) {
-      setHalPhase('awaiting_user');
-      setHalStepIndex(null);
-      return;
-    }
-    setHalStepIndex(currentIndex + 1);
-  }, []);
-
-  const advanceBundledDialogueAfterDelay = useCallback(
-    (currentIndex: number) => {
-      clearHalTimer();
-      halTimerRef.current = setTimeout(() => {
-        const lastIndex = halDialogueRef.current.length - 1;
-        if (currentIndex >= lastIndex) {
-          setHalPhase('awaiting_user');
-          setHalStepIndex(null);
-          return;
-        }
-        setHalStepIndex(currentIndex + 1);
-      }, DEFAULT_BUNDLED_DIALOGUE_DELAY_MS);
-    },
-    [clearHalTimer]
-  );
-
-  useEffect(() => {
-    if (halPhase !== 'dialogue') return;
-    if (halStepIndex === null) return;
-    if (elevenlabsRef.current.mode !== 'bundled') return;
-
-    const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    const playKey = `${sessionKey}:${halStepIndex}`;
-    if (halBundledAudioKeyRef.current === playKey) return;
-    halBundledAudioKeyRef.current = playKey;
-
-    clearHalTimer();
-
-    const line = halDialogueLines[halStepIndex];
-    const clipUrl = line ? getBundledHalClipUrl(line.voice, halStepIndex) : null;
-    if (!clipUrl || typeof Audio !== 'function') {
-      advanceBundledDialogueAfterDelay(halStepIndex);
-      return;
-    }
-
-    const volume = elevenlabsRef.current.volume;
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const audio = new Audio(clipUrl);
-    halAudioRef.current = audio;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onended = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    const fallBackToTimer = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      const currentIndex = halStepIndexRef.current;
-      advanceBundledDialogueAfterDelay(currentIndex ?? halStepIndex);
-    };
-    audio.onerror = fallBackToTimer;
-    void audio.play().catch(fallBackToTimer);
-
-    return () => {
-      clearHalTimer();
-      stopHalAudio();
-    };
-  }, [
-    advanceBundledDialogueAfterDelay,
-    clearHalTimer,
-    halDialogueLines,
-    halPhase,
-    halStepIndex,
-    handleHalAudioFinished,
-    stopHalAudio,
-  ]);
-
-  useEffect(() => {
-    if (halPhase !== 'waiting_remote') {
-      halBundledMusicKeyRef.current = null;
-      return;
-    }
-
-    const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    if (halBundledMusicKeyRef.current === sessionKey) return;
-    halBundledMusicKeyRef.current = sessionKey;
-
-    const url = getBundledHalMusicStingUrl();
-    if (!url || typeof Audio !== 'function') return;
-
-    const volume = elevenlabsRef.current.volume;
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const audio = new Audio(url);
-    halAudioRef.current = audio;
-    audio.loop = true;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onerror = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-    };
-    void audio.play().catch(() => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-    });
-
-    return () => {
-      stopHalAudio();
-    };
-  }, [halPhase, stopHalAudio]);
-
-  const playHalAudioBytes = useCallback((bytes: Uint8Array, volume: number) => {
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/mpeg' });
-    const url = URL.createObjectURL(blob);
-    halAudioUrlRef.current = url;
-
-    const audio = new Audio(url);
-    halAudioRef.current = audio;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onended = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    audio.onerror = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    void audio.play().catch(() => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    });
-  }, [handleHalAudioFinished, stopHalAudio]);
-
-  const requestHalTts = useCallback((params: { conversationId: string; stepIndex: number }) => {
-    const requestId = `halTts:${Date.now().toString(36)}:${(halTtsRequestSeqRef.current++).toString(36)}`;
-    halTtsRequestIdRef.current = requestId;
-    postMessage({
-      type: 'halTtsRequest',
-      requestId,
-      conversationId: params.conversationId,
-      stepIndex: params.stepIndex,
-    });
-  }, [postMessage]);
-
-  useEffect(() => {
-    if (halPhase !== 'dialogue') return;
-    if (halStepIndex === null) return;
-    const mode = elevenlabsRef.current.mode;
-    if (mode !== 'tts_only' && mode !== 'voice_confirm') return;
-    const convoId = conversationIdRef.current;
-    if (!convoId) return;
-    if (halDisabledConversationId === convoId) return;
-    const key = `${convoId}:${halStepIndex}:${mode}`;
-    if (halTtsRequestedKeyRef.current === key) return;
-    halTtsRequestedKeyRef.current = key;
-    requestHalTts({ conversationId: convoId, stepIndex: halStepIndex });
-  }, [halDisabledConversationId, halPhase, halStepIndex, requestHalTts]);
-
-  const disableVoiceConfirmForConversation = useCallback((message: string) => {
-    const key = getHalConversationKey();
-    setHalVoiceConfirmFallbackKey(key);
-    halVoiceConfirmFallbackKeyRef.current = key;
-    cleanupHalVoiceConfirm();
-    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', lastError: message });
-    showStatusMessage('warn', message);
-  }, [cleanupHalVoiceConfirm, getHalConversationKey, resetHalUiState, showStatusMessage]);
-
-  const handleStartVoiceConfirm = useCallback(() => {
-    void (async () => {
-      if (halPhaseRef.current !== 'awaiting_user') return;
-      if (elevenlabsRef.current.mode !== 'voice_confirm') return;
-      if (halVoiceConfirmFallbackKeyRef.current === getHalConversationKey()) return;
-      if (
-        typeof navigator === 'undefined' ||
-        typeof navigator.mediaDevices?.getUserMedia !== 'function' ||
-        typeof MediaRecorder === 'undefined'
-      ) {
-        disableVoiceConfirmForConversation('Microphone is unavailable in this environment. Using buttons instead.');
-        return;
-      }
-
-      const conversationKey = getHalConversationKey();
-      const sessionKey = halActiveKeyRef.current;
-
-      cleanupHalVoiceConfirm();
-      halVoiceDiscardNextStopRef.current = false;
-      halVoiceChunksRef.current = [];
-      setHalLastError(null);
-      halPhaseRef.current = 'listening';
-      setHalPhase('listening');
-      setHalEye('pulsating');
-
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        disableVoiceConfirmForConversation(`Microphone permission denied or unavailable: ${reason}`);
-        return;
-      }
-
-      if (halPhaseRef.current !== 'listening' || getHalConversationKey() !== conversationKey || halActiveKeyRef.current !== sessionKey) {
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {}
-        }
-        return;
-      }
-
-      const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
-      const mimeType = candidates.find((t) => {
-        try {
-          return MediaRecorder.isTypeSupported(t);
-        } catch {
-          return false;
-        }
-      });
-      let recorder: MediaRecorder;
-      try {
-        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {}
-        }
-        disableVoiceConfirmForConversation(`Microphone recording is not supported: ${reason}`);
-        return;
-      }
-
-      halVoiceStreamRef.current = stream;
-      halVoiceRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          halVoiceChunksRef.current.push(e.data);
-        }
-      };
-      recorder.onstop = () => {
-        void (async () => {
-          const shouldDiscard = halVoiceDiscardNextStopRef.current;
-          halVoiceDiscardNextStopRef.current = false;
-
-          const chunks = halVoiceChunksRef.current;
-          halVoiceChunksRef.current = [];
-          halVoiceRecorderRef.current = null;
-          const activeStream = halVoiceStreamRef.current;
-          halVoiceStreamRef.current = null;
-          if (activeStream) {
-            for (const track of activeStream.getTracks()) {
-              try {
-                track.stop();
-              } catch {}
-            }
-          }
-
-          if (shouldDiscard) return;
-          if (chunks.length === 0) {
-            disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
-            return;
-          }
-
-          try {
-            const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
-            if (blob.size === 0) {
-              disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
-              return;
-            }
-            const audioBase64 = await blobToBase64(blob);
-            if (!audioBase64) {
-              disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
-              return;
-            }
-            const requestId = `halVoiceConfirm:${Date.now().toString(36)}:${(halVoiceConfirmSeqRef.current++).toString(36)}`;
-            halVoiceConfirmRequestIdRef.current = requestId;
-            setHalLastError(null);
-            halPhaseRef.current = 'classifying';
-            setHalPhase('classifying');
-            setHalEye('pulsating');
-            postMessage({
-              type: 'halVoiceConfirmRequest',
-              requestId,
-              mimeType: blob.type || 'audio/webm',
-              audioBase64,
-            });
-          } catch (err) {
-            const reason = err instanceof Error ? err.message : String(err);
-            disableVoiceConfirmForConversation(`Failed to process recorded audio: ${reason}`);
-          }
-        })();
-      };
-
-      try {
-        recorder.start();
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {}
-        }
-        disableVoiceConfirmForConversation(`Failed to start recording: ${reason}`);
-        return;
-      }
-    })();
-  }, [cleanupHalVoiceConfirm, disableVoiceConfirmForConversation, getHalConversationKey, postMessage]);
-
-  const handleStopVoiceConfirm = useCallback(() => {
-    if (halPhaseRef.current !== 'listening') return;
-    const recorder = halVoiceRecorderRef.current;
-    if (!recorder) return;
-    if (recorder.state === 'inactive') return;
-    try {
-      recorder.stop();
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      disableVoiceConfirmForConversation(`Failed to stop recording: ${reason}`);
-    }
-  }, [disableVoiceConfirmForConversation]);
-
-  const handleCancelVoiceConfirm = useCallback(() => {
-    if (halPhaseRef.current !== 'listening') return;
-    halVoiceDiscardNextStopRef.current = true;
-    const recorder = halVoiceRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      try {
-        recorder.stop();
-      } catch {}
-    }
-    cleanupHalVoiceConfirm();
-    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating' });
-  }, [cleanupHalVoiceConfirm, resetHalUiState]);
-
-  const handleUseButtonsInstead = useCallback(() => {
-    const key = getHalConversationKey();
-    setHalVoiceConfirmFallbackKey(key);
-    halVoiceConfirmFallbackKeyRef.current = key;
-    cleanupHalVoiceConfirm();
-    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating' });
-    showStatusMessage('info', 'Switched to button decision for this conversation.');
-  }, [cleanupHalVoiceConfirm, getHalConversationKey, resetHalUiState, showStatusMessage]);
-
-  const handleApprove = useCallback(() => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    submissionTimeoutRef.current = setTimeout(() => {
-      setIsSubmitting(false);
-      submissionTimeoutRef.current = null;
-      showStatusMessage('warn', 'Confirmation timed out - please try again');
-    }, 30000);
-
-    postMessage({ type: 'command', command: 'approveAction' });
-    showStatusMessage('info', 'Approval submitted');
-  }, [isSubmitting, postMessage, showStatusMessage]);
-
-  const handleReject = useCallback((reason?: string) => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-
-    submissionTimeoutRef.current = setTimeout(() => {
-      setIsSubmitting(false);
-      submissionTimeoutRef.current = null;
-      showStatusMessage('warn', 'Confirmation timed out - please try again');
-    }, 30000);
-
-    postMessage({ type: 'command', command: 'rejectAction', reason });
-    showStatusMessage('info', 'Rejection submitted');
-  }, [isSubmitting, postMessage, showStatusMessage]);
-
-  const handleHalExit = useCallback(() => {
-    cleanupHalFlow();
-    halTeleportInProgressRef.current = false;
-    setHalTeleporting(false);
-    setHalForceRejectInput(false);
-    const key = halActiveKeyRef.current;
-    if (key) {
-      setHalSuppressedKeySynced(key);
-    }
-    resetHalUiState();
-  }, [cleanupHalFlow, resetHalUiState, setHalSuppressedKeySynced]);
-
-  const handleHalApprove = useCallback(() => {
-    setHalDecision('approve_local');
-    handleApprove();
-  }, [handleApprove]);
-
-  const handleHalReject = useCallback((reason?: string) => {
-    setHalDecision('reject');
-    handleReject(reason);
-  }, [handleReject]);
-
-  const handleHalTeleport = useCallback(() => {
-    cleanupHalFlow();
-    halTeleportInProgressRef.current = true;
-    setHalTeleporting(true);
-    setHalForceRejectInput(false);
-    resetHalUiState({ phase: 'waiting_remote', eye: 'pulsating', decision: 'teleport_remote' });
-    showStatusMessage('info', 'Teleporting to remote runtime…');
-    postMessage({ type: 'command', command: 'teleportAction' });
-  }, [cleanupHalFlow, postMessage, resetHalUiState, showStatusMessage]);
 
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
@@ -1240,16 +507,14 @@ export function App() {
             currentServerUrlRef.current = nextUrl;
             setCurrentServerUrl(nextUrl);
 
-              // If the server target changed (Local ↔ Remote or remote server URL changed),
-              // start a fresh conversation UI instead of implicitly resuming prior state.
-              if (prevUrl !== nextUrl) {
-                setHalDisabledConversationId(null);
-                setHalVoiceConfirmFallbackKey(null);
-                cleanupHalVoiceConfirm();
-                conversationIdRef.current = undefined;
-                setConversationId(undefined);
-                setEvents([]);
-                pendingActionsRef.current = [];
+            // If the server target changed (Local ↔ Remote or remote server URL changed),
+            // start a fresh conversation UI instead of implicitly resuming prior state.
+            if (prevUrl !== nextUrl) {
+              resetForServerTargetChange();
+              conversationIdRef.current = undefined;
+              setConversationId(undefined);
+              setEvents([]);
+              pendingActionsRef.current = [];
               setPendingActions([]);
               agentStatusRef.current = undefined;
               setAgentStatus(undefined);
@@ -1263,103 +528,20 @@ export function App() {
           break;
         }
         case 'elevenlabsSettings':
-          if (payload.elevenlabs && typeof payload.elevenlabs === 'object') {
-            const prev = elevenlabsRef.current;
-            const next: ElevenLabsSettingsSnapshot = { ...prev };
-            if (typeof payload.elevenlabs?.enabled === 'boolean') next.enabled = payload.elevenlabs.enabled;
-            if (isElevenLabsMode(payload.elevenlabs?.mode)) next.mode = payload.elevenlabs.mode;
-            if (typeof payload.elevenlabs?.userName === 'string') next.userName = payload.elevenlabs.userName;
-            if (typeof payload.elevenlabs?.volume === 'number' && Number.isFinite(payload.elevenlabs.volume)) {
-              next.volume = Math.min(1, Math.max(0, payload.elevenlabs.volume));
-            }
-
-            elevenlabsRef.current = next;
-            halEnabledRef.current = next.enabled && (next.mode === 'bundled' || next.mode === 'tts_only' || next.mode === 'voice_confirm');
-            setElevenlabs(next);
-            maybeUpdateHalFlow();
-          }
+          applyElevenlabsSettings(payload.elevenlabs);
           break;
         case 'halTtsResponse': {
-          const currentRequestId = halTtsRequestIdRef.current;
-          const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
-          if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) break;
-          halTtsRequestIdRef.current = null;
-
-          const ok = (payload as { ok?: unknown } | undefined)?.ok;
-          if (ok === true) {
-            const base64 = (payload as { audioBase64?: unknown } | undefined)?.audioBase64;
-            if (typeof base64 !== 'string' || base64.length === 0) {
-              handleHalAudioFinished();
-              break;
-            }
-            const volume = (payload as { volume?: unknown } | undefined)?.volume;
-            try {
-              const raw = atob(base64);
-              const bytes = new Uint8Array(raw.length);
-              for (let i = 0; i < raw.length; i += 1) {
-                bytes[i] = raw.charCodeAt(i);
-              }
-              playHalAudioBytes(bytes, typeof volume === 'number' ? volume : elevenlabsRef.current.volume);
-            } catch {
-              handleHalAudioFinished();
-            }
-            break;
-          }
-
-          const shouldNotify = (payload as { shouldNotify?: unknown } | undefined)?.shouldNotify === true;
-          const error = (payload as { error?: unknown } | undefined)?.error;
-          const message = typeof error === 'string' && error.trim() ? error.trim() : 'ElevenLabs TTS failed';
-          const convoId = conversationIdRef.current;
-          if (convoId) setHalDisabledConversationId(convoId);
-
-          halTeleportInProgressRef.current = false;
-          cleanupHalFlow();
-          halActiveKeyRef.current = null;
-          setHalSuppressedKeySynced(null);
-          resetHalUiState();
-          setHalForceRejectInput(false);
-          setHalTeleporting(false);
-
-          if (shouldNotify) showStatusMessage('error', `HAL audio disabled for this conversation: ${message}`);
+          handleHalTtsResponse(payload);
           break;
         }
         case 'halVoiceConfirmResponse': {
-          const currentRequestId = halVoiceConfirmRequestIdRef.current;
-          const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
-          if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) break;
-          halVoiceConfirmRequestIdRef.current = null;
-
-          const ok = (payload as { ok?: unknown } | undefined)?.ok;
-          if (ok === true) {
-            const decisionRaw = (payload as { decision?: unknown } | undefined)?.decision;
-            if (!isHalDecision(decisionRaw)) {
-              disableVoiceConfirmForConversation('Gemini returned an invalid decision. Using buttons instead.');
-              break;
-            }
-
-            if (decisionRaw === 'teleport_remote') {
-              handleHalTeleport();
-              break;
-            }
-
-            resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', decision: decisionRaw });
-            if (decisionRaw === 'approve_local') {
-              handleApprove();
-            } else {
-              handleReject(undefined);
-            }
-            break;
-          }
-
-          const error = (payload as { error?: unknown } | undefined)?.error;
-          const message = typeof error === 'string' && error.trim() ? error.trim() : 'Gemini classification failed';
-          disableVoiceConfirmForConversation(message);
+          handleHalVoiceConfirmResponse(payload);
           break;
         }
-          case 'attachmentsSelected':
-            if (Array.isArray(payload.attachments)) {
-              setAttachments((prev) => {
-                const existing = new Set(prev.map((a) => a.uri));
+        case 'attachmentsSelected':
+          if (Array.isArray(payload.attachments)) {
+            setAttachments((prev) => {
+              const existing = new Set(prev.map((a) => a.uri));
               const next = [...prev];
               for (const a of payload.attachments ?? []) {
                 if (!a || typeof a.uri !== 'string' || typeof a.label !== 'string') continue;
@@ -1389,38 +571,16 @@ export function App() {
           }
           break;
         case 'halTeleportUnavailable': {
-          const message = typeof payload.error === 'string' && payload.error.trim() ? payload.error.trim() : 'No server available';
-          halTeleportInProgressRef.current = false;
-          setHalTeleporting(false);
-          setHalForceRejectInput(true);
-          resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', lastError: message });
-          showStatusMessage('error', message);
+          handleHalTeleportUnavailable(payload.error);
           break;
         }
         case 'halTeleportFailed': {
-          const message = typeof payload.error === 'string' && payload.error.trim() ? payload.error.trim() : 'Teleport failed';
-          halTeleportInProgressRef.current = false;
-          setHalTeleporting(false);
-          setHalForceRejectInput(false);
-          resetHalUiState({ phase: 'error', eye: 'dim', lastError: message });
-          showStatusMessage('error', message);
+          handleHalTeleportFailed(payload.error);
           break;
         }
         case 'conversationStarted':
           if (typeof payload.conversationId === 'string') {
-            setHalDisabledConversationId(null);
-            setHalVoiceConfirmFallbackKey(null);
-            cleanupHalVoiceConfirm();
-            if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
-              halTeleportInProgressRef.current = false;
-              setHalTeleporting(false);
-              setHalForceRejectInput(false);
-              clearHalTimer();
-              stopHalAudio();
-              halActiveKeyRef.current = null;
-              setHalSuppressedKeySynced(null);
-              resetHalUiState();
-            }
+            handleConversationStarted();
             conversationIdRef.current = payload.conversationId;
             setConversationId(payload.conversationId);
             setEvents([]);
@@ -1517,12 +677,10 @@ export function App() {
               break;
             }
             case 'halApprove':
-              setHalDecision('approve_local');
-              postMessage({ type: 'command', command: 'approveAction' });
+              handleHalApprove();
               break;
             case 'halReject':
-              setHalDecision('reject');
-              postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
+              handleHalReject('E2E reject');
               break;
             case 'halTeleport':
               handleHalTeleport();
@@ -1530,18 +688,7 @@ export function App() {
             case 'halVoiceConfirmDecision': {
               const decisionRaw = (rawPayload as { decision?: unknown } | undefined)?.decision;
               if (!isHalDecision(decisionRaw)) break;
-              cleanupHalVoiceConfirm();
-              setHalForceRejectInput(false);
-              if (decisionRaw === 'teleport_remote') {
-                handleHalTeleport();
-                break;
-              }
-              resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', decision: decisionRaw });
-              if (decisionRaw === 'approve_local') {
-                postMessage({ type: 'command', command: 'approveAction' });
-              } else {
-                postMessage({ type: 'command', command: 'rejectAction', reason: 'E2E reject' });
-              }
+              applyHalVoiceConfirmDecision(decisionRaw, { rejectReason: 'E2E reject' });
               break;
             }
             case 'halExit':
@@ -1594,26 +741,27 @@ export function App() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [
-    cleanupHalFlow,
-    cleanupHalVoiceConfirm,
-    clearHalTimer,
-    disableVoiceConfirmForConversation,
-    events,
-    handleApprove,
-    handleEvent,
-    handleHalAudioFinished,
-    handleHalExit,
+    }, [
+      applyElevenlabsSettings,
+      applyHalVoiceConfirmDecision,
+      events,
+      halStateRef,
+      handleConversationStarted,
+      handleEvent,
+      handleHalApprove,
+      handleHalExit,
+    handleHalReject,
     handleHalTeleport,
-    handleReject,
-    maybeUpdateHalFlow,
-    playHalAudioBytes,
-    postMessage,
-    resetHalUiState,
-    setHalSuppressedKeySynced,
-    showStatusMessage,
-    stopHalAudio,
-  ]);
+    handleHalTeleportFailed,
+    handleHalTeleportUnavailable,
+    handleHalTtsResponse,
+    handleHalVoiceConfirmResponse,
+      maybeUpdateHalFlow,
+      postMessage,
+      resetForServerTargetChange,
+      setStatusBanner,
+      showStatusMessage,
+    ]);
 
   // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
@@ -1677,7 +825,7 @@ export function App() {
     setAttachments([]);
     setInlineImages([]);
     postMessage({ type: 'command', command: 'startNewConversation' });
-  }, [postMessage]);
+  }, [postMessage, setInlineImages, setStatusBanner]);
 
   const handleOpenHistory = useCallback(() => {
     setShowHistory(true);
@@ -1714,7 +862,7 @@ export function App() {
       contextFiles: selectedContextFiles.slice(),
       attachments: attachments.map((a) => a.uri),
     });
-  }, [attachments, inlineImages, input, postMessage, selectedContextFiles]);
+  }, [attachments, inlineImages, input, postMessage, selectedContextFiles, setInlineImages]);
 
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
