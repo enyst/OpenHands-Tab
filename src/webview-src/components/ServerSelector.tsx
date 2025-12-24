@@ -244,7 +244,11 @@ export function ServerSelector({
           </div>
         ) : (
           <button
-            onClick={() => setShowAddForm(true)}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowAddForm(true);
+            }}
             className="w-full px-4 py-3 text-sm text-left hover:bg-white/5 transition-colors flex items-center gap-2"
           >
             <span className="codicon codicon-add" />
