@@ -225,6 +225,13 @@ export function InputArea({
 
         {/* Accessory buttons row */}
         <div className="flex items-center gap-2 mt-3">
+          <AccessoryButton
+            label="Add context"
+            displayLabel="@"
+            onClick={onOpenContext}
+            badge={contextCount > 0 ? contextCount : undefined}
+          />
+
           <LlmProfileSelector
             profileId={llmProfileId}
             profiles={llmProfiles}
@@ -232,13 +239,6 @@ export function InputArea({
             onSelect={onSelectLlmProfileId}
             onOpenCreate={onOpenLlmProfilesCreate}
             onOpenEdit={onOpenLlmProfilesEdit}
-          />
-
-          <AccessoryButton
-            icon="mention"
-            label="Add context"
-            onClick={onOpenContext}
-            badge={contextCount > 0 ? contextCount : undefined}
           />
 
           <AccessoryButton
@@ -333,8 +333,9 @@ export function InputArea({
 }
 
 interface AccessoryButtonProps {
-  icon: string;
   label: string;
+  displayLabel?: string;
+  icon?: string;
   onClick: () => void;
   badge?: number;
   comingSoon?: boolean;
@@ -515,7 +516,7 @@ function LlmProfileSelector({
   );
 }
 
-function AccessoryButton({ icon, label, onClick, badge, comingSoon }: AccessoryButtonProps) {
+function AccessoryButton({ icon, label, displayLabel, onClick, badge, comingSoon }: AccessoryButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -535,8 +536,8 @@ function AccessoryButton({ icon, label, onClick, badge, comingSoon }: AccessoryB
       aria-label={label}
       title={label}
     >
-      <span className={`codicon codicon-${icon}`} />
-      <span>{label}</span>
+      {icon && <span className={`codicon codicon-${icon}`} />}
+      <span>{displayLabel ?? label}</span>
 
       {badge !== undefined && badge > 0 && (
         <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm">
