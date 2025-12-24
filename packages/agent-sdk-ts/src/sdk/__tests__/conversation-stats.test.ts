@@ -8,6 +8,24 @@ function makeMetrics(token: number): Metrics {
   return m;
 }
 
+function makePricedMetrics(params: {
+  promptTokens: number;
+  completionTokens: number;
+  inputCostPerToken: number;
+  outputCostPerToken: number;
+}): Metrics {
+  const m = new Metrics('m', { inputCostPerToken: params.inputCostPerToken, outputCostPerToken: params.outputCostPerToken });
+  m.addTokenUsage({
+    promptTokens: params.promptTokens,
+    completionTokens: params.completionTokens,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    contextWindow: 0,
+    responseId: `${params.promptTokens}:${params.completionTokens}`,
+  });
+  return m;
+}
+
 describe('ConversationStats', () => {
   it('registers llm metrics and combines', () => {
     const stats = new ConversationStats();
@@ -68,5 +86,25 @@ describe('ConversationStats', () => {
     newStats.registerLlm({ llm: { usageId: 'persistent', metrics: m2 } });
     // Should not merge again because _restored_usage_ids prevents it
     expect(m2.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(7);
+  });
+
+  it('combines accumulated cost across usage ids (best-effort)', () => {
+    const stats = new ConversationStats();
+    stats.registerLlm({
+      llm: {
+        usageId: 'a',
+        metrics: makePricedMetrics({ promptTokens: 10, completionTokens: 5, inputCostPerToken: 0.001, outputCostPerToken: 0.002 }),
+      },
+    });
+    stats.registerLlm({
+      llm: {
+        usageId: 'b',
+        metrics: makePricedMetrics({ promptTokens: 2, completionTokens: 3, inputCostPerToken: 0.001, outputCostPerToken: 0.002 }),
+      },
+    });
+
+    const combined = stats.getCombinedMetrics().getSnapshot();
+    // (10+2)*0.001 + (5+3)*0.002 = 0.012 + 0.016 = 0.028
+    expect(combined.accumulatedCost).toBeCloseTo(0.028);
   });
 });

@@ -23,14 +23,23 @@ export type TokenUsage = {
 export class Metrics {
   modelName: string;
   accumulatedCost = 0;
+  inputCostPerToken: number | null = null;
+  outputCostPerToken: number | null = null;
   maxBudgetPerTask: number | null = null;
   costs: Cost[] = [];
   responseLatencies: ResponseLatency[] = [];
   tokenUsages: TokenUsage[] = [];
   accumulatedTokenUsage: TokenUsage | null = null;
 
-  constructor(modelName = 'default') {
+  constructor(
+    modelName = 'default',
+    options: { inputCostPerToken?: number | null; outputCostPerToken?: number | null } = {},
+  ) {
+    const sanitizeRate = (rate?: number | null) =>
+      typeof rate === 'number' && Number.isFinite(rate) ? rate : null;
     this.modelName = modelName;
+    this.inputCostPerToken = sanitizeRate(options.inputCostPerToken);
+    this.outputCostPerToken = sanitizeRate(options.outputCostPerToken);
   }
 
   static fromJSON(json: unknown): Metrics {
@@ -178,6 +187,7 @@ export class Metrics {
       responseId: String(params.responseId ?? ''),
     };
     this.tokenUsages.push(usage);
+    this.maybeAddCostForTokenUsage(usage);
 
     const add = {
       model: this.modelName,
@@ -205,6 +215,15 @@ export class Metrics {
         perTurnToken: add.perTurnToken,
       };
     }
+  }
+
+  private maybeAddCostForTokenUsage(usage: TokenUsage): void {
+    const inputRate = this.inputCostPerToken;
+    const outputRate = this.outputCostPerToken;
+    // Best-effort: only compute cost when both rates are known.
+    if (typeof inputRate !== 'number' || typeof outputRate !== 'number') return;
+    const cost = usage.promptTokens * inputRate + usage.completionTokens * outputRate;
+    if (cost > 0) this.addCost(cost);
   }
 
   merge(other: Metrics): void {

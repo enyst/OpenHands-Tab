@@ -154,7 +154,10 @@ export class LLMFactory {
     }
 
     if (derivedUsageId) {
-      const metrics = new Metrics(config.model);
+      const metrics = new Metrics(config.model, {
+        inputCostPerToken: config.inputCostPerToken ?? null,
+        outputCostPerToken: config.outputCostPerToken ?? null,
+      });
       const tracked = new TrackedLLMClient({
         inner: base,
         usageId: derivedUsageId,
