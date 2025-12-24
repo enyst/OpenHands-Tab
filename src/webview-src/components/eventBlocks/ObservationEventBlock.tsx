@@ -7,8 +7,6 @@ import { EventContainer, FileEditorObservationSummary, OBSERVATION_ACCENT_COLOR,
  */
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const observationString = JSON.stringify(event.observation, null, 2);
-  const isTruncated = observationString.length > 2000;
   const isFileEditObservation = (() => {
     if (event.tool_name !== 'file_editor') return false;
     const candidate = (event.observation as Record<string, unknown> | null) ?? null;
@@ -23,6 +21,8 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
       : null;
   const hasSummary = observationSummary !== null;
   const shouldShowRaw = isFileEditObservation ? false : !hasSummary || isExpanded;
+  const observationString = shouldShowRaw ? JSON.stringify(event.observation, null, 2) : '';
+  const isTruncated = shouldShowRaw && observationString.length > 2000;
   const showHeaderToggle = hasSummary && event.tool_name !== 'terminal' && !isFileEditObservation;
   const showFooterToggle = !hasSummary && isTruncated;
   const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
