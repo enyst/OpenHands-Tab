@@ -3,10 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import React from 'react';
 import { App } from '../components/App';
 import type { MessageEvent as AgentMessageEvent } from '@openhands/agent-sdk-ts';
-
-function postToWindow(payload: unknown) {
-  window.postMessage(payload, '*');
-}
+import { postToWindow } from './testUtils';
 
 describe('Pasted images', () => {
   const mockApi = { postMessage: vi.fn() } as any;

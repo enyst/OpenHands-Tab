@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
+import { postToWindow } from './testUtils';
 import type {
   MessageEvent as AgentMessageEvent,
   AgentErrorEvent,
@@ -11,10 +12,6 @@ import type {
 afterEach(() => {
   cleanup();
 });
-
-function postToWindow(payload: any) {
-  window.postMessage(payload, '*');
-}
 
 const mockApi = { postMessage: vi.fn() } as any;
 
