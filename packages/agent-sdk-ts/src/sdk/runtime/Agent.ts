@@ -97,6 +97,13 @@ function toOptionalNonEmptyString(value: unknown): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
+function isSafeProfileId(profileId: string): boolean {
+  if (!profileId.trim()) return false;
+  if (profileId !== profileId.trim()) return false;
+  if (profileId.includes('/') || profileId.includes('\\')) return false;
+  return /^[a-zA-Z0-9._-]+$/.test(profileId);
+}
+
 function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): string {
   if (text.length <= maxChars) return text;
   const available = maxChars - TOOL_MESSAGE_CLIP_MARKER.length - 2;
@@ -990,6 +997,24 @@ export class Agent extends EventEmitter {
     const effectiveUsageId = profileId && (!configuredUsageId || configuredUsageId === 'default-llm')
       ? profileId
       : configuredUsageId;
+
+    const configuredApiKey = toOptionalNonEmptyString(s.secrets?.llmApiKey);
+    const configuredApiKeyIsReference =
+      typeof configuredApiKey === 'string' && /^[A-Z0-9_]+$/.test(configuredApiKey);
+    const configuredApiKeyInline = configuredApiKeyIsReference ? undefined : configuredApiKey;
+    if (configuredApiKeyInline) {
+      this.secrets.set('openhands.llmApiKey', configuredApiKeyInline);
+    }
+
+    const preferredApiKeys = (() => {
+      if (!profileId || !isSafeProfileId(profileId)) return undefined;
+      const keys: string[] = [`openhands.llmProfileApiKey.${profileId}`];
+      if (configuredApiKeyIsReference && configuredApiKey) {
+        keys.push(configuredApiKey);
+      }
+      return keys;
+    })();
+
     const config = {
       profileId,
       provider: s.llm.provider ?? undefined,
@@ -997,7 +1022,7 @@ export class Agent extends EventEmitter {
       openaiApiMode: s.llm.openaiApiMode ?? undefined,
       usageId: effectiveUsageId,
       baseUrl: s.llm.baseUrl ?? undefined,
-      apiKey: s.secrets?.llmApiKey ?? undefined,
+      apiKey: profileId ? undefined : configuredApiKey,
       apiVersion: s.llm.apiVersion ?? undefined,
       timeoutSeconds: s.llm.timeout ?? undefined,
       temperature: s.llm.temperature ?? undefined,
@@ -1012,6 +1037,7 @@ export class Agent extends EventEmitter {
     };
     const factory = new LLMFactory(config, {
       secrets: this.secrets,
+      preferredApiKeys,
       registry: this.registry,
       onMetricsUpdate: (usageId, metrics) => {
         if (!this.conversationStats) return;
