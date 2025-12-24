@@ -520,6 +520,8 @@ export function App() {
     } else if (isAgentErrorEvent(event)) {
       showStatusMessage('error', event.error);
       clearSubmissionState();
+    } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
+      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: 8000 });
     } else if (isPauseEvent(event)) {
       showStatusMessage('warn', 'Conversation paused');
     }
