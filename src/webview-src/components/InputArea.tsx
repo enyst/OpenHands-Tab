@@ -143,7 +143,7 @@ export function InputArea({
           }}
         >
           {/* Textarea */}
-          <textarea
+            <textarea
             id="openhands-chat-input"
             ref={textareaRef}
             value={value}
@@ -158,68 +158,70 @@ export function InputArea({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
-            className={`
-              w-full px-4 py-3 pr-14
-              bg-transparent
-              text-sm leading-relaxed text-stone-200
-              resize-none
-              focus:outline-none
+              className={`
+                w-full px-4 py-3 pr-24
+                bg-transparent
+                text-sm leading-relaxed text-stone-200
+                resize-none
+                focus:outline-none
               placeholder:text-stone-500
               disabled:cursor-not-allowed
             `}
             style={{
               minHeight: '44px',
-              maxHeight: '200px',
-            }}
-          />
+                maxHeight: '200px',
+              }}
+            />
 
-          {/* Attachments button (icon-only) */}
-          {onOpenAttachments && (
-            <button
-              type="button"
-              onClick={onOpenAttachments}
-              className={`
-                absolute right-2 top-2
-                h-9 w-9 rounded-lg
-                flex items-center justify-center
-                transition-all duration-200
-                focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-                bg-white/[0.06] text-stone-300 border border-white/[0.04]
-                hover:bg-white/[0.08] hover:border-white/[0.1]
-              `}
-              aria-label="Attachments"
-              title="Attachments"
-            >
-              <span className="codicon codicon-attach" />
-              {attachments.length > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm">
-                  {attachments.length}
-                </span>
+            <div className="absolute right-2 bottom-2 flex items-center gap-2">
+              {/* Attachments button (icon-only) */}
+              {onOpenAttachments && (
+                <button
+                  type="button"
+                  onClick={onOpenAttachments}
+                  className={`
+                    relative
+                    h-9 w-9 rounded-lg
+                    flex items-center justify-center
+                    transition-all duration-200
+                    focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+                    bg-white/[0.06] text-stone-300 border border-white/[0.04]
+                    hover:bg-white/[0.08] hover:border-white/[0.1]
+                  `}
+                  aria-label="Attachments"
+                  title="Attachments"
+                >
+                  <span className="codicon codicon-attach" />
+                  {attachments.length > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm">
+                      {attachments.length}
+                    </span>
+                  )}
+                </button>
               )}
-            </button>
-          )}
 
-          {/* Send button */}
-          <button
-            onClick={handleSubmit}
-            disabled={disabled || !canSend}
-            className={`
-              absolute right-2 bottom-2
-              h-9 w-9 rounded-lg
-              flex items-center justify-center
-              transition-all duration-200
-              focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-              ${canSend && !disabled
-                ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
-                : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'
-              }
-            `}
-            aria-label="Send message"
-            title="Send message (Enter)"
-          >
-            <span className="codicon codicon-send" />
-          </button>
-        </div>
+              {/* Send button */}
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={disabled || !canSend}
+                className={`
+                  h-9 w-9 rounded-lg
+                  flex items-center justify-center
+                  transition-all duration-200
+                  focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+                  ${canSend && !disabled
+                    ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
+                    : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'
+                  }
+                `}
+                aria-label="Send message"
+                title="Send message (Enter)"
+              >
+                <span className="codicon codicon-send" />
+              </button>
+            </div>
+          </div>
 
         {/* Accessory buttons row */}
         <div className="flex items-center gap-2 mt-3">
