@@ -9,7 +9,14 @@ import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
-import type { ConversationInstance, SecretRegistry, Event } from '@openhands/agent-sdk-ts';
+import { isBashEvent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
+
+export type TerminalLogInfo = {
+  hasTerminal: boolean;
+  received: number;
+  lastEvents?: Array<{ type?: string; timestamp: number }>;
+};
+
 
 export type RenderedEventsInfo = {
   count: number;
@@ -68,10 +75,12 @@ type RegisterDiagnosticsCommandsDeps = {
   getConversationMode: () => 'local' | 'remote';
   getTerminal: () => vscode.Terminal | undefined;
   getReceivedTerminalEventsCount: () => number;
+  getRecentTerminalEvents?: (max?: number) => Array<{ type?: string; timestamp: number }>;
   getOutputChannel: () => vscode.OutputChannel | undefined;
   renderError: RenderError;
   resolveGitContext: ResolveGitContext;
   summarizeWithLocalLlm: SummarizeWithLocalLlm;
+  onTerminalEvent: (event: BashEvent) => void;
 };
 
 let nextE2ERequestId = 0;
@@ -120,6 +129,12 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     const chatView = deps.getChatView();
     const terminal = deps.getTerminal();
 
+    const terminalInfo: TerminalLogInfo = {
+      hasTerminal: !!terminal,
+      received: deps.getReceivedTerminalEventsCount(),
+      lastEvents: deps.getRecentTerminalEvents?.(10),
+    };
+
     return {
       chat: {
         hasView: !!chatView,
@@ -138,10 +153,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       status: deps.getConversation()?.getStatus(),
       mode: deps.getConversationMode(),
       serverUrl: getServerUrl(),
-      terminal: {
-        hasTerminal: !!terminal,
-        received: deps.getReceivedTerminalEventsCount(),
-      },
+      terminal: terminalInfo,
     };
   });
 
@@ -200,6 +212,8 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
 
   // Test command to send mock events to webview for E2E testing
   const sendTestEvent = vscode.commands.registerCommand('openhands._sendTestEvent', (event: Event) => {
+
+
     deps.sentTestEvents.push(event);
     if (deps.sentTestEvents.length > deps.maxTestEvents) {
       deps.sentTestEvents.splice(0, deps.sentTestEvents.length - deps.maxTestEvents);
@@ -467,6 +481,19 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return { ok: true, profileId, hasKey: true };
   });
 
+  const injectTerminalEvent = vscode.commands.registerCommand('openhands._injectTerminalEvent', (raw: unknown) => {
+    if (!isBashEvent(raw)) {
+      return { injected: false, error: 'Invalid BashEvent structure' };
+    }
+
+    try {
+      deps.onTerminalEvent(raw);
+      return { injected: true };
+    } catch (err) {
+      return { injected: false, error: deps.renderError(err) };
+    }
+  });
+
   return [
     diag,
     queryLastError,
@@ -482,5 +509,6 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     updateProfile,
     selectProfile,
     setProfileApiKey,
+    injectTerminalEvent,
   ];
 }
