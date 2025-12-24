@@ -1,0 +1,1 @@
+{"model":"gpt-5-mini","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Tell a short story about Napoleon. Keep it under ~120 words."}]}],"store":false,"include":["reasoning.encrypted_content"],"reasoning":{"effort":"medium","summary":"detailed"},"max_output_tokens":350}

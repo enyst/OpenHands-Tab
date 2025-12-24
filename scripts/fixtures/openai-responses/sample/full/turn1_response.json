@@ -1,0 +1,72 @@
+{
+  "id": "resp_0e6639d01be9217b01694c2d9c6e288197b8f36bb8f0f19698",
+  "object": "response",
+  "created_at": 1766600092,
+  "status": "incomplete",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": null,
+  "error": null,
+  "incomplete_details": {
+    "reason": "max_output_tokens"
+  },
+  "instructions": null,
+  "max_output_tokens": 350,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0e6639d01be9217b01694c2d9ca76c81979305a838c542e98b",
+      "type": "reasoning",
+      "encrypted_content": "gAAAAABpTC2pwXHQ3MfIBLkzhs0YRNj-ywnXuS-kZsXuKD9FKNzP1fHjqnNUamh1KGcd53iTF9ayTNHRa-2JqAhRtN7XuKlst8OuYrdytokaJhsdSi4AuxJ3r4rcBOAhjOuEfSg2D3uO4YxeXe8DOcsCfnamdRp4NBoLAwT_Cv0MX5Tr2kzHA2GrX2DA8TlCQ09FmYbbynDNYwwx115m6U2YVYyhbshW40kpO6HJMxiUNd7W6zv_mFvpEmsBc4esD6H_mGEdicPiUq-zQGRBECdaXXiAul18Y0FJPfEWXFT0pGg3k5XFhBSZEYSjWFN2O19W8vwAznhJ2iylVxMOMuzKHqC4BPersL57no8GSa6WWqQlURI9DzSsYpbRsKSZY2bzLud79kGAgFHqqyMOOYB4yf3oJQmegpS6GUwXRRDFbeHrzr-hBkbRYwg4bctSBkOFm3Yq5wWkz-9DO7yQgYJZNRtFj-YRMFHHOHBHIh-VZ9PXypTWE3vUXeilDgX8z-rY3tG2pdHlh3vbUwqJBSGt5JFzRr9HxvCYG4ahmO3ge1_yGS2KTVcibhIQDKGrCkn2pKlwk0KXBMdzSDwtp3bkAk_OYa8Bh7hhLKC2ZqdxQ-1kaRgE65dOc2fCovG0u-BNBaNNKLj2ry9BvYA9XLfhDVK60wuXBZBPLhCTB2GEai9RVCm039AI08pXZEEpLUijsn-IpyUoDUuTT0xMjUUrgsIOMXdKFubBGn4Cw6snUSKeyWPPzWxwEm_TK2Y9gnM4Bq0FdXkgLcFmSCe1vxvsDTEsT7Lhp1egp5iP6GDRqhKhC2xpy36PggdLBZZbsrESDsjuFdAwKGu9KjzUUYgO8_Cb9I9TEwxWszmtNPhB9r0_fpe58e75cmlYPct6JFdumOugcGZHEFK6kyx6We0CA8KO_Xbin-WKnvUNIB7YtrBs-lQyOCMfYsbGckYjIagTDzgN83gHY_rIqPLeTXiOgWViDWsldoSq4IGyoNKRiSqa8s5sVLTiAyFrGORgO6uHc7SwI1tCTtCZvl010UNgL_sCKYGisLlVTZEZtUXO4o5dQWFkdwuXTSnOLsJHjAu44qqcZ6b_7_5NJf5Zo2bxukielLUcIVqPPcGjbysfTCH1OTED75aVs0EvLgNB-Nwu5MZnFg29wc06lNVv-JhdWmu6TOVPCXbL6R6Ti0tIoraZMGnR2bDHg-VVr9U6kkP7Rxg5j9xrDbyaWpDxAtReAmyL2agC0HEW-5YU2flAUwZux2N0wWiUsoM6kXn6tKc5KEvqv7-Jn7P9TalZxNpdzdqZMAKDWiDPm4oR0weqzWJ0tBGf8GbjPFTYX5jO8f4BsOEbtG4IppbT7up2JfeJi10VjtyAetgpzTceW0TGDmNKHbwimoWWUiQOh9fbSjScrKuOCqDUu5Vhr_9HqBUYgjjnwT3fjRBhyjj4NfgjjBclUz8BHGXnBQ_br-XC0cg1OgscmAl4MWjNpdDX2F3pc24YO0CB4_pXIlMeAOWouWZkFSolotDbqSqc3GAW3QRSjtK6iIJCvZkvU5xpp6dWmEDe27VzuGEAuQT05Na4bt4kPoBEUnoTegYTz9HUtOBl6bokwC9QWmzFlELbxd5eEZxKubJtdcB8nCtCw5XVB6opSnLkJHLxTSq_fLmWvY3yjLB-hZ4uuZTpUsY_yq5haEMlqQHTBi4S1sWA96qALZxqyU8edTpd9m8yW2CxcqVnRcDQXAt-2mXGeSlLBlrAY5Au6_rGIPWBUdtE1TPbg22qbdIRVtSLj542qeZ0hxT9NA56R6kv6wUzX3VUvBtuv-IFPlZh9zRYC43pJSGEuixkyZK7LQCknaHbSiaKVrNCFnXjg0OE5eWeibLN7CsRGH-_5UNdHV_fwKNgrXHfBS0okTufpyWSUvWusMHgkNcy3Dcxkr-AFt03dcF8oZ0lXOOtCr7ChiaMAPAuzqq7MrKjB-x5B9f4zna2XRhYE4L7pukF2vrlQeqY3wqCRQWlBXt8U5eW0wx_U38q9W1ah04B5FqtVzTWOVJuRcweb-rE-b6MmN5W0KSECt9CNqswAWlym8HpaON6PnNxfBLGpkUbjqOg4lfmRVLiG4Z4xM6c9zS6zcCTLLwsTFIp6tjNceWM2CzrUNEl7slLybTIyBkKeduweJu7m5z9hPF2aLXvJbU-7ORo8bZQAEMZ_FXMCm0ODlEB20ufoV8mZ1omcAYrkGc_VlAarImxvupJn2DHFhw9N72aNsanyIsKmNqohZ4CybvgSWv320e6RXglKf2Zu0gYjQqaMydux5zMTS1XkrtdxQhtfy4rCsl8UFYxOImOLMVsDtjhLEJJcE7PRyRlYTXxAHFTk_A6IP6BQZWrlzt7MSQZqgfoY03bMCY3_UNVx6C6np6vDG3bZfwucHUVGtwaAoSMF9pT3DAjyfRn3OgIF8R4CP7W_ixFkBKd11h3O4mXHblZNxEPm00bhlTMxHly8oAgmvST42dFiIPE5dOFpTOWVMK64zmUzNVjfXiZx-BAit7Z9rhMkLTfQ068BVff8tOTiEVZf-IxmPRL1xc_V7Ecsh9jUgN8MFYvRWPHFN5oFGY6AV01iPBXdlZtyrnJPLI-p6mJP7evlz3Y7z_xR6cman5wTOq7SdWp6cQ5URjjzjaB_Mk8mQRdYhicOWr1eEch6_s2YbhIUu19zBVDYR_WDUXfsSEgdSMX-X1AreuQMwf1I1Ta8L88vWAL3KAzmL3mOijFVHKCb4bbkAw4qBQH-59Pc-R88zEvJgCziVx8rIFaiTCDNCnqHU12Ch_oxs5EVORaKEEPY9U7k08O8ywSqlYZkqJg4kYWnPWwrc20o6nUmaNIcE1lXwWytgSBlsmUFxuH9BiB5XSMsyVSu6rBhJ2sS51PvuGdxJbXQyKaanwh5ZD1yHfWQs2tiYQUn7I=",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "**Crafting a short story about Napoleon**\n\nThe user has asked for a short story about Napoleon. Since he's a public figure, I can go ahead without any constraints. I\u2019ll aim for around 90-110 words total, focusing on a narrative that captures interesting moments, possibly on St. Helena or during his crossing of the Alps. Reflecting during his exile could create a poignant tone. I\u2019ll weave in details like his hat, cloak, and cane, and conclude with a line about his empire being a memory. My target is about 95 words. Let\u2019s get to writing!"
+        },
+        {
+          "type": "summary_text",
+          "text": "**Reflecting on the island sounds**\n\nI'm imagining a scene where, in the evening, a character sits quietly, absorbing the gentle, patient sounds of the island. The waves and the distant bell create a harmony that feels both strange and comforting. It\u2019s such a tranquil moment, allowing for reflection and connection with nature. This harmony could symbolize peace amidst chaos, possibly aligning with the character's own journey or thoughts. I want to convey this sense of stillness and beauty in a concise way."
+        }
+      ]
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": "detailed"
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 20,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 320,
+    "output_tokens_details": {
+      "reasoning_tokens": 320
+    },
+    "total_tokens": 340
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -1,0 +1,72 @@
+{
+  "id": "resp_0e6639d01be9217b01694c2dc875a48197913a8c1e1f62f82f",
+  "object": "response",
+  "created_at": 1766600136,
+  "status": "incomplete",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": null,
+  "error": null,
+  "incomplete_details": {
+    "reason": "max_output_tokens"
+  },
+  "instructions": null,
+  "max_output_tokens": 350,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0e6639d01be9217b01694c2dc8aaa48197b285c9a62a22752d",
+      "type": "reasoning",
+      "encrypted_content": "gAAAAABpTC3XB3bbJQlO0TMsZn_9OBzEK-_vd4FYtL83T89DIAUIFEn-d3H73ll-mEKyPa2b2Fse4cl8k5iaK-SIqJjoUTDI4YUE94n_KJj8n4Rc59i7sN8Js2VTgIGhv958HxXXFjkTlZHutn1b9C2Wm7kriQDv8ywXI0wczFzN96cSMzWYQLu4mI5jAyjnTfsF316A0EBb6XVEtPyS7xyMnaCu0fqMXU3iZ6aCI4PPO-c0rNlXtXpPuDDYiuixxISVksMdsUiXDElZEf3gm6Ym2gdX-8UGMCsZIh7NFnVBZaI9JW2j2_cGrownXDBt51fxm2agc9U7Ev65DNj-1LNynZhRVuWjzttaoNLN1SSqDMdMuw7x3u5cACJAIngyrFYHSjypw2qnQ0CHbuQJYYkqW5P9bx7K3yuig_87Rp9UbIIDFU-Arr2FfzR1iaHR68YOd7FqxXV3H5WbfjHRLWDLnnzzP412oCJVEqlcLlUeKyxw191wg-nmsOHFsxoh_0pCZgcrFx34o9x4BIQb71EZZPY8kTAmea4_-ZVA6pa3iUwCg4DW-BnqmH57tdutuwW7kdceZrMmfQ1RKsq48ZjY_ivFnpg8P4bjMlRgCmnlMIaphrGglBQjrgQFz2rQ8L7KT4vLrc1VMT6ZiSwXBhTnQ6gc6927Cegr8Xic_VTc484V53vwRymG9biXYVHYy7CUIsPmh0WFSdSFA6cODq0hmibLj1pxbC1PuURR05hlSWqDgiWgkeVQJ3vY3ddm9M2-gARlN6BELjMb_ZBkMaSqkmAhBjFHHMlaqRRNayh8wzea_ONG-Oigm2C91WUPTmyLVR5LIbBxev0T1TSKyJMUFyZ2G6EX6_jeTNK-ZTz5DRwbFgRhlMsfk_ld99KO_9aom9afbNjVPZP_9tWX58zdkQeobDpLUmUwTHQDpBHKTmjfN4tO7F0rfbufsffN-ws05itCzUCFail9ryX4LkVCe8qIkVK_AkEeBVrbbvOoNi9EFJ8t_390LDCZh6pNSCOAwpt8GDQ8-icWatoIiMN0ID5yxGrdGaFz7v1Rdy5SKHehoxgh2_Wqy7shHUVJT-xjX76SvDkfQ1w_ugrzHZxFg1B5_jrmtxXHU20cZScuUO16xogPJ_9sV1MZANaM-oe36OFvKSKEDaK-_qdOMLYyPw2i-pnxUHwaNXz7gzH5TpiEQfXl2fb6vPGNB2c7xePdqbvCPdlO-n2xiw1_P1X0TRu-cDejz3c3p-_gDLwi8mDLmDdw9iZOoy4FLZnSkp3k6U_jRoi9tiS5f0r7aiqwwuAxagKAAxDevVOQxfSoJF6U4GNLPy9iyEmednig-8FwsJBPj0Pwo-otYP8TMb5sKYBzW1nVAls98qE-V85xXtO2SPqIspGuF0IY6YqEdIzKOXODb2w320UyD4vdJT9qhbQEA9oOf_Nq6sl9sHZ-jk-pLdZsBg9rs-mS6-UoLfUsVzz20VnPFlJMcexphseBko6iKGHyqNhmYOTxh7yffQch0pgyJ1tIYMsyqQPON9f5Ocu4sMYWeaDWXVIohORdR3j6Vf9umewRL4YKyfSg59LE5jQWdbufV45wh8_IeacTDtcIRtHdQwdMWHsOvjGexLk0ImY9yMhwp9fUUM8sXL790deS7IfO13hODISfHjq4HbmAHiMWb75V7AshrO64fmDpU2U-k9TcIUdbM_3iQQMvYlBnPmkfbVOscM9X4xEZIPfP6Ttwj4StahDvR-FMCh10I7dpnBBN7--NxfxSSTPFYNpuY05IqjMnXxm95kAY1n_t0gwLZse8zXe8p0M_dWwk2Fk9HT6Fog8p2eADuKnSl8PjlB-1ImdtpwF9NyDv5vxOzfXEUvmuiQWrZiKTPJJ_zH6vhFsTa1NNm1_PlWVC4CfL-c4qaCjyXrfLnEdiKmyAagMZEU6cbjyGNIyk8N2cY0ePiDTXdkoxEnZaF3R-FJ6zGuSQAwWjF3OXUWbqlIbWqb68q-sq12Mu2m6WzltcMv21ZNJU5DDf-G6mACmBOV-pwnRbFuv1vF7LXSYKVNworgaDWwFGxOpGjaFdVrdDmNeqUdvhGfpDzbxIozgNZGg-9nTyRCFS1jDGL2n6ymm2PeabrY7vxrMdq9pWA2gv4_BM3jhIoNYwLZOL78JM3jU8EM__c7IWRc-btETKui2_hOCJcMGkWPyDSbTNiPd5COVpQ2McS4xWD58aWh3XduUScK0ZV-fLH1lZnVOsyLaV-QCeaIcUKsaRUiL-b_rYsVEBft4cZ3U2D89DzvzNe0PGXpVK4kZMAMpJb9gTx3EklqLLfRv9jza4olAeSXzs_TJ6iI5SM_oJgPTNUx3J2bEtF5e8Ja5XoAuBkYh2ANmj8SoK_241qaTxvWvfi0teSvMM3I9hFlwOgaYmN6u2RQViLFXjwjuWOQ2qXQUd6Y2-lspGFmgDMdA4w1NVM5CVFfA5B19ouLkhkTR9_WJwWk37dSyr7L53nfZk5ELenDXYZU6Dcw7uQVReCveyOYirqS0lL3jkqBK4o_heyqB5Z0BUaqL9Ptn37gVspIJ5xlkzTtgAmGs1uQBVCitUyX7UGJuWGb1MjeLJ7mCJlAj_mPwy3f4-mhKZ-wpd8VHMQiLVxkFcCfCrZ0cYvPN1paR4vurgZbTtEDh7K4VWIalCiYzf7FRtmENjauDRn45N74ifg1mmRo9Po0trmp8sVsW7J7_1PYTvnD5p9XueKIa2916p_PzaqlYlcrxAB-t1_ZTyLK-hsPQVzRnSC5vipPZDbstAkXAVPCciaFKuRCxPwDoUw6SfQkQwNPTmmTn6-M_3QqjJLKMHk5x8Lq5-rg6Dnyj4BTlCGt_PLVkfSa1rE9LhqlhyYCPy4Z2zXBmHAB3jqNcpgJOtsS9VS-V2JArpQTMzl2CR0dpxGA0TPTPKOlCMKTszFBiilsPG84nf7wuezv0E1Q1oBvXDOrp-I54Tr0XhmrsepWgEzvw7WunqdybOaADxYjaXr4PJOZDdw9rQrQ2LplcoxNnX1zqErSVXUQ3db26CZHgUmp9IBagSKXmiaKvRzINON_sUt5kFUzo1PhuRC4apdb32i8L9zm3pSGpmFNSPd0Z9RhhKHrO_5WOzWRs=",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "**Planning Napoleon's tasks**\n\nI've got three prompts from the user to address: a short story about Napoleon under 120 words, an analysis of his return to the throne (the Hundred Days) under 150 words, and reflections on those events with lessons for today, again under 150 words. \n\nI\u2019m considering whether to separate these sections clearly, maybe by labeling them 1, 2, and 3 or using headings. The writing needs to be concise and straightforward without heavy formatting, though bullet lists might be fine. I\u2019ll keep it organized!"
+        },
+        {
+          "type": "summary_text",
+          "text": "**Analyzing Napoleon's return**\n\nI'm breaking down the causes of Napoleon's return to power. There was discontent with the Bourbon restoration, his charisma, and weak Allies which affected the situation. Strategic errors included underestimating the Coalition's speed and dividing his forces. Wellington and Bl\u00fccher managed to unite at Waterloo, which was crucial. Political miscalculations also played a part, like French war-weariness and insufficient resources. The consequences were his final defeat, harsher terms, exile, and the restoration of the monarchy, reshaping Europe significantly."
+        }
+      ]
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": "detailed"
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 76,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 320,
+    "output_tokens_details": {
+      "reasoning_tokens": 320
+    },
+    "total_tokens": 396
+  },
+  "user": null,
+  "metadata": {}
+}
