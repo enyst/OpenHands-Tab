@@ -35,15 +35,11 @@ export class Metrics {
     modelName = 'default',
     options: { inputCostPerToken?: number | null; outputCostPerToken?: number | null } = {},
   ) {
+    const sanitizeRate = (rate?: number | null) =>
+      typeof rate === 'number' && Number.isFinite(rate) ? rate : null;
     this.modelName = modelName;
-    const inputCostPerToken = options.inputCostPerToken;
-    this.inputCostPerToken = typeof inputCostPerToken === 'number' && Number.isFinite(inputCostPerToken)
-      ? inputCostPerToken
-      : null;
-    const outputCostPerToken = options.outputCostPerToken;
-    this.outputCostPerToken = typeof outputCostPerToken === 'number' && Number.isFinite(outputCostPerToken)
-      ? outputCostPerToken
-      : null;
+    this.inputCostPerToken = sanitizeRate(options.inputCostPerToken);
+    this.outputCostPerToken = sanitizeRate(options.outputCostPerToken);
   }
 
   static fromJSON(json: unknown): Metrics {

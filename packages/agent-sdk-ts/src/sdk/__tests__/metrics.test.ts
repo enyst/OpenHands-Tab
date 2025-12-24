@@ -85,4 +85,17 @@ describe('Metrics', () => {
 
     expect(m.accumulatedCost).toBeCloseTo(0.21);
   });
+
+  it('does not compute cost when cost rates are not configured', () => {
+    const m = new Metrics('model-without-rates');
+    m.addTokenUsage({
+      promptTokens: 100,
+      completionTokens: 50,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      contextWindow: 0,
+      responseId: 'r1',
+    });
+    expect(m.accumulatedCost).toBe(0);
+  });
 });
