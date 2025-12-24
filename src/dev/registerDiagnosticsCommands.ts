@@ -482,11 +482,12 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
   });
 
   const injectTerminalEvent = vscode.commands.registerCommand('openhands._injectTerminalEvent', (raw: unknown) => {
-    const event = raw as BashEvent | undefined;
-    if (!event || typeof event !== 'object') return { injected: false };
+    if (!isBashEvent(raw)) {
+      return { injected: false, error: 'Invalid BashEvent structure' };
+    }
 
     try {
-      deps.onTerminalEvent(event);
+      deps.onTerminalEvent(raw);
       return { injected: true };
     } catch (err) {
       return { injected: false, error: deps.renderError(err) };
