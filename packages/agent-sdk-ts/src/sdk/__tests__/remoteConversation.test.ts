@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import type { Event } from '../types';
+import { saveProfile } from '../llm';
 
 let wsInstances: MockWS[] = [];
 
@@ -70,6 +74,8 @@ const baseSettings = {
   confirmation: { policy: 'never' as const },
   secrets: {},
 };
+
+const makeTempDir = (prefix: string) => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 
 describe('RemoteConversation', () => {
   beforeEach(() => {
@@ -174,6 +180,44 @@ describe('RemoteConversation', () => {
     conversation.disconnect();
     expect(id).toBe('conv-1');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('derives usage_id from profileId when usageId is default-llm', async () => {
+    const dir = makeTempDir('remote-conversation-profiles-');
+    try {
+      saveProfile('p1', { provider: 'openai', model: 'gpt-5-mini' }, { rootDir: dir });
+
+      let capturedReq: any = null;
+      const fetchMock = vi.fn(async (url: string, init?: any) => {
+        expect(url).toContain('/api/conversations');
+        capturedReq = JSON.parse(init?.body ?? '{}');
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 'conv-1' }),
+          text: async () => '',
+        } as any;
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const { RemoteConversation } = await import('../conversation/RemoteConversation');
+      const conversation = new RemoteConversation({
+        serverUrl: 'http://localhost:3000',
+        settings: {
+          ...baseSettings,
+          llm: { profileId: 'p1', usageId: 'default-llm' },
+        } as any,
+        profileStoreOptions: { rootDir: dir },
+      });
+
+      const id = await conversation.startNewConversation();
+      conversation.disconnect();
+
+      expect(id).toBe('conv-1');
+      expect(capturedReq?.agent?.llm?.usage_id).toBe('p1');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('omits invalid secret values when starting a new conversation', async () => {

@@ -170,7 +170,10 @@ export class RemoteConversation extends EventEmitter {
       const profileBaseUrl = toOptionalString(profileConfig?.baseUrl);
       const profileApiVersion = toOptionalString(profileConfig?.apiVersion);
 
-      const effectiveUsageId = usageId ?? profileUsageId;
+      const derivedUsageId = profileId && (!usageId || usageId === 'default-llm')
+        ? profileId
+        : undefined;
+      const effectiveUsageId = derivedUsageId ?? usageId ?? profileUsageId;
       const effectiveModel = profileModel ?? model;
       const effectiveBaseUrl = baseUrl ?? profileBaseUrl;
       const effectiveApiVersion = apiVersion ?? profileApiVersion;

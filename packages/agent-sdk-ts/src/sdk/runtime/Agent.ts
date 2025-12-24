@@ -986,12 +986,16 @@ export class Agent extends EventEmitter {
     if (!profileId && !model) {
       return Promise.reject(new Error('LLM model is not configured'));
     }
+    const configuredUsageId = toOptionalNonEmptyString(s.llm?.usageId);
+    const effectiveUsageId = profileId && (!configuredUsageId || configuredUsageId === 'default-llm')
+      ? profileId
+      : configuredUsageId;
     const config = {
       profileId,
       provider: s.llm.provider ?? undefined,
       model: model ?? '',
       openaiApiMode: s.llm.openaiApiMode ?? undefined,
-      usageId: s.llm.usageId ?? undefined,
+      usageId: effectiveUsageId,
       baseUrl: s.llm.baseUrl ?? undefined,
       apiKey: s.secrets?.llmApiKey ?? undefined,
       apiVersion: s.llm.apiVersion ?? undefined,
