@@ -54,6 +54,11 @@ export async function run(): Promise<void> {
     return runLlmSwitchingTest();
   }
 
+  if (testName === 'llmProfiles') {
+    const { run: runLlmProfilesTest } = await import('./llmProfiles');
+    return runLlmProfilesTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness
