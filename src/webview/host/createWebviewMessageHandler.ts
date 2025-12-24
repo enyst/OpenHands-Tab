@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import { listProfiles } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -16,6 +15,7 @@ import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/we
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 import { getConversationHistoryList } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
+import * as llmProfilesStore from './llmProfilesStore';
 import { listSkillFiles } from './skills';
 import { listWorkspaceFiles } from './workspaceFiles';
 import { resolveWorkspaceFilePath } from './workspacePaths';
@@ -38,6 +38,12 @@ export type CreateWebviewMessageHandlerDeps = {
   getConversationMode: () => 'local' | 'remote';
   getConversationStoreRoot: () => string | undefined;
   resolveConversationStoreRoot: () => Promise<string>;
+
+  /**
+   * Optional override for the LLM profile store root directory. Defaults to `~/.openhands/llm-profiles`.
+   * Intended for tests only (no workspace overrides).
+   */
+  getLlmProfilesStoreRoot?: () => string | undefined;
 
   setWebviewReadyState: (conversationId?: string, lastSeenSeq?: number) => void;
   setLastKnownLlmLabel: (label: string | null) => void;
@@ -114,9 +120,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
     const outputChannel = deps.getOutputChannel();
     const conversation = deps.getConversation();
 
+    const llmProfileStoreOptions = (): { rootDir?: string } => {
+      const rootDir = typeof deps.getLlmProfilesStoreRoot === 'function' ? deps.getLlmProfilesStoreRoot() : undefined;
+      if (typeof rootDir !== 'string') return {};
+      const trimmed = rootDir.trim();
+      return trimmed ? { rootDir: trimmed } : {};
+    };
+
     const listAvailableLlmProfiles = (): string[] => {
       try {
-        return listProfiles();
+        return llmProfilesStore.listProfiles(llmProfileStoreOptions());
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         outputChannel?.appendLine(`[llm] Failed to list profiles: ${reason}`);
@@ -357,6 +370,86 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           profiles: listAvailableLlmProfiles(),
           activeProfileId: updated.llm.profileId ?? null,
         });
+        break;
+      }
+      case 'llmProfilesListRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        if (!requestId) break;
+        try {
+          const profiles = listAvailableLlmProfiles();
+          void host.postMessage({ type: 'llmProfilesListResponse', requestId, ok: true, profiles });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfilesListResponse', requestId, ok: false, error: reason });
+        }
+        break;
+      }
+      case 'llmProfileLoadRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        const includeSecrets = message.includeSecrets === true;
+        if (!requestId || !profileId) break;
+
+        try {
+          const profile = llmProfilesStore.loadProfile(profileId, { ...llmProfileStoreOptions(), includeSecrets });
+          void host.postMessage({
+            type: 'llmProfileLoadResponse',
+            requestId,
+            ok: true,
+            profileId: profile.profileId,
+            profile: profile.config,
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfileLoadResponse', requestId, ok: false, profileId, error: reason });
+        }
+        break;
+      }
+      case 'llmProfileSaveRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        const includeSecrets = message.includeSecrets === true;
+        if (!requestId || !profileId) break;
+
+        try {
+          llmProfilesStore.saveProfile(profileId, message.profile, { ...llmProfileStoreOptions(), includeSecrets });
+          void host.postMessage({ type: 'llmProfileSaveResponse', requestId, ok: true, profileId });
+
+          const updated = await settingsMgr.get();
+          void host.postMessage({
+            type: 'llmProfilesUpdated',
+            profiles: listAvailableLlmProfiles(),
+            activeProfileId: updated.llm.profileId ?? null,
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfileSaveResponse', requestId, ok: false, profileId, error: reason });
+        }
+        break;
+      }
+      case 'llmProfileDeleteRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        if (!requestId || !profileId) break;
+
+        try {
+          await llmProfilesStore.deleteProfile(profileId, llmProfileStoreOptions());
+          void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: true, profileId });
+
+          const updated = await settingsMgr.get();
+          if (updated.llm.profileId === profileId) {
+            await settingsMgr.update({ llm: { profileId: '' } });
+          }
+          const refreshed = await settingsMgr.get();
+          void host.postMessage({
+            type: 'llmProfilesUpdated',
+            profiles: listAvailableLlmProfiles(),
+            activeProfileId: refreshed.llm.profileId ?? null,
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: false, profileId, error: reason });
+        }
         break;
       }
       case 'selectServer': {
