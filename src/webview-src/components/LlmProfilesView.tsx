@@ -311,6 +311,7 @@ export function LlmProfilesView(props: {
   const sortedProfiles = useMemo(() => [...profiles].sort((a, b) => a.localeCompare(b)), [profiles]);
 
   const refreshApiKeyStatus = useCallback(async (profileId: string) => {
+    if (activeProfileIdRef.current !== profileId) return;
     setApiKeyStatus({ state: 'loading' });
     try {
       const hasKey = await getApiKeyStatus(profileId);
@@ -369,13 +370,19 @@ export function LlmProfilesView(props: {
     setLoadingProfile(true);
     try {
       const config = await loadProfile(profileId);
+      if (activeProfileIdRef.current !== profileId) return;
       setForm(toFormState(profileId, config));
     } catch (err) {
+      if (activeProfileIdRef.current !== profileId) return;
       setTopError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoadingProfile(false);
+      if (activeProfileIdRef.current === profileId) {
+        setLoadingProfile(false);
+      }
     }
-    void refreshApiKeyStatus(profileId);
+    if (activeProfileIdRef.current === profileId) {
+      void refreshApiKeyStatus(profileId);
+    }
   }, [loadProfile, refreshApiKeyStatus]);
 
   const handleSave = useCallback(async () => {
