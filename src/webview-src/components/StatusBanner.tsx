@@ -18,11 +18,10 @@ export function StatusBanner({
   autoDismissDelay = 5000,
 }: StatusBannerProps) {
   useEffect(() => {
-    if (autoDismiss && level !== 'error') {
-      const timer = setTimeout(onDismiss, autoDismissDelay);
-      return () => clearTimeout(timer);
-    }
-  }, [autoDismiss, autoDismissDelay, level, onDismiss]);
+    if (!autoDismiss) return;
+    const timer = setTimeout(onDismiss, autoDismissDelay);
+    return () => clearTimeout(timer);
+  }, [autoDismiss, autoDismissDelay, onDismiss]);
 
   const levelConfig = {
     info: {

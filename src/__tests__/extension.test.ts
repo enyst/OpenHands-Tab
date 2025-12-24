@@ -327,6 +327,35 @@ describe('Chat view behavior', () => {
     // Mode switches clear the saved id for the target scope so no implicit restore can occur later.
     expect(mockContext.workspaceState.update).toHaveBeenCalledWith('openhands.conversationId.local', undefined);
   });
+
+  it('auto-disables tool-call summarization when Gemini key is missing (local mode)', async () => {
+    const priorEnv = process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEY;
+    try {
+      mockSettings = {
+        ...mockSettings,
+        serverUrl: '',
+        llm: { ...mockSettings.llm, provider: 'openai' },
+        agent: { ...mockSettings.agent, summarizeToolCalls: true },
+      };
+
+      const view = await resolveChatView(mockContext);
+      expect(mockSettings.agent.summarizeToolCalls).toBe(false);
+
+      const posted = (view.webview.postMessage as Mock).mock.calls.map((call) => call[0]);
+      expect(posted).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'statusMessage',
+            level: 'error',
+            message: expect.stringContaining('tool summarization disabled'),
+          }),
+        ])
+      );
+    } finally {
+      if (priorEnv !== undefined) process.env.GEMINI_API_KEY = priorEnv;
+    }
+  });
 });
 
 describe('Command handlers', () => {

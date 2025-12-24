@@ -566,11 +566,51 @@ export function activate(context: vscode.ExtensionContext) {
 
   async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean; modeSwitched?: boolean }) {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-    const settings = await settingsMgr.get();
+    let settings = await settingsMgr.get();
     lastKnownLlmLabel = resolveConfiguredLlmLabel(settings);
 
     const cfg = vscode.workspace.getConfiguration();
     verboseEventLogging = Boolean(settings.agent?.debug) || Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+
+    if (!settings.serverUrl && settings.agent?.summarizeToolCalls === true) {
+      const hasGeminiKey = await (async (): Promise<boolean> => {
+        let storedGeminiKey: string | undefined;
+        try {
+          storedGeminiKey = await context.secrets.get('GEMINI_API_KEY');
+        } catch {
+          storedGeminiKey = undefined;
+        }
+        if (typeof storedGeminiKey === 'string' && storedGeminiKey.trim()) return true;
+        if (typeof process.env.GEMINI_API_KEY === 'string' && process.env.GEMINI_API_KEY.trim()) return true;
+
+        // If the main agent LLM is configured to use Gemini, allow the generic LLM key as well.
+        if (settings.llm.provider === 'gemini') {
+          const mainKey = settings.secrets.llmApiKey;
+          if (typeof mainKey === 'string' && mainKey.trim()) return true;
+        }
+
+        return false;
+      })();
+
+      if (!hasGeminiKey) {
+        try {
+          await settingsMgr.update({ agent: { ...settings.agent, summarizeToolCalls: false } });
+          settings = await settingsMgr.get();
+        } catch (err) {
+          outputChannel?.appendLine(`[settings] Failed to auto-disable tool summarization: ${renderError(err)}`);
+        }
+
+        if (chatView) {
+          void chatView.webview.postMessage({
+            type: 'statusMessage',
+            level: 'error',
+            message: 'No Gemini key found, tool summarization disabled',
+            autoDismiss: true,
+            autoDismissDelay: 5000,
+          } satisfies HostToWebviewMessage);
+        }
+      }
+    }
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;

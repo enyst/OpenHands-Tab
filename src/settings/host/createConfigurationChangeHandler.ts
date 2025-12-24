@@ -71,6 +71,15 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
       deps.setVerboseEventLogging(debug || devBridgeEnabled);
     }
 
+    if (e.affectsConfiguration('openhands.agent.summarizeToolCalls')) {
+      try {
+        await deps.ensureConversationAndConnection();
+        deps.getOutputChannel()?.appendLine('[settings] Tool-call summarization setting updated');
+      } catch (err: unknown) {
+        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply tool-call summarization update: ${deps.renderError(err)}`);
+      }
+    }
+
     if (e.affectsConfiguration('openhands.llm')) {
       try {
         await deps.ensureConversationAndConnection();
