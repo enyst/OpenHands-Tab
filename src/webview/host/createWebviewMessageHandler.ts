@@ -1,11 +1,8 @@
 import * as vscode from 'vscode';
-import * as nodeFs from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import * as readline from 'readline';
-import { TextDecoder } from 'util';
-import { FileStore, isEvent, isMessageEvent, isTextContent, listProfiles } from '@openhands/agent-sdk-ts';
+import { listProfiles } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -15,228 +12,23 @@ import { getHalDialogueLinesForMode } from '../../shared/halScript';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
+import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
+import { getConversationHistoryList } from './conversationHistory';
+import { showWorkspaceDiff } from './diffDocuments';
+import { listSkillFiles } from './skills';
+import { listWorkspaceFiles } from './workspaceFiles';
+import { resolveWorkspaceFilePath } from './workspacePaths';
 
 export type WebviewHost = {
   postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
 };
 
-const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
-const MAX_ATTACHMENT_TOTAL_BYTES = 500 * 1024;
 const MAX_PASTED_IMAGE_BYTES = 350 * 1024;
 
 async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
   const filePath = getPastedImagePath(baseDir, imageId);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, bytes);
-}
-
-const OPENHANDS_DIFF_SCHEME = 'openhands-diff';
-const MAX_STORED_DIFF_DOCUMENTS = 60;
-
-const diffContentByUri = new Map<string, string>();
-const diffUriQueue: string[] = [];
-let diffProviderRegistered = false;
-let diffSequence = 0;
-
-const diffEmitter = new vscode.EventEmitter<vscode.Uri>();
-const diffProvider: vscode.TextDocumentContentProvider = {
-  onDidChange: diffEmitter.event,
-  provideTextDocumentContent: (uri) => diffContentByUri.get(uri.toString()) ?? '',
-};
-
-function ensureDiffProviderRegistered(context: vscode.ExtensionContext): void {
-  if (diffProviderRegistered) return;
-  diffProviderRegistered = true;
-  context.subscriptions.push(diffEmitter);
-  context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(OPENHANDS_DIFF_SCHEME, diffProvider));
-}
-
-function storeDiffDocument(uri: vscode.Uri, content: string): void {
-  const key = uri.toString();
-  diffContentByUri.set(key, content);
-  diffUriQueue.push(key);
-  diffEmitter.fire(uri);
-
-  while (diffUriQueue.length > MAX_STORED_DIFF_DOCUMENTS) {
-    const drop = diffUriQueue.shift();
-    if (drop) diffContentByUri.delete(drop);
-  }
-}
-
-function createDiffUris(label: string): { beforeUri: vscode.Uri; afterUri: vscode.Uri } {
-  const id = `${Date.now().toString(36)}-${(diffSequence++).toString(36)}`;
-  const safeName = path.basename(label).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
-  const beforeUri = vscode.Uri.parse(`${OPENHANDS_DIFF_SCHEME}:/before/${id}/${safeName}`);
-  const afterUri = vscode.Uri.parse(`${OPENHANDS_DIFF_SCHEME}:/after/${id}/${safeName}`);
-  return { beforeUri, afterUri };
-}
-
-function isProbablyBinary(bytes: Uint8Array): boolean {
-  // Heuristic: treat NUL bytes as binary.
-  for (let i = 0; i < bytes.length; i += 1) {
-    if (bytes[i] === 0) return true;
-  }
-  return false;
-}
-
-function toAttachmentLabel(uri: vscode.Uri): string {
-  try {
-    const rel = vscode.workspace.asRelativePath(uri, false);
-    if (rel && rel !== uri.fsPath) return rel;
-  } catch (err) {
-    console.warn('[OpenHands] Failed to compute relative attachment label', err);
-  }
-  return path.basename(uri.fsPath);
-}
-
-function safeParseUri(raw: string): vscode.Uri | undefined {
-  try {
-    return vscode.Uri.parse(raw, true);
-  } catch (err) {
-    console.warn('[OpenHands] Skipping invalid URI', err);
-    return undefined;
-  }
-}
-
-function resolveWorkspaceFilePath(inputPath: string): { resolvedPath: string; displayPath: string } {
-  const isAbs = path.isAbsolute(inputPath);
-  const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
-  let resolvedPath: string;
-  if (!isAbs && wsRoot) {
-    const candidate = path.resolve(wsRoot, inputPath);
-    const rel = path.relative(wsRoot, candidate);
-    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-      resolvedPath = candidate;
-    } else {
-      resolvedPath = path.resolve(inputPath);
-    }
-  } else {
-    resolvedPath = path.resolve(inputPath);
-  }
-
-  if (!wsRoot) {
-    return { resolvedPath, displayPath: resolvedPath };
-  }
-  const rel = path.relative(wsRoot, resolvedPath);
-  const displayPath = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : resolvedPath;
-  return { resolvedPath, displayPath };
-}
-
-async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promise<string> {
-  if (attachmentUris.length === 0) return '';
-
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  const blocks: string[] = [];
-  let totalIncluded = 0;
-
-  for (const uri of attachmentUris) {
-    const label = toAttachmentLabel(uri);
-    const begin = `----- BEGIN ATTACHMENT: ${label} -----`;
-    const end = `----- END ATTACHMENT: ${label} -----`;
-
-    try {
-      const bytes = await vscode.workspace.fs.readFile(uri);
-
-      if (isProbablyBinary(bytes)) {
-        blocks.push(`\n\n${begin}\n(attachment skipped: binary file)\n${end}`);
-        continue;
-      }
-
-      const remaining = MAX_ATTACHMENT_TOTAL_BYTES - totalIncluded;
-      if (remaining <= 0) {
-        blocks.push(`\n\n${begin}\n(attachment skipped: total attachment size limit reached)\n${end}`);
-        continue;
-      }
-
-      const maxForThis = Math.min(MAX_ATTACHMENT_BYTES_PER_FILE, remaining);
-      const truncated = bytes.length > maxForThis;
-      const slice = bytes.slice(0, maxForThis);
-      totalIncluded += slice.length;
-
-      const meta = truncated ? `(truncated: first ${slice.length} bytes of ${bytes.length} bytes)\n` : '';
-      const content = decoder.decode(slice);
-      blocks.push(`\n\n${begin}\n${meta}${content}\n${end}`);
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      blocks.push(`\n\n${begin}\n(attachment skipped: ${reason})\n${end}`);
-    }
-  }
-
-  return blocks.join('');
-}
-
-async function listWorkspaceFiles(limit = 500): Promise<string[]> {
-  if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-    return [];
-  }
-  try {
-    // Exclude common directories, build artifacts, and all dotfiles/dotdirs
-    const excludePattern = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/__pycache__/**,**/coverage/**,**/tmp/**,**/temp/**,**/.*}';
-    const uris = await vscode.workspace.findFiles('**/*', excludePattern, limit);
-    const unique = new Set<string>();
-    for (const uri of uris) {
-      const relative = vscode.workspace.asRelativePath(uri, false);
-      if (relative) {
-        unique.add(relative);
-      }
-    }
-    return Array.from(unique).sort((a, b) => a.localeCompare(b));
-  } catch (err) {
-    console.error('[OpenHands] Failed to list workspace files', err);
-    return [];
-  }
-}
-
-async function listSkillFiles(): Promise<{ label: string; path: string }[]> {
-  const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
-  try {
-    const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-    const files = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.md'));
-    return files
-      .map((entry) => {
-        const absolutePath = path.join(skillsDir, entry.name);
-        const label = entry.name.slice(0, -3); // remove .md
-        return { label, path: absolutePath };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error('[OpenHands] Failed to read skills directory', err);
-    }
-    return [];
-  }
-}
-
-const MAX_HISTORY_SCAN_BYTES = 512 * 1024;
-const MAX_HISTORY_SCAN_LINES = 2000;
-
-async function findFirstMessageEventLine(eventsPath: string): Promise<string | undefined> {
-  const stream = nodeFs.createReadStream(eventsPath, { encoding: 'utf8' });
-  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
-
-  let scannedBytes = 0;
-  let scannedLines = 0;
-
-  try {
-    for await (const line of rl) {
-      scannedLines += 1;
-      scannedBytes += Buffer.byteLength(line, 'utf8') + 1;
-
-      if (line.includes('"MessageEvent"')) {
-        return line;
-      }
-
-      if (scannedLines >= MAX_HISTORY_SCAN_LINES || scannedBytes >= MAX_HISTORY_SCAN_BYTES) {
-        return undefined;
-      }
-    }
-
-    return undefined;
-  } finally {
-    rl.close();
-    stream.destroy();
-  }
 }
 
 export type CreateWebviewMessageHandlerDeps = {
@@ -336,50 +128,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
     const sendHistoryList = async (): Promise<void> => {
       try {
         const convRoot = deps.getConversationStoreRoot() ?? (await deps.resolveConversationStoreRoot());
-        let ids: string[] = [];
-        try {
-          ids = FileStore.listConversations(convRoot);
-        } catch {
-          ids = [];
-        }
-        const conversations = await Promise.all(
-          ids.map(async (id) => {
-            try {
-              const statePath = path.join(convRoot, id, 'state.json');
-              const eventsPath = path.join(convRoot, id, 'events.jsonl');
-              const stat = await fs.stat(statePath).catch(async () => fs.stat(eventsPath));
-              const timestamp = stat?.mtimeMs ?? Date.now();
-              let firstMessage: string | undefined;
-              try {
-                const line = await findFirstMessageEventLine(eventsPath);
-                if (line) {
-                  try {
-                    const parsed: unknown = JSON.parse(line);
-                    if (isEvent(parsed) && isMessageEvent(parsed)) {
-                      const msg = parsed.llm_message;
-                      if (msg.role === 'user') {
-                        const textPart = msg.content.find(isTextContent);
-                        if (textPart) firstMessage = textPart.text;
-                      }
-                    }
-                  } catch (err) {
-                    const reason = err instanceof Error ? err.message : String(err);
-                    outputChannel?.appendLine(`[history] Failed to parse MessageEvent for ${id}: ${reason}`);
-                  }
-                }
-              } catch (err) {
-                const code = (err as NodeJS.ErrnoException).code;
-                if (code !== 'ENOENT') {
-                  const reason = err instanceof Error ? err.message : String(err);
-                  outputChannel?.appendLine(`[history] Failed to scan events for ${id}: ${reason}`);
-                }
-              }
-              return { id, timestamp: Math.floor(timestamp), firstMessage };
-            } catch {
-              return { id, timestamp: Date.now() };
-            }
-          })
-        );
+        const conversations = await getConversationHistoryList(convRoot, outputChannel);
         void host.postMessage({ type: 'historyList', conversations });
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -528,15 +277,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           break;
         }
         try {
-          ensureDiffProviderRegistered(context);
-
-          const { displayPath } = resolveWorkspaceFilePath(p);
-
-          const { beforeUri, afterUri } = createDiffUris(displayPath);
-          storeDiffDocument(beforeUri, message.oldContent);
-          storeDiffDocument(afterUri, message.newContent);
-
-          await vscode.commands.executeCommand('vscode.diff', beforeUri, afterUri, `Diff: ${displayPath}`, { preview: false });
+          await showWorkspaceDiff({ context, filePath: p, oldContent: message.oldContent, newContent: message.newContent });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           void vscode.window.showErrorMessage(`Failed to open diff: ${reason}`);
