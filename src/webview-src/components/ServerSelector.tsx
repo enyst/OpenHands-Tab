@@ -246,7 +246,6 @@ export function ServerSelector({
           <button
             type="button"
             onClick={(e) => {
-              e.preventDefault();
               e.stopPropagation();
               setShowAddForm(true);
             }}
