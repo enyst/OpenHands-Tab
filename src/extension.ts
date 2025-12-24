@@ -9,7 +9,8 @@ import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPO
 import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { safeStringify } from './shared/safeStringify';
-import { getGlobalStorageBaseDir } from './shared/pastedImages';
+import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, isValidPastedImageId } from './shared/pastedImages';
+import { cleanupPastedImages } from './shared/pastedImagesCleanup';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
 import { ConversationEventBacklog, type BufferedConversationEvent } from './conversation/eventBacklog';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
@@ -90,6 +91,9 @@ let verboseEventLogging = false;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
+// Pasted images are persisted under globalStorage/pasted-images; enforce a best-effort cap.
+const MAX_PASTED_IMAGES_STORAGE_FILES = 2000;
+const MAX_PASTED_IMAGES_STORAGE_BYTES = 200 * 1024 * 1024;
 const eventBacklog = new ConversationEventBacklog({ maxSize: MAX_EVENT_BACKLOG });
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
 const MAX_TEST_EVENTS = MAX_EVENT_BACKLOG;
@@ -159,12 +163,86 @@ function fileLog(line: string) {
   });
 }
 
+let pastedImagesCleanupInFlight: Promise<void> | undefined;
+let pastedImagesCleanupQueued = false;
+const OPENHANDS_IMAGE_ID_REGEX = new RegExp(`${OPENHANDS_IMAGE_URL_PREFIX}([a-f0-9]{16}\\.[a-z0-9]+)`, 'g');
+
+function messageHasPastedImages(event: Event): boolean {
+  if (event.kind !== 'MessageEvent') return false;
+  const content = (event as unknown as { llm_message?: { content?: unknown } }).llm_message?.content;
+  if (!Array.isArray(content)) return false;
+  for (const item of content) {
+    if (!item || (item as { type?: unknown }).type !== 'text') continue;
+    const text = (item as { text?: unknown }).text;
+    if (typeof text === 'string' && text.includes(OPENHANDS_IMAGE_URL_PREFIX)) return true;
+  }
+  return false;
+}
+
+function collectReferencedPastedImageIdsFromBacklog(): Set<string> {
+  const imageIds = new Set<string>();
+  for (const item of eventBacklog.iter()) {
+    const event = item.event;
+    if (event.kind !== 'MessageEvent') continue;
+    const content = (event as unknown as { llm_message?: { content?: unknown } }).llm_message?.content;
+    if (!Array.isArray(content)) continue;
+
+    for (const part of content) {
+      if (!part || (part as { type?: unknown }).type !== 'text') continue;
+      const text = (part as { text?: unknown }).text;
+      if (typeof text !== 'string' || !text.includes(OPENHANDS_IMAGE_URL_PREFIX)) continue;
+
+      for (const match of text.matchAll(OPENHANDS_IMAGE_ID_REGEX)) {
+        const imageId = match[1];
+        if (typeof imageId === 'string' && isValidPastedImageId(imageId)) {
+          imageIds.add(imageId);
+        }
+      }
+    }
+  }
+  return imageIds;
+}
+
+function schedulePastedImagesCleanup(): void {
+  if (pastedImagesCleanupInFlight) {
+    pastedImagesCleanupQueued = true;
+    return;
+  }
+
+  pastedImagesCleanupInFlight = (async () => {
+    try {
+      const keepImageIds = collectReferencedPastedImageIdsFromBacklog();
+      await cleanupPastedImages({
+        baseDir: pastedImagesBaseDir,
+        keepImageIds,
+        maxFiles: MAX_PASTED_IMAGES_STORAGE_FILES,
+        maxBytes: MAX_PASTED_IMAGES_STORAGE_BYTES,
+        log: (line) => outputChannel?.appendLine(line),
+      });
+    } catch (err) {
+      outputChannel?.appendLine(`[pasted-images] Cleanup failed: ${renderError(err)}`);
+    } finally {
+      pastedImagesCleanupInFlight = undefined;
+    }
+  })()
+    .finally(() => {
+      if (pastedImagesCleanupQueued) {
+        pastedImagesCleanupQueued = false;
+        schedulePastedImagesCleanup();
+      }
+    });
+}
+
 function resetConversationEventBacklog(conversationId: string | undefined) {
   eventBacklog.reset(conversationId);
 }
 
 function bufferConversationEvent(event: Event): number {
-  return eventBacklog.push(event);
+  const seq = eventBacklog.push(event);
+  if (messageHasPastedImages(event)) {
+    schedulePastedImagesCleanup();
+  }
+  return seq;
 }
 
 function* iterConversationEventBacklog(): Iterable<BufferedConversationEvent> {
