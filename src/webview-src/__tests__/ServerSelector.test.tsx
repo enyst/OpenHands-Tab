@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ServerSelector } from '../components/ServerSelector';
 
 describe('ServerSelector', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('shows the add-server form immediately without closing the dropdown', () => {
+    vi.useFakeTimers();
     const onClose = vi.fn();
 
     render(
@@ -19,6 +24,10 @@ describe('ServerSelector', () => {
         onSwitchToLocal={() => {}}
       />
     );
+
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
 
     const addButton = screen.getByRole('button', { name: 'Add Server' });
     fireEvent.click(addButton);
