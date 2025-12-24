@@ -38,10 +38,18 @@ type ResponsesFunctionCallOutputInputItem = {
   output: string;
 };
 
+type ResponsesReasoningInputItem = {
+  type: 'reasoning';
+  id: string;
+  summary: Array<{ type: 'summary_text'; text: string }>;
+  encrypted_content: string;
+};
+
 type ResponsesInputItem =
   | ResponsesMessageInputItem
   | ResponsesFunctionCallInputItem
-  | ResponsesFunctionCallOutputInputItem;
+  | ResponsesFunctionCallOutputInputItem
+  | ResponsesReasoningInputItem;
 
 type ResponsesToolParam = {
   type: 'function';
@@ -100,6 +108,24 @@ const toResponsesTool = (tool: LLMToolDefinition): ResponsesToolParam => ({
   strict: false,
 });
 
+const toResponsesReasoningInputItem = (reasoning: ResponsesReasoningItem): ResponsesReasoningInputItem | undefined => {
+  if (!reasoning.id) return undefined;
+
+  // In stateless mode (store=false) we can only safely re-send reasoning items if the response included
+  // `encrypted_content` (requested via include: ['reasoning.encrypted_content']). Otherwise OpenAI treats
+  // the `rs_*` id as a server-stored reference and returns 404 when store=false.
+  const encrypted = typeof reasoning.encrypted_content === 'string' ? reasoning.encrypted_content.trim() : '';
+  if (!encrypted) return undefined;
+
+  const summary = (reasoning.summary ?? []).map((text) => ({ type: 'summary_text' as const, text }));
+  return {
+    type: 'reasoning',
+    id: reasoning.id,
+    summary,
+    encrypted_content: encrypted,
+  };
+};
+
 const toResponsesInputItems = (messages: Message[]): ResponsesInputItem[] => {
   const items: ResponsesInputItem[] = [];
 
@@ -127,6 +153,11 @@ const toResponsesInputItems = (messages: Message[]): ResponsesInputItem[] => {
     }
 
     if (message.role === 'assistant') {
+      if (message.responses_reasoning_item) {
+        const reasoningItem = toResponsesReasoningInputItem(message.responses_reasoning_item);
+        if (reasoningItem) items.push(reasoningItem);
+      }
+
       const content: ResponsesMessageInputItem['content'] = [];
       for (const part of message.content) {
         if (part.type === 'text' && part.text) {
@@ -178,6 +209,7 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   model: config.model,
   instructions: request.systemPrompt,
   input: toResponsesInputItems(request.messages),
+  include: ['reasoning.encrypted_content'],
   tools: request.tools?.length ? request.tools.map(toResponsesTool) : undefined,
   tool_choice: request.tools?.length ? 'auto' : undefined,
   store: false,

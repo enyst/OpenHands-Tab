@@ -230,7 +230,7 @@ describe('OpenAIResponsesClient (non-stream)', () => {
     expect(response.message.responses_reasoning_item).toMatchObject({ id: 'rs_1', summary: ['short summary'], encrypted_content: 'encrypted' });
   });
 
-  it('does not include responses_reasoning_item in Responses request input (store=false)', async () => {
+  it('requests reasoning.encrypted_content include for stateless Responses', async () => {
     const payload = {
       output: [
         {
@@ -263,8 +263,54 @@ describe('OpenAIResponsesClient (non-stream)', () => {
     const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
     expect(body?.store).toBe(false);
+    expect(body?.include).toEqual(['reasoning.encrypted_content']);
+  });
+
+  it('only re-sends responses_reasoning_item when encrypted_content is present (store=false)', async () => {
+    const payload = {
+      output: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Hello' }],
+        },
+      ],
+      usage: { input_tokens: 5, output_tokens: 2 },
+    };
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const client = new OpenAIResponsesClient(baseConfig, 'test-key');
+    const orchestrator = new AgentOrchestrator(client);
+
+    await orchestrator.runChat({
+      systemPrompt: 'you are a test harness',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'previous answer' }],
+          responses_reasoning_item: { id: 'rs_1', summary: ['short summary'] },
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'previous answer 2' }],
+          responses_reasoning_item: { id: 'rs_2', summary: ['short summary'], encrypted_content: 'encrypted' },
+        },
+        { role: 'user', content: [{ type: 'text', text: 'follow up' }] },
+      ],
+      tools: [{ type: 'function', function: { name: 'ping' } }],
+    });
+
+    const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+    expect(body?.store).toBe(false);
     expect(Array.isArray(body?.input)).toBe(true);
-    expect(body?.input?.some((item: { type?: unknown }) => item.type === 'reasoning')).toBe(false);
+    expect(body?.input?.some((item: { type?: unknown; id?: unknown }) => item.type === 'reasoning' && item.id === 'rs_1')).toBe(false);
+    expect(body?.input?.some((item: { type?: unknown; id?: unknown; encrypted_content?: unknown }) => (
+      item.type === 'reasoning'
+        && item.id === 'rs_2'
+        && item.encrypted_content === 'encrypted'
+    ))).toBe(true);
   });
 
   it('includes reasoning summary in Responses request body when configured', async () => {
