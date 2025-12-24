@@ -68,7 +68,9 @@ const MODE_FULL = 'full';
 const MODE_MINIMAL = 'minimal';
 const MODE_BOTH = 'both';
 
-const MAX_OUTPUT_TOKENS = 350;
+// Note: gpt-5-mini can return only a `reasoning` item if max_output_tokens is too low.
+// Keeping this reasonably high makes the artifacts easier to interpret.
+const MAX_OUTPUT_TOKENS = 1024;
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUT_ROOT = join(SCRIPT_DIR, 'fixtures', 'openai-responses');
@@ -317,10 +319,11 @@ const runConversation = async ({ mode, outDir }) => {
   console.log(`model=${MODEL}, store=false, include=[reasoning.encrypted_content], reasoning.summary=detailed`);
   console.log(`artifacts: ${outDir}`);
 
+  // Use deliberately non-sensitive prompts so committed artifacts are always safe.
   const prompts = [
-    'Tell a short story about Napoleon. Keep it under ~120 words.',
-    'Analyze historical events related to his return to the throne (the Hundred Days). Keep it under ~150 words.',
-    'Think deeply about those events and give an opinion on how lessons from them can help us today. Keep it under ~150 words.',
+    'Say "hello world" exactly once. No other text.',
+    'In 2-3 sentences, explain why "hello world" is a common first program.',
+    'In 2-3 sentences, explain one practical lesson about testing APIs in stateless mode (store=false).',
   ];
 
   /** @type {any[]} */

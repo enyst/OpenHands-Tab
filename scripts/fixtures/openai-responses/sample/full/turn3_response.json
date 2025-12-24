@@ -1,36 +1,48 @@
 {
-  "id": "resp_0e6639d01be9217b01694c2dc875a48197913a8c1e1f62f82f",
+  "id": "resp_06f59747cdd2be1a01694c2f3678c481958cea7a110bc5eac5",
   "object": "response",
-  "created_at": 1766600136,
-  "status": "incomplete",
+  "created_at": 1766600502,
+  "status": "completed",
   "background": false,
   "billing": {
     "payer": "developer"
   },
-  "completed_at": null,
+  "completed_at": 1766600510,
   "error": null,
-  "incomplete_details": {
-    "reason": "max_output_tokens"
-  },
+  "incomplete_details": null,
   "instructions": null,
-  "max_output_tokens": 350,
+  "max_output_tokens": 1024,
   "max_tool_calls": null,
   "model": "gpt-5-mini-2025-08-07",
   "output": [
     {
-      "id": "rs_0e6639d01be9217b01694c2dc8aaa48197b285c9a62a22752d",
+      "id": "rs_06f59747cdd2be1a01694c2f36d20c8195bc708e0e482cd0dd",
       "type": "reasoning",
-      "encrypted_content": "gAAAAABpTC3XB3bbJQlO0TMsZn_9OBzEK-_vd4FYtL83T89DIAUIFEn-d3H73ll-mEKyPa2b2Fse4cl8k5iaK-SIqJjoUTDI4YUE94n_KJj8n4Rc59i7sN8Js2VTgIGhv958HxXXFjkTlZHutn1b9C2Wm7kriQDv8ywXI0wczFzN96cSMzWYQLu4mI5jAyjnTfsF316A0EBb6XVEtPyS7xyMnaCu0fqMXU3iZ6aCI4PPO-c0rNlXtXpPuDDYiuixxISVksMdsUiXDElZEf3gm6Ym2gdX-8UGMCsZIh7NFnVBZaI9JW2j2_cGrownXDBt51fxm2agc9U7Ev65DNj-1LNynZhRVuWjzttaoNLN1SSqDMdMuw7x3u5cACJAIngyrFYHSjypw2qnQ0CHbuQJYYkqW5P9bx7K3yuig_87Rp9UbIIDFU-Arr2FfzR1iaHR68YOd7FqxXV3H5WbfjHRLWDLnnzzP412oCJVEqlcLlUeKyxw191wg-nmsOHFsxoh_0pCZgcrFx34o9x4BIQb71EZZPY8kTAmea4_-ZVA6pa3iUwCg4DW-BnqmH57tdutuwW7kdceZrMmfQ1RKsq48ZjY_ivFnpg8P4bjMlRgCmnlMIaphrGglBQjrgQFz2rQ8L7KT4vLrc1VMT6ZiSwXBhTnQ6gc6927Cegr8Xic_VTc484V53vwRymG9biXYVHYy7CUIsPmh0WFSdSFA6cODq0hmibLj1pxbC1PuURR05hlSWqDgiWgkeVQJ3vY3ddm9M2-gARlN6BELjMb_ZBkMaSqkmAhBjFHHMlaqRRNayh8wzea_ONG-Oigm2C91WUPTmyLVR5LIbBxev0T1TSKyJMUFyZ2G6EX6_jeTNK-ZTz5DRwbFgRhlMsfk_ld99KO_9aom9afbNjVPZP_9tWX58zdkQeobDpLUmUwTHQDpBHKTmjfN4tO7F0rfbufsffN-ws05itCzUCFail9ryX4LkVCe8qIkVK_AkEeBVrbbvOoNi9EFJ8t_390LDCZh6pNSCOAwpt8GDQ8-icWatoIiMN0ID5yxGrdGaFz7v1Rdy5SKHehoxgh2_Wqy7shHUVJT-xjX76SvDkfQ1w_ugrzHZxFg1B5_jrmtxXHU20cZScuUO16xogPJ_9sV1MZANaM-oe36OFvKSKEDaK-_qdOMLYyPw2i-pnxUHwaNXz7gzH5TpiEQfXl2fb6vPGNB2c7xePdqbvCPdlO-n2xiw1_P1X0TRu-cDejz3c3p-_gDLwi8mDLmDdw9iZOoy4FLZnSkp3k6U_jRoi9tiS5f0r7aiqwwuAxagKAAxDevVOQxfSoJF6U4GNLPy9iyEmednig-8FwsJBPj0Pwo-otYP8TMb5sKYBzW1nVAls98qE-V85xXtO2SPqIspGuF0IY6YqEdIzKOXODb2w320UyD4vdJT9qhbQEA9oOf_Nq6sl9sHZ-jk-pLdZsBg9rs-mS6-UoLfUsVzz20VnPFlJMcexphseBko6iKGHyqNhmYOTxh7yffQch0pgyJ1tIYMsyqQPON9f5Ocu4sMYWeaDWXVIohORdR3j6Vf9umewRL4YKyfSg59LE5jQWdbufV45wh8_IeacTDtcIRtHdQwdMWHsOvjGexLk0ImY9yMhwp9fUUM8sXL790deS7IfO13hODISfHjq4HbmAHiMWb75V7AshrO64fmDpU2U-k9TcIUdbM_3iQQMvYlBnPmkfbVOscM9X4xEZIPfP6Ttwj4StahDvR-FMCh10I7dpnBBN7--NxfxSSTPFYNpuY05IqjMnXxm95kAY1n_t0gwLZse8zXe8p0M_dWwk2Fk9HT6Fog8p2eADuKnSl8PjlB-1ImdtpwF9NyDv5vxOzfXEUvmuiQWrZiKTPJJ_zH6vhFsTa1NNm1_PlWVC4CfL-c4qaCjyXrfLnEdiKmyAagMZEU6cbjyGNIyk8N2cY0ePiDTXdkoxEnZaF3R-FJ6zGuSQAwWjF3OXUWbqlIbWqb68q-sq12Mu2m6WzltcMv21ZNJU5DDf-G6mACmBOV-pwnRbFuv1vF7LXSYKVNworgaDWwFGxOpGjaFdVrdDmNeqUdvhGfpDzbxIozgNZGg-9nTyRCFS1jDGL2n6ymm2PeabrY7vxrMdq9pWA2gv4_BM3jhIoNYwLZOL78JM3jU8EM__c7IWRc-btETKui2_hOCJcMGkWPyDSbTNiPd5COVpQ2McS4xWD58aWh3XduUScK0ZV-fLH1lZnVOsyLaV-QCeaIcUKsaRUiL-b_rYsVEBft4cZ3U2D89DzvzNe0PGXpVK4kZMAMpJb9gTx3EklqLLfRv9jza4olAeSXzs_TJ6iI5SM_oJgPTNUx3J2bEtF5e8Ja5XoAuBkYh2ANmj8SoK_241qaTxvWvfi0teSvMM3I9hFlwOgaYmN6u2RQViLFXjwjuWOQ2qXQUd6Y2-lspGFmgDMdA4w1NVM5CVFfA5B19ouLkhkTR9_WJwWk37dSyr7L53nfZk5ELenDXYZU6Dcw7uQVReCveyOYirqS0lL3jkqBK4o_heyqB5Z0BUaqL9Ptn37gVspIJ5xlkzTtgAmGs1uQBVCitUyX7UGJuWGb1MjeLJ7mCJlAj_mPwy3f4-mhKZ-wpd8VHMQiLVxkFcCfCrZ0cYvPN1paR4vurgZbTtEDh7K4VWIalCiYzf7FRtmENjauDRn45N74ifg1mmRo9Po0trmp8sVsW7J7_1PYTvnD5p9XueKIa2916p_PzaqlYlcrxAB-t1_ZTyLK-hsPQVzRnSC5vipPZDbstAkXAVPCciaFKuRCxPwDoUw6SfQkQwNPTmmTn6-M_3QqjJLKMHk5x8Lq5-rg6Dnyj4BTlCGt_PLVkfSa1rE9LhqlhyYCPy4Z2zXBmHAB3jqNcpgJOtsS9VS-V2JArpQTMzl2CR0dpxGA0TPTPKOlCMKTszFBiilsPG84nf7wuezv0E1Q1oBvXDOrp-I54Tr0XhmrsepWgEzvw7WunqdybOaADxYjaXr4PJOZDdw9rQrQ2LplcoxNnX1zqErSVXUQ3db26CZHgUmp9IBagSKXmiaKvRzINON_sUt5kFUzo1PhuRC4apdb32i8L9zm3pSGpmFNSPd0Z9RhhKHrO_5WOzWRs=",
+      "encrypted_content": "gAAAAABpTC8-asIYMM9hHaGzwY3dtfv3hYkiEmHxyKRjhNjwose0RCq0VDBHgRJy-qhqN9rQ1c6JGBMyOvHAAzryqP8RdbCqgWjfFIKUJWEU832IM_NJlyAPrCBKjwU82YQWZtjjeETxbo5Td5OfWS4I3IZfRGuxxBWwRHr7HbBIKivs5GSwnlda7eQ_RDLleWbsXxxgpaPoSwYsMhAaTlBv_fVntj-Dq4sf5IQMEVnZKP_lcEW-gyfW89cjuF8Pup7eKyEZAq7meK3PJ2gb00MItIBqAB2nu0ZJmqWuMgJzbu5PSUG72dZAg7eY2B7Vr6S4KrVxdYD1elppbkAlblfLmfy3uqsv6WwaOpyzCG6Vu7CW60-Q7rf_Inyqi3tkdx1FCh4gcK5-4G22OIy05Wzy0R_tX-hF4RJSgty_9f976bRqQo-zwomhjOz2oZJS6jzeyFsQ3MT-suHahR3SHvT9lN_s4qYe5Mk9ietFZ8-EKfE5RuF5fSCMdd0JL4zQu9wF3_PJsTiygz9yIlRIevvsvg7vg1_ZdlmLEdVE8FtUA-IW7GMbbZMg6gZf3gZ8tiSvYj8qTVMtNpjL1k02kCVxBc2rRC7fOz5RJs3_FRxthhryhIbMeuTy-Qt__VSX9jFAWzAXDg9EhiEWmHcXy_XvCwVIatzgH0PKOADAATb0xr_JOxJxh7_zWkOXdJjr-wEvP5t4p35RPxndJZDCf4wVJ1y2QrB-A4F0jIwSJgFtpgEw9lEtFSrHj1TEvl9vPRcH8GH3Hc4Gaf3udPbB8Ki7XlBl1WsVK2Z9bSAoAfbQF_dqBNSA2Mu6qKqeeUMpYx7Jzpj6tNktQfrhPw1-5jq_b7i2VcC-APYSn3QTzlThSVubkTZAAjH49yuX3f7a_nABhIXYmLoUO3LE58ScwJAgBnSTES9Nlw36sykLdMUlLngUsICj0M9Heib8ieAORBb039G4iAPbkOzYjhnfXB6HnkHnFQk2TcP1zNHcqbPHmafltVIu6bvMpiQB4XabgX8SVEz08rJv0AI-xE2_yJQtcS3E1Vhaa_SqlK2wQDqiRG-JkX-ORYa4MqKpSB11jl6NQP-gRAC-z9ydc656iw3WehS1fx_8a3lsTQralzUgjKRD-uwD7nG8fK5tEV6YFLQA-EqBwnueWJ_JYh_3WJKPQBnZT-3UbS6B5VFI3TkF0c6BKJD4XjK4FUUtOK--VifjAuFNSNoCIB1h9sXcEPmZrPTA6u0S81iewUpnshi8NFbw3dPIwY3B8uADDxcauGH6mVpdecXY5Lxr23VxEdICpoOwePACA2aSmAX5iHAmb2xvahsvB2lXVjmr49PomDRTQ0PTYPTr4VB3JcgN_Wm2LItRBeice0ea97s-Q6p9Y2myGd2WeeL925ya6Z3HGNv-WSh7CMaz-QrWZGA3xhlhtAUNpgLM3pCrIrvDnEZcETAdetNAdQwNhIf1itUXcsyMOg6E9wQHYOwD7hBTG5MpPaLt4gHXPNIT5grzxja00wG6-KY3puUmrDY9f8YyEN33Kd6fR80DA8_rXoSFbzAQ1-GlHdyiu9S7ETSvgoXgBGiYf6z3ea_f2y151n2mt_vxoBYEkmwXdJEv3yMUExFWIJihMCE0cL1bcQXGS0dIEfiGQrhUK34XnXd_p1jXuGbaJc3gNcRX5aVGuquXp39McQf__Kh3cboq6nRQZYRd6WehEelDkzaRW3HFCr6ZD5WxyFTc611fYI1l3Ntnmcxr2ZXBosddTlqiKNmSV8qG52XN8AFt8Tj2it9CoS0DqzhSmTvYKcpCcdpqaBX2D6XELIwD1s_izrC4HdB353NMZD5Y_p9lqx3nMoI0FLLPA_Fid4QLaXX_JdXXESA-livlnIoT-Cr-K2NL8jGUakOSkwSiBFyEZ1tadChCdNtLB-4mCTLlVBCanmEXUOy1FNl8CMD0WwrF4ivg6jQLeJk6Glp5kqDLxSMx5QQWy4q2_8_TIIiatl7oO1RTkLFoTkFz7aePQNn_8rckYUpU0kjKzPaCdM36OzaMMcJglGDQyeUXsKNLvmEAGqbsUhLAv0EVVZp1EBNFjHX_TaOSKoGv6OSrQYmXaPFYPkL0hPxA3qCAZFLDUe6QCYVmyVw3f37wYuFdlC6yZHxLSOFue0afrK6c-vDYvaccZym-R7axzIRou_N9pUP4UADVuHkipOslOqk2XvTLZP3YXYkNfrPBPl3-Qj7GWBypKnr79nox-XM6TAsfkO5gCG8dqJTpL7HFWocNwPGBw8oxeYoG642HgZQ-oqk6oX9Wvd1Q_mM98ORdYWED2tECMp4E15l8_Dbiure7ZSNMn24jE0NmYO-wLlF6wX-I2aews653RgzMx9TdNXu438iyEbvBhHh0YCYKL2x7vx8xmtAC7zDqTOo-FRRmQx-Kt3vNhlfK44CmnF4hA3AavE2ZYJLVHnsZ58v2XEKghv0XxnEVasuEAGeETofG01m8d3r4b5AuQ1vzd7fBG8N-qgdRUQopVd2GZ3yReThkEVLJtVjJaQTbB61lWIs4kLFBhMtxSlwh7q-Et5PUSI0qRPPGGdDdYEQ74w9qW-daktV_zC8MUxZRTnZ6eD2W-K8J4YohIwxmaSPEzi5yBUaV42cqpS6V36zYH5uWYjQEOwWks73cpGQrHy_I60RJBR92lDQQ9Z6jQkCnL_x_bj8XLl8tuTNxSGpr0_Qa0LCGVzr1Sp8ZXH_OW7NtNnOTajL2nF2GxyEr5zMI65as90_6V0Y_Tm5_fLnewRp2Ma9cC20cazSpEiGS5bga0Ilhii57b_-hvQ9d18Cprja8U3PJrkFTq6L-6QxxQ8ts8o_wSSP-uxQkkPHQek4r_eFpDIGfDzp_SK-TGiagkopd7ZREnOtPKyNoELF7j7ipuUDEplOw0Es_Qlu0bgKy3kndq4QFPw5BnpbX-eAKPIzBQ1LJQzfx3H3VO2Xw3r9TTqYQugR5vGaNX8-S21_E3H9LcD109wjaywaGyTVip5-c2UPm7VM3",
       "summary": [
         {
           "type": "summary_text",
-          "text": "**Planning Napoleon's tasks**\n\nI've got three prompts from the user to address: a short story about Napoleon under 120 words, an analysis of his return to the throne (the Hundred Days) under 150 words, and reflections on those events with lessons for today, again under 150 words. \n\nI\u2019m considering whether to separate these sections clearly, maybe by labeling them 1, 2, and 3 or using headings. The writing needs to be concise and straightforward without heavy formatting, though bullet lists might be fine. I\u2019ll keep it organized!"
+          "text": "When testing APIs in stateless mode with store=false, a key lesson is that each request must contain all necessary context, as no session state is retained. This means including explicit authentication and ensuring the test cases are self-contained, which makes them easier to reproduce. Additionally, since responses depend on the provided inputs, it's critical to manage logging and ensure the full payload is included for each call to maintain reproducibility."
         },
         {
           "type": "summary_text",
-          "text": "**Analyzing Napoleon's return**\n\nI'm breaking down the causes of Napoleon's return to power. There was discontent with the Bourbon restoration, his charisma, and weak Allies which affected the situation. Strategic errors included underestimating the Coalition's speed and dividing his forces. Wellington and Bl\u00fccher managed to unite at Waterloo, which was crucial. Political miscalculations also played a part, like French war-weariness and insufficient resources. The consequences were his final defeat, harsher terms, exile, and the restoration of the monarchy, reshaping Europe significantly."
+          "text": "When testing APIs in stateless mode (store=false), each request must be self-contained, meaning it should include authentication, context, and any prior state since the server doesn't retain session information. This requirement makes tests deterministic and easier to reproduce, but it also demands careful setup and teardown while managing idempotency, rate limits, and logging since you can\u2019t rely on stored history. I think this nicely captures the important aspects of using stateless APIs!"
         }
       ]
+    },
+    {
+      "id": "msg_06f59747cdd2be1a01694c2f3e6330819598f9d2e0ad3246ff",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "When testing APIs in stateless mode (store=false), each request must be self-contained \u2014 include authentication, context, and any prior state needed \u2014 because the server won't retain session information between calls. This makes tests more reproducible and forces explicit setup/teardown, but requires careful handling of idempotency, rate limits, and external logging since you can't rely on stored history."
+        }
+      ],
+      "role": "assistant"
     }
   ],
   "parallel_tool_calls": true,
@@ -57,15 +69,15 @@
   "top_p": 1.0,
   "truncation": "disabled",
   "usage": {
-    "input_tokens": 76,
+    "input_tokens": 158,
     "input_tokens_details": {
       "cached_tokens": 0
     },
-    "output_tokens": 320,
+    "output_tokens": 338,
     "output_tokens_details": {
-      "reasoning_tokens": 320
+      "reasoning_tokens": 256
     },
-    "total_tokens": 396
+    "total_tokens": 496
   },
   "user": null,
   "metadata": {}
