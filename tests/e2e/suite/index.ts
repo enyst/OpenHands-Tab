@@ -49,6 +49,11 @@ export async function run(): Promise<void> {
     return runAgentServerRemoteTest();
   }
 
+  if (testName === 'terminalLog') {
+    const { run: runTerminalLogTest } = await import('./terminalLog');
+    return runTerminalLogTest();
+  }
+
   if (testName === 'llmSwitching') {
     const { run: runLlmSwitchingTest } = await import('./llmSwitching');
     return runLlmSwitchingTest();
@@ -57,6 +62,11 @@ export async function run(): Promise<void> {
   if (testName === 'llmProfiles') {
     const { run: runLlmProfilesTest } = await import('./llmProfiles');
     return runLlmProfilesTest();
+  }
+
+  if (testName === 'terminalProgress') {
+    const { run: runTerminalProgressTest } = await import('./terminalProgress');
+    return runTerminalProgressTest();
   }
 
   // Default smoke test: open the chat view and verify it works
