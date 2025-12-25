@@ -356,7 +356,7 @@ Python's RemoteConversation has significantly more features than TypeScript's im
 | `send_message()` | ✓ | ✓ `sendUserMessage()` | Aligned |
 | `run()` | ✓ | ✓ `resume()` | Aligned (different name) |
 | `pause()` | ✓ | ✓ | Aligned |
-| `approveAction()`/`rejectAction()` | ✓ `reject_pending_actions()` | ✓ | Aligned |
+| `approveAction()`/`rejectAction()` | ✓ `run()` (approve/continue), `reject_pending_actions()` (reject) | ✓ | Aligned (Python approve is implicit via `run()`) |
 | `set_confirmation_policy()` | ✓ | ✗ | Python only |
 | `set_security_analyzer()` | ✓ | ✗ | Python only |
 | `update_secrets()` | ✓ | ✗ | Python only |
