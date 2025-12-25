@@ -567,6 +567,42 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return { ok: true, profileId, hasKey: true };
   });
 
+  const setProviderApiKey = vscode.commands.registerCommand('openhands._setProviderApiKey', async (raw: unknown) => {
+    const providerRaw = (raw as { provider?: unknown } | undefined)?.provider;
+    if (typeof providerRaw !== 'string') throw new Error('provider is required');
+    const provider = providerRaw.trim();
+    if (!['openai', 'anthropic', 'openrouter', 'litellm_proxy', 'gemini'].includes(provider)) {
+      throw new Error('provider must be one of: openai, anthropic, openrouter, litellm_proxy, gemini');
+    }
+    const apiKeyRaw = (raw as { apiKey?: unknown } | undefined)?.apiKey;
+    const apiKey = typeof apiKeyRaw === 'string' ? apiKeyRaw.trim() : '';
+
+    const key = (() => {
+      switch (provider) {
+        case 'openrouter':
+          return 'OPENROUTER_API_KEY';
+        case 'litellm_proxy':
+          return 'LITELLM_API_KEY';
+        case 'anthropic':
+          return 'ANTHROPIC_API_KEY';
+        case 'gemini':
+          return 'GEMINI_API_KEY';
+        default:
+          return 'OPENAI_API_KEY';
+      }
+    })();
+
+    if (!apiKey) {
+      await deps.context.secrets.delete(key);
+      deps.secretRegistry.set(key, undefined);
+      return { ok: true, provider, key, hasKey: false };
+    }
+
+    await deps.context.secrets.store(key, apiKey);
+    deps.secretRegistry.set(key, apiKey);
+    return { ok: true, provider, key, hasKey: true };
+  });
+
   const injectTerminalEvent = vscode.commands.registerCommand('openhands._injectTerminalEvent', (raw: unknown) => {
     if (!isBashEvent(raw)) {
       return { injected: false, error: 'Invalid BashEvent structure' };
@@ -599,6 +635,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     deleteProfile,
     selectProfile,
     setProfileApiKey,
+    setProviderApiKey,
     injectTerminalEvent,
   ];
 }

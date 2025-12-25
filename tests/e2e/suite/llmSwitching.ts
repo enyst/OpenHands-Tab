@@ -36,20 +36,22 @@ export async function run(): Promise<void> {
   const mock = await startMockLlmServer();
 
   try {
-    console.log('[llmSwitching] env:', {
-      OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
-      ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
-      OPENROUTER_API_KEY: Boolean(process.env.OPENROUTER_API_KEY),
-      LITELLM_API_KEY: Boolean(process.env.LITELLM_API_KEY),
-      GEMINI_API_KEY: Boolean(process.env.GEMINI_API_KEY),
-    });
-
     await vscode.commands.executeCommand('openhands.open');
 
     await pollUntil(async () => {
       const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
       return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
     }, 15000);
+
+    const setProviderApiKey = async (provider: string, apiKey: string): Promise<void> => {
+      await vscode.commands.executeCommand('openhands._setProviderApiKey', { provider, apiKey });
+    };
+
+    await setProviderApiKey('openai', 'sk-e2e-openai');
+    await setProviderApiKey('anthropic', 'sk-e2e-anthropic');
+    await setProviderApiKey('openrouter', 'sk-e2e-openrouter');
+    await setProviderApiKey('litellm_proxy', 'sk-e2e-litellm');
+    await setProviderApiKey('gemini', 'sk-e2e-gemini');
 
     const cfg = vscode.workspace.getConfiguration();
     const setLlmConfig = async (
