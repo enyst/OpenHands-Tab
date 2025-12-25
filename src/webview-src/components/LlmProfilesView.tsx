@@ -345,6 +345,7 @@ export function LlmProfilesView(props: {
   } = props;
 
   const panelRef = useRef<HTMLDivElement>(null);
+  const editorScrollRef = useRef<HTMLDivElement>(null);
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
 
   const activeProfileIdRef = useRef<string | null>(null);
@@ -555,6 +556,22 @@ export function LlmProfilesView(props: {
     }
   }, [refreshApiKeyStatus, selectedProfileId, setApiKey]);
 
+  const handleHeaderEditClick = useCallback(() => {
+    if (!selectedProfileId) return;
+    if (mode !== 'edit') {
+      void startEdit(selectedProfileId);
+      return;
+    }
+
+    editorScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
+        'select:not([disabled]), input:not([disabled]), textarea:not([disabled])'
+      );
+      firstFocusable?.focus();
+    });
+  }, [mode, selectedProfileId, startEdit]);
+
   if (!isOpen) return null;
 
   return (
@@ -576,15 +593,45 @@ export function LlmProfilesView(props: {
             <span className="codicon codicon-symbol-parameter text-brand-400" />
             <h2 className="text-lg font-semibold text-stone-100">LLM Profiles</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center"
-            aria-label="Close profiles view"
-            title="Close"
-          >
-            <span className="codicon codicon-close" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={startCreate}
+              className="h-9 w-9 rounded-lg bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40 transition-all flex items-center justify-center"
+              aria-label="Create profile"
+              title="Create profile"
+            >
+              <span className="codicon codicon-add" />
+            </button>
+            <button
+              type="button"
+              onClick={handleHeaderEditClick}
+              disabled={!selectedProfileId || loadingProfile}
+              className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Edit profile"
+              title="Edit profile"
+            >
+              <span className="codicon codicon-edit" />
+            </button>
+            <button
+              type="button"
+              disabled
+              className="h-9 w-9 rounded-lg bg-white/[0.03] border border-white/[0.06] text-stone-500 transition-all flex items-center justify-center cursor-not-allowed"
+              aria-label="Delete profile"
+              title="Delete profile (coming soon)"
+            >
+              <span className="codicon codicon-trash" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center"
+              aria-label="Close profiles view"
+              title="Close"
+            >
+              <span className="codicon codicon-close" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -651,6 +698,7 @@ export function LlmProfilesView(props: {
             </div>
 
             <div
+              ref={editorScrollRef}
               className="flex-1 overflow-y-auto px-6 py-6"
               style={{ scrollbarGutter: 'stable' }}
             >

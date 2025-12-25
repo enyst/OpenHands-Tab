@@ -149,6 +149,46 @@ describe('LLM Profiles view', () => {
     expect(await screen.findByText('Must be a valid number')).toBeInTheDocument();
   });
 
+  it('offers header icon actions for create/edit (delete disabled)', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
+
+    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
+    });
+
+    const loadRequest = getLastPostedOfType('llmProfileLoadRequest');
+    postToWindow({
+      type: 'llmProfileLoadResponse',
+      requestId: loadRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      profile: { model: 'gpt-5', provider: 'openai' },
+    });
+
+    const nameInput = await screen.findByPlaceholderText('e.g. gpt-5');
+    expect(nameInput).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('e.g. gpt-5')).not.toBeDisabled();
+    });
+    expect(screen.getByRole('button', { name: 'Edit profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete profile' })).toBeDisabled();
+  });
+
   it('offers a Provider docs link based on the selected provider', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
