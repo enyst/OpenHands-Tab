@@ -35,7 +35,7 @@ describe('App toolbar interactions', () => {
 
     const totalsRow = await screen.findByTestId('header-totals-row');
     expect(totalsRow).toHaveTextContent('Context:');
-    expect(totalsRow).toHaveTextContent('Total cost:');
+    expect(totalsRow).not.toHaveTextContent('Total cost:');
 
     await act(async () => {
       window.dispatchEvent(new MessageEvent('message', {
@@ -81,7 +81,8 @@ describe('App toolbar interactions', () => {
     });
 
     expect(totalsRow).toHaveTextContent('Context: 12 tokens');
-    expect(totalsRow).toHaveTextContent('Total cost: —');
+    expect(totalsRow).not.toHaveTextContent('Total cost:');
+    expect(totalsRow).not.toHaveTextContent('—');
   });
 
   it('shows the configured LLM profile in the input row', async () => {
