@@ -58,16 +58,20 @@ export async function run(): Promise<void> {
     return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
-  await vscode.workspace.getConfiguration().update(
-    'openhands.serverUrl',
-    serverUrl,
-    vscode.ConfigurationTarget.Global
-  );
+  await vscode.commands.executeCommand('openhands._serversSet', { servers: [serverUrl], serverUrl: '' });
   await vscode.workspace.getConfiguration().update(
     'openhands.conversation.maxIterations',
     1,
     vscode.ConfigurationTarget.Global
   );
+
+  const selectServer = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
+    action: 'selectServer',
+    payload: { url: serverUrl },
+  });
+  if (!selectServer?.sent) {
+    throw new Error(`selectServer action was not sent: ${JSON.stringify(selectServer)}`);
+  }
 
   await pollUntil(async () => {
     const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
