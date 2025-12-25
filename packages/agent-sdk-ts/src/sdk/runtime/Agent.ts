@@ -36,6 +36,7 @@ import { LLMSummarizingCondenser } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
 import { summarizeFileChangesWithGeminiFlash } from './fileDiffSummarizer';
+import { getGeminiClient } from './geminiClient';
 import { summarizeTerminalObservationWithGeminiFlash } from './terminalObservationSummarizer';
 import { SYSTEM_PROMPT } from './systemPrompt';
 
@@ -124,7 +125,7 @@ function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): s
   return `${head}\n${TOOL_MESSAGE_CLIP_MARKER}\n${tail}`;
 }
 
-const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash';
+const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash-summarizer';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
 const TOOL_SUMMARY_MAX_CHARS = 1_000;
 
@@ -487,22 +488,7 @@ export class Agent extends EventEmitter {
     if (this.toolSummarizerInitPromise) return this.toolSummarizerInitPromise;
 
     this.toolSummarizerInitPromise = (async () => {
-      const factory = new LLMFactory(
-        {
-          profileId: TOOL_SUMMARY_PROFILE_ID,
-          model: TOOL_SUMMARY_PROFILE_ID,
-          usageId: 'tool-summarizer',
-          temperature: 0.2,
-          maxOutputTokens: 256,
-        },
-        {
-          secrets: this.secrets,
-          // Prefer the provider-specific key so a user's primary LLM key (often OpenAI) doesn't
-          // accidentally override Gemini summarizers when both are configured.
-          preferredApiKeys: 'GEMINI_API_KEY',
-        },
-      );
-      const client = await factory.createClient();
+      const client = await getGeminiClient(this.secrets, { usageId: 'tool-summarizer', profileId: TOOL_SUMMARY_PROFILE_ID });
       this.toolSummarizerClient = client;
       return client;
     })();

@@ -38,8 +38,7 @@ describe('Gemini summarizers prefer GEMINI_API_KEY', () => {
 
     await getGeminiClient(secrets, {
       usageId: 'test-gemini-client',
-      profileId: 'gemini-flash',
-      model: 'gemini-flash',
+      profileId: 'gemini-flash-summarizer',
     });
 
     expect(secrets.calls[0]).toBe('GEMINI_API_KEY');
@@ -69,4 +68,3 @@ describe('Gemini summarizers prefer GEMINI_API_KEY', () => {
     expect(secrets.calls[0]).toBe('GEMINI_API_KEY');
   });
 });
-

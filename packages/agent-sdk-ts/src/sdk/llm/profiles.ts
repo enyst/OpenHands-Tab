@@ -345,6 +345,7 @@ export const deleteProfile = (profileId: string, options: LLMProfileStoreOptions
 
 export const DEFAULT_LLM_PROFILE_IDS = [
   'gemini-flash',
+  'gemini-flash-summarizer',
   'gpt-5',
   'gpt-5-mini',
   'sonnet-45',
@@ -360,6 +361,17 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       model: 'gemini-2.5-flash',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.gemini,
       profileName: 'Gemini Flash',
+    },
+  },
+  {
+    profileId: 'gemini-flash-summarizer',
+    config: {
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+      baseUrl: DEFAULT_PROVIDER_BASE_URLS.gemini,
+      profileName: 'Gemini Flash (Summarizer)',
+      temperature: 0.2,
+      maxOutputTokens: 512,
     },
   },
   {
