@@ -80,14 +80,17 @@ export class LLMFactory {
       const llmGlobalKey = 'openhands.llmApiKey';
       if (Array.isArray(preferredApiKeys)) {
         const keys = [...preferredApiKeys];
-        if (!keys.includes(llmGlobalKey)) keys.push(llmGlobalKey);
         if (!keys.includes(defaultApiKeyName)) keys.push(defaultApiKeyName);
+        if (!keys.includes(llmGlobalKey)) keys.push(llmGlobalKey);
         return keys;
       }
       if (typeof preferredApiKeys === 'string' && preferredApiKeys.trim()) {
-        return [preferredApiKeys, llmGlobalKey, defaultApiKeyName];
+        const keys = [preferredApiKeys];
+        if (!keys.includes(defaultApiKeyName)) keys.push(defaultApiKeyName);
+        if (!keys.includes(llmGlobalKey)) keys.push(llmGlobalKey);
+        return keys;
       }
-      return [llmGlobalKey, defaultApiKeyName];
+      return [defaultApiKeyName, llmGlobalKey];
     })();
     const apiKey =
       inlineApiKey ??
