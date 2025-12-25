@@ -588,7 +588,6 @@ export function App() {
 
     // Helper to derive the pending-action batch ID from a list of actions.
     const getBatchIdFromActions = (actions: readonly ActionEvent[]): string | null => {
-      if (!actions.length) return null;
       const id = actions[0]?.llm_response_id;
       return typeof id === 'string' ? id : null;
     };
