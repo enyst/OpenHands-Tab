@@ -46,6 +46,22 @@ describe('LLM profile dropdown', () => {
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
   });
 
+  it('opens the Profiles view in create mode when no profiles exist', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    postToWindow({ type: 'llmProfilesUpdated', profiles: [], activeProfileId: null });
+
+    fireEvent.click(screen.getByLabelText('LLM profile'));
+
+    await screen.findByText('OpenHands - LLM Profiles');
+    expect(screen.getByText('Create a new profile')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+  });
+
   it('closes on selection and shows the selected profile when reopened', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
