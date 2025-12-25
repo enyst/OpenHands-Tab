@@ -16,16 +16,12 @@ export interface TerminalArgs {
 export interface TerminalResult {
   command?: string | null;
   exit_code?: number | null;
-  // Back-compat for older consumers (e.g. BashEvent adapters).
-  exitCode?: number | null;
   timeout?: boolean;
   stdout?: string;
   stderr?: string;
   previous?: {
     command: string;
     exit_code: number | null;
-    // Back-compat for older consumers (e.g. BashEvent adapters).
-    exitCode: number | null;
     stdout: string;
     stderr: string;
   };
@@ -512,7 +508,7 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
   readonly description = TOOL_DESCRIPTION;
   readonly schema = terminalSchema;
   private session: TerminalSession | null = null;
-  private queue: Promise<TerminalResult> = Promise.resolve({ command: null, exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: '' });
+  private queue: Promise<TerminalResult> = Promise.resolve({ command: null, exit_code: 0, timeout: false, stdout: '', stderr: '' });
 
   async execute(args: z.infer<typeof terminalSchema>, context: ToolContext): Promise<TerminalResult> {
     const run = async (): Promise<TerminalResult> => {
@@ -522,7 +518,7 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
         }
         await this.session?.reset(context.workspace.root);
         this.session = null;
-        return { command: args.command ?? '', exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: 'Terminal session reset.' };
+        return { command: args.command ?? '', exit_code: 0, timeout: false, stdout: '', stderr: 'Terminal session reset.' };
       }
 
       if (!this.session) {
@@ -553,13 +549,11 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
         stdout: result.stdout,
         stderr: result.stderr,
         exit_code: exitCode,
-        exitCode,
         timeout: exitCode === -1,
         previous: result.previous
           ? {
               command: result.previous.command,
               exit_code: result.previous.exitCode,
-              exitCode: result.previous.exitCode,
               stdout: result.previous.stdout,
               stderr: result.previous.stderr,
             }
@@ -569,8 +563,8 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
 
     const resultPromise = this.queue.then(run, run);
     this.queue = resultPromise.then(
-      () => ({ command: null, exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: '' }),
-      () => ({ command: null, exit_code: 0, exitCode: 0, timeout: false, stdout: '', stderr: '' }),
+      () => ({ command: null, exit_code: 0, timeout: false, stdout: '', stderr: '' }),
+      () => ({ command: null, exit_code: 0, timeout: false, stdout: '', stderr: '' }),
     );
     return resultPromise;
   }

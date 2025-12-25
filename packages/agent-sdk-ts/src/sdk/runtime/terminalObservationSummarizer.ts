@@ -4,7 +4,7 @@ import type { SecretRegistry } from './SecretRegistry';
 
 export interface TerminalObservationInput {
   command: string;
-  exitCode: number | string | null | undefined;
+  exit_code: number | string | null | undefined;
   stdout?: string | null;
   stderr?: string | null;
   timedOut?: boolean;
@@ -56,7 +56,7 @@ const maskSecrets = (text: string, secrets: SecretRegistry): string => {
   return masked;
 };
 
-const summarizeExitCodeFallback = (exitCode: TerminalObservationInput['exitCode']): string => {
+const summarizeExitCodeFallback = (exitCode: TerminalObservationInput['exit_code']): string => {
   const normalized =
     typeof exitCode === 'number' ? exitCode.toString() : typeof exitCode === 'string' && exitCode.trim() ? exitCode.trim() : 'unknown';
   return normalized === '0' ? 'Done.' : `Done (exit code ${normalized}).`;
@@ -77,7 +77,7 @@ export async function summarizeTerminalObservationWithGeminiFlash(
   const maxPromptChars = resolveNonNegativeIntOption(options.maxPromptChars, DEFAULT_MAX_PROMPT_CHARS);
   const maxSummaryChars = resolveNonNegativeIntOption(options.maxSummaryChars, DEFAULT_MAX_SUMMARY_CHARS);
 
-  const fallback = truncateSummary(summarizeExitCodeFallback(input.exitCode), maxSummaryChars);
+  const fallback = truncateSummary(summarizeExitCodeFallback(input.exit_code), maxSummaryChars);
   const stdout = typeof input.stdout === 'string' ? input.stdout.trimEnd() : '';
   const stderr = typeof input.stderr === 'string' ? input.stderr.trimEnd() : '';
   const output = stdout && stderr ? `${stdout}\n${stderr}` : stdout || stderr;
@@ -89,7 +89,7 @@ export async function summarizeTerminalObservationWithGeminiFlash(
     '- Do not include secrets or long output excerpts.',
     '',
     `Command: ${input.command || '(empty)'}`,
-    `Exit code: ${input.exitCode ?? 'unknown'}`,
+    `Exit code: ${input.exit_code ?? 'unknown'}`,
     `Timed out: ${input.timedOut ? 'yes' : 'no'}`,
     `Output truncated: ${input.wasTruncated ? 'yes' : 'no'}`,
     '',

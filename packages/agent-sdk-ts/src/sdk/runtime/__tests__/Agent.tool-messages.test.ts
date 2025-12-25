@@ -110,7 +110,7 @@ describe('Agent tool message formatting', () => {
       validate: (input) => input as Record<string, unknown>,
       execute: async () => ({
         command: `echo ${secretValue}`,
-        exitCode: 0,
+        exit_code: 0,
         stdout: `hello ${secretValue}`,
         stderr: '',
         timeout: false,

@@ -91,10 +91,10 @@ describe('Agent truncates tool logs and observations', () => {
 
   it('truncates large stdout results in ObservationEvent and tool message', async () => {
     const log = new EventLog();
-    const tool: ToolDefinition<{ command: string }, { stdout: string; exitCode: number }> = {
+    const tool: ToolDefinition<{ command: string }, { stdout: string; exit_code: number }> = {
       name: 'terminal',
       validate: (input) => input as { command: string },
-      execute: async () => ({ stdout: LONG_STDOUT, exitCode: 0 }),
+      execute: async () => ({ stdout: LONG_STDOUT, exit_code: 0 }),
     };
 
     const llm = new MockLLM([
