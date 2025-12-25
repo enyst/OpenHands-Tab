@@ -193,7 +193,6 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           status: conversation?.getStatus() ?? 'offline',
           mode: deps.getConversationMode(),
           llmProfileLabel: deps.getLastKnownLlmLabel(),
-          llmModel: deps.getLastKnownLlmLabel(),
         });
 
         void host.postMessage({
@@ -412,7 +411,6 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           status: conversation?.getStatus() ?? 'offline',
           mode: deps.getConversationMode(),
           llmProfileLabel: deps.getLastKnownLlmLabel(),
-          llmModel: deps.getLastKnownLlmLabel(),
         });
 
         void host.postMessage({

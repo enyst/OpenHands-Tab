@@ -458,7 +458,6 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       status: deps.getConversation()?.getStatus() ?? 'offline',
       mode: deps.getConversationMode(),
       llmProfileLabel: label,
-      llmModel: label,
     });
     await broadcastLlmProfilesUpdated();
     return { ok: true, profileId: updated.llm.profileId ?? null };
