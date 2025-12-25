@@ -19,14 +19,14 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 | agent/ | ✓ `Agent`, `AgentBase` | ✓ `Agent` in runtime/ | TS has separate `AgentOrchestrator` |
 | context/ | ✓ | ✓ | Similar skill/context handling |
 | conversation/ | ✓ | ✓ | Both have Local/Remote variants |
-| critic/ | ✓ | ✗ | Evaluation framework, Python only |
+| critic/ | ✓ | ✗ | Evaluation framework, Python only (not planned) |
 | event/ | ✓ | ✓ types/ | Different patterns (class vs interface) |
-| git/ | ✓ | ✗ | Full git utilities, Python only |
-| io/ | ✓ `FileStore` | ✗ | Abstracted file storage, Python only |
+| git/ | ✓ | ✗ | Full git utilities, Python only (not planned) |
+| io/ | ✓ `FileStore` | ✗ | Abstracted file storage, Python only (not planned) |
 | llm/ | ✓ | ✓ | Different approaches (LiteLLM vs native) |
-| logger/ | ✓ Rich/JSON | ✗ | Comprehensive logging, Python only |
-| mcp/ | ✓ | ✗ | Model Context Protocol, Python only |
-| observability/ | ✓ Laminar/OTEL | ✗ | Telemetry, Python only (not planned for TS) |
+| logger/ | ✓ Rich/JSON | ✗ | Comprehensive logging, Python only (not planned) |
+| mcp/ | ✓ | ✗ | Model Context Protocol, Python only (not planned) |
+| observability/ | ✓ Laminar/OTEL | ✗ | Telemetry, Python only (not planned) |
 | secret/ | ✓ | ✓ runtime/ | TS has `SecretRegistry` in runtime |
 | security/ | ✓ module | ✓ inline in Agent | Python has separate module; TS has inline handling |
 | tool/ | ✓ | ✓ tools/ | Different validation approaches (Pydantic vs Zod) |
@@ -44,17 +44,17 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
    - Both use LLM to assess risk per tool call (TS via system prompt instructions, Python via analyzer)
    - **Gap**: Python has separate analyzer classes for modularity; TS has inline implementation
 
-2. **Critic Module** - `CriticBase`, `AgentFinishedCritic`, `EmptyPatchCritic`, `PassCritic`
+2. **Critic Module** - `CriticBase`, `AgentFinishedCritic`, `EmptyPatchCritic`, `PassCritic` (not planned)
 
-3. **Git Module** - `GitDiff`, `GitChanges`, `GitManager`
+3. **Git Module** - `GitDiff`, `GitChanges`, `GitManager` (not planned)
 
-4. **IO/FileStore Module** - `FileStore` abstract base, `LocalFileStore`, `InMemoryFileStore`
+4. **IO/FileStore Module** - `FileStore` abstract base, `LocalFileStore`, `InMemoryFileStore` (not planned)
 
-5. **Observability Module** - Laminar integration, OpenTelemetry, `@observe` decorator (not planned for TS)
+5. **Observability Module** - Laminar integration, OpenTelemetry, `@observe` decorator (not planned)
 
-6. **Logger Module** - Rich console logging, JSON logging, rotating file handlers
+6. **Logger Module** - Rich console logging, JSON logging, rotating file handlers (not planned)
 
-7. **MCP** - `MCPClient` for external tool integration (not planned for TS)
+7. **MCP** - `MCPClient` for external tool integration (not planned)
 
 8. **LLM Features** - Registry with resolver pattern, Router LLM, provider-specific exception mapping, `Metrics`/`Telemetry` classes
 
