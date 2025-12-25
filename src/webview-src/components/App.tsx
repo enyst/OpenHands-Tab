@@ -88,6 +88,7 @@ const computeConversationTotalsFromStats = (value: unknown): ConversationTotals 
     return Number.isFinite(num) ? num : null;
   };
   const getTokenUsageArray = (metric: Record<string, unknown>): unknown[] | null => {
+    // Token usage history keys vary across backends/versions; keep fallbacks for restores.
     const raw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
     return Array.isArray(raw) ? raw : null;
   };
