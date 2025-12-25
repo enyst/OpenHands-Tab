@@ -413,33 +413,14 @@ function LlmProfileSelector({
               <span className="codicon codicon-symbol-parameter text-brand-400" />
               <h3 className="font-semibold text-sm">LLM Profile</h3>
             </div>
-          </div>
+            </div>
 
-          <div className="p-2 space-y-1" role="listbox" aria-label="LLM profiles">
-            <button
-              type="button"
-              onClick={() => handleSelect(null)}
-              role="option"
-              aria-selected={isSelected(null)}
-              className={`
-                w-full text-left px-3 py-2 rounded-lg
-                text-sm
-                transition-colors duration-150
-                hover:bg-white/10
-                flex items-center gap-2
-                ${isSelected(null) ? 'bg-brand-500/20 text-brand-300' : 'text-stone-300'}
-              `}
-            >
-              <span className="codicon codicon-circle-slash" />
-              <span className="flex-1">None</span>
-              {isSelected(null) && <span className="codicon codicon-check text-brand-400" />}
-            </button>
-
-            {sanitizedProfiles.length === 0 ? (
-              <div className="px-3 py-2 text-sm opacity-60">No profiles found</div>
-            ) : (
-              sanitizedProfiles.map((id) => {
-                const selected = isSelected(id);
+            <div className="p-2 space-y-1" role="listbox" aria-label="LLM profiles">
+              {sanitizedProfiles.length === 0 ? (
+                <div className="px-3 py-2 text-sm opacity-60">No profiles found</div>
+              ) : (
+                sanitizedProfiles.map((id) => {
+                  const selected = isSelected(id);
                 return (
                   <div
                     key={id}
@@ -482,15 +463,34 @@ function LlmProfileSelector({
 
                     {selected && <span className="codicon codicon-check text-brand-400" />}
                   </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
 
-            <div className="my-1 border-t border-white/10" />
+              <button
+                type="button"
+                onClick={() => handleSelect(null)}
+                role="option"
+                aria-selected={isSelected(null)}
+                className={`
+                  w-full text-left px-3 py-2 rounded-lg
+                  text-sm
+                  transition-colors duration-150
+                  hover:bg-white/10
+                  flex items-center gap-2
+                  ${isSelected(null) ? 'bg-brand-500/20 text-brand-300' : 'text-stone-300'}
+                `}
+              >
+                <span className="codicon codicon-circle-slash" />
+                <span className="flex-1">None</span>
+                {isSelected(null) && <span className="codicon codicon-check text-brand-400" />}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
+              <div className="my-1 border-t border-white/10" />
+
+              <button
+                type="button"
+                onClick={() => {
                 if (!onOpenCreate) return;
                 setIsOpen(false);
                 onOpenCreate();
