@@ -742,6 +742,7 @@ describe('Settings and modes', () => {
     (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
       const pty = options?.pty;
       if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+      if (typeof pty?.open === 'function') pty.open();
       terminalInstance = { show: vi.fn(), dispose: vi.fn() };
       return terminalInstance;
     });
@@ -786,6 +787,7 @@ describe('Settings and modes', () => {
     (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
       const pty = options?.pty;
       if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 
@@ -841,6 +843,7 @@ describe('Settings and modes', () => {
       if (pty?.onDidWrite) {
         pty.onDidWrite((chunk: string) => writes.push(chunk));
       }
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 
@@ -951,6 +954,7 @@ describe('Settings and modes', () => {
       if (pty?.onDidWrite) {
         pty.onDidWrite((chunk: string) => writes.push(chunk));
       }
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 
@@ -995,6 +999,7 @@ describe('Settings and modes', () => {
       if (pty?.onDidWrite) {
         pty.onDidWrite((chunk: string) => writes.push(chunk));
       }
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 
@@ -1048,6 +1053,7 @@ describe('Settings and modes', () => {
       if (pty?.onDidWrite) {
         pty.onDidWrite((chunk: string) => writes.push(chunk));
       }
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 
@@ -1093,6 +1099,7 @@ describe('Settings and modes', () => {
       if (pty?.onDidWrite) {
         pty.onDidWrite((chunk: string) => writes.push(chunk));
       }
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 
@@ -1137,6 +1144,7 @@ describe('Settings and modes', () => {
       if (pty?.onDidWrite) {
         pty.onDidWrite((chunk: string) => writes.push(chunk));
       }
+      if (typeof pty?.open === 'function') pty.open();
       return { show: vi.fn(), dispose: vi.fn() } as any;
     });
 

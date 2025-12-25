@@ -46,10 +46,29 @@ export async function run(): Promise<void> {
   const exit: BashEvent = { ...nextBase(), type: 'BashExit', exit_code: 0 };
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
-  // Verify diagnostics reflect terminal received events and that terminal exists
-  const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-  if (!diag?.terminal?.hasTerminal) throw new Error('Expected OpenHands terminal to be created');
-  if (typeof diag?.terminal?.received !== 'number' || diag.terminal.received < 3) {
-    throw new Error(`Expected some terminal events, got: ${JSON.stringify(diag?.terminal)}`);
+  await pollUntil(async () => {
+    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return Boolean(diag?.terminal?.hasTerminal);
+  }, 15000);
+
+  // Verify diagnostics reflect terminal received events and that output is buffered until the terminal is opened.
+  const diagBeforeOpen: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  if (typeof diagBeforeOpen?.terminal?.received !== 'number' || diagBeforeOpen.terminal.received < 3) {
+    throw new Error(`Expected some terminal events, got: ${JSON.stringify(diagBeforeOpen?.terminal)}`);
   }
+  if (diagBeforeOpen?.terminal?.ptyOpened !== false) {
+    throw new Error(`Expected terminal PTY to be unopened before showing it, got: ${JSON.stringify(diagBeforeOpen?.terminal)}`);
+  }
+  if (typeof diagBeforeOpen?.terminal?.preopenBufferedChars !== 'number' || diagBeforeOpen.terminal.preopenBufferedChars <= 0) {
+    throw new Error(`Expected some pre-open buffered output, got: ${JSON.stringify(diagBeforeOpen?.terminal)}`);
+  }
+
+  const terminal = vscode.window.terminals.find((t) => t.name === 'OpenHands');
+  if (!terminal) throw new Error('Expected OpenHands terminal to exist');
+  terminal.show(false);
+
+  await pollUntil(async () => {
+    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    return diag?.terminal?.ptyOpened === true && diag?.terminal?.preopenBufferedChars === 0;
+  }, 15000);
 }
