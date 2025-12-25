@@ -1727,7 +1727,8 @@ This section tracks the differences between the Python `openhands-sdk` and the T
      - `security_risk` field on `ActionEvent`
      - `parseSecurityRisk()` and `requiresConfirmation()` methods
      - Confirmation settings with `policy`, `riskyThreshold`, `confirmUnknown`
-   - **Gap**: Python's `LLMSecurityAnalyzer` uses LLM for dynamic risk assessment; TS relies on tool-provided risk levels
+   - Both use LLM to assess risk per tool call (TS via system prompt instructions, Python via analyzer)
+   - **Gap**: Python has separate analyzer classes for modularity; TS has inline implementation
 
 2. **Critic Module**
    - `CriticBase` abstract class with `CriticResult`
