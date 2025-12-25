@@ -1268,31 +1268,31 @@ export function App() {
     setShowContextPicker(false);
     setShowSkillsPopover(false);
     setShowHistory(false);
-  }, []);
+  }, [setShowContextPicker, setShowHistory, setShowLlmProfiles, setShowSkillsPopover]);
 
   const handleOpenHistory = useCallback(() => {
     closePanels();
     setShowHistory(true);
     postMessage({ type: 'requestHistory' });
-  }, [closePanels, postMessage]);
+  }, [closePanels, postMessage, setShowHistory]);
 
   const handleOpenLlmProfiles = useCallback(() => {
     setLlmProfilesOpenRequest(null);
     closePanels();
     setShowLlmProfiles(true);
-  }, [closePanels]);
+  }, [closePanels, setLlmProfilesOpenRequest, setShowLlmProfiles]);
 
   const handleOpenLlmProfilesCreate = useCallback(() => {
     setLlmProfilesOpenRequest({ mode: 'create' });
     closePanels();
     setShowLlmProfiles(true);
-  }, [closePanels]);
+  }, [closePanels, setLlmProfilesOpenRequest, setShowLlmProfiles]);
 
   const handleOpenLlmProfilesEdit = useCallback((profileId: string) => {
     setLlmProfilesOpenRequest({ mode: 'edit', profileId });
     closePanels();
     setShowLlmProfiles(true);
-  }, [closePanels]);
+  }, [closePanels, setLlmProfilesOpenRequest, setShowLlmProfiles]);
 
   const handleOpenSettings = useCallback(() => {
     postMessage({ type: 'openSettingsPage' });
