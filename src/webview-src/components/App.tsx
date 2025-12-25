@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  isEvent,
   isSystemPromptEvent,
   isActionEvent,
   isObservationEvent,
@@ -10,20 +9,20 @@ import {
   isConversationErrorEvent,
   isPauseEvent,
   isCondensation,
-  isConversationStateUpdateEvent,
   type Event,
   type ActionEvent,
-  type LLMConfiguration,
 } from '@openhands/agent-sdk-ts';
-import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 import { normalizeHalUserName } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
-import { MAX_RENDERED_EVENTS } from '../shared/constants';
 import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../shared/pasteLimits';
 import { escapeMarkdownAltText } from './app/pastedImages';
-import { useHalFlow, type HalSettingsSnapshot } from './app/useHalFlow';
+import { INITIAL_CONVERSATION_TOTALS, type ConversationTotals } from './app/conversationTotals';
+import { useHalFlow } from './app/useHalFlow';
 import { useInlineImageAttachments } from './app/useInlineImageAttachments';
-import { useStatusMessages, type StatusBannerState } from './app/useStatusMessages';
+import { useStatusMessages } from './app/useStatusMessages';
+import { useHostMessages } from './app/useHostMessages';
+import { useConversationEvents } from './app/useConversationEvents';
+import { useLlmProfilesRequests } from './app/useLlmProfilesRequests';
 
 // Component imports
 import { Header } from './Header';
@@ -32,7 +31,7 @@ import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
 import { LlmProfilesView, type LlmProfilesViewOpenRequest } from './LlmProfilesView';
-import { isHalDecision, type HalPhase } from '../../shared/halTypes';
+import type { HalPhase } from '../../shared/halTypes';
 import { HalOverlay } from './HalOverlay';
 import {
   SystemPromptEventBlock,
@@ -45,149 +44,14 @@ import {
   MessageEventBlock,
   StreamingMessageBlock,
 } from './EventBlock';
-import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type RenderedEvent = { id: number; event: Event };
-
-const isRenderableEvent = (event: Event) => !isConversationStateUpdateEvent(event);
 
 type WebviewPersistedState = {
   conversationId?: string;
   lastSeenSeq?: number;
 };
-
-type ConversationsList = Array<{
-  id: string;
-  title?: string;
-  firstMessage?: string;
-  timestamp: number;
-  messageCount?: number;
-}>;
-
-type ConversationTotals = {
-  contextTokens: number;
-  totalTokens: number;
-  totalCost: number;
-  costIsKnown: boolean;
-};
-
-const INITIAL_CONVERSATION_TOTALS: ConversationTotals = {
-  contextTokens: 0,
-  totalTokens: 0,
-  totalCost: 0,
-  costIsKnown: false,
-};
-
-const LLM_PROFILES_REQUEST_TIMEOUT_MS = 15_000;
-
-const computeConversationTotalsFromStats = (value: unknown): ConversationTotals | null => {
-  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
-    !!candidate && typeof candidate === 'object';
-  const asFiniteNumber = (raw: unknown): number | null => {
-    const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
-    return Number.isFinite(num) ? num : null;
-  };
-  const getTokenUsageArray = (metric: Record<string, unknown>): unknown[] | null => {
-    // Token usage history keys vary across backends/versions; keep fallbacks for restores.
-    const raw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
-    return Array.isArray(raw) ? raw : null;
-  };
-  const getLastRequestPromptTokens = (metric: Record<string, unknown>): number | null => {
-    const tokenUsages = getTokenUsageArray(metric);
-    if (tokenUsages?.length) {
-      const last = tokenUsages[tokenUsages.length - 1];
-      if (isRecord(last)) {
-        const prompt = asFiniteNumber(last.promptTokens ?? last.prompt_tokens);
-        if (prompt !== null && prompt >= 0) return prompt;
-      }
-    }
-    const usageRaw = metric.accumulatedTokenUsage ?? metric.accumulated_token_usage;
-    if (isRecord(usageRaw)) {
-      const perTurn = asFiniteNumber(usageRaw.perTurnToken ?? usageRaw.per_turn_token);
-      if (perTurn !== null && perTurn >= 0) return perTurn;
-    }
-    return null;
-  };
-
-  if (!isRecord(value)) return null;
-  const usageToMetricsRaw = value.usage_to_metrics ?? value.usageToMetrics ?? value.service_to_metrics ?? value.serviceToMetrics;
-  if (!isRecord(usageToMetricsRaw)) return null;
-
-  let contextTokens = 0;
-  let accumulatedPromptTokens = 0;
-  let accumulatedCompletionTokens = 0;
-  let totalCost = 0;
-
-  for (const metricRaw of Object.values(usageToMetricsRaw)) {
-    if (!isRecord(metricRaw)) continue;
-    const costRaw = metricRaw.accumulatedCost ?? metricRaw.accumulated_cost;
-    const cost = asFiniteNumber(costRaw);
-    if (cost !== null && cost > 0) totalCost += cost;
-
-    const lastPrompt = getLastRequestPromptTokens(metricRaw);
-    if (lastPrompt !== null && lastPrompt > 0) contextTokens += lastPrompt;
-
-    const usageRaw = metricRaw.accumulatedTokenUsage ?? metricRaw.accumulated_token_usage;
-    if (!isRecord(usageRaw)) continue;
-    const prompt = asFiniteNumber(usageRaw.promptTokens ?? usageRaw.prompt_tokens);
-    if (prompt !== null && prompt > 0) accumulatedPromptTokens += prompt;
-    const completion = asFiniteNumber(usageRaw.completionTokens ?? usageRaw.completion_tokens);
-    if (completion !== null && completion > 0) accumulatedCompletionTokens += completion;
-  }
-
-  const totalTokens = accumulatedPromptTokens + accumulatedCompletionTokens;
-  // Best-effort: treat cost as "known" only once we have non-zero usage + non-zero cost.
-  const costIsKnown = totalTokens > 0 && totalCost > 0;
-
-  return { contextTokens, totalTokens, totalCost, costIsKnown };
-};
-
-const parseLlmUsageInputTokens = (value: unknown): number | null => {
-  if (!value || typeof value !== 'object') return null;
-  const record = value as Record<string, unknown>;
-  const raw = record.input ?? record.inputTokens ?? record.promptTokens ?? record.prompt_tokens;
-  const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
-  if (!Number.isFinite(num)) return null;
-  return Math.max(0, Math.trunc(num));
-};
-
-type PendingLlmProfilesRequest =
-  | {
-    kind: 'list';
-    resolve: (profiles: string[]) => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }
-  | {
-    kind: 'load';
-    resolve: (profile: LLMConfiguration) => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }
-  | {
-    kind: 'save';
-    resolve: () => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }
-  | {
-    kind: 'delete';
-    resolve: () => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }
-  | {
-    kind: 'apiKeyStatus';
-    resolve: (status: LlmProfileApiKeyStatusInfo) => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  }
-  | {
-    kind: 'apiKeySet';
-    resolve: () => void;
-    reject: (error: Error) => void;
-    timeout: ReturnType<typeof setTimeout>;
-  };
 
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
@@ -306,7 +170,6 @@ export function App() {
   // Refs
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
-  const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLlmUsageRef = useRef(false);
   const uiStateRef = useRef({
@@ -326,93 +189,15 @@ export function App() {
     api.postMessage(msg);
   }, []);
 
-  const llmProfilesRequestSeqRef = useRef(1);
-  const pendingLlmProfilesRequestsRef = useRef<Map<string, PendingLlmProfilesRequest>>(new Map());
-
-  const createLlmProfilesRequestId = (kind: string): string =>
-    `llmProfiles:${kind}:${llmProfilesRequestSeqRef.current++}`;
-
-  const listLlmProfiles = useCallback(async (): Promise<string[]> => {
-    const requestId = createLlmProfilesRequestId('list');
-    return await new Promise<string[]>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingLlmProfilesRequestsRef.current.delete(requestId);
-        reject(new Error('Timed out listing LLM profiles'));
-      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
-      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'list', resolve, reject, timeout });
-      postMessage({ type: 'llmProfilesListRequest', requestId });
-    });
-  }, [postMessage]);
-
-  const loadLlmProfile = useCallback(async (profileId: string): Promise<LLMConfiguration> => {
-    const requestId = createLlmProfilesRequestId('load');
-    return await new Promise<LLMConfiguration>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingLlmProfilesRequestsRef.current.delete(requestId);
-        reject(new Error('Timed out loading LLM profile'));
-      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
-      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'load', resolve, reject, timeout });
-      postMessage({ type: 'llmProfileLoadRequest', requestId, profileId });
-    });
-  }, [postMessage]);
-
-  const saveLlmProfile = useCallback(async (profileId: string, profile: LLMConfiguration): Promise<void> => {
-    const requestId = createLlmProfilesRequestId('save');
-    return await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingLlmProfilesRequestsRef.current.delete(requestId);
-        reject(new Error('Timed out saving LLM profile'));
-      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
-      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'save', resolve, reject, timeout });
-      postMessage({ type: 'llmProfileSaveRequest', requestId, profileId, profile });
-    });
-  }, [postMessage]);
-
-  const deleteLlmProfile = useCallback(async (profileId: string): Promise<void> => {
-    const requestId = createLlmProfilesRequestId('delete');
-    return await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingLlmProfilesRequestsRef.current.delete(requestId);
-        reject(new Error('Timed out deleting LLM profile'));
-      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
-      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'delete', resolve, reject, timeout });
-      postMessage({ type: 'llmProfileDeleteRequest', requestId, profileId });
-    });
-  }, [postMessage]);
-
-  const getLlmProfileApiKeyStatus = useCallback(async (
-    profileId: string,
-    overrides?: LlmProfileApiKeyStatusOverrides
-  ): Promise<LlmProfileApiKeyStatusInfo> => {
-    const requestId = createLlmProfilesRequestId('apiKeyStatus');
-    return await new Promise<LlmProfileApiKeyStatusInfo>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingLlmProfilesRequestsRef.current.delete(requestId);
-        reject(new Error('Timed out fetching LLM profile API key status'));
-      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
-      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'apiKeyStatus', resolve, reject, timeout });
-      const message: WebviewToHostMessage = {
-        type: 'llmProfileApiKeyStatusRequest',
-        requestId,
-        profileId,
-        provider: typeof overrides?.provider === 'string' ? overrides.provider : undefined,
-        baseUrl: typeof overrides?.baseUrl === 'string' ? overrides.baseUrl : undefined,
-      };
-      postMessage(message);
-    });
-  }, [postMessage]);
-
-  const setLlmProfileApiKey = useCallback(async (profileId: string, apiKey: string): Promise<void> => {
-    const requestId = createLlmProfilesRequestId('apiKeySet');
-    return await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingLlmProfilesRequestsRef.current.delete(requestId);
-        reject(new Error('Timed out setting LLM profile API key'));
-      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
-      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'apiKeySet', resolve, reject, timeout });
-      postMessage({ type: 'llmProfileApiKeySetRequest', requestId, profileId, apiKey });
-    });
-  }, [postMessage]);
+  const {
+    pendingLlmProfilesRequestsRef,
+    listLlmProfiles,
+    loadLlmProfile,
+    saveLlmProfile,
+    deleteLlmProfile,
+    getLlmProfileApiKeyStatus,
+    setLlmProfileApiKey,
+  } = useLlmProfilesRequests({ postMessage });
 
   const { inlineImages, setInlineImages, handlePasteImageFiles, handleRemoveInlineImage } = useInlineImageAttachments({
     showStatusMessage,
@@ -520,141 +305,23 @@ export function App() {
     currentServerUrlRef.current = currentServerUrl;
   }, [currentServerUrl]);
 
-  const handleConversationStateUpdate = useCallback((event: Event) => {
-    if (!isConversationStateUpdateEvent(event)) return false;
-
-    if (event.agent_status) {
-      const previousStatus = agentStatusRef.current;
-      agentStatusRef.current = event.agent_status;
-      setAgentStatus(event.agent_status);
-      if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
-        showStatusMessage('warn', 'Agent is waiting for confirmation');
-      }
-      if (previousStatus === 'WAITING_FOR_CONFIRMATION' && event.agent_status !== 'WAITING_FOR_CONFIRMATION') {
-        pendingActionsRef.current = [];
-        pendingActionsBatchIdRef.current = null;
-        setPendingActions([]);
-        if (submissionTimeoutRef.current) {
-          clearTimeout(submissionTimeoutRef.current);
-          submissionTimeoutRef.current = null;
-        }
-        setIsSubmitting(false);
-      }
-      lastAgentStatusRef.current = event.agent_status;
-    }
-
-    if (event.key === 'llm_usage') {
-      const inputTokens = parseLlmUsageInputTokens(event.value);
-      if (inputTokens !== null) {
-        hasLlmUsageRef.current = true;
-        setConversationTotals((prev) => {
-          if (prev.contextTokens === inputTokens) return prev;
-          return { ...prev, contextTokens: inputTokens };
-        });
-      }
-    }
-
-    if (event.key === 'stats') {
-      const totals = computeConversationTotalsFromStats(event.value);
-      if (totals) {
-        setConversationTotals((prev) => {
-          const nextContextTokens = hasLlmUsageRef.current ? prev.contextTokens : totals.contextTokens;
-          const nextTotals: ConversationTotals = { ...totals, contextTokens: nextContextTokens };
-          if (
-            prev.contextTokens === nextTotals.contextTokens
-            && prev.totalTokens === nextTotals.totalTokens
-            && prev.totalCost === nextTotals.totalCost
-            && prev.costIsKnown === nextTotals.costIsKnown
-          ) {
-            return prev;
-          }
-          return nextTotals;
-        });
-      }
-    }
-
-    return true;
-  }, [showStatusMessage]);
-
-  const handleStreamingUpdate = useCallback((event: Event) => {
-    const streamingUpdate = reduceLlmStreamingState(streamingStateRef.current, event);
-    streamingStateRef.current = streamingUpdate.state;
-
-    if (streamingUpdate.started || streamingUpdate.completed || streamingUpdate.contentUpdated) {
-      setStreamingContent(streamingUpdate.state.content);
-    }
-  }, []);
-
-  const handlePendingActions = useCallback((event: Event) => {
-    const clearSubmissionState = () => {
-      if (submissionTimeoutRef.current) {
-        clearTimeout(submissionTimeoutRef.current);
-        submissionTimeoutRef.current = null;
-      }
-      setIsSubmitting(false);
-    };
-
-    // Helper to derive the pending-action batch ID from a list of actions.
-    const getBatchIdFromActions = (actions: readonly ActionEvent[]): string | null => {
-      const id = actions[0]?.llm_response_id;
-      return typeof id === 'string' ? id : null;
-    };
-
-    if (isActionEvent(event)) {
-      const prev = pendingActionsRef.current;
-      const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
-      if (exists) return;
-
-      const nextBatchId = typeof event.llm_response_id === 'string' ? event.llm_response_id : null;
-      const prevBatchId = pendingActionsBatchIdRef.current ?? getBatchIdFromActions(prev);
-      const next = prev.length && prevBatchId && nextBatchId && prevBatchId !== nextBatchId ? [event] : [...prev, event];
-
-      pendingActionsRef.current = next;
-      pendingActionsBatchIdRef.current = nextBatchId;
-      setPendingActions(next);
-    } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
-      const prev = pendingActionsRef.current;
-      const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
-      if (next.length !== prev.length) {
-        pendingActionsRef.current = next;
-        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
-        setPendingActions(next);
-      }
-      clearSubmissionState();
-    } else if (isAgentErrorEvent(event)) {
-      showStatusMessage('error', event.error);
-      clearSubmissionState();
-    } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
-      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: 8000 });
-    } else if (isPauseEvent(event)) {
-      showStatusMessage('warn', 'Conversation paused');
-    }
-  }, [showStatusMessage]);
-
-  const handleRenderableEvent = useCallback((event: Event) => {
-    if (!isRenderableEvent(event)) return;
-
-    setEvents((ev) => {
-      const next = [...ev, { id: eventId.current++, event }];
-      return next.length > MAX_RENDERED_EVENTS ? next.slice(-MAX_RENDERED_EVENTS) : next;
-    });
-  }, []);
-
-  // Handle incoming events
-  const handleEvent = useCallback((incomingEvent: unknown) => {
-    if (!isEvent(incomingEvent)) return;
-
-    const event = incomingEvent;
-    handleStreamingUpdate(event);
-    if (handleConversationStateUpdate(event)) {
-      maybeUpdateHalFlow();
-      return;
-    }
-
-    handlePendingActions(event);
-    maybeUpdateHalFlow();
-    handleRenderableEvent(event);
-  }, [handleConversationStateUpdate, handlePendingActions, handleRenderableEvent, handleStreamingUpdate, maybeUpdateHalFlow]);
+  const { handleEvent } = useConversationEvents({
+    agentStatusRef,
+    lastAgentStatusRef,
+    pendingActionsRef,
+    pendingActionsBatchIdRef,
+    submissionTimeoutRef,
+    hasLlmUsageRef,
+    eventId,
+    showStatusMessage,
+    maybeUpdateHalFlow,
+    setAgentStatus,
+    setPendingActions,
+    setIsSubmitting,
+    setStreamingContent,
+    setEvents,
+    setConversationTotals,
+  });
 
   // Signal webview is ready on mount
   useEffect(() => {
@@ -688,518 +355,7 @@ export function App() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, [postMessage]);
 
-  // Message handler: processes incoming messages from extension host
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      const payload = event.data as {
-        type?: string;
-        requestId?: string;
-        ok?: unknown;
-        status?: 'online' | 'offline' | 'connecting';
-        serverUrl?: string | null;
-        mode?: 'local' | 'remote';
-        llmProfileLabel?: string | null;
-        profiles?: string[];
-        activeProfileId?: string | null;
-        profileId?: unknown;
-        profile?: unknown;
-        hasKey?: unknown;
-        hasProfileKey?: unknown;
-        hasProviderKey?: unknown;
-        providerKeyName?: unknown;
-        hal?: Partial<HalSettingsSnapshot> & { [k: string]: unknown };
-        event?: unknown;
-        seq?: unknown;
-        error?: unknown;
-        conversationId?: string;
-        files?: string[];
-        skills?: { label: string; path: string }[];
-        tools?: { id: string; label: string }[];
-        enabledToolIds?: string[];
-        conversations?: ConversationsList;
-        servers?: { url: string; label?: string }[];
-        attachments?: Array<{ uri: string; label: string; sizeBytes?: number }>;
-        level?: unknown;
-        message?: unknown;
-        autoDismiss?: unknown;
-        autoDismissDelay?: unknown;
-      };
-
-      switch (payload?.type) {
-        case 'status':
-          if (payload.status) {
-            setStatus(payload.status);
-            if (payload.mode === 'local' || payload.mode === 'remote') {
-              setMode(payload.mode);
-            }
-            const label = payload.llmProfileLabel;
-            if (typeof label === 'string' || label === null) {
-              setLlmProfileLabel(label);
-            }
-            const nextBanner: StatusBannerState | null =
-              payload.mode === 'local'
-                ? { message: 'Local mode: running without remote server', level: 'info', dismissible: false }
-                : payload.status === 'connecting'
-                  ? { message: 'Connecting to server…', level: 'info' }
-                  : payload.status === 'online'
-                    ? { message: 'Connected to server', level: 'info' }
-                    : payload.status === 'offline'
-                      ? { message: 'Disconnected from server', level: 'warn' }
-                      : null;
-
-            if (nextBanner) {
-              setStatusBanner((prev) => {
-                if (!prev) return nextBanner;
-                if (
-                  prev.message === nextBanner.message
-                  && prev.level === nextBanner.level
-                  && prev.dismissible === nextBanner.dismissible
-                ) {
-                  return prev;
-                }
-                return nextBanner;
-              });
-            }
-          }
-          break;
-        case 'statusMessage': {
-          const level = payload.level;
-          const message = payload.message;
-          if ((level === 'info' || level === 'warn' || level === 'error') && typeof message === 'string' && message.trim()) {
-            const autoDismiss = payload.autoDismiss === true;
-            const autoDismissDelay = typeof payload.autoDismissDelay === 'number' && Number.isFinite(payload.autoDismissDelay)
-              ? Math.max(0, payload.autoDismissDelay)
-              : undefined;
-            showStatusMessage(level, message.trim(), { autoDismiss, autoDismissDelay });
-          }
-          break;
-        }
-        case 'llmProfilesUpdated': {
-          if (Array.isArray(payload.profiles)) {
-            setLlmProfiles(payload.profiles.filter((id): id is string => typeof id === 'string'));
-          }
-          if (typeof payload.activeProfileId === 'string' || payload.activeProfileId === null) {
-            setLlmProfileId(payload.activeProfileId);
-          }
-          break;
-        }
-        case 'llmProfilesListResponse': {
-          const requestId = payload.requestId;
-          if (typeof requestId !== 'string') break;
-          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
-          if (!pending || pending.kind !== 'list') break;
-          pendingLlmProfilesRequestsRef.current.delete(requestId);
-          clearTimeout(pending.timeout);
-          if (payload.ok === true && Array.isArray(payload.profiles)) {
-            pending.resolve(payload.profiles.filter((id): id is string => typeof id === 'string' && id.trim().length > 0));
-            break;
-          }
-          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to list LLM profiles';
-          pending.reject(new Error(reason));
-          break;
-        }
-        case 'llmProfileLoadResponse': {
-          const requestId = payload.requestId;
-          if (typeof requestId !== 'string') break;
-          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
-          if (!pending || pending.kind !== 'load') break;
-          pendingLlmProfilesRequestsRef.current.delete(requestId);
-          clearTimeout(pending.timeout);
-          if (payload.ok === true && payload.profile && typeof payload.profile === 'object') {
-            pending.resolve(payload.profile as LLMConfiguration);
-            break;
-          }
-          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to load LLM profile';
-          pending.reject(new Error(reason));
-          break;
-        }
-        case 'llmProfileSaveResponse': {
-          const requestId = payload.requestId;
-          if (typeof requestId !== 'string') break;
-          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
-          if (!pending || pending.kind !== 'save') break;
-          pendingLlmProfilesRequestsRef.current.delete(requestId);
-          clearTimeout(pending.timeout);
-          if (payload.ok === true) {
-            pending.resolve();
-            break;
-          }
-          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to save LLM profile';
-          pending.reject(new Error(reason));
-          break;
-        }
-        case 'llmProfileDeleteResponse': {
-          const requestId = payload.requestId;
-          if (typeof requestId !== 'string') break;
-          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
-          if (!pending || pending.kind !== 'delete') break;
-          pendingLlmProfilesRequestsRef.current.delete(requestId);
-          clearTimeout(pending.timeout);
-          if (payload.ok === true) {
-            pending.resolve();
-            break;
-          }
-          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to delete LLM profile';
-          pending.reject(new Error(reason));
-          break;
-        }
-        case 'llmProfileApiKeyStatusResponse': {
-          const requestId = payload.requestId;
-          if (typeof requestId !== 'string') break;
-          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
-          if (!pending || pending.kind !== 'apiKeyStatus') break;
-          pendingLlmProfilesRequestsRef.current.delete(requestId);
-          clearTimeout(pending.timeout);
-          const providerKeyName = typeof payload.providerKeyName === 'string' ? payload.providerKeyName : undefined;
-          if (
-            payload.ok === true &&
-            typeof payload.hasKey === 'boolean' &&
-            typeof payload.hasProfileKey === 'boolean' &&
-            typeof payload.hasProviderKey === 'boolean'
-          ) {
-            pending.resolve({
-              hasKey: payload.hasKey,
-              hasProfileKey: payload.hasProfileKey,
-              hasProviderKey: payload.hasProviderKey,
-              providerKeyName,
-            });
-            break;
-          }
-          if (payload.ok === true && typeof payload.hasKey === 'boolean') {
-            pending.resolve({
-              hasKey: payload.hasKey,
-              hasProfileKey: payload.hasKey,
-              hasProviderKey: false,
-              providerKeyName,
-            });
-            break;
-          }
-          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to fetch LLM profile API key status';
-          pending.reject(new Error(reason));
-          break;
-        }
-        case 'llmProfileApiKeySetResponse': {
-          const requestId = payload.requestId;
-          if (typeof requestId !== 'string') break;
-          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
-          if (!pending || pending.kind !== 'apiKeySet') break;
-          pendingLlmProfilesRequestsRef.current.delete(requestId);
-          clearTimeout(pending.timeout);
-          if (payload.ok === true) {
-            pending.resolve();
-            break;
-          }
-          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to set LLM profile API key';
-          pending.reject(new Error(reason));
-          break;
-        }
-        case 'configUpdated':
-          if (typeof payload.serverUrl === 'string' || payload.serverUrl === null) {
-            const url = payload.serverUrl || undefined;
-            setCurrentServerUrl(url);
-            const label = url || 'local mode';
-            showStatusMessage('info', `Config updated: ${label}`);
-          }
-          if (payload.mode === 'local') {
-            setMode('local');
-            setCurrentServerUrl(undefined);
-            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
-          } else if (payload.mode === 'remote') {
-            setMode('remote');
-          }
-          break;
-        case 'serverListUpdated': {
-          if (Array.isArray(payload.servers)) {
-            setServers(payload.servers);
-          }
-          if (typeof payload.serverUrl === 'string') {
-            const nextUrl = payload.serverUrl || undefined;
-            const prevUrl = currentServerUrlRef.current;
-            currentServerUrlRef.current = nextUrl;
-            setCurrentServerUrl(nextUrl);
-
-            // If the server target changed (Local ↔ Remote or remote server URL changed),
-            // start a fresh conversation UI instead of implicitly resuming prior state.
-            if (prevUrl !== nextUrl) {
-              resetForServerTargetChange();
-              conversationIdRef.current = undefined;
-              setConversationId(undefined);
-              setEvents([]);
-              pendingActionsRef.current = [];
-              setPendingActions([]);
-              agentStatusRef.current = undefined;
-              setAgentStatus(undefined);
-              setStreamingContent(null);
-              setConversationTotals(INITIAL_CONVERSATION_TOTALS);
-              hasLlmUsageRef.current = false;
-              eventId.current = 1;
-              const api = getVscodeApi();
-              api.setState?.({});
-              maybeUpdateHalFlow();
-            }
-          }
-          break;
-        }
-        case 'halSettings':
-          applyHalSettings(payload.hal);
-          break;
-        case 'halTtsResponse': {
-          handleHalTtsResponse(payload);
-          break;
-        }
-        case 'halVoiceConfirmResponse': {
-          handleHalVoiceConfirmResponse(payload);
-          break;
-        }
-        case 'attachmentsSelected':
-          if (Array.isArray(payload.attachments)) {
-            setAttachments((prev) => {
-              const existing = new Set(prev.map((a) => a.uri));
-              const next = [...prev];
-              for (const a of payload.attachments ?? []) {
-                if (!a || typeof a.uri !== 'string' || typeof a.label !== 'string') continue;
-                if (existing.has(a.uri)) continue;
-                next.push(a);
-                existing.add(a.uri);
-              }
-              return next;
-            });
-          }
-          break;
-        case 'event':
-          if (isEvent(payload.event)) {
-            handleEvent(payload.event);
-            if (typeof payload.seq === 'number') {
-              const api = getVscodeApi();
-              const prev = api.getState?.<WebviewPersistedState>() ?? {};
-              api.setState?.({ ...prev, lastSeenSeq: payload.seq });
-            }
-          }
-          break;
-        case 'error':
-          if (typeof payload.error === 'string') {
-            setStatusBanner({ message: payload.error, level: 'error' });
-          } else {
-            setStatusBanner({ message: 'An unknown error occurred', level: 'error' });
-          }
-          break;
-        case 'halTeleportUnavailable': {
-          handleHalTeleportUnavailable(payload.error);
-          break;
-        }
-        case 'halTeleportFailed': {
-          handleHalTeleportFailed(payload.error);
-          break;
-        }
-        case 'conversationStarted':
-          if (typeof payload.conversationId === 'string') {
-            handleConversationStarted();
-            conversationIdRef.current = payload.conversationId;
-            setConversationId(payload.conversationId);
-            setEvents([]);
-            pendingActionsRef.current = [];
-            pendingActionsBatchIdRef.current = null;
-            setPendingActions([]);
-            agentStatusRef.current = undefined;
-            setAgentStatus(undefined);
-            setStreamingContent(null);
-            eventId.current = 1;
-            setShowToolsPopover(false);
-            postMessage({ type: 'requestTools' });
-            // No toast: UI clears and restored/started messages will render naturally
-            const api = getVscodeApi();
-            api.setState?.({ conversationId: payload.conversationId, lastSeenSeq: 0 });
-            maybeUpdateHalFlow();
-          }
-          break;
-        case 'workspaceFiles':
-          if (Array.isArray(payload.files)) {
-            setWorkspaceFiles(payload.files.filter((f): f is string => typeof f === 'string'));
-          }
-          break;
-        case 'skillsList':
-          if (Array.isArray(payload.skills)) {
-            setSkills(
-              payload.skills.filter((skill): skill is { label: string; path: string } => (
-                typeof skill === 'object'
-                && skill !== null
-                && typeof (skill as { label?: unknown }).label === 'string'
-                && typeof (skill as { path?: unknown }).path === 'string'
-              ))
-            );
-          }
-          break;
-        case 'toolsList': {
-          if (!Array.isArray(payload.tools) || !Array.isArray(payload.enabledToolIds)) break;
-          setTools(
-            payload.tools.filter((tool): tool is { id: string; label: string } => (
-              typeof tool === 'object'
-              && tool !== null
-              && typeof (tool as { id?: unknown }).id === 'string'
-              && typeof (tool as { label?: unknown }).label === 'string'
-            ))
-          );
-          setEnabledToolIds(payload.enabledToolIds.filter((id): id is string => typeof id === 'string'));
-          break;
-        }
-        case 'queryUiState': {
-          if (typeof payload.requestId === 'string') {
-            postMessage({ type: 'uiStateResponse', requestId: payload.requestId, ...uiStateRef.current });
-          }
-          break;
-        }
-        case 'queryHalState': {
-          if (typeof payload.requestId === 'string') {
-            postMessage({ type: 'halStateResponse', requestId: payload.requestId, ...halStateRef.current });
-          }
-          break;
-        }
-        case 'e2eAction': {
-          if (typeof (payload as { action?: unknown }).action !== 'string') break;
-          const action = (payload as { action: string }).action;
-          const rawPayload = (payload as { payload?: unknown }).payload;
-
-          switch (action) {
-            case 'openContext':
-              setShowSkillsPopover(false);
-              setShowToolsPopover(false);
-              setShowContextPicker(true);
-              postMessage({ type: 'requestWorkspaceFiles' });
-              break;
-            case 'closeContext':
-              setShowContextPicker(false);
-              setIsMentionActive(false);
-              setContextQuery('');
-              mentionStartRef.current = null;
-              break;
-            case 'toggleContextFile': {
-              const file = (rawPayload as { file?: unknown } | undefined)?.file;
-              if (typeof file !== 'string' || file.length === 0) break;
-              setSelectedContextFiles((prev) => (prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]));
-              break;
-            }
-            case 'openSkills':
-              setShowContextPicker(false);
-              setShowToolsPopover(false);
-              setShowSkillsPopover(true);
-              postMessage({ type: 'requestSkills' });
-              break;
-            case 'closeSkills':
-              setShowSkillsPopover(false);
-              break;
-            case 'openAttachments':
-              postMessage({ type: 'selectAttachments' });
-              break;
-            case 'sendMessage': {
-              const text = (rawPayload as { text?: unknown } | undefined)?.text;
-              if (typeof text !== 'string') break;
-              const normalized = text.trim();
-              if (!normalized) break;
-              postMessage({ type: 'send', text: normalized, contextFiles: [], attachments: [] });
-              break;
-            }
-            case 'selectServer': {
-              const url = (rawPayload as { url?: unknown } | undefined)?.url;
-              if (typeof url !== 'string') break;
-              const normalized = url.trim();
-              if (!normalized) break;
-              postMessage({ type: 'selectServer', url: normalized });
-              break;
-            }
-            case 'setLlmProfileId': {
-              const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;
-              if (profileIdRaw === undefined) break;
-              if (profileIdRaw !== null && typeof profileIdRaw !== 'string') break;
-              const profileId = profileIdRaw;
-              setLlmProfileId(profileId);
-              postMessage({ type: 'setLlmProfileId', profileId });
-              break;
-            }
-            case 'openLlmProfilesView': {
-              const mode = (rawPayload as { mode?: unknown } | undefined)?.mode;
-              const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;
-              setShowLlmProfiles(true);
-              if (mode === 'create') {
-                setLlmProfilesOpenRequest({ mode: 'create' });
-                break;
-              }
-              if (mode === 'edit' && typeof profileIdRaw === 'string' && profileIdRaw.trim()) {
-                setLlmProfilesOpenRequest({ mode: 'edit', profileId: profileIdRaw.trim() });
-                break;
-              }
-              setLlmProfilesOpenRequest(null);
-              break;
-            }
-            case 'closeLlmProfilesView':
-              setShowLlmProfiles(false);
-              setLlmProfilesOpenRequest(null);
-              break;
-            case 'halApprove':
-              handleHalApprove();
-              break;
-            case 'halReject':
-              handleHalReject('E2E reject');
-              break;
-            case 'halTeleport':
-              handleHalTeleport();
-              break;
-            case 'halVoiceConfirmDecision': {
-              const decisionRaw = (rawPayload as { decision?: unknown } | undefined)?.decision;
-              if (!isHalDecision(decisionRaw)) break;
-              applyHalVoiceConfirmDecision(decisionRaw, { rejectReason: 'E2E reject' });
-              break;
-            }
-            case 'halExit':
-              handleHalExit();
-              break;
-          }
-          break;
-        }
-        case 'queryRenderedEvents': {
-          const eventSnapshots = events.map(({ event }) => {
-            if ('kind' in event && typeof event.kind === 'string') return event.kind;
-            if ('type' in event && typeof (event as { type?: unknown }).type === 'string') {
-              return (event as { type: string }).type;
-            }
-            return 'unknown';
-          });
-          const eventTypes = eventSnapshots;
-          const rendered = events.map(({ event }, index) => {
-            const type = eventSnapshots[index] ?? 'unknown';
-            const marker = (event as { e2e_marker?: unknown }).e2e_marker;
-            const toolCallId = (event as { tool_call_id?: unknown }).tool_call_id;
-            const role = type === 'MessageEvent'
-              ? (event as { llm_message?: { role?: unknown } }).llm_message?.role
-              : undefined;
-            return {
-              type,
-              marker: typeof marker === 'string' ? marker : undefined,
-              toolCallId: typeof toolCallId === 'string' ? toolCallId : undefined,
-              role: typeof role === 'string' ? role : undefined,
-            };
-          });
-          if (typeof payload.requestId === 'string') {
-            postMessage({
-              type: 'renderedEventsResponse',
-              requestId: payload.requestId,
-              count: events.length,
-              eventTypes,
-              events: rendered
-            });
-          }
-          break;
-        }
-        case 'historyList': {
-          const list = Array.isArray(payload.conversations) ? payload.conversations : [];
-          setHistory(list);
-          break;
-        }
-      }
-    };
-
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [
+  useHostMessages({
     applyHalSettings,
     applyHalVoiceConfirmDecision,
     events,
@@ -1215,11 +371,48 @@ export function App() {
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
     maybeUpdateHalFlow,
+    pendingLlmProfilesRequestsRef,
     postMessage,
     resetForServerTargetChange,
+    setAgentStatus,
+    setAttachments,
+    setContextQuery,
+    setConversationId,
+    setConversationTotals,
+    setCurrentServerUrl,
+    setEnabledToolIds,
+    setEvents,
+    setHistory,
+    setIsMentionActive,
+    setLlmProfileId,
+    setLlmProfileLabel,
+    setLlmProfiles,
+    setMode,
+    setPendingActions,
+    setSelectedContextFiles,
+    setServers,
+    setShowContextPicker,
+    setShowLlmProfiles,
+    setLlmProfilesOpenRequest,
+    setShowSkillsPopover,
+    setShowToolsPopover,
+    setSkills,
+    setStatus,
     setStatusBanner,
+    setStreamingContent,
+    setTools,
+    setWorkspaceFiles,
     showStatusMessage,
-  ]);
+    currentServerUrlRef,
+    conversationIdRef,
+    pendingActionsRef,
+    pendingActionsBatchIdRef,
+    agentStatusRef,
+    mentionStartRef,
+    hasLlmUsageRef,
+    eventId,
+    uiStateRef,
+  });
 
   // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
