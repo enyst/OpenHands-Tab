@@ -294,7 +294,7 @@
         "properties": {
           "openhands.agent.enableSecurityAnalyzer": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "order": 1,
             "markdownDescription": "Enable LLMSecurityAnalyzer for action inspection."
           },

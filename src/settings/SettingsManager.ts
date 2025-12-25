@@ -49,7 +49,7 @@ const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
   servers: [],
   llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
-  agent: { enableSecurityAnalyzer: false, debug: false, summarizeToolCalls: false },
+  agent: { enableSecurityAnalyzer: true, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
   elevenlabs: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },

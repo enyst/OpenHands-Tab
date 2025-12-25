@@ -33,7 +33,7 @@ describe('SettingsManager', () => {
     expect(s.llm.reasoningSummary).toBeUndefined();
     // Local mode requires a default model for the local Agent to run.
     expect(s.llm.model).toBe('claude-sonnet-4-20250514');
-    expect(s.agent.enableSecurityAnalyzer).toBe(false);
+    expect(s.agent.enableSecurityAnalyzer).toBe(true);
     expect(s.agent.debug).toBe(false);
     expect(s.elevenlabs.enabled).toBe(false);
     expect(s.elevenlabs.mode).toBe('tts_only');
@@ -363,7 +363,7 @@ describe('SettingsManager', () => {
     const s = await mgr.get();
 
     expect(s.serverUrl).toBeUndefined();
-    expect(s.agent.enableSecurityAnalyzer).toBe(false);
+    expect(s.agent.enableSecurityAnalyzer).toBe(true);
     expect(s.agent.debug).toBe(false);
     expect(s.conversation.maxIterations).toBe(50);
     expect(s.confirmation.policy).toBe('never');
