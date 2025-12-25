@@ -644,6 +644,12 @@ export function LlmProfilesView(props: {
     return '—';
   })();
 
+  const showProfileApiKeyOverrideSetIndicator = canEditApiKey
+    && providerRequiresApiKey
+    && overrideProfileApiKey
+    && apiKeyStatus.state === 'ready'
+    && apiKeyStatus.hasProfileKey;
+
   const handleSetApiKey = useCallback(async () => {
     if (!selectedProfileId) return;
     const profileId = selectedProfileId;
@@ -934,7 +940,16 @@ export function LlmProfilesView(props: {
 
                     {mode === 'edit' && canEditApiKey && providerRequiresApiKey && overrideProfileApiKey && (
                       <div className="mt-3">
-                        <FieldLabel label="API key override" required htmlFor="llmProfilesApiKeyEdit" />
+                        <div className="flex items-center gap-2">
+                          <FieldLabel label="API key override" required htmlFor="llmProfilesApiKeyEdit" />
+                          {showProfileApiKeyOverrideSetIndicator && (
+                            <span
+                              className="codicon codicon-check text-emerald-400 text-sm"
+                              aria-label="API key override set"
+                              title="API key override set"
+                            />
+                          )}
+                        </div>
                         <div className="mt-2">
                           <InputField
                             ref={apiKeyInputRef}

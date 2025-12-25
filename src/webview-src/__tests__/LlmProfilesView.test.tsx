@@ -79,6 +79,8 @@ describe('LLM Profiles view', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Override for this profile' }));
 
+    expect(screen.queryByLabelText('API key override set')).toBeNull();
+
     const apiKeyInput = await screen.findByLabelText('API key override');
     fireEvent.change(apiKeyInput, { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
@@ -117,6 +119,7 @@ describe('LLM Profiles view', () => {
     });
 
     expect(await screen.findByText('Override set')).toBeInTheDocument();
+    expect(await screen.findByLabelText('API key override set')).toBeInTheDocument();
 
     expect(screen.queryByDisplayValue('sk-test')).not.toBeInTheDocument();
   });
