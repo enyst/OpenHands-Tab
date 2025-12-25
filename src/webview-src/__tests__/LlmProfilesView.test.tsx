@@ -70,13 +70,16 @@ describe('LLM Profiles view', () => {
       ok: true,
       profileId: 'gpt-5',
       hasKey: false,
+      hasProfileKey: false,
+      hasProviderKey: false,
+      providerKeyName: 'OPENAI_API_KEY',
     });
 
-    expect(await screen.findByText('Not set')).toBeInTheDocument();
+    expect(await screen.findByText('Missing')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Set key…' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Override for this profile' }));
 
-    const apiKeyInput = await screen.findByLabelText('New API key');
+    const apiKeyInput = await screen.findByLabelText('API key override');
     fireEvent.change(apiKeyInput, { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
 
@@ -108,9 +111,12 @@ describe('LLM Profiles view', () => {
       ok: true,
       profileId: 'gpt-5',
       hasKey: true,
+      hasProfileKey: true,
+      hasProviderKey: false,
+      providerKeyName: 'OPENAI_API_KEY',
     });
 
-    expect(await screen.findByText('Set')).toBeInTheDocument();
+    expect(await screen.findByText('Override set')).toBeInTheDocument();
 
     expect(screen.queryByDisplayValue('sk-test')).not.toBeInTheDocument();
   });
@@ -304,8 +310,9 @@ describe('LLM Profiles view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
     expect(await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' })).toHaveValue(2048);
 
-    const apiKeyInput = await screen.findByLabelText('API key');
-    expect(apiKeyInput).toHaveValue('');
+    expect(screen.getByText('Use provider key')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Override for this profile' })).not.toBeChecked();
+    expect(screen.queryByLabelText('API key override')).toBeNull();
   });
 
   it('deletes an existing profile and returns to create mode', async () => {
@@ -384,12 +391,13 @@ describe('LLM Profiles view', () => {
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
     fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'openai' } });
 
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Override for this profile' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('You must provide a valid API key.')).toBeInTheDocument();
     expect(getLastPostedOfType('llmProfileSaveRequest')).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'sk-test' } });
+    fireEvent.change(screen.getByLabelText('API key override'), { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -414,7 +422,8 @@ describe('LLM Profiles view', () => {
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
     fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'openai' } });
 
-    fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'sk-test' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Override for this profile' }));
+    fireEvent.change(await screen.findByLabelText('API key override'), { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -447,10 +456,19 @@ describe('LLM Profiles view', () => {
     });
 
     const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
-    postToWindow({ type: 'llmProfileApiKeyStatusResponse', requestId: statusRequest.requestId, ok: true, hasKey: false });
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      hasKey: false,
+      hasProfileKey: false,
+      hasProviderKey: false,
+      providerKeyName: 'OPENAI_API_KEY',
+    });
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Set key…' }));
-    expect(await screen.findByLabelText('New API key')).toHaveValue('sk-test');
+    expect(screen.getByRole('checkbox', { name: 'Override for this profile' })).toBeChecked();
+    expect(await screen.findByLabelText('API key override')).toHaveValue('sk-test');
   });
 
   it('shows an inline missing API key warning and blocks save in edit mode', async () => {
@@ -492,14 +510,18 @@ describe('LLM Profiles view', () => {
       ok: true,
       profileId: 'gpt-5',
       hasKey: false,
+      hasProfileKey: false,
+      hasProviderKey: false,
+      providerKeyName: 'OPENAI_API_KEY',
     });
 
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Override for this profile' }));
     expect(await screen.findByText('You must provide a valid API key.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(getLastPostedOfType('llmProfileSaveRequest')).toBeNull();
-    expect(await screen.findByLabelText('New API key')).toBeInTheDocument();
+    expect(await screen.findByLabelText('API key override')).toBeInTheDocument();
   });
 
   it('offers a Provider docs link based on the selected provider', async () => {

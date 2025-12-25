@@ -34,8 +34,15 @@ type FieldErrors = Partial<Record<keyof ProfileFormState, string>>;
 type ApiKeyStatus =
   | { state: 'unknown' }
   | { state: 'loading' }
-  | { state: 'ready'; hasKey: boolean }
+  | { state: 'ready'; hasKey: boolean; hasProfileKey: boolean; hasProviderKey: boolean; providerKeyName?: string }
   | { state: 'error'; error: string };
+
+type LlmProfileApiKeyStatusInfo = {
+  hasKey: boolean;
+  hasProfileKey: boolean;
+  hasProviderKey: boolean;
+  providerKeyName?: string;
+};
 
 const EMPTY_FORM: ProfileFormState = {
   name: '',
@@ -369,7 +376,7 @@ export function LlmProfilesView(props: {
   loadProfile: (profileId: string) => Promise<LLMConfiguration>;
   saveProfile: (profileId: string, profile: LLMConfiguration) => Promise<void>;
   deleteProfile: (profileId: string) => Promise<void>;
-  getApiKeyStatus: (profileId: string) => Promise<boolean>;
+  getApiKeyStatus: (profileId: string) => Promise<LlmProfileApiKeyStatusInfo>;
   setApiKey: (profileId: string, apiKey: string) => Promise<void>;
 }) {
   const {
@@ -405,7 +412,7 @@ export function LlmProfilesView(props: {
   const [deleting, setDeleting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>({ state: 'unknown' });
-  const [showApiKeyEditor, setShowApiKeyEditor] = useState(false);
+  const [overrideProfileApiKey, setOverrideProfileApiKey] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
@@ -421,9 +428,12 @@ export function LlmProfilesView(props: {
     if (activeProfileIdRef.current !== profileId) return;
     setApiKeyStatus({ state: 'loading' });
     try {
-      const hasKey = await getApiKeyStatus(profileId);
+      const status = await getApiKeyStatus(profileId);
       if (activeProfileIdRef.current !== profileId) return;
-      setApiKeyStatus({ state: 'ready', hasKey });
+      setApiKeyStatus({ state: 'ready', ...status });
+      if (status.hasProfileKey) {
+        setOverrideProfileApiKey(true);
+      }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       if (activeProfileIdRef.current !== profileId) return;
@@ -468,7 +478,7 @@ export function LlmProfilesView(props: {
     setSaveAttempted(false);
     setTopError(null);
     setApiKeyStatus({ state: 'unknown' });
-    setShowApiKeyEditor(false);
+    setOverrideProfileApiKey(false);
     setApiKeyInput('');
     setApiKeySaving(false);
     setApiKeyError(null);
@@ -537,16 +547,14 @@ export function LlmProfilesView(props: {
     const trimmedDraftApiKey = apiKeyInput.trim();
     const canEditApiKeyForSave = mode === 'edit' && !!selectedProfileId && !loadingProfile;
 
-    if (providerRequiresApiKey) {
-      if (mode === 'create') {
-        if (!trimmedDraftApiKey) {
-          requestAnimationFrame(() => {
-            apiKeyInputRef.current?.focus();
-          });
-          return;
-        }
-      } else if (canEditApiKeyForSave && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasKey) {
-        setShowApiKeyEditor(true);
+    if (providerRequiresApiKey && overrideProfileApiKey) {
+      if (mode === 'create' && !trimmedDraftApiKey) {
+        requestAnimationFrame(() => {
+          apiKeyInputRef.current?.focus();
+        });
+        return;
+      }
+      if (canEditApiKeyForSave && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasProfileKey) {
         requestAnimationFrame(() => {
           apiKeyInputRef.current?.focus();
         });
@@ -561,7 +569,7 @@ export function LlmProfilesView(props: {
     setTopError(null);
     try {
       await saveProfile(profileId, config);
-      if (mode === 'create' && providerRequiresApiKey) {
+      if (mode === 'create' && providerRequiresApiKey && overrideProfileApiKey && trimmedDraftApiKey) {
         try {
           await setApiKey(profileId, trimmedDraftApiKey);
           setApiKeyInput('');
@@ -573,7 +581,6 @@ export function LlmProfilesView(props: {
       activeProfileIdRef.current = profileId;
       setMode('edit');
       setSelectedProfileId(profileId);
-      setShowApiKeyEditor(false);
       void refreshApiKeyStatus(profileId);
     } catch (err) {
       setTopError(err instanceof Error ? err.message : String(err));
@@ -586,6 +593,7 @@ export function LlmProfilesView(props: {
     form,
     loadingProfile,
     mode,
+    overrideProfileApiKey,
     refreshApiKeyStatus,
     refreshProfiles,
     saveProfile,
@@ -611,9 +619,9 @@ export function LlmProfilesView(props: {
   const providerDocsUrl = form.provider ? PROVIDER_DOCS_URLS[form.provider] : null;
   const providerLabel = form.provider ? PROVIDER_LABELS[form.provider] : null;
   const providerApiKeyUrl = form.provider ? (PROVIDER_API_KEY_URLS[form.provider] ?? null) : null;
-  const missingStoredApiKey = canEditApiKey && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasKey;
-  const missingDraftApiKey = mode === 'create' && saveAttempted && providerRequiresApiKey && !apiKeyInput.trim();
-  const showMissingApiKeyWarning = providerRequiresApiKey && (missingStoredApiKey || missingDraftApiKey);
+  const missingStoredApiKey = canEditApiKey && overrideProfileApiKey && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasProfileKey;
+  const missingDraftApiKey = mode === 'create' && saveAttempted && providerRequiresApiKey && overrideProfileApiKey && !apiKeyInput.trim();
+  const showMissingApiKeyWarning = missingStoredApiKey || missingDraftApiKey;
   const maxOutputTokensSlider = (() => {
     const parsed = parseOptionalInt(form.maxOutputTokens);
     const value = parsed.value;
@@ -624,9 +632,14 @@ export function LlmProfilesView(props: {
   })();
 
   const apiKeyStatusLabel = (() => {
-    if (!canEditApiKey) return '—';
+    if (!providerRequiresApiKey) return '—';
+    if (mode === 'create') return overrideProfileApiKey ? (apiKeyInput.trim() ? 'Draft' : 'Not set') : 'Use provider key';
     if (apiKeyStatus.state === 'loading') return 'Checking…';
-    if (apiKeyStatus.state === 'ready') return apiKeyStatus.hasKey ? 'Set' : 'Not set';
+    if (apiKeyStatus.state === 'ready') {
+      if (apiKeyStatus.hasProfileKey) return 'Override set';
+      if (apiKeyStatus.hasProviderKey) return `Using ${apiKeyStatus.providerKeyName ?? 'provider key'}`;
+      return 'Missing';
+    }
     if (apiKeyStatus.state === 'error') return 'Error';
     return '—';
   })();
@@ -644,8 +657,6 @@ export function LlmProfilesView(props: {
       }
       await setApiKey(profileId, trimmed);
       setApiKeyInput('');
-      setShowApiKeyEditor(false);
-      setApiKeyStatus({ state: 'ready', hasKey: true });
       void refreshApiKeyStatus(profileId);
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : String(err));
@@ -661,7 +672,6 @@ export function LlmProfilesView(props: {
     setApiKeyError(null);
     try {
       await setApiKey(profileId, '');
-      setApiKeyStatus({ state: 'ready', hasKey: false });
       void refreshApiKeyStatus(profileId);
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : String(err));
@@ -669,6 +679,21 @@ export function LlmProfilesView(props: {
       setApiKeySaving(false);
     }
   }, [refreshApiKeyStatus, selectedProfileId, setApiKey]);
+
+  const handleToggleOverrideProfileApiKey = useCallback((next: boolean) => {
+    setOverrideProfileApiKey(next);
+    setApiKeyError(null);
+    setApiKeyInput('');
+    if (!next && mode === 'edit') {
+      void handleClearApiKey();
+      return;
+    }
+    if (next) {
+      requestAnimationFrame(() => {
+        apiKeyInputRef.current?.focus();
+      });
+    }
+  }, [handleClearApiKey, mode]);
 
   const handleHeaderEditClick = useCallback(() => {
     if (!selectedProfileId) return;
@@ -869,164 +894,111 @@ export function LlmProfilesView(props: {
                 <div className="text-sm text-stone-500">Loading profile…</div>
               ) : (
                 <div className="space-y-6">
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-sm font-medium text-stone-200">
-                        {providerLabel ? `${providerLabel} API key` : 'API key'}
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-medium text-stone-200">
+                          {providerLabel ? `${providerLabel} API key` : 'API key'}
+                        </div>
+                        <div className="text-xs text-stone-500 mt-0.5">
+                          API keys are stored securely in VS Code Secret Storage. Not saved to disk.
+                        </div>
+                        {providerLabel && providerApiKeyUrl && (
+                          <button
+                            type="button"
+                            onClick={() => openMarkdownLink(providerApiKeyUrl)}
+                            className="mt-1 text-xs text-brand-300 underline decoration-white/20 hover:decoration-white/40 hover:text-brand-200 transition-colors"
+                            aria-label={`Get ${providerLabel} API Key`}
+                            title={`Get ${providerLabel} API Key`}
+                          >
+                            Get {providerLabel} API Key <span className="codicon codicon-link-external text-[11px]" />
+                          </button>
+                        )}
                       </div>
-                      <div className="text-xs text-stone-500 mt-0.5">
-                        API keys are stored securely in VS Code Secret Storage. Not saved to disk.
-                      </div>
-                      {providerLabel && providerApiKeyUrl && (
-                        <button
-                          type="button"
-                          onClick={() => openMarkdownLink(providerApiKeyUrl)}
-                          className="mt-1 text-xs text-brand-300 underline decoration-white/20 hover:decoration-white/40 hover:text-brand-200 transition-colors"
-                          aria-label={`Get ${providerLabel} API Key`}
-                          title={`Get ${providerLabel} API Key`}
-                        >
-                          Get {providerLabel} API Key <span className="codicon codicon-link-external text-[11px]" />
-                        </button>
+
+                      {providerRequiresApiKey ? (
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="text-xs text-stone-400">{apiKeyStatusLabel}</div>
+                          <label className="flex items-center gap-2 text-xs text-stone-300 select-none">
+                            <input
+                              type="checkbox"
+                              checked={overrideProfileApiKey}
+                              onChange={(e) => { handleToggleOverrideProfileApiKey(e.target.checked); }}
+                              disabled={apiKeySaving || (mode === 'edit' && !canEditApiKey)}
+                              className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0 disabled:opacity-50"
+                            />
+                            Override for this profile
+                          </label>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-stone-500">Select a provider to configure keys.</div>
                       )}
                     </div>
 
-                    {canEditApiKey ? (
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs text-stone-400">{apiKeyStatusLabel}</div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setApiKeyError(null);
-                            setShowApiKeyEditor(true);
-                          }}
-                          disabled={apiKeySaving}
-                          className={`
-                            inline-flex items-center gap-2 px-3 py-1.5 rounded-lg
-                            text-xs font-medium
-                            transition-all
-                            border
-                            ${apiKeySaving
-                              ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                              : 'bg-white/[0.04] text-stone-300 border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]'}
-                          `}
-                        >
-                          <span className="codicon codicon-key" />
-                          Set key…
-                        </button>
-                        {apiKeyStatus.state === 'ready' && apiKeyStatus.hasKey && (
+                    {showMissingApiKeyWarning && (
+                      <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                        You must provide a valid API key.
+                      </div>
+                    )}
+
+                    {mode === 'create' && providerRequiresApiKey && overrideProfileApiKey && (
+                      <div className="mt-3">
+                        <FieldLabel label="API key override" required htmlFor="llmProfilesApiKeyCreate" />
+                        <div className="mt-2">
+                          <InputField
+                            ref={apiKeyInputRef}
+                            id="llmProfilesApiKeyCreate"
+                            value={apiKeyInput}
+                            onChange={setApiKeyInput}
+                            placeholder="(hidden)"
+                            type="password"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {canEditApiKey && apiKeyStatus.state === 'error' && (
+                      <div className="mt-2 text-xs text-red-400">{apiKeyStatus.error}</div>
+                    )}
+                    {canEditApiKey && apiKeyError && (
+                      <div className="mt-2 text-xs text-red-400">{apiKeyError}</div>
+                    )}
+
+                    {mode === 'edit' && canEditApiKey && providerRequiresApiKey && overrideProfileApiKey && (
+                      <div className="mt-3">
+                        <FieldLabel label="API key override" required htmlFor="llmProfilesApiKeyEdit" />
+                        <div className="mt-2">
+                          <InputField
+                            ref={apiKeyInputRef}
+                            id="llmProfilesApiKeyEdit"
+                            value={apiKeyInput}
+                            onChange={setApiKeyInput}
+                            placeholder="(hidden)"
+                            type="password"
+                          />
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => { void handleClearApiKey(); }}
+                            onClick={() => { void handleSetApiKey(); }}
                             disabled={apiKeySaving}
                             className={`
-                              inline-flex items-center gap-2 px-3 py-1.5 rounded-lg
+                              inline-flex items-center gap-2 px-3 py-2 rounded-lg
                               text-xs font-medium
                               transition-all
                               border
                               ${apiKeySaving
                                 ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                                : 'bg-red-500/10 text-red-200 border-red-500/20 hover:bg-red-500/15 hover:border-red-500/30'}
+                                : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
                             `}
                           >
-                            <span className="codicon codicon-trash" />
-                            Clear
+                            <span className={`codicon codicon-${apiKeySaving ? 'loading' : 'save'} ${apiKeySaving ? 'animate-spin' : ''}`} />
+                            Save key
                           </button>
-                        )}
-                      </div>
-                    ) : mode === 'create' && providerRequiresApiKey ? (
-                      <div className="text-xs text-stone-400">Required</div>
-                    ) : (
-                      <div className="text-xs text-stone-500">
-                        {mode === 'create' ? 'Select a provider to set a key.' : 'Save profile to set a key.'}
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {showMissingApiKeyWarning && (
-                    <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                      You must provide a valid API key.
-                    </div>
-                  )}
-
-                  {mode === 'create' && providerRequiresApiKey && (
-                    <div className="mt-3">
-                      <FieldLabel label="API key" required htmlFor="llmProfilesApiKeyCreate" />
-                      <div className="mt-2">
-                        <InputField
-                          ref={apiKeyInputRef}
-                          id="llmProfilesApiKeyCreate"
-                          value={apiKeyInput}
-                          onChange={setApiKeyInput}
-                          placeholder="(hidden)"
-                          type="password"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {canEditApiKey && apiKeyStatus.state === 'error' && (
-                    <div className="mt-2 text-xs text-red-400">{apiKeyStatus.error}</div>
-                  )}
-                  {canEditApiKey && apiKeyError && (
-                    <div className="mt-2 text-xs text-red-400">{apiKeyError}</div>
-                  )}
-
-                  {canEditApiKey && showApiKeyEditor && (
-                    <div className="mt-3">
-                      <FieldLabel label="New API key" required htmlFor="llmProfilesApiKeyEdit" />
-                      <div className="mt-2">
-                        <InputField
-                          ref={apiKeyInputRef}
-                          id="llmProfilesApiKeyEdit"
-                          value={apiKeyInput}
-                          onChange={setApiKeyInput}
-                          placeholder="(hidden)"
-                          type="password"
-                        />
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { void handleSetApiKey(); }}
-                          disabled={apiKeySaving}
-                          className={`
-                            inline-flex items-center gap-2 px-3 py-2 rounded-lg
-                            text-xs font-medium
-                            transition-all
-                            border
-                            ${apiKeySaving
-                              ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                              : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
-                          `}
-                        >
-                          <span className={`codicon codicon-${apiKeySaving ? 'loading' : 'save'} ${apiKeySaving ? 'animate-spin' : ''}`} />
-                          Save key
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowApiKeyEditor(false);
-                            setApiKeyInput('');
-                            setApiKeyError(null);
-                          }}
-                          disabled={apiKeySaving}
-                          className={`
-                            inline-flex items-center gap-2 px-3 py-2 rounded-lg
-                            text-xs font-medium
-                            transition-all
-                            border
-                            ${apiKeySaving
-                              ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                              : 'bg-white/[0.04] text-stone-300 border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]'}
-                          `}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

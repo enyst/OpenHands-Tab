@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import * as childProcess from 'child_process';
-import { assertValidProfileId, LLMProfileValidationError, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import { assertValidProfileId, detectProviderFromBaseUrl, LLMProfileValidationError, type LLMProvider, type SecretRegistry } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -131,6 +131,30 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const getProfileApiKeySecretKey = (profileId: string): string => {
     validateProfileId(profileId);
     return `openhands.llmProfileApiKey.${profileId}`;
+  };
+
+  const getProviderApiKeyName = (provider: LLMProvider): string => {
+    switch (provider) {
+      case 'openrouter':
+        return 'OPENROUTER_API_KEY';
+      case 'litellm_proxy':
+        return 'LITELLM_API_KEY';
+      case 'anthropic':
+        return 'ANTHROPIC_API_KEY';
+      case 'gemini':
+        return 'GEMINI_API_KEY';
+      default:
+        return 'OPENAI_API_KEY';
+    }
+  };
+
+  const hasStoredSecret = async (key: string): Promise<boolean> => {
+    const trimmedKey = key.trim();
+    if (!trimmedKey) return false;
+    const resolved = deps.secretRegistry
+      ? await deps.secretRegistry.get(trimmedKey)
+      : (process.env[trimmedKey] ?? (await context.secrets.get(trimmedKey)));
+    return typeof resolved === 'string' && resolved.trim().length > 0;
   };
 
   const getElevenlabsTtsGate = (): TtsConversationGate => {
@@ -536,12 +560,20 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         try {
           const key = getProfileApiKeySecretKey(profileId);
           const stored = await context.secrets.get(key);
+          const hasProfileKey = typeof stored === 'string' && stored.trim().length > 0;
+          const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
+          const provider = profile.config.provider ?? detectProviderFromBaseUrl(profile.config.baseUrl);
+          const providerKeyName = getProviderApiKeyName(provider);
+          const hasProviderKey = await hasStoredSecret(providerKeyName);
           void host.postMessage({
             type: 'llmProfileApiKeyStatusResponse',
             requestId,
             ok: true,
             profileId,
-            hasKey: typeof stored === 'string' && stored.trim().length > 0,
+            hasKey: hasProfileKey || hasProviderKey,
+            hasProfileKey,
+            hasProviderKey,
+            providerKeyName,
           });
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
