@@ -430,7 +430,7 @@ export function TerminalObservationSummary({
         aria-label={toggleLabel}
         title={toggleLabel}
       >
-        <span className="text-sm text-stone-300">{summaryText}</span>
+        <span className="flex-1 min-w-0 text-sm text-stone-300 whitespace-pre-wrap break-words">{summaryText}</span>
         <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`} />
       </button>
     </div>

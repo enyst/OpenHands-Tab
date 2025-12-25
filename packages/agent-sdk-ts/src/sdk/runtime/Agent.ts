@@ -495,7 +495,12 @@ export class Agent extends EventEmitter {
           temperature: 0.2,
           maxOutputTokens: 256,
         },
-        { secrets: this.secrets },
+        {
+          secrets: this.secrets,
+          // Prefer the provider-specific key so a user's primary LLM key (often OpenAI) doesn't
+          // accidentally override Gemini summarizers when both are configured.
+          preferredApiKeys: 'GEMINI_API_KEY',
+        },
       );
       const client = await factory.createClient();
       this.toolSummarizerClient = client;
