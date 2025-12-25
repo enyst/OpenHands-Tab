@@ -1685,10 +1685,219 @@ describe('Type Guards', () => {
    - Connection pooling
    - Token usage optimization
 
+## Python SDK Comparison
+
+This section tracks the differences between the Python `openhands-sdk` and the TypeScript `@openhands/agent-sdk-ts` implementation.
+
+### Version Tracking
+
+| SDK | Source |
+|-----|--------|
+| Python | [enyst/agent-sdk](https://github.com/enyst/agent-sdk) |
+| TypeScript | `packages/agent-sdk-ts` in this repository |
+
+### Module Structure Comparison
+
+| Module | Python | TypeScript | Notes |
+|--------|--------|-----------|-------|
+| agent/ | ✓ `Agent`, `AgentBase` | ✓ `Agent` in runtime/ | TS has separate `AgentOrchestrator` |
+| context/ | ✓ | ✓ | Similar skill/context handling |
+| conversation/ | ✓ | ✓ | Both have Local/Remote variants |
+| critic/ | ✓ | ✗ | Evaluation framework, Python only |
+| event/ | ✓ | ✓ types/ | Different patterns (class vs interface) |
+| git/ | ✓ | ✗ | Full git utilities, Python only |
+| io/ | ✓ `FileStore` | ✗ | Abstracted file storage, Python only |
+| llm/ | ✓ | ✓ | Different approaches (LiteLLM vs native) |
+| logger/ | ✓ Rich/JSON | ✗ | Comprehensive logging, Python only |
+| mcp/ | ✓ | ✗ | Model Context Protocol, Python only |
+| observability/ | ✓ Laminar/OTEL | ✗ | Telemetry, Python only |
+| secret/ | ✓ | ✓ runtime/ | TS has `SecretRegistry` in runtime |
+| security/ | ✓ | ✗ | Risk analysis module, Python only |
+| tool/ | ✓ | ✓ tools/ | Different validation approaches |
+| workspace/ | ✓ | ✓ | Python has more complete remote support |
+
+### Feature Parity
+
+#### Features in Python but NOT in TypeScript
+
+1. **Security Module**
+   - `SecurityAnalyzer`, `SecurityAnalyzerBase`
+   - `LLMSecurityAnalyzer` (LLM-based risk assessment)
+   - `ConfirmationPolicy` implementations
+   - Risk classification and mapping
+
+2. **Critic Module**
+   - `CriticBase` abstract class with `CriticResult`
+   - Implementations: `AgentFinishedCritic`, `EmptyPatchCritic`, `PassCritic`
+   - Evaluation framework for agent outputs
+
+3. **Git Module**
+   - `GitDiff`, `GitChanges`, `GitManager`
+   - Full git utilities for diff analysis
+
+4. **IO/FileStore Module**
+   - `FileStore` abstract base class
+   - `LocalFileStore`, `InMemoryFileStore` implementations
+
+5. **Observability Module**
+   - Laminar integration
+   - OpenTelemetry (OTEL) support
+   - `@observe` decorator for tracing
+
+6. **Logger Module**
+   - Rich console logging
+   - JSON logging support
+   - Timed rotating file handlers
+   - DEBUG_LLM functionality
+
+7. **MCP (Model Context Protocol)**
+   - `MCPClient` for external tool integration
+   - MCP tool definitions
+
+8. **LLM Features**
+   - LLM Registry with resolver pattern
+   - Router LLM for multi-model routing
+   - Provider-specific exception mapping
+   - Verified/unverified model tracking
+   - Non-native function calling fallback
+   - `Metrics`, `MetricsSnapshot`, `Telemetry` classes
+
+9. **Tools**
+   - `TomConsultTool` - Specialized consulting tool
+   - `ApplyPatchTool` - Diff application
+   - Extended `BrowserUseTool` with Windows implementation
+
+10. **Conversation Features**
+    - `ConversationVisualizer` base and default implementation
+    - `ConversationStats` with detailed metrics
+    - `StuckDetector` for loop prevention
+    - `TitleUtils` for conversation naming
+
+#### Features in TypeScript but NOT in Python
+
+1. **AgentOrchestrator**
+   - Separate orchestration layer (Python has this in Agent class)
+
+2. **LLM Profiles System**
+   - Profile-based provider management (`profiles.ts`)
+   - Credential management per profile
+   - Direct Gemini client (`geminiClient.ts`)
+
+3. **Summarization Utilities**
+   - `fileDiffSummarizer.ts` - Using Gemini Flash
+   - `gitChangeSummarizer.ts` - Git change summarization
+   - `terminalObservationSummarizer.ts` - Terminal output summarization
+
+4. **Error Handling**
+   - `errorPolicy.ts` - Error classification and handling
+   - `toolCallErrorEvents.ts` - Tool error event generation
+
+5. **Tool Validation**
+   - `ZodTool` wrapper for zod schema-based validation
+   - `searchUtils.ts` - Glob/grep helpers
+
+6. **IntegratedTerminalRunner**
+   - Direct VS Code terminal integration
+
+### Event System Differences
+
+| Aspect | Python | TypeScript |
+|--------|--------|-----------|
+| Pattern | Class inheritance | Discriminated union interfaces |
+| Discriminator | Class name / `isinstance()` | `kind` field string |
+| Type checking | `isinstance(event, ActionEvent)` | `isActionEvent(event)` guard |
+| Base class | `Event` → `LLMConvertibleEvent` | `EventBase` interface |
+
+**Python event hierarchy:**
+```python
+Event (base)
+└── LLMConvertibleEvent (abstract, with to_llm_message())
+    ├── ActionEvent
+    ├── ObservationEvent
+    └── MessageEvent
+```
+
+**TypeScript event union:**
+```typescript
+type Event =
+  | SystemPromptEvent
+  | ActionEvent
+  | ObservationEvent
+  | MessageEvent
+  | AgentErrorEvent
+  | PauseEvent
+  | ...;
+// Uses `kind` field for discrimination
+```
+
+### Tool Implementation Differences
+
+| Tool | Python | TypeScript | Differences |
+|------|--------|-----------|-------------|
+| Terminal | tmux/subprocess | Node.js child_process | Session management differs |
+| File Editor | Pydantic validation | Zod validation | Schema approach differs |
+| Glob | caching, full impl | picomatch library | Library choice |
+| Grep | ripgrep integration | direct implementation | Execution approach |
+| Delegate | complex sub-agent | simplified version | Feature completeness |
+| Browser | extended Windows | generic impl | Platform support |
+| Task Tracker | full persistence | in-memory only | State persistence |
+
+### LLM Provider Support
+
+| Aspect | Python | TypeScript |
+|--------|--------|-----------|
+| Abstraction | LiteLLM (provider agnostic) | Native provider clients |
+| Providers | All via LiteLLM | OpenAI, Anthropic, Gemini, LiteLLM Proxy |
+| Configuration | Registry + routing | Profile-based |
+| Model info | LiteLLM utilities | Manual profiles |
+| Streaming | Token callbacks | AsyncGenerator chunks |
+
+### Conversation State Differences
+
+**Python `ConversationState`:**
+- Rich class with many fields (agent, workspace, persistence_dir, etc.)
+- Explicit `ConversationExecutionStatus` enum
+- Built-in confirmation/security policies
+- `FileStore` for persistence abstraction
+
+**TypeScript `ConversationState`:**
+- Lightweight class (status, iteration, values map)
+- String-based status
+- Security/confirmation inline in Agent
+- State tracked via `ConversationStateUpdateEvent`
+
+### Async Handling
+
+| Aspect | Python | TypeScript |
+|--------|--------|-----------|
+| Default | Sync-first with optional async | Async-first (Promise-based) |
+| Conversion | `AsyncExecutor` for sync→async | N/A |
+| Tool execution | Can be sync or async | Always async |
+
+### Naming Conventions
+
+| Concept | Python | TypeScript |
+|---------|--------|-----------|
+| Event type field | Class name | `kind` string |
+| Tool name derivation | Class name → snake_case | `name` property |
+| Message class | `Message` with role enum | `Message` with role type |
+| Observation | `Observation` class | Typed result objects |
+| Action | `Action` class | Typed argument objects |
+| Execution status | `ConversationExecutionStatus` enum | String literals |
+
+### Summary
+
+The Python SDK is more comprehensive with enterprise-grade features (security, observability, MCP, critics), while the TypeScript SDK is optimized for web/Node.js environments with a simpler, async-first design. Key architectural differences:
+
+1. **Python**: Class inheritance, Pydantic validation, LiteLLM abstraction, comprehensive modules
+2. **TypeScript**: Interface discriminated unions, Zod validation, native LLM clients, streamlined runtime
+
+Both SDKs share the same core event protocol and tool calling patterns, making them interoperable when communicating with the OpenHands agent-server.
+
 ## References
 
 - [Main README](../README.md)
 - [Package AGENTS.md](../packages/agent-sdk-ts/AGENTS.md)
 - [Repository Guidelines](../AGENTS.md)
 - [PRD](./PRD.md)
-- [OpenHands agent-sdk (Python)](https://github.com/OpenHands/software-agent-sdk)
+- [OpenHands agent-sdk (Python)](https://github.com/enyst/agent-sdk)
