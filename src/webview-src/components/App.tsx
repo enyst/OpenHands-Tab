@@ -27,7 +27,7 @@ import { useStatusMessages, type StatusBannerState } from './app/useStatusMessag
 
 // Component imports
 import { Header } from './Header';
-import { InputArea, ContextPicker, SkillsPopover } from './InputArea';
+import { InputArea } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
 import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
@@ -1592,8 +1592,19 @@ export function App() {
           onOpenLlmProfilesEdit={handleOpenLlmProfilesEdit}
           onOpenContext={handleOpenContext}
           contextCount={selectedContextFiles.length}
+          showContextPicker={showContextPicker}
+          contextPickerFiles={workspaceFiles}
+          contextPickerSelectedFiles={selectedContextFiles}
+          onToggleContextFile={handleToggleContextFile}
+          contextQuery={contextQuery}
+          onContextQueryChange={setContextQuery}
+          onCloseContextPicker={handleCloseContextPicker}
           onOpenSkills={handleOpenSkills}
           skillsCount={skills.length}
+          showSkillsPopover={showSkillsPopover}
+          skillsPopoverSkills={skills}
+          onOpenSkill={handleOpenSkill}
+          onCloseSkillsPopover={() => setShowSkillsPopover(false)}
           onOpenAttachments={handleOpenAttachments}
           attachments={attachments}
           onOpenAttachment={handleOpenAttachment}
@@ -1603,29 +1614,6 @@ export function App() {
           onRemoveInlineImage={handleRemoveInlineImage}
           onSelectionChange={handleSelectionChange}
         />
-
-        {/* Context picker popover */}
-        {showContextPicker && (
-          <ContextPicker
-            isOpen
-            onClose={handleCloseContextPicker}
-            files={workspaceFiles}
-            selectedFiles={selectedContextFiles}
-            onToggleFile={handleToggleContextFile}
-            searchQuery={contextQuery}
-            onSearchChange={setContextQuery}
-          />
-        )}
-
-        {/* Skills popover */}
-        {showSkillsPopover && (
-          <SkillsPopover
-            isOpen
-            onClose={() => setShowSkillsPopover(false)}
-            skills={skills}
-            onOpenSkill={handleOpenSkill}
-          />
-        )}
 
         {/* Bottom status bar (below prompt + controls) */}
         <div

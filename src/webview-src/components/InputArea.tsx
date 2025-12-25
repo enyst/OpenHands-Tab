@@ -17,9 +17,20 @@ interface InputAreaProps {
   // Context picker
   onOpenContext: () => void;
   contextCount?: number;
+  showContextPicker?: boolean;
+  contextPickerFiles?: string[];
+  contextPickerSelectedFiles?: string[];
+  onToggleContextFile?: (file: string) => void;
+  contextQuery?: string;
+  onContextQueryChange?: (query: string) => void;
+  onCloseContextPicker?: (reason: CloseReason) => void;
   // Skills
   onOpenSkills: () => void;
   skillsCount?: number;
+  showSkillsPopover?: boolean;
+  skillsPopoverSkills?: Array<{ label: string; path: string }>;
+  onOpenSkill?: (path: string) => void;
+  onCloseSkillsPopover?: (reason: CloseReason) => void;
   // Attachments
   onOpenAttachments?: () => void;
   attachments?: Array<{ uri: string; label: string }>;
@@ -49,8 +60,19 @@ export function InputArea({
   onOpenLlmProfilesEdit,
   onOpenContext,
   contextCount = 0,
+  showContextPicker = false,
+  contextPickerFiles = [],
+  contextPickerSelectedFiles = [],
+  onToggleContextFile,
+  contextQuery = '',
+  onContextQueryChange,
+  onCloseContextPicker,
   onOpenSkills,
   skillsCount = 0,
+  showSkillsPopover = false,
+  skillsPopoverSkills = [],
+  onOpenSkill,
+  onCloseSkillsPopover,
   onOpenAttachments,
   attachments = [],
   onOpenAttachment,
@@ -225,12 +247,25 @@ export function InputArea({
 
         {/* Accessory buttons row */}
         <div className="flex items-center gap-2 mt-3">
-          <AccessoryButton
-            label="Add context"
-            displayLabel="@"
-            onClick={onOpenContext}
-            badge={contextCount > 0 ? contextCount : undefined}
-          />
+          <div className="relative">
+            <AccessoryButton
+              label="Add context"
+              displayLabel="@"
+              onClick={onOpenContext}
+              badge={contextCount > 0 ? contextCount : undefined}
+            />
+            {showContextPicker && onCloseContextPicker && onToggleContextFile && onContextQueryChange && (
+              <ContextPicker
+                isOpen
+                onClose={onCloseContextPicker}
+                files={contextPickerFiles}
+                selectedFiles={contextPickerSelectedFiles}
+                onToggleFile={onToggleContextFile}
+                searchQuery={contextQuery}
+                onSearchChange={onContextQueryChange}
+              />
+            )}
+          </div>
 
           <LlmProfileSelector
             profileId={llmProfileId}
@@ -241,12 +276,22 @@ export function InputArea({
             onOpenEdit={onOpenLlmProfilesEdit}
           />
 
-          <AccessoryButton
-            icon="mortar-board"
-            label="Skills"
-            onClick={onOpenSkills}
-            badge={skillsCount > 0 ? skillsCount : undefined}
-          />
+          <div className="relative">
+            <AccessoryButton
+              icon="mortar-board"
+              label="Skills"
+              onClick={onOpenSkills}
+              badge={skillsCount > 0 ? skillsCount : undefined}
+            />
+            {showSkillsPopover && onCloseSkillsPopover && onOpenSkill && (
+              <SkillsPopover
+                isOpen
+                onClose={onCloseSkillsPopover}
+                skills={skillsPopoverSkills}
+                onOpenSkill={onOpenSkill}
+              />
+            )}
+          </div>
 
           {onOpenMCP && (
             <AccessoryButton
@@ -618,7 +663,7 @@ export function ContextPicker({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+      className="absolute bottom-full left-0 mb-1 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
       style={{
         background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
       }}
@@ -761,7 +806,7 @@ export function SkillsPopover({
   return (
     <div
       ref={popoverRef}
-      className="absolute bottom-full left-0 mb-2 w-80 max-h-96 bg-[var(--vscode-editor-background)] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
+      className="absolute bottom-full left-0 mb-1 w-64 max-h-96 bg-[var(--vscode-editor-background)] border border-white/[0.08] rounded-xl shadow-2xl overflow-hidden animate-slide-up z-50"
       style={{
         background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
       }}
