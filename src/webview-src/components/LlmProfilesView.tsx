@@ -472,6 +472,27 @@ export function LlmProfilesView(props: {
       return;
     }
 
+    const providerRequiresApiKey = Boolean(form.provider);
+    const trimmedDraftApiKey = apiKeyInput.trim();
+    const canEditApiKeyForSave = mode === 'edit' && !!selectedProfileId && !loadingProfile;
+
+    if (providerRequiresApiKey) {
+      if (mode === 'create') {
+        if (!trimmedDraftApiKey) {
+          requestAnimationFrame(() => {
+            panelRef.current?.querySelector<HTMLInputElement>('input[type="password"]')?.focus();
+          });
+          return;
+        }
+      } else if (canEditApiKeyForSave && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasKey) {
+        setShowApiKeyEditor(true);
+        requestAnimationFrame(() => {
+          panelRef.current?.querySelector<HTMLInputElement>('input[type="password"]')?.focus();
+        });
+        return;
+      }
+    }
+
     const profileId = form.name.trim();
     const config = buildProfileConfig(form);
 
@@ -479,17 +500,37 @@ export function LlmProfilesView(props: {
     setTopError(null);
     try {
       await saveProfile(profileId, config);
+      if (mode === 'create' && providerRequiresApiKey) {
+        try {
+          await setApiKey(profileId, trimmedDraftApiKey);
+        } catch (err) {
+          setTopError(err instanceof Error ? err.message : String(err));
+        }
+        setApiKeyInput('');
+      }
       await refreshProfiles();
       activeProfileIdRef.current = profileId;
       setMode('edit');
       setSelectedProfileId(profileId);
+      setShowApiKeyEditor(false);
       void refreshApiKeyStatus(profileId);
     } catch (err) {
       setTopError(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
-  }, [form, mode, refreshApiKeyStatus, refreshProfiles, saveProfile]);
+  }, [
+    apiKeyInput,
+    apiKeyStatus,
+    form,
+    loadingProfile,
+    mode,
+    refreshApiKeyStatus,
+    refreshProfiles,
+    saveProfile,
+    selectedProfileId,
+    setApiKey,
+  ]);
 
   const update = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -505,9 +546,13 @@ export function LlmProfilesView(props: {
 
   const selectedIsActive = (candidate: string) => candidate === selectedProfileId;
   const canEditApiKey = mode === 'edit' && !!selectedProfileId && !loadingProfile;
+  const providerRequiresApiKey = Boolean(form.provider);
   const providerDocsUrl = form.provider ? PROVIDER_DOCS_URLS[form.provider] : null;
   const providerLabel = form.provider ? PROVIDER_LABELS[form.provider] : null;
   const providerApiKeyUrl = form.provider ? (PROVIDER_API_KEY_URLS[form.provider] ?? null) : null;
+  const missingStoredApiKey = canEditApiKey && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasKey;
+  const missingDraftApiKey = mode === 'create' && saveAttempted && providerRequiresApiKey && !apiKeyInput.trim();
+  const showMissingApiKeyWarning = providerRequiresApiKey && (missingStoredApiKey || missingDraftApiKey);
 
   const apiKeyStatusLabel = (() => {
     if (!canEditApiKey) return '—';
@@ -777,10 +822,34 @@ export function LlmProfilesView(props: {
                           </button>
                         )}
                       </div>
+                    ) : mode === 'create' && providerRequiresApiKey ? (
+                      <div className="text-xs text-stone-400">Required</div>
                     ) : (
-                      <div className="text-xs text-stone-500">Save profile to set a key.</div>
+                      <div className="text-xs text-stone-500">
+                        {mode === 'create' ? 'Select a provider to set a key.' : 'Save profile to set a key.'}
+                      </div>
                     )}
                   </div>
+
+                  {showMissingApiKeyWarning && (
+                    <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                      You must provide a valid API key.
+                    </div>
+                  )}
+
+                  {mode === 'create' && providerRequiresApiKey && (
+                    <div className="mt-3">
+                      <FieldLabel label="API key" required />
+                      <div className="mt-2">
+                        <InputField
+                          value={apiKeyInput}
+                          onChange={setApiKeyInput}
+                          placeholder="(hidden)"
+                          type="password"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {canEditApiKey && apiKeyStatus.state === 'error' && (
                     <div className="mt-2 text-xs text-red-400">{apiKeyStatus.error}</div>

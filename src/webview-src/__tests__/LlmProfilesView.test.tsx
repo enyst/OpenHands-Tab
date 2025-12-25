@@ -189,6 +189,93 @@ describe('LLM Profiles view', () => {
     expect(screen.getByRole('button', { name: 'Delete profile' })).toBeDisabled();
   });
 
+  it('shows an inline missing API key warning and blocks save in create mode', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. gpt-5'), { target: { value: 'gpt-5' } });
+    fireEvent.change(
+      screen.getByPlaceholderText('e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro'),
+      { target: { value: 'gpt-5' } }
+    );
+
+    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
+      candidate.querySelector('option[value="openai"]') !== null
+    ));
+    if (!providerSelect) throw new Error('Failed to find provider select');
+    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('You must provide a valid API key.')).toBeInTheDocument();
+    expect(getLastPostedOfType('llmProfileSaveRequest')).toBeNull();
+
+    fireEvent.change(screen.getByPlaceholderText('(hidden)'), { target: { value: 'sk-test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileSaveRequest')).toBeTruthy();
+    });
+  });
+
+  it('shows an inline missing API key warning and blocks save in edit mode', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
+
+    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
+    });
+
+    const loadRequest = getLastPostedOfType('llmProfileLoadRequest');
+    postToWindow({
+      type: 'llmProfileLoadResponse',
+      requestId: loadRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      profile: { model: 'gpt-5', provider: 'openai' },
+    });
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeyStatusRequest')).toBeTruthy();
+    });
+
+    const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      hasKey: false,
+    });
+
+    expect(await screen.findByText('You must provide a valid API key.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(getLastPostedOfType('llmProfileSaveRequest')).toBeNull();
+    expect(await screen.findByPlaceholderText('(hidden)')).toBeInTheDocument();
+  });
+
   it('offers a Provider docs link based on the selected provider', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
