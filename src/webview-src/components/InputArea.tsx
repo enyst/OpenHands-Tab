@@ -191,7 +191,7 @@ export function InputArea({
                   aria-label="Attachments"
                   title="Attachments"
                 >
-                  <span className="codicon codicon-attach" />
+                  <span className="codicon codicon-clippy" />
                   {attachments.length > 0 && (
                     <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm">
                       {attachments.length}
