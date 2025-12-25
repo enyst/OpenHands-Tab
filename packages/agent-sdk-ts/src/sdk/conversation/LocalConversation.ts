@@ -49,13 +49,14 @@ export class LocalConversation extends EventEmitter {
   private readonly secrets: SecretRegistry;
   private readonly lock = new AsyncLock();
   private readonly customLlmClient?: LLMClient;
-  private readonly tools: ToolDefinition<unknown, unknown>[];
+  private tools: ToolDefinition<unknown, unknown>[];
   private readonly persistenceDir?: string;
   private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;
   private agent: Agent;
   private readonly llmRegistry: LLMRegistry;
   private readonly stats: ConversationStats;
+  private hasUserMessage = false;
 
   constructor(options: LocalConversationOptions) {
     super();
@@ -93,9 +94,22 @@ export class LocalConversation extends EventEmitter {
     this.persistLlmConfig();
   }
 
+  getToolNames(): string[] {
+    return this.tools.map((tool) => tool.name);
+  }
+
+  setTools(tools: ToolDefinition<unknown, unknown>[]): void {
+    if (this.hasUserMessage) {
+      throw new Error('Cannot change tools after the conversation has started');
+    }
+    this.tools = tools;
+    this.agent = this.createAgent();
+  }
+
   startNewConversation(): Promise<string | undefined> {
     // Create a brand-new conversation id and fresh runtime (EventLog/State/Agent)
     this.conversationId = `local-${Date.now().toString(36)}`;
+    this.hasUserMessage = false;
 
     // Reset persistence so a new store is created for the new id (if configured)
     this.persistence = undefined;
@@ -123,6 +137,7 @@ export class LocalConversation extends EventEmitter {
   restoreConversation(id: string) {
     // Switch to a new runtime bound to the requested conversation id
     this.conversationId = id;
+    this.hasUserMessage = true;
 
     // If no persistence config exists at all, surface info and start fresh
     if (!this.persistenceDir && !this.persistence) {
@@ -189,6 +204,7 @@ export class LocalConversation extends EventEmitter {
       if (!this.conversationId) {
         await this.startNewConversation();
       }
+      this.hasUserMessage = true;
       await this.agent.run(text);
     });
   }

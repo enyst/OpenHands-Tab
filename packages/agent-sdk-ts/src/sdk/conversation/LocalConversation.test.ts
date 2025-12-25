@@ -231,4 +231,21 @@ describe('LocalConversation', () => {
       expect(extra.text).toContain('<EXTRA_INFO>');
     }
   });
+
+  it('supports tool introspection and updates tools only before user messages', async () => {
+    const llm = new RecordingLLM();
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
+
+    expect(conversation.getToolNames()).toEqual(['terminal', 'file_editor', 'task_tracker', 'browser']);
+
+    conversation.setTools([new TerminalTool()]);
+    expect(conversation.getToolNames()).toEqual(['terminal']);
+
+    await conversation.sendUserMessage('hi');
+
+    expect(() => conversation.setTools([new TerminalTool()])).toThrow('Cannot change tools after the conversation has started');
+
+    await conversation.startNewConversation();
+    expect(() => conversation.setTools([new TerminalTool()])).not.toThrow();
+  });
 });

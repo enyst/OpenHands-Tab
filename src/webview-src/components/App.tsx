@@ -284,6 +284,11 @@ export function App() {
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
   const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
 
+  // Tools state (local mode only)
+  const [showToolsPopover, setShowToolsPopover] = useState(false);
+  const [tools, setTools] = useState<{ id: string; label: string }[]>([]);
+  const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
+
   // History state
   const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
 
@@ -655,6 +660,7 @@ export function App() {
   useEffect(() => {
     const vscodeApi = getVscodeApi();
     let didRequestSkills = false;
+    let didRequestTools = false;
     const sendReady = () => {
       const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
       const payload: WebviewToHostMessage = { type: 'webviewReady' };
@@ -664,6 +670,10 @@ export function App() {
       if (!didRequestSkills) {
         didRequestSkills = true;
         postMessage({ type: 'requestSkills' });
+      }
+      if (!didRequestTools) {
+        didRequestTools = true;
+        postMessage({ type: 'requestTools' });
       }
     };
 
@@ -704,6 +714,8 @@ export function App() {
         conversationId?: string;
         files?: string[];
         skills?: { label: string; path: string }[];
+        tools?: { id: string; label: string }[];
+        enabledToolIds?: string[];
         conversations?: ConversationsList;
         servers?: { url: string; label?: string }[];
         attachments?: Array<{ uri: string; label: string; sizeBytes?: number }>;
@@ -992,6 +1004,8 @@ export function App() {
             setAgentStatus(undefined);
             setStreamingContent(null);
             eventId.current = 1;
+            setShowToolsPopover(false);
+            postMessage({ type: 'requestTools' });
             // No toast: UI clears and restored/started messages will render naturally
             const api = getVscodeApi();
             api.setState?.({ conversationId: payload.conversationId, lastSeenSeq: 0 });
@@ -1015,6 +1029,19 @@ export function App() {
             );
           }
           break;
+        case 'toolsList': {
+          if (!Array.isArray(payload.tools) || !Array.isArray(payload.enabledToolIds)) break;
+          setTools(
+            payload.tools.filter((tool): tool is { id: string; label: string } => (
+              typeof tool === 'object'
+              && tool !== null
+              && typeof (tool as { id?: unknown }).id === 'string'
+              && typeof (tool as { label?: unknown }).label === 'string'
+            ))
+          );
+          setEnabledToolIds(payload.enabledToolIds.filter((id): id is string => typeof id === 'string'));
+          break;
+        }
         case 'queryUiState': {
           if (typeof payload.requestId === 'string') {
             postMessage({ type: 'uiStateResponse', requestId: payload.requestId, ...uiStateRef.current });
@@ -1035,6 +1062,7 @@ export function App() {
           switch (action) {
             case 'openContext':
               setShowSkillsPopover(false);
+              setShowToolsPopover(false);
               setShowContextPicker(true);
               postMessage({ type: 'requestWorkspaceFiles' });
               break;
@@ -1052,6 +1080,7 @@ export function App() {
             }
             case 'openSkills':
               setShowContextPicker(false);
+              setShowToolsPopover(false);
               setShowSkillsPopover(true);
               postMessage({ type: 'requestSkills' });
               break;
@@ -1229,6 +1258,7 @@ export function App() {
     mentionStartRef.current = at;
     setIsMentionActive(true);
     setShowSkillsPopover(false);
+    setShowToolsPopover(false);
     if (!showContextPicker) {
       postMessage({ type: 'requestWorkspaceFiles' });
       setShowContextPicker(true);
@@ -1263,6 +1293,7 @@ export function App() {
     setSelectedContextFiles([]);
     setAttachments([]);
     setInlineImages([]);
+    setShowToolsPopover(false);
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage, setInlineImages, setStatusBanner]);
 
@@ -1271,6 +1302,7 @@ export function App() {
     setShowLlmProfiles(panel === 'llmProfiles');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
+    setShowToolsPopover(false);
   }, [setShowContextPicker, setShowHistory, setShowLlmProfiles, setShowSkillsPopover]);
 
   const handleOpenHistory = useCallback(() => {
@@ -1312,6 +1344,7 @@ export function App() {
     setInput('');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
+    setShowToolsPopover(false);
     setContextQuery('');
     setSelectedContextFiles([]);
     setAttachments([]);
@@ -1328,6 +1361,7 @@ export function App() {
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
     setShowSkillsPopover(false);
+    setShowToolsPopover(false);
     setShowContextPicker((prev) => {
       const willBeOpen = !prev;
       if (willBeOpen) {
@@ -1421,6 +1455,7 @@ export function App() {
   // Skills handlers
   const handleOpenSkills = useCallback(() => {
     setShowContextPicker(false);
+    setShowToolsPopover(false);
     setShowSkillsPopover((prev) => {
       const willBeOpen = !prev;
       if (willBeOpen) {
@@ -1435,6 +1470,40 @@ export function App() {
     postMessage({ type: 'openSkill', path });
     setShowSkillsPopover(false);
   }, [postMessage, showStatusMessage]);
+
+  const isToolSelectionLocked = events.some((ev) => isMessageEvent(ev.event) && ev.event.source === 'user');
+
+  const handleOpenTools = useCallback(() => {
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
+    setShowToolsPopover((prev) => {
+      const willBeOpen = !prev;
+      if (willBeOpen) {
+        postMessage({ type: 'requestTools' });
+      }
+      return willBeOpen;
+    });
+  }, [postMessage]);
+
+  const handleToggleTool = useCallback((toolId: string) => {
+    if (isToolSelectionLocked) {
+      showStatusMessage('info', 'To change Tools, please start a new conversation.', { autoDismiss: true, autoDismissDelay: 4000 });
+      return;
+    }
+
+    setEnabledToolIds((prev) => {
+      const known = new Set(tools.map((tool) => tool.id));
+      if (!known.has(toolId)) return prev;
+
+      const nextSet = new Set(prev);
+      if (nextSet.has(toolId)) nextSet.delete(toolId);
+      else nextSet.add(toolId);
+
+      const ordered = tools.map((t) => t.id).filter((id) => nextSet.has(id));
+      postMessage({ type: 'setEnabledTools', toolIds: ordered });
+      return ordered;
+    });
+  }, [isToolSelectionLocked, postMessage, showStatusMessage, tools]);
 
   // History handlers
   const handleSelectConversation = useCallback((id: string) => {
@@ -1605,6 +1674,13 @@ export function App() {
           skillsPopoverSkills={skills}
           onOpenSkill={handleOpenSkill}
           onCloseSkillsPopover={() => setShowSkillsPopover(false)}
+          onOpenTools={mode === 'local' ? handleOpenTools : undefined}
+          toolsCount={enabledToolIds.length}
+          showToolsPopover={showToolsPopover}
+          toolsPopoverTools={tools}
+          enabledToolIds={enabledToolIds}
+          onToggleTool={handleToggleTool}
+          onCloseToolsPopover={() => setShowToolsPopover(false)}
           onOpenAttachments={handleOpenAttachments}
           attachments={attachments}
           onOpenAttachment={handleOpenAttachment}
