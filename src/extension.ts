@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
-import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
+import { type HalStateSnapshot, isHalMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { maskSecretsInText } from './shared/maskSecrets';
@@ -447,7 +447,7 @@ export function activate(context: vscode.ExtensionContext) {
           pendingUiStateRequests.get(requestId)?.(info);
         },
         onHalStateResponse: (requestId, info) => {
-          const mode = isElevenLabsMode(info.mode) ? info.mode : DEFAULT_HAL_STATE.mode;
+          const mode = isHalMode(info.mode) ? info.mode : DEFAULT_HAL_STATE.mode;
           const phase = isHalPhase(info.phase) ? info.phase : DEFAULT_HAL_STATE.phase;
           const eye = isHalEye(info.eye) ? info.eye : DEFAULT_HAL_STATE.eye;
           const decision = isHalDecision(info.decision) ? info.decision : null;
@@ -1217,7 +1217,7 @@ export function activate(context: vscode.ExtensionContext) {
         const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const settings = await settingsMgr.get();
         if (chatView && chatWebviewReady) {
-          void chatView.webview.postMessage({ type: 'halSettings', hal: settings.elevenlabs } satisfies HostToWebviewMessage);
+          void chatView.webview.postMessage({ type: 'halSettings', hal: settings.hal } satisfies HostToWebviewMessage);
         }
       } catch (err: unknown) {
         outputChannel?.appendLine(`[settings] Failed to apply HAL settings update: ${renderError(err)}`);

@@ -2,18 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
 import { getHalDialogueLinesForMode, type HalScriptLine, type HalVoice } from '../../../shared/halScript';
 import { DEFAULT_HAL_STATE } from '../../../shared/halDefaults';
-import { isElevenLabsMode, isHalDecision, type ElevenLabsMode, type HalDecision, type HalEye, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
+import { isHalDecision, isHalMode, type HalDecision, type HalEye, type HalMode, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { ShowStatusMessage } from './useStatusMessages';
 
-export type ElevenLabsSettingsSnapshot = {
+export type HalSettingsSnapshot = {
   enabled: boolean;
-  mode: ElevenLabsMode;
+  mode: HalMode;
   userName: string;
   volume: number;
 };
 
-const DEFAULT_ELEVENLABS_SETTINGS: ElevenLabsSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
+const DEFAULT_HAL_SETTINGS: HalSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
 
 type HalUiState = Pick<HalStateSnapshot, 'phase' | 'eye' | 'stepIndex' | 'decision' | 'lastError'>;
 
@@ -82,8 +82,8 @@ export function useHalFlow(deps: {
   handleApprove: () => void;
   handleReject: (reason?: string) => void;
 }) {
-  const [elevenlabs, setElevenlabs] = useState<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
-  const elevenlabsRef = useRef<ElevenLabsSettingsSnapshot>(DEFAULT_ELEVENLABS_SETTINGS);
+  const [halSettings, setHalSettings] = useState<HalSettingsSnapshot>(DEFAULT_HAL_SETTINGS);
+  const halSettingsRef = useRef<HalSettingsSnapshot>(DEFAULT_HAL_SETTINGS);
 
   const [halDisabledConversationId, setHalDisabledConversationId] = useState<string | null>(null);
   const [halPhase, setHalPhase] = useState<HalPhase>('idle');
@@ -121,8 +121,8 @@ export function useHalFlow(deps: {
   const halTeleportInProgressRef = useRef(false);
   const halStateRef = useRef<HalStateSnapshot>(DEFAULT_HAL_STATE);
 
-  const halSupportedMode = elevenlabs.mode === 'bundled' || elevenlabs.mode === 'tts_only' || elevenlabs.mode === 'voice_confirm';
-  const halEnabled = elevenlabs.enabled && halSupportedMode && halDisabledConversationId !== deps.conversationId;
+  const halSupportedMode = halSettings.mode === 'bundled' || halSettings.mode === 'tts_only' || halSettings.mode === 'voice_confirm';
+  const halEnabled = halSettings.enabled && halSupportedMode && halDisabledConversationId !== deps.conversationId;
 
   useEffect(() => {
     halEnabledRef.current = halEnabled;
@@ -141,8 +141,8 @@ export function useHalFlow(deps: {
   }, [halVoiceConfirmFallbackKey]);
 
   useEffect(() => {
-    elevenlabsRef.current = elevenlabs;
-  }, [elevenlabs]);
+    halSettingsRef.current = halSettings;
+  }, [halSettings]);
 
   useEffect(() => {
     halStepIndexRef.current = halStepIndex;
@@ -218,8 +218,8 @@ export function useHalFlow(deps: {
   }, [clearHalTimer, cleanupHalVoiceConfirm, stopHalAudio]);
 
   const halDialogueLines = useMemo(
-    () => getHalDialogueLinesForMode(elevenlabs.userName, elevenlabs.mode),
-    [elevenlabs.mode, elevenlabs.userName]
+    () => getHalDialogueLinesForMode(halSettings.userName, halSettings.mode),
+    [halSettings.mode, halSettings.userName]
   );
 
   useEffect(() => {
@@ -317,7 +317,7 @@ export function useHalFlow(deps: {
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
     if (halStepIndex === null) return;
-    if (elevenlabsRef.current.mode !== 'bundled') return;
+    if (halSettingsRef.current.mode !== 'bundled') return;
 
     const sessionKey = halActiveKeyRef.current ?? 'unknown';
     const playKey = `${sessionKey}:${halStepIndex}`;
@@ -333,7 +333,7 @@ export function useHalFlow(deps: {
       return;
     }
 
-    const volume = elevenlabsRef.current.volume;
+    const volume = halSettingsRef.current.volume;
     stopHalAudio();
     const token = halAudioPlayTokenRef.current;
     const audio = new Audio(clipUrl);
@@ -380,7 +380,7 @@ export function useHalFlow(deps: {
     const url = getBundledHalMusicStingUrl();
     if (!url || typeof Audio !== 'function') return;
 
-    const volume = elevenlabsRef.current.volume;
+    const volume = halSettingsRef.current.volume;
     stopHalAudio();
     const token = halAudioPlayTokenRef.current;
     const audio = new Audio(url);
@@ -442,7 +442,7 @@ export function useHalFlow(deps: {
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
     if (halStepIndex === null) return;
-    const mode = elevenlabsRef.current.mode;
+    const mode = halSettingsRef.current.mode;
     if (mode !== 'tts_only' && mode !== 'voice_confirm') return;
     const convoId = deps.conversationIdRef.current;
     if (!convoId) return;
@@ -465,7 +465,7 @@ export function useHalFlow(deps: {
   const handleStartVoiceConfirm = useCallback(() => {
     void (async () => {
       if (halPhaseRef.current !== 'awaiting_user') return;
-      if (elevenlabsRef.current.mode !== 'voice_confirm') return;
+      if (halSettingsRef.current.mode !== 'voice_confirm') return;
       if (halVoiceConfirmFallbackKeyRef.current === getHalConversationKey()) return;
       if (
         typeof navigator === 'undefined' ||
@@ -670,24 +670,24 @@ export function useHalFlow(deps: {
     deps.postMessage({ type: 'command', command: 'teleportAction' });
   }, [cleanupHalFlow, deps.postMessage, deps.showStatusMessage, resetHalUiState]);
 
-  const applyElevenlabsSettings = useCallback((raw: unknown) => {
+  const applyHalSettings = useCallback((raw: unknown) => {
     if (!raw || typeof raw !== 'object') return;
-    const prev = elevenlabsRef.current;
-    const next: ElevenLabsSettingsSnapshot = { ...prev };
-    const payload = raw as Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
+    const prev = halSettingsRef.current;
+    const next: HalSettingsSnapshot = { ...prev };
+    const payload = raw as Partial<HalSettingsSnapshot> & { [k: string]: unknown };
     if (typeof payload.enabled === 'boolean') next.enabled = payload.enabled;
-    if (isElevenLabsMode(payload.mode)) next.mode = payload.mode;
+    if (isHalMode(payload.mode)) next.mode = payload.mode;
     if (typeof payload.userName === 'string') next.userName = payload.userName;
     if (typeof payload.volume === 'number' && Number.isFinite(payload.volume)) {
       next.volume = Math.min(1, Math.max(0, payload.volume));
     }
-    elevenlabsRef.current = next;
+    halSettingsRef.current = next;
     halEnabledRef.current = next.enabled && (next.mode === 'bundled' || next.mode === 'tts_only' || next.mode === 'voice_confirm');
-    setElevenlabs(next);
+    setHalSettings(next);
     maybeUpdateHalFlow();
   }, [maybeUpdateHalFlow]);
 
-    const handleHalTtsResponse = useCallback((payload: unknown) => {
+  const handleHalTtsResponse = useCallback((payload: unknown) => {
     const currentRequestId = halTtsRequestIdRef.current;
     const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
     if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) return;
@@ -707,7 +707,7 @@ export function useHalFlow(deps: {
         for (let i = 0; i < rawAudio.length; i += 1) {
           bytes[i] = rawAudio.charCodeAt(i);
         }
-        playHalAudioBytes(bytes, typeof volume === 'number' ? volume : elevenlabsRef.current.volume);
+        playHalAudioBytes(bytes, typeof volume === 'number' ? volume : halSettingsRef.current.volume);
       } catch {
         handleHalAudioFinished();
       }
@@ -729,15 +729,15 @@ export function useHalFlow(deps: {
     setHalTeleporting(false);
 
     if (shouldNotify) deps.showStatusMessage('error', `HAL audio disabled for this conversation: ${message}`);
-    }, [
-      cleanupHalFlow,
-      deps.conversationIdRef,
-      deps.showStatusMessage,
-      handleHalAudioFinished,
-      playHalAudioBytes,
-      resetHalUiState,
-      setHalSuppressedKeySynced,
-    ]);
+  }, [
+    cleanupHalFlow,
+    deps.conversationIdRef,
+    deps.showStatusMessage,
+    handleHalAudioFinished,
+    playHalAudioBytes,
+    resetHalUiState,
+    setHalSuppressedKeySynced,
+  ]);
 
     const applyHalVoiceConfirmDecision = useCallback((decision: HalDecision, options?: { rejectReason?: string }) => {
       cleanupHalVoiceConfirm();
@@ -822,18 +822,18 @@ export function useHalFlow(deps: {
   useEffect(() => {
     halStateRef.current = {
       enabled: halEnabled,
-      mode: elevenlabs.mode,
+      mode: halSettings.mode,
       phase: halPhase,
       eye: halEye,
       stepIndex: halPhase === 'dialogue' ? halStepIndex : null,
       decision: halDecision,
       lastError: halLastError,
     };
-  }, [elevenlabs.mode, halDecision, halEnabled, halEye, halLastError, halPhase, halStepIndex]);
+  }, [halDecision, halEnabled, halEye, halLastError, halPhase, halSettings.mode, halStepIndex]);
 
-    return {
-      elevenlabs,
-      applyElevenlabsSettings,
+  return {
+    halSettings,
+    applyHalSettings,
     halEnabled,
     halDisabledConversationId,
     halPhase,
@@ -856,12 +856,12 @@ export function useHalFlow(deps: {
     handleHalApprove,
     handleHalReject,
     handleHalTeleport,
-      handleHalTtsResponse,
-      applyHalVoiceConfirmDecision,
-      handleHalVoiceConfirmResponse,
-      handleHalTeleportUnavailable,
-      handleHalTeleportFailed,
-      handleConversationStarted,
-      resetForServerTargetChange,
-    };
+    handleHalTtsResponse,
+    applyHalVoiceConfirmDecision,
+    handleHalVoiceConfirmResponse,
+    handleHalTeleportUnavailable,
+    handleHalTeleportFailed,
+    handleConversationStarted,
+    resetForServerTargetChange,
+  };
 }

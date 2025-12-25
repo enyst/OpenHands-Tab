@@ -21,7 +21,7 @@ import { getVscodeApi } from '../shared/vscodeApi';
 import { MAX_RENDERED_EVENTS } from '../shared/constants';
 import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../shared/pasteLimits';
 import { escapeMarkdownAltText } from './app/pastedImages';
-import { useHalFlow, type ElevenLabsSettingsSnapshot } from './app/useHalFlow';
+import { useHalFlow, type HalSettingsSnapshot } from './app/useHalFlow';
 import { useInlineImageAttachments } from './app/useInlineImageAttachments';
 import { useStatusMessages, type StatusBannerState } from './app/useStatusMessages';
 
@@ -458,8 +458,8 @@ export function App() {
   }, [isSubmitting, postMessage, showStatusMessage]);
 
   const {
-    elevenlabs,
-    applyElevenlabsSettings,
+    halSettings,
+    applyHalSettings,
     halEnabled,
     halPhase,
     halEye,
@@ -697,7 +697,7 @@ export function App() {
         hasProfileKey?: unknown;
         hasProviderKey?: unknown;
         providerKeyName?: unknown;
-        hal?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
+        hal?: Partial<HalSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
         seq?: unknown;
         error?: unknown;
@@ -929,7 +929,7 @@ export function App() {
           break;
         }
         case 'halSettings':
-          applyElevenlabsSettings(payload.hal);
+          applyHalSettings(payload.hal);
           break;
         case 'halTtsResponse': {
           handleHalTtsResponse(payload);
@@ -1170,27 +1170,27 @@ export function App() {
 
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-    }, [
-      applyElevenlabsSettings,
-      applyHalVoiceConfirmDecision,
-      events,
-      halStateRef,
-      handleConversationStarted,
-      handleEvent,
-      handleHalApprove,
-      handleHalExit,
+  }, [
+    applyHalSettings,
+    applyHalVoiceConfirmDecision,
+    events,
+    halStateRef,
+    handleConversationStarted,
+    handleEvent,
+    handleHalApprove,
+    handleHalExit,
     handleHalReject,
     handleHalTeleport,
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
-      maybeUpdateHalFlow,
-      postMessage,
-      resetForServerTargetChange,
-      setStatusBanner,
-      showStatusMessage,
-    ]);
+    maybeUpdateHalFlow,
+    postMessage,
+    resetForServerTargetChange,
+    setStatusBanner,
+    showStatusMessage,
+  ]);
 
   // Auto-scroll to bottom when events change or streaming updates
   useEffect(() => {
@@ -1478,7 +1478,7 @@ export function App() {
   const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
   const halConversationKey = conversationId ?? 'unknown';
   const voiceConfirmFallbackToButtons =
-    elevenlabs.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
+    halSettings.mode === 'voice_confirm' && halVoiceConfirmFallbackKey === halConversationKey;
   const halSessionKey =
     halEnabled && hasPendingConfirmation && firstHighRiskAction?.tool_call_id
       ? `${conversationId ?? 'unknown'}:${firstHighRiskAction.tool_call_id}`
@@ -1542,29 +1542,29 @@ export function App() {
       </div>
 
       {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
-        {shouldShowHalOverlay && (
-          <HalOverlay
-            key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
-            userName={normalizeHalUserName(elevenlabs.userName)}
-            mode={elevenlabs.mode}
-            phase={halUiPhase}
-            eye={halEye}
-            line={halUiLine}
-            decision={halDecision}
-            lastError={halLastError}
-            isSubmitting={isSubmitting || halTeleporting}
-            startWithRejectInput={halForceRejectInput}
-            voiceConfirmFallbackToButtons={voiceConfirmFallbackToButtons}
-            onStartVoiceConfirm={handleStartVoiceConfirm}
-            onStopVoiceConfirm={handleStopVoiceConfirm}
-            onCancelVoiceConfirm={handleCancelVoiceConfirm}
-            onUseButtonsInstead={handleUseButtonsInstead}
-            onApprove={handleHalApprove}
-            onTeleport={handleHalTeleport}
-            onReject={handleHalReject}
-            onExit={handleHalExit}
-          />
-        )}
+      {shouldShowHalOverlay && (
+        <HalOverlay
+          key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
+          userName={normalizeHalUserName(halSettings.userName)}
+          mode={halSettings.mode}
+          phase={halUiPhase}
+          eye={halEye}
+          line={halUiLine}
+          decision={halDecision}
+          lastError={halLastError}
+          isSubmitting={isSubmitting || halTeleporting}
+          startWithRejectInput={halForceRejectInput}
+          voiceConfirmFallbackToButtons={voiceConfirmFallbackToButtons}
+          onStartVoiceConfirm={handleStartVoiceConfirm}
+          onStopVoiceConfirm={handleStopVoiceConfirm}
+          onCancelVoiceConfirm={handleCancelVoiceConfirm}
+          onUseButtonsInstead={handleUseButtonsInstead}
+          onApprove={handleHalApprove}
+          onTeleport={handleHalTeleport}
+          onReject={handleHalReject}
+          onExit={handleHalExit}
+        />
+      )}
 
       {/* Confirmation prompt (modal overlay) */}
       {hasPendingConfirmation && !shouldShowHalOverlay && (
