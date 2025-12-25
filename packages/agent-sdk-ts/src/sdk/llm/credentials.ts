@@ -2,11 +2,6 @@ import { SecretRegistry } from '../runtime/SecretRegistry';
 
 const FALLBACK_KEY_ORDER = [
   'openhands.llmApiKey',
-  'OPENAI_API_KEY',
-  'OPENROUTER_API_KEY',
-  'LITELLM_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'GEMINI_API_KEY',
   'LLM_API_KEY',
 ];
 
