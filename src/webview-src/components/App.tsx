@@ -1066,6 +1066,14 @@ export function App() {
               postMessage({ type: 'send', text: normalized, contextFiles: [], attachments: [] });
               break;
             }
+            case 'selectServer': {
+              const url = (rawPayload as { url?: unknown } | undefined)?.url;
+              if (typeof url !== 'string') break;
+              const normalized = url.trim();
+              if (!normalized) break;
+              postMessage({ type: 'selectServer', url: normalized });
+              break;
+            }
             case 'setLlmProfileId': {
               const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;
               if (profileIdRaw === undefined) break;
