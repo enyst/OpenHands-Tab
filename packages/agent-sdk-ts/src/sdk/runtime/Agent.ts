@@ -125,6 +125,50 @@ function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): s
   return `${head}\n${TOOL_MESSAGE_CLIP_MARKER}\n${tail}`;
 }
 
+const DEBUG_TOOL_TEXT_HEAD_CHARS = 100;
+const DEBUG_TOOL_TEXT_TAIL_CHARS = 100;
+const DEBUG_TOOL_TEXT_MAX_UNCLIPPED = DEBUG_TOOL_TEXT_HEAD_CHARS + DEBUG_TOOL_TEXT_TAIL_CHARS;
+function truncateToolMessageForDebug(text: string): string {
+  if (text.length <= DEBUG_TOOL_TEXT_MAX_UNCLIPPED) return text;
+  return `${text.slice(0, DEBUG_TOOL_TEXT_HEAD_CHARS)}…${text.slice(-DEBUG_TOOL_TEXT_TAIL_CHARS)}`;
+}
+
+function sanitizeToolCallsForDebug(toolCalls: ToolCall[] | undefined): ToolCall[] | undefined {
+  if (!Array.isArray(toolCalls) || toolCalls.length === 0) return undefined;
+  return toolCalls.map((toolCall) => {
+    const rawArgs = toolCall.function.arguments;
+    const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : '';
+    return {
+      ...toolCall,
+      function: { ...toolCall.function, arguments: safeArgs },
+    };
+  });
+}
+
+function sanitizeMessageForDebug(message: Message): Message {
+  const safeToolCalls = sanitizeToolCallsForDebug(message.tool_calls);
+  const safeContent = message.role === 'tool'
+    ? message.content.map((item) => (
+      item.type === 'text'
+        ? { ...item, text: truncateToolMessageForDebug(item.text) }
+        : item
+    ))
+    : message.content;
+
+  const out: Message = { ...message, content: safeContent };
+  if (safeToolCalls) out.tool_calls = safeToolCalls;
+  return out;
+}
+
+function sanitizeChatRequestForDebug(request: ChatCompletionRequest): { systemPrompt: string; messages: Message[]; tools: string[] } {
+  const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+  return {
+    systemPrompt: 'SYSTEM_PROMPT',
+    messages: request.messages.map(sanitizeMessageForDebug),
+    tools: toolNames,
+  };
+}
+
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash-summarizer';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
 const TOOL_SUMMARY_MAX_CHARS = 1_000;
@@ -747,6 +791,29 @@ export class Agent extends EventEmitter {
           }
         }
 
+        if (this.debug) {
+          try {
+            const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
+            const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
+            this.events.push({
+              kind: 'ConversationStateUpdateEvent',
+              source: 'agent',
+              key: 'llm_request_payload',
+              value: {
+                llm: {
+                  provider,
+                  model: llmConfig.model,
+                  baseUrl,
+                  ...(typeof llmConfig.openaiApiMode === 'string' ? { openaiApiMode: llmConfig.openaiApiMode } : {}),
+                },
+                request: sanitizeChatRequestForDebug(request),
+              },
+            } as Event);
+          } catch (error) {
+            console.warn('[Agent] Failed to emit llm_request_payload debug event:', error);
+          }
+        }
+
         const configuredMaxInputTokens = llmConfig.maxInputTokens;
         if (
           condensationAttempt < MAX_CONDENSATIONS_PER_STEP &&
@@ -758,7 +825,33 @@ export class Agent extends EventEmitter {
         }
 
         try {
-          response = await orchestrator.runChat(request);
+          const result = await orchestrator.runChat(request);
+          response = result;
+          if (this.debug) {
+            try {
+              const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
+              const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
+              this.events.push({
+                kind: 'ConversationStateUpdateEvent',
+                source: 'agent',
+                key: 'llm_response_payload',
+                value: {
+                  llm: {
+                    provider,
+                    model: llmConfig.model,
+                    baseUrl,
+                    ...(typeof llmConfig.openaiApiMode === 'string' ? { openaiApiMode: llmConfig.openaiApiMode } : {}),
+                  },
+                  response: {
+                    message: sanitizeMessageForDebug(result.message),
+                    usage: result.usage,
+                  },
+                },
+              } as Event);
+            } catch (error) {
+              console.warn('[Agent] Failed to emit llm_response_payload debug event:', error);
+            }
+          }
           break;
         } catch (error) {
           if (condensationAttempt < MAX_CONDENSATIONS_PER_STEP && isContextLimitError(llmConfig.provider, error)) {
@@ -933,10 +1026,18 @@ export class Agent extends EventEmitter {
     return { summary, forgottenEventIds, summaryOffset };
   }
 
-  private getEffectiveLlmConfigForCondensation(): { provider: LLMProvider | undefined; maxInputTokens: number | undefined } {
+  private getEffectiveLlmConfigForCondensation(): {
+    provider: LLMProvider | undefined;
+    baseUrl: string | undefined;
+    model: string;
+    openaiApiMode: unknown;
+    maxInputTokens: number | undefined;
+  } {
     const llm = this.options.settings?.llm ?? {};
     const configuredBaseUrl = toOptionalNonEmptyString(llm.baseUrl);
+    const configuredModel = toOptionalNonEmptyString(llm.model) ?? '';
     const configuredProvider = llm.provider ?? undefined;
+    const configuredOpenaiApiMode = (llm as { openaiApiMode?: unknown } | undefined)?.openaiApiMode;
     const configuredMaxInputTokens =
       typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens) && llm.maxInputTokens > 0
         ? Math.trunc(llm.maxInputTokens)
@@ -944,14 +1045,19 @@ export class Agent extends EventEmitter {
 
     const profileId = toOptionalNonEmptyString(llm.profileId);
     if (!profileId || !isSafeProfileId(profileId)) {
+      const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
       return {
-        provider: configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl),
+        provider,
+        baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
+        model: configuredModel,
+        openaiApiMode: configuredOpenaiApiMode,
         maxInputTokens: configuredMaxInputTokens,
       };
     }
 
     try {
       const profile = loadProfile(profileId);
+      const profileModel = toOptionalNonEmptyString(profile.config.model) ?? configuredModel;
       const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
       const profileProvider = profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
       const profileMaxInputTokens =
@@ -962,11 +1068,18 @@ export class Agent extends EventEmitter {
           : undefined;
       return {
         provider: profileProvider,
+        baseUrl: profileBaseUrl ?? configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[profileProvider],
+        model: profileModel,
+        openaiApiMode: profile.config.openaiApiMode ?? configuredOpenaiApiMode,
         maxInputTokens: configuredMaxInputTokens ?? profileMaxInputTokens,
       };
     } catch {
+      const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
       return {
-        provider: configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl),
+        provider,
+        baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
+        model: configuredModel,
+        openaiApiMode: configuredOpenaiApiMode,
         maxInputTokens: configuredMaxInputTokens,
       };
     }

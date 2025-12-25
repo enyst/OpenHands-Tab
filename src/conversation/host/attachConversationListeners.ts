@@ -58,6 +58,19 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
       outputChannel?.appendLine('[llm] Streaming started...');
     }
 
+    if (ev.kind === 'ConversationStateUpdateEvent' && (ev.key === 'llm_request_payload' || ev.key === 'llm_response_payload')) {
+      const shouldLogToDebugConsole = deps.context.extensionMode !== vscode.ExtensionMode.Production;
+      if (shouldLogToDebugConsole) {
+        const key = ev.key ?? 'llm_payload';
+        try {
+          console.debug(`[openhands][${key}] ${deps.safeStringify(ev.value)}`);
+        } catch (e) {
+          console.debug(`[openhands][${key}] <failed to stringify: ${String(e)}>`); // Debug Console only
+        }
+      }
+      return;
+    }
+
     if (!isLlmStreamUpdate) {
       const isErrorLike = ev.kind === 'ConversationErrorEvent' || ev.kind === 'AgentErrorEvent';
       if (deps.isVerboseEventLogging() || isErrorLike) {
