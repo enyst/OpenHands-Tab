@@ -1573,20 +1573,6 @@ export function App() {
 
       {/* Input area */}
       <div className="relative">
-        {/* Status banner (space reserved to prevent layout jumps) */}
-        <div className="px-4 pb-2 min-h-[56px] flex items-end" data-testid="status-row">
-          {statusBanner && (
-            <StatusBanner
-              message={statusBanner.message}
-              level={statusBanner.level}
-              dismissible={statusBanner.dismissible}
-              onDismiss={() => setStatusBanner(null)}
-              autoDismiss={statusBanner.autoDismiss ?? statusBanner.level !== 'error'}
-              autoDismissDelay={statusBanner.autoDismissDelay}
-            />
-          )}
-        </div>
-
         <InputArea
           value={input}
           onChange={handleInputChange}
@@ -1626,14 +1612,28 @@ export function App() {
         )}
 
         {/* Skills popover */}
-      {showSkillsPopover && (
-        <SkillsPopover
-          isOpen
-          onClose={() => setShowSkillsPopover(false)}
-          skills={skills}
-          onOpenSkill={handleOpenSkill}
-        />
-      )}
+        {showSkillsPopover && (
+          <SkillsPopover
+            isOpen
+            onClose={() => setShowSkillsPopover(false)}
+            skills={skills}
+            onOpenSkill={handleOpenSkill}
+          />
+        )}
+
+        {/* Bottom status bar (below prompt + controls) */}
+        <div className={statusBanner ? 'px-4 pt-2 pb-2' : ''} data-testid="status-row">
+          {statusBanner && (
+            <StatusBanner
+              message={statusBanner.message}
+              level={statusBanner.level}
+              dismissible={statusBanner.dismissible}
+              onDismiss={() => setStatusBanner(null)}
+              autoDismiss={statusBanner.autoDismiss ?? statusBanner.level !== 'error'}
+              autoDismissDelay={statusBanner.autoDismissDelay}
+            />
+          )}
+        </div>
       </div>
 
       {/* LLM Profiles view (slide-over panel) */}
