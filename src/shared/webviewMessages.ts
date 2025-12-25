@@ -20,7 +20,16 @@ export type HostToWebviewMessage =
   | { type: 'llmProfileSaveResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileDeleteResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileDeleteResponse'; requestId: string; ok: false; profileId: string; error: string }
-  | { type: 'llmProfileApiKeyStatusResponse'; requestId: string; ok: true; profileId: string; hasKey: boolean }
+  | {
+    type: 'llmProfileApiKeyStatusResponse';
+    requestId: string;
+    ok: true;
+    profileId: string;
+    hasKey: boolean;
+    hasProfileKey: boolean;
+    hasProviderKey: boolean;
+    providerKeyName?: string;
+  }
   | { type: 'llmProfileApiKeyStatusResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: false; profileId: string; error: string }

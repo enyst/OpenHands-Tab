@@ -144,7 +144,7 @@ type PendingLlmProfilesRequest =
   }
   | {
     kind: 'apiKeyStatus';
-    resolve: (hasKey: boolean) => void;
+    resolve: (status: LlmProfileApiKeyStatusInfo) => void;
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
   }
@@ -154,6 +154,13 @@ type PendingLlmProfilesRequest =
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
   };
+
+type LlmProfileApiKeyStatusInfo = {
+  hasKey: boolean;
+  hasProfileKey: boolean;
+  hasProviderKey: boolean;
+  providerKeyName?: string;
+};
 
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
@@ -339,9 +346,9 @@ export function App() {
     });
   }, [postMessage]);
 
-  const getLlmProfileApiKeyStatus = useCallback(async (profileId: string): Promise<boolean> => {
+  const getLlmProfileApiKeyStatus = useCallback(async (profileId: string): Promise<LlmProfileApiKeyStatusInfo> => {
     const requestId = createLlmProfilesRequestId('apiKeyStatus');
-    return await new Promise<boolean>((resolve, reject) => {
+    return await new Promise<LlmProfileApiKeyStatusInfo>((resolve, reject) => {
       const timeout = setTimeout(() => {
         pendingLlmProfilesRequestsRef.current.delete(requestId);
         reject(new Error('Timed out fetching LLM profile API key status'));
@@ -613,6 +620,9 @@ export function App() {
         profileId?: unknown;
         profile?: unknown;
         hasKey?: unknown;
+        hasProfileKey?: unknown;
+        hasProviderKey?: unknown;
+        providerKeyName?: unknown;
         elevenlabs?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
         seq?: unknown;
@@ -754,8 +764,28 @@ export function App() {
           if (!pending || pending.kind !== 'apiKeyStatus') break;
           pendingLlmProfilesRequestsRef.current.delete(requestId);
           clearTimeout(pending.timeout);
+          const providerKeyName = typeof payload.providerKeyName === 'string' ? payload.providerKeyName : undefined;
+          if (
+            payload.ok === true &&
+            typeof payload.hasKey === 'boolean' &&
+            typeof payload.hasProfileKey === 'boolean' &&
+            typeof payload.hasProviderKey === 'boolean'
+          ) {
+            pending.resolve({
+              hasKey: payload.hasKey,
+              hasProfileKey: payload.hasProfileKey,
+              hasProviderKey: payload.hasProviderKey,
+              providerKeyName,
+            });
+            break;
+          }
           if (payload.ok === true && typeof payload.hasKey === 'boolean') {
-            pending.resolve(payload.hasKey);
+            pending.resolve({
+              hasKey: payload.hasKey,
+              hasProfileKey: payload.hasKey,
+              hasProviderKey: false,
+              providerKeyName,
+            });
             break;
           }
           const reason = typeof payload.error === 'string' ? payload.error : 'Failed to fetch LLM profile API key status';
