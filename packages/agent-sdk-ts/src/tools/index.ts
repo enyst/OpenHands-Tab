@@ -2,6 +2,7 @@ export * from './IntegratedTerminalRunner';
 export * from './TerminalTool';
 export * from './FileEditorTool';
 export * from './TaskTrackerTool';
+export * from './FinishTool';
 export * from './BrowserTool';
 export * from './BrowserUseTool';
 export * from './DelegateTool';
