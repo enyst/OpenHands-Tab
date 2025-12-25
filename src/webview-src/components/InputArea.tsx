@@ -445,13 +445,17 @@ function LlmProfileSelector({
 
   const normalizedFallbackLabel = typeof fallbackLabel === 'string' ? fallbackLabel.trim() : '';
   const hasFallback = normalizedFallbackLabel.length > 0;
-  const shown = profileId ?? (hasFallback ? `None (${normalizedFallbackLabel})` : 'None');
+  const sanitizedProfiles = profiles.filter((id) => typeof id === 'string' && id.trim().length > 0);
+  const hasProfiles = sanitizedProfiles.length > 0;
+  const shouldPromptCreate = profileId === null && !hasProfiles && Boolean(onOpenCreate);
+  const shown = profileId ?? (shouldPromptCreate ? 'New profile…' : (hasFallback ? `None (${normalizedFallbackLabel})` : 'None'));
   const tooltip = profileId
     ? `LLM profile: ${profileId}`
-    : hasFallback
-      ? `LLM profile: None (using ${normalizedFallbackLabel})`
-      : 'LLM profile: None';
-  const sanitizedProfiles = profiles.filter((id) => typeof id === 'string' && id.trim().length > 0);
+    : shouldPromptCreate
+      ? 'LLM profile: New profile…'
+      : hasFallback
+        ? `LLM profile: None (using ${normalizedFallbackLabel})`
+        : 'LLM profile: None';
 
   const handleSelect = (next: string | null) => {
     onSelect(next);
@@ -464,7 +468,13 @@ function LlmProfileSelector({
     <div className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => {
+          if (shouldPromptCreate && onOpenCreate) {
+            onOpenCreate();
+            return;
+          }
+          setIsOpen((prev) => !prev);
+        }}
         className={`
           inline-flex items-center gap-2
           px-3 py-2 rounded-lg
