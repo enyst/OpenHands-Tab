@@ -74,11 +74,19 @@ export class LLMFactory {
       typeof config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(config.apiKey)
         ? config.apiKey
         : undefined;
+    const defaultApiKeyName = this.getDefaultApiKeyName(provider);
+    const preferredApiKeys = config.apiKey ?? this.preferredKeys;
+    const apiKeyLookup = (() => {
+      if (Array.isArray(preferredApiKeys)) {
+        const keys = [...preferredApiKeys];
+        if (!keys.includes(defaultApiKeyName)) keys.push(defaultApiKeyName);
+        return keys;
+      }
+      return preferredApiKeys ?? defaultApiKeyName;
+    })();
     const apiKey =
       inlineApiKey ??
-      (await this.credentialProvider.getApiKey(
-        config.apiKey ?? this.preferredKeys ?? this.getDefaultApiKeyName(provider),
-      ));
+      (await this.credentialProvider.getApiKey(apiKeyLookup));
     if (!apiKey) {
       throw new Error('Missing API key for LLM provider');
     }
