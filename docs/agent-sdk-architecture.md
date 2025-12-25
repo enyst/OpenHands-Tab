@@ -1692,4 +1692,4 @@ describe('Type Guards', () => {
 - [Repository Guidelines](../AGENTS.md)
 - [Python SDK Parity Guide](../packages/agent-sdk-ts/docs/python-parity.md) - Detailed comparison with Python SDK
 - [PRD](./PRD.md)
-- [OpenHands agent-sdk (Python)](https://github.com/enyst/agent-sdk)
+- [OpenHands agent-sdk (Python)](https://github.com/OpenHands/software-agent-sdk)

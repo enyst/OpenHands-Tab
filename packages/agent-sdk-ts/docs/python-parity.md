@@ -7,7 +7,7 @@ This document compares the Python `agent-sdk` (reference implementation) with th
 This document is the living output for Beads issue `oh-tab-0rq`.
 
 - TypeScript SDK: `packages/agent-sdk-ts` (this repo).
-- Python reference SDK: `~/repos/agent-sdk` ([enyst/agent-sdk](https://github.com/enyst/agent-sdk)).
+- Python reference SDK: `~/repos/agent-sdk` ([OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)).
 - Focus: VS Code local-mode parity and remote conversation working correctly (no agent-server implementation in TS).
 
 ## Module structure overview
