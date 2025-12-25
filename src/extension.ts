@@ -524,7 +524,6 @@ export function activate(context: vscode.ExtensionContext) {
           vscode.workspace.getConfiguration().get<boolean>('openhands.terminal.renderProgress') ?? true;
         terminalLogPty = new OpenHandsTerminalLogPseudoterminal({ renderProgress });
         terminal = vscode.window.createTerminal({ name: 'OpenHands', pty: terminalLogPty });
-        terminal.show(true);
       } catch (e) {
         console.error('[Terminal] Failed to create terminal log:', e);
         terminal = undefined;
@@ -815,6 +814,7 @@ export function activate(context: vscode.ExtensionContext) {
     getConversation: () => conversation,
     getConversationMode: () => conversationMode,
     getTerminal: () => terminal,
+    getTerminalLogPty: () => terminalLogPty,
     getReceivedTerminalEventsCount: () => receivedTerminalEvents.length,
     getRecentTerminalEvents: (max = 10) => receivedTerminalEvents.slice(-Math.max(0, Math.min(max, MAX_TERMINAL_EVENTS))),
     onTerminalEvent: (event) => handleTerminalEvent(event),

@@ -9,11 +9,15 @@ import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
+import { OpenHandsTerminalLogPseudoterminal } from '../terminal/OpenHandsTerminalLogPseudoterminal';
 import { isBashEvent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
 
 export type TerminalLogInfo = {
   hasTerminal: boolean;
   received: number;
+  ptyOpened?: boolean;
+  preopenBufferedChars?: number;
+  preopenDroppedChars?: number;
   lastEvents?: Array<{ type?: string; timestamp: number }>;
 };
 
@@ -74,6 +78,7 @@ type RegisterDiagnosticsCommandsDeps = {
   getConversation: () => ConversationInstance | undefined;
   getConversationMode: () => 'local' | 'remote';
   getTerminal: () => vscode.Terminal | undefined;
+  getTerminalLogPty: () => OpenHandsTerminalLogPseudoterminal | undefined;
   getReceivedTerminalEventsCount: () => number;
   getRecentTerminalEvents?: (max?: number) => Array<{ type?: string; timestamp: number }>;
   getOutputChannel: () => vscode.OutputChannel | undefined;
@@ -137,12 +142,18 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
   const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
     const chatView = deps.getChatView();
     const terminal = deps.getTerminal();
+    const terminalPty = deps.getTerminalLogPty();
 
     const terminalInfo: TerminalLogInfo = {
       hasTerminal: !!terminal,
       received: deps.getReceivedTerminalEventsCount(),
       lastEvents: deps.getRecentTerminalEvents?.(10),
     };
+    if (terminalPty) {
+      terminalInfo.ptyOpened = terminalPty.isOpened();
+      terminalInfo.preopenBufferedChars = terminalPty.getPreopenBufferedChars();
+      terminalInfo.preopenDroppedChars = terminalPty.getPreopenDroppedChars();
+    }
 
     return {
       chat: {

@@ -49,10 +49,15 @@ type TerminalLogPseudoterminalOptions = {
 export class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal {
   private static readonly PTY_WRITE_CHUNK_SIZE = 16_000;
   private static readonly MAX_PENDING_LINE_CHARS = 200_000;
+  private static readonly MAX_PREOPEN_BUFFER_CHARS = 200_000;
 
   private readonly writeEmitter = new vscode.EventEmitter<string>();
   private readonly closeEmitter = new vscode.EventEmitter<void>();
   private closed = false;
+  private opened = false;
+  private preopenChunks: string[] = [];
+  private preopenChars = 0;
+  private preopenDroppedChars = 0;
   private showedInputHint = false;
   private lastEndedWithNewline = true;
   private readonly renderProgress: boolean;
@@ -68,7 +73,28 @@ export class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal
   }
 
   open(): void {
-    this.writeLine('[OpenHands] Terminal log (read-only)');
+    if (this.closed) return;
+    this.opened = true;
+
+    const bufferedEndedWithNewline = this.lastEndedWithNewline;
+    const bufferedChunks = this.preopenChunks;
+    const bufferedDroppedChars = this.preopenDroppedChars;
+
+    this.preopenChunks = [];
+    this.preopenChars = 0;
+    this.preopenDroppedChars = 0;
+
+    this.writeRaw('[OpenHands] Terminal log (read-only)\n');
+    if (bufferedDroppedChars > 0) {
+      this.writeRaw(`[OpenHands] (Earlier output omitted: ${bufferedDroppedChars} chars)\n`);
+    }
+
+    if (bufferedChunks.length > 0) {
+      for (const chunk of bufferedChunks) {
+        this.writeEmitter.fire(chunk);
+      }
+      this.lastEndedWithNewline = bufferedEndedWithNewline;
+    }
   }
 
   close(): void {
@@ -85,6 +111,9 @@ export class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal
   }
 
   isClosed(): boolean { return this.closed; }
+  isOpened(): boolean { return this.opened; }
+  getPreopenBufferedChars(): number { return this.preopenChars; }
+  getPreopenDroppedChars(): number { return this.preopenDroppedChars; }
 
   ensureNewline(): void {
     if (this.progressLine || this.progressCarry) {
@@ -106,9 +135,29 @@ export class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal
     this.writeLine('');
   }
 
+  private bufferPreopenChunk(chunk: string): void {
+    if (!chunk) return;
+    this.preopenChunks.push(chunk);
+    this.preopenChars += chunk.length;
+
+    const max = OpenHandsTerminalLogPseudoterminal.MAX_PREOPEN_BUFFER_CHARS;
+    if (this.preopenChars <= max) return;
+
+    while (this.preopenChunks.length > 0 && this.preopenChars > max) {
+      const dropped = this.preopenChunks.shift();
+      if (!dropped) break;
+      this.preopenChars -= dropped.length;
+      this.preopenDroppedChars += dropped.length;
+    }
+  }
+
   private emitChunk(chunk: string): void {
     if (!chunk) return;
-    this.writeEmitter.fire(chunk);
+    if (!this.opened) {
+      this.bufferPreopenChunk(chunk);
+    } else {
+      this.writeEmitter.fire(chunk);
+    }
     this.lastEndedWithNewline = /\n$/.test(chunk);
   }
 
@@ -260,4 +309,3 @@ export class OpenHandsTerminalLogPseudoterminal implements vscode.Pseudoterminal
     this.write(`${line}\n`);
   }
 }
-
