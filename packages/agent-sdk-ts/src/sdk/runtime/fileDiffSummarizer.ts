@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ChatCompletionRequest, LLMClient } from '../llm';
-import { LLMFactory } from '../llm';
+import { getGeminiClient } from './geminiClient';
 import type { SecretRegistry } from './SecretRegistry';
 
 const execFileAsync = promisify(execFile);
@@ -121,20 +121,6 @@ const loadContentsFromGitRefs = async (
   return { oldContent, newContent };
 };
 
-const getGeminiFlashClient = async (secrets: SecretRegistry): Promise<LLMClient> => {
-  const factory = new LLMFactory(
-    {
-      profileId: 'gemini-flash',
-      model: 'gemini-flash',
-      usageId: 'file-diff-summarizer',
-      temperature: 0.2,
-      maxOutputTokens: 256,
-    },
-    { secrets }
-  );
-  return factory.createClient();
-};
-
 export async function summarizeFileChangesWithGeminiFlash(
   input: FileChangeInput,
   options: SummarizeFileChangesOptions
@@ -177,7 +163,14 @@ export async function summarizeFileChangesWithGeminiFlash(
     messages: [{ role: 'user', content: [{ type: 'text', text: safePrompt }] }],
   };
 
-  const client = options.llmClient ?? (await getGeminiFlashClient(options.secrets));
+  const client =
+    options.llmClient ??
+    (await getGeminiClient(options.secrets, {
+      usageId: 'file-diff-summarizer',
+      profileId: 'gemini-flash',
+      model: 'gemini-flash',
+      maxOutputTokens: 256,
+    }));
   let text = '';
   for await (const chunk of client.streamChat(request)) {
     if (chunk.type === 'text') text += chunk.text;
