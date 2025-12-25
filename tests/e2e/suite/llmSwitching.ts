@@ -2,10 +2,35 @@ import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
 import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
+import type { MockLlmRequest } from './mockLlmServer';
 
 type WebviewActionResult = {
   sent?: boolean;
 };
+
+function assertRequestHeaders(
+  request: MockLlmRequest,
+  options: {
+    present: string[];
+    absent: string[];
+    context: string;
+  }
+): void {
+  const { present, absent, context } = options;
+  const headerKeys = Object.keys(request.headers).sort().join(', ');
+
+  for (const header of present) {
+    if (typeof request.headers[header] === 'undefined') {
+      throw new Error(`Expected header "${header}" to be present (${context}). Saw headers: ${headerKeys}`);
+    }
+  }
+
+  for (const header of absent) {
+    if (typeof request.headers[header] !== 'undefined') {
+      throw new Error(`Expected header "${header}" to be absent (${context}). Saw headers: ${headerKeys}`);
+    }
+  }
+}
 
 export async function run(): Promise<void> {
   const mock = await startMockLlmServer();
@@ -66,10 +91,15 @@ export async function run(): Promise<void> {
       model: 'claude-sonnet-4-20250514',
     });
     await vscode.commands.executeCommand('openhands.startNewConversation');
-    await sendAndWaitForRequestPath({
+    const anthropicReq = await sendAndWaitForRequestPath({
       text: 'E2E step 1: anthropic',
       expectedPath: expectedPaths.anthropicMessages,
       getRequests: () => mock.requests,
+    });
+    assertRequestHeaders(anthropicReq, {
+      present: ['x-api-key', 'anthropic-version'],
+      absent: ['authorization', 'x-goog-api-key'],
+      context: 'step 1: anthropic',
     });
 
     // 2) OpenAI-compatible (chat_completions)
@@ -89,6 +119,11 @@ export async function run(): Promise<void> {
     if (!openaiChatJson || typeof openaiChatJson !== 'object' || Array.isArray(openaiChatJson)) {
       throw new Error('Expected OpenAI chat_completions request to contain a JSON object body');
     }
+    assertRequestHeaders(openaiChatReq, {
+      present: ['authorization'],
+      absent: ['x-api-key', 'x-goog-api-key'],
+      context: 'step 2: openai chat_completions',
+    });
     if (!('messages' in openaiChatJson)) {
       throw new Error('Expected OpenAI chat_completions request body to contain `messages`');
     }
@@ -104,10 +139,15 @@ export async function run(): Promise<void> {
       baseUrl: v1BaseUrl,
       model: 'gpt-5-mini',
     });
-    await sendAndWaitForRequestPath({
+    const openaiAutoReq = await sendAndWaitForRequestPath({
       text: 'E2E step 3: openai gpt-5 auto (custom baseUrl)',
       expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
+    });
+    assertRequestHeaders(openaiAutoReq, {
+      present: ['authorization'],
+      absent: ['x-api-key', 'x-goog-api-key'],
+      context: 'step 3: openai auto (custom baseUrl)',
     });
 
     // 4) OpenAI Responses API (gpt-5 + openaiApiMode=responses)
@@ -127,6 +167,11 @@ export async function run(): Promise<void> {
     if (!openaiResponsesJson || typeof openaiResponsesJson !== 'object' || Array.isArray(openaiResponsesJson)) {
       throw new Error('Expected OpenAI responses request to contain a JSON object body');
     }
+    assertRequestHeaders(openaiResponsesReq, {
+      present: ['authorization'],
+      absent: ['x-api-key', 'x-goog-api-key'],
+      context: 'step 4: openai responses',
+    });
     if (!('input' in openaiResponsesJson)) {
       throw new Error('Expected OpenAI responses request body to contain `input`');
     }
@@ -142,19 +187,16 @@ export async function run(): Promise<void> {
       baseUrl: apiV1BaseUrl,
       model: 'google/gemini-2.0-flash',
     });
-    await sendAndWaitForRequestPath({
+    const openrouterReq = await sendAndWaitForRequestPath({
       text: 'E2E step 5: openrouter header check',
       expectedPath: expectedPaths.openrouterChatCompletions,
       getRequests: () => mock.requests,
     });
-
-    const openrouterReq = mock.requests
-      .slice()
-      .reverse()
-      .find((r) => r.path === expectedPaths.openrouterChatCompletions);
-    if (!openrouterReq) {
-      throw new Error(`Expected an OpenRouter ${expectedPaths.openrouterChatCompletions} request`);
-    }
+    assertRequestHeaders(openrouterReq, {
+      present: ['authorization'],
+      absent: ['x-api-key', 'x-goog-api-key'],
+      context: 'step 5: openrouter',
+    });
     const referer = openrouterReq.headers['http-referer'];
     const title = openrouterReq.headers['x-title'];
     if (!referer || !title) {
@@ -171,10 +213,15 @@ export async function run(): Promise<void> {
       baseUrl: v1BaseUrl,
       model: 'gpt-4o-mini',
     });
-    await sendAndWaitForRequestPath({
+    const litellmReq = await sendAndWaitForRequestPath({
       text: 'E2E step 6: litellm_proxy',
       expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
+    });
+    assertRequestHeaders(litellmReq, {
+      present: ['authorization'],
+      absent: ['x-api-key', 'x-goog-api-key'],
+      context: 'step 6: litellm_proxy',
     });
 
     // 7) Gemini native API (streamGenerateContent SSE).
@@ -185,10 +232,15 @@ export async function run(): Promise<void> {
       baseUrl: `${mock.baseUrl}/v1beta`,
       model: 'gemini-2.5-flash',
     });
-    await sendAndWaitForRequestPath({
+    const geminiReq = await sendAndWaitForRequestPath({
       text: 'E2E step 7: gemini',
       expectedPath: expectedPaths.geminiStreamGenerateContent,
       getRequests: () => mock.requests,
+    });
+    assertRequestHeaders(geminiReq, {
+      present: ['x-goog-api-key'],
+      absent: ['authorization', 'x-api-key'],
+      context: 'step 7: gemini',
     });
 
     // 8) LLM profile selection: Sonnet profile should override raw provider/model.
@@ -213,10 +265,15 @@ export async function run(): Promise<void> {
       const value = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue;
       return value === 'sonnet-45';
     }, 15000);
-    await sendAndWaitForRequestPath({
+    const profileSonnetReq = await sendAndWaitForRequestPath({
       text: 'E2E step 8: profile sonnet-45',
       expectedPath: expectedPaths.anthropicMessages,
       getRequests: () => mock.requests,
+    });
+    assertRequestHeaders(profileSonnetReq, {
+      present: ['x-api-key', 'anthropic-version'],
+      absent: ['authorization', 'x-goog-api-key'],
+      context: 'step 8: profile sonnet-45',
     });
 
     // 9) LLM profile selection: gpt-5-mini profile should override raw provider/model.
@@ -227,10 +284,15 @@ export async function run(): Promise<void> {
       openaiApiMode: 'auto',
       baseUrl: v1BaseUrl,
     });
-    await sendAndWaitForRequestPath({
+    const profileGptReq = await sendAndWaitForRequestPath({
       text: 'E2E step 9: profile gpt-5-mini',
       expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
+    });
+    assertRequestHeaders(profileGptReq, {
+      present: ['authorization'],
+      absent: ['x-api-key', 'x-goog-api-key'],
+      context: 'step 9: profile gpt-5-mini',
     });
 
     // Basic sanity: at least one request per step.
