@@ -101,23 +101,26 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       index={index}
       dataTestId="message-event"
       className={isUser ? '!bg-neutral-700' : ''}
+      alignRight={isUser}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 flex-shrink-0"
-          style={{ backgroundColor: withAlpha(accentColor, 10) }}
-        >
-          <span className={`codicon codicon-${icon} text-sm`} style={{ color: accentColor }} />
-        </div>
+      <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+        {!isUser && (
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 flex-shrink-0"
+            style={{ backgroundColor: withAlpha(accentColor, 10) }}
+          >
+            <span className={`codicon codicon-${icon} text-sm`} style={{ color: accentColor }} />
+          </div>
+        )}
 
         <div className="flex-1 min-w-0">
           {(showRoleLabel || message.created_at) && (
-            <div className="flex items-center gap-2 mb-2">
+            <div className={`flex items-center gap-2 mb-2 ${isUser ? 'justify-end' : ''}`}>
               {showRoleLabel && (
                 <div className={`font-semibold text-sm ${isAgent ? 'text-amber-200' : 'text-stone-300'}`}>{roleLabel}</div>
               )}
               {message.created_at && (
-                <div className={`text-xs text-stone-500 ${showRoleLabel ? '' : 'ml-auto'}`}>
+                <div className={`text-xs text-stone-500 ${showRoleLabel ? '' : isUser ? '' : 'ml-auto'}`}>
                   {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               )}
@@ -125,13 +128,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           )}
 
           {textContent && (
-            <div className="text-sm leading-relaxed break-words">
-              {isUser && (
-                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-stone-500/30 text-stone-200 text-xs font-medium mb-2 border border-stone-400/20">
-                  <span className="codicon codicon-account text-[10px]" />
-                  <span>YOU</span>
-                </div>
-              )}
+            <div className={`text-sm leading-relaxed break-words ${isUser ? 'text-right' : ''}`}>
               <div className={`${isUser ? 'text-stone-100' : isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
                 <MarkdownMessage text={textContent} />
               </div>
