@@ -229,7 +229,8 @@ describe('LLM Profiles view', () => {
       providerKeyName: 'OPENAI_API_KEY',
     });
 
-    expect(await screen.findByText('Using OPENAI_API_KEY')).toBeInTheDocument();
+    expect(screen.queryByText('Using OPENAI_API_KEY')).toBeNull();
+    expect(await screen.findByLabelText('Provider key configured')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'litellm_proxy' } });
 
@@ -252,8 +253,9 @@ describe('LLM Profiles view', () => {
       providerKeyName: 'LITELLM_API_KEY',
     });
 
-    expect(await screen.findByText('Using LITELLM_API_KEY')).toBeInTheDocument();
     expect(screen.queryByText('Using OPENAI_API_KEY')).toBeNull();
+    expect(screen.queryByText('Using LITELLM_API_KEY')).toBeNull();
+    expect(await screen.findByLabelText('Provider key configured')).toBeInTheDocument();
   });
 
   it('supports a collapsible Advanced settings section', async () => {

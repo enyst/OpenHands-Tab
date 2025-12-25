@@ -646,13 +646,19 @@ export function LlmProfilesView(props: {
     return { disabled: false, value };
   })();
 
+  const showProviderKeyConfiguredIndicator = providerRequiresApiKey
+    && mode === 'edit'
+    && apiKeyStatus.state === 'ready'
+    && apiKeyStatus.hasProviderKey
+    && !apiKeyStatus.hasProfileKey;
+
   const apiKeyStatusLabel = (() => {
     if (!providerRequiresApiKey) return '—';
     if (mode === 'create') return overrideProfileApiKey ? (apiKeyInput.trim() ? 'Draft' : 'Not set') : 'Use provider key';
     if (apiKeyStatus.state === 'loading') return 'Checking…';
     if (apiKeyStatus.state === 'ready') {
       if (apiKeyStatus.hasProfileKey) return 'Override set';
-      if (apiKeyStatus.hasProviderKey) return `Using ${apiKeyStatus.providerKeyName ?? 'provider key'}`;
+      if (apiKeyStatus.hasProviderKey) return '';
       return 'Missing';
     }
     if (apiKeyStatus.state === 'error') return 'Error';
@@ -900,7 +906,17 @@ export function LlmProfilesView(props: {
 
                       {providerRequiresApiKey ? (
                         <div className="flex flex-col items-end gap-2">
-                          <div className="text-xs text-stone-400">{apiKeyStatusLabel}</div>
+                          <div className="text-xs text-stone-400">
+                            {showProviderKeyConfiguredIndicator ? (
+                              <span
+                                className="codicon codicon-check text-green-400"
+                                title="Provider key configured"
+                                aria-label="Provider key configured"
+                              />
+                            ) : (
+                              apiKeyStatusLabel
+                            )}
+                          </div>
                           <label className="flex items-center gap-2 text-xs text-stone-300 select-none">
                             <input
                               type="checkbox"
