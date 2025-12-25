@@ -1,5 +1,5 @@
 import type { ChatCompletionRequest, LLMClient } from '../llm';
-import { LLMFactory } from '../llm';
+import { getGeminiClient } from './geminiClient';
 import type { SecretRegistry } from './SecretRegistry';
 
 export interface TerminalObservationInput {
@@ -62,20 +62,6 @@ const summarizeExitCodeFallback = (exitCode: TerminalObservationInput['exitCode'
   return normalized === '0' ? 'Done.' : `Done (exit code ${normalized}).`;
 };
 
-const getGeminiFlashClient = async (secrets: SecretRegistry): Promise<LLMClient> => {
-  const factory = new LLMFactory(
-    {
-      profileId: 'gemini-flash',
-      model: 'gemini-flash',
-      usageId: 'terminal-observation-summarizer',
-      temperature: 0.2,
-      maxOutputTokens: 256,
-    },
-    { secrets }
-  );
-  return factory.createClient();
-};
-
 const truncateSummary = (text: string, maxChars: number): string => {
   if (maxChars <= 0) return '';
   if (text.length <= maxChars) return text;
@@ -118,7 +104,14 @@ export async function summarizeTerminalObservationWithGeminiFlash(
   };
 
   try {
-    const client = options.llmClient ?? (await getGeminiFlashClient(options.secrets));
+    const client =
+      options.llmClient ??
+      (await getGeminiClient(options.secrets, {
+        usageId: 'terminal-observation-summarizer',
+        profileId: 'gemini-flash',
+        model: 'gemini-flash',
+        maxOutputTokens: 256,
+      }));
     let text = '';
     for await (const chunk of client.streamChat(request)) {
       if (chunk.type === 'text') text += chunk.text;

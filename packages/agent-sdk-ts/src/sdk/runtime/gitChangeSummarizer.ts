@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { ChatCompletionRequest, LLMClient } from '../llm';
-import { LLMFactory } from '../llm';
+import { getGeminiClient } from './geminiClient';
 import type { SecretRegistry } from './SecretRegistry';
 
 const execFileAsync = promisify(execFile);
@@ -116,20 +116,6 @@ const normalizePathFilters = (repoRoot: string, filters: string[] | undefined): 
     .map((candidate) => normalizeRepoRelativePath(repoRoot, candidate));
 };
 
-const getGeminiFlashClient = async (secrets: SecretRegistry): Promise<LLMClient> => {
-  const factory = new LLMFactory(
-    {
-      profileId: 'gemini-flash',
-      model: 'gemini-flash',
-      usageId: 'git-change-summarizer',
-      temperature: 0.2,
-      maxOutputTokens: 512,
-    },
-    { secrets },
-  );
-  return factory.createClient();
-};
-
 const extractJsonObject = (text: string): string | null => {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -239,7 +225,14 @@ export async function summarizeGitChangesWithGeminiFlash(
     messages: [{ role: 'user', content: [{ type: 'text', text: safePrompt }] }],
   };
 
-  const client = options.llmClient ?? (await getGeminiFlashClient(options.secrets));
+  const client =
+    options.llmClient ??
+    (await getGeminiClient(options.secrets, {
+      usageId: 'git-change-summarizer',
+      profileId: 'gemini-flash',
+      model: 'gemini-flash',
+      maxOutputTokens: 512,
+    }));
   let text = '';
   for await (const chunk of client.streamChat(request)) {
     if (chunk.type === 'text') text += chunk.text;
