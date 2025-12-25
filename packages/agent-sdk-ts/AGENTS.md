@@ -49,11 +49,10 @@ Prompt extension and skill management:
     - **KeywordTrigger**: Activated when keywords match user message
     - **TaskTrigger**: Activated for specific tasks with user input variables
   - Variable extraction for user input (${variable_name} format)
-  - `loadUserSkills()` function to load from ~/.openhands/skills/ and ~/.openhands/microagents/
+  - `loadUserSkills()` function to load from ~/.openhands/skills/
 
 Skills are loaded from:
 1. `~/.openhands/skills/` - Primary skills directory
-2. `~/.openhands/microagents/` - Legacy support
 
 ### 3. Runtime Layer (`src/runtime/`)
 Agent execution and state management:

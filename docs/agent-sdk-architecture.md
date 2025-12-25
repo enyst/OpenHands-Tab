@@ -330,7 +330,7 @@ const augmented = context.getUserMessageSuffix(userMessage);
 - Support third-party files (.cursorrules, agents.md, AGENTS.md)
 - Match triggers against user messages
 - Extract variables from skill content (${variable_name} format)
-- Load user skills from ~/.openhands/skills/ and ~/.openhands/microagents/
+- Load user skills from ~/.openhands/skills/
 
 **Skill Types**:
 
@@ -456,7 +456,6 @@ Refactor ${target_file} using ${pattern} pattern.
 
 Skills are automatically loaded from:
 1. `~/.openhands/skills/` - Primary skills directory
-2. `~/.openhands/microagents/` - Legacy support
 
 Third-party files supported:
 - `.cursorrules` → skill name: "cursorrules"
