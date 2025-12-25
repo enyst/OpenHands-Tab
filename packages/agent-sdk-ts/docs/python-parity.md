@@ -335,6 +335,56 @@ classDiagram
 - Python: openhands/sdk/conversation/conversation.py Conversation; openhands/sdk/conversation/base.py BaseConversation, ConversationStateProtocol; openhands/sdk/conversation/impl/local_conversation.py LocalConversation; openhands/sdk/conversation/impl/remote_conversation.py RemoteConversation; openhands/sdk/conversation/state.py ConversationState.
 - TypeScript: packages/agent-sdk-ts/src/sdk/conversation/index.ts Conversation factory; packages/agent-sdk-ts/src/sdk/conversation/LocalConversation.ts LocalConversation; packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts RemoteConversation; packages/agent-sdk-ts/src/sdk/runtime/ConversationState.ts ConversationState.
 
+### RemoteConversation detailed comparison (2025-12-25)
+
+Python's RemoteConversation has significantly more features than TypeScript's implementation.
+
+#### Helper classes
+
+| Class | Python | TypeScript | Notes |
+|-------|--------|-----------|-------|
+| `WebSocketCallbackClient` | ✓ separate class with thread, retry | ✓ inline in RemoteConversation | Similar reconnect logic |
+| `RemoteEventsList` | ✓ list-like with caching, indexing, `__getitem__` | ✗ only `seenEventIds` Set | Python caches events with full list interface |
+| `RemoteState` | ✓ full state interface | ✗ no remote state abstraction | Python exposes execution_status, confirmation_policy, security_analyzer, stats, agent, workspace, persistence_dir |
+
+#### API methods
+
+| Method | Python | TypeScript | Notes |
+|--------|--------|-----------|-------|
+| `send_message()` | ✓ | ✓ `sendUserMessage()` | Aligned |
+| `run()` | ✓ | ✓ `resume()` | Aligned (different name) |
+| `pause()` | ✓ | ✓ | Aligned |
+| `approveAction()`/`rejectAction()` | ✓ `reject_pending_actions()` | ✓ | Aligned |
+| `set_confirmation_policy()` | ✓ | ✗ | Python only |
+| `set_security_analyzer()` | ✓ | ✗ | Python only |
+| `update_secrets()` | ✓ | ✗ | Python only |
+| `ask_agent()` | ✓ stateless question endpoint | ✗ | Python only |
+| `generate_title()` | ✓ | ✗ | Python only |
+| `condense()` | ✓ force condensation | ✗ | Python only |
+| `close()` | ✓ | ✓ `disconnect()` | Aligned |
+| `setServerUrl()` | ✗ | ✓ | TypeScript only - dynamic URL change |
+| `setSettings()` | ✗ | ✓ | TypeScript only - dynamic settings change |
+| `reconnect()` | ✗ | ✓ | TypeScript only - manual reconnect trigger |
+
+#### Callback system
+
+| Feature | Python | TypeScript |
+|---------|--------|-----------|
+| Event callbacks | ✓ composable callback stack | ✓ EventEmitter pattern |
+| Visualizer callbacks | ✓ | ✗ |
+| State update callbacks | ✓ `create_state_update_callback()` | ✗ |
+| LLM completion log callbacks | ✓ | ✗ |
+
+#### Gaps to close for RemoteConversation
+
+- Add `RemoteState` class or equivalent state abstraction for accessing remote execution_status, confirmation_policy, stats
+- Implement `ask_agent()` for stateless questions
+- Implement `generate_title()` for conversation titling
+- Implement `condense()` for forcing condensation
+- Implement `set_confirmation_policy()` and `set_security_analyzer()` for runtime policy changes
+- Implement `update_secrets()` for runtime secret injection
+- Add callback composition pattern matching Python's `compose_callbacks()`
+
 ## Agent lifecycle and orchestration
 
 ### Python shape
