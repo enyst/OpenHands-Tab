@@ -890,18 +890,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const settings = await settingsMgr.get();
         // Use the global Gemini provider key for HAL as well.
         // Preference order:
-        // 1) SecretRegistry/VS Code SecretStorage key GEMINI_API_KEY
-        // 2) Process env GEMINI_API_KEY
-        // 3) If the active LLM provider is Gemini, fall back to the generic llmApiKey
+        // 1) SecretRegistry (VS Code SecretStorage key 'GEMINI_API_KEY', then process.env.GEMINI_API_KEY)
+        // 2) If the active LLM provider is Gemini, fall back to the generic llmApiKey
         let halGeminiKey = '';
         try {
           const maybe = deps.secretRegistry ? await deps.secretRegistry.get('GEMINI_API_KEY') : undefined;
           if (typeof maybe === 'string' && maybe.trim()) halGeminiKey = maybe.trim();
         } catch {
           // ignore
-        }
-        if (!halGeminiKey && typeof process.env.GEMINI_API_KEY === 'string' && process.env.GEMINI_API_KEY.trim()) {
-          halGeminiKey = process.env.GEMINI_API_KEY.trim();
         }
         if (!halGeminiKey && settings.llm.provider === 'gemini') {
           const mainKey = settings.secrets.llmApiKey;
