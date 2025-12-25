@@ -123,23 +123,23 @@ References:
 3) The test harness selects the decision via E2E command(s), then the extension executes it.
 
 ## Settings / configuration
-Proposed settings (names TBD):
-- `openhands.elevenlabs.enabled`: boolean (default `false`)
-- `openhands.elevenlabs.mode`: `bundled` | `tts_only` | `voice_confirm` (default: `tts_only`)
-- `openhands.elevenlabs.userName`: string (default: `Engel`) — used only for templated script lines in the HAL flow
+Settings:
+- `openhands.hal.enabled`: boolean (default `false`)
+- `openhands.hal.mode`: `bundled` | `tts_only` | `voice_confirm` (default: `tts_only`)
+- `openhands.hal.userName`: string (default: `Engel`) — used only for templated script lines in the HAL flow
 - API key:
   - Settings UI placeholder: `openhands.secrets.elevenLabsApiKey`
   - Stored securely in SecretStorage: `openhands.elevenLabsApiKey` (already implemented)
-- `openhands.elevenlabs.voiceAId`: string (`voice_hal` / HAL voice id)
-- `openhands.elevenlabs.voiceUserId`: string (`voice_user` / user voice id; used for `tts_only`)
-- `openhands.elevenlabs.modelId`: e.g. `eleven_turbo_v2` (optional)
-- `openhands.elevenlabs.volume`: 0.0–1.0
-- `openhands.elevenlabs.cache`: boolean (default `true`)
+- `openhands.hal.voiceAId`: string (`voice_hal` / HAL voice id)
+- `openhands.hal.voiceUserId`: string (`voice_user` / user voice id; used for `tts_only`)
+- `openhands.hal.modelId`: e.g. `eleven_turbo_v2` (optional)
+- `openhands.hal.volume`: 0.0–1.0
+- `openhands.hal.cache`: boolean (default `true`)
 - Gemini (only for `voice_confirm`):
-  - `openhands.gemini.model`: string (default: `gemini-2.5-flash`)
-  - `openhands.gemini.baseUrl`: string (default: Gemini API base URL; allow proxies)
+  - `openhands.hal.gemini.model`: string (default: `gemini-2.5-flash`)
+  - `openhands.hal.gemini.baseUrl`: string (default: Gemini API base URL; allow proxies)
   - Settings UI placeholder: `openhands.secrets.geminiApiKey`
-  - Stored securely in SecretStorage: `openhands.geminiApiKey`
+  - Stored securely in SecretStorage: `openhands.hal.geminiApiKey`
 
 ## Caching strategy (API mode)
 - Cache by `(voiceId, modelId, normalizedText)` → audio bytes
