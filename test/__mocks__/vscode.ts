@@ -9,13 +9,27 @@ const mockConfigListeners: Function[] = [];
 const mockConfigValues = new Map<string, any>();
 const mockWebviewViewProviders = new Map<string, any>();
 
+const mockConfiguration = {
+  get: vi.fn((key: string, defaultValue?: any) => (mockConfigValues.has(key) ? mockConfigValues.get(key) : defaultValue)),
+  inspect: vi.fn((key: string) => ({
+    key,
+    globalValue: mockConfigValues.get(key),
+    workspaceValue: undefined,
+    workspaceFolderValue: undefined,
+    defaultValue: undefined,
+  })),
+  update: vi.fn(async (key: string, value: any) => {
+    if (value === undefined) {
+      mockConfigValues.delete(key);
+    } else {
+      mockConfigValues.set(key, value);
+    }
+  }),
+};
+
 // Workspace mock
 export const workspace = {
-  getConfiguration: vi.fn(() => ({
-    get: vi.fn((key: string, defaultValue?: any) => (mockConfigValues.has(key) ? mockConfigValues.get(key) : defaultValue)),
-    inspect: vi.fn(),
-    update: vi.fn(),
-  })),
+  getConfiguration: vi.fn(() => mockConfiguration),
   registerTextDocumentContentProvider: vi.fn(() => ({ dispose: vi.fn() })),
   onDidChangeConfiguration: vi.fn((listener: Function) => {
     mockConfigListeners.push(listener);
@@ -152,6 +166,9 @@ export function __resetMocks() {
   mockWebviewViewProviders.clear();
   // Reset common spies to default implementations
   ;(workspace.getConfiguration as any).mockClear();
+  ;(mockConfiguration.get as any).mockClear();
+  ;(mockConfiguration.inspect as any).mockClear();
+  ;(mockConfiguration.update as any).mockClear();
   ;(workspace.registerTextDocumentContentProvider as any).mockClear();
   ;(workspace.onDidChangeConfiguration as any).mockClear();
   ;(window.showInformationMessage as any).mockClear();

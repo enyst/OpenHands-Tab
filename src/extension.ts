@@ -809,6 +809,62 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   type SecretKey = keyof OpenHandsSettings['secrets'];
+
+  const SECRET_STATUS_SET_VALUE = '✓ set';
+
+  const syncSecretStatusIndicators = async (): Promise<void> => {
+    const cfg = vscode.workspace.getConfiguration();
+
+    const getIsSetFromSecretStorage = async (storageKey: string): Promise<boolean> => {
+      const value = await context.secrets.get(storageKey);
+      return typeof value === 'string' && value.trim().length > 0;
+    };
+
+    let settingsSecrets: OpenHandsSettings['secrets'] | undefined;
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
+      settingsSecrets = (await settingsMgr.get())?.secrets;
+    } catch {
+      // Best-effort: do not surface errors for a purely UX indicator.
+      settingsSecrets = undefined;
+    }
+
+    const getIsSetFromSettingsSecrets = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0;
+
+    const indicators: Array<{ key: string; isSet: boolean }> = [
+      { key: 'openhands.secrets.openaiApiKey', isSet: await getIsSetFromSecretStorage('OPENAI_API_KEY') },
+      { key: 'openhands.secrets.anthropicApiKey', isSet: await getIsSetFromSecretStorage('ANTHROPIC_API_KEY') },
+      { key: 'openhands.secrets.openrouterApiKey', isSet: await getIsSetFromSecretStorage('OPENROUTER_API_KEY') },
+      { key: 'openhands.secrets.litellmApiKey', isSet: await getIsSetFromSecretStorage('LITELLM_API_KEY') },
+      { key: 'openhands.secrets.geminiLlmApiKey', isSet: await getIsSetFromSecretStorage('GEMINI_API_KEY') },
+
+      { key: 'openhands.secrets.sessionApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.sessionApiKey) },
+      { key: 'openhands.secrets.githubToken', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.githubToken) },
+      { key: 'openhands.secrets.geminiApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.geminiApiKey) },
+      { key: 'openhands.secrets.elevenLabsApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.elevenLabsApiKey) },
+      { key: 'openhands.secrets.customSecret1', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret1) },
+      { key: 'openhands.secrets.customSecret2', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret2) },
+      { key: 'openhands.secrets.customSecret3', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret3) },
+    ];
+
+    for (const indicator of indicators) {
+      const desired = indicator.isSet ? SECRET_STATUS_SET_VALUE : undefined;
+      const inspection = cfg.inspect<string>(indicator.key);
+      const currentGlobal = inspection?.globalValue;
+      if (currentGlobal === desired) continue;
+
+      await cfg.update(indicator.key, desired, vscode.ConfigurationTarget.Global);
+    }
+  };
+
+  const syncSecretStatusIndicatorsBestEffort = async (): Promise<void> => {
+    try {
+      await syncSecretStatusIndicators();
+    } catch {
+      // Best-effort; never block activation or secret updates.
+    }
+  };
+
   const registerSecretCommand = (
     commandId: string,
     options: {
@@ -856,6 +912,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             const newSettings = await settingsMgr.get();
             conversation?.setSettings(newSettings);
+            await syncSecretStatusIndicatorsBestEffort();
             return;
           }
         }
@@ -878,6 +935,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         const newSettings = await settingsMgr.get();
         conversation?.setSettings(newSettings);
+        await syncSecretStatusIndicatorsBestEffort();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
@@ -926,6 +984,7 @@ export function activate(context: vscode.ExtensionContext) {
             await context.secrets.delete(options.storageKey);
             secrets.set(options.storageKey, undefined);
             vscode.window.showInformationMessage(options.clearedMessage);
+            await syncSecretStatusIndicatorsBestEffort();
             return;
           }
         }
@@ -945,6 +1004,7 @@ export function activate(context: vscode.ExtensionContext) {
         await context.secrets.store(options.storageKey, trimmed);
         secrets.set(options.storageKey, trimmed);
         vscode.window.showInformationMessage(options.successMessage);
+        await syncSecretStatusIndicatorsBestEffort();
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
@@ -1075,6 +1135,8 @@ export function activate(context: vscode.ExtensionContext) {
     clearedMessage: 'Custom secret 3 cleared.',
     errorPrefix: 'Failed to save custom secret 3',
   });
+
+  void syncSecretStatusIndicatorsBestEffort();
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
     await ensureConversationAndConnection();
