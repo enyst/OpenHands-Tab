@@ -123,7 +123,7 @@ export function InputArea({
   const canSend = value.trim().length > 0 || inlineImages.length > 0;
 
   return (
-    <div className="sticky bottom-0 z-30 border-t border-white/[0.06] bg-[var(--vscode-editor-background)]/95 backdrop-blur-md">
+    <div className="z-30 border-t border-white/[0.06] bg-[var(--vscode-editor-background)]/95 backdrop-blur-md">
       <div className="px-4 py-4">
         {/* Main input container */}
         <div
