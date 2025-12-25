@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
+import { normalizeServerUrl } from '../../shared/serverUrls';
 
 // Re-export for convenience - canonical definition is in SettingsManager
 export interface SavedServer {
@@ -56,22 +57,21 @@ export function ServerSelector({
     const trimmedUrl = newUrl.trim();
     if (!trimmedUrl) return;
 
-    // Validate URL format
-    try {
-      new URL(trimmedUrl);
-    } catch {
-      setUrlError('Invalid URL format');
+    const normalized = normalizeServerUrl(trimmedUrl);
+    if (!normalized.ok) {
+      setUrlError(normalized.error);
       return;
     }
+    const canonicalUrl = normalized.url;
 
     // Check for duplicates
-    if (servers.some(s => s.url === trimmedUrl)) {
+    if (servers.some(s => s.url === canonicalUrl)) {
       setUrlError('Server already exists');
       return;
     }
 
     setUrlError(null);
-    onAddServer({ url: trimmedUrl, label: newLabel.trim() || undefined });
+    onAddServer({ url: canonicalUrl, label: newLabel.trim() || undefined });
     setNewUrl('');
     setNewLabel('');
     setShowAddForm(false);
