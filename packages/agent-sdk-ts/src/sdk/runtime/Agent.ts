@@ -6,7 +6,7 @@ import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
 import type { ChatCompletionRequest, LLMClient, LLMToolDefinition } from '../llm';
-import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory } from '../llm';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory, loadProfile } from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import {
   isActionEvent,
@@ -1054,6 +1054,7 @@ export class Agent extends EventEmitter {
     const message = options?.message ?? stringifyErrorWithCause(error);
     const code = options?.code ?? classifyConversationErrorCode(message);
     const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
+    const profileId = toOptionalNonEmptyString(this.options.settings?.llm?.profileId);
     const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
     const configuredProvider = this.options.settings?.llm?.provider ?? undefined;
     const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
@@ -1073,6 +1074,23 @@ export class Agent extends EventEmitter {
       `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
       `llm.apiKey=${apiKeyStatus}`,
     ];
+    if (profileId) {
+      contextParts.push(`llm.profileId=${profileId}`);
+
+      if (isSafeProfileId(profileId)) {
+        try {
+          const profile = loadProfile(profileId);
+          const profileModel = toOptionalNonEmptyString(profile.config.model);
+          const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
+          const effectiveProfileProvider =
+            profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
+          contextParts.push(`llm.effectiveProvider=${effectiveProfileProvider}`);
+          contextParts.push(`llm.effectiveModel=${profileModel ?? '(unset)'}`);
+        } catch {
+          // best-effort: profile may be missing or unreadable
+        }
+      }
+    }
     if (serverUrl) contextParts.push(`serverUrl=${serverUrl}`);
 
     const detail = `${message} (${contextParts.join(', ')})`;

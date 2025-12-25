@@ -154,4 +154,53 @@ describe('Agent profile api key selection', () => {
       fs.rmSync(tmpHome, { recursive: true, force: true });
     }
   });
+
+  it('includes effective provider/model in ConversationErrorEvent detail when profileId is set', async () => {
+    const tmpHome = makeTempDir('agent-profile-error-detail-');
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+
+    try {
+      process.env.HOME = tmpHome;
+      process.env.USERPROFILE = tmpHome;
+      vi.resetModules();
+
+      const [{ saveProfile }, { Agent }] = await Promise.all([
+        import('../../llm'),
+        import('../Agent'),
+      ]);
+
+      saveProfile('p1', {
+        provider: 'anthropic',
+        model: 'claude-3-5-sonnet',
+      });
+
+      const agent = new Agent({
+        workspaceRoot: tmpHome,
+        settings: {
+          // Raw settings are misleading when profileId is set; detail should include effective profile values.
+          llm: { profileId: 'p1', provider: 'openai', model: 'gpt-4o-mini' },
+          secrets: {},
+        } as any,
+      });
+
+      let error: unknown;
+      try {
+        await (agent as any).createLlmClientFromSettings();
+      } catch (err) {
+        error = err;
+      }
+      expect(error).toBeTruthy();
+
+      const event = (agent as any).toConversationErrorEvent(error) as { kind?: string; detail?: string };
+      expect(event.kind).toBe('ConversationErrorEvent');
+      expect(event.detail).toContain('llm.profileId=p1');
+      expect(event.detail).toContain('llm.effectiveProvider=anthropic');
+      expect(event.detail).toContain('llm.effectiveModel=claude-3-5-sonnet');
+    } finally {
+      process.env.HOME = originalHome;
+      process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
+  });
 });
