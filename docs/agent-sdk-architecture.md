@@ -1712,7 +1712,7 @@ This section tracks the differences between the Python `openhands-sdk` and the T
 | mcp/ | ✓ | ✗ | Model Context Protocol, Python only |
 | observability/ | ✓ Laminar/OTEL | ✗ | Telemetry, Python only |
 | secret/ | ✓ | ✓ runtime/ | TS has `SecretRegistry` in runtime |
-| security/ | ✓ | ✗ | Risk analysis module, Python only |
+| security/ | ✓ module | ✓ inline in Agent | Python has separate module; TS has inline handling |
 | tool/ | ✓ | ✓ tools/ | Different validation approaches |
 | workspace/ | ✓ | ✓ | Python has more complete remote support |
 
@@ -1720,11 +1720,14 @@ This section tracks the differences between the Python `openhands-sdk` and the T
 
 #### Features in Python but NOT in TypeScript
 
-1. **Security Module**
-   - `SecurityAnalyzer`, `SecurityAnalyzerBase`
-   - `LLMSecurityAnalyzer` (LLM-based risk assessment)
-   - `ConfirmationPolicy` implementations
-   - Risk classification and mapping
+1. **Security Module** (separate module vs inline)
+   - Python has dedicated `security/` module with `SecurityAnalyzer`, `LLMSecurityAnalyzer`
+   - TypeScript has inline security risk handling in `Agent.ts`:
+     - `SecurityRisk` type: `'UNKNOWN' | 'LOW' | 'MEDIUM' | 'HIGH'`
+     - `security_risk` field on `ActionEvent`
+     - `parseSecurityRisk()` and `requiresConfirmation()` methods
+     - Confirmation settings with `policy`, `riskyThreshold`, `confirmUnknown`
+   - **Gap**: Python's `LLMSecurityAnalyzer` uses LLM for dynamic risk assessment; TS relies on tool-provided risk levels
 
 2. **Critic Module**
    - `CriticBase` abstract class with `CriticResult`
