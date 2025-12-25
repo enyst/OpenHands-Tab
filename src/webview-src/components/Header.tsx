@@ -4,7 +4,6 @@ import { ServerSelector, getServerDisplayLabel, type SavedServer } from './Serve
 interface HeaderProps {
   status: 'online' | 'offline' | 'connecting';
   mode: 'local' | 'remote';
-  conversationId?: string;
   currentServerUrl?: string;
   servers: SavedServer[];
   totals: {
@@ -110,7 +109,6 @@ function IconButton({
 export function Header({
   status,
   mode,
-  conversationId,
   currentServerUrl,
   servers,
   totals,
@@ -157,11 +155,6 @@ export function Header({
             </div>
             <div>
               <div className="font-semibold text-base leading-tight text-stone-100">OpenHands</div>
-              {conversationId && (
-                <div className="text-xs text-stone-500 font-mono leading-tight">
-                  {conversationId.slice(0, 8)}
-                </div>
-              )}
             </div>
           </div>
 
