@@ -43,7 +43,6 @@ export const isContextLimitError = (provider: LLMProvider | undefined, error: un
         'prompt is too long',
         'prompt too long',
         'context length exceeded',
-        'max_tokens',
         'tokens exceeded',
       ]);
     }
@@ -56,7 +55,6 @@ export const isContextLimitError = (provider: LLMProvider | undefined, error: un
         'input token',
         'token limit',
         'context length',
-        'resource_exhausted',
       ]);
     }
     default:
@@ -119,4 +117,3 @@ export const wouldExceedMaxInputTokens = (params: {
   if (!maxTokens || maxTokens <= 0) return false;
   return estimateRequestTokens(params.request) > maxTokens;
 };
-
