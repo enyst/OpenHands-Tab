@@ -369,9 +369,10 @@ describe('App - Advanced Test Coverage', () => {
       // Conversation started clears the events but doesn't show a toast
       // The implementation comment says: "No toast: UI clears and restored/started messages will render naturally"
       await waitFor(() => {
-        // Verify the conversation ID is shown in the header
-        expect(screen.getByText(/conv-123/i)).toBeInTheDocument();
+        expect(screen.getByText('OpenHands')).toBeInTheDocument();
       });
+
+      expect(screen.queryByText(/conv-123/i)).not.toBeInTheDocument();
     });
 
     it('handles conversation ID updates without crashing', async () => {
@@ -381,12 +382,11 @@ describe('App - Advanced Test Coverage', () => {
       postToWindow({ type: 'conversationStarted', conversationId: 'test-conversation-id-123' });
 
       // The component should handle the conversation ID without crashing
-      // The conversation ID is shown in the header (first 8 chars)
       await waitFor(() => {
-        expect(screen.getByText(/test-con/i)).toBeInTheDocument();
+        expect(screen.getByText('OpenHands')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('OpenHands')).toBeInTheDocument();
+      expect(screen.queryByText(/test-con/i)).not.toBeInTheDocument();
     });
 
     it('shows error banner on error message', async () => {

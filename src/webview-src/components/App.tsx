@@ -1378,7 +1378,6 @@ export function App() {
       <Header
         status={status}
         mode={mode}
-        conversationId={conversationId}
         currentServerUrl={currentServerUrl}
         servers={servers}
         totals={conversationTotals}
