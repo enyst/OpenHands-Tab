@@ -68,6 +68,8 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     constructor(_storage?: unknown) {}
 
     set = vi.fn();
+
+    getRegisteredValues = vi.fn(() => []);
   }
 
   const Conversation = vi.fn((options: any) => {
