@@ -1080,7 +1080,7 @@ const result = await terminal.execute({
 }, context);
 
 console.log(result.stdout);
-console.log(result.exitCode);
+console.log(result.exit_code);
 ```
 
 ### FileEditorTool

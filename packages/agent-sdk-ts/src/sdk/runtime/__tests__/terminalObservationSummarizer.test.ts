@@ -30,7 +30,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     const llm = new RecordingLLM('Printed supersecretvalue.');
 
     const summary = await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'echo supersecretvalue', exitCode: 0, stdout: 'supersecretvalue\n', stderr: '' },
+      { command: 'echo supersecretvalue', exit_code: 0, stdout: 'supersecretvalue\n', stderr: '' },
       { secrets, llmClient: llm, maxPromptChars: 10_000 }
     );
 
@@ -51,7 +51,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
 
     const llm = new RecordingLLM('Printed abc.');
     const summary = await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'echo abc', exitCode: 0, stdout: 'abc\n', stderr: '' },
+      { command: 'echo abc', exit_code: 0, stdout: 'abc\n', stderr: '' },
       { secrets, llmClient: llm, maxPromptChars: 10_000 }
     );
 
@@ -68,7 +68,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
   it('falls back to deterministic summary when gemini fails', async () => {
     const secrets = new SecretRegistry();
     const summary = await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'git status', exitCode: 2, stdout: '', stderr: 'fatal: not a git repository' },
+      { command: 'git status', exit_code: 2, stdout: '', stderr: 'fatal: not a git repository' },
       { secrets, llmClient: new ThrowingLLM() }
     );
 
@@ -79,7 +79,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     const secrets = new SecretRegistry();
     const llm = new RecordingLLM('   ');
     const summary = await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'pwd', exitCode: 0, stdout: '/tmp\n', stderr: '' },
+      { command: 'pwd', exit_code: 0, stdout: '/tmp\n', stderr: '' },
       { secrets, llmClient: llm }
     );
 
@@ -90,7 +90,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     const secrets = new SecretRegistry();
     const llm = new RecordingLLM('abcdefghij');
     const summary = await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'echo hello', exitCode: 0, stdout: 'hello\n', stderr: '' },
+      { command: 'echo hello', exit_code: 0, stdout: 'hello\n', stderr: '' },
       { secrets, llmClient: llm, maxSummaryChars: 5 }
     );
 
@@ -102,7 +102,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     const secrets = new SecretRegistry();
     const llm = new RecordingLLM('OK');
     await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'echo', exitCode: 0, stdout: 'from-stdout\n', stderr: '' },
+      { command: 'echo', exit_code: 0, stdout: 'from-stdout\n', stderr: '' },
       { secrets, llmClient: llm, maxOutputChars: 0, maxPromptChars: 10_000 }
     );
 
@@ -120,7 +120,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     const llm = new RecordingLLM('OK');
 
     await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'echo hello', exitCode: 0, stdout: 'hello\n', stderr: '' },
+      { command: 'echo hello', exit_code: 0, stdout: 'hello\n', stderr: '' },
       { secrets, llmClient: llm, maxPromptChars: 1 }
     );
 
@@ -138,7 +138,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     const maxPromptChars = '<output clipped>'.length + 2;
 
     await summarizeTerminalObservationWithGeminiFlash(
-      { command: 'echo hello', exitCode: 0, stdout: 'hello\n', stderr: '' },
+      { command: 'echo hello', exit_code: 0, stdout: 'hello\n', stderr: '' },
       { secrets, llmClient: llm, maxPromptChars }
     );
 

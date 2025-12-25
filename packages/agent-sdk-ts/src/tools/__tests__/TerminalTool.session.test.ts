@@ -200,7 +200,6 @@ describe('TerminalTool session behavior', () => {
 
     expect(next.previous).toBeDefined();
     expect(next.previous?.exit_code).toBe(1);
-    expect(next.previous?.exitCode).toBe(1);
     expect(next.previous?.command).toContain('sleep 0.15');
 
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });

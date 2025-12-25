@@ -1696,7 +1696,13 @@ export class Agent extends EventEmitter {
     })();
 
     const command = toOptionalNonEmptyString(record.command) ?? commandFromArgs ?? '';
-    const exitCode = record.exit_code ?? record.exitCode;
+    const exitCodeRaw = record.exit_code;
+    const exitCode =
+      typeof exitCodeRaw === 'string' || typeof exitCodeRaw === 'number'
+        ? exitCodeRaw
+        : exitCodeRaw === null
+          ? null
+          : undefined;
     const stdout = typeof record.stdout === 'string' ? record.stdout : undefined;
     const stderr = typeof record.stderr === 'string' ? record.stderr : undefined;
     const timedOut = record.timeout === true;
@@ -1709,7 +1715,7 @@ export class Agent extends EventEmitter {
       const summary = await summarizeTerminalObservationWithGeminiFlash(
         {
           command,
-          exitCode: typeof exitCode === 'string' || typeof exitCode === 'number' ? exitCode : exitCode === null ? null : undefined,
+          exit_code: exitCode,
           stdout,
           stderr,
           timedOut,
@@ -1731,12 +1737,13 @@ export class Agent extends EventEmitter {
 
   private emitTerminalEvents(toolCall: ToolCall, result: unknown): void {
     if (!this.options.onTerminalEvent) return;
-    const payload = result as { command?: string; stdout?: string; stderr?: string; exitCode?: number };
+    const payload = result as { command?: string; stdout?: string; stderr?: string; exit_code?: number | null };
     const commandId = toolCall.id;
     const timestamp = new Date().toISOString();
     const command = this.maskSecretsInText(payload.command ?? toolCall.function.arguments);
     const stdout = payload.stdout ? this.maskSecretsInText(payload.stdout) : null;
     const stderr = payload.stderr ? this.maskSecretsInText(payload.stderr) : null;
+    const exitCode = typeof payload.exit_code === 'number' ? payload.exit_code : 0;
     const events: BashEvent[] = [
       {
         id: randomUUID(),
@@ -1752,7 +1759,7 @@ export class Agent extends EventEmitter {
         timestamp,
         command_id: commandId,
         order: 1,
-        exit_code: payload.exitCode ?? 0,
+        exit_code: exitCode,
         stdout,
         stderr,
       },
