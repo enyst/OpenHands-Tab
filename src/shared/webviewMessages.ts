@@ -82,7 +82,7 @@ export type WebviewToHostMessage =
   | { type: 'llmProfileLoadRequest'; requestId: string; profileId: string }
   | { type: 'llmProfileSaveRequest'; requestId: string; profileId: string; profile: unknown }
   | { type: 'llmProfileDeleteRequest'; requestId: string; profileId: string }
-  | { type: 'llmProfileApiKeyStatusRequest'; requestId: string; profileId: string }
+  | { type: 'llmProfileApiKeyStatusRequest'; requestId: string; profileId: string; provider?: string; baseUrl?: string }
   | { type: 'llmProfileApiKeySetRequest'; requestId: string; profileId: string; apiKey: string }
   | { type: 'selectServer'; url: string }
   | { type: 'addServer'; server: SavedServer }
