@@ -141,6 +141,15 @@ const computeConversationTotalsFromStats = (value: unknown): ConversationTotals 
   return { contextTokens, totalTokens, totalCost, costIsKnown };
 };
 
+const parseLlmUsageInputTokens = (value: unknown): number | null => {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const raw = record.input ?? record.inputTokens ?? record.promptTokens ?? record.prompt_tokens;
+  const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  if (!Number.isFinite(num)) return null;
+  return Math.max(0, Math.trunc(num));
+};
+
 type PendingLlmProfilesRequest =
   | {
     kind: 'list';
@@ -300,6 +309,7 @@ export function App() {
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLlmUsageRef = useRef(false);
   const uiStateRef = useRef({
     input: '',
     showContextPicker: false,
@@ -524,19 +534,32 @@ export function App() {
       lastAgentStatusRef.current = event.agent_status;
     }
 
+    if (event.key === 'llm_usage') {
+      const inputTokens = parseLlmUsageInputTokens(event.value);
+      if (inputTokens !== null) {
+        hasLlmUsageRef.current = true;
+        setConversationTotals((prev) => {
+          if (prev.contextTokens === inputTokens) return prev;
+          return { ...prev, contextTokens: inputTokens };
+        });
+      }
+    }
+
     if (event.key === 'stats') {
       const totals = computeConversationTotalsFromStats(event.value);
       if (totals) {
         setConversationTotals((prev) => {
+          const nextContextTokens = hasLlmUsageRef.current ? prev.contextTokens : totals.contextTokens;
+          const nextTotals: ConversationTotals = { ...totals, contextTokens: nextContextTokens };
           if (
-            prev.contextTokens === totals.contextTokens
-            && prev.totalTokens === totals.totalTokens
-            && prev.totalCost === totals.totalCost
-            && prev.costIsKnown === totals.costIsKnown
+            prev.contextTokens === nextTotals.contextTokens
+            && prev.totalTokens === nextTotals.totalTokens
+            && prev.totalCost === nextTotals.totalCost
+            && prev.costIsKnown === nextTotals.costIsKnown
           ) {
             return prev;
           }
-          return totals;
+          return nextTotals;
         });
       }
     }

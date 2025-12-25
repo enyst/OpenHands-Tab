@@ -44,13 +44,35 @@ describe('App toolbar interactions', () => {
             type: 'event',
             event: {
               kind: 'ConversationStateUpdateEvent',
+              key: 'llm_usage',
+              value: {
+                input: 10,
+                output: 5,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    expect(totalsRow).toHaveTextContent('Context: 10 tokens');
+    expect(totalsRow).not.toHaveTextContent('Total cost:');
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'ConversationStateUpdateEvent',
               key: 'stats',
               value: {
                 usage_to_metrics: {
                   default: {
                     accumulated_cost: 0.0123,
-                    accumulated_token_usage: { prompt_tokens: 10, completion_tokens: 5 },
-                    token_usages: [{ prompt_tokens: 10, completion_tokens: 5 }],
+                    accumulated_token_usage: { prompt_tokens: 10, completion_tokens: 5, per_turn_token: 999 },
                   },
                 },
               },
@@ -70,16 +92,34 @@ describe('App toolbar interactions', () => {
             type: 'event',
             event: {
               kind: 'ConversationStateUpdateEvent',
+              key: 'llm_usage',
+              value: {
+                input: 12,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    expect(totalsRow).toHaveTextContent('Context: 12 tokens');
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'ConversationStateUpdateEvent',
               key: 'stats',
               value: {
                 usage_to_metrics: {
                   default: {
                     accumulated_cost: 0,
-                    accumulated_token_usage: { prompt_tokens: 22, completion_tokens: 5 },
-                    token_usages: [
-                      { prompt_tokens: 10, completion_tokens: 5 },
-                      { prompt_tokens: 12, completion_tokens: 0 },
-                    ],
+                    accumulated_token_usage: { prompt_tokens: 22, completion_tokens: 5, per_turn_token: 888 },
                   },
                 },
               },
