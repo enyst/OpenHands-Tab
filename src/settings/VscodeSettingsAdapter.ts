@@ -4,28 +4,40 @@ import type { SettingsAdapter } from './SettingsAdapter';
 export class VscodeSettingsAdapter implements SettingsAdapter {
   constructor(private context: vscode.ExtensionContext) {}
 
+  private getWorkspaceConfiguration(): vscode.WorkspaceConfiguration {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    return workspaceFolder
+      ? vscode.workspace.getConfiguration(undefined, workspaceFolder.uri)
+      : vscode.workspace.getConfiguration();
+  }
+
   get<T = unknown>(key: string, defaultValue?: T): T | undefined {
-    const cfg = vscode.workspace.getConfiguration();
+    const cfg = this.getWorkspaceConfiguration();
     return defaultValue !== undefined
       ? cfg.get<T>(key, defaultValue)
       : cfg.get<T>(key);
   }
 
   getExplicit<T = unknown>(key: string): T | undefined {
-    const inspected = vscode.workspace.getConfiguration().inspect<T>(key);
+    const inspected = this.getWorkspaceConfiguration().inspect<T>(key);
     if (!inspected) return undefined;
     // Prefer workspace folder override, then workspace, then global
     return (inspected.workspaceFolderValue as T) ?? (inspected.workspaceValue as T) ?? (inspected.globalValue as T) ?? undefined;
   }
 
   async update<T = unknown>(key: string, value: T, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
-    const hasWorkspace = !!vscode.workspace.workspaceFolders?.length;
+    const hasWorkspaceFolder = !!vscode.workspace.workspaceFolders?.length;
     const effectiveTarget =
-      target === 'workspace' && hasWorkspace
-        ? vscode.ConfigurationTarget.Workspace
+      target === 'workspace' && hasWorkspaceFolder
+        ? vscode.ConfigurationTarget.WorkspaceFolder
         : vscode.ConfigurationTarget.Global;
 
-    await vscode.workspace.getConfiguration().update(key, value, effectiveTarget);
+    const cfg =
+      effectiveTarget === vscode.ConfigurationTarget.WorkspaceFolder
+        ? this.getWorkspaceConfiguration()
+        : vscode.workspace.getConfiguration();
+
+    await cfg.update(key, value, effectiveTarget);
   }
 
   async getSecret(key: string): Promise<string | undefined> {

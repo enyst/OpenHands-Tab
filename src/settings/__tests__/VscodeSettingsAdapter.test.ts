@@ -155,7 +155,7 @@ describe('VscodeSettingsAdapter', () => {
       expect(mockConfiguration.update).toHaveBeenCalledWith(
         key,
         value,
-        vscode.ConfigurationTarget.Workspace
+        vscode.ConfigurationTarget.WorkspaceFolder
       );
     });
 
@@ -202,7 +202,7 @@ describe('VscodeSettingsAdapter', () => {
       expect(mockConfiguration.update).toHaveBeenCalledWith(
         key,
         value,
-        vscode.ConfigurationTarget.Workspace
+        vscode.ConfigurationTarget.WorkspaceFolder
       );
     });
   });
