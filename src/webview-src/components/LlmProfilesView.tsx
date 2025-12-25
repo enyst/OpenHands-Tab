@@ -630,7 +630,7 @@ export function LlmProfilesView(props: {
       return;
     }
 
-    editorScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    editorScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
     requestAnimationFrame(() => {
       const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
         'select:not([disabled]), input:not([disabled]), textarea:not([disabled])'
@@ -638,6 +638,30 @@ export function LlmProfilesView(props: {
       firstFocusable?.focus();
     });
   }, [mode, selectedProfileId, startEdit]);
+
+  const handleDuplicateProfile = useCallback(() => {
+    if (mode !== 'edit') return;
+
+    const source = form;
+    activeProfileIdRef.current = null;
+    setMode('create');
+    setSelectedProfileId(null);
+    setForm({ ...source, name: '' });
+    setErrors({});
+    setSaveAttempted(false);
+    setTopError(null);
+    setApiKeyStatus({ state: 'unknown' });
+    setShowApiKeyEditor(false);
+    setApiKeyInput('');
+    setApiKeySaving(false);
+    setApiKeyError(null);
+    setUseCustomBaseUrl(Boolean(source.baseUrl.trim()));
+
+    editorScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      panelRef.current?.querySelector<HTMLInputElement>('input[placeholder="e.g. gpt-5"]')?.focus();
+    });
+  }, [form, mode]);
 
   if (!isOpen) return null;
 
@@ -679,6 +703,16 @@ export function LlmProfilesView(props: {
               title="Edit profile"
             >
               <span className="codicon codicon-edit" />
+            </button>
+            <button
+              type="button"
+              onClick={handleDuplicateProfile}
+              disabled={mode !== 'edit' || !selectedProfileId || loadingProfile}
+              className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Duplicate profile"
+              title="Duplicate profile"
+            >
+              <span className="codicon codicon-copy" />
             </button>
             <button
               type="button"

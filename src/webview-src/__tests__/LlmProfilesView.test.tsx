@@ -238,6 +238,7 @@ describe('LLM Profiles view', () => {
 
     const nameInput = await screen.findByPlaceholderText('e.g. gpt-5');
     expect(nameInput).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Duplicate profile' })).not.toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
@@ -245,7 +246,65 @@ describe('LLM Profiles view', () => {
       expect(screen.getByPlaceholderText('e.g. gpt-5')).not.toBeDisabled();
     });
     expect(screen.getByRole('button', { name: 'Edit profile' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Duplicate profile' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Delete profile' })).toBeDisabled();
+  });
+
+  it('duplicates an existing profile into a new create form', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
+
+    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
+    });
+
+    const loadRequest = getLastPostedOfType('llmProfileLoadRequest');
+    postToWindow({
+      type: 'llmProfileLoadResponse',
+      requestId: loadRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      profile: {
+        model: 'gpt-5',
+        provider: 'openai',
+        baseUrl: 'https://example.com/v1',
+        maxOutputTokens: 2048,
+      },
+    });
+
+    const nameInput = await screen.findByPlaceholderText('e.g. gpt-5');
+    expect(nameInput).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate profile' }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('e.g. gpt-5')).not.toBeDisabled();
+    });
+
+    const nameInput2 = screen.getByPlaceholderText('e.g. gpt-5');
+    expect(nameInput2).toHaveValue('');
+    expect(screen.getByPlaceholderText('e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro')).toHaveValue('gpt-5');
+
+    const baseUrlToggle = screen.getByRole('checkbox', { name: 'Use custom base URL' });
+    expect(baseUrlToggle).toBeChecked();
+    expect(screen.getByPlaceholderText('https://api.openai.com/v1')).toHaveValue('https://example.com/v1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
+    expect(await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' })).toHaveValue(2048);
+
+    const apiKeyInput = await screen.findByPlaceholderText('(hidden)');
+    expect(apiKeyInput).toHaveValue('');
   });
 
   it('shows an inline missing API key warning and blocks save in create mode', async () => {
