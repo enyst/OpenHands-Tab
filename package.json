@@ -83,7 +83,7 @@
       },
       {
         "command": "openhands.setGeminiLlmApiKey",
-        "title": "OpenHands: Set Gemini API Key (LLM)"
+        "title": "OpenHands: Set Gemini API Key"
       },
       {
         "command": "openhands.setSessionApiKey",
@@ -99,7 +99,7 @@
       },
       {
         "command": "openhands.setGeminiApiKey",
-        "title": "OpenHands: Set Gemini API Key (HAL)"
+        "title": "OpenHands: Set Gemini API Key (Legacy)"
       },
       {
         "command": "openhands.setCustomSecret1",
@@ -537,14 +537,14 @@
             "default": "",
             "order": 7,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Gemini API key for LLM requests securely:**\n\n[🔑 Configure Gemini API Key (LLM)](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
+            "markdownDescription": "**To set your Gemini API key securely:**\n\n[🔑 Configure Gemini API Key](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
           },
           "openhands.secrets.geminiApiKey": {
             "type": "string",
             "default": "",
             "order": 8,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Gemini API key for HAL decision classification securely:**\n\n[🔑 Configure Gemini API Key (HAL)](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `openhands.hal.geminiApiKey`.)_"
+            "markdownDescription": "Deprecated. HAL uses the global Gemini key. Use [OpenHands: Set Gemini API Key](command:openhands.setGeminiLlmApiKey)."
           },
           "openhands.secrets.elevenLabsApiKey": {
             "type": "string",

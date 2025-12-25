@@ -1091,7 +1091,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const setGeminiLlmApiKey = registerSecretStorageCommand('openhands.setGeminiLlmApiKey', {
-    title: 'Gemini API Key (LLM)',
+    title: 'Gemini API Key',
     storageKey: 'GEMINI_API_KEY',
     prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
     placeHolder: 'AIza...',
@@ -1129,13 +1129,15 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save ElevenLabs API key',
   });
 
-  const setGeminiApiKey = registerSecretCommand('openhands.setGeminiApiKey', {
-    title: 'Gemini API Key (HAL)',
-    secretKey: 'geminiApiKey',
-    prompt: 'Enter your Gemini API key for HAL decision classification. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Gemini API key saved securely.',
-    clearedMessage: 'Gemini API key cleared.',
-    errorPrefix: 'Failed to save Gemini API key',
+  // Deprecated: HAL now uses the global GEMINI_API_KEY. Keep command to redirect users.
+  const setGeminiApiKey = vscode.commands.registerCommand('openhands.setGeminiApiKey', async () => {
+    const action = await vscode.window.showInformationMessage(
+      'HAL now uses the global Gemini API key. Please use "OpenHands: Set Gemini API Key" instead.',
+      'Open Command'
+    );
+    if (action === 'Open Command') {
+      await vscode.commands.executeCommand('openhands.setGeminiLlmApiKey');
+    }
   });
 
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {

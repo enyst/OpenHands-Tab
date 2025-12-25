@@ -37,19 +37,20 @@ export class SecretRegistry {
       return this.secrets.get(name);
     }
 
+    // Prefer SecretStorage over environment variables to allow user-set keys to override env.
+    if (this.storage) {
+      const stored = await this.storage.get(name);
+      if (stored) {
+        this.secrets.set(name, stored);
+        return stored;
+      }
+    }
+
     const envKey = name.toUpperCase();
     const envValue = process.env[envKey];
     if (envValue) {
       this.secrets.set(name, envValue);
       return envValue;
-    }
-
-    if (this.storage) {
-      const stored = await this.storage.get(name);
-      if (stored) {
-        this.secrets.set(name, stored);
-      }
-      return stored;
     }
 
     return undefined;
