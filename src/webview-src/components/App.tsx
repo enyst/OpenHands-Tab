@@ -692,7 +692,7 @@ export function App() {
         hasProfileKey?: unknown;
         hasProviderKey?: unknown;
         providerKeyName?: unknown;
-        elevenlabs?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
+        hal?: Partial<ElevenLabsSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
         seq?: unknown;
         error?: unknown;
@@ -923,8 +923,8 @@ export function App() {
           }
           break;
         }
-        case 'elevenlabsSettings':
-          applyElevenlabsSettings(payload.elevenlabs);
+        case 'halSettings':
+          applyElevenlabsSettings(payload.hal);
           break;
         case 'halTtsResponse': {
           handleHalTtsResponse(payload);

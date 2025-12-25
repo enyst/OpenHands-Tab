@@ -57,7 +57,7 @@ const DEFAULTS: OpenHandsSettings = {
   secrets: {}
 };
 
-const ELEVENLABS_CONFIG_UPDATES: Array<[keyof ElevenLabsSettings, string]> = [
+const HAL_CONFIG_UPDATES: Array<[keyof ElevenLabsSettings, string]> = [
   ['enabled', 'openhands.hal.enabled'],
   ['mode', 'openhands.hal.mode'],
   ['userName', 'openhands.hal.userName'],
@@ -407,7 +407,7 @@ export class SettingsManager {
     }
 
     if (partial.elevenlabs) {
-      for (const [key, configKey] of ELEVENLABS_CONFIG_UPDATES) {
+      for (const [key, configKey] of HAL_CONFIG_UPDATES) {
         const value = partial.elevenlabs[key];
         if (value !== undefined) ops.push(this.adapter.update(configKey, value, target));
       }

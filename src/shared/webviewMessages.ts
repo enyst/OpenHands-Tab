@@ -34,7 +34,7 @@ export type HostToWebviewMessage =
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'serverListUpdated'; servers: SavedServer[]; serverUrl: string }
-  | { type: 'elevenlabsSettings'; elevenlabs: OpenHandsSettings['elevenlabs'] }
+  | { type: 'halSettings'; hal: OpenHandsSettings['elevenlabs'] }
   | {
     type: 'historyList';
     conversations: Array<{

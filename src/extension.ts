@@ -1134,7 +1134,7 @@ export function activate(context: vscode.ExtensionContext) {
         const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const settings = await settingsMgr.get();
         if (chatView && chatWebviewReady) {
-          void chatView.webview.postMessage({ type: 'elevenlabsSettings', elevenlabs: settings.elevenlabs } satisfies HostToWebviewMessage);
+          void chatView.webview.postMessage({ type: 'halSettings', hal: settings.elevenlabs } satisfies HostToWebviewMessage);
         }
       } catch (err: unknown) {
         outputChannel?.appendLine(`[settings] Failed to apply HAL settings update: ${renderError(err)}`);
