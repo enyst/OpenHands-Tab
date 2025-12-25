@@ -159,6 +159,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
     }
   };
 
+  const isLlmProvider = (value: string): value is LLMProvider => {
+    return value === 'openai'
+      || value === 'litellm_proxy'
+      || value === 'openrouter'
+      || value === 'anthropic'
+      || value === 'gemini';
+  };
+
   const hasStoredSecret = async (key: string): Promise<boolean> => {
     const trimmedKey = key.trim();
     if (!trimmedKey) return false;
@@ -577,7 +585,13 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           const stored = await context.secrets.get(key);
           const hasProfileKey = typeof stored === 'string' && stored.trim().length > 0;
           const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
-          const provider = profile.config.provider ?? detectProviderFromBaseUrl(profile.config.baseUrl);
+          const overrideProviderRaw = typeof message.provider === 'string' ? message.provider.trim() : '';
+          const overrideProvider = overrideProviderRaw && isLlmProvider(overrideProviderRaw) ? overrideProviderRaw : null;
+          const overrideBaseUrl = typeof message.baseUrl === 'string' ? message.baseUrl.trim() : '';
+          const provider = overrideProvider
+            ?? (overrideBaseUrl ? detectProviderFromBaseUrl(overrideBaseUrl) : null)
+            ?? profile.config.provider
+            ?? detectProviderFromBaseUrl(profile.config.baseUrl);
           const providerKeyName = getProviderApiKeyName(provider);
           const hasProviderKey = await hasStoredSecret(providerKeyName);
           void host.postMessage({

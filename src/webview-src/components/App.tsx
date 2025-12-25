@@ -196,6 +196,11 @@ type LlmProfileApiKeyStatusInfo = {
   providerKeyName?: string;
 };
 
+type LlmProfileApiKeyStatusOverrides = {
+  provider?: string;
+  baseUrl?: string;
+};
+
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.
  */
@@ -382,7 +387,10 @@ export function App() {
     });
   }, [postMessage]);
 
-  const getLlmProfileApiKeyStatus = useCallback(async (profileId: string): Promise<LlmProfileApiKeyStatusInfo> => {
+  const getLlmProfileApiKeyStatus = useCallback(async (
+    profileId: string,
+    overrides?: LlmProfileApiKeyStatusOverrides
+  ): Promise<LlmProfileApiKeyStatusInfo> => {
     const requestId = createLlmProfilesRequestId('apiKeyStatus');
     return await new Promise<LlmProfileApiKeyStatusInfo>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -390,7 +398,14 @@ export function App() {
         reject(new Error('Timed out fetching LLM profile API key status'));
       }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
       pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'apiKeyStatus', resolve, reject, timeout });
-      postMessage({ type: 'llmProfileApiKeyStatusRequest', requestId, profileId });
+      const message: WebviewToHostMessage = {
+        type: 'llmProfileApiKeyStatusRequest',
+        requestId,
+        profileId,
+        provider: typeof overrides?.provider === 'string' ? overrides.provider : undefined,
+        baseUrl: typeof overrides?.baseUrl === 'string' ? overrides.baseUrl : undefined,
+      };
+      postMessage(message);
     });
   }, [postMessage]);
 

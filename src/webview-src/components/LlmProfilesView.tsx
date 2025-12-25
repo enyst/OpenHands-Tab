@@ -44,6 +44,11 @@ type LlmProfileApiKeyStatusInfo = {
   providerKeyName?: string;
 };
 
+type LlmProfileApiKeyStatusOverrides = {
+  provider?: string;
+  baseUrl?: string;
+};
+
 const EMPTY_FORM: ProfileFormState = {
   name: '',
   provider: '',
@@ -377,7 +382,7 @@ export function LlmProfilesView(props: {
   loadProfile: (profileId: string) => Promise<LLMConfiguration>;
   saveProfile: (profileId: string, profile: LLMConfiguration) => Promise<void>;
   deleteProfile: (profileId: string) => Promise<void>;
-  getApiKeyStatus: (profileId: string) => Promise<LlmProfileApiKeyStatusInfo>;
+  getApiKeyStatus: (profileId: string, overrides?: LlmProfileApiKeyStatusOverrides) => Promise<LlmProfileApiKeyStatusInfo>;
   setApiKey: (profileId: string, apiKey: string) => Promise<void>;
 }) {
   const {
@@ -426,11 +431,11 @@ export function LlmProfilesView(props: {
   const advancedSettingsLabelId = 'llmProfilesAdvancedSettingsLabel';
   const advancedSettingsPanelId = 'llmProfilesAdvancedSettingsPanel';
 
-  const refreshApiKeyStatus = useCallback(async (profileId: string) => {
+  const refreshApiKeyStatus = useCallback(async (profileId: string, overrides?: LlmProfileApiKeyStatusOverrides) => {
     if (activeProfileIdRef.current !== profileId) return;
     setApiKeyStatus({ state: 'loading' });
     try {
-      const status = await getApiKeyStatus(profileId);
+      const status = await getApiKeyStatus(profileId, overrides);
       if (activeProfileIdRef.current !== profileId) return;
       setApiKeyStatus({ state: 'ready', ...status });
       if (status.hasProfileKey) {
@@ -521,10 +526,7 @@ export function LlmProfilesView(props: {
         setLoadingProfile(false);
       }
     }
-    if (activeProfileIdRef.current === profileId) {
-      void refreshApiKeyStatus(profileId);
-    }
-  }, [applyEditorTransition, loadProfile, refreshApiKeyStatus]);
+  }, [applyEditorTransition, loadProfile]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -543,6 +545,12 @@ export function LlmProfilesView(props: {
     }
     startCreate();
   }, [activeProfileId, isOpen, openRequest, startCreate, startEdit]);
+
+  useEffect(() => {
+    if (mode !== 'edit' || !selectedProfileId || loadingProfile) return;
+    if (!form.provider) return;
+    void refreshApiKeyStatus(selectedProfileId, { provider: form.provider });
+  }, [form.provider, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
 
   const handleSave = useCallback(async () => {
     setSaveAttempted(true);

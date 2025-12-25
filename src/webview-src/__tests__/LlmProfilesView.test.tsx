@@ -182,6 +182,80 @@ describe('LLM Profiles view', () => {
     expect(screen.queryByDisplayValue('sk-test')).not.toBeInTheDocument();
   });
 
+  it('updates the provider key hint immediately when the provider changes in edit mode', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
+
+    const profileSelect = await screen.findByLabelText('Profile');
+    await waitFor(() => expect(profileSelect).not.toBeDisabled());
+    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
+    });
+
+    const loadRequest = getLastPostedOfType('llmProfileLoadRequest');
+    postToWindow({
+      type: 'llmProfileLoadResponse',
+      requestId: loadRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      profile: { model: 'gpt-5', provider: 'openai' },
+    });
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeyStatusRequest')).toBeTruthy();
+    });
+
+    const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    expect(statusRequest.provider).toBe('openai');
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      hasKey: true,
+      hasProfileKey: false,
+      hasProviderKey: true,
+      providerKeyName: 'OPENAI_API_KEY',
+    });
+
+    expect(await screen.findByText('Using OPENAI_API_KEY')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'litellm_proxy' } });
+
+    await waitFor(() => {
+      const latest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+      expect(latest).toBeTruthy();
+      expect(latest.requestId).not.toBe(statusRequest.requestId);
+      expect(latest.provider).toBe('litellm_proxy');
+    });
+
+    const statusRequest2 = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest2.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      hasKey: true,
+      hasProfileKey: false,
+      hasProviderKey: true,
+      providerKeyName: 'LITELLM_API_KEY',
+    });
+
+    expect(await screen.findByText('Using LITELLM_API_KEY')).toBeInTheDocument();
+    expect(screen.queryByText('Using OPENAI_API_KEY')).toBeNull();
+  });
+
   it('supports a collapsible Advanced settings section', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
