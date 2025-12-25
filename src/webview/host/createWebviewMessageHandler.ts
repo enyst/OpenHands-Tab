@@ -330,7 +330,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             const resolved = await resolveGitHeadDiffContents({
               workspaceRoot: wsRoot,
               resolvedPath,
-              fallbackOldContent: oldContent,
+              fallbackOldContent: '',
               fallbackNewContent: newContent,
               execFileText,
               readFileText: (filePath) => fs.readFile(filePath, 'utf8'),
