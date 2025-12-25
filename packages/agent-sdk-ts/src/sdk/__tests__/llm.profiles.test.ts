@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import type { LLMConfiguration } from '../llm';
-import { DEFAULT_LLM_PROFILE_IDS, LLMProfileValidationError, ensureDefaultProfiles, listProfiles, loadProfile, saveProfile, validateProfile } from '../llm';
+import { DEFAULT_LLM_PROFILE_IDS, LLMProfileValidationError, deleteProfile, ensureDefaultProfiles, listProfiles, loadProfile, saveProfile, validateProfile } from '../llm';
 
 const makeTempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'llm-profiles-'));
 
@@ -108,6 +108,20 @@ describe('LLM profiles', () => {
         LLMProfileValidationError,
       );
       expect(() => loadProfile('../evil', { rootDir: dir })).toThrow(LLMProfileValidationError);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('deletes profiles from disk', () => {
+    const dir = makeTempDir();
+    try {
+      saveProfile('a', { provider: 'openai', model: 'gpt-5' }, { rootDir: dir });
+      expect(listProfiles({ rootDir: dir })).toEqual(['a']);
+
+      deleteProfile('a', { rootDir: dir });
+      expect(listProfiles({ rootDir: dir })).toEqual([]);
+      expect(() => loadProfile('a', { rootDir: dir })).toThrow(LLMProfileValidationError);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

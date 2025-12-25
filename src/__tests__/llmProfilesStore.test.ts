@@ -21,8 +21,13 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
 
   const createHandler = () => {
     const postMessage = vi.fn(async () => true);
+    const secrets = {
+      get: vi.fn(async () => undefined),
+      store: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
+    };
     const handler = createWebviewMessageHandler({
-      context: { globalStorageUri: { fsPath: tmpDir } } as any,
+      context: { globalStorageUri: { fsPath: tmpDir }, secrets } as any,
       host: { postMessage },
       getConversation: () => undefined,
       getConversationMode: () => 'local',
@@ -41,7 +46,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       fileLog: () => {},
     });
 
-    return { handler, postMessage };
+    return { handler, postMessage, secrets };
   };
 
   it('lists profiles from the configured root dir', async () => {
@@ -114,5 +119,21 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     const content = await fs.readFile(path.join(tmpDir, 'saved.json'), 'utf8');
     expect(content).not.toContain('sk-test-inline');
     expect(content).not.toContain('Authorization');
+  });
+
+  it('deletes profiles and clears stored API keys', async () => {
+    saveSdkProfile('a', { model: 'gpt-5-mini' }, { rootDir: tmpDir, includeSecrets: false });
+
+    const { handler, postMessage, secrets } = createHandler();
+    await handler({ type: 'llmProfileDeleteRequest', requestId: 'req1', profileId: 'a' });
+
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'llmProfileDeleteResponse',
+      requestId: 'req1',
+      ok: true,
+      profileId: 'a',
+    });
+    expect(secrets.delete).toHaveBeenCalledWith('openhands.llmProfileApiKey.a');
+    await expect(fs.stat(path.join(tmpDir, 'a.json'))).rejects.toThrow();
   });
 });

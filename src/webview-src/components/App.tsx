@@ -137,6 +137,12 @@ type PendingLlmProfilesRequest =
     timeout: ReturnType<typeof setTimeout>;
   }
   | {
+    kind: 'delete';
+    resolve: () => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+  | {
     kind: 'apiKeyStatus';
     resolve: (hasKey: boolean) => void;
     reject: (error: Error) => void;
@@ -318,6 +324,18 @@ export function App() {
       }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
       pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'save', resolve, reject, timeout });
       postMessage({ type: 'llmProfileSaveRequest', requestId, profileId, profile });
+    });
+  }, [postMessage]);
+
+  const deleteLlmProfile = useCallback(async (profileId: string): Promise<void> => {
+    const requestId = createLlmProfilesRequestId('delete');
+    return await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        pendingLlmProfilesRequestsRef.current.delete(requestId);
+        reject(new Error('Timed out deleting LLM profile'));
+      }, LLM_PROFILES_REQUEST_TIMEOUT_MS);
+      pendingLlmProfilesRequestsRef.current.set(requestId, { kind: 'delete', resolve, reject, timeout });
+      postMessage({ type: 'llmProfileDeleteRequest', requestId, profileId });
     });
   }, [postMessage]);
 
@@ -711,6 +729,21 @@ export function App() {
             break;
           }
           const reason = typeof payload.error === 'string' ? payload.error : 'Failed to save LLM profile';
+          pending.reject(new Error(reason));
+          break;
+        }
+        case 'llmProfileDeleteResponse': {
+          const requestId = payload.requestId;
+          if (typeof requestId !== 'string') break;
+          const pending = pendingLlmProfilesRequestsRef.current.get(requestId);
+          if (!pending || pending.kind !== 'delete') break;
+          pendingLlmProfilesRequestsRef.current.delete(requestId);
+          clearTimeout(pending.timeout);
+          if (payload.ok === true) {
+            pending.resolve();
+            break;
+          }
+          const reason = typeof payload.error === 'string' ? payload.error : 'Failed to delete LLM profile';
           pending.reject(new Error(reason));
           break;
         }
@@ -1497,6 +1530,7 @@ export function App() {
         listProfiles={listLlmProfiles}
         loadProfile={loadLlmProfile}
         saveProfile={saveLlmProfile}
+        deleteProfile={deleteLlmProfile}
         getApiKeyStatus={getLlmProfileApiKeyStatus}
         setApiKey={setLlmProfileApiKey}
       />

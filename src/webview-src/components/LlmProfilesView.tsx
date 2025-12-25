@@ -368,6 +368,7 @@ export function LlmProfilesView(props: {
   listProfiles: () => Promise<string[]>;
   loadProfile: (profileId: string) => Promise<LLMConfiguration>;
   saveProfile: (profileId: string, profile: LLMConfiguration) => Promise<void>;
+  deleteProfile: (profileId: string) => Promise<void>;
   getApiKeyStatus: (profileId: string) => Promise<boolean>;
   setApiKey: (profileId: string, apiKey: string) => Promise<void>;
 }) {
@@ -378,6 +379,7 @@ export function LlmProfilesView(props: {
     listProfiles,
     loadProfile,
     saveProfile,
+    deleteProfile,
     getApiKeyStatus,
     setApiKey,
   } = props;
@@ -400,6 +402,7 @@ export function LlmProfilesView(props: {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>({ state: 'unknown' });
   const [showApiKeyEditor, setShowApiKeyEditor] = useState(false);
@@ -680,6 +683,22 @@ export function LlmProfilesView(props: {
     });
   }, [mode, selectedProfileId, startEdit]);
 
+  const handleDeleteProfile = useCallback(async () => {
+    if (mode !== 'edit' || !selectedProfileId) return;
+    const profileId = selectedProfileId;
+    setDeleting(true);
+    setTopError(null);
+    try {
+      await deleteProfile(profileId);
+      await refreshProfiles();
+      startCreate();
+    } catch (err) {
+      setTopError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteProfile, mode, refreshProfiles, selectedProfileId, startCreate]);
+
   const handleDuplicateProfile = useCallback(() => {
     if (mode !== 'edit') return;
 
@@ -752,12 +771,13 @@ export function LlmProfilesView(props: {
             </button>
             <button
               type="button"
-              disabled
-              className="h-9 w-9 rounded-lg bg-white/[0.03] border border-white/[0.06] text-stone-500 transition-all flex items-center justify-center cursor-not-allowed"
+              onClick={() => { void handleDeleteProfile(); }}
+              disabled={mode !== 'edit' || !selectedProfileId || loadingProfile || saving || deleting}
+              className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 hover:bg-red-500/15 hover:border-red-500/30 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Delete profile"
-              title="Delete profile (coming soon)"
+              title="Delete profile"
             >
-              <span className="codicon codicon-trash" />
+              <span className={`codicon codicon-${deleting ? 'loading' : 'trash'} ${deleting ? 'animate-spin' : ''}`} />
             </button>
             <button
               type="button"

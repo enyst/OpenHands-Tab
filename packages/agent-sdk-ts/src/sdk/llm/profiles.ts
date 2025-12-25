@@ -329,6 +329,20 @@ export const saveProfile = (
   }
 };
 
+/**
+ * Deletes an LLM profile stored on disk.
+ *
+ * Note: this does not remove any out-of-band secrets (API keys) stored elsewhere.
+ */
+export const deleteProfile = (profileId: string, options: LLMProfileStoreOptions = {}): void => {
+  const rootDir = resolveRootDir(options);
+  const filePath = getProfilePath(profileId, rootDir);
+  if (!fs.existsSync(filePath)) {
+    throw new LLMProfileValidationError(`Profile '${profileId}' not found`);
+  }
+  fs.unlinkSync(filePath);
+};
+
 export const DEFAULT_LLM_PROFILE_IDS = [
   'gemini-flash',
   'gpt-5',

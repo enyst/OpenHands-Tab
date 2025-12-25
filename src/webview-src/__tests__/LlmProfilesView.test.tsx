@@ -208,7 +208,7 @@ describe('LLM Profiles view', () => {
     expect(await screen.findByText('Must be <= 65536')).toBeInTheDocument();
   });
 
-  it('offers header icon actions for create/edit (delete disabled)', async () => {
+  it('offers header icon actions for create/edit/duplicate/delete', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
 
@@ -239,6 +239,7 @@ describe('LLM Profiles view', () => {
     const nameInput = await screen.findByLabelText('Name');
     expect(nameInput).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Duplicate profile' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Delete profile' })).not.toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
@@ -305,6 +306,65 @@ describe('LLM Profiles view', () => {
 
     const apiKeyInput = await screen.findByLabelText('API key');
     expect(apiKeyInput).toHaveValue('');
+  });
+
+  it('deletes an existing profile and returns to create mode', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
+
+    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
+    });
+
+    const loadRequest = getLastPostedOfType('llmProfileLoadRequest');
+    postToWindow({
+      type: 'llmProfileLoadResponse',
+      requestId: loadRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      profile: { model: 'gpt-5', provider: 'openai' },
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete profile' }));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileDeleteRequest')).toBeTruthy();
+    });
+
+    const deleteRequest = getLastPostedOfType('llmProfileDeleteRequest');
+    expect(deleteRequest.profileId).toBe('gpt-5');
+
+    postToWindow({
+      type: 'llmProfileDeleteResponse',
+      requestId: deleteRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+    });
+
+    await waitFor(() => {
+      const latest = getLastPostedOfType('llmProfilesListRequest');
+      expect(latest).toBeTruthy();
+      expect(latest.requestId).not.toBe(listRequest.requestId);
+    });
+
+    const listRequest2 = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest2.requestId, ok: true, profiles: [] });
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('e.g. gpt-5')).not.toBeDisabled();
+    });
+    expect(screen.getByRole('button', { name: 'Delete profile' })).toBeDisabled();
   });
 
   it('shows an inline missing API key warning and blocks save in create mode', async () => {
