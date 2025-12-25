@@ -9,3 +9,4 @@ export * from './provider';
 export * from './metrics';
 export * from './registry';
 export * from './profiles';
+export * from './contextLimit';
