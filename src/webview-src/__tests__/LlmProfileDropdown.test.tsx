@@ -46,7 +46,7 @@ describe('LLM profile dropdown', () => {
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
   });
 
-  it('shows an edit icon for the selected profile while open', async () => {
+  it('closes on selection and shows the selected profile when reopened', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
 
@@ -64,6 +64,12 @@ describe('LLM profile dropdown', () => {
 
     const selection = getLastPostedOfType('setLlmProfileId');
     expect(selection.profileId).toBe('claude_4');
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Edit selected profile gpt-5')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText('LLM profile'));
 
     expect(await screen.findByLabelText('Edit selected profile claude_4')).toBeInTheDocument();
     expect(screen.queryByLabelText('Edit selected profile gpt-5')).not.toBeInTheDocument();
@@ -113,4 +119,3 @@ describe('LLM profile dropdown', () => {
     expect(await screen.findByText('Edit profile')).toBeInTheDocument();
   });
 });
-
