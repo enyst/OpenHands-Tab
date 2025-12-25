@@ -36,6 +36,7 @@ import { LLMSummarizingCondenser } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
 import { summarizeFileChangesWithGeminiFlash } from './fileDiffSummarizer';
+import { summarizeTerminalObservationWithGeminiFlash } from './terminalObservationSummarizer';
 import { SYSTEM_PROMPT } from './systemPrompt';
 
 export type AgentRunInput = string | Message;
@@ -1484,7 +1485,8 @@ export class Agent extends EventEmitter {
     try {
       const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
       const result = await tool.execute(validated, context);
-      const enrichedResult = await this.maybeAttachFileDiffSummary(toolCall, result);
+      let enrichedResult = await this.maybeAttachFileDiffSummary(toolCall, result);
+      enrichedResult = await this.maybeAttachTerminalObservationSummary(toolCall, enrichedResult);
 
       if (toolCall.function.name === 'terminal') {
         this.emitTerminalEvents(toolCall, enrichedResult);
@@ -1564,6 +1566,60 @@ export class Agent extends EventEmitter {
       this.toolSummarizerFailed = true;
       if (this.debug) {
         console.warn('[Agent] File diff summarization failed; disabling for this session:', error);
+      }
+      return result;
+    }
+  }
+
+  private async maybeAttachTerminalObservationSummary(toolCall: ToolCall, result: unknown): Promise<unknown> {
+    if (toolCall.function.name !== 'terminal') return result;
+    if (!this.summarizeToolCallsEnabled) return result;
+    if (this.toolSummarizerFailed) return result;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
+
+    const record = result as Record<string, unknown>;
+    if (typeof record.summary === 'string' && record.summary.trim()) return result;
+
+    const commandFromArgs = (() => {
+      const rawArgs = toOptionalNonEmptyString(toolCall.function.arguments);
+      if (!rawArgs) return undefined;
+      try {
+        const parsed = JSON.parse(rawArgs) as Record<string, unknown>;
+        return toOptionalNonEmptyString(parsed.command) ?? rawArgs;
+      } catch {
+        return rawArgs;
+      }
+    })();
+
+    const command = toOptionalNonEmptyString(record.command) ?? commandFromArgs ?? '';
+    const exitCode = record.exit_code ?? record.exitCode;
+    const stdout = typeof record.stdout === 'string' ? record.stdout : undefined;
+    const stderr = typeof record.stderr === 'string' ? record.stderr : undefined;
+    const timedOut = record.timeout === true;
+    const outputWasTruncated =
+      (typeof stdout === 'string' && stdout.includes(ELLIPSIS)) ||
+      (typeof stderr === 'string' && stderr.includes(ELLIPSIS));
+
+    try {
+      const llmClient = await this.getToolSummarizerClient();
+      const summary = await summarizeTerminalObservationWithGeminiFlash(
+        {
+          command,
+          exitCode: typeof exitCode === 'string' || typeof exitCode === 'number' ? exitCode : exitCode === null ? null : undefined,
+          stdout,
+          stderr,
+          timedOut,
+          wasTruncated: outputWasTruncated,
+        },
+        { secrets: this.secrets, llmClient },
+      );
+      if (!summary) return result;
+
+      return { ...record, summary };
+    } catch (error) {
+      this.toolSummarizerFailed = true;
+      if (this.debug) {
+        console.warn('[Agent] Terminal summarization failed; disabling for this session:', error);
       }
       return result;
     }
