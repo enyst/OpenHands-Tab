@@ -404,14 +404,14 @@ export function activate(context: vscode.ExtensionContext) {
 
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
-        createWebviewMessageHandler({
-          context,
-          host: { postMessage: (message) => view.webview.postMessage(message) },
-          secretRegistry: secrets,
-          getConversation: () => conversation,
-          getConversationMode: () => conversationMode,
-          getConversationStoreRoot: () => conversationStoreRoot,
-          resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
+      createWebviewMessageHandler({
+        context,
+        host: { postMessage: (message) => view.webview.postMessage(message) },
+        secretRegistry: secrets,
+        getConversation: () => conversation,
+        getConversationMode: () => conversationMode,
+        getConversationStoreRoot: () => conversationStoreRoot,
+        resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
         setWebviewReadyState: (conversationId, lastSeenSeq) => {
           chatWebviewReady = true;
           chatLastConversationId = conversationId;
@@ -631,15 +631,15 @@ export function activate(context: vscode.ExtensionContext) {
           ? new AgentContext({ loadUserSkills: true })
           : undefined;
 
-        const conversationOptions = {
-          serverUrl: settings.serverUrl ?? undefined,
-          settings,
-          workspaceRoot,
-          tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
-          secrets,
-          persistenceDir,
-          agentContext,
-        };
+      const conversationOptions = {
+        serverUrl: settings.serverUrl ?? undefined,
+        settings,
+        workspaceRoot,
+        tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
+        secrets,
+        persistenceDir,
+        agentContext,
+      };
 
       try {
         conversation = Conversation(conversationOptions);
@@ -766,8 +766,8 @@ export function activate(context: vscode.ExtensionContext) {
     await conversation.sendUserMessage(prompt);
   });
 
-    const diagnosticsCommands = registerDiagnosticsCommands({
-      context,
+  const diagnosticsCommands = registerDiagnosticsCommands({
+    context,
     getChatView: () => chatView,
     getChatWebviewReady: () => chatWebviewReady,
     getChatLastConversationId: () => chatLastConversationId,
@@ -780,12 +780,12 @@ export function activate(context: vscode.ExtensionContext) {
     pendingRenderedEventsRequests,
     pendingUiStateRequests,
     pendingHalStateRequests,
-      ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
-      printedExitFor,
-      secretRegistry: secrets,
-      getConversation: () => conversation,
-      getConversationMode: () => conversationMode,
-      getTerminal: () => terminal,
+    ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
+    printedExitFor,
+    secretRegistry: secrets,
+    getConversation: () => conversation,
+    getConversationMode: () => conversationMode,
+    getTerminal: () => terminal,
     getReceivedTerminalEventsCount: () => receivedTerminalEvents.length,
     getRecentTerminalEvents: (max = 10) => receivedTerminalEvents.slice(-Math.max(0, Math.min(max, MAX_TERMINAL_EVENTS))),
     onTerminalEvent: (event) => handleTerminalEvent(event),
@@ -923,11 +923,11 @@ export function activate(context: vscode.ExtensionContext) {
             );
             if (confirmed !== 'Clear') return;
 
-              await context.secrets.delete(options.storageKey);
-              secrets.set(options.storageKey, undefined);
-              vscode.window.showInformationMessage(options.clearedMessage);
-              return;
-            }
+            await context.secrets.delete(options.storageKey);
+            secrets.set(options.storageKey, undefined);
+            vscode.window.showInformationMessage(options.clearedMessage);
+            return;
+          }
         }
 
         const value = await vscode.window.showInputBox({
@@ -938,15 +938,16 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         if (value === undefined) return;
+
         const trimmed = value.trim();
         if (!trimmed) return;
 
-          await context.secrets.store(options.storageKey, trimmed);
-          secrets.set(options.storageKey, trimmed);
-          vscode.window.showInformationMessage(options.successMessage);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
+        await context.secrets.store(options.storageKey, trimmed);
+        secrets.set(options.storageKey, trimmed);
+        vscode.window.showInformationMessage(options.successMessage);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
       }
     });
 

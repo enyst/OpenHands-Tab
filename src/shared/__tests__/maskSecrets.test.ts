@@ -15,5 +15,9 @@ describe('maskSecretsInText', () => {
     const secrets = { getRegisteredValues: () => ['abc'] };
     expect(maskSecretsInText('token=abc token=abc', secrets)).toBe('token=abc token=abc');
   });
-});
 
+  it('masks overlapping secret values without partial leakage', () => {
+    const secrets = { getRegisteredValues: () => ['secret', 'secretkey'] };
+    expect(maskSecretsInText('token=secretkey other=secret', secrets)).toBe('token=[REDACTED] other=[REDACTED]');
+  });
+});
