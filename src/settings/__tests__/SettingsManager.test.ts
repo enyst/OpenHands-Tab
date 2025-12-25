@@ -35,14 +35,14 @@ describe('SettingsManager', () => {
     expect(s.llm.model).toBe('claude-sonnet-4-20250514');
     expect(s.agent.enableSecurityAnalyzer).toBe(true);
     expect(s.agent.debug).toBe(false);
-    expect(s.elevenlabs.enabled).toBe(false);
-    expect(s.elevenlabs.mode).toBe('tts_only');
-    expect(s.elevenlabs.userName).toBe('Engel');
-    expect(s.elevenlabs.voiceAId).toBeUndefined();
-    expect(s.elevenlabs.voiceUserId).toBeUndefined();
-    expect(s.elevenlabs.modelId).toBeUndefined();
-    expect(s.elevenlabs.volume).toBe(1);
-    expect(s.elevenlabs.cache).toBe(true);
+    expect(s.hal.enabled).toBe(false);
+    expect(s.hal.mode).toBe('tts_only');
+    expect(s.hal.userName).toBe('Engel');
+    expect(s.hal.voiceAId).toBeUndefined();
+    expect(s.hal.voiceUserId).toBeUndefined();
+    expect(s.hal.modelId).toBeUndefined();
+    expect(s.hal.volume).toBe(1);
+    expect(s.hal.cache).toBe(true);
     expect(s.gemini.model).toBe('gemini-2.5-flash');
     expect(s.gemini.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
   });
@@ -84,7 +84,7 @@ describe('SettingsManager', () => {
       agent: { enableSecurityAnalyzer: true, debug: true },
       conversation: { maxIterations: 42 },
       confirmation: { policy: 'risky', riskyThreshold: 'MEDIUM', confirmUnknown: false },
-      elevenlabs: {
+      hal: {
         enabled: true,
         mode: 'voice_confirm',
         userName: 'Alice',
@@ -115,14 +115,14 @@ describe('SettingsManager', () => {
     expect(s.confirmation.policy).toBe('risky');
     expect(s.confirmation.riskyThreshold).toBe('MEDIUM');
     expect(s.confirmation.confirmUnknown).toBe(false);
-    expect(s.elevenlabs.enabled).toBe(true);
-    expect(s.elevenlabs.mode).toBe('voice_confirm');
-    expect(s.elevenlabs.userName).toBe('Alice');
-    expect(s.elevenlabs.voiceAId).toBe('voice_hal');
-    expect(s.elevenlabs.voiceUserId).toBe('voice_user');
-    expect(s.elevenlabs.modelId).toBe('eleven_turbo_v2');
-    expect(s.elevenlabs.volume).toBe(0.25);
-    expect(s.elevenlabs.cache).toBe(false);
+    expect(s.hal.enabled).toBe(true);
+    expect(s.hal.mode).toBe('voice_confirm');
+    expect(s.hal.userName).toBe('Alice');
+    expect(s.hal.voiceAId).toBe('voice_hal');
+    expect(s.hal.voiceUserId).toBe('voice_user');
+    expect(s.hal.modelId).toBe('eleven_turbo_v2');
+    expect(s.hal.volume).toBe(0.25);
+    expect(s.hal.cache).toBe(false);
     expect(s.gemini.model).toBe('gemini-2.5-pro');
     expect(s.gemini.baseUrl).toBe('https://proxy.example.com/v1beta');
     expect(s.secrets.sessionApiKey).toBe('sess');
@@ -130,9 +130,9 @@ describe('SettingsManager', () => {
     // HAL no longer uses a separate Gemini key; it relies on GEMINI_API_KEY/global LLM key.
   });
 
-  it('sanitizes invalid ElevenLabs mode and clamps volume', async () => {
+  it('sanitizes invalid HAL mode and clamps volume', async () => {
     await mgr.update({
-      elevenlabs: {
+      hal: {
         mode: 'wat' as any,
         userName: '   ' as any,
         volume: 2 as any,
@@ -140,16 +140,16 @@ describe('SettingsManager', () => {
     });
 
     const s = await mgr.get();
-    expect(s.elevenlabs.mode).toBe('tts_only');
-    expect(s.elevenlabs.userName).toBe('Engel');
-    expect(s.elevenlabs.volume).toBe(1);
+    expect(s.hal.mode).toBe('tts_only');
+    expect(s.hal.userName).toBe('Engel');
+    expect(s.hal.volume).toBe(1);
 
     await mgr.update({
-      elevenlabs: { volume: -1 as any } as any,
+      hal: { volume: -1 as any } as any,
     });
 
     const s2 = await mgr.get();
-    expect(s2.elevenlabs.volume).toBe(0);
+    expect(s2.hal.volume).toBe(0);
   });
 
   it('clears secrets when undefined is provided', async () => {

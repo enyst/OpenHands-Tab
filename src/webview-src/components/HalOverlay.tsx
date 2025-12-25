@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import type { ElevenLabsMode, HalDecision, HalEye, HalPhase } from '../../shared/halTypes';
+import type { HalDecision, HalEye, HalMode, HalPhase } from '../../shared/halTypes';
 
 type HalOverlayProps = {
   userName: string;
-  mode: ElevenLabsMode;
+  mode: HalMode;
   phase: HalPhase;
   eye: HalEye;
   line: string | null;

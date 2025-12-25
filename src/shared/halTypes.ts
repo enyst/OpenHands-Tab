@@ -16,12 +16,12 @@ export type HalEye = (typeof HAL_EYES)[number];
 export const HAL_DECISIONS = ['approve_local', 'teleport_remote', 'reject'] as const;
 export type HalDecision = (typeof HAL_DECISIONS)[number];
 
-export const ELEVENLABS_MODES = ['bundled', 'tts_only', 'voice_confirm'] as const;
-export type ElevenLabsMode = (typeof ELEVENLABS_MODES)[number];
+export const HAL_MODES = ['bundled', 'tts_only', 'voice_confirm'] as const;
+export type HalMode = (typeof HAL_MODES)[number];
 
 export type HalStateSnapshot = {
   enabled: boolean;
-  mode: ElevenLabsMode;
+  mode: HalMode;
   phase: HalPhase;
   eye: HalEye;
   stepIndex: number | null;
@@ -29,8 +29,8 @@ export type HalStateSnapshot = {
   lastError: string | null;
 };
 
-export const isElevenLabsMode = (value: unknown): value is ElevenLabsMode =>
-  typeof value === 'string' && (ELEVENLABS_MODES as readonly string[]).includes(value);
+export const isHalMode = (value: unknown): value is HalMode =>
+  typeof value === 'string' && (HAL_MODES as readonly string[]).includes(value);
 
 export const isHalPhase = (value: unknown): value is HalPhase =>
   typeof value === 'string' && (HAL_PHASES as readonly string[]).includes(value);
@@ -40,4 +40,3 @@ export const isHalEye = (value: unknown): value is HalEye =>
 
 export const isHalDecision = (value: unknown): value is HalDecision =>
   typeof value === 'string' && (HAL_DECISIONS as readonly string[]).includes(value);
-

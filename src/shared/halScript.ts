@@ -1,4 +1,4 @@
-import type { ElevenLabsMode } from './halTypes';
+import type { HalMode } from './halTypes';
 
 export type HalVoice = 'voice_hal' | 'voice_user';
 
@@ -27,7 +27,7 @@ export function getHalDialogueLines(userName: string): HalScriptLine[] {
   ];
 }
 
-export function getHalDialogueLinesForMode(userName: string, mode: ElevenLabsMode): HalScriptLine[] {
+export function getHalDialogueLinesForMode(userName: string, mode: HalMode): HalScriptLine[] {
   const lines = getHalDialogueLines(userName);
   if (mode === 'voice_confirm') {
     return lines.filter((line) => line.voice === 'voice_hal');

@@ -257,7 +257,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
 
         void host.postMessage({
           type: 'halSettings',
-          hal: initSettings.elevenlabs,
+          hal: initSettings.hal,
         });
 
         deps.flushConversationEventBacklog({
@@ -849,11 +849,12 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'halTtsRequest': {
         if (typeof message.requestId !== 'string' || typeof message.conversationId !== 'string') break;
         if (typeof message.stepIndex !== 'number' || !Number.isFinite(message.stepIndex)) break;
+
         const stepIndex = Math.trunc(message.stepIndex);
         if (stepIndex < 0) break;
 
         const settings = await settingsMgr.get();
-        const script = getHalDialogueLinesForMode(settings.elevenlabs.userName, settings.elevenlabs.mode);
+        const script = getHalDialogueLinesForMode(settings.hal.userName, settings.hal.mode);
         const line = script[stepIndex];
         if (!line) {
           void host.postMessage({ type: 'halTtsResponse', requestId: message.requestId, ok: false, error: 'Invalid HAL script line', shouldNotify: true });
@@ -861,15 +862,15 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         }
 
         const apiKey = settings.secrets.elevenLabsApiKey ?? '';
-        const voiceId = line.voice === 'voice_hal' ? (settings.elevenlabs.voiceAId ?? '') : (settings.elevenlabs.voiceUserId ?? '');
+        const voiceId = line.voice === 'voice_hal' ? (settings.hal.voiceAId ?? '') : (settings.hal.voiceUserId ?? '');
 
         const result = await getElevenlabsTtsGate().synthesize({
           conversationId: message.conversationId,
           apiKey,
           voiceId,
           text: line.text,
-          modelId: settings.elevenlabs.modelId,
-          cacheEnabled: settings.elevenlabs.cache,
+          modelId: settings.hal.modelId,
+          cacheEnabled: settings.hal.cache,
         });
 
         if (result.ok) {
@@ -878,7 +879,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             requestId: message.requestId,
             ok: true,
             audioBase64: Buffer.from(result.bytes).toString('base64'),
-            volume: settings.elevenlabs.volume,
+            volume: settings.hal.volume,
           });
           break;
         }

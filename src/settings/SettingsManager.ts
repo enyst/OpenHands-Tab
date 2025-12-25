@@ -1,5 +1,5 @@
 import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
-import type { ElevenLabsMode } from '../shared/halTypes';
+import type { HalMode } from '../shared/halTypes';
 import { normalizeServerUrl } from '../shared/serverUrls';
 
 export interface SavedServer {
@@ -7,9 +7,9 @@ export interface SavedServer {
   label?: string;
 }
 
-export type ElevenLabsSettings = {
+export type HalSettings = {
   enabled: boolean;
-  mode: ElevenLabsMode;
+  mode: HalMode;
   userName: string;
   voiceAId?: string;
   voiceUserId?: string;
@@ -28,7 +28,7 @@ export type OpenHandsSettings = ServerSettings & {
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
-  elevenlabs: ElevenLabsSettings;
+  hal: HalSettings;
   gemini: GeminiSettings;
   servers: SavedServer[];
   secrets: {
@@ -51,12 +51,12 @@ const DEFAULTS: OpenHandsSettings = {
   agent: { enableSecurityAnalyzer: true, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
-  elevenlabs: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },
+  hal: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },
   gemini: { model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
   secrets: {}
 };
 
-const HAL_CONFIG_UPDATES: Array<[keyof ElevenLabsSettings, string]> = [
+const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
   ['enabled', 'openhands.hal.enabled'],
   ['mode', 'openhands.hal.mode'],
   ['userName', 'openhands.hal.userName'],
@@ -121,7 +121,7 @@ const normalizeReasoningSummary = (value: unknown): LLMSettings['reasoningSummar
   }
 };
 
-const normalizeElevenLabsMode = (value: unknown, defaultValue: ElevenLabsMode): ElevenLabsMode => {
+const normalizeHalMode = (value: unknown, defaultValue: HalMode): HalMode => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   switch (trimmed) {
     case 'bundled':
@@ -299,23 +299,23 @@ export class SettingsManager {
       riskyThreshold: this.adapter.get<'LOW' | 'MEDIUM' | 'HIGH'>('openhands.confirmation.risky.threshold', DEFAULTS.confirmation.riskyThreshold) ?? DEFAULTS.confirmation.riskyThreshold,
       confirmUnknown: this.adapter.get<boolean>('openhands.confirmation.risky.confirmUnknown', DEFAULTS.confirmation.confirmUnknown) ?? DEFAULTS.confirmation.confirmUnknown,
     };
-    const elevenlabs: ElevenLabsSettings = {
-      enabled: this.adapter.get<boolean>('openhands.hal.enabled', DEFAULTS.elevenlabs.enabled) ?? DEFAULTS.elevenlabs.enabled,
-      mode: normalizeElevenLabsMode(
-        this.adapter.get<unknown>('openhands.hal.mode', DEFAULTS.elevenlabs.mode) ?? DEFAULTS.elevenlabs.mode,
-        DEFAULTS.elevenlabs.mode
+    const hal: HalSettings = {
+      enabled: this.adapter.get<boolean>('openhands.hal.enabled', DEFAULTS.hal.enabled) ?? DEFAULTS.hal.enabled,
+      mode: normalizeHalMode(
+        this.adapter.get<unknown>('openhands.hal.mode', DEFAULTS.hal.mode) ?? DEFAULTS.hal.mode,
+        DEFAULTS.hal.mode
       ),
       userName: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.hal.userName', DEFAULTS.elevenlabs.userName) ?? DEFAULTS.elevenlabs.userName
-      ) ?? DEFAULTS.elevenlabs.userName,
+        this.adapter.get<string | null>('openhands.hal.userName', DEFAULTS.hal.userName) ?? DEFAULTS.hal.userName
+      ) ?? DEFAULTS.hal.userName,
       voiceAId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.hal.voiceAId', null) ?? undefined),
       voiceUserId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.hal.voiceUserId', null) ?? undefined),
       modelId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.hal.modelId', null) ?? undefined),
       volume: clampUnitInterval(
-        this.adapter.get<number | null>('openhands.hal.volume', DEFAULTS.elevenlabs.volume) ?? DEFAULTS.elevenlabs.volume,
-        DEFAULTS.elevenlabs.volume
+        this.adapter.get<number | null>('openhands.hal.volume', DEFAULTS.hal.volume) ?? DEFAULTS.hal.volume,
+        DEFAULTS.hal.volume
       ),
-      cache: this.adapter.get<boolean>('openhands.hal.cache', DEFAULTS.elevenlabs.cache) ?? DEFAULTS.elevenlabs.cache,
+      cache: this.adapter.get<boolean>('openhands.hal.cache', DEFAULTS.hal.cache) ?? DEFAULTS.hal.cache,
     };
     const gemini: GeminiSettings = {
       model: normalizeNonEmptyString(
@@ -337,7 +337,7 @@ export class SettingsManager {
       customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
       customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
     };
-    return { serverUrl, servers, llm, agent, conversation, confirmation, elevenlabs, gemini, secrets };
+    return { serverUrl, servers, llm, agent, conversation, confirmation, hal, gemini, secrets };
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
@@ -405,9 +405,9 @@ export class SettingsManager {
       }
     }
 
-    if (partial.elevenlabs) {
+    if (partial.hal) {
       for (const [key, configKey] of HAL_CONFIG_UPDATES) {
-        const value = partial.elevenlabs[key];
+        const value = partial.hal[key];
         if (value !== undefined) ops.push(this.adapter.update(configKey, value, target));
       }
     }
