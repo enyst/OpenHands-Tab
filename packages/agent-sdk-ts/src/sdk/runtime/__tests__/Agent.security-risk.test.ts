@@ -67,6 +67,42 @@ describe('Agent security risk handling', () => {
     expect(parameters?.required).toContain('security_risk');
   });
 
+  it('includes security_risk in tool schema + prompt for always confirmations', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<Record<string, unknown>, { ok: true }> = {
+      name: 'noop',
+      validate: (input) => input as Record<string, unknown>,
+      execute: async () => ({ ok: true }),
+      description: 'No-op tool.',
+      parameters: {
+        type: 'object',
+        properties: {
+          value: { type: 'string' },
+        },
+        required: ['value'],
+      },
+    };
+
+    const llm = new MockLLM([{ type: 'text', text: 'ok' }, { type: 'finish' }]);
+    const agent = new Agent({
+      settings: { ...baseSettings, confirmation: { policy: 'always' } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('hello');
+
+    const request = llm.lastRequest;
+    expect(request).not.toBeNull();
+    expect(request?.systemPrompt).toContain('<SECURITY_RISK_ASSESSMENT>');
+
+    const parameters = request?.tools?.[0]?.function?.parameters as any;
+    expect(parameters?.properties?.security_risk).toBeTruthy();
+    expect(parameters?.required).toContain('security_risk');
+  });
+
   it('omits security_risk schema + prompt section when confirmations are disabled', async () => {
     const log = new EventLog();
     const tool: ToolDefinition<Record<string, unknown>, { ok: true }> = {
