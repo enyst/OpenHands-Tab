@@ -117,7 +117,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.confirmation.policy: enum ('never' | 'always' | 'risky') (default: 'never')
   - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'MEDIUM')
   - openhands.confirmation.risky.confirmUnknown: boolean (default: true)
-  - openhands.agent.enableSecurityAnalyzer: boolean (default: false)
+  - openhands.agent.enableSecurityAnalyzer: boolean (default: true)
 - Store secrets in VS Code SecretStorage (never in settings.json)
   - Implemented keys:
     - openhands.sessionApiKey (used for X-Session-API-Key / WS query param)
