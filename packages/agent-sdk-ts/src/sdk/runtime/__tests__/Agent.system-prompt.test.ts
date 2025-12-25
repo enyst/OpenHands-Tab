@@ -4,6 +4,7 @@ import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
 import { Agent, EventLog } from '..';
+import { AgentContext } from '../..';
 import { isSystemPromptEvent } from '../../types';
 import type { OpenHandsSettings } from '../../types/settings';
 
@@ -62,5 +63,38 @@ describe('Agent system prompt', () => {
     const systemPromptEvent = log.list().find(isSystemPromptEvent);
     expect(systemPromptEvent).toBeDefined();
     expect(systemPromptEvent.system_prompt.text).toBe(systemPrompt);
+  });
+
+  it('includes the latest AgentContext systemMessageSuffix on each LLM request', async () => {
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 3 },
+      confirmation: { policy: 'never' },
+      secrets: {},
+    };
+    const log = new EventLog();
+    const llm = new RecordingLLM();
+    const agentContext = new AgentContext({ systemMessageSuffix: 'Currently opened in the editor: /tmp/first.ts' });
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      agentContext,
+    });
+
+    await agent.run('hi');
+    expect(llm.requests[0]?.systemPrompt).toContain('Currently opened in the editor: /tmp/first.ts');
+
+    agentContext.systemMessageSuffix = 'Currently opened in the editor: /tmp/second.ts';
+    await agent.run('hi again');
+    expect(llm.requests[1]?.systemPrompt).toContain('Currently opened in the editor: /tmp/second.ts');
+    expect(llm.requests[1]?.systemPrompt).not.toContain('Currently opened in the editor: /tmp/first.ts');
+
+    agentContext.systemMessageSuffix = undefined;
+    await agent.run('hi again (cleared)');
+    expect(llm.requests[2]?.systemPrompt).not.toContain('Currently opened in the editor:');
   });
 });

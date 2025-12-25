@@ -6,6 +6,7 @@ import { vi } from 'vitest';
 const mockCommands = new Map<string, Function>();
 const mockSubscriptions: Array<{ dispose: () => void }> = [];
 const mockConfigListeners: Function[] = [];
+const mockActiveTextEditorListeners: Function[] = [];
 const mockConfigValues = new Map<string, any>();
 const mockWebviewViewProviders = new Map<string, any>();
 
@@ -69,6 +70,12 @@ export const window = {
   showQuickPick: vi.fn(),
   createTerminal: vi.fn(),
   onDidCloseTerminal: vi.fn(() => ({ dispose: vi.fn() })),
+  onDidChangeActiveTextEditor: vi.fn((listener: Function) => {
+    mockActiveTextEditorListeners.push(listener);
+    const disposable = { dispose: vi.fn() };
+    mockSubscriptions.push(disposable);
+    return disposable;
+  }),
   registerWebviewViewProvider: vi.fn((viewId: string, provider: any, _options?: any) => {
     mockWebviewViewProviders.set(viewId, provider);
     const disposable = { dispose: vi.fn(() => mockWebviewViewProviders.delete(viewId)) };
@@ -162,6 +169,7 @@ export function __resetMocks() {
   mockCommands.clear();
   mockSubscriptions.length = 0;
   mockConfigListeners.length = 0;
+  mockActiveTextEditorListeners.length = 0;
   mockConfigValues.clear();
   mockWebviewViewProviders.clear();
   // Reset common spies to default implementations
@@ -179,6 +187,7 @@ export function __resetMocks() {
   ;(window.showInputBox as any).mockClear();
   ;(window.showQuickPick as any).mockClear();
   ;(window.createTerminal as any).mockClear();
+  ;(window.onDidChangeActiveTextEditor as any).mockClear();
   ;(window.createTreeView as any).mockClear();
   ;(window.registerWebviewViewProvider as any).mockClear();
   ;(commands.registerCommand as any).mockClear();
@@ -192,4 +201,8 @@ export function __getMockWebviewViewProviders() { return mockWebviewViewProvider
 // Helper to manually trigger configuration change listeners (if needed by tests)
 export function __triggerConfigChange(e: any) {
   mockConfigListeners.forEach((listener) => listener(e));
+}
+
+export function __triggerActiveTextEditorChange(editor: any) {
+  mockActiveTextEditorListeners.forEach((listener) => listener(editor));
 }

@@ -54,6 +54,8 @@ let secretRegistry: SecretRegistry | undefined;
 let conversationStoreRoot: string | undefined;
 let lastKnownLlmLabel: string | null = null;
 let verboseEventLogging = false;
+let localAgentContext: AgentContext | undefined;
+let activeEditorFilePath: string | undefined;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
@@ -321,6 +323,22 @@ function normalizeNonEmptyString(value: string | undefined | null): string | und
   return trimmed || undefined;
 }
 
+function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
+  if (!editor) return undefined;
+  const uri = editor.document.uri;
+  if (uri.scheme !== 'file') return undefined;
+  const fsPath = typeof uri.fsPath === 'string' ? uri.fsPath.trim() : '';
+  return fsPath || undefined;
+}
+
+function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefined): void {
+  activeEditorFilePath = resolveActiveEditorFilePath(editor);
+  if (!localAgentContext) return;
+  localAgentContext.systemMessageSuffix = activeEditorFilePath
+    ? `Currently opened in the editor: ${activeEditorFilePath}`
+    : undefined;
+}
+
 function resolveConfiguredPath(p: string): string {
   const raw = p.trim();
   if (raw.startsWith('~/') || raw === '~') {
@@ -478,6 +496,13 @@ export function activate(context: vscode.ExtensionContext) {
   devBridgeEnabled = isDevOrTest || enableFromSetting;
   void initFileLogger(context);
 
+  syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      syncActiveEditorSystemMessageSuffix(editor);
+    })
+  );
+
   const handleTerminalEvent = (event: BashEvent) => {
     receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
     if (receivedTerminalEvents.length > MAX_TERMINAL_EVENTS) {
@@ -630,6 +655,10 @@ export function activate(context: vscode.ExtensionContext) {
         desiredMode === 'local'
           ? new AgentContext({ loadUserSkills: true })
           : undefined;
+      localAgentContext = desiredMode === 'local' ? agentContext : undefined;
+      if (desiredMode === 'local') {
+        syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);
+      }
 
       const conversationOptions = {
         serverUrl: settings.serverUrl ?? undefined,
@@ -1238,6 +1267,8 @@ export function deactivate() {
   conversation = undefined;
   terminal = undefined;
   terminalLogPty = undefined;
+  localAgentContext = undefined;
+  activeEditorFilePath = undefined;
   pendingRenderedEventsRequests.clear();
   pendingUiStateRequests.clear();
   pendingHalStateRequests.clear();

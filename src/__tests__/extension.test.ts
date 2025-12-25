@@ -472,6 +472,45 @@ describe('Chat view behavior', () => {
     expect(mockContext.workspaceState.update).toHaveBeenCalledWith('openhands.conversationId.local', undefined);
   });
 
+  it('updates the local AgentContext system prompt suffix with the active editor file path', async () => {
+    mockSettings = { ...mockSettings, serverUrl: '' as any };
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', '');
+
+    (vscode.window as any).activeTextEditor = {
+      document: {
+        uri: {
+          scheme: 'file',
+          fsPath: '/test/workspace/src/initial.ts',
+        },
+      },
+    };
+
+    await resolveChatView(mockContext);
+
+    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
+    expect(options?.agentContext).toBeTruthy();
+    const agentContext = options.agentContext as any;
+
+    expect(agentContext.systemMessageSuffix).toBe('Currently opened in the editor: /test/workspace/src/initial.ts');
+
+    const nextEditor = {
+      document: {
+        uri: {
+          scheme: 'file',
+          fsPath: '/test/workspace/src/next.ts',
+        },
+      },
+    };
+    (vscode.window as any).activeTextEditor = nextEditor;
+    (vscode as any).__triggerActiveTextEditorChange(nextEditor);
+    expect(agentContext.systemMessageSuffix).toBe('Currently opened in the editor: /test/workspace/src/next.ts');
+
+    (vscode.window as any).activeTextEditor = undefined;
+    (vscode as any).__triggerActiveTextEditorChange(undefined);
+    expect(agentContext.systemMessageSuffix).toBeUndefined();
+  });
+
   it('auto-disables tool-call summarization when Gemini key is missing (local mode)', async () => {
     const priorEnv = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
