@@ -914,6 +914,7 @@ export function App() {
               setAgentStatus(undefined);
               setStreamingContent(null);
               setConversationTotals(INITIAL_CONVERSATION_TOTALS);
+              hasLlmUsageRef.current = false;
               eventId.current = 1;
               const api = getVscodeApi();
               api.setState?.({});
@@ -1243,6 +1244,7 @@ export function App() {
     setAgentStatus(undefined);
     setStreamingContent(null);
     setConversationTotals(INITIAL_CONVERSATION_TOTALS);
+    hasLlmUsageRef.current = false;
     eventId.current = 1;
     setInput('');
     setSelectedContextFiles([]);
