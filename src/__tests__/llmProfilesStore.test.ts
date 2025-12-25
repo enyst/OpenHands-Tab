@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { saveProfile as saveSdkProfile } from '@openhands/agent-sdk-ts';
+import { saveProfile as saveSdkProfile, SecretRegistry } from '@openhands/agent-sdk-ts';
 import { createWebviewMessageHandler } from '../webview/host/createWebviewMessageHandler';
 
 describe('LLM profile host CRUD (llm-profiles store)', () => {
@@ -21,14 +21,21 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
 
   const createHandler = () => {
     const postMessage = vi.fn(async () => true);
+    const secretValues = new Map<string, string>();
     const secrets = {
-      get: vi.fn(async () => undefined),
-      store: vi.fn(async () => {}),
-      delete: vi.fn(async () => {}),
+      get: vi.fn(async (key: string) => secretValues.get(key)),
+      store: vi.fn(async (key: string, value: string) => {
+        secretValues.set(key, value);
+      }),
+      delete: vi.fn(async (key: string) => {
+        secretValues.delete(key);
+      }),
     };
+    const secretRegistry = new SecretRegistry(secrets as any, null);
     const handler = createWebviewMessageHandler({
       context: { globalStorageUri: { fsPath: tmpDir }, secrets } as any,
       host: { postMessage },
+      secretRegistry,
       getConversation: () => undefined,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
@@ -46,7 +53,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       fileLog: () => {},
     });
 
-    return { handler, postMessage, secrets };
+    return { handler, postMessage, secrets, secretRegistry };
   };
 
   it('lists profiles from the configured root dir', async () => {
@@ -121,10 +128,27 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     expect(content).not.toContain('Authorization');
   });
 
+  it('clearing a profile API key invalidates the SecretRegistry cache', async () => {
+    const { handler, secrets, secretRegistry } = createHandler();
+    const key = 'openhands.llmProfileApiKey.a';
+
+    await secrets.store(key, 'sk-test');
+    await expect(secretRegistry.get(key)).resolves.toBe('sk-test');
+
+    await handler({ type: 'llmProfileApiKeySetRequest', requestId: 'req1', profileId: 'a', apiKey: '' });
+
+    await expect(secretRegistry.get(key)).resolves.toBeUndefined();
+  });
+
   it('deletes profiles and clears stored API keys', async () => {
     saveSdkProfile('a', { model: 'gpt-5-mini' }, { rootDir: tmpDir, includeSecrets: false });
 
-    const { handler, postMessage, secrets } = createHandler();
+    const { handler, postMessage, secrets, secretRegistry } = createHandler();
+    const key = 'openhands.llmProfileApiKey.a';
+
+    await secrets.store(key, 'sk-test');
+    await expect(secretRegistry.get(key)).resolves.toBe('sk-test');
+
     await handler({ type: 'llmProfileDeleteRequest', requestId: 'req1', profileId: 'a' });
 
     expect(postMessage).toHaveBeenCalledWith({
@@ -133,7 +157,8 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       ok: true,
       profileId: 'a',
     });
-    expect(secrets.delete).toHaveBeenCalledWith('openhands.llmProfileApiKey.a');
+    expect(secrets.delete).toHaveBeenCalledWith(key);
+    await expect(secretRegistry.get(key)).resolves.toBeUndefined();
     await expect(fs.stat(path.join(tmpDir, 'a.json'))).rejects.toThrow();
   });
 });
