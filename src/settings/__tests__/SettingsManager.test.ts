@@ -98,7 +98,7 @@ describe('SettingsManager', () => {
         model: 'gemini-2.5-pro',
         baseUrl: 'https://proxy.example.com/v1beta',
       },
-      secrets: { sessionApiKey: 'sess', llmApiKey: 'key', geminiApiKey: 'gemini-key' }
+      secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
     });
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
@@ -127,7 +127,7 @@ describe('SettingsManager', () => {
     expect(s.gemini.baseUrl).toBe('https://proxy.example.com/v1beta');
     expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
-    expect(s.secrets.geminiApiKey).toBe('gemini-key');
+    // HAL no longer uses a separate Gemini key; it relies on GEMINI_API_KEY/global LLM key.
   });
 
   it('sanitizes invalid ElevenLabs mode and clamps volume', async () => {
@@ -153,14 +153,12 @@ describe('SettingsManager', () => {
   });
 
   it('clears secrets when undefined is provided', async () => {
-    await mgr.update({ secrets: { llmApiKey: 'abc', geminiApiKey: 'g1' } });
+    await mgr.update({ secrets: { llmApiKey: 'abc' } });
     let s = await mgr.get();
     expect(s.secrets.llmApiKey).toBe('abc');
-    expect(s.secrets.geminiApiKey).toBe('g1');
-    await mgr.update({ secrets: { llmApiKey: undefined, geminiApiKey: undefined } });
+    await mgr.update({ secrets: { llmApiKey: undefined } });
     s = await mgr.get();
     expect(s.secrets.llmApiKey).toBeUndefined();
-    expect(s.secrets.geminiApiKey).toBeUndefined();
   });
 
   it('updates AWS credentials', async () => {

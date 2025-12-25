@@ -34,7 +34,7 @@
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setElevenLabsApiKey",
-    "onCommand:openhands.setGeminiApiKey",
+
     "onCommand:openhands.setCustomSecret1",
     "onCommand:openhands.setCustomSecret2",
     "onCommand:openhands.setCustomSecret3",
@@ -83,7 +83,7 @@
       },
       {
         "command": "openhands.setGeminiLlmApiKey",
-        "title": "OpenHands: Set Gemini API Key (LLM)"
+        "title": "OpenHands: Set Gemini API Key"
       },
       {
         "command": "openhands.setSessionApiKey",
@@ -97,10 +97,7 @@
         "command": "openhands.setElevenLabsApiKey",
         "title": "OpenHands: Set ElevenLabs API Key"
       },
-      {
-        "command": "openhands.setGeminiApiKey",
-        "title": "OpenHands: Set Gemini API Key (HAL)"
-      },
+
       {
         "command": "openhands.setCustomSecret1",
         "title": "OpenHands: Set Custom Secret 1"
@@ -537,15 +534,9 @@
             "default": "",
             "order": 7,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Gemini API key for LLM requests securely:**\n\n[🔑 Configure Gemini API Key (LLM)](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
+            "markdownDescription": "**To set your Gemini API key securely:**\n\n[🔑 Configure Gemini API Key](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
           },
-          "openhands.secrets.geminiApiKey": {
-            "type": "string",
-            "default": "",
-            "order": 8,
-            "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Gemini API key for HAL decision classification securely:**\n\n[🔑 Configure Gemini API Key (HAL)](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `openhands.hal.geminiApiKey`.)_"
-          },
+
           "openhands.secrets.elevenLabsApiKey": {
             "type": "string",
             "default": "",

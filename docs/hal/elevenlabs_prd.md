@@ -138,8 +138,8 @@ Settings:
 - Gemini (only for `voice_confirm`):
   - `openhands.hal.gemini.model`: string (default: `gemini-2.5-flash`)
   - `openhands.hal.gemini.baseUrl`: string (default: Gemini API base URL; allow proxies)
-  - Settings UI placeholder: `openhands.secrets.geminiApiKey`
-  - Stored securely in SecretStorage: `openhands.hal.geminiApiKey`
+  - Settings UI placeholder: `openhands.secrets.geminiLlmApiKey`
+  - Stored securely in SecretStorage: `GEMINI_API_KEY` (set via `openhands.setGeminiLlmApiKey`)
 
 ## Caching strategy (API mode)
 - Cache by `(voiceId, modelId, normalizedText)` → audio bytes

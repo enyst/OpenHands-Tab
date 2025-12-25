@@ -77,12 +77,17 @@ export class LLMFactory {
     const defaultApiKeyName = this.getDefaultApiKeyName(provider);
     const preferredApiKeys = config.apiKey ?? this.preferredKeys;
     const apiKeyLookup = (() => {
+      const llmGlobalKey = 'openhands.llmApiKey';
       if (Array.isArray(preferredApiKeys)) {
         const keys = [...preferredApiKeys];
+        if (!keys.includes(llmGlobalKey)) keys.push(llmGlobalKey);
         if (!keys.includes(defaultApiKeyName)) keys.push(defaultApiKeyName);
         return keys;
       }
-      return preferredApiKeys ?? defaultApiKeyName;
+      if (typeof preferredApiKeys === 'string' && preferredApiKeys.trim()) {
+        return [preferredApiKeys, llmGlobalKey, defaultApiKeyName];
+      }
+      return [llmGlobalKey, defaultApiKeyName];
     })();
     const apiKey =
       inlineApiKey ??

@@ -869,7 +869,6 @@ export function activate(context: vscode.ExtensionContext) {
 
       { key: 'openhands.secrets.sessionApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.sessionApiKey) },
       { key: 'openhands.secrets.githubToken', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.githubToken) },
-      { key: 'openhands.secrets.geminiApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.geminiApiKey) },
       { key: 'openhands.secrets.elevenLabsApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.elevenLabsApiKey) },
       { key: 'openhands.secrets.customSecret1', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret1) },
       { key: 'openhands.secrets.customSecret2', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret2) },
@@ -1091,7 +1090,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   const setGeminiLlmApiKey = registerSecretStorageCommand('openhands.setGeminiLlmApiKey', {
-    title: 'Gemini API Key (LLM)',
+    title: 'Gemini API Key',
     storageKey: 'GEMINI_API_KEY',
     prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
     placeHolder: 'AIza...',
@@ -1129,14 +1128,7 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save ElevenLabs API key',
   });
 
-  const setGeminiApiKey = registerSecretCommand('openhands.setGeminiApiKey', {
-    title: 'Gemini API Key (HAL)',
-    secretKey: 'geminiApiKey',
-    prompt: 'Enter your Gemini API key for HAL decision classification. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Gemini API key saved securely.',
-    clearedMessage: 'Gemini API key cleared.',
-    errorPrefix: 'Failed to save Gemini API key',
-  });
+
 
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
     title: 'Custom Secret 1',
@@ -1249,7 +1241,7 @@ export function activate(context: vscode.ExtensionContext) {
     setSessionApiKey,
     setGithubToken,
     setElevenLabsApiKey,
-    setGeminiApiKey,
+
     setCustomSecret1,
     setCustomSecret2,
     setCustomSecret3,
