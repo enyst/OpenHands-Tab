@@ -18,6 +18,8 @@ export type HostToWebviewMessage =
   | { type: 'llmProfileLoadResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileSaveResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileSaveResponse'; requestId: string; ok: false; profileId: string; error: string }
+  | { type: 'llmProfileDeleteResponse'; requestId: string; ok: true; profileId: string }
+  | { type: 'llmProfileDeleteResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileApiKeyStatusResponse'; requestId: string; ok: true; profileId: string; hasKey: boolean }
   | { type: 'llmProfileApiKeyStatusResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: true; profileId: string }
@@ -70,6 +72,7 @@ export type WebviewToHostMessage =
   | { type: 'llmProfilesListRequest'; requestId: string }
   | { type: 'llmProfileLoadRequest'; requestId: string; profileId: string }
   | { type: 'llmProfileSaveRequest'; requestId: string; profileId: string; profile: unknown }
+  | { type: 'llmProfileDeleteRequest'; requestId: string; profileId: string }
   | { type: 'llmProfileApiKeyStatusRequest'; requestId: string; profileId: string }
   | { type: 'llmProfileApiKeySetRequest'; requestId: string; profileId: string; apiKey: string }
   | { type: 'selectServer'; url: string }

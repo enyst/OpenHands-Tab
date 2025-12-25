@@ -473,6 +473,58 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         }
         break;
       }
+      case 'llmProfileDeleteRequest': {
+        const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
+        const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        if (!requestId || !profileId) break;
+
+        try {
+          llmProfilesStore.deleteProfile(profileId, llmProfileStoreOptions());
+          await context.secrets.delete(getProfileApiKeySecretKey(profileId));
+          void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: true, profileId });
+
+          const before = await settingsMgr.get();
+          const activeProfileId = before.llm.profileId ?? null;
+          if (activeProfileId === profileId) {
+            await settingsMgr.update({ llm: { profileId: '' } });
+            void host.postMessage({
+              type: 'statusMessage',
+              level: 'error',
+              message: `Active LLM profile '${profileId}' was deleted; selection cleared.`,
+              autoDismiss: true,
+              autoDismissDelay: 8000,
+            });
+          } else {
+            void host.postMessage({
+              type: 'statusMessage',
+              level: 'info',
+              message: `Deleted profile '${profileId}'.`,
+              autoDismiss: true,
+              autoDismissDelay: 4000,
+            });
+          }
+
+          const updated = await settingsMgr.get();
+          deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(updated));
+
+          void host.postMessage({
+            type: 'status',
+            status: conversation?.getStatus() ?? 'offline',
+            mode: deps.getConversationMode(),
+            llmProfileLabel: deps.getLastKnownLlmLabel(),
+          });
+
+          void host.postMessage({
+            type: 'llmProfilesUpdated',
+            profiles: listAvailableLlmProfiles(),
+            activeProfileId: updated.llm.profileId ?? null,
+          });
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: false, profileId, error: reason });
+        }
+        break;
+      }
       case 'llmProfileApiKeyStatusRequest': {
         const requestId = typeof message.requestId === 'string' ? message.requestId.trim() : '';
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';

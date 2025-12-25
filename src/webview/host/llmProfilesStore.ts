@@ -1,4 +1,5 @@
 import {
+  deleteProfile as deleteSdkProfile,
   listProfiles as listSdkProfiles,
   loadProfile as loadSdkProfile,
   saveProfile as saveSdkProfile,
@@ -52,3 +53,6 @@ export const saveProfile = (
   const config = validateProfile(payload);
   saveSdkProfile(profileId, config, toSdkSaveOptions(options));
 };
+
+export const deleteProfile = (profileId: string, options: LLMProfileStoreOptions = {}): void =>
+  deleteSdkProfile(profileId, toSdkStoreOptions(options));
