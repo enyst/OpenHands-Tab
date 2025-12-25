@@ -418,11 +418,21 @@ export function LlmProfilesView(props: {
     void refreshProfiles();
   }, [isOpen, refreshProfiles]);
 
-  const startCreate = useCallback(() => {
-    activeProfileIdRef.current = null;
-    setMode('create');
-    setSelectedProfileId(null);
-    setForm(EMPTY_FORM);
+  type EditorTransitionTarget = {
+    mode: ProfileFormMode;
+    selectedProfileId: string | null;
+    form: ProfileFormState;
+    loadingProfile: boolean;
+    useCustomBaseUrl: boolean;
+  };
+
+  const applyEditorTransition = useCallback((target: EditorTransitionTarget) => {
+    setMode(target.mode);
+    setSelectedProfileId(target.selectedProfileId);
+    setForm(target.form);
+    setLoadingProfile(target.loadingProfile);
+    setUseCustomBaseUrl(target.useCustomBaseUrl);
+
     setErrors({});
     setSaveAttempted(false);
     setTopError(null);
@@ -432,22 +442,28 @@ export function LlmProfilesView(props: {
     setApiKeySaving(false);
     setApiKeyError(null);
     setIsAdvancedOpen(false);
-    setUseCustomBaseUrl(false);
   }, []);
+
+  const startCreate = useCallback(() => {
+    activeProfileIdRef.current = null;
+    applyEditorTransition({
+      mode: 'create',
+      selectedProfileId: null,
+      form: EMPTY_FORM,
+      loadingProfile: false,
+      useCustomBaseUrl: false,
+    });
+  }, [applyEditorTransition]);
 
   const startEdit = useCallback(async (profileId: string) => {
     activeProfileIdRef.current = profileId;
-    setMode('edit');
-    setSelectedProfileId(profileId);
-    setErrors({});
-    setSaveAttempted(false);
-    setTopError(null);
-    setApiKeyError(null);
-    setShowApiKeyEditor(false);
-    setApiKeyInput('');
-    setIsAdvancedOpen(false);
-    setUseCustomBaseUrl(false);
-    setLoadingProfile(true);
+    applyEditorTransition({
+      mode: 'edit',
+      selectedProfileId: profileId,
+      form: EMPTY_FORM,
+      loadingProfile: true,
+      useCustomBaseUrl: false,
+    });
     try {
       const config = await loadProfile(profileId);
       if (activeProfileIdRef.current !== profileId) return;
@@ -465,7 +481,7 @@ export function LlmProfilesView(props: {
     if (activeProfileIdRef.current === profileId) {
       void refreshApiKeyStatus(profileId);
     }
-  }, [loadProfile, refreshApiKeyStatus]);
+  }, [applyEditorTransition, loadProfile, refreshApiKeyStatus]);
 
   useEffect(() => {
     if (!isOpen || !openRequest) return;
@@ -644,24 +660,19 @@ export function LlmProfilesView(props: {
 
     const source = form;
     activeProfileIdRef.current = null;
-    setMode('create');
-    setSelectedProfileId(null);
-    setForm({ ...source, name: '' });
-    setErrors({});
-    setSaveAttempted(false);
-    setTopError(null);
-    setApiKeyStatus({ state: 'unknown' });
-    setShowApiKeyEditor(false);
-    setApiKeyInput('');
-    setApiKeySaving(false);
-    setApiKeyError(null);
-    setUseCustomBaseUrl(Boolean(source.baseUrl.trim()));
+    applyEditorTransition({
+      mode: 'create',
+      selectedProfileId: null,
+      form: { ...source, name: '' },
+      loadingProfile: false,
+      useCustomBaseUrl: Boolean(source.baseUrl.trim()),
+    });
 
     editorScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
     requestAnimationFrame(() => {
       panelRef.current?.querySelector<HTMLInputElement>('input[placeholder="e.g. gpt-5"]')?.focus();
     });
-  }, [form, mode]);
+  }, [applyEditorTransition, form, mode]);
 
   if (!isOpen) return null;
 
