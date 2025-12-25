@@ -276,7 +276,7 @@ export function HistoryView({
   return (
     <div className="fixed inset-0 z-50 flex" role="dialog" aria-label="Conversation History" aria-modal="true">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" />
 
       {/* Panel */}
       <div
