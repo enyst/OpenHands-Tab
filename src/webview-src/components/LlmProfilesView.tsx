@@ -613,7 +613,15 @@ export function LlmProfilesView(props: {
     }
   };
 
-  const selectedIsActive = (candidate: string) => candidate === selectedProfileId;
+  const NEW_PROFILE_SELECT_VALUE = '__new__';
+  const profileSelectId = profileFieldId('profile-select');
+  const profileSelectValue = selectedProfileId ?? NEW_PROFILE_SELECT_VALUE;
+  const profileSelectOptions = useMemo(() => {
+    if (selectedProfileId && !sortedProfiles.includes(selectedProfileId)) {
+      return [...sortedProfiles, selectedProfileId].sort((a, b) => a.localeCompare(b));
+    }
+    return sortedProfiles;
+  }, [selectedProfileId, sortedProfiles]);
   const canEditApiKey = mode === 'edit' && !!selectedProfileId && !loadingProfile;
   const providerRequiresApiKey = Boolean(form.provider);
   const providerDocsUrl = form.provider ? PROVIDER_DOCS_URLS[form.provider] : null;
@@ -649,6 +657,18 @@ export function LlmProfilesView(props: {
     && overrideProfileApiKey
     && apiKeyStatus.state === 'ready'
     && apiKeyStatus.hasProfileKey;
+
+  const handleSelectProfile = useCallback((next: string) => {
+    if (next === profileSelectValue) return;
+    if (next === NEW_PROFILE_SELECT_VALUE) {
+      startCreate();
+      requestAnimationFrame(() => {
+        nameInputRef.current?.focus();
+      });
+      return;
+    }
+    void startEdit(next);
+  }, [NEW_PROFILE_SELECT_VALUE, profileSelectValue, startCreate, startEdit]);
 
   const handleSetApiKey = useCallback(async () => {
     if (!selectedProfileId) return;
@@ -803,52 +823,34 @@ export function LlmProfilesView(props: {
 
         {/* Body */}
         <div className="flex-1 overflow-hidden flex">
-          {/* Left: list */}
-          <div className="w-64 border-r border-white/[0.08] flex flex-col">
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
-              {loadingList ? (
-                <div className="text-sm text-stone-500 px-2 py-2">Loading profiles…</div>
-              ) : sortedProfiles.length === 0 ? (
-                <div className="px-2 py-3">
-                  <div className="text-sm text-stone-300 mb-1">No profiles found</div>
-                  <div className="text-xs text-stone-500">Create one to get started.</div>
-                </div>
-              ) : (
-                sortedProfiles.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => { void startEdit(id); }}
-                    className={`
-                      w-full text-left px-3 py-2 rounded-lg
-                      text-sm font-mono
-                      transition-colors
-                      border
-                      ${selectedIsActive(id)
-                        ? 'bg-brand-500/15 border-brand-500/25 text-brand-200'
-                        : 'bg-white/[0.02] border-white/[0.04] text-stone-300 hover:bg-white/[0.05] hover:border-white/[0.08]'}
-                    `}
-                    aria-label={`Edit profile ${id}`}
-                    title={id}
-                  >
-                    {id}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Right: editor */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-6 py-5 border-b border-white/[0.06]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm text-stone-500">
-                    {mode === 'create' ? 'Create a new profile' : 'Edit profile'}
-                  </div>
-                  <div className="text-lg font-semibold text-stone-100 mt-1">
-                    {mode === 'create' ? (form.name.trim() ? form.name.trim() : 'New profile') : (selectedProfileId ?? '—')}
-                  </div>
+            <div className="px-6 py-5 border-b border-white/[0.06] space-y-4">
+              <div>
+                <FieldLabel label="Profile" htmlFor={profileSelectId} />
+                <SelectField
+                  id={profileSelectId}
+                  value={profileSelectValue}
+                  onChange={handleSelectProfile}
+                  disabled={loadingList}
+                >
+                  <option value={NEW_PROFILE_SELECT_VALUE}>New Profile…</option>
+                  {profileSelectOptions.map((id) => (
+                    <option key={id} value={id}>{id}</option>
+                  ))}
+                </SelectField>
+                {loadingList ? (
+                  <div className="text-xs text-stone-500 mt-1">Loading profiles…</div>
+                ) : profileSelectOptions.length === 0 ? (
+                  <div className="text-xs text-stone-500 mt-1">No profiles found. Create one to get started.</div>
+                ) : null}
+              </div>
+
+              <div>
+                <div className="text-sm text-stone-500">
+                  {mode === 'create' ? 'Create a new profile' : 'Edit profile'}
+                </div>
+                <div className="text-lg font-semibold text-stone-100 mt-1">
+                  {mode === 'create' ? (form.name.trim() ? form.name.trim() : 'New profile') : (selectedProfileId ?? '—')}
                 </div>
               </div>
             </div>

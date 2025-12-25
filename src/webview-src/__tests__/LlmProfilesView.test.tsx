@@ -41,8 +41,9 @@ describe('LLM Profiles view', () => {
 
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileButton = await screen.findByLabelText('Edit profile gpt-5');
-    fireEvent.click(profileButton);
+    const profileSelect = await screen.findByLabelText('Profile');
+    await waitFor(() => expect(profileSelect).not.toBeDisabled());
+    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -230,7 +231,9 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+    const profileSelect = await screen.findByLabelText('Profile');
+    await waitFor(() => expect(profileSelect).not.toBeDisabled());
+    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -272,7 +275,9 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+    const profileSelect = await screen.findByLabelText('Profile');
+    await waitFor(() => expect(profileSelect).not.toBeDisabled());
+    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -330,7 +335,9 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+    const profileSelect = await screen.findByLabelText('Profile');
+    await waitFor(() => expect(profileSelect).not.toBeDisabled());
+    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -486,7 +493,9 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    fireEvent.click(await screen.findByLabelText('Edit profile gpt-5'));
+    const profileSelect = await screen.findByLabelText('Profile');
+    await waitFor(() => expect(profileSelect).not.toBeDisabled());
+    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
