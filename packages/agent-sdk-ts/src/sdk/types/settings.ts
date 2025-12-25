@@ -34,7 +34,7 @@ export type AgentSettings = {
   enableSecurityAnalyzer?: boolean;
   debug?: boolean;
   /**
-   * When enabled, generates short summaries of tool executions (using the `gemini-flash` LLM profile)
+   * When enabled, generates short summaries of tool executions (using the `gemini-flash-summarizer` LLM profile)
    * and injects them into the next agent LLM request as additional context.
    */
   summarizeToolCalls?: boolean;

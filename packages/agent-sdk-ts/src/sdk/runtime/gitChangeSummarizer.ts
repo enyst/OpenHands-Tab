@@ -229,9 +229,7 @@ export async function summarizeGitChangesWithGeminiFlash(
     options.llmClient ??
     (await getGeminiClient(options.secrets, {
       usageId: 'git-change-summarizer',
-      profileId: 'gemini-flash',
-      model: 'gemini-flash',
-      maxOutputTokens: 512,
+      profileId: 'gemini-flash-summarizer',
     }));
   let text = '';
   for await (const chunk of client.streamChat(request)) {

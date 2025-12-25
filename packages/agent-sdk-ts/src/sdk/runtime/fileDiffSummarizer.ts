@@ -167,9 +167,7 @@ export async function summarizeFileChangesWithGeminiFlash(
     options.llmClient ??
     (await getGeminiClient(options.secrets, {
       usageId: 'file-diff-summarizer',
-      profileId: 'gemini-flash',
-      model: 'gemini-flash',
-      maxOutputTokens: 256,
+      profileId: 'gemini-flash-summarizer',
     }));
   let text = '';
   for await (const chunk of client.streamChat(request)) {
