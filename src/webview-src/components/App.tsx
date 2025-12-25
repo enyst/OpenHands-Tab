@@ -266,6 +266,7 @@ export function App() {
 
   // Conversation refs (used for HAL + event processing without stale closures)
   const pendingActionsRef = useRef<ActionEvent[]>([]);
+  const pendingActionsBatchIdRef = useRef<string | null>(null);
   const agentStatusRef = useRef<string | undefined>(undefined);
   const conversationIdRef = useRef<string | undefined>(undefined);
   const currentServerUrlRef = useRef<string | undefined>(undefined);
@@ -480,10 +481,21 @@ export function App() {
     if (!isConversationStateUpdateEvent(event)) return false;
 
     if (event.agent_status) {
+      const previousStatus = agentStatusRef.current;
       agentStatusRef.current = event.agent_status;
       setAgentStatus(event.agent_status);
       if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
         showStatusMessage('warn', 'Agent is waiting for confirmation');
+      }
+      if (previousStatus === 'WAITING_FOR_CONFIRMATION' && event.agent_status !== 'WAITING_FOR_CONFIRMATION') {
+        pendingActionsRef.current = [];
+        pendingActionsBatchIdRef.current = null;
+        setPendingActions([]);
+        if (submissionTimeoutRef.current) {
+          clearTimeout(submissionTimeoutRef.current);
+          submissionTimeoutRef.current = null;
+        }
+        setIsSubmitting(false);
       }
       lastAgentStatusRef.current = event.agent_status;
     }
@@ -529,16 +541,25 @@ export function App() {
     if (isActionEvent(event)) {
       const prev = pendingActionsRef.current;
       const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
-      if (!exists) {
-        const next = [...prev, event];
-        pendingActionsRef.current = next;
-        setPendingActions(next);
-      }
+      if (exists) return;
+
+      const nextBatchId = typeof event.llm_response_id === 'string' ? event.llm_response_id : null;
+      const prevBatchId =
+        pendingActionsBatchIdRef.current ?? (prev.length && typeof prev[0].llm_response_id === 'string' ? prev[0].llm_response_id : null);
+      const next =
+        prev.length && prevBatchId && nextBatchId && prevBatchId !== nextBatchId
+          ? [event]
+          : [...prev, event];
+
+      pendingActionsRef.current = next;
+      pendingActionsBatchIdRef.current = nextBatchId;
+      setPendingActions(next);
     } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
       const prev = pendingActionsRef.current;
       const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
       if (next.length !== prev.length) {
         pendingActionsRef.current = next;
+        pendingActionsBatchIdRef.current = next.length ? (typeof next[0].llm_response_id === 'string' ? next[0].llm_response_id : null) : null;
         setPendingActions(next);
       }
       clearSubmissionState();
@@ -911,6 +932,7 @@ export function App() {
             setConversationId(payload.conversationId);
             setEvents([]);
             pendingActionsRef.current = [];
+            pendingActionsBatchIdRef.current = null;
             setPendingActions([]);
             agentStatusRef.current = undefined;
             setAgentStatus(undefined);
