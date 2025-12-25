@@ -17,15 +17,13 @@ import { ConversationEventBacklog, type BufferedConversationEvent } from './conv
 import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminalLogPseudoterminal';
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
+import { resolveLocalTools } from './shared/localTools';
 import {
   AgentContext,
   Conversation,
   type ConversationInstance,
-  FileEditorTool,
   LLMFactory,
   SecretRegistry,
-  TaskTrackerTool,
-  TerminalTool,
   type BashEvent,
   type Event,
   isBashCommand,
@@ -233,12 +231,6 @@ function flushConversationEventBacklog(params: {
     transformEvent,
   });
 }
-
-const createDefaultLocalTools = () => [
-  new TerminalTool(),
-  new FileEditorTool(),
-  new TaskTrackerTool(),
-];
 
 /** Render an error for logging/display (handles Error objects and unknown values) */
 function renderError(err: unknown): string {
@@ -663,7 +655,7 @@ export function activate(context: vscode.ExtensionContext) {
         serverUrl: settings.serverUrl ?? undefined,
         settings,
         workspaceRoot,
-        tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
+        tools: settings.serverUrl ? undefined : resolveLocalTools(),
         secrets,
         persistenceDir,
         agentContext,

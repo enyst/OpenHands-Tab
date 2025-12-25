@@ -50,6 +50,7 @@ export type HostToWebviewMessage =
   }
   | { type: 'workspaceFiles'; files: string[] }
   | { type: 'skillsList'; skills: Array<{ label: string; path: string }> }
+  | { type: 'toolsList'; tools: Array<{ id: string; label: string }>; enabledToolIds: string[] }
   | { type: 'attachmentsSelected'; attachments: Array<{ uri: string; label: string; sizeBytes?: number }> }
   | { type: 'config'; serverUrl: string | null; mode: 'local' | 'remote' }
   | { type: 'conversationStarted'; conversationId: string }
@@ -72,6 +73,7 @@ export type WebviewToHostMessage =
   | { type: 'openSettings' }
   | { type: 'requestWorkspaceFiles' }
   | { type: 'requestSkills' }
+  | { type: 'requestTools' }
   | { type: 'openSkill'; path: string }
   | { type: 'openWorkspaceFile'; path: string }
   | { type: 'openMarkdownLink'; href: string }
@@ -93,6 +95,7 @@ export type WebviewToHostMessage =
   | { type: 'switchToLocal' }
   | { type: 'selectAttachments' }
   | { type: 'openAttachment'; uri: string }
+  | { type: 'setEnabledTools'; toolIds: string[] }
   | { type: 'send'; text: string; contextFiles?: string[]; attachments?: string[] }
   | { type: 'halTtsRequest'; requestId: string; conversationId: string; stepIndex: number }
   | { type: 'halVoiceConfirmRequest'; requestId: string; mimeType: string; audioBase64: string }

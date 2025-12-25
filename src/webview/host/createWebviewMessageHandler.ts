@@ -23,9 +23,24 @@ import * as llmProfilesStore from './llmProfilesStore';
 import { listSkillFiles } from './skills';
 import { listWorkspaceFiles } from './workspaceFiles';
 import { resolveWorkspaceFilePath } from './workspacePaths';
+import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds, resolveLocalTools } from '../../shared/localTools';
 
 export type WebviewHost = {
   postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
+};
+
+type LocalConversationToolControls = {
+  mode: 'local';
+  getToolNames: () => string[];
+  setTools: (tools: unknown[]) => void;
+};
+
+const isLocalConversationToolControls = (value: unknown): value is LocalConversationToolControls => {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<LocalConversationToolControls> & { [k: string]: unknown };
+  return candidate.mode === 'local'
+    && typeof candidate.getToolNames === 'function'
+    && typeof candidate.setTools === 'function';
 };
 
 function execFileText(command: string, args: string[], cwd?: string): Promise<string> {
@@ -117,6 +132,26 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
   const elevenlabsCacheMaxBytes = 50 * 1024 * 1024;
   let elevenlabsTtsGate: TtsConversationGate | null = null;
+
+  const postToolsList = (): void => {
+    const mode = deps.getConversationMode();
+    if (mode !== 'local') {
+      void host.postMessage({ type: 'toolsList', tools: [], enabledToolIds: [] });
+      return;
+    }
+
+    const tools = listLocalToolDescriptors();
+    const conversation = deps.getConversation();
+    const enabledToolIds = (() => {
+      if (isLocalConversationToolControls(conversation)) {
+        const ids = normalizeLocalToolIds(conversation.getToolNames());
+        if (ids !== null) return ids;
+      }
+      return getDefaultLocalToolIds();
+    })();
+
+    void host.postMessage({ type: 'toolsList', tools, enabledToolIds });
+  };
 
   const postStatusError = (message: string): void => {
     void host.postMessage({
@@ -249,6 +284,8 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           activeProfileId: initSettings.llm.profileId ?? null,
         });
 
+        postToolsList();
+
         void host.postMessage({
           type: 'serverListUpdated',
           servers: initSettings.servers,
@@ -281,6 +318,37 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const skills = await listSkillFiles();
         outputChannel?.appendLine(`[skills] Found ${skills.length} skill(s)`);
         void host.postMessage({ type: 'skillsList', skills });
+        break;
+      }
+      case 'requestTools': {
+        postToolsList();
+        break;
+      }
+      case 'setEnabledTools': {
+        const mode = deps.getConversationMode();
+        if (mode !== 'local') break;
+
+        const normalized = normalizeLocalToolIds(message.toolIds);
+        if (normalized === null) {
+          postStatusError('Invalid tools selection received from webview');
+          break;
+        }
+
+        const conversation = deps.getConversation();
+        if (!isLocalConversationToolControls(conversation)) {
+          postStatusError('Cannot update tools: conversation unavailable');
+          break;
+        }
+
+        try {
+          conversation.setTools(resolveLocalTools(normalized));
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          outputChannel?.appendLine(`[tools] Failed to update tools: ${reason}`);
+          void host.postMessage({ type: 'statusMessage', level: 'info', message: reason, autoDismiss: true, autoDismissDelay: 4000 });
+        }
+
+        postToolsList();
         break;
       }
       case 'openSkill': {
@@ -945,6 +1013,15 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             break;
           case 'startNewConversation':
             await conversation?.startNewConversation();
+            if (isLocalConversationToolControls(conversation)) {
+              try {
+                conversation.setTools(resolveLocalTools(getDefaultLocalToolIds()));
+              } catch (err) {
+                const reason = err instanceof Error ? err.message : String(err);
+                outputChannel?.appendLine(`[tools] Failed to reset tools: ${reason}`);
+              }
+              postToolsList();
+            }
             break;
           case 'approveAction':
             await conversation?.approveAction();
