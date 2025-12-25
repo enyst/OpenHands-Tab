@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 import { getVscodeApi } from '../shared/vscodeApi';
@@ -70,6 +70,8 @@ const ADVANCED_FIELD_KEYS: Array<keyof ProfileFormState> = [
 ];
 
 type Provider = Exclude<ProfileFormState['provider'], ''>;
+
+const profileFieldId = (key: string) => `llmProfilesField-${key}`;
 
 const PROVIDER_DOCS_URLS: Record<Provider, string> = {
   openai: 'https://platform.openai.com/docs',
@@ -273,10 +275,22 @@ const buildProfileConfig = (form: ProfileFormState): LLMConfiguration => {
   };
 };
 
-function FieldLabel({ label, required }: { label: string; required?: boolean }) {
+function FieldLabel({ label, required, htmlFor }: { label: string; required?: boolean; htmlFor?: string }) {
+  const requiredMarker = required ? <span className="text-red-400" aria-hidden="true"> *</span> : null;
+
+  if (htmlFor) {
+    return (
+      <div className="text-xs font-medium text-stone-300">
+        <label htmlFor={htmlFor}>{label}</label>
+        {requiredMarker}
+      </div>
+    );
+  }
+
   return (
     <div className="text-xs font-medium text-stone-300">
-      {label}{required ? <span className="text-red-400"> *</span> : null}
+      <span>{label}</span>
+      {requiredMarker}
     </div>
   );
 }
@@ -286,16 +300,21 @@ function FieldError({ message }: { message?: string }) {
   return <div className="text-xs text-red-400 mt-1">{message}</div>;
 }
 
-function InputField(props: {
+type InputFieldProps = {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
   type?: string;
   ariaLabel?: string;
-}) {
+};
+
+const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function InputField(props, ref) {
   return (
     <input
+      ref={ref}
+      id={props.id}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
       placeholder={props.placeholder}
@@ -311,16 +330,21 @@ function InputField(props: {
       `}
     />
   );
-}
+});
 
-function SelectField(props: {
+type SelectFieldProps = {
+  id?: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   children: ReactNode;
-}) {
+};
+
+const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(function SelectField(props, ref) {
   return (
     <select
+      ref={ref}
+      id={props.id}
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
       disabled={props.disabled}
@@ -335,7 +359,7 @@ function SelectField(props: {
       {props.children}
     </select>
   );
-}
+});
 
 export function LlmProfilesView(props: {
   isOpen: boolean;
@@ -361,6 +385,10 @@ export function LlmProfilesView(props: {
   const panelRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const providerSelectRef = useRef<HTMLSelectElement>(null);
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const activeProfileIdRef = useRef<string | null>(null);
   const [profiles, setProfiles] = useState<string[]>([]);
@@ -494,14 +522,14 @@ export function LlmProfilesView(props: {
       if (mode === 'create') {
         if (!trimmedDraftApiKey) {
           requestAnimationFrame(() => {
-            panelRef.current?.querySelector<HTMLInputElement>('input[type="password"]')?.focus();
+            apiKeyInputRef.current?.focus();
           });
           return;
         }
       } else if (canEditApiKeyForSave && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasKey) {
         setShowApiKeyEditor(true);
         requestAnimationFrame(() => {
-          panelRef.current?.querySelector<HTMLInputElement>('input[type="password"]')?.focus();
+          apiKeyInputRef.current?.focus();
         });
         return;
       }
@@ -632,10 +660,7 @@ export function LlmProfilesView(props: {
 
     editorScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
     requestAnimationFrame(() => {
-      const firstFocusable = panelRef.current?.querySelector<HTMLElement>(
-        'select:not([disabled]), input:not([disabled]), textarea:not([disabled])'
-      );
-      firstFocusable?.focus();
+      providerSelectRef.current?.focus();
     });
   }, [mode, selectedProfileId, startEdit]);
 
@@ -659,7 +684,7 @@ export function LlmProfilesView(props: {
 
     editorScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
     requestAnimationFrame(() => {
-      panelRef.current?.querySelector<HTMLInputElement>('input[placeholder="e.g. gpt-5"]')?.focus();
+      nameInputRef.current?.focus();
     });
   }, [form, mode]);
 
@@ -895,9 +920,11 @@ export function LlmProfilesView(props: {
 
                   {mode === 'create' && providerRequiresApiKey && (
                     <div className="mt-3">
-                      <FieldLabel label="API key" required />
+                      <FieldLabel label="API key" required htmlFor="llmProfilesApiKeyCreate" />
                       <div className="mt-2">
                         <InputField
+                          ref={apiKeyInputRef}
+                          id="llmProfilesApiKeyCreate"
                           value={apiKeyInput}
                           onChange={setApiKeyInput}
                           placeholder="(hidden)"
@@ -916,9 +943,11 @@ export function LlmProfilesView(props: {
 
                   {canEditApiKey && showApiKeyEditor && (
                     <div className="mt-3">
-                      <FieldLabel label="New API key" required />
+                      <FieldLabel label="New API key" required htmlFor="llmProfilesApiKeyEdit" />
                       <div className="mt-2">
                         <InputField
+                          ref={apiKeyInputRef}
+                          id="llmProfilesApiKeyEdit"
                           value={apiKeyInput}
                           onChange={setApiKeyInput}
                           placeholder="(hidden)"
@@ -970,9 +999,11 @@ export function LlmProfilesView(props: {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <FieldLabel label="Name" required />
+                    <FieldLabel label="Name" required htmlFor={profileFieldId('name')} />
                     <div className="mt-2">
                       <InputField
+                        ref={nameInputRef}
+                        id={profileFieldId('name')}
                         value={form.name}
                         onChange={(v) => update('name', v)}
                         placeholder="e.g. gpt-5"
@@ -984,7 +1015,7 @@ export function LlmProfilesView(props: {
 
                   <div>
                     <div className="flex items-center justify-between gap-2">
-                      <FieldLabel label="Provider" />
+                      <FieldLabel label="Provider" htmlFor={profileFieldId('provider')} />
                       {providerDocsUrl && (
                         <button
                           type="button"
@@ -999,6 +1030,8 @@ export function LlmProfilesView(props: {
                     </div>
                     <div className="mt-2">
                       <SelectField
+                        ref={providerSelectRef}
+                        id={profileFieldId('provider')}
                         value={form.provider}
                         onChange={(v) => update('provider', v as ProfileFormState['provider'])}
                       >
@@ -1014,9 +1047,10 @@ export function LlmProfilesView(props: {
                   </div>
 
                   <div className="col-span-2">
-                    <FieldLabel label="Model" required />
+                    <FieldLabel label="Model" required htmlFor={profileFieldId('model')} />
                     <div className="mt-2">
                       <InputField
+                        id={profileFieldId('model')}
                         value={form.model}
                         onChange={(v) => update('model', v)}
                         placeholder="e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro"
@@ -1029,7 +1063,10 @@ export function LlmProfilesView(props: {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <div className="flex items-center justify-between gap-3">
-                      <FieldLabel label="Base URL" />
+                      <FieldLabel
+                        label="Base URL"
+                        htmlFor={useCustomBaseUrl ? profileFieldId('baseUrl') : undefined}
+                      />
                       <label className="flex items-center gap-2 text-xs text-stone-300 select-none">
                         <input
                           type="checkbox"
@@ -1047,6 +1084,7 @@ export function LlmProfilesView(props: {
                     {useCustomBaseUrl ? (
                       <div className="mt-2">
                         <InputField
+                          id={profileFieldId('baseUrl')}
                           value={form.baseUrl}
                           onChange={(v) => update('baseUrl', v)}
                           placeholder="https://api.openai.com/v1"
@@ -1061,9 +1099,10 @@ export function LlmProfilesView(props: {
                   </div>
 
                   <div>
-                    <FieldLabel label="OpenAI API mode" />
+                    <FieldLabel label="OpenAI API mode" htmlFor={profileFieldId('openaiApiMode')} />
                     <div className="mt-2">
                       <SelectField
+                        id={profileFieldId('openaiApiMode')}
                         value={form.openaiApiMode}
                         onChange={(v) => update('openaiApiMode', v as ProfileFormState['openaiApiMode'])}
                         disabled={form.provider !== 'openai'}
@@ -1077,9 +1116,14 @@ export function LlmProfilesView(props: {
                   </div>
 
                   <div>
-                    <FieldLabel label="Timeout (seconds)" />
+                    <FieldLabel label="Timeout (seconds)" htmlFor={profileFieldId('timeoutSeconds')} />
                     <div className="mt-2">
-                      <InputField value={form.timeoutSeconds} onChange={(v) => update('timeoutSeconds', v)} placeholder="60" />
+                      <InputField
+                        id={profileFieldId('timeoutSeconds')}
+                        value={form.timeoutSeconds}
+                        onChange={(v) => update('timeoutSeconds', v)}
+                        placeholder="60"
+                      />
                       <FieldError message={errors.timeoutSeconds} />
                     </div>
                   </div>
@@ -1115,9 +1159,10 @@ export function LlmProfilesView(props: {
                       className="mt-4 space-y-6"
                     >
                       <div>
-                        <FieldLabel label="API Version" />
+                        <FieldLabel label="API Version" htmlFor={profileFieldId('apiVersion')} />
                         <div className="mt-2">
                           <InputField
+                            id={profileFieldId('apiVersion')}
                             value={form.apiVersion}
                             onChange={(v) => update('apiVersion', v)}
                             placeholder="optional"
@@ -1128,38 +1173,59 @@ export function LlmProfilesView(props: {
 
                       <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <FieldLabel label="Temperature" />
+                          <FieldLabel label="Temperature" htmlFor={profileFieldId('temperature')} />
                           <div className="mt-2">
-                            <InputField value={form.temperature} onChange={(v) => update('temperature', v)} placeholder="0.2" />
+                            <InputField
+                              id={profileFieldId('temperature')}
+                              value={form.temperature}
+                              onChange={(v) => update('temperature', v)}
+                              placeholder="0.2"
+                            />
                             <FieldError message={errors.temperature} />
                           </div>
                         </div>
                         <div>
-                          <FieldLabel label="Top P" />
+                          <FieldLabel label="Top P" htmlFor={profileFieldId('topP')} />
                           <div className="mt-2">
-                            <InputField value={form.topP} onChange={(v) => update('topP', v)} placeholder="1" />
+                            <InputField
+                              id={profileFieldId('topP')}
+                              value={form.topP}
+                              onChange={(v) => update('topP', v)}
+                              placeholder="1"
+                            />
                             <FieldError message={errors.topP} />
                           </div>
                         </div>
                         <div>
-                          <FieldLabel label="Top K" />
+                          <FieldLabel label="Top K" htmlFor={profileFieldId('topK')} />
                           <div className="mt-2">
-                            <InputField value={form.topK} onChange={(v) => update('topK', v)} placeholder="optional" />
+                            <InputField
+                              id={profileFieldId('topK')}
+                              value={form.topK}
+                              onChange={(v) => update('topK', v)}
+                              placeholder="optional"
+                            />
                             <FieldError message={errors.topK} />
                           </div>
                         </div>
                         <div>
-                          <FieldLabel label="Max input tokens" />
+                          <FieldLabel label="Max input tokens" htmlFor={profileFieldId('maxInputTokens')} />
                           <div className="mt-2">
-                            <InputField value={form.maxInputTokens} onChange={(v) => update('maxInputTokens', v)} placeholder="optional" />
+                            <InputField
+                              id={profileFieldId('maxInputTokens')}
+                              value={form.maxInputTokens}
+                              onChange={(v) => update('maxInputTokens', v)}
+                              placeholder="optional"
+                            />
                             <FieldError message={errors.maxInputTokens} />
                           </div>
                         </div>
                         <div>
-                          <FieldLabel label="Max output tokens" />
+                          <FieldLabel label="Max output tokens" htmlFor={profileFieldId('maxOutputTokens')} />
                           <div className="mt-2">
                             <div className="space-y-2">
                               <InputField
+                                id={profileFieldId('maxOutputTokens')}
                                 value={form.maxOutputTokens}
                                 onChange={(v) => update('maxOutputTokens', v)}
                                 placeholder="optional"
@@ -1189,9 +1255,10 @@ export function LlmProfilesView(props: {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <FieldLabel label="Reasoning effort" />
+                          <FieldLabel label="Reasoning effort" htmlFor={profileFieldId('reasoningEffort')} />
                           <div className="mt-2">
                             <SelectField
+                              id={profileFieldId('reasoningEffort')}
                               value={form.reasoningEffort}
                               onChange={(v) => update('reasoningEffort', v as ProfileFormState['reasoningEffort'])}
                             >
@@ -1205,9 +1272,10 @@ export function LlmProfilesView(props: {
                           </div>
                         </div>
                         <div>
-                          <FieldLabel label="Reasoning summary" />
+                          <FieldLabel label="Reasoning summary" htmlFor={profileFieldId('reasoningSummary')} />
                           <div className="mt-2">
                             <SelectField
+                              id={profileFieldId('reasoningSummary')}
                               value={form.reasoningSummary}
                               onChange={(v) => update('reasoningSummary', v as ProfileFormState['reasoningSummary'])}
                             >
@@ -1223,16 +1291,26 @@ export function LlmProfilesView(props: {
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <FieldLabel label="Input cost per token" />
+                          <FieldLabel label="Input cost per token" htmlFor={profileFieldId('inputCostPerToken')} />
                           <div className="mt-2">
-                            <InputField value={form.inputCostPerToken} onChange={(v) => update('inputCostPerToken', v)} placeholder="optional" />
+                            <InputField
+                              id={profileFieldId('inputCostPerToken')}
+                              value={form.inputCostPerToken}
+                              onChange={(v) => update('inputCostPerToken', v)}
+                              placeholder="optional"
+                            />
                             <FieldError message={errors.inputCostPerToken} />
                           </div>
                         </div>
                         <div>
-                          <FieldLabel label="Output cost per token" />
+                          <FieldLabel label="Output cost per token" htmlFor={profileFieldId('outputCostPerToken')} />
                           <div className="mt-2">
-                            <InputField value={form.outputCostPerToken} onChange={(v) => update('outputCostPerToken', v)} placeholder="optional" />
+                            <InputField
+                              id={profileFieldId('outputCostPerToken')}
+                              value={form.outputCostPerToken}
+                              onChange={(v) => update('outputCostPerToken', v)}
+                              placeholder="optional"
+                            />
                             <FieldError message={errors.outputCostPerToken} />
                           </div>
                         </div>

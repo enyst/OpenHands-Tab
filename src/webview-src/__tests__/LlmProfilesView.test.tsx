@@ -76,7 +76,7 @@ describe('LLM Profiles view', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Set key…' }));
 
-    const apiKeyInput = await screen.findByPlaceholderText('(hidden)');
+    const apiKeyInput = await screen.findByLabelText('New API key');
     fireEvent.change(apiKeyInput, { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
 
@@ -137,7 +137,7 @@ describe('LLM Profiles view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
     expect(await screen.findByText('API Version')).toBeInTheDocument();
 
-    const topPInput = screen.getByPlaceholderText('1');
+    const topPInput = screen.getByLabelText('Top P');
     fireEvent.change(topPInput, { target: { value: 'abc' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
@@ -236,14 +236,14 @@ describe('LLM Profiles view', () => {
       profile: { model: 'gpt-5', provider: 'openai' },
     });
 
-    const nameInput = await screen.findByPlaceholderText('e.g. gpt-5');
+    const nameInput = await screen.findByLabelText('Name');
     expect(nameInput).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Duplicate profile' })).not.toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create profile' }));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('e.g. gpt-5')).not.toBeDisabled();
+      expect(screen.getByLabelText('Name')).not.toBeDisabled();
     });
     expect(screen.getByRole('button', { name: 'Edit profile' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Duplicate profile' })).toBeDisabled();
@@ -283,27 +283,27 @@ describe('LLM Profiles view', () => {
       },
     });
 
-    const nameInput = await screen.findByPlaceholderText('e.g. gpt-5');
+    const nameInput = await screen.findByLabelText('Name');
     expect(nameInput).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate profile' }));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('e.g. gpt-5')).not.toBeDisabled();
+      expect(screen.getByLabelText('Name')).not.toBeDisabled();
     });
 
-    const nameInput2 = screen.getByPlaceholderText('e.g. gpt-5');
+    const nameInput2 = screen.getByLabelText('Name');
     expect(nameInput2).toHaveValue('');
-    expect(screen.getByPlaceholderText('e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro')).toHaveValue('gpt-5');
+    expect(screen.getByLabelText('Model')).toHaveValue('gpt-5');
 
     const baseUrlToggle = screen.getByRole('checkbox', { name: 'Use custom base URL' });
     expect(baseUrlToggle).toBeChecked();
-    expect(screen.getByPlaceholderText('https://api.openai.com/v1')).toHaveValue('https://example.com/v1');
+    expect(screen.getByLabelText('Base URL')).toHaveValue('https://example.com/v1');
 
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
     expect(await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' })).toHaveValue(2048);
 
-    const apiKeyInput = await screen.findByPlaceholderText('(hidden)');
+    const apiKeyInput = await screen.findByLabelText('API key');
     expect(apiKeyInput).toHaveValue('');
   });
 
@@ -320,24 +320,16 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. gpt-5'), { target: { value: 'gpt-5' } });
-    fireEvent.change(
-      screen.getByPlaceholderText('e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro'),
-      { target: { value: 'gpt-5' } }
-    );
-
-    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
-      candidate.querySelector('option[value="openai"]') !== null
-    ));
-    if (!providerSelect) throw new Error('Failed to find provider select');
-    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'gpt-5' } });
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
+    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'openai' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('You must provide a valid API key.')).toBeInTheDocument();
     expect(getLastPostedOfType('llmProfileSaveRequest')).toBeNull();
 
-    fireEvent.change(screen.getByPlaceholderText('(hidden)'), { target: { value: 'sk-test' } });
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -358,19 +350,11 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. gpt-5'), { target: { value: 'gpt-5' } });
-    fireEvent.change(
-      screen.getByPlaceholderText('e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro'),
-      { target: { value: 'gpt-5' } }
-    );
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'gpt-5' } });
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
+    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'openai' } });
 
-    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
-      candidate.querySelector('option[value="openai"]') !== null
-    ));
-    if (!providerSelect) throw new Error('Failed to find provider select');
-    fireEvent.change(providerSelect, { target: { value: 'openai' } });
-
-    fireEvent.change(await screen.findByPlaceholderText('(hidden)'), { target: { value: 'sk-test' } });
+    fireEvent.change(await screen.findByLabelText('API key'), { target: { value: 'sk-test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => {
@@ -406,7 +390,7 @@ describe('LLM Profiles view', () => {
     postToWindow({ type: 'llmProfileApiKeyStatusResponse', requestId: statusRequest.requestId, ok: true, hasKey: false });
 
     fireEvent.click(await screen.findByRole('button', { name: 'Set key…' }));
-    expect(await screen.findByPlaceholderText('(hidden)')).toHaveValue('sk-test');
+    expect(await screen.findByLabelText('New API key')).toHaveValue('sk-test');
   });
 
   it('shows an inline missing API key warning and blocks save in edit mode', async () => {
@@ -455,7 +439,7 @@ describe('LLM Profiles view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(getLastPostedOfType('llmProfileSaveRequest')).toBeNull();
-    expect(await screen.findByPlaceholderText('(hidden)')).toBeInTheDocument();
+    expect(await screen.findByLabelText('New API key')).toBeInTheDocument();
   });
 
   it('offers a Provider docs link based on the selected provider', async () => {
@@ -471,10 +455,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
-      candidate.querySelector('option[value="openai"]') !== null
-    ));
-    if (!providerSelect) throw new Error('Failed to find provider select');
+    const providerSelect = screen.getByLabelText('Provider');
 
     fireEvent.change(providerSelect, { target: { value: 'openai' } });
 
@@ -507,10 +488,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
-      candidate.querySelector('option[value="openai"]') !== null
-    ));
-    if (!providerSelect) throw new Error('Failed to find provider select');
+    const providerSelect = screen.getByLabelText('Provider');
 
     fireEvent.change(providerSelect, { target: { value: 'openai' } });
 
@@ -534,23 +512,23 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    expect(screen.queryByPlaceholderText('https://api.openai.com/v1')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument();
 
     const toggle = await screen.findByRole('checkbox', { name: 'Use custom base URL' });
     fireEvent.click(toggle);
 
-    const baseUrlInput = await screen.findByPlaceholderText('https://api.openai.com/v1');
+    const baseUrlInput = await screen.findByLabelText('Base URL');
     fireEvent.change(baseUrlInput, { target: { value: 'https://example.com/v1' } });
     expect(baseUrlInput).toHaveValue('https://example.com/v1');
 
     fireEvent.click(toggle);
 
     await waitFor(() => {
-      expect(screen.queryByPlaceholderText('https://api.openai.com/v1')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Base URL')).not.toBeInTheDocument();
     });
 
     fireEvent.click(toggle);
-    const baseUrlInput2 = await screen.findByPlaceholderText('https://api.openai.com/v1');
+    const baseUrlInput2 = await screen.findByLabelText('Base URL');
     expect(baseUrlInput2).toHaveValue('');
   });
 });
