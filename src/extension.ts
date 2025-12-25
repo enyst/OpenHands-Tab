@@ -8,6 +8,7 @@ import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { type HalStateSnapshot, isElevenLabsMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
+import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, isValidPastedImageId } from './shared/pastedImages';
 import { cleanupPastedImages } from './shared/pastedImagesCleanup';
@@ -49,6 +50,7 @@ let chatWebviewReady = false; // Track if chat WebviewView is ready
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
+let secretRegistry: SecretRegistry | undefined;
 let conversationStoreRoot: string | undefined;
 let lastKnownLlmLabel: string | null = null;
 let verboseEventLogging = false;
@@ -92,9 +94,36 @@ async function initFileLogger(context: vscode.ExtensionContext) {
 }
 function fileLog(line: string) {
   if (!devBridgeEnabled || !webviewLogFile) return;
+  const masked = maskSecretsInText(line, secretRegistry);
   const ts = new Date().toISOString();
-  fs.appendFile(webviewLogFile, `[${ts}] ${line}\n`).catch((err: unknown) => {
+  fs.appendFile(webviewLogFile, `[${ts}] ${masked}\n`).catch((err: unknown) => {
     console.warn('[OpenHands] Failed to append to webview log', err);
+  });
+}
+
+function createMaskedOutputChannel(channel: vscode.OutputChannel): vscode.OutputChannel {
+  return new Proxy(channel, {
+    get(target, prop, receiver) {
+      if (prop === 'appendLine' && typeof target.appendLine === 'function') {
+        return (value: string) => target.appendLine(maskSecretsInText(String(value), secretRegistry));
+      }
+
+      const append = (target as unknown as { append?: unknown }).append;
+      if (prop === 'append' && typeof append === 'function') {
+        return (value: string) =>
+          (target as unknown as { append: (text: string) => void }).append(maskSecretsInText(String(value), secretRegistry));
+      }
+
+      const replace = (target as unknown as { replace?: unknown }).replace;
+      if (prop === 'replace' && typeof replace === 'function') {
+        return (value: string) =>
+          (target as unknown as { replace: (text: string) => void }).replace(maskSecretsInText(String(value), secretRegistry));
+      }
+
+      const value = Reflect.get(target, prop, receiver) as unknown;
+      if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
+      return value;
+    },
   });
 }
 
@@ -211,7 +240,8 @@ const createDefaultLocalTools = () => [
 
 /** Render an error for logging/display (handles Error objects and unknown values) */
 function renderError(err: unknown): string {
-  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return maskSecretsInText(rendered, secretRegistry);
 }
 
 function execFileText(command: string, args: string[], cwd?: string): Promise<string> {
@@ -356,30 +386,32 @@ async function resolveConversationStoreRoot(context: vscode.ExtensionContext): P
  * @param context - The VS Code extension context used to register disposables, access workspace and global state, and resolve extension resources
  */
 export function activate(context: vscode.ExtensionContext) {
+  const secrets = new SecretRegistry(context.secrets);
+  secretRegistry = secrets;
+
   try {
     const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
-    outputChannel = channel;
+    outputChannel = createMaskedOutputChannel(channel);
     context.subscriptions.push(channel);
-    channel.show(true);
-    channel.appendLine('[OpenHands] Logging channel initialized');
+    outputChannel.show(true);
+    outputChannel.appendLine('[OpenHands] Logging channel initialized');
   } catch (err) {
     console.warn('[OpenHands] Failed to create output channel:', err);
     outputChannel = undefined;
   }
 
-  const secretRegistry = new SecretRegistry(context.secrets);
   pastedImagesBaseDir = getGlobalStorageBaseDir(context.globalStorageUri?.fsPath);
 
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
-      createWebviewMessageHandler({
-        context,
-        host: { postMessage: (message) => view.webview.postMessage(message) },
-        secretRegistry,
-        getConversation: () => conversation,
-        getConversationMode: () => conversationMode,
-        getConversationStoreRoot: () => conversationStoreRoot,
-        resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
+        createWebviewMessageHandler({
+          context,
+          host: { postMessage: (message) => view.webview.postMessage(message) },
+          secretRegistry: secrets,
+          getConversation: () => conversation,
+          getConversationMode: () => conversationMode,
+          getConversationStoreRoot: () => conversationStoreRoot,
+          resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
         setWebviewReadyState: (conversationId, lastSeenSeq) => {
           chatWebviewReady = true;
           chatLastConversationId = conversationId;
@@ -599,15 +631,15 @@ export function activate(context: vscode.ExtensionContext) {
           ? new AgentContext({ loadUserSkills: true })
           : undefined;
 
-      const conversationOptions = {
-        serverUrl: settings.serverUrl ?? undefined,
-        settings,
-        workspaceRoot,
-        tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
-        secrets: secretRegistry,
-        persistenceDir,
-        agentContext,
-      };
+        const conversationOptions = {
+          serverUrl: settings.serverUrl ?? undefined,
+          settings,
+          workspaceRoot,
+          tools: settings.serverUrl ? undefined : createDefaultLocalTools(),
+          secrets,
+          persistenceDir,
+          agentContext,
+        };
 
       try {
         conversation = Conversation(conversationOptions);
@@ -734,8 +766,8 @@ export function activate(context: vscode.ExtensionContext) {
     await conversation.sendUserMessage(prompt);
   });
 
-  const diagnosticsCommands = registerDiagnosticsCommands({
-    context,
+    const diagnosticsCommands = registerDiagnosticsCommands({
+      context,
     getChatView: () => chatView,
     getChatWebviewReady: () => chatWebviewReady,
     getChatLastConversationId: () => chatLastConversationId,
@@ -748,12 +780,12 @@ export function activate(context: vscode.ExtensionContext) {
     pendingRenderedEventsRequests,
     pendingUiStateRequests,
     pendingHalStateRequests,
-    ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
-    printedExitFor,
-    secretRegistry,
-    getConversation: () => conversation,
-    getConversationMode: () => conversationMode,
-    getTerminal: () => terminal,
+      ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
+      printedExitFor,
+      secretRegistry: secrets,
+      getConversation: () => conversation,
+      getConversationMode: () => conversationMode,
+      getTerminal: () => terminal,
     getReceivedTerminalEventsCount: () => receivedTerminalEvents.length,
     getRecentTerminalEvents: (max = 10) => receivedTerminalEvents.slice(-Math.max(0, Math.min(max, MAX_TERMINAL_EVENTS))),
     onTerminalEvent: (event) => handleTerminalEvent(event),
@@ -891,11 +923,11 @@ export function activate(context: vscode.ExtensionContext) {
             );
             if (confirmed !== 'Clear') return;
 
-            await context.secrets.delete(options.storageKey);
-            secretRegistry.set(options.storageKey, undefined);
-            vscode.window.showInformationMessage(options.clearedMessage);
-            return;
-          }
+              await context.secrets.delete(options.storageKey);
+              secrets.set(options.storageKey, undefined);
+              vscode.window.showInformationMessage(options.clearedMessage);
+              return;
+            }
         }
 
         const value = await vscode.window.showInputBox({
@@ -909,12 +941,12 @@ export function activate(context: vscode.ExtensionContext) {
         const trimmed = value.trim();
         if (!trimmed) return;
 
-        await context.secrets.store(options.storageKey, trimmed);
-        secretRegistry.set(options.storageKey, trimmed);
-        vscode.window.showInformationMessage(options.successMessage);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
+          await context.secrets.store(options.storageKey, trimmed);
+          secrets.set(options.storageKey, trimmed);
+          vscode.window.showInformationMessage(options.successMessage);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
       }
     });
 
