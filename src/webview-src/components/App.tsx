@@ -1400,8 +1400,7 @@ export function App() {
             <div className="text-6xl mb-6">🙌</div>
             <h2 className="text-2xl font-semibold mb-3 text-stone-100">Welcome to OpenHands</h2>
             <p className="text-sm text-stone-400 max-w-md leading-relaxed">
-              Start a conversation to collaborate with your AI coding assistant.
-              Ask questions, request implementations, or get help with your code.
+              Start a conversation to collaborate with your AI agent.
             </p>
             <div className="mt-6 flex items-center gap-2 text-xs text-stone-500">
               <span className="codicon codicon-lightbulb text-brand-400" />
