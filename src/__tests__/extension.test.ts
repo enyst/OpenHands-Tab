@@ -294,6 +294,35 @@ describe('Chat view behavior', () => {
     expect(conv.setSettings).toHaveBeenCalledWith(mockSettings);
   });
 
+  it('refreshes the active conversation when confirmation settings change', async () => {
+    const view = await resolveChatView(mockContext);
+    expect(view).toBeTruthy();
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    mockSettings = {
+      ...mockSettings,
+      confirmation: {
+        ...mockSettings.confirmation,
+        policy: 'always',
+      },
+    };
+
+    (vscode as any).__triggerConfigChange({
+      affectsConfiguration: (key: string) => key === 'openhands.confirmation' || key === 'openhands.confirmation.policy',
+    });
+
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      if ((conv.setSettings as Mock).mock.calls.length > 0) break;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(conv.setSettings).toHaveBeenCalledWith(mockSettings);
+  });
+
   it('starts a fresh conversation on serverUrl changes (no auto-restore)', async () => {
     await resolveChatView(mockContext);
     const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
