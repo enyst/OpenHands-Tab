@@ -300,7 +300,7 @@ describe('Agent-SDK event rendering', () => {
       source: 'environment' as const,
       observation: {
         command: 'str_replace',
-        path: '/tmp/README.md',
+        path: '/tmp/nested/README.md',
         prev_exist: true,
         old_content: 'old content',
         new_content: 'new content',
@@ -311,13 +311,16 @@ describe('Agent-SDK event rendering', () => {
     } as any;
 
     postToWindow({ type: 'event', event: observationEvent });
-    const button = await screen.findByRole('button', { name: 'View diff for /tmp/README.md' });
+    const button = await screen.findByRole('button', { name: 'View diff for /tmp/nested/README.md' });
+    expect(button).toHaveTextContent('README.md');
+    expect(button).not.toHaveTextContent('/tmp/nested/README.md');
+    expect(button).toHaveAttribute('title', 'View diff for /tmp/nested/README.md');
     fireEvent.click(button);
 
     expect(mockApi.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'openWorkspaceDiff',
-        path: '/tmp/README.md',
+        path: '/tmp/nested/README.md',
         oldContent: 'old content',
         newContent: 'new content',
         preferGitHead: true,

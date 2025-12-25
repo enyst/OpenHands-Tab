@@ -213,6 +213,13 @@ function InlineFileReference({ path }: { path?: string }) {
   if (!path) {
     return <span className="font-mono text-xs text-stone-400">this path</span>;
   }
+
+  const trimmedPath = path.replace(/[\\/]+$/, '');
+  const normalizedPath = trimmedPath.replaceAll('\\', '/');
+  const lastSlashIndex = normalizedPath.lastIndexOf('/');
+  const basename = lastSlashIndex >= 0 ? normalizedPath.slice(lastSlashIndex + 1) : normalizedPath;
+  const label = basename || normalizedPath || path;
+
   return (
     <button
       type="button"
@@ -222,7 +229,7 @@ function InlineFileReference({ path }: { path?: string }) {
       title={`Open ${path}`}
     >
       <span className="codicon codicon-file text-brand-400/70" />
-      <span className="truncate max-w-[16rem]">{path}</span>
+      <span className="truncate max-w-[16rem]">{label}</span>
       <span className="codicon codicon-go-to-file opacity-40 group-hover:opacity-70 transition-opacity" />
     </button>
   );
@@ -239,6 +246,12 @@ function InlineFileDiffReference({ path, oldContent, newContent }: { path?: stri
     return <span className="font-mono text-xs text-stone-400">this path</span>;
   }
 
+  const trimmedPath = path.replace(/[\\/]+$/, '');
+  const normalizedPath = trimmedPath.replaceAll('\\', '/');
+  const lastSlashIndex = normalizedPath.lastIndexOf('/');
+  const basename = lastSlashIndex >= 0 ? normalizedPath.slice(lastSlashIndex + 1) : normalizedPath;
+  const label = basename || normalizedPath || path;
+
   const oldText = normalizeDiffContent(oldContent);
   const newText = normalizeDiffContent(newContent);
   if (oldText === undefined || newText === undefined) {
@@ -254,7 +267,7 @@ function InlineFileDiffReference({ path, oldContent, newContent }: { path?: stri
       title={`View diff for ${path}`}
     >
       <span className="codicon codicon-diff text-brand-400/70" />
-      <span className="truncate max-w-[16rem]">{path}</span>
+      <span className="truncate max-w-[16rem]">{label}</span>
       <span className="codicon codicon-go-to-file opacity-40 group-hover:opacity-70 transition-opacity" />
     </button>
   );
