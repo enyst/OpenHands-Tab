@@ -776,7 +776,7 @@ export function ContextPicker({
   );
 }
 
-{/* Tools Popover */}
+// Tools Popover
 interface ToolDescriptor {
   id: string;
   label: string;
@@ -863,7 +863,7 @@ export function ToolsPopover({
   );
 }
 
-{/* Skills Popover */}
+// Skills Popover
 interface Skill {
   label: string;
   path: string;
