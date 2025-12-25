@@ -468,6 +468,7 @@ export function EventContainer({
   className = '',
   index = 0,
   dataTestId,
+  alignRight = false,
 }: {
   children: React.ReactNode;
   accentColor: string;
@@ -475,31 +476,41 @@ export function EventContainer({
   className?: string;
   index?: number;
   dataTestId?: string;
+  alignRight?: boolean;
 }) {
   const animationDelay = `${index * 40}ms`;
   const bgOpacityPercent = Math.round(bgOpacity * 100);
+
+  const borderClasses = alignRight
+    ? 'border-r-[3px] border-l border-t border-b border-l-white/[0.04] border-t-white/[0.04] border-b-white/[0.02]'
+    : 'border-l-[3px] border-r border-t border-b border-r-white/[0.04] border-t-white/[0.04] border-b-white/[0.02]';
+
+  const hoverClasses = alignRight
+    ? 'hover:border-l-white/[0.06]'
+    : 'hover:border-r-white/[0.06]';
 
   return (
     <div
       data-testid={dataTestId}
       className={`
         relative rounded-xl p-4 my-3
-        border-l-[3px] border-r border-t border-b border-r-white/[0.04] border-t-white/[0.04] border-b-white/[0.02]
+        ${borderClasses}
         shadow-event transition-all duration-200
-        hover:shadow-event-hover hover:border-r-white/[0.06]
+        hover:shadow-event-hover ${hoverClasses}
         animate-slide-up
+        ${alignRight ? 'ml-auto max-w-[85%]' : ''}
         ${className}
       `}
       style={{
-        borderLeftColor: accentColor,
-        background: `linear-gradient(135deg, color-mix(in srgb, ${accentColor} ${bgOpacityPercent}%, transparent) 0%, color-mix(in srgb, ${accentColor} ${Math.round(bgOpacity * 50)}%, transparent) 100%)`,
+        [alignRight ? 'borderRightColor' : 'borderLeftColor']: accentColor,
+        background: `linear-gradient(${alignRight ? '225deg' : '135deg'}, color-mix(in srgb, ${accentColor} ${bgOpacityPercent}%, transparent) 0%, color-mix(in srgb, ${accentColor} ${Math.round(bgOpacity * 50)}%, transparent) 100%)`,
         animationDelay,
       }}
     >
       {/* Subtle top highlight for depth */}
       <div
         className="absolute inset-x-0 top-0 h-px rounded-t-xl"
-        style={{ background: `linear-gradient(90deg, ${withAlpha(accentColor, 12)}, transparent 50%)` }}
+        style={{ background: `linear-gradient(${alignRight ? '270deg' : '90deg'}, ${withAlpha(accentColor, 12)}, transparent 50%)` }}
       />
       {children}
     </div>
