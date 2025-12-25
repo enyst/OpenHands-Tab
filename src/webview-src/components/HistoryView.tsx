@@ -203,7 +203,7 @@ function NoResultsState({ query, onClear }: { query: string; onClear: () => void
 
 /**
  * Main history view component that displays a list of past conversations
- * in a slide-in side panel.
+ * in a full-width panel.
  */
 export function HistoryView({
   isOpen,
@@ -274,44 +274,36 @@ export function HistoryView({
   if (!isOpen) return null;
 
   return (
-    <>
+    <div className="fixed inset-0 z-50 flex" role="dialog" aria-label="Conversation History" aria-modal="true">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 animate-fade-in"
-        aria-hidden="true"
-      />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
 
-      {/* Side Panel */}
+      {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed right-0 top-0 h-full w-full max-w-md border-l border-white/[0.06] shadow-2xl z-50 animate-slide-in-right flex flex-col"
-        style={{
-          background: 'linear-gradient(135deg, rgba(28, 25, 23, 0.98) 0%, rgba(12, 10, 9, 0.98) 100%)',
-        }}
-        role="dialog"
-        aria-label="Conversation History"
-        aria-modal="true"
+        className="relative ml-auto w-full max-w-5xl h-full bg-[var(--vscode-editor-background)] border-l border-white/[0.08] shadow-2xl flex flex-col animate-slide-in-right"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-brand-500/15 flex items-center justify-center">
-              <span className="codicon codicon-history text-base text-brand-400" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
+          <div className="flex items-center gap-2.5">
+            <div className="text-2xl" aria-label="OpenHands">
+              🙌
             </div>
-            <h2 className="text-lg font-semibold text-stone-100">History</h2>
+            <h2 className="font-semibold text-base leading-tight text-stone-100">OpenHands - History</h2>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-200 hover:bg-white/[0.08] flex items-center justify-center transition-all"
+            className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center"
             aria-label="Close history"
+            title="Close"
           >
             <span className="codicon codicon-close" />
           </button>
         </div>
 
         {/* Search */}
-        <div className="px-6 pt-4">
-          <div className="relative">
+        <div className="px-5 pt-4">
+          <div className="relative max-w-2xl">
             <span className="codicon codicon-search absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
             <input
               value={query}
@@ -341,13 +333,13 @@ export function HistoryView({
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {sortedConversations.length === 0 ? (
             <EmptyState />
           ) : filteredConversations.length === 0 ? (
             <NoResultsState query={query.trim()} onClear={() => updateQuery('')} />
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 max-w-2xl">
               {visibleConversations.map((conversation, index) => (
                 <ConversationItem
                   key={conversation.id}
@@ -379,12 +371,12 @@ export function HistoryView({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02]">
+        <div className="px-5 py-4 border-t border-white/[0.08] bg-white/[0.02]">
           <p className="text-xs text-stone-500 text-center">
             {footerText}
           </p>
         </div>
       </div>
-    </>
+    </div>
   );
 }

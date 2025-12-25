@@ -1254,22 +1254,34 @@ export function App() {
   }, [postMessage, setInlineImages, setStatusBanner]);
 
   const handleOpenHistory = useCallback(() => {
+    setShowLlmProfiles(false);
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
     setShowHistory(true);
     postMessage({ type: 'requestHistory' });
   }, [postMessage]);
 
   const handleOpenLlmProfiles = useCallback(() => {
     setLlmProfilesOpenRequest(null);
+    setShowHistory(false);
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
     setShowLlmProfiles(true);
   }, []);
 
   const handleOpenLlmProfilesCreate = useCallback(() => {
     setLlmProfilesOpenRequest({ mode: 'create' });
+    setShowHistory(false);
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
     setShowLlmProfiles(true);
   }, []);
 
   const handleOpenLlmProfilesEdit = useCallback((profileId: string) => {
     setLlmProfilesOpenRequest({ mode: 'edit', profileId });
+    setShowHistory(false);
+    setShowContextPicker(false);
+    setShowSkillsPopover(false);
     setShowLlmProfiles(true);
   }, []);
 
