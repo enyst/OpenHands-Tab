@@ -5,12 +5,20 @@ import { AgentOrchestrator } from './AgentOrchestrator';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
-import type { ChatCompletionRequest, LLMClient, LLMToolDefinition } from '../llm';
-import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMFactory, loadProfile } from '../llm';
+import type { ChatCompletionRequest, LLMClient, LLMProvider, LLMToolDefinition } from '../llm';
+import {
+  DEFAULT_PROVIDER_BASE_URLS,
+  detectProviderFromBaseUrl,
+  isContextLimitError,
+  LLMFactory,
+  loadProfile,
+  wouldExceedMaxInputTokens,
+} from '../llm';
 import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
 import {
   isActionEvent,
   isAgentErrorEvent,
+  isCondensation,
   isMessageEvent,
   isObservationEvent,
   isPauseEvent,
@@ -24,6 +32,7 @@ import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
+import { LLMSummarizingCondenser } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
 import { summarizeFileChangesWithGeminiFlash } from './fileDiffSummarizer';
@@ -117,6 +126,8 @@ function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): s
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
 const TOOL_SUMMARY_MAX_CHARS = 1_000;
+const FALLBACK_CONDENSATION_MAX_INPUT_TOKENS = 8_000;
+const MAX_CONDENSATIONS_PER_STEP = 2;
 
 function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
   if (error instanceof Error) {
@@ -206,6 +217,7 @@ export class Agent extends EventEmitter {
   private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
   private readonly confirmation: ConfirmationPolicy;
   private readonly lock = new AsyncLock();
+  private llmClientPromise?: Promise<LLMClient>;
   private orchestratorPromise?: Promise<AgentOrchestrator>;
   private paused = false;
   private cancelled = false;
@@ -498,6 +510,7 @@ export class Agent extends EventEmitter {
       this.updateDerivedSettings(settings);
 
       // Force the next run to rebuild the LLM client from updated settings.
+      this.llmClientPromise = undefined;
       this.orchestratorPromise = undefined;
       return Promise.resolve();
     });
@@ -700,6 +713,7 @@ export class Agent extends EventEmitter {
       this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
       this.state.setStatus('IDLE');
       // Allow a future retry after settings/secrets are updated.
+      this.llmClientPromise = undefined;
       this.orchestratorPromise = undefined;
       return undefined;
     }
@@ -707,35 +721,61 @@ export class Agent extends EventEmitter {
 
     while (!this.paused && !this.pendingAction && !this.cancelled && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
-      const request = this.buildChatRequest();
-      // Emit a lightweight debug/state event so hosts can log what tools are actually sent
-      try {
-        const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
-        this.events.push({
-          kind: 'ConversationStateUpdateEvent',
-          source: 'agent',
-          key: 'llm_request',
-          value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
-        } as Event);
-      } catch (error) {
-        if (this.debug) {
-          console.warn('[Agent] Failed to emit llm_request debug event:', error);
+      const llmConfig = this.getEffectiveLlmConfigForCondensation();
+      let response: Awaited<ReturnType<AgentOrchestrator['runChat']>> | undefined;
+
+      for (let condensationAttempt = 0; condensationAttempt <= MAX_CONDENSATIONS_PER_STEP; condensationAttempt += 1) {
+        const request = this.buildChatRequest();
+
+        // Emit a lightweight debug/state event so hosts can log what tools are actually sent
+        try {
+          const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
           this.events.push({
-            kind: 'ConversationErrorEvent',
+            kind: 'ConversationStateUpdateEvent',
             source: 'agent',
-            detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
+            key: 'llm_request',
+            value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
           } as Event);
+        } catch (error) {
+          if (this.debug) {
+            console.warn('[Agent] Failed to emit llm_request debug event:', error);
+            this.events.push({
+              kind: 'ConversationErrorEvent',
+              source: 'agent',
+              detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
+            } as Event);
+          }
+        }
+
+        const configuredMaxInputTokens = llmConfig.maxInputTokens;
+        if (
+          condensationAttempt < MAX_CONDENSATIONS_PER_STEP &&
+          typeof configuredMaxInputTokens === 'number' &&
+          wouldExceedMaxInputTokens({ request, maxInputTokens: configuredMaxInputTokens })
+        ) {
+          const condensed = await this.tryCondenseConversation({ maxInputTokens: configuredMaxInputTokens });
+          if (condensed) continue;
+        }
+
+        try {
+          response = await orchestrator.runChat(request);
+          break;
+        } catch (error) {
+          if (condensationAttempt < MAX_CONDENSATIONS_PER_STEP && isContextLimitError(llmConfig.provider, error)) {
+            const budget = configuredMaxInputTokens ?? FALLBACK_CONDENSATION_MAX_INPUT_TOKENS;
+            const condensed = await this.tryCondenseConversation({ maxInputTokens: budget });
+            if (condensed) continue;
+          }
+
+          const classified = classifyError(error, { stage: 'llm_request' });
+          this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
+          this.state.setStatus('IDLE');
+          response = undefined;
+          break;
         }
       }
-      let response;
-      try {
-        response = await orchestrator.runChat(request);
-      } catch (error) {
-        const classified = classifyError(error, { stage: 'llm_request' });
-        this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
-        this.state.setStatus('IDLE');
-        break;
-      }
+
+      if (!response) break;
       this.pendingToolSummaries = [];
 
       const assistantEvent: MessageEvent = {
@@ -834,10 +874,17 @@ export class Agent extends EventEmitter {
   }
 
   private buildChatRequest() {
-    const systemPrompt = this.buildSystemPrompt();
-    const rawMessages = this.events
-      .list()
+    const events = this.events.list();
+    const condensationState = this.getCondensationState(events);
+
+    let systemPrompt = this.buildSystemPrompt();
+    if (condensationState.summary) {
+      systemPrompt += `\n\n<CONVERSATION SUMMARY>\n${condensationState.summary}\n</CONVERSATION SUMMARY>`;
+    }
+
+    const rawMessages = events
       .filter(isMessageEvent)
+      .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''))
       .map((event) => {
         if (event.source === 'user' && event.extended_content?.length) {
           return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
@@ -851,6 +898,106 @@ export class Agent extends EventEmitter {
     })();
     const tools = this.getToolDefinitions();
     return { systemPrompt, messages, tools };
+  }
+
+  private getCondensationState(events: Event[]): { summary: string | null; forgottenEventIds: Set<string>; summaryOffset: number | null } {
+    const forgottenEventIds = new Set<string>();
+    let summary: string | null = null;
+    let summaryOffset: number | null = null;
+
+    for (const event of events) {
+      if (!isCondensation(event)) continue;
+      for (const id of event.forgotten_event_ids ?? []) {
+        if (typeof id === 'string' && id.trim()) forgottenEventIds.add(id);
+      }
+      if (typeof event.summary === 'string' && event.summary.trim()) {
+        summary = event.summary.trim();
+        const rawOffset = event.summary_offset;
+        summaryOffset =
+          typeof rawOffset === 'number' && Number.isFinite(rawOffset) ? Math.max(0, Math.trunc(rawOffset)) : null;
+      }
+    }
+
+    return { summary, forgottenEventIds, summaryOffset };
+  }
+
+  private getEffectiveLlmConfigForCondensation(): { provider: LLMProvider | undefined; maxInputTokens: number | undefined } {
+    const llm = this.options.settings?.llm ?? {};
+    const configuredBaseUrl = toOptionalNonEmptyString(llm.baseUrl);
+    const configuredProvider = llm.provider ?? undefined;
+    const configuredMaxInputTokens =
+      typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens) && llm.maxInputTokens > 0
+        ? Math.trunc(llm.maxInputTokens)
+        : undefined;
+
+    const profileId = toOptionalNonEmptyString(llm.profileId);
+    if (!profileId || !isSafeProfileId(profileId)) {
+      return {
+        provider: configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl),
+        maxInputTokens: configuredMaxInputTokens,
+      };
+    }
+
+    try {
+      const profile = loadProfile(profileId);
+      const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
+      const profileProvider = profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
+      const profileMaxInputTokens =
+        typeof profile.config.maxInputTokens === 'number' &&
+        Number.isFinite(profile.config.maxInputTokens) &&
+        profile.config.maxInputTokens > 0
+          ? Math.trunc(profile.config.maxInputTokens)
+          : undefined;
+      return {
+        provider: profileProvider,
+        maxInputTokens: configuredMaxInputTokens ?? profileMaxInputTokens,
+      };
+    } catch {
+      return {
+        provider: configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl),
+        maxInputTokens: configuredMaxInputTokens,
+      };
+    }
+  }
+
+  private async tryCondenseConversation(params: { maxInputTokens: number }): Promise<boolean> {
+    const maxInputTokens = Math.max(0, Math.trunc(params.maxInputTokens));
+    if (maxInputTokens <= 0) return false;
+
+    const events = this.events.list();
+    const condensationState = this.getCondensationState(events);
+    const condensableEvents = events
+      .filter(isMessageEvent)
+      .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''));
+    const previousSummary = condensationState.summary ?? '';
+
+    let llm: LLMClient;
+    try {
+      llm = await this.getPrimaryLlmClient();
+    } catch {
+      return false;
+    }
+
+    const condenser = new LLMSummarizingCondenser(llm, { maxInputTokens });
+    let result;
+    try {
+      result = await condenser.condense({ events: condensableEvents, previousSummary });
+    } catch {
+      return false;
+    }
+
+    if (!result?.summary) return false;
+    if (!result.forgottenEventIds.length) return false;
+
+    this.events.push({
+      kind: 'Condensation',
+      source: 'environment',
+      forgotten_event_ids: result.forgottenEventIds,
+      summary: result.summary,
+      summary_offset: result.summaryOffset,
+    } as Event);
+
+    return true;
   }
 
   private buildToolSummaryMessage(): Message | undefined {
@@ -881,6 +1028,7 @@ export class Agent extends EventEmitter {
     let pendingAssistantIndex: number | null = null;
     let pendingAssistantMessage: Message | null = null;
     let pendingToolResponseIds = new Set<string>();
+    let pendingToolMessageIndices: number[] = [];
 
     const hasMeaningfulAssistantContent = (message: Message): boolean => {
       if (message.responses_reasoning_item) return true;
@@ -896,14 +1044,26 @@ export class Agent extends EventEmitter {
 
       if (matchingToolCalls.length === 0) {
         const withoutToolCalls: Message = { ...pendingAssistantMessage, tool_calls: undefined };
-        sanitized[pendingAssistantIndex] = hasMeaningfulAssistantContent(withoutToolCalls) ? withoutToolCalls : null;
+        const keepAssistant = hasMeaningfulAssistantContent(withoutToolCalls);
+        sanitized[pendingAssistantIndex] = keepAssistant ? withoutToolCalls : null;
+        for (const idx of pendingToolMessageIndices) sanitized[idx] = null;
       } else {
+        const keptToolIds = new Set<string>(matchingToolCalls.map((call) => call.id));
         sanitized[pendingAssistantIndex] = { ...pendingAssistantMessage, tool_calls: matchingToolCalls };
+        for (const idx of pendingToolMessageIndices) {
+          const message = sanitized[idx];
+          if (!message || message.role !== 'tool') continue;
+          const toolCallId = message.tool_call_id;
+          if (typeof toolCallId !== 'string' || !keptToolIds.has(toolCallId)) {
+            sanitized[idx] = null;
+          }
+        }
       }
 
       pendingAssistantIndex = null;
       pendingAssistantMessage = null;
       pendingToolResponseIds = new Set<string>();
+      pendingToolMessageIndices = [];
     };
 
     for (const message of messages) {
@@ -922,6 +1082,14 @@ export class Agent extends EventEmitter {
 
       if (pendingAssistantMessage && message.role === 'tool' && typeof message.tool_call_id === 'string') {
         pendingToolResponseIds.add(message.tool_call_id);
+        pendingToolMessageIndices.push(sanitized.length);
+        sanitized.push(message);
+        continue;
+      }
+
+      if (message.role === 'tool') {
+        // Drop orphan tool messages (they can occur after condensation filters older assistant tool_calls).
+        continue;
       }
 
       sanitized.push(message);
@@ -976,10 +1144,18 @@ export class Agent extends EventEmitter {
     return systemPrompt;
   }
 
+  private async getPrimaryLlmClient(): Promise<LLMClient> {
+    if (this.options.llmClient) return this.options.llmClient;
+    if (!this.llmClientPromise) {
+      this.llmClientPromise = this.createLlmClientFromSettings();
+    }
+    return this.llmClientPromise;
+  }
+
   private async getOrchestrator(): Promise<AgentOrchestrator> {
     if (!this.orchestratorPromise) {
       this.orchestratorPromise = (async () => {
-        const client = this.options.llmClient ?? (await this.createLlmClientFromSettings());
+        const client = await this.getPrimaryLlmClient();
         return new AgentOrchestrator(client, { events: this.events, state: this.state });
       })();
     }
