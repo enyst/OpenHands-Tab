@@ -1083,7 +1083,7 @@ export class Agent extends EventEmitter {
           const profileModel = toOptionalNonEmptyString(profile.config.model);
           const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
           const effectiveProfileProvider =
-            profile.config.provider ?? detectProviderFromBaseUrl(configuredBaseUrl ?? profileBaseUrl);
+            profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
           contextParts.push(`llm.effectiveProvider=${effectiveProfileProvider}`);
           contextParts.push(`llm.effectiveModel=${profileModel ?? '(unset)'}`);
         } catch {
