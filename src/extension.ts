@@ -375,6 +375,7 @@ export function activate(context: vscode.ExtensionContext) {
       createWebviewMessageHandler({
         context,
         host: { postMessage: (message) => view.webview.postMessage(message) },
+        secretRegistry,
         getConversation: () => conversation,
         getConversationMode: () => conversationMode,
         getConversationStoreRoot: () => conversationStoreRoot,

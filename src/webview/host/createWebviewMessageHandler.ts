@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import * as childProcess from 'child_process';
-import { assertValidProfileId, LLMProfileValidationError } from '@openhands/agent-sdk-ts';
+import { assertValidProfileId, LLMProfileValidationError, type SecretRegistry } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
@@ -49,6 +49,7 @@ async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8
 export type CreateWebviewMessageHandlerDeps = {
   context: vscode.ExtensionContext;
   host: WebviewHost;
+  secretRegistry?: SecretRegistry;
 
   getConversation: () => import('@openhands/agent-sdk-ts').ConversationInstance | undefined;
   getConversationMode: () => 'local' | 'remote';
@@ -480,7 +481,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
 
         try {
           llmProfilesStore.deleteProfile(profileId, llmProfileStoreOptions());
-          await context.secrets.delete(getProfileApiKeySecretKey(profileId));
+          const key = getProfileApiKeySecretKey(profileId);
+          await context.secrets.delete(key);
+          deps.secretRegistry?.set(key, undefined);
           void host.postMessage({ type: 'llmProfileDeleteResponse', requestId, ok: true, profileId });
 
           const before = await settingsMgr.get();
@@ -556,8 +559,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           const key = getProfileApiKeySecretKey(profileId);
           if (!apiKey) {
             await context.secrets.delete(key);
+            deps.secretRegistry?.set(key, undefined);
           } else {
             await context.secrets.store(key, apiKey);
+            deps.secretRegistry?.set(key, apiKey);
           }
           void host.postMessage({ type: 'llmProfileApiKeySetResponse', requestId, ok: true, profileId });
         } catch (err) {
