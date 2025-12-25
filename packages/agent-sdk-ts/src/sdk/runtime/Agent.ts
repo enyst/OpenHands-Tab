@@ -30,6 +30,7 @@ import {
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import { FinishTool } from '../../tools/FinishTool';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
 import { LLMSummarizingCondenser } from '../context';
@@ -273,6 +274,7 @@ export class Agent extends EventEmitter {
   private orchestratorPromise?: Promise<AgentOrchestrator>;
   private paused = false;
   private cancelled = false;
+  private finished = false;
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> };
   private pendingWorkspaceAccess?: { paths: string[] };
   private readonly agentContext?: AgentContext;
@@ -295,7 +297,10 @@ export class Agent extends EventEmitter {
     this.state.attachEventLog(this.events);
     this.secrets = options.secrets ?? new SecretRegistry();
     const providedTools = options.tools ?? [];
-    this.tools = new Map(providedTools.map((tool) => [tool.name, tool]));
+    const toolsWithFinish = providedTools.some((tool) => tool.name === 'finish')
+      ? providedTools
+      : [...providedTools, new FinishTool()];
+    this.tools = new Map(toolsWithFinish.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;
     this.confirmation = { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true };
@@ -645,6 +650,7 @@ export class Agent extends EventEmitter {
 
   async run(input: AgentRunInput): Promise<Message | undefined> {
     this.cancelled = false;
+    this.finished = false;
     return this.lock.acquire(async () => {
       this.ensureSystemPrompt();
       this.pushUserMessage(input);
@@ -742,7 +748,7 @@ export class Agent extends EventEmitter {
   }
 
   private async runLoop(): Promise<Message | undefined> {
-    if (this.paused || this.pendingAction || this.cancelled) {
+    if (this.paused || this.pendingAction || this.cancelled || this.finished) {
       return undefined;
     }
 
@@ -761,7 +767,7 @@ export class Agent extends EventEmitter {
     }
     let lastAssistantMessage: Message | undefined;
 
-    while (!this.paused && !this.pendingAction && !this.cancelled && this.state.snapshot.iteration < maxIterations) {
+    while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
       const llmConfig = this.getEffectiveLlmConfigForCondensation();
       let response: Awaited<ReturnType<AgentOrchestrator['runChat']>> | undefined;
@@ -890,6 +896,7 @@ export class Agent extends EventEmitter {
       }
 
       let toolExecutionFailed = false;
+      let finishedThisTurn = false;
       for (const toolCall of toolCalls) {
         // Log raw tool call for debugging visibility
         try {
@@ -927,6 +934,11 @@ export class Agent extends EventEmitter {
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
         const recordedAction = this.events.push(actionEvent) as ActionEvent;
 
+        if (finishedThisTurn) {
+          this.emitSkippedToolCall(toolCall, recordedAction, 'Skipped: finish tool already called in this run.');
+          continue;
+        }
+
         const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, actionArgs);
         if (workspaceAccess) {
           this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs }, workspaceAccess);
@@ -940,6 +952,10 @@ export class Agent extends EventEmitter {
 
         try {
           await this.executeTool(toolCall, recordedAction, actionArgs);
+          if (toolCall.function.name === 'finish') {
+            finishedThisTurn = true;
+            this.finished = true;
+          }
         } catch (error) {
           if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
             this.events.push(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
@@ -949,6 +965,11 @@ export class Agent extends EventEmitter {
           toolExecutionFailed = true;
           // Continue processing other tool calls but mark this iteration as failed
         }
+      }
+
+      if (finishedThisTurn) {
+        this.state.setStatus('IDLE');
+        break;
       }
 
       if (toolExecutionFailed) {
@@ -1250,6 +1271,7 @@ export class Agent extends EventEmitter {
 
     return definitions.map((tool): LLMToolDefinition => {
       const fn = tool.function;
+      if (fn.name === 'finish') return tool;
       const parameters =
         fn.parameters && typeof fn.parameters === 'object' && !Array.isArray(fn.parameters)
           ? (fn.parameters as Record<string, unknown>)
@@ -1526,6 +1548,7 @@ export class Agent extends EventEmitter {
   }
 
   private requiresConfirmation(action: ActionEvent): boolean {
+    if (action.tool_name === 'finish') return false;
     const policy = this.confirmation.policy ?? 'never';
     if (policy === 'never') return false;
     if (policy === 'always') return true;
@@ -1533,6 +1556,29 @@ export class Agent extends EventEmitter {
     if (!risk) return this.confirmation.confirmUnknown ?? true;
     const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
     return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
+  }
+
+  private emitSkippedToolCall(toolCall: ToolCall, actionEvent: ActionEvent, reason: string): void {
+    const maskedReason = this.maskSecretsInText(reason);
+    const clipped = truncateToolMessage(maskedReason);
+    this.events.push({
+      kind: 'ObservationEvent',
+      source: 'environment',
+      observation: { skipped: true, reason: maskedReason },
+      tool_name: toolCall.function.name,
+      tool_call_id: toolCall.id,
+      action_id: actionEvent.id ?? randomUUID(),
+    } as Event);
+    this.events.push({
+      kind: 'MessageEvent',
+      source: 'environment',
+      llm_message: {
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        name: toolCall.function.name,
+        content: [{ type: 'text', text: clipped }],
+      },
+    } as Event);
   }
 
   private getRequiredWorkspaceAccess(
