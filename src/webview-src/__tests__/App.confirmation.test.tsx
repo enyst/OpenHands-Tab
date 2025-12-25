@@ -185,6 +185,81 @@ describe('App - Confirmation Flow', () => {
     });
   });
 
+  it('does not carry stale pending actions across confirmation sessions', async () => {
+    await renderAppAndWaitReady();
+
+    // First confirmation session
+    setWaitingForConfirmation();
+    postToWindow({
+      type: 'event',
+      event: mkAction({
+        tool_call_id: 'call-old',
+        llm_response_id: 'resp-same',
+        thought: [{ type: 'text', text: 'Old pending action' }],
+      }),
+    });
+
+    const firstDialog = await screen.findByRole('dialog');
+    expect(within(firstDialog).getByText('Old pending action')).toBeInTheDocument();
+
+    // Simulate agent moving on (approve accepted, status no longer waiting)
+    postToWindow({
+      type: 'event',
+      event: { kind: 'ConversationStateUpdateEvent', agent_status: 'RUNNING' } as ConversationStateUpdateEvent,
+    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // Second confirmation session (same llm_response_id to ensure we truly cleared)
+    setWaitingForConfirmation();
+    postToWindow({
+      type: 'event',
+      event: mkAction({
+        tool_call_id: 'call-new',
+        llm_response_id: 'resp-same',
+        thought: [{ type: 'text', text: 'New pending action' }],
+      }),
+    });
+
+    const secondDialog = await screen.findByRole('dialog');
+    const scope = within(secondDialog);
+    expect(scope.getByText('New pending action')).toBeInTheDocument();
+    expect(scope.queryByText('Old pending action')).not.toBeInTheDocument();
+  });
+
+  it('replaces pending actions when a new action batch arrives', async () => {
+    await renderAppAndWaitReady();
+    setWaitingForConfirmation();
+
+    postToWindow({
+      type: 'event',
+      event: mkAction({
+        tool_call_id: 'call-old-batch',
+        llm_response_id: 'resp-old-batch',
+        thought: [{ type: 'text', text: 'Old batch action' }],
+      }),
+    });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Old batch action')).toBeInTheDocument();
+
+    // New action from a new LLM response should replace (not append)
+    postToWindow({
+      type: 'event',
+      event: mkAction({
+        tool_call_id: 'call-new-batch',
+        llm_response_id: 'resp-new-batch',
+        thought: [{ type: 'text', text: 'New batch action' }],
+      }),
+    });
+
+    await waitFor(() => {
+      const updatedDialog = screen.getByRole('dialog');
+      const scope = within(updatedDialog);
+      expect(scope.getByText('New batch action')).toBeInTheDocument();
+      expect(scope.queryByText('Old batch action')).not.toBeInTheDocument();
+    });
+  });
+
   it('sets isSubmitting=true when approval sent, and resets after 30s timeout', async () => {
     await renderAppAndWaitReady();
     // Spy on setTimeout so we can trigger the scheduled reset callback without relying on fake timers
