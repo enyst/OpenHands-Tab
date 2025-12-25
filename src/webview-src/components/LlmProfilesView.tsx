@@ -659,7 +659,6 @@ export function LlmProfilesView(props: {
     && apiKeyStatus.hasProfileKey;
 
   const handleSelectProfile = useCallback((next: string) => {
-    if (next === profileSelectValue) return;
     if (next === NEW_PROFILE_SELECT_VALUE) {
       startCreate();
       requestAnimationFrame(() => {
@@ -668,7 +667,7 @@ export function LlmProfilesView(props: {
       return;
     }
     void startEdit(next);
-  }, [NEW_PROFILE_SELECT_VALUE, profileSelectValue, startCreate, startEdit]);
+  }, [startCreate, startEdit]);
 
   const handleSetApiKey = useCallback(async () => {
     if (!selectedProfileId) return;
