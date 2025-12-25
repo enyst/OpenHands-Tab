@@ -370,6 +370,7 @@ const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(function Sel
 
 export function LlmProfilesView(props: {
   isOpen: boolean;
+  activeProfileId?: string | null;
   onClose: () => void;
   openRequest?: LlmProfilesViewOpenRequest | null;
   listProfiles: () => Promise<string[]>;
@@ -381,6 +382,7 @@ export function LlmProfilesView(props: {
 }) {
   const {
     isOpen,
+    activeProfileId,
     onClose,
     openRequest,
     listProfiles,
@@ -525,13 +527,22 @@ export function LlmProfilesView(props: {
   }, [applyEditorTransition, loadProfile, refreshApiKeyStatus]);
 
   useEffect(() => {
-    if (!isOpen || !openRequest) return;
-    if (openRequest.mode === 'create') {
+    if (!isOpen) return;
+    if (openRequest?.mode === 'create') {
       startCreate();
       return;
     }
-    void startEdit(openRequest.profileId);
-  }, [isOpen, openRequest, startCreate, startEdit]);
+    if (openRequest?.mode === 'edit') {
+      void startEdit(openRequest.profileId);
+      return;
+    }
+    const normalizedActiveProfileId = typeof activeProfileId === 'string' ? activeProfileId.trim() : '';
+    if (normalizedActiveProfileId) {
+      void startEdit(normalizedActiveProfileId);
+      return;
+    }
+    startCreate();
+  }, [activeProfileId, isOpen, openRequest, startCreate, startEdit]);
 
   const handleSave = useCallback(async () => {
     setSaveAttempted(true);

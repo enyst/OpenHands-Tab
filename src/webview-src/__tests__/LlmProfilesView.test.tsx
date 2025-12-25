@@ -26,6 +26,63 @@ describe('LLM Profiles view', () => {
     cleanup();
   });
 
+  it('defaults to the active profile when opened from the header', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    postToWindow({ type: 'llmProfilesUpdated', profiles: ['gpt-5', 'claude_4'], activeProfileId: 'gpt-5' });
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+    await screen.findByText('OpenHands - LLM Profiles');
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
+    });
+
+    const loadRequest = getLastPostedOfType('llmProfileLoadRequest');
+    expect(loadRequest.profileId).toBe('gpt-5');
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({
+      type: 'llmProfilesListResponse',
+      requestId: listRequest.requestId,
+      ok: true,
+      profiles: ['gpt-5', 'claude_4'],
+    });
+
+    postToWindow({
+      type: 'llmProfileLoadResponse',
+      requestId: loadRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      profile: { model: 'gpt-5', provider: 'openai' },
+    });
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeyStatusRequest')).toBeTruthy();
+    });
+
+    const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest.requestId,
+      ok: true,
+      profileId: 'gpt-5',
+      hasKey: false,
+      hasProfileKey: false,
+      hasProviderKey: false,
+      providerKeyName: 'OPENAI_API_KEY',
+    });
+
+    const profileSelect = await screen.findByLabelText('Profile');
+    expect(profileSelect).toHaveValue('gpt-5');
+    expect(await screen.findByText('Edit profile')).toBeInTheDocument();
+  });
+
   it('supports per-profile API key configuration', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();
