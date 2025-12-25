@@ -1,5 +1,6 @@
 import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
 import type { ElevenLabsMode } from '../shared/halTypes';
+import { normalizeServerUrl } from '../shared/serverUrls';
 
 export interface SavedServer {
   url: string;
@@ -138,34 +139,111 @@ const clampUnitInterval = (value: number | null | undefined, defaultValue: numbe
   return Math.min(1, Math.max(0, value));
 };
 
-const normalizeSavedServer = (value: unknown): SavedServer | null => {
-  if (!value || typeof value !== 'object') return null;
-  const candidate = value as Partial<Record<keyof SavedServer, unknown>>;
-  const url = normalizeNonEmptyString(typeof candidate.url === 'string' ? candidate.url : undefined);
-  if (!url) return null;
-  const label = normalizeNonEmptyString(typeof candidate.label === 'string' ? candidate.label : undefined);
-  return label ? { url, label } : { url };
-};
+const normalizeSavedServers = (value: unknown, defaultValue: SavedServer[]): { servers: SavedServer[]; changed: boolean; dropped: number } => {
+  if (!Array.isArray(value)) return { servers: defaultValue, changed: true, dropped: 0 };
 
-const normalizeSavedServers = (value: unknown, defaultValue: SavedServer[]): SavedServer[] => {
-  if (!Array.isArray(value)) return defaultValue;
-  return value
-    .map(normalizeSavedServer)
-    .filter((server): server is SavedServer => server !== null);
+  const byUrl = new Map<string, SavedServer>();
+  let changed = false;
+  let dropped = 0;
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') {
+      changed = true;
+      dropped += 1;
+      continue;
+    }
+
+    const candidate = entry as Partial<Record<keyof SavedServer, unknown>>;
+    const rawUrl = normalizeNonEmptyString(typeof candidate.url === 'string' ? candidate.url : undefined);
+    if (!rawUrl) {
+      changed = true;
+      dropped += 1;
+      continue;
+    }
+
+    const normalizedUrl = normalizeServerUrl(rawUrl);
+    if (!normalizedUrl.ok) {
+      changed = true;
+      dropped += 1;
+      continue;
+    }
+
+    const label = normalizeNonEmptyString(typeof candidate.label === 'string' ? candidate.label : undefined);
+    if (normalizedUrl.url !== rawUrl) changed = true;
+
+    const existing = byUrl.get(normalizedUrl.url);
+    if (existing) {
+      // Deduplicate by canonical URL; preserve an existing label, but upgrade if we encounter one later.
+      if (!existing.label && label) {
+        byUrl.set(normalizedUrl.url, { ...existing, label });
+        changed = true;
+      } else {
+        changed = true;
+      }
+      continue;
+    }
+
+    byUrl.set(normalizedUrl.url, label ? { url: normalizedUrl.url, label } : { url: normalizedUrl.url });
+  }
+
+  return { servers: Array.from(byUrl.values()), changed, dropped };
 };
 
 export class SettingsManager {
+  private serverNormalizationWarnings: string[] = [];
+
   constructor(private adapter: SettingsAdapter) {}
 
+  drainServerNormalizationWarnings(): string[] {
+    const warnings = this.serverNormalizationWarnings;
+    this.serverNormalizationWarnings = [];
+    return warnings;
+  }
+
   async get(): Promise<OpenHandsSettings> {
-    const serverUrl = normalizeNonEmptyString(
-      this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl
-    );
+    const warnings: string[] = [];
+
+    const rawServerUrl = this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl;
+    const trimmedServerUrl = normalizeNonEmptyString(rawServerUrl);
+    let serverUrl: string | undefined;
+    let serverUrlChanged = false;
+
+    if (trimmedServerUrl) {
+      const normalized = normalizeServerUrl(trimmedServerUrl);
+      if (normalized.ok) {
+        serverUrl = normalized.url;
+        if (serverUrl !== trimmedServerUrl) serverUrlChanged = true;
+      } else {
+        warnings.push(`Invalid server URL: ${normalized.error}`);
+        serverUrlChanged = true;
+      }
+    }
+
+    const rawServers = this.adapter.get<unknown>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers;
+    const serversResult = normalizeSavedServers(rawServers, DEFAULTS.servers);
+    let servers = serversResult.servers;
+    let serversChanged = serversResult.changed;
+
+    if (serversResult.dropped > 0) {
+      warnings.push(`Dropped ${serversResult.dropped} invalid saved server entr${serversResult.dropped === 1 ? 'y' : 'ies'}.`);
+    }
+
+    // If serverUrl is set, always ensure it appears in the servers list (even if manually configured in settings).
+    if (serverUrl && !servers.some((s) => s.url === serverUrl)) {
+      servers = [...servers, { url: serverUrl }];
+      serversChanged = true;
+    }
+
+    if (serverUrlChanged || serversChanged) {
+      this.serverNormalizationWarnings = warnings;
+      try {
+        await this.update({ serverUrl: serverUrl ?? '', servers }, 'global');
+      } catch {
+        // Best effort: still return normalized values even if persistence fails.
+      }
+    }
+
     const isRemote = !!serverUrl;
-    const servers = normalizeSavedServers(
-      this.adapter.get<unknown>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers,
-      DEFAULTS.servers
-    );
     const explicitBaseUrl = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.baseUrl'));
     const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
     const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
@@ -267,11 +345,11 @@ export class SettingsManager {
     const ops: Promise<void>[] = [];
 
     if (partial.serverUrl !== undefined) {
-      ops.push(this.adapter.update('openhands.serverUrl', partial.serverUrl ?? '', target));
+      ops.push(this.adapter.update('openhands.serverUrl', partial.serverUrl ?? '', 'global'));
     }
 
     if (partial.servers !== undefined) {
-      ops.push(this.adapter.update('openhands.servers', partial.servers, target));
+      ops.push(this.adapter.update('openhands.servers', partial.servers, 'global'));
     }
 
     if (partial.llm) {

@@ -13,6 +13,7 @@ import { getHalDialogueLinesForMode } from '../../shared/halScript';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
+import { normalizeServerUrl } from '../../shared/serverUrls';
 import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 import { getConversationHistoryList } from './conversationHistory';
@@ -117,6 +118,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const elevenlabsCacheMaxBytes = 50 * 1024 * 1024;
   let elevenlabsTtsGate: TtsConversationGate | null = null;
 
+  const postStatusError = (message: string): void => {
+    void host.postMessage({
+      type: 'statusMessage',
+      level: 'error',
+      message,
+      autoDismiss: true,
+      autoDismissDelay: 6000,
+    });
+  };
+
   const validateProfileId = (profileId: string): void => {
     try {
       assertValidProfileId(profileId);
@@ -211,6 +222,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         deps.setWebviewReadyState(message.conversationId, message.lastSeenSeq);
 
         const initSettings = await settingsMgr.get();
+        const serverWarnings = settingsMgr.drainServerNormalizationWarnings();
+        for (const warning of serverWarnings) {
+          postStatusError(warning);
+        }
         deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(initSettings));
 
         void host.postMessage({
@@ -604,17 +619,22 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         break;
       }
       case 'selectServer': {
-        const url = message.url;
+        const rawUrl = typeof message.url === 'string' ? message.url.trim() : '';
+        const url = rawUrl ? normalizeServerUrl(rawUrl) : { ok: true as const, url: '' };
+        if (!url.ok) {
+          postStatusError(url.error);
+          break;
+        }
         const currentSettings = await settingsMgr.get();
 
-        const serverExists = currentSettings.servers.some((s) => s.url === url);
-        if (!serverExists && url) {
+        const serverExists = currentSettings.servers.some((s) => s.url === url.url);
+        if (!serverExists && url.url) {
           await settingsMgr.update({
-            servers: [...currentSettings.servers, { url }],
-            serverUrl: url,
+            servers: [...currentSettings.servers, { url: url.url }],
+            serverUrl: url.url,
           });
         } else {
-          await settingsMgr.update({ serverUrl: url });
+          await settingsMgr.update({ serverUrl: url.url });
         }
 
         const updated = await settingsMgr.get();
@@ -629,10 +649,19 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const server = message.server;
         if (!server?.url) break;
 
+        const normalized = normalizeServerUrl(server.url);
+        if (!normalized.ok) {
+          postStatusError(normalized.error);
+          break;
+        }
+
+        const label = typeof server.label === 'string' ? server.label.trim() : '';
+        const canonicalServer = label ? { url: normalized.url, label } : { url: normalized.url };
+
         const currentSettings = await settingsMgr.get();
-        const exists = currentSettings.servers.some((s) => s.url === server.url);
+        const exists = currentSettings.servers.some((s) => s.url === normalized.url);
         if (!exists) {
-          const newServers = [...currentSettings.servers, server];
+          const newServers = [...currentSettings.servers, canonicalServer];
           await settingsMgr.update({ servers: newServers });
           void host.postMessage({
             type: 'serverListUpdated',
@@ -643,8 +672,15 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         break;
       }
       case 'removeServer': {
-        const url = message.url;
-        if (!url) break;
+        const rawUrl = typeof message.url === 'string' ? message.url.trim() : '';
+        if (!rawUrl) break;
+
+        const normalized = normalizeServerUrl(rawUrl);
+        if (!normalized.ok) {
+          postStatusError(normalized.error);
+          break;
+        }
+        const url = normalized.url;
 
         const currentSettings = await settingsMgr.get();
         const newServers = currentSettings.servers.filter((s) => s.url !== url);

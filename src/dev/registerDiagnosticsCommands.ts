@@ -124,7 +124,16 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
   };
 
   // Diagnostics command for E2E tests and troubleshooting
-  const getServerUrl = () => vscode.workspace.getConfiguration().get<string>('openhands.serverUrl') ?? '';
+  const getServerUrl = () => {
+    const inspected = vscode.workspace.getConfiguration().inspect<string>('openhands.serverUrl');
+    return typeof inspected?.globalValue === 'string' ? inspected.globalValue : '';
+  };
+
+  const getServers = () => {
+    const inspected = vscode.workspace.getConfiguration().inspect<OpenHandsSettings['servers']>('openhands.servers');
+    return inspected?.globalValue ?? [];
+  };
+
   const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
     const chatView = deps.getChatView();
     const terminal = deps.getTerminal();
@@ -153,8 +162,45 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       status: deps.getConversation()?.getStatus(),
       mode: deps.getConversationMode(),
       serverUrl: getServerUrl(),
+      servers: getServers(),
       terminal: terminalInfo,
     };
+  });
+
+  // Internal: deterministic server config commands for E2E + debugging.
+  const serversGet = vscode.commands.registerCommand('openhands._serversGet', async () => {
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    const settings = await settingsMgr.get();
+    return { serverUrl: settings.serverUrl ?? '', servers: settings.servers ?? [] };
+  });
+
+  const serversSet = vscode.commands.registerCommand('openhands._serversSet', async (raw: unknown) => {
+    const payload = raw as { serverUrl?: unknown; servers?: unknown } | undefined;
+    const serverUrl = typeof payload?.serverUrl === 'string' ? payload.serverUrl : '';
+    const servers: OpenHandsSettings['servers'] = Array.isArray(payload?.servers)
+      ? payload.servers.flatMap((s) => {
+          if (typeof s === 'string') {
+            const trimmed = s.trim();
+            return trimmed ? [{ url: trimmed }] : [];
+          }
+          if (typeof s !== 'object' || s === null) return [];
+          const record = s as Record<string, unknown>;
+          const url = typeof record.url === 'string' ? record.url.trim() : '';
+          if (!url) return [];
+          const label = typeof record.label === 'string' ? record.label.trim() : undefined;
+          return [{ url, label: label || undefined }];
+        })
+      : [];
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    await settingsMgr.update({ serverUrl, servers }, 'global');
+    const updated = await settingsMgr.get();
+    return { serverUrl: updated.serverUrl ?? '', servers: updated.servers ?? [] };
+  });
+
+  const serversReset = vscode.commands.registerCommand('openhands._serversReset', async () => {
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    await settingsMgr.update({ serverUrl: '', servers: [] }, 'global');
+    return { ok: true };
   });
 
   // Internal: return the last error event from the buffered backlog (for E2E + debugging).
@@ -525,6 +571,9 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
 
   return [
     diag,
+    serversGet,
+    serversSet,
+    serversReset,
     queryLastError,
     queryBacklogSummary,
     sendTestEvent,

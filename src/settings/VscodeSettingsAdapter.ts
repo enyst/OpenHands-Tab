@@ -4,6 +4,10 @@ import type { SettingsAdapter } from './SettingsAdapter';
 export class VscodeSettingsAdapter implements SettingsAdapter {
   constructor(private context: vscode.ExtensionContext) {}
 
+  private isGlobalOnlyKey(key: string): boolean {
+    return key === 'openhands.serverUrl' || key === 'openhands.servers';
+  }
+
   private getWorkspaceConfiguration(): vscode.WorkspaceConfiguration {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     return workspaceFolder
@@ -12,6 +16,11 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   get<T = unknown>(key: string, defaultValue?: T): T | undefined {
+    if (this.isGlobalOnlyKey(key)) {
+      const inspected = vscode.workspace.getConfiguration().inspect<T>(key);
+      const globalValue = inspected?.globalValue;
+      return globalValue !== undefined ? globalValue : defaultValue;
+    }
     const cfg = this.getWorkspaceConfiguration();
     return defaultValue !== undefined
       ? cfg.get<T>(key, defaultValue)
@@ -19,13 +28,21 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   getExplicit<T = unknown>(key: string): T | undefined {
+    if (this.isGlobalOnlyKey(key)) {
+      const inspected = vscode.workspace.getConfiguration().inspect<T>(key);
+      return inspected?.globalValue ?? undefined;
+    }
     const inspected = this.getWorkspaceConfiguration().inspect<T>(key);
     if (!inspected) return undefined;
     // Prefer workspace folder override, then workspace, then global
-    return (inspected.workspaceFolderValue as T) ?? (inspected.workspaceValue as T) ?? (inspected.globalValue as T) ?? undefined;
+    return inspected.workspaceFolderValue ?? inspected.workspaceValue ?? inspected.globalValue ?? undefined;
   }
 
   async update<T = unknown>(key: string, value: T, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
+    if (this.isGlobalOnlyKey(key)) {
+      await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Global);
+      return;
+    }
     const hasWorkspaceFolder = !!vscode.workspace.workspaceFolders?.length;
     const effectiveTarget =
       target === 'workspace' && hasWorkspaceFolder
