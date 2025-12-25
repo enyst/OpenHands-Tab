@@ -26,24 +26,15 @@ export function StatusBanner({
   const levelConfig = {
     info: {
       icon: 'info',
-      bgColor: 'bg-brand-500/10',
-      borderColor: 'border-brand-500/20',
-      textColor: 'text-brand-200',
-      iconColor: '#E8A642',
+      textColor: 'text-stone-200',
     },
     warn: {
       icon: 'warning',
-      bgColor: 'bg-amber-500/10',
-      borderColor: 'border-amber-500/20',
-      textColor: 'text-amber-200',
-      iconColor: '#FBBF24',
+      textColor: 'text-[var(--brand-primary)]',
     },
     error: {
       icon: 'error',
-      bgColor: 'bg-red-500/10',
-      borderColor: 'border-red-400/20',
-      textColor: 'text-red-200',
-      iconColor: '#F87171',
+      textColor: 'text-[var(--event-error)]',
     },
   };
 
@@ -52,18 +43,16 @@ export function StatusBanner({
   return (
     <div
       className={`
-        ${config.bgColor} ${config.borderColor} ${config.textColor}
-        border rounded-lg p-3
+        ${config.textColor}
         flex items-center gap-3
+        text-sm
         animate-slide-down
-        shadow-event
       `}
       role="alert"
       aria-live="polite"
     >
       <span
-        className={`codicon codicon-${config.icon} flex-shrink-0`}
-        style={{ color: config.iconColor }}
+        className={`codicon codicon-${config.icon} flex-shrink-0 ${config.textColor}`}
       />
       <div
         className={`flex-1 text-sm ${level === 'error' ? 'break-words' : 'truncate'}`}
