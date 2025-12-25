@@ -38,46 +38,55 @@ describe('App toolbar interactions', () => {
     expect(totalsRow).not.toHaveTextContent('Total cost:');
 
     await act(async () => {
-      window.dispatchEvent(new MessageEvent('message', {
-        data: {
-          type: 'event',
-          event: {
-            kind: 'ConversationStateUpdateEvent',
-            key: 'stats',
-            value: {
-              usage_to_metrics: {
-                default: {
-                  accumulated_cost: 0.0123,
-                  accumulated_token_usage: { prompt_tokens: 10, completion_tokens: 5 },
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'ConversationStateUpdateEvent',
+              key: 'stats',
+              value: {
+                usage_to_metrics: {
+                  default: {
+                    accumulated_cost: 0.0123,
+                    accumulated_token_usage: { prompt_tokens: 10, completion_tokens: 5 },
+                    token_usages: [{ prompt_tokens: 10, completion_tokens: 5 }],
+                  },
                 },
               },
             },
           },
-        },
-      }));
+        }),
+      );
     });
 
     expect(totalsRow).toHaveTextContent('Context: 10 tokens');
     expect(totalsRow).toHaveTextContent('Total cost: $0.0123');
 
     await act(async () => {
-      window.dispatchEvent(new MessageEvent('message', {
-        data: {
-          type: 'event',
-          event: {
-            kind: 'ConversationStateUpdateEvent',
-            key: 'stats',
-            value: {
-              usage_to_metrics: {
-                default: {
-                  accumulated_cost: 0,
-                  accumulated_token_usage: { prompt_tokens: 12, completion_tokens: 0 },
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'ConversationStateUpdateEvent',
+              key: 'stats',
+              value: {
+                usage_to_metrics: {
+                  default: {
+                    accumulated_cost: 0,
+                    accumulated_token_usage: { prompt_tokens: 22, completion_tokens: 5 },
+                    token_usages: [
+                      { prompt_tokens: 10, completion_tokens: 5 },
+                      { prompt_tokens: 12, completion_tokens: 0 },
+                    ],
+                  },
                 },
               },
             },
           },
-        },
-      }));
+        }),
+      );
     });
 
     expect(totalsRow).toHaveTextContent('Context: 12 tokens');
