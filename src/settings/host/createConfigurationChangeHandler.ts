@@ -92,5 +92,18 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
         deps.getOutputChannel()?.appendLine(`[settings] Failed to apply LLM settings update: ${deps.renderError(err)}`);
       }
     }
+
+    if (e.affectsConfiguration('openhands.confirmation')) {
+      try {
+        await deps.ensureConversationAndConnection();
+        if (deps.getConversationMode() === 'remote') {
+          deps.getOutputChannel()?.appendLine('[settings] Confirmation settings updated (remote mode: applies on next conversation)');
+        } else {
+          deps.getOutputChannel()?.appendLine('[settings] Confirmation settings updated (local mode: applies immediately)');
+        }
+      } catch (err: unknown) {
+        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply confirmation settings update: ${deps.renderError(err)}`);
+      }
+    }
   };
 }
