@@ -1,7 +1,6 @@
 import * as assert from 'assert';
 import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
-import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
@@ -34,20 +33,20 @@ function createOutputTail(maxChars: number = 20000): OutputTail {
   };
 }
 
-async function getFreePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      if (!addr || typeof addr === 'string') {
-        server.close(() => reject(new Error('Failed to allocate free port')));
-        return;
-      }
-      const { port } = addr;
-      server.close((err) => (err ? reject(err) : resolve(port)));
-    });
-  });
+function pickPortForAgentServer(triedPorts: Set<number>): number {
+  // Avoid the bind+close+rebind race: pick a candidate port and retry on failure.
+  // (Similar to how we now bind the mock LLM server to port 0.)
+  const min = 20_000;
+  const max = 60_000;
+  for (let attempts = 0; attempts < 50; attempts += 1) {
+    const port = Math.floor(Math.random() * (max - min + 1)) + min;
+    if (!triedPorts.has(port)) {
+      triedPorts.add(port);
+      return port;
+    }
+  }
+  // Extremely unlikely; just return a candidate.
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 async function waitForHealthOrExit(proc: ReturnType<typeof spawn>, url: string, timeoutMs: number = 30000): Promise<void> {
@@ -128,8 +127,9 @@ async function startAgentServerWithRetry(
   maxAttempts: number = 3
 ): Promise<{ child: ReturnType<typeof spawn>; serverUrl: string; output: OutputTail }> {
   const failures: string[] = [];
+  const triedPorts = new Set<number>();
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const port = await getFreePort();
+    const port = pickPortForAgentServer(triedPorts);
     const serverUrl = `http://127.0.0.1:${port}`;
     const output = createOutputTail();
     const child = spawn(
