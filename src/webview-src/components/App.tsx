@@ -1631,7 +1631,7 @@ export function App() {
 
         {/* Bottom status bar (below prompt + controls) */}
         <div
-          className="px-4 pt-2 pb-2 bg-[var(--vscode-editor-background)]/95 backdrop-blur-md min-h-[64px]"
+          className="px-4 pt-2 pb-2 bg-[var(--vscode-editor-background)]/95 backdrop-blur-md min-h-16"
           data-testid="status-row"
         >
           {statusBanner && (
