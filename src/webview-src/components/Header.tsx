@@ -246,12 +246,14 @@ export function Header({
           <span>tokens</span>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <span>Total cost:</span>{' '}
-          <span className="font-mono text-stone-300">
-            {totals.costIsKnown ? formatCost(totals.totalCost) : '—'}
-          </span>
-        </div>
+        {totals.costIsKnown && (
+          <div className="flex items-center gap-1.5">
+            <span>Total cost:</span>{' '}
+            <span className="font-mono text-stone-300">
+              {formatCost(totals.totalCost)}
+            </span>
+          </div>
+        )}
       </div>
     </header>
   );
