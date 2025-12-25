@@ -7,8 +7,85 @@ This document compares the Python `agent-sdk` (reference implementation) with th
 This document is the living output for Beads issue `oh-tab-0rq`.
 
 - TypeScript SDK: `packages/agent-sdk-ts` (this repo).
-- Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk, we intently use the local path for our internal workflow).
+- Python reference SDK: `~/repos/agent-sdk` ([enyst/agent-sdk](https://github.com/enyst/agent-sdk)).
 - Focus: VS Code local-mode parity and remote conversation working correctly (no agent-server implementation in TS).
+
+## Module structure overview
+
+Quick reference for module-level parity between Python and TypeScript SDKs.
+
+| Module | Python | TypeScript | Notes |
+|--------|--------|-----------|-------|
+| agent/ | ✓ `Agent`, `AgentBase` | ✓ `Agent` in runtime/ | TS has separate `AgentOrchestrator` |
+| context/ | ✓ | ✓ | Similar skill/context handling |
+| conversation/ | ✓ | ✓ | Both have Local/Remote variants |
+| critic/ | ✓ | ✗ | Evaluation framework, Python only |
+| event/ | ✓ | ✓ types/ | Different patterns (class vs interface) |
+| git/ | ✓ | ✗ | Full git utilities, Python only |
+| io/ | ✓ `FileStore` | ✗ | Abstracted file storage, Python only |
+| llm/ | ✓ | ✓ | Different approaches (LiteLLM vs native) |
+| logger/ | ✓ Rich/JSON | ✗ | Comprehensive logging, Python only |
+| mcp/ | ✓ | ✗ | Model Context Protocol, Python only |
+| observability/ | ✓ Laminar/OTEL | ✗ | Telemetry, Python only (not planned for TS) |
+| secret/ | ✓ | ✓ runtime/ | TS has `SecretRegistry` in runtime |
+| security/ | ✓ module | ✓ inline in Agent | Python has separate module; TS has inline handling |
+| tool/ | ✓ | ✓ tools/ | Different validation approaches (Pydantic vs Zod) |
+| workspace/ | ✓ | ✓ | Python has more complete remote support |
+
+### Features in Python but NOT in TypeScript
+
+1. **Security Module** (separate module vs inline)
+   - Python has dedicated `security/` module with `SecurityAnalyzer`, `LLMSecurityAnalyzer`
+   - TypeScript has inline security risk handling in `Agent.ts`:
+     - `SecurityRisk` type: `'UNKNOWN' | 'LOW' | 'MEDIUM' | 'HIGH'`
+     - `security_risk` field on `ActionEvent`
+     - `parseSecurityRisk()` and `requiresConfirmation()` methods
+     - Confirmation settings with `policy`, `riskyThreshold`, `confirmUnknown`
+   - Both use LLM to assess risk per tool call (TS via system prompt instructions, Python via analyzer)
+   - **Gap**: Python has separate analyzer classes for modularity; TS has inline implementation
+
+2. **Critic Module** - `CriticBase`, `AgentFinishedCritic`, `EmptyPatchCritic`, `PassCritic`
+
+3. **Git Module** - `GitDiff`, `GitChanges`, `GitManager`
+
+4. **IO/FileStore Module** - `FileStore` abstract base, `LocalFileStore`, `InMemoryFileStore`
+
+5. **Observability Module** - Laminar integration, OpenTelemetry, `@observe` decorator (not planned for TS)
+
+6. **Logger Module** - Rich console logging, JSON logging, rotating file handlers
+
+7. **MCP** - `MCPClient` for external tool integration (not planned for TS)
+
+8. **LLM Features** - Registry with resolver pattern, Router LLM, provider-specific exception mapping, `Metrics`/`Telemetry` classes
+
+9. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
+
+10. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
+
+### Features in TypeScript but NOT in Python
+
+1. **AgentOrchestrator** - Separate orchestration layer (Python has this in Agent class)
+
+2. **LLM Profiles System** - Profile-based provider management, direct Gemini client
+
+3. **Summarization Utilities** - `fileDiffSummarizer`, `gitChangeSummarizer`, `terminalObservationSummarizer`
+
+4. **Error Handling** - `errorPolicy.ts`, `toolCallErrorEvents.ts`
+
+5. **Tool Validation** - `ZodTool` wrapper for zod schema-based validation
+
+6. **IntegratedTerminalRunner** - Direct VS Code terminal integration
+
+### Cross-cutting differences
+
+| Aspect | Python | TypeScript |
+|--------|--------|-----------|
+| Event pattern | Class inheritance | Discriminated union interfaces |
+| Event discriminator | Class name / `isinstance()` | `kind` field string |
+| Validation | Pydantic models | Zod schemas |
+| LLM abstraction | LiteLLM (provider agnostic) | Native provider clients |
+| Async handling | Sync-first with optional async | Async-first (Promise-based) |
+| Execution status | `ConversationExecutionStatus` enum | String literals |
 
 ## Current parity snapshot (2025-12-17)
 
