@@ -365,7 +365,7 @@ function LlmProfileSelector({
 
   const normalizedFallbackLabel = typeof fallbackLabel === 'string' ? fallbackLabel.trim() : '';
   const hasFallback = normalizedFallbackLabel.length > 0;
-  const shown = profileId ?? (hasFallback ? normalizedFallbackLabel : 'None');
+  const shown = profileId ?? (hasFallback ? `None (${normalizedFallbackLabel})` : 'None');
   const tooltip = profileId
     ? `LLM profile: ${profileId}`
     : hasFallback

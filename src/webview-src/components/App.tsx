@@ -1645,6 +1645,7 @@ export function App() {
       {/* LLM Profiles view (slide-over panel) */}
       <LlmProfilesView
         isOpen={showLlmProfiles}
+        activeProfileId={llmProfileId}
         onClose={() => setShowLlmProfiles(false)}
         openRequest={llmProfilesOpenRequest}
         listProfiles={listLlmProfiles}

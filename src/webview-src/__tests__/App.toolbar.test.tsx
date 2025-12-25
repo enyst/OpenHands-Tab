@@ -230,7 +230,9 @@ describe('App toolbar interactions', () => {
       }));
     });
 
-    expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('gpt-4.1');
+    const profileButton = await screen.findByLabelText('LLM profile');
+    expect(profileButton).toHaveTextContent('None');
+    expect(profileButton).toHaveTextContent('gpt-4.1');
   });
 
   it('updates the LLM profile when selected in the dropdown', async () => {
