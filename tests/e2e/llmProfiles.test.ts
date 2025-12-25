@@ -36,7 +36,7 @@ describe('OpenHands-Tab LLM Profiles E2E', function () {
         TEST_NAME: 'llmProfiles',
         HOME: userDataDir,
         USERPROFILE: userDataDir,
-        OPENAI_API_KEY: 'e2e-openai-key',
+        OPENAI_API_KEY: '',
         ANTHROPIC_API_KEY: 'e2e-anthropic-key',
       }
     });
@@ -44,4 +44,3 @@ describe('OpenHands-Tab LLM Profiles E2E', function () {
     assert.ok(true);
   });
 });
-

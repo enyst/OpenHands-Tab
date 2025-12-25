@@ -3,6 +3,12 @@ import { pollUntil } from './pollUntil';
 import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
 
+type WebviewActionResult = {
+  sent?: boolean;
+};
+
+type ErrorInfo = { seq?: number; code?: unknown; detail?: unknown; error?: unknown } | null;
+
 export async function run(): Promise<void> {
   const mock = await startMockLlmServer();
 
@@ -37,6 +43,8 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('openhands.startNewConversation');
 
     // Create profiles used by this suite.
+    const openaiProfileKey = 'e2e-profile-openai-key';
+
     await vscode.commands.executeCommand('openhands._createProfile', {
       profileId: 'e2e-openai-chat',
       profile: {
@@ -46,6 +54,10 @@ export async function run(): Promise<void> {
         openaiApiMode: 'chat_completions',
       },
     });
+    await vscode.commands.executeCommand('openhands._setProfileApiKey', {
+      profileId: 'e2e-openai-chat',
+      apiKey: openaiProfileKey,
+    });
     await vscode.commands.executeCommand('openhands._createProfile', {
       profileId: 'e2e-openai-responses',
       profile: {
@@ -54,6 +66,23 @@ export async function run(): Promise<void> {
         baseUrl: v1BaseUrl,
         openaiApiMode: 'responses',
       },
+    });
+    await vscode.commands.executeCommand('openhands._setProfileApiKey', {
+      profileId: 'e2e-openai-responses',
+      apiKey: openaiProfileKey,
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: 'e2e-openai-delete',
+      profile: {
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        baseUrl: v1BaseUrl,
+        openaiApiMode: 'chat_completions',
+      },
+    });
+    await vscode.commands.executeCommand('openhands._setProfileApiKey', {
+      profileId: 'e2e-openai-delete',
+      apiKey: openaiProfileKey,
     });
 
     // No profile selected: should use the base anthropic config.
@@ -99,6 +128,70 @@ export async function run(): Promise<void> {
       text: 'E2E profiles step 5: base again (anthropic)',
       expectedPath: '/v1/messages',
       getRequests: () => mock.requests,
+    });
+
+    const sendAndExpectErrorCode = async (options: { text: string; expectedCode: string; timeoutMs?: number }) => {
+      const { text, expectedCode, timeoutMs = 45000 } = options;
+      const beforeReqCount = mock.requests.length;
+      const beforeError = await vscode.commands.executeCommand<ErrorInfo>('openhands._queryLastError');
+      const beforeErrorSeq = typeof beforeError?.seq === 'number' ? beforeError.seq : -1;
+
+      const send = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
+        action: 'sendMessage',
+        payload: { text },
+      });
+      if (!send?.sent) {
+        throw new Error(`sendMessage action was not sent: ${JSON.stringify(send)}`);
+      }
+
+      await pollUntil(async () => {
+        const afterError = await vscode.commands.executeCommand<ErrorInfo>('openhands._queryLastError');
+        const afterSeq = typeof afterError?.seq === 'number' ? afterError.seq : -1;
+        if (!afterError || afterSeq <= beforeErrorSeq) return false;
+        return afterError.code === expectedCode;
+      }, timeoutMs, 200);
+
+      const afterError = await vscode.commands.executeCommand<ErrorInfo>('openhands._queryLastError');
+      if (!afterError) throw new Error('Expected an error event after sending message, but none was found');
+      if (afterError.code !== expectedCode) {
+        throw new Error(`Expected error code ${expectedCode} but got ${String(afterError.code)} (${JSON.stringify(afterError)})`);
+      }
+      if (mock.requests.length !== beforeReqCount) {
+        const recent = mock.requests.slice(beforeReqCount).map((r) => ({ method: r.method, path: r.path }));
+        throw new Error(`Expected no mock requests after error, but saw: ${JSON.stringify(recent)}`);
+      }
+      return afterError;
+    };
+
+    // Delete profile: should clear selection + remove stored key.
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-openai-delete' });
+    await sendAndWaitForRequestPath({
+      text: 'E2E profiles step 6: delete target profile (openai chat_completions)',
+      expectedPath: '/v1/chat/completions',
+      getRequests: () => mock.requests,
+    });
+
+    await vscode.commands.executeCommand('openhands._deleteProfile', { profileId: 'e2e-openai-delete' });
+    await sendAndWaitForRequestPath({
+      text: 'E2E profiles step 7: after delete uses base config (anthropic)',
+      expectedPath: '/v1/messages',
+      getRequests: () => mock.requests,
+    });
+
+    // Recreate profile without setting a key; selecting it should trigger missing_llm_api_key.
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: 'e2e-openai-delete',
+      profile: {
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        baseUrl: v1BaseUrl,
+        openaiApiMode: 'chat_completions',
+      },
+    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-openai-delete' });
+    await sendAndExpectErrorCode({
+      text: 'E2E profiles step 8: recreated profile missing key',
+      expectedCode: 'missing_llm_api_key',
     });
   } finally {
     await mock.close();

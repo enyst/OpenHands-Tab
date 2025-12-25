@@ -439,6 +439,34 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return { ok: true, profileId };
   });
 
+  const deleteProfile = vscode.commands.registerCommand('openhands._deleteProfile', async (raw: unknown) => {
+    const profileId = typeof (raw as { profileId?: unknown } | undefined)?.profileId === 'string'
+      ? ((raw as { profileId: string }).profileId).trim()
+      : '';
+    if (!profileId) throw new Error('profileId is required');
+
+    const existing = llmProfilesStore.listProfiles();
+    if (!existing.includes(profileId)) throw new Error(`Profile '${profileId}' not found`);
+
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    const before = await settingsMgr.get();
+    const activeProfileId = before.llm.profileId ?? null;
+
+    llmProfilesStore.deleteProfile(profileId);
+    const apiKeySecretKey = getProfileApiKeySecretKey(profileId);
+    await deps.context.secrets.delete(apiKeySecretKey);
+    deps.secretRegistry.set(apiKeySecretKey, undefined);
+
+    const clearedSelection = activeProfileId === profileId;
+    if (clearedSelection) {
+      await settingsMgr.update({ llm: { profileId: '' } }, 'global');
+      await deps.ensureConversationAndConnection();
+    }
+
+    await broadcastLlmProfilesUpdated();
+    return { ok: true, profileId, clearedSelection };
+  });
+
   const selectProfile = vscode.commands.registerCommand('openhands._selectProfile', async (raw: unknown) => {
     const nestedProfileId = (raw as { profileId?: unknown } | undefined)?.profileId;
     const profileIdRaw = nestedProfileId === undefined ? raw : nestedProfileId;
@@ -474,9 +502,11 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     const key = getProfileApiKeySecretKey(profileId);
     if (!apiKey) {
       await deps.context.secrets.delete(key);
+      deps.secretRegistry.set(key, undefined);
       return { ok: true, profileId, hasKey: false };
     }
     await deps.context.secrets.store(key, apiKey);
+    deps.secretRegistry.set(key, apiKey);
     return { ok: true, profileId, hasKey: true };
   });
 
@@ -506,6 +536,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     openProfilesView,
     createProfile,
     updateProfile,
+    deleteProfile,
     selectProfile,
     setProfileApiKey,
     injectTerminalEvent,
