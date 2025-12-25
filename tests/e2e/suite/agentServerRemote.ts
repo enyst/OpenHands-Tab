@@ -23,6 +23,7 @@ type WebviewActionResult = {
 type RenderedEventSnapshot = {
   type?: unknown;
   marker?: unknown;
+  role?: unknown;
 };
 
 const sleep = async (ms: number): Promise<void> => {
@@ -82,10 +83,6 @@ export async function run(): Promise<void> {
 
   const before = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const beforeCount = typeof before?.count === 'number' ? before.count : 0;
-  const beforeTypes = Array.isArray(before?.eventTypes)
-    ? before.eventTypes.filter((t): t is string => typeof t === 'string')
-    : [];
-  const beforeMessageCount = beforeTypes.filter((t) => t === 'MessageEvent').length;
 
   const send = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
     action: 'sendMessage',
@@ -95,14 +92,29 @@ export async function run(): Promise<void> {
     throw new Error(`sendMessage action was not sent: ${JSON.stringify(send)}`);
   }
 
+  type Snapshot = { type: string; role?: string };
+  let lastSnapshots: Snapshot[] = [];
+
   await pollUntil(async () => {
     const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
     const count = typeof rendered?.count === 'number' ? rendered.count : 0;
-    const types = Array.isArray(rendered?.eventTypes)
-      ? rendered.eventTypes.filter((t): t is string => typeof t === 'string')
-      : [];
-    const messageCount = types.filter((t) => t === 'MessageEvent').length;
-    return count > beforeCount && messageCount > beforeMessageCount;
+    const snapshots = Array.isArray(rendered?.events) ? rendered.events : [];
+    lastSnapshots = snapshots
+      .map((snapshot): Snapshot => {
+        const record = snapshot as RenderedEventSnapshot;
+        const type = typeof record.type === 'string' ? record.type : 'unknown';
+        const role = type === 'MessageEvent' && typeof record.role === 'string' ? record.role : undefined;
+        return { type, role };
+      });
+
+    if (count <= beforeCount) return false;
+
+    const newSnapshots = lastSnapshots.slice(beforeCount);
+    const hasUserMessage = newSnapshots.some((event) => event.type === 'MessageEvent' && event.role === 'user');
+    const hasRemoteResponse = newSnapshots.some((event) =>
+      event.type === 'ConversationErrorEvent' || (event.type === 'MessageEvent' && event.role === 'assistant')
+    );
+    return hasUserMessage && hasRemoteResponse;
   }, 60000);
 
   const afterRemote = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
@@ -113,6 +125,18 @@ export async function run(): Promise<void> {
   console.log(
     `Remote rendered events (post-send): count=${baselineCount} types=${baselineTypes.slice(-10).join(', ')}`
   );
+  if (!lastSnapshots.length) {
+    const hint = baselineTypes.slice(-20).join(', ');
+    throw new Error(`Expected remote response events to render, but snapshots were empty (types=${hint})`);
+  }
+  const newSnapshots = lastSnapshots.slice(beforeCount);
+  const hasRemoteResponse = newSnapshots.some((event) =>
+    event.type === 'ConversationErrorEvent' || (event.type === 'MessageEvent' && event.role === 'assistant')
+  );
+  if (!hasRemoteResponse) {
+    const tail = newSnapshots.slice(-10).map((event) => `${event.type}:${event.role ?? ''}`).join(', ');
+    throw new Error(`Expected remote response after sendMessage, but only saw: ${tail || '(none)'}`);
+  }
 
   const diagBefore = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
   const backlogBefore = typeof diagBefore?.eventBacklog?.size === 'number' ? diagBefore.eventBacklog.size : 0;
