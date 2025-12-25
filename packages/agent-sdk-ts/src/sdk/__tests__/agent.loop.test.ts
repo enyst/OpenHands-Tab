@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
-import { isActionEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
+import { isActionEvent, isCondensation, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 import { FileEditorTool } from '../../tools';
@@ -48,6 +48,29 @@ class RecordingLLM implements LLMClient {
     for (const chunk of seq) {
       yield chunk;
     }
+  }
+}
+
+class CondensingLLM implements LLMClient {
+  calls = 0;
+  requests: ChatCompletionRequest[] = [];
+
+  async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    this.requests.push(request);
+    this.calls += 1;
+
+    if (this.calls === 1) {
+      throw new Error('context_length_exceeded');
+    }
+
+    if (this.calls === 2) {
+      yield { type: 'text', text: 'SUMMARY' };
+      yield { type: 'finish' };
+      return;
+    }
+
+    yield { type: 'text', text: 'OK' };
+    yield { type: 'finish' };
   }
 }
 
@@ -357,5 +380,45 @@ describe('Agent loop control', () => {
     expect(actions).toHaveLength(0);
 
     expect(events.some(isObservationEvent)).toBe(false);
+  });
+
+  it('runs condensation after a context-limit error and retries the LLM request', async () => {
+    const log = new EventLog();
+    const llm = new CondensingLLM();
+
+    const seededMessageIds: string[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      const evt = log.push({
+        kind: 'MessageEvent',
+        source: i % 2 === 0 ? 'user' : 'agent',
+        llm_message: {
+          role: i % 2 === 0 ? 'user' : 'assistant',
+          content: [{ type: 'text', text: `seed ${i} ` + 'x'.repeat(2_000) }],
+        },
+      } as any) as any;
+      seededMessageIds.push(String(evt.id));
+    }
+
+    const agent = new Agent({
+      settings: baseSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+    });
+
+    await agent.run('trigger');
+
+    expect(llm.calls).toBe(3);
+    const condensation = log.list().find(isCondensation);
+    expect(condensation).toBeTruthy();
+    expect(condensation?.summary).toBe('SUMMARY');
+    expect(condensation?.forgotten_event_ids).toContain(seededMessageIds[4]);
+
+    const retryRequest = [...llm.requests].reverse().find((req) => req.systemPrompt.includes('<CONVERSATION SUMMARY>'));
+    expect(retryRequest).toBeTruthy();
+    expect(retryRequest?.systemPrompt).toContain('SUMMARY');
+
+    const assistantMessages = log.list().filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'assistant');
+    expect(assistantMessages.some((evt) => evt.llm_message.content.some((part) => part.type === 'text' && part.text.includes('OK')))).toBe(true);
   });
 });
