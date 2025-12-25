@@ -1271,6 +1271,7 @@ export class Agent extends EventEmitter {
 
     return definitions.map((tool): LLMToolDefinition => {
       const fn = tool.function;
+      if (fn.name === 'finish') return tool;
       const parameters =
         fn.parameters && typeof fn.parameters === 'object' && !Array.isArray(fn.parameters)
           ? (fn.parameters as Record<string, unknown>)
