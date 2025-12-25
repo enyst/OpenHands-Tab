@@ -1108,36 +1108,36 @@ export function LlmProfilesView(props: {
                     )}
                   </div>
 
-                    <div>
-                      <FieldLabel label="OpenAI API mode" htmlFor={profileFieldId('openaiApiMode')} />
-                      <div className="mt-2">
-                        <SelectField
-                          id={profileFieldId('openaiApiMode')}
-                          value={form.openaiApiMode}
-                          onChange={(v) => update('openaiApiMode', v as ProfileFormState['openaiApiMode'])}
-                          disabled={form.provider !== 'openai'}
-                        >
-                          <option value="auto">auto</option>
-                          <option value="chat_completions">chat_completions</option>
-                          <option value="responses">responses</option>
-                        </SelectField>
-                        <FieldError message={errors.openaiApiMode} />
-                      </div>
-                    </div>
-
-                    <div>
-                      <FieldLabel label="Temperature" htmlFor={profileFieldId('temperature')} />
-                      <div className="mt-2">
-                        <InputField
-                          id={profileFieldId('temperature')}
-                          value={form.temperature}
-                          onChange={(v) => update('temperature', v)}
-                          placeholder="0.2"
-                        />
-                        <FieldError message={errors.temperature} />
-                      </div>
+                  <div>
+                    <FieldLabel label="OpenAI API mode" htmlFor={profileFieldId('openaiApiMode')} />
+                    <div className="mt-2">
+                      <SelectField
+                        id={profileFieldId('openaiApiMode')}
+                        value={form.openaiApiMode}
+                        onChange={(v) => update('openaiApiMode', v as ProfileFormState['openaiApiMode'])}
+                        disabled={form.provider !== 'openai'}
+                      >
+                        <option value="auto">auto</option>
+                        <option value="chat_completions">chat_completions</option>
+                        <option value="responses">responses</option>
+                      </SelectField>
+                      <FieldError message={errors.openaiApiMode} />
                     </div>
                   </div>
+
+                  <div>
+                    <FieldLabel label="Temperature" htmlFor={profileFieldId('temperature')} />
+                    <div className="mt-2">
+                      <InputField
+                        id={profileFieldId('temperature')}
+                        value={form.temperature}
+                        onChange={(v) => update('temperature', v)}
+                        placeholder="0.2"
+                      />
+                      <FieldError message={errors.temperature} />
+                    </div>
+                  </div>
+                </div>
 
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                   <button
