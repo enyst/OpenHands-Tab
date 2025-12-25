@@ -66,7 +66,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 1. **AgentOrchestrator** - Separate orchestration layer (Python has this in Agent class)
 
-2. **LLM Profiles System** - Profile-based provider management, direct Gemini client
+2. **LLM Profiles System** - Profile-based provider management, native clients (Anthropic, OpenAI-compatible, Gemini)
 
 3. **Summarization Utilities** - `fileDiffSummarizer`, `gitChangeSummarizer`, `terminalObservationSummarizer`
 
