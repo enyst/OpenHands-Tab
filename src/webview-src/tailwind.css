@@ -1,6 +1,3 @@
-/* Import fonts from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
-
 @import "tailwindcss";
 
 /* OpenHands "Warm Technical Refinement" Design System */
@@ -10,6 +7,10 @@
    * Philosophy: Simplified warm palette focused on OpenHands golden
    */
   :root {
+    /* Webviews cannot load remote fonts (CSP). Use VS Code theme font variables + local fallbacks. */
+    --font-sans: var(--vscode-font-family, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji");
+    --font-mono: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+
     /* Agent/AI/Actions/Observations - signature warm gold (OpenHands voice) */
     --event-agent: #E8A642;
     /* User - lighter warm grey for better contrast */
