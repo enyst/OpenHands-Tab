@@ -1263,37 +1263,36 @@ export function App() {
     postMessage({ type: 'command', command: 'startNewConversation' });
   }, [postMessage, setInlineImages, setStatusBanner]);
 
-  const handleOpenHistory = useCallback(() => {
+  const closePanels = useCallback(() => {
     setShowLlmProfiles(false);
     setShowContextPicker(false);
     setShowSkillsPopover(false);
+    setShowHistory(false);
+  }, []);
+
+  const handleOpenHistory = useCallback(() => {
+    closePanels();
     setShowHistory(true);
     postMessage({ type: 'requestHistory' });
-  }, [postMessage]);
+  }, [closePanels, postMessage]);
 
   const handleOpenLlmProfiles = useCallback(() => {
     setLlmProfilesOpenRequest(null);
-    setShowHistory(false);
-    setShowContextPicker(false);
-    setShowSkillsPopover(false);
+    closePanels();
     setShowLlmProfiles(true);
-  }, []);
+  }, [closePanels]);
 
   const handleOpenLlmProfilesCreate = useCallback(() => {
     setLlmProfilesOpenRequest({ mode: 'create' });
-    setShowHistory(false);
-    setShowContextPicker(false);
-    setShowSkillsPopover(false);
+    closePanels();
     setShowLlmProfiles(true);
-  }, []);
+  }, [closePanels]);
 
   const handleOpenLlmProfilesEdit = useCallback((profileId: string) => {
     setLlmProfilesOpenRequest({ mode: 'edit', profileId });
-    setShowHistory(false);
-    setShowContextPicker(false);
-    setShowSkillsPopover(false);
+    closePanels();
     setShowLlmProfiles(true);
-  }, []);
+  }, [closePanels]);
 
   const handleOpenSettings = useCallback(() => {
     postMessage({ type: 'openSettingsPage' });
