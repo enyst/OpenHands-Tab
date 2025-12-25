@@ -300,15 +300,12 @@ export function loadSkillsFromDir(skillDir: string): {
  */
 export const USER_SKILLS_DIRS = [
   join(homedir(), '.openhands', 'skills'),
-  join(homedir(), '.openhands', 'microagents'), // Legacy support
 ];
 
 /**
  * Load skills from user's home directory.
  *
- * Searches for skills in ~/.openhands/skills/ and ~/.openhands/microagents/
- * (legacy). Skills from both directories are merged, with skills/ taking
- * precedence for duplicate names.
+ * Searches for skills in ~/.openhands/skills/.
  *
  * @returns List of Skill objects loaded from user directories.
  *   Returns empty list if no skills found or loading fails.

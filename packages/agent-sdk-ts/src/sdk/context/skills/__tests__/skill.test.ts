@@ -429,20 +429,17 @@ Content`);
   describe('loadUserSkills', () => {
     let tempDir: string;
     let skillsDir: string;
-    let microagentsDir: string;
     let originalDirs: string[];
 
     beforeEach(() => {
       tempDir = join(tmpdir(), `user-skills-test-${Date.now()}`);
       skillsDir = join(tempDir, '.openhands', 'skills');
-      microagentsDir = join(tempDir, '.openhands', 'microagents');
       mkdirSync(skillsDir, { recursive: true });
-      mkdirSync(microagentsDir, { recursive: true });
 
       // Save original directories and replace with test directories
       originalDirs = [...USER_SKILLS_DIRS];
       USER_SKILLS_DIRS.length = 0;
-      USER_SKILLS_DIRS.push(skillsDir, microagentsDir);
+      USER_SKILLS_DIRS.push(skillsDir);
     });
 
     afterEach(() => {
@@ -479,67 +476,6 @@ Test skill content`);
       expect(skills).toHaveLength(1);
       expect(skills[0].name).toBe('test-skill');
       expect(skills[0].content).toBe('Test skill content');
-    });
-
-    it('loads skills from legacy microagents directory', () => {
-      // Create a skill in the microagents directory
-      writeFileSync(join(microagentsDir, 'legacy-skill.md'), `---
-triggers:
-  - legacy
----
-
-Legacy skill content`);
-
-      const skills = loadUserSkills();
-
-      expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe('legacy-skill');
-      expect(skills[0].content).toBe('Legacy skill content');
-    });
-
-    it('loads and deduplicates skills from multiple directories', () => {
-      // Create skills in both directories
-      writeFileSync(join(skillsDir, 'unique-skill.md'), `---
-triggers:
-  - unique
----
-
-Unique skill`);
-
-      writeFileSync(join(microagentsDir, 'legacy-skill.md'), `---
-triggers:
-  - legacy
----
-
-Legacy skill`);
-
-      // Create duplicate skill (skills directory takes precedence)
-      writeFileSync(join(skillsDir, 'duplicate.md'), `---
-triggers:
-  - dup
----
-
-From skills directory`);
-
-      writeFileSync(join(microagentsDir, 'duplicate.md'), `---
-triggers:
-  - dup
----
-
-From microagents directory`);
-
-      const skills = loadUserSkills();
-
-      expect(skills).toHaveLength(3); // unique-skill, legacy-skill, duplicate (from skills dir)
-
-      const skillNames = skills.map(s => s.name);
-      expect(skillNames).toContain('unique-skill');
-      expect(skillNames).toContain('legacy-skill');
-      expect(skillNames).toContain('duplicate');
-
-      // Verify the duplicate is from skills directory (higher priority)
-      const duplicateSkill = skills.find(s => s.name === 'duplicate');
-      expect(duplicateSkill?.content).toBe('From skills directory');
     });
 
     it('loads both repo skills and knowledge skills', () => {

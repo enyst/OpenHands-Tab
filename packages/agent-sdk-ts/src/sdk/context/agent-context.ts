@@ -35,7 +35,7 @@ export class AgentContext {
   /** Optional suffix to append to the user's message. */
   userMessageSuffix?: string;
 
-  /** Whether to automatically load user skills from ~/.openhands/skills/ and ~/.openhands/microagents/ */
+  /** Whether to automatically load user skills from ~/.openhands/skills/ */
   loadUserSkills: boolean;
 
   constructor(params?: {
