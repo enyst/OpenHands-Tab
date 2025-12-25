@@ -1127,7 +1127,7 @@ export class Agent extends EventEmitter {
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {
-    const definitions = Array.from(this.tools.values()).map((tool) => {
+    const definitions: LLMToolDefinition[] = Array.from(this.tools.values()).map((tool): LLMToolDefinition => {
       if (typeof tool.getToolDefinition === 'function') {
         return tool.getToolDefinition();
       }
@@ -1143,7 +1143,7 @@ export class Agent extends EventEmitter {
 
     if (!this.shouldIncludeSecurityRiskAssessment()) return definitions;
 
-    return definitions.map((tool) => {
+    return definitions.map((tool): LLMToolDefinition => {
       const fn = tool.function ?? ({} as LLMToolDefinition['function']);
       const parameters =
         fn.parameters && typeof fn.parameters === 'object' && !Array.isArray(fn.parameters)
