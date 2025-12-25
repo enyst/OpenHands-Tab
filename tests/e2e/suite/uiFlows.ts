@@ -94,8 +94,8 @@ export async function run(): Promise<void> {
   const cfg = vscode.workspace.getConfiguration();
   await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
   await cfg.update('openhands.servers', [], vscode.ConfigurationTarget.Global);
-  await cfg.update('openhands.elevenlabs.enabled', true, vscode.ConfigurationTarget.Global);
-  await cfg.update('openhands.elevenlabs.mode', 'bundled', vscode.ConfigurationTarget.Global);
+  await cfg.update('openhands.hal.enabled', true, vscode.ConfigurationTarget.Global);
+  await cfg.update('openhands.hal.mode', 'bundled', vscode.ConfigurationTarget.Global);
 
   await pollUntil(async () => {
     const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');

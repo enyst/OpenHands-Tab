@@ -1129,15 +1129,15 @@ export function activate(context: vscode.ExtensionContext) {
   const onConfigurationChange = async (e: vscode.ConfigurationChangeEvent) => {
     await onConfigurationChangeBase(e);
 
-    if (e.affectsConfiguration('openhands.elevenlabs')) {
+    if (e.affectsConfiguration('openhands.hal')) {
       try {
         const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
         const settings = await settingsMgr.get();
         if (chatView && chatWebviewReady) {
-          void chatView.webview.postMessage({ type: 'elevenlabsSettings', elevenlabs: settings.elevenlabs } satisfies HostToWebviewMessage);
+          void chatView.webview.postMessage({ type: 'halSettings', hal: settings.elevenlabs } satisfies HostToWebviewMessage);
         }
       } catch (err: unknown) {
-        outputChannel?.appendLine(`[settings] Failed to apply elevenlabs settings update: ${renderError(err)}`);
+        outputChannel?.appendLine(`[settings] Failed to apply HAL settings update: ${renderError(err)}`);
       }
     }
   };

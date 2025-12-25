@@ -57,15 +57,15 @@ const DEFAULTS: OpenHandsSettings = {
   secrets: {}
 };
 
-const ELEVENLABS_CONFIG_UPDATES: Array<[keyof ElevenLabsSettings, string]> = [
-  ['enabled', 'openhands.elevenlabs.enabled'],
-  ['mode', 'openhands.elevenlabs.mode'],
-  ['userName', 'openhands.elevenlabs.userName'],
-  ['voiceAId', 'openhands.elevenlabs.voiceAId'],
-  ['voiceUserId', 'openhands.elevenlabs.voiceUserId'],
-  ['modelId', 'openhands.elevenlabs.modelId'],
-  ['volume', 'openhands.elevenlabs.volume'],
-  ['cache', 'openhands.elevenlabs.cache'],
+const HAL_CONFIG_UPDATES: Array<[keyof ElevenLabsSettings, string]> = [
+  ['enabled', 'openhands.hal.enabled'],
+  ['mode', 'openhands.hal.mode'],
+  ['userName', 'openhands.hal.userName'],
+  ['voiceAId', 'openhands.hal.voiceAId'],
+  ['voiceUserId', 'openhands.hal.voiceUserId'],
+  ['modelId', 'openhands.hal.modelId'],
+  ['volume', 'openhands.hal.volume'],
+  ['cache', 'openhands.hal.cache'],
 ];
 
 const normalizeNonEmptyString = (value: string | null | undefined): string | undefined => {
@@ -301,29 +301,29 @@ export class SettingsManager {
       confirmUnknown: this.adapter.get<boolean>('openhands.confirmation.risky.confirmUnknown', DEFAULTS.confirmation.confirmUnknown) ?? DEFAULTS.confirmation.confirmUnknown,
     };
     const elevenlabs: ElevenLabsSettings = {
-      enabled: this.adapter.get<boolean>('openhands.elevenlabs.enabled', DEFAULTS.elevenlabs.enabled) ?? DEFAULTS.elevenlabs.enabled,
+      enabled: this.adapter.get<boolean>('openhands.hal.enabled', DEFAULTS.elevenlabs.enabled) ?? DEFAULTS.elevenlabs.enabled,
       mode: normalizeElevenLabsMode(
-        this.adapter.get<unknown>('openhands.elevenlabs.mode', DEFAULTS.elevenlabs.mode) ?? DEFAULTS.elevenlabs.mode,
+        this.adapter.get<unknown>('openhands.hal.mode', DEFAULTS.elevenlabs.mode) ?? DEFAULTS.elevenlabs.mode,
         DEFAULTS.elevenlabs.mode
       ),
       userName: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.elevenlabs.userName', DEFAULTS.elevenlabs.userName) ?? DEFAULTS.elevenlabs.userName
+        this.adapter.get<string | null>('openhands.hal.userName', DEFAULTS.elevenlabs.userName) ?? DEFAULTS.elevenlabs.userName
       ) ?? DEFAULTS.elevenlabs.userName,
-      voiceAId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.elevenlabs.voiceAId', null) ?? undefined),
-      voiceUserId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.elevenlabs.voiceUserId', null) ?? undefined),
-      modelId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.elevenlabs.modelId', null) ?? undefined),
+      voiceAId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.hal.voiceAId', null) ?? undefined),
+      voiceUserId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.hal.voiceUserId', null) ?? undefined),
+      modelId: normalizeNonEmptyString(this.adapter.get<string | null>('openhands.hal.modelId', null) ?? undefined),
       volume: clampUnitInterval(
-        this.adapter.get<number | null>('openhands.elevenlabs.volume', DEFAULTS.elevenlabs.volume) ?? DEFAULTS.elevenlabs.volume,
+        this.adapter.get<number | null>('openhands.hal.volume', DEFAULTS.elevenlabs.volume) ?? DEFAULTS.elevenlabs.volume,
         DEFAULTS.elevenlabs.volume
       ),
-      cache: this.adapter.get<boolean>('openhands.elevenlabs.cache', DEFAULTS.elevenlabs.cache) ?? DEFAULTS.elevenlabs.cache,
+      cache: this.adapter.get<boolean>('openhands.hal.cache', DEFAULTS.elevenlabs.cache) ?? DEFAULTS.elevenlabs.cache,
     };
     const gemini: GeminiSettings = {
       model: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.gemini.model', DEFAULTS.gemini.model) ?? DEFAULTS.gemini.model
+        this.adapter.get<string | null>('openhands.hal.gemini.model', DEFAULTS.gemini.model) ?? DEFAULTS.gemini.model
       ) ?? DEFAULTS.gemini.model,
       baseUrl: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.gemini.baseUrl', DEFAULTS.gemini.baseUrl) ?? DEFAULTS.gemini.baseUrl
+        this.adapter.get<string | null>('openhands.hal.gemini.baseUrl', DEFAULTS.gemini.baseUrl) ?? DEFAULTS.gemini.baseUrl
       ) ?? DEFAULTS.gemini.baseUrl,
     };
     const secrets = {
@@ -333,7 +333,7 @@ export class SettingsManager {
       awsSecretAccessKey: await this.adapter.getSecret('openhands.awsSecretAccessKey'),
       githubToken: await this.adapter.getSecret('openhands.githubToken'),
       elevenLabsApiKey: await this.adapter.getSecret('openhands.elevenLabsApiKey'),
-      geminiApiKey: await this.adapter.getSecret('openhands.geminiApiKey'),
+      geminiApiKey: await this.adapter.getSecret('openhands.hal.geminiApiKey'),
       customSecret1: await this.adapter.getSecret('openhands.customSecret1'),
       customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
       customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
@@ -407,7 +407,7 @@ export class SettingsManager {
     }
 
     if (partial.elevenlabs) {
-      for (const [key, configKey] of ELEVENLABS_CONFIG_UPDATES) {
+      for (const [key, configKey] of HAL_CONFIG_UPDATES) {
         const value = partial.elevenlabs[key];
         if (value !== undefined) ops.push(this.adapter.update(configKey, value, target));
       }
@@ -415,10 +415,10 @@ export class SettingsManager {
 
     if (partial.gemini) {
       if (partial.gemini.model !== undefined) {
-        ops.push(this.adapter.update('openhands.gemini.model', partial.gemini.model, target));
+        ops.push(this.adapter.update('openhands.hal.gemini.model', partial.gemini.model, target));
       }
       if (partial.gemini.baseUrl !== undefined) {
-        ops.push(this.adapter.update('openhands.gemini.baseUrl', partial.gemini.baseUrl, target));
+        ops.push(this.adapter.update('openhands.hal.gemini.baseUrl', partial.gemini.baseUrl, target));
       }
     }
 
@@ -442,7 +442,7 @@ export class SettingsManager {
         ops.push(this.adapter.storeSecret('openhands.elevenLabsApiKey', partial.secrets.elevenLabsApiKey));
       }
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'geminiApiKey')) {
-        ops.push(this.adapter.storeSecret('openhands.geminiApiKey', partial.secrets.geminiApiKey));
+        ops.push(this.adapter.storeSecret('openhands.hal.geminiApiKey', partial.secrets.geminiApiKey));
       }
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret1')) {
         ops.push(this.adapter.storeSecret('openhands.customSecret1', partial.secrets.customSecret1));

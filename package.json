@@ -355,16 +355,16 @@
       },
       {
         "type": "object",
-        "title": "OpenHands: HAL / ElevenLabs",
+        "title": "OpenHands: HAL",
         "order": 4,
         "properties": {
-          "openhands.elevenlabs.enabled": {
+          "openhands.hal.enabled": {
             "type": "boolean",
             "default": false,
             "order": 1,
             "markdownDescription": "Enable the HAL high-risk confirmation flow."
           },
-          "openhands.elevenlabs.mode": {
+          "openhands.hal.mode": {
             "type": "string",
             "enum": [
               "bundled",
@@ -375,31 +375,31 @@
             "order": 2,
             "markdownDescription": "HAL mode when enabled: `bundled` (E2E/CI), `tts_only` (TTS + buttons), `voice_confirm` (TTS + mic + Gemini)."
           },
-          "openhands.elevenlabs.userName": {
+          "openhands.hal.userName": {
             "type": "string",
             "default": "Engel",
             "order": 3,
             "markdownDescription": "User name used only in templated HAL script lines."
           },
-          "openhands.elevenlabs.voiceAId": {
+          "openhands.hal.voiceAId": {
             "type": "string",
             "default": "",
             "order": 4,
             "markdownDescription": "ElevenLabs voice ID for HAL (voice A)."
           },
-          "openhands.elevenlabs.voiceUserId": {
+          "openhands.hal.voiceUserId": {
             "type": "string",
             "default": "",
             "order": 5,
             "markdownDescription": "ElevenLabs voice ID for the user (voice B, used in `tts_only` mode)."
           },
-          "openhands.elevenlabs.modelId": {
+          "openhands.hal.modelId": {
             "type": "string",
             "default": "",
             "order": 6,
             "markdownDescription": "Optional ElevenLabs model id (e.g., `eleven_turbo_v2`)."
           },
-          "openhands.elevenlabs.volume": {
+          "openhands.hal.volume": {
             "type": "number",
             "default": 1,
             "order": 7,
@@ -407,19 +407,19 @@
             "maximum": 1,
             "markdownDescription": "Playback volume (0.0–1.0)."
           },
-          "openhands.elevenlabs.cache": {
+          "openhands.hal.cache": {
             "type": "boolean",
             "default": true,
             "order": 8,
             "markdownDescription": "Enable caching for generated ElevenLabs audio."
           },
-          "openhands.gemini.model": {
+          "openhands.hal.gemini.model": {
             "type": "string",
             "default": "gemini-2.5-flash",
             "order": 9,
             "markdownDescription": "Gemini model used for `voice_confirm` classification."
           },
-          "openhands.gemini.baseUrl": {
+          "openhands.hal.gemini.baseUrl": {
             "type": "string",
             "default": "https://generativelanguage.googleapis.com/v1beta",
             "order": 10,
@@ -544,7 +544,7 @@
             "default": "",
             "order": 8,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Gemini API key for HAL decision classification securely:**\n\n[🔑 Configure Gemini API Key (HAL)](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `openhands.geminiApiKey`.)_"
+            "markdownDescription": "**To set your Gemini API key for HAL decision classification securely:**\n\n[🔑 Configure Gemini API Key (HAL)](command:openhands.setGeminiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `openhands.hal.geminiApiKey`.)_"
           },
           "openhands.secrets.elevenLabsApiKey": {
             "type": "string",

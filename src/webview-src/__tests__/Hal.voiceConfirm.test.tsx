@@ -74,7 +74,7 @@ describe('HAL voice_confirm', () => {
     await renderAppAndWaitReady();
 
     vi.useFakeTimers();
-    postToWindow({ type: 'elevenlabsSettings', elevenlabs: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-voice-1') });
 
@@ -82,7 +82,7 @@ describe('HAL voice_confirm', () => {
     vi.useRealTimers();
 
     // Switch to voice_confirm at decision time.
-    postToWindow({ type: 'elevenlabsSettings', elevenlabs: { enabled: true, mode: 'voice_confirm', userName: 'Engel', volume: 1 } });
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'voice_confirm', userName: 'Engel', volume: 1 } });
 
     const recordButton = await screen.findByRole('button', { name: /record decision/i });
     fireEvent.click(recordButton);
@@ -97,13 +97,13 @@ describe('HAL voice_confirm', () => {
     await renderAppAndWaitReady();
 
     vi.useFakeTimers();
-    postToWindow({ type: 'elevenlabsSettings', elevenlabs: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-voice-2') });
     await advanceBundledDialogueToAwaitingUser();
     vi.useRealTimers();
 
-    postToWindow({ type: 'elevenlabsSettings', elevenlabs: { enabled: true, mode: 'voice_confirm', userName: 'Engel', volume: 1 } });
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'voice_confirm', userName: 'Engel', volume: 1 } });
 
     const stream = { getTracks: () => [{ stop: vi.fn() }] } as any;
     Object.defineProperty(window.navigator, 'mediaDevices', {
@@ -168,13 +168,13 @@ describe('HAL voice_confirm', () => {
     await renderAppAndWaitReady();
 
     vi.useFakeTimers();
-    postToWindow({ type: 'elevenlabsSettings', elevenlabs: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-voice-3') });
     await advanceBundledDialogueToAwaitingUser();
     vi.useRealTimers();
 
-    postToWindow({ type: 'elevenlabsSettings', elevenlabs: { enabled: true, mode: 'voice_confirm', userName: 'Engel', volume: 1 } });
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'voice_confirm', userName: 'Engel', volume: 1 } });
 
     const stream = { getTracks: () => [{ stop: vi.fn() }] } as any;
     Object.defineProperty(window.navigator, 'mediaDevices', {

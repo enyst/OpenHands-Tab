@@ -248,8 +248,8 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         });
 
         void host.postMessage({
-          type: 'elevenlabsSettings',
-          elevenlabs: initSettings.elevenlabs,
+          type: 'halSettings',
+          hal: initSettings.elevenlabs,
         });
 
         deps.flushConversationEventBacklog({
