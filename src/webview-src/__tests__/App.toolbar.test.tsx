@@ -30,6 +30,22 @@ describe('App toolbar interactions', () => {
     });
   });
 
+  it('opens and closes History view from the toolbar', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getAllByLabelText('History')[0]);
+
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestHistory' });
+    expect(await screen.findByLabelText('Close history')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Close history'));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Close history')).not.toBeInTheDocument();
+    });
+  });
+
   it('shows and updates conversation totals from stats events', async () => {
     render(<App />);
 
