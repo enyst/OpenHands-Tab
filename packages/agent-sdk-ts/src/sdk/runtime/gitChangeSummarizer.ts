@@ -1,0 +1,264 @@
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { promisify } from 'node:util';
+import type { ChatCompletionRequest, LLMClient } from '../llm';
+import { LLMFactory } from '../llm';
+import type { SecretRegistry } from './SecretRegistry';
+
+const execFileAsync = promisify(execFile);
+
+export type GitChangeSetInput =
+  | {
+    kind: 'ref_range';
+    repoRoot: string;
+    fromRef: string;
+    toRef: string;
+    pathFilters?: string[];
+  }
+  | {
+    kind: 'commit_list';
+    repoRoot: string;
+    commits: string[];
+    pathFilters?: string[];
+  };
+
+export interface GitChangeFileSummary {
+  path: string;
+  summary: string;
+}
+
+export interface GitChangeSetSummary {
+  overallSummary: string;
+  fileSummaries: GitChangeFileSummary[];
+}
+
+export interface SummarizeGitChangesOptions {
+  secrets: SecretRegistry;
+  llmClient?: LLMClient;
+  execFileText?: (command: string, args: string[], cwd?: string) => Promise<string>;
+  maxDiffChars?: number;
+  maxPromptChars?: number;
+  maxOverallChars?: number;
+  maxFileSummaryChars?: number;
+  maxFiles?: number;
+}
+
+const DEFAULT_MAX_DIFF_CHARS = 12_000;
+const DEFAULT_MAX_PROMPT_CHARS = 16_000;
+const DEFAULT_MAX_OVERALL_CHARS = 1_200;
+const DEFAULT_MAX_FILE_SUMMARY_CHARS = 400;
+const DEFAULT_MAX_FILES = 15;
+const CLIP_MARKER = '<diff clipped>';
+
+const resolveNonNegativeIntOption = (value: unknown, defaultValue: number): number => {
+  if (value === undefined) return defaultValue;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
+  return Math.max(0, Math.trunc(value));
+};
+
+const clipTextMiddle = (text: string, maxChars: number): string => {
+  if (maxChars <= 0) return '';
+  if (text.length <= maxChars) return text;
+  const markerBudget = CLIP_MARKER.length + 2;
+  if (maxChars < markerBudget) return text.slice(0, maxChars);
+  const available = maxChars - markerBudget;
+  const headLen = Math.ceil(available / 2);
+  const tailLen = Math.floor(available / 2);
+  const head = text.slice(0, headLen);
+  const tail = tailLen === 0 ? '' : text.slice(-tailLen);
+  return `${head}\n${CLIP_MARKER}\n${tail}`;
+};
+
+const maskSecrets = (text: string, secrets: SecretRegistry): string => {
+  let masked = text;
+  const values = secrets
+    .getRegisteredValues()
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .sort((a, b) => b.length - a.length);
+  for (const value of values) {
+    masked = masked.replaceAll(value, '***');
+  }
+  return masked;
+};
+
+const truncateSummary = (text: string, maxChars: number): string => {
+  if (maxChars <= 0) return '';
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  if (maxChars === 1) return '…';
+  return trimmed.slice(0, maxChars - 1) + '…';
+};
+
+const defaultExecFileText = async (command: string, args: string[], cwd?: string): Promise<string> => {
+  const { stdout } = await execFileAsync(command, args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  return stdout;
+};
+
+const normalizeRepoRelativePath = (repoRoot: string, filePath: string): string => {
+  const resolved = path.resolve(repoRoot, filePath);
+  const relative = path.relative(repoRoot, resolved);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`Path is outside repoRoot: ${filePath}`);
+  }
+  return relative.split(path.sep).join('/');
+};
+
+const normalizePathFilters = (repoRoot: string, filters: string[] | undefined): string[] => {
+  if (!filters) return [];
+  return filters
+    .map((candidate) => candidate.trim())
+    .filter((candidate) => candidate.length > 0)
+    .map((candidate) => normalizeRepoRelativePath(repoRoot, candidate));
+};
+
+const getGeminiFlashClient = async (secrets: SecretRegistry): Promise<LLMClient> => {
+  const factory = new LLMFactory(
+    {
+      profileId: 'gemini-flash',
+      model: 'gemini-flash',
+      usageId: 'git-change-summarizer',
+      temperature: 0.2,
+      maxOutputTokens: 512,
+    },
+    { secrets },
+  );
+  return factory.createClient();
+};
+
+const extractJsonObject = (text: string): string | null => {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end < 0 || end <= start) return null;
+  return text.slice(start, end + 1);
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parseSummary = (raw: string): GitChangeSetSummary | null => {
+  const jsonText = extractJsonObject(raw);
+  if (!jsonText) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText) as unknown;
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) return null;
+
+  const overall = typeof parsed.overallSummary === 'string' ? parsed.overallSummary.trim() : '';
+  const filesRaw = parsed.fileSummaries;
+  const fileSummaries: GitChangeFileSummary[] = Array.isArray(filesRaw)
+    ? filesRaw
+      .map((item): GitChangeFileSummary | null => {
+        if (!isRecord(item)) return null;
+        const filePath = typeof item.path === 'string' ? item.path.trim() : '';
+        const summary = typeof item.summary === 'string' ? item.summary.trim() : '';
+        if (!filePath || !summary) return null;
+        return { path: filePath, summary };
+      })
+      .filter((entry): entry is GitChangeFileSummary => Boolean(entry))
+    : [];
+
+  if (!overall && fileSummaries.length === 0) return null;
+  return { overallSummary: overall, fileSummaries };
+};
+
+const resolveRangeSpec = (input: GitChangeSetInput): { repoRoot: string; rangeSpec: string; pathFilters: string[] } => {
+  const repoRoot = input.repoRoot;
+  const pathFilters = normalizePathFilters(repoRoot, input.pathFilters);
+  if (input.kind === 'ref_range') {
+    return {
+      repoRoot,
+      rangeSpec: `${input.fromRef}..${input.toRef}`,
+      pathFilters,
+    };
+  }
+  if (input.commits.length === 0) {
+    throw new Error('commit_list requires at least one commit');
+  }
+  const baseRef = `${input.commits[0]}^`;
+  const headRef = input.commits[input.commits.length - 1];
+  return {
+    repoRoot,
+    rangeSpec: `${baseRef}..${headRef}`,
+    pathFilters,
+  };
+};
+
+export async function summarizeGitChangesWithGeminiFlash(
+  input: GitChangeSetInput,
+  options: SummarizeGitChangesOptions,
+): Promise<GitChangeSetSummary | undefined> {
+  const maxDiffChars = resolveNonNegativeIntOption(options.maxDiffChars, DEFAULT_MAX_DIFF_CHARS);
+  const maxPromptChars = resolveNonNegativeIntOption(options.maxPromptChars, DEFAULT_MAX_PROMPT_CHARS);
+  const maxOverallChars = resolveNonNegativeIntOption(options.maxOverallChars, DEFAULT_MAX_OVERALL_CHARS);
+  const maxFileSummaryChars = resolveNonNegativeIntOption(options.maxFileSummaryChars, DEFAULT_MAX_FILE_SUMMARY_CHARS);
+  const maxFiles = resolveNonNegativeIntOption(options.maxFiles, DEFAULT_MAX_FILES);
+
+  if (maxPromptChars <= 0 || maxOverallChars <= 0 || maxFileSummaryChars <= 0 || maxFiles <= 0) return undefined;
+
+  const execText = options.execFileText ?? defaultExecFileText;
+  const { repoRoot, rangeSpec, pathFilters } = resolveRangeSpec(input);
+  const nameStatus = await execText('git', ['diff', '--name-status', rangeSpec, '--', ...pathFilters], repoRoot);
+  const patch = await execText('git', ['diff', '--no-color', '--patch', rangeSpec, '--', ...pathFilters], repoRoot);
+
+  const nameStatusText = nameStatus.trimEnd();
+  const patchText = patch.trimEnd();
+  if (!nameStatusText && !patchText) return undefined;
+
+  const clippedPatch = clipTextMiddle(patchText, maxDiffChars);
+  const rawPrompt = [
+    'Summarize a multi-commit git change set for an IDE UI.',
+    '',
+    'Return JSON only (no markdown) matching this shape:',
+    '{ "overallSummary": string, "fileSummaries": Array<{ "path": string, "summary": string }> }',
+    '',
+    '- overallSummary: 1–3 sentences, describe intent/behavior.',
+    `- fileSummaries: up to ${maxFiles} important files with 1 sentence each.`,
+    '- Do not include secrets or code excerpts.',
+    '',
+    `Range: ${rangeSpec}`,
+    pathFilters.length ? `Path filters: ${pathFilters.join(', ')}` : 'Path filters: (none)',
+    '',
+    'Changed files (name-status):',
+    nameStatusText || '(empty)',
+    '',
+    'Unified diff (clipped):',
+    clippedPatch || '(empty)',
+  ].join('\n');
+
+  const safePrompt = clipTextMiddle(maskSecrets(rawPrompt, options.secrets), maxPromptChars);
+  const request: ChatCompletionRequest = {
+    systemPrompt: 'You summarize git diffs for an IDE UI.',
+    messages: [{ role: 'user', content: [{ type: 'text', text: safePrompt }] }],
+  };
+
+  const client = options.llmClient ?? (await getGeminiFlashClient(options.secrets));
+  let text = '';
+  for await (const chunk of client.streamChat(request)) {
+    if (chunk.type === 'text') text += chunk.text;
+  }
+
+  const redacted = maskSecrets(text, options.secrets).trim();
+  if (!redacted) return undefined;
+
+  const parsed = parseSummary(redacted);
+  if (!parsed) {
+    return { overallSummary: truncateSummary(redacted, maxOverallChars), fileSummaries: [] };
+  }
+
+  const overallSummary = parsed.overallSummary ? truncateSummary(parsed.overallSummary, maxOverallChars) : '';
+  const fileSummaries = parsed.fileSummaries
+    .slice(0, maxFiles)
+    .map((entry) => ({ path: entry.path, summary: truncateSummary(entry.summary, maxFileSummaryChars) }))
+    .filter((entry) => entry.path && entry.summary);
+
+  if (!overallSummary && fileSummaries.length === 0) return undefined;
+  return { overallSummary, fileSummaries };
+}
