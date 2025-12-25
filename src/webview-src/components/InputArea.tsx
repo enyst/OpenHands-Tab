@@ -375,6 +375,7 @@ function LlmProfileSelector({
 
   const handleSelect = (next: string | null) => {
     onSelect(next);
+    setIsOpen(false);
   };
 
   const isSelected = (candidate: string | null) => candidate === profileId;
