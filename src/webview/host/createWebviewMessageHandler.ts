@@ -971,6 +971,23 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         }
 
         const settings = await settingsMgr.get();
+
+        const halGeminiConfig = (() => {
+          let baseUrl = settings.gemini.baseUrl;
+          let model = settings.gemini.model;
+          try {
+            const profile = llmProfilesStore.loadProfile('gemini-flash-hal', llmProfileStoreOptions());
+            const baseUrlFromProfile = typeof profile.config.baseUrl === 'string' ? profile.config.baseUrl.trim() : '';
+            const modelFromProfile = typeof profile.config.model === 'string' ? profile.config.model.trim() : '';
+            if (baseUrlFromProfile) baseUrl = baseUrlFromProfile;
+            if (modelFromProfile) model = modelFromProfile;
+          } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err);
+            outputChannel?.appendLine(`[hal] Failed to load gemini-flash-hal profile; falling back to settings: ${reason}`);
+          }
+          return { baseUrl, model };
+        })();
+
         // Use the global Gemini provider key for HAL as well.
         // Preference order:
         // 1) SecretRegistry (VS Code SecretStorage key 'GEMINI_API_KEY', then process.env.GEMINI_API_KEY)
@@ -988,9 +1005,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         }
 
         const result = await classifyHalVoiceDecision({
-          baseUrl: settings.gemini.baseUrl,
+          baseUrl: halGeminiConfig.baseUrl,
           apiKey: halGeminiKey,
-          model: settings.gemini.model,
+          model: halGeminiConfig.model,
           mimeType: message.mimeType,
           audioBase64: message.audioBase64,
         });
