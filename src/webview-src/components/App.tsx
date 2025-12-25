@@ -45,7 +45,7 @@ import {
   MessageEventBlock,
   StreamingMessageBlock,
 } from './EventBlock';
-import type { WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type RenderedEvent = { id: number; event: Event };
 
@@ -188,18 +188,6 @@ type PendingLlmProfilesRequest =
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
   };
-
-type LlmProfileApiKeyStatusInfo = {
-  hasKey: boolean;
-  hasProfileKey: boolean;
-  hasProviderKey: boolean;
-  providerKeyName?: string;
-};
-
-type LlmProfileApiKeyStatusOverrides = {
-  provider?: string;
-  baseUrl?: string;
-};
 
 /**
  * Event dispatcher: routes agent-sdk events to appropriate rendering components.

@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Rea
 import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 import { getVscodeApi } from '../shared/vscodeApi';
-import type { WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type ProfileFormMode = 'create' | 'edit';
 
@@ -34,20 +34,8 @@ type FieldErrors = Partial<Record<keyof ProfileFormState, string>>;
 type ApiKeyStatus =
   | { state: 'unknown' }
   | { state: 'loading' }
-  | { state: 'ready'; hasKey: boolean; hasProfileKey: boolean; hasProviderKey: boolean; providerKeyName?: string }
+  | ({ state: 'ready' } & LlmProfileApiKeyStatusInfo)
   | { state: 'error'; error: string };
-
-type LlmProfileApiKeyStatusInfo = {
-  hasKey: boolean;
-  hasProfileKey: boolean;
-  hasProviderKey: boolean;
-  providerKeyName?: string;
-};
-
-type LlmProfileApiKeyStatusOverrides = {
-  provider?: string;
-  baseUrl?: string;
-};
 
 const EMPTY_FORM: ProfileFormState = {
   name: '',

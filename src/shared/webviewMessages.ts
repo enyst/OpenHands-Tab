@@ -2,6 +2,18 @@ import type { BashEvent, Event } from '@openhands/agent-sdk-ts';
 import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
 import type { OpenHandsSettings, SavedServer } from '../settings/SettingsManager';
 
+export type LlmProfileApiKeyStatusInfo = {
+  hasKey: boolean;
+  hasProfileKey: boolean;
+  hasProviderKey: boolean;
+  providerKeyName?: string;
+};
+
+export type LlmProfileApiKeyStatusOverrides = {
+  provider?: string;
+  baseUrl?: string;
+};
+
 export type HostToWebviewMessage =
   | {
     type: 'status';
@@ -20,16 +32,7 @@ export type HostToWebviewMessage =
   | { type: 'llmProfileSaveResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileDeleteResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileDeleteResponse'; requestId: string; ok: false; profileId: string; error: string }
-  | {
-    type: 'llmProfileApiKeyStatusResponse';
-    requestId: string;
-    ok: true;
-    profileId: string;
-    hasKey: boolean;
-    hasProfileKey: boolean;
-    hasProviderKey: boolean;
-    providerKeyName?: string;
-  }
+  | ({ type: 'llmProfileApiKeyStatusResponse'; requestId: string; ok: true; profileId: string } & LlmProfileApiKeyStatusInfo)
   | { type: 'llmProfileApiKeyStatusResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: false; profileId: string; error: string }
@@ -82,7 +85,7 @@ export type WebviewToHostMessage =
   | { type: 'llmProfileLoadRequest'; requestId: string; profileId: string }
   | { type: 'llmProfileSaveRequest'; requestId: string; profileId: string; profile: unknown }
   | { type: 'llmProfileDeleteRequest'; requestId: string; profileId: string }
-  | { type: 'llmProfileApiKeyStatusRequest'; requestId: string; profileId: string; provider?: string; baseUrl?: string }
+  | ({ type: 'llmProfileApiKeyStatusRequest'; requestId: string; profileId: string } & LlmProfileApiKeyStatusOverrides)
   | { type: 'llmProfileApiKeySetRequest'; requestId: string; profileId: string; apiKey: string }
   | { type: 'selectServer'; url: string }
   | { type: 'addServer'; server: SavedServer }
