@@ -227,6 +227,70 @@ describe('LLM Profiles view', () => {
     });
   });
 
+  it('preserves the draft API key when initial key storage fails during create', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. gpt-5'), { target: { value: 'gpt-5' } });
+    fireEvent.change(
+      screen.getByPlaceholderText('e.g. gpt-5, claude-4-sonnet, gemini-2.5-pro'),
+      { target: { value: 'gpt-5' } }
+    );
+
+    const providerSelect = screen.getAllByRole('combobox').find((candidate) => (
+      candidate.querySelector('option[value="openai"]') !== null
+    ));
+    if (!providerSelect) throw new Error('Failed to find provider select');
+    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+
+    fireEvent.change(await screen.findByPlaceholderText('(hidden)'), { target: { value: 'sk-test' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileSaveRequest')).toBeTruthy();
+    });
+
+    const saveRequest = getLastPostedOfType('llmProfileSaveRequest');
+    postToWindow({ type: 'llmProfileSaveResponse', requestId: saveRequest.requestId, ok: true });
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeySetRequest')).toBeTruthy();
+    });
+
+    const setRequest = getLastPostedOfType('llmProfileApiKeySetRequest');
+    expect(setRequest.profileId).toBe('gpt-5');
+    expect(setRequest.apiKey).toBe('sk-test');
+    postToWindow({ type: 'llmProfileApiKeySetResponse', requestId: setRequest.requestId, ok: false, error: 'nope' });
+
+    await waitFor(() => {
+      const latest = getLastPostedOfType('llmProfilesListRequest');
+      expect(latest).toBeTruthy();
+      expect(latest.requestId).not.toBe(listRequest.requestId);
+    });
+
+    const listRequest2 = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest2.requestId, ok: true, profiles: ['gpt-5'] });
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeyStatusRequest')).toBeTruthy();
+    });
+
+    const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    postToWindow({ type: 'llmProfileApiKeyStatusResponse', requestId: statusRequest.requestId, ok: true, hasKey: false });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Set key…' }));
+    expect(await screen.findByPlaceholderText('(hidden)')).toHaveValue('sk-test');
+  });
+
   it('shows an inline missing API key warning and blocks save in edit mode', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();

@@ -503,10 +503,10 @@ export function LlmProfilesView(props: {
       if (mode === 'create' && providerRequiresApiKey) {
         try {
           await setApiKey(profileId, trimmedDraftApiKey);
+          setApiKeyInput('');
         } catch (err) {
           setTopError(err instanceof Error ? err.message : String(err));
         }
-        setApiKeyInput('');
       }
       await refreshProfiles();
       activeProfileIdRef.current = profileId;
