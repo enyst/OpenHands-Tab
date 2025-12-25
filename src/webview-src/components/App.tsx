@@ -586,18 +586,21 @@ export function App() {
       setIsSubmitting(false);
     };
 
+    // Helper to derive the pending-action batch ID from a list of actions.
+    const getBatchIdFromActions = (actions: readonly ActionEvent[]): string | null => {
+      if (!actions.length) return null;
+      const id = actions[0]?.llm_response_id;
+      return typeof id === 'string' ? id : null;
+    };
+
     if (isActionEvent(event)) {
       const prev = pendingActionsRef.current;
       const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
       if (exists) return;
 
       const nextBatchId = typeof event.llm_response_id === 'string' ? event.llm_response_id : null;
-      const prevBatchId =
-        pendingActionsBatchIdRef.current ?? (prev.length && typeof prev[0].llm_response_id === 'string' ? prev[0].llm_response_id : null);
-      const next =
-        prev.length && prevBatchId && nextBatchId && prevBatchId !== nextBatchId
-          ? [event]
-          : [...prev, event];
+      const prevBatchId = pendingActionsBatchIdRef.current ?? getBatchIdFromActions(prev);
+      const next = prev.length && prevBatchId && nextBatchId && prevBatchId !== nextBatchId ? [event] : [...prev, event];
 
       pendingActionsRef.current = next;
       pendingActionsBatchIdRef.current = nextBatchId;
@@ -607,7 +610,7 @@ export function App() {
       const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
       if (next.length !== prev.length) {
         pendingActionsRef.current = next;
-        pendingActionsBatchIdRef.current = next.length ? (typeof next[0].llm_response_id === 'string' ? next[0].llm_response_id : null) : null;
+        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
         setPendingActions(next);
       }
       clearSubmissionState();
