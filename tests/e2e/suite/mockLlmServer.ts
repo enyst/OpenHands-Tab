@@ -1,5 +1,5 @@
 import * as http from 'http';
-import * as net from 'net';
+import type { AddressInfo } from 'net';
 
 const REDACTED = '<redacted>';
 const SENSITIVE_HEADERS = new Set([
@@ -27,22 +27,6 @@ export type MockLlmServer = {
   close: () => Promise<void>;
   reset: () => void;
 };
-
-async function getFreePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      if (!addr || typeof addr === 'string') {
-        server.close(() => reject(new Error('Failed to allocate free port')));
-        return;
-      }
-      const { port } = addr;
-      server.close((err) => (err ? reject(err) : resolve(port)));
-    });
-  });
-}
 
 function sanitizeHeaders(headers: http.IncomingHttpHeaders): Record<string, string | string[] | undefined> {
   const sanitized: Record<string, string | string[] | undefined> = {};
@@ -127,7 +111,7 @@ function sendGeminiStreamGenerateContentSse(res: http.ServerResponse, text: stri
 
 export async function startMockLlmServer(): Promise<MockLlmServer> {
   const requests: MockLlmRequest[] = [];
-  const port = await getFreePort();
+  let port = 0;
 
   const server = http.createServer((req, res) => {
     void (async () => {
@@ -208,7 +192,18 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
     });
   });
 
-  await new Promise<void>((resolve) => server.listen(port, '127.0.0.1', resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      if (!addr || typeof addr === 'string') {
+        reject(new Error('Failed to bind mock server to a port'));
+        return;
+      }
+      port = (addr as AddressInfo).port;
+      resolve();
+    });
+    server.once('error', reject);
+  });
 
   return {
     baseUrl: `http://127.0.0.1:${port}`,
