@@ -154,6 +154,24 @@ function createMockContext(): Partial<vscode.ExtensionContext> {
   };
 }
 
+const mockOpenHandsTerminalLog = (options: { capturePty?: boolean } = {}) => {
+  const writes: string[] = [];
+  const terminals: any[] = [];
+  let lastPty: any;
+
+  (vscode.window.createTerminal as Mock).mockImplementation((createOptions: any) => {
+    const pty = createOptions?.pty;
+    if (options.capturePty) lastPty = pty;
+    if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
+    if (typeof pty?.open === 'function') pty.open();
+    const terminal = { show: vi.fn(), dispose: vi.fn() } as any;
+    terminals.push(terminal);
+    return terminal;
+  });
+
+  return { writes, terminals, getLastPty: () => lastPty };
+};
+
 describe('Extension Activation', () => {
   let mockContext: any;
   let extension: any;
@@ -737,15 +755,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    let terminalInstance: any;
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
-      if (typeof pty?.open === 'function') pty.open();
-      terminalInstance = { show: vi.fn(), dispose: vi.fn() };
-      return terminalInstance;
-    });
+    const { writes, terminals } = mockOpenHandsTerminalLog();
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -760,7 +770,7 @@ describe('Settings and modes', () => {
     expect(vscode.window.createTerminal).toHaveBeenCalledTimes(1);
 
     const closeHandler = (vscode.window.onDidCloseTerminal as Mock).mock.calls[0]?.[0];
-    closeHandler?.(terminalInstance);
+    closeHandler?.(terminals[0]);
 
     conv?.emit('terminal', {
       id: 'bash-2',
@@ -783,13 +793,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      if (pty?.onDidWrite) pty.onDidWrite((chunk: string) => writes.push(chunk));
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes } = mockOpenHandsTerminalLog();
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -837,15 +841,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      if (pty?.onDidWrite) {
-        pty.onDidWrite((chunk: string) => writes.push(chunk));
-      }
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes } = mockOpenHandsTerminalLog();
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -948,15 +944,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      if (pty?.onDidWrite) {
-        pty.onDidWrite((chunk: string) => writes.push(chunk));
-      }
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes } = mockOpenHandsTerminalLog();
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -991,17 +979,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    let ptyInstance: any;
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      ptyInstance = pty;
-      if (pty?.onDidWrite) {
-        pty.onDidWrite((chunk: string) => writes.push(chunk));
-      }
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -1014,6 +992,7 @@ describe('Settings and modes', () => {
       command: 'progress_output',
     });
 
+    const ptyInstance = getLastPty();
     expect(ptyInstance).toBeTruthy();
 
     // Simulate progress updates arriving in multiple chunks (including CSI K split across writes).
@@ -1045,17 +1024,7 @@ describe('Settings and modes', () => {
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const writes: string[] = [];
-    let ptyInstance: any;
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      ptyInstance = pty;
-      if (pty?.onDidWrite) {
-        pty.onDidWrite((chunk: string) => writes.push(chunk));
-      }
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -1068,6 +1037,7 @@ describe('Settings and modes', () => {
       command: 'progress_overflow',
     });
 
+    const ptyInstance = getLastPty();
     expect(ptyInstance).toBeTruthy();
 
     const huge = 'a'.repeat(200_001);
@@ -1091,17 +1061,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    let ptyInstance: any;
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      ptyInstance = pty;
-      if (pty?.onDidWrite) {
-        pty.onDidWrite((chunk: string) => writes.push(chunk));
-      }
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -1114,6 +1074,7 @@ describe('Settings and modes', () => {
       command: 'progress_colored',
     });
 
+    const ptyInstance = getLastPty();
     expect(ptyInstance).toBeTruthy();
 
     ptyInstance.write('\u001b[32mDownloading 1%\u001b[0m');
@@ -1136,17 +1097,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const writes: string[] = [];
-    let ptyInstance: any;
-    (vscode.window.createTerminal as Mock).mockImplementation((options: any) => {
-      const pty = options?.pty;
-      ptyInstance = pty;
-      if (pty?.onDidWrite) {
-        pty.onDidWrite((chunk: string) => writes.push(chunk));
-      }
-      if (typeof pty?.open === 'function') pty.open();
-      return { show: vi.fn(), dispose: vi.fn() } as any;
-    });
+    const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
 
@@ -1159,6 +1110,7 @@ describe('Settings and modes', () => {
       command: 'sanitize_output',
     });
 
+    const ptyInstance = getLastPty();
     expect(ptyInstance).toBeTruthy();
 
     // OSC with BEL terminator
