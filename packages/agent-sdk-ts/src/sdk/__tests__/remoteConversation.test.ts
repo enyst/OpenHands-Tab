@@ -182,6 +182,58 @@ describe('RemoteConversation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('includes security_analyzer payload when enabled', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      expect(url).toContain('/api/conversations');
+      const body = JSON.parse(init?.body ?? '{}');
+      expect(body.agent.security_analyzer).toEqual({ kind: 'LLMSecurityAnalyzer' });
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 'conv-1' }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: {
+        ...baseSettings,
+        agent: { enableSecurityAnalyzer: true },
+      },
+    });
+
+    const id = await conversation.startNewConversation();
+    conversation.disconnect();
+    expect(id).toBe('conv-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits security_analyzer payload when disabled', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      expect(url).toContain('/api/conversations');
+      const body = JSON.parse(init?.body ?? '{}');
+      expect('security_analyzer' in body.agent).toBe(false);
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 'conv-1' }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    const id = await conversation.startNewConversation();
+    conversation.disconnect();
+    expect(id).toBe('conv-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('derives usage_id from profileId when usageId is default-llm', async () => {
     const dir = makeTempDir('remote-conversation-profiles-');
     try {
