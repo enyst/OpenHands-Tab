@@ -126,6 +126,10 @@ function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): s
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
 const TOOL_SUMMARY_MAX_CHARS = 1_000;
+
+// Condensation is token-budget based (maxInputTokens). When the next request would exceed that
+// budget (or the provider returns a context-limit error), we emit a `Condensation` event
+// (summary + forgotten_event_ids). Future requests inject the summary and omit forgotten messages.
 const FALLBACK_CONDENSATION_MAX_INPUT_TOKENS = 8_000;
 const MAX_CONDENSATIONS_PER_STEP = 2;
 
@@ -724,6 +728,8 @@ export class Agent extends EventEmitter {
       const llmConfig = this.getEffectiveLlmConfigForCondensation();
       let response: Awaited<ReturnType<AgentOrchestrator['runChat']>> | undefined;
 
+      // Condensation is token-budget based: before calling the LLM (and again if we hit a context-limit
+      // error), we may summarize the conversation to shrink the next request.
       for (let condensationAttempt = 0; condensationAttempt <= MAX_CONDENSATIONS_PER_STEP; condensationAttempt += 1) {
         const request = this.buildChatRequest();
 
@@ -873,6 +879,12 @@ export class Agent extends EventEmitter {
     return Math.min(500, Math.max(1, n));
   }
 
+  /**
+   * Build the next LLM request from the event log.
+   *
+   * Condensation is token-budget based: we inject the latest summary into the system prompt and
+   * omit message events whose ids were marked forgotten by `Condensation` events.
+   */
   private buildChatRequest() {
     const events = this.events.list();
     const condensationState = this.getCondensationState(events);
@@ -900,6 +912,12 @@ export class Agent extends EventEmitter {
     return { systemPrompt, messages, tools };
   }
 
+  /**
+   * Computes the current condensation state from the event log.
+   *
+   * Multiple condensations may occur over time; we keep the union of forgotten ids and the latest
+   * non-empty summary.
+   */
   private getCondensationState(events: Event[]): { summary: string | null; forgottenEventIds: Set<string>; summaryOffset: number | null } {
     const forgottenEventIds = new Set<string>();
     let summary: string | null = null;
@@ -960,6 +978,12 @@ export class Agent extends EventEmitter {
     }
   }
 
+  /**
+   * Attempts to summarize the conversation so the next prompt fits within `maxInputTokens`.
+   *
+   * On success, emits a `Condensation` event containing a summary and the message event ids that
+   * should be omitted from future requests.
+   */
   private async tryCondenseConversation(params: { maxInputTokens: number }): Promise<boolean> {
     const maxInputTokens = Math.max(0, Math.trunc(params.maxInputTokens));
     if (maxInputTokens <= 0) return false;

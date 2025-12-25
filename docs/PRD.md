@@ -139,6 +139,14 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 - Events stream in real-time (MessageEvent, ActionEvent, ObservationEvent, etc.)
 - Tool results displayed with collapsible details
 
+### Condensation (token-budget based; local mode)
+- Local mode only: when the next LLM request would exceed the configured input token budget (`openhands.llm.maxInputTokens`, or profile `maxInputTokens`), the SDK summarizes prior events and emits a `Condensation` event.
+- If the provider returns a context-limit error, the SDK will attempt condensation and retry (up to 2 condensation attempts per agent step). If no `maxInputTokens` is configured, this fallback path uses a default budget of 8000 tokens.
+- The `Condensation` event contains:
+  - `summary`: injected into the system prompt inside `<CONVERSATION SUMMARY>…</CONVERSATION SUMMARY>`
+  - `forgotten_event_ids`: message event ids omitted from future requests
+- User-facing behavior: the webview renders a “Conversation Summarized” block with the summary and the number of forgotten events; the chat continues normally.
+
 ### Action Confirmation
 - When agent status = WAITING_FOR_CONFIRMATION, show pending actions
 - Approve/Reject buttons with optional reason
