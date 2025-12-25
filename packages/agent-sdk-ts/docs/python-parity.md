@@ -87,7 +87,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 | Async handling | Sync-first with optional async | Async-first (Promise-based) |
 | Execution status | `ConversationExecutionStatus` enum | String literals |
 
-## Current parity snapshot (2025-12-17)
+## Current parity snapshot (2025-12-25)
 
 This section summarizes concrete behavior alignment between Python agent-sdk and TypeScript @openhands/agent-sdk-ts observed today, with pointers to code/tests and gaps to close.
 
