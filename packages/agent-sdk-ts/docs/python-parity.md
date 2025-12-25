@@ -298,12 +298,14 @@ classDiagram
       +run()
       +send_message()
       +resume_from_disk()
+      +reject_pending_actions()
       +callbacks
       +visualizer
     }
     class RemoteConversationPython {
       +send_message()
       +run()
+      +reject_pending_actions()
       +callbacks
     }
     class ConversationTS {
@@ -399,6 +401,7 @@ Python's RemoteConversation has significantly more features than TypeScript's im
   - Dual LLM APIs (responses vs completions)
   - Pending-action replay with disk-backed `ConversationState`
 - Integrates with `SecretRegistry` persistence, stuck detection, and configurable confirmation policies
+- Confirmation: approval is implicit (call `run()` again); rejection uses `reject_pending_actions(reason)`
 
 ### TypeScript shape
 
