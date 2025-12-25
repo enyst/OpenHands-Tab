@@ -35,7 +35,7 @@ describe('LLM profile dropdown', () => {
     fireEvent.click(screen.getByLabelText('LLM profile'));
     fireEvent.click(await screen.findByLabelText('New profile…'));
 
-    await screen.findByText('LLM Profiles');
+    await screen.findByText('OpenHands - LLM Profiles');
     expect(screen.getByText('Create a new profile')).toBeInTheDocument();
 
     await waitFor(() => {
@@ -84,7 +84,7 @@ describe('LLM profile dropdown', () => {
     fireEvent.click(screen.getByLabelText('LLM profile'));
     fireEvent.click(await screen.findByLabelText('Edit selected profile gpt-5'));
 
-    await screen.findByText('LLM Profiles');
+    await screen.findByText('OpenHands - LLM Profiles');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();

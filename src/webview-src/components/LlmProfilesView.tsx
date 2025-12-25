@@ -695,19 +695,6 @@ export function LlmProfilesView(props: {
     }
   }, [handleClearApiKey, mode]);
 
-  const handleHeaderEditClick = useCallback(() => {
-    if (!selectedProfileId) return;
-    if (mode !== 'edit') {
-      void startEdit(selectedProfileId);
-      return;
-    }
-
-    editorScrollRef.current?.scrollTo?.({ top: 0, behavior: 'smooth' });
-    requestAnimationFrame(() => {
-      providerSelectRef.current?.focus();
-    });
-  }, [mode, selectedProfileId, startEdit]);
-
   const handleDeleteProfile = useCallback(async () => {
     if (mode !== 'edit' || !selectedProfileId) return;
     const profileId = selectedProfileId;
@@ -760,9 +747,11 @@ export function LlmProfilesView(props: {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
-          <div className="flex items-center gap-2">
-            <span className="codicon codicon-symbol-parameter text-brand-400" />
-            <h2 className="text-lg font-semibold text-stone-100">LLM Profiles</h2>
+          <div className="flex items-center gap-2.5">
+            <div className="text-2xl" aria-label="OpenHands">
+              🙌
+            </div>
+            <h2 className="font-semibold text-base leading-tight text-stone-100">OpenHands - LLM Profiles</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -773,16 +762,6 @@ export function LlmProfilesView(props: {
               title="Create profile"
             >
               <span className="codicon codicon-add" />
-            </button>
-            <button
-              type="button"
-              onClick={handleHeaderEditClick}
-              disabled={!selectedProfileId || loadingProfile}
-              className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Edit profile"
-              title="Edit profile"
-            >
-              <span className="codicon codicon-edit" />
             </button>
             <button
               type="button"
@@ -820,17 +799,6 @@ export function LlmProfilesView(props: {
         <div className="flex-1 overflow-hidden flex">
           {/* Left: list */}
           <div className="w-64 border-r border-white/[0.08] flex flex-col">
-            <div className="p-4 border-b border-white/[0.06] flex items-center gap-2">
-              <button
-                type="button"
-                onClick={startCreate}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40 transition-all"
-              >
-                <span className="codicon codicon-add" />
-                New profile
-              </button>
-            </div>
-
             <div className="flex-1 overflow-y-auto p-3 space-y-1">
               {loadingList ? (
                 <div className="text-sm text-stone-500 px-2 py-2">Loading profiles…</div>

@@ -252,7 +252,6 @@ describe('LLM Profiles view', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Name')).not.toBeDisabled();
     });
-    expect(screen.getByRole('button', { name: 'Edit profile' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Duplicate profile' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Delete profile' })).toBeDisabled();
   });
