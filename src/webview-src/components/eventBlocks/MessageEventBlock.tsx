@@ -128,7 +128,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           )}
 
           {textContent && (
-            <div className={`text-sm leading-relaxed break-words ${isUser ? 'text-right' : ''}`}>
+            <div className="text-sm leading-relaxed break-words">
               <div className={`${isUser ? 'text-stone-100' : isAgent ? 'text-stone-200' : 'text-stone-300'}`}>
                 <MarkdownMessage text={textContent} />
               </div>
