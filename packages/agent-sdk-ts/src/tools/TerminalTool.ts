@@ -31,7 +31,7 @@ export interface TerminalResult {
   };
 }
 
-const DEFAULT_NO_CHANGE_TIMEOUT_SECONDS = 10;
+const DEFAULT_NO_CHANGE_TIMEOUT_SECONDS = 60;
 
 type SupportedSignal = 'SIGTERM' | 'SIGINT' | 'SIGTSTP';
 
@@ -472,7 +472,7 @@ const TOOL_DESCRIPTION = `Execute a bash command in the terminal within a persis
 * One command at a time: You can only execute one bash command at a time. If you need to run multiple commands sequentially, use \`&&\` or \`;\` to chain them together.
   - If a command is still running (exit code \`-1\`), starting a different non-empty \`command\` will fail. Poll with \`command: ""\` or use \`is_input: true\` to interact with the running process.
 * Persistent session: Commands execute in a persistent shell session where environment variables, virtual environments, and working directory persist between commands.
-* Soft timeout: Commands have a soft timeout of 10 seconds, once that's reached, you have the option to continue or interrupt the command (see section below for details)
+* Soft timeout: Commands have a soft timeout of 60 seconds, once that's reached, you have the option to continue or interrupt the command (see section below for details)
 * Shell options: Do NOT use \`set -e\`, \`set -eu\`, or \`set -euo pipefail\` in shell scripts or commands in this environment. The runtime may not support them and can cause unusable shell sessions. If you want to run multi-line bash commands, write the commands to a file and then run it, instead.
 
 ### Long-running Commands
@@ -503,7 +503,7 @@ const terminalSchema = z.object({
       'The bash command to execute. Can be empty string to poll additional logs when the previous exit code is `-1`. Can be `C-c` (Ctrl+C) to interrupt the currently running process (use with `is_input=true`). Note: You can only execute one bash command at a time. If a command is still running, starting a different non-empty command will fail.',
     ),
   is_input: z.boolean().optional().default(false).describe('If True, the command is an input to the running process. If False, the command is a bash command to be executed in the terminal. Default is False.'),
-  timeout: z.number().nonnegative().optional().nullable().describe('Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or stop it. If you don’t set a value, the command will instead pause and ask for confirmation when it produces no new output for 10 seconds. Use a higher value if the command is expected to take a long time (like installation or testing), or if it has a known fixed duration (like sleep).'),
+  timeout: z.number().nonnegative().optional().nullable().describe('Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or stop it. If you don’t set a value, the command will instead pause and ask for confirmation when it produces no new output for 60 seconds. Use a higher value if the command is expected to take a long time (like installation or testing), or if it has a known fixed duration (like sleep).'),
   reset: z.boolean().optional().default(false).describe('If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables and session state will be lost after reset. Cannot be used with is_input=True.'),
 });
 

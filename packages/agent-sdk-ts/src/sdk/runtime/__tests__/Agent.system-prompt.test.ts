@@ -36,7 +36,7 @@ describe('Agent system prompt', () => {
       llm: { model: 'test-model' },
       agent: {},
       conversation: { maxIterations: 1 },
-      confirmation: {},
+      confirmation: { policy: 'risky' },
       secrets: {},
     };
     const log = new EventLog();
@@ -64,4 +64,3 @@ describe('Agent system prompt', () => {
     expect(systemPromptEvent.system_prompt.text).toBe(systemPrompt);
   });
 });
-

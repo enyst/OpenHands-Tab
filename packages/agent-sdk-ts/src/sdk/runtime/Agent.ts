@@ -133,6 +133,8 @@ const TOOL_SUMMARY_MAX_CHARS = 1_000;
 const FALLBACK_CONDENSATION_MAX_INPUT_TOKENS = 8_000;
 const MAX_CONDENSATIONS_PER_STEP = 2;
 
+const SECURITY_RISK_ASSESSMENT_SECTION = /\n?<SECURITY_RISK_ASSESSMENT>[\s\S]*?<\/SECURITY_RISK_ASSESSMENT>\n?/;
+
 function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
   if (error instanceof Error) {
     const base = error.message || error.name || 'Error';
@@ -1125,7 +1127,7 @@ export class Agent extends EventEmitter {
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {
-    return Array.from(this.tools.values()).map((tool) => {
+    const definitions: LLMToolDefinition[] = Array.from(this.tools.values()).map((tool): LLMToolDefinition => {
       if (typeof tool.getToolDefinition === 'function') {
         return tool.getToolDefinition();
       }
@@ -1138,6 +1140,50 @@ export class Agent extends EventEmitter {
       }
       return { type: 'function', function: definition };
     });
+
+    if (!this.shouldIncludeSecurityRiskAssessment()) return definitions;
+
+    return definitions.map((tool): LLMToolDefinition => {
+      const fn = tool.function ?? ({} as LLMToolDefinition['function']);
+      const parameters =
+        fn.parameters && typeof fn.parameters === 'object' && !Array.isArray(fn.parameters)
+          ? (fn.parameters as Record<string, unknown>)
+          : {};
+      const existingProps = parameters.properties;
+      const properties =
+        existingProps && typeof existingProps === 'object' && !Array.isArray(existingProps)
+          ? ({ ...(existingProps as Record<string, unknown>) } as Record<string, unknown>)
+          : {};
+
+      if (!properties.security_risk) {
+        properties.security_risk = {
+          type: 'string',
+          enum: ['LOW', 'MEDIUM', 'HIGH'],
+          description: 'Assessed safety risk of this tool call.',
+        };
+      }
+
+      const existingRequired = parameters.required;
+      const required = Array.isArray(existingRequired)
+        ? existingRequired.filter((value): value is string => typeof value === 'string')
+        : [];
+      if (!required.includes('security_risk')) {
+        required.unshift('security_risk');
+      }
+
+      return {
+        ...tool,
+        function: {
+          ...fn,
+          parameters: {
+            ...parameters,
+            type: 'object',
+            properties,
+            required,
+          },
+        },
+      };
+    });
   }
 
   private getToolDefinitionsForEvent(): Record<string, unknown>[] {
@@ -1146,6 +1192,9 @@ export class Agent extends EventEmitter {
 
   private buildSystemPrompt(): string {
     let systemPrompt = SYSTEM_PROMPT;
+    if (!this.shouldIncludeSecurityRiskAssessment()) {
+      systemPrompt = systemPrompt.replace(SECURITY_RISK_ASSESSMENT_SECTION, '');
+    }
     if (this.agentContext) {
       const suffix = this.agentContext.getSystemMessageSuffix({ secretNames: this.secrets.getRegisteredNames() });
       if (suffix) {
@@ -1166,6 +1215,11 @@ export class Agent extends EventEmitter {
     }
 
     return systemPrompt;
+  }
+
+  private shouldIncludeSecurityRiskAssessment(): boolean {
+    const policy = this.confirmation.policy ?? 'never';
+    return policy === 'always' || policy === 'risky';
   }
 
   private async getPrimaryLlmClient(): Promise<LLMClient> {
