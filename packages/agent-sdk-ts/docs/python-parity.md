@@ -7,10 +7,87 @@ This document compares the Python `agent-sdk` (reference implementation) with th
 This document is the living output for Beads issue `oh-tab-0rq`.
 
 - TypeScript SDK: `packages/agent-sdk-ts` (this repo).
-- Python reference SDK: `~/repos/agent-sdk` (OpenHands/software-agent-sdk, we intently use the local path for our internal workflow).
+- Python reference SDK: `~/repos/agent-sdk` ([OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)).
 - Focus: VS Code local-mode parity and remote conversation working correctly (no agent-server implementation in TS).
 
-## Current parity snapshot (2025-12-17)
+## Module structure overview
+
+Quick reference for module-level parity between Python and TypeScript SDKs.
+
+| Module | Python | TypeScript | Notes |
+|--------|--------|-----------|-------|
+| agent/ | ✓ `Agent`, `AgentBase` | ✓ `Agent` in runtime/ | TS has separate `AgentOrchestrator` |
+| context/ | ✓ | ✓ | Similar skill/context handling |
+| conversation/ | ✓ | ✓ | Both have Local/Remote variants |
+| critic/ | ✓ | ✗ | Evaluation framework, Python only (not planned) |
+| event/ | ✓ | ✓ types/ | Different patterns (class vs interface) |
+| git/ | ✓ | ✗ | Full git utilities, Python only (not planned) |
+| io/ | ✓ `FileStore` | ✗ | Abstracted file storage, Python only (not planned) |
+| llm/ | ✓ | ✓ | Different approaches (LiteLLM vs native) |
+| logger/ | ✓ Rich/JSON | ✗ | Comprehensive logging, Python only (not planned) |
+| mcp/ | ✓ | ✗ | Model Context Protocol, Python only (not planned) |
+| observability/ | ✓ Laminar/OTEL | ✗ | Telemetry, Python only (not planned) |
+| secret/ | ✓ | ✓ runtime/ | TS has `SecretRegistry` in runtime |
+| security/ | ✓ module | ✓ inline in Agent | Python has separate module; TS has inline handling |
+| tool/ | ✓ | ✓ tools/ | Different validation approaches (Pydantic vs Zod) |
+| workspace/ | ✓ | ✓ | Python has more complete remote support |
+
+### Features in Python but NOT in TypeScript
+
+1. **Security Module** (separate module vs inline)
+   - Python has dedicated `security/` module with `SecurityAnalyzer`, `LLMSecurityAnalyzer`
+   - TypeScript has inline security risk handling in `Agent.ts`:
+     - `SecurityRisk` type: `'UNKNOWN' | 'LOW' | 'MEDIUM' | 'HIGH'`
+     - `security_risk` field on `ActionEvent`
+     - `parseSecurityRisk()` and `requiresConfirmation()` methods
+     - Confirmation settings with `policy`, `riskyThreshold`, `confirmUnknown`
+   - Both use LLM to assess risk per tool call (TS via system prompt instructions, Python via analyzer)
+   - **Gap**: Python has separate analyzer classes for modularity; TS has inline implementation
+
+2. **Critic Module** - `CriticBase`, `AgentFinishedCritic`, `EmptyPatchCritic`, `PassCritic` (not planned)
+
+3. **Git Module** - `GitDiff`, `GitChanges`, `GitManager` (not planned)
+
+4. **IO/FileStore Module** - `FileStore` abstract base, `LocalFileStore`, `InMemoryFileStore` (not planned)
+
+5. **Observability Module** - Laminar integration, OpenTelemetry, `@observe` decorator (not planned)
+
+6. **Logger Module** - Rich console logging, JSON logging, rotating file handlers (not planned)
+
+7. **MCP** - `MCPClient` for external tool integration (not planned)
+
+8. **LLM Features** - Registry with resolver pattern, Router LLM, provider-specific exception mapping, `Metrics`/`Telemetry` classes
+
+9. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
+
+10. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
+
+### Features in TypeScript but NOT in Python
+
+1. **AgentOrchestrator** - Separate orchestration layer (Python has this in Agent class)
+
+2. **LLM Profiles System** - Profile-based provider management, native clients (Anthropic, OpenAI-compatible, Gemini)
+
+3. **Summarization Utilities** - `fileDiffSummarizer`, `gitChangeSummarizer`, `terminalObservationSummarizer`
+
+4. **Error Handling** - `errorPolicy.ts`, `toolCallErrorEvents.ts`
+
+5. **Tool Validation** - `ZodTool` wrapper for zod schema-based validation
+
+6. **IntegratedTerminalRunner** - Direct VS Code terminal integration
+
+### Cross-cutting differences
+
+| Aspect | Python | TypeScript |
+|--------|--------|-----------|
+| Event pattern | Class inheritance | Discriminated union interfaces |
+| Event discriminator | Class name / `isinstance()` | `kind` field string |
+| Validation | Pydantic models | Zod schemas |
+| LLM abstraction | LiteLLM (provider agnostic) | Native provider clients |
+| Async handling | Sync-first with optional async | Async-first (Promise-based) |
+| Execution status | `ConversationExecutionStatus` enum | String literals |
+
+## Current parity snapshot (2025-12-25)
 
 This section summarizes concrete behavior alignment between Python agent-sdk and TypeScript @openhands/agent-sdk-ts observed today, with pointers to code/tests and gaps to close.
 
@@ -221,12 +298,14 @@ classDiagram
       +run()
       +send_message()
       +resume_from_disk()
+      +reject_pending_actions()
       +callbacks
       +visualizer
     }
     class RemoteConversationPython {
       +send_message()
       +run()
+      +reject_pending_actions()
       +callbacks
     }
     class ConversationTS {
@@ -258,6 +337,56 @@ classDiagram
 - Python: openhands/sdk/conversation/conversation.py Conversation; openhands/sdk/conversation/base.py BaseConversation, ConversationStateProtocol; openhands/sdk/conversation/impl/local_conversation.py LocalConversation; openhands/sdk/conversation/impl/remote_conversation.py RemoteConversation; openhands/sdk/conversation/state.py ConversationState.
 - TypeScript: packages/agent-sdk-ts/src/sdk/conversation/index.ts Conversation factory; packages/agent-sdk-ts/src/sdk/conversation/LocalConversation.ts LocalConversation; packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts RemoteConversation; packages/agent-sdk-ts/src/sdk/runtime/ConversationState.ts ConversationState.
 
+### RemoteConversation detailed comparison (2025-12-25)
+
+Python's RemoteConversation has significantly more features than TypeScript's implementation.
+
+#### Helper classes
+
+| Class | Python | TypeScript | Notes |
+|-------|--------|-----------|-------|
+| `WebSocketCallbackClient` | ✓ separate class with thread, retry | ✓ inline in RemoteConversation | Similar reconnect logic |
+| `RemoteEventsList` | ✓ list-like with caching, indexing, `__getitem__` | ✗ only `seenEventIds` Set | Python caches events with full list interface |
+| `RemoteState` | ✓ full state interface | ✗ no remote state abstraction | Python exposes execution_status, confirmation_policy, security_analyzer, stats, agent, workspace, persistence_dir |
+
+#### API methods
+
+| Method | Python | TypeScript | Notes |
+|--------|--------|-----------|-------|
+| `send_message()` | ✓ | ✓ `sendUserMessage()` | Aligned |
+| `run()` | ✓ | ✓ `resume()` | Aligned (different name) |
+| `pause()` | ✓ | ✓ | Aligned |
+| `approveAction()`/`rejectAction()` | ✓ `run()` (approve/continue), `reject_pending_actions()` (reject) | ✓ | Aligned (Python approve is implicit via `run()`) |
+| `set_confirmation_policy()` | ✓ | ✗ | Python only |
+| `set_security_analyzer()` | ✓ | ✗ | Python only |
+| `update_secrets()` | ✓ | ✗ | Python only |
+| `ask_agent()` | ✓ stateless question endpoint | ✗ | Python only |
+| `generate_title()` | ✓ | ✗ | Python only |
+| `condense()` | ✓ force condensation | ✗ | Python only |
+| `close()` | ✓ | ✓ `disconnect()` | Aligned |
+| `setServerUrl()` | ✗ | ✓ | TypeScript only - dynamic URL change |
+| `setSettings()` | ✗ | ✓ | TypeScript only - dynamic settings change |
+| `reconnect()` | ✗ | ✓ | TypeScript only - manual reconnect trigger |
+
+#### Callback system
+
+| Feature | Python | TypeScript |
+|---------|--------|-----------|
+| Event callbacks | ✓ composable callback stack | ✓ EventEmitter pattern |
+| Visualizer callbacks | ✓ | ✗ |
+| State update callbacks | ✓ `create_state_update_callback()` | ✗ |
+| LLM completion log callbacks | ✓ | ✗ |
+
+#### Gaps to close for RemoteConversation
+
+- Add `RemoteState` class or equivalent state abstraction for accessing remote execution_status, confirmation_policy, stats
+- Implement `ask_agent()` for stateless questions
+- Implement `generate_title()` for conversation titling
+- Implement `condense()` for forcing condensation
+- Implement `set_confirmation_policy()` and `set_security_analyzer()` for runtime policy changes
+- Implement `update_secrets()` for runtime secret injection
+- Add callback composition pattern matching Python's `compose_callbacks()`
+
 ## Agent lifecycle and orchestration
 
 ### Python shape
@@ -272,6 +401,7 @@ classDiagram
   - Dual LLM APIs (responses vs completions)
   - Pending-action replay with disk-backed `ConversationState`
 - Integrates with `SecretRegistry` persistence, stuck detection, and configurable confirmation policies
+- Confirmation: approval is implicit (call `run()` again); rejection uses `reject_pending_actions(reason)`
 
 ### TypeScript shape
 
