@@ -1622,8 +1622,8 @@ export function App() {
         )}
 
         {/* Bottom status bar (below prompt + controls) */}
-        {statusBanner && (
-          <div className="px-4 pt-2 pb-2" data-testid="status-row">
+        <div className={statusBanner ? 'px-4 pt-2 pb-2' : ''} data-testid="status-row">
+          {statusBanner && (
             <StatusBanner
               message={statusBanner.message}
               level={statusBanner.level}
@@ -1632,8 +1632,8 @@ export function App() {
               autoDismiss={statusBanner.autoDismiss ?? statusBanner.level !== 'error'}
               autoDismissDelay={statusBanner.autoDismissDelay}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* LLM Profiles view (slide-over panel) */}
