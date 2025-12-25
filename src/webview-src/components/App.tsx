@@ -87,13 +87,35 @@ const computeConversationTotalsFromStats = (value: unknown): ConversationTotals 
     const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
     return Number.isFinite(num) ? num : null;
   };
+  const getTokenUsageArray = (metric: Record<string, unknown>): unknown[] | null => {
+    // Token usage history keys vary across backends/versions; keep fallbacks for restores.
+    const raw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
+    return Array.isArray(raw) ? raw : null;
+  };
+  const getLastRequestPromptTokens = (metric: Record<string, unknown>): number | null => {
+    const tokenUsages = getTokenUsageArray(metric);
+    if (tokenUsages?.length) {
+      const last = tokenUsages[tokenUsages.length - 1];
+      if (isRecord(last)) {
+        const prompt = asFiniteNumber(last.promptTokens ?? last.prompt_tokens);
+        if (prompt !== null && prompt >= 0) return prompt;
+      }
+    }
+    const usageRaw = metric.accumulatedTokenUsage ?? metric.accumulated_token_usage;
+    if (isRecord(usageRaw)) {
+      const perTurn = asFiniteNumber(usageRaw.perTurnToken ?? usageRaw.per_turn_token);
+      if (perTurn !== null && perTurn >= 0) return perTurn;
+    }
+    return null;
+  };
 
   if (!isRecord(value)) return null;
   const usageToMetricsRaw = value.usage_to_metrics ?? value.usageToMetrics ?? value.service_to_metrics ?? value.serviceToMetrics;
   if (!isRecord(usageToMetricsRaw)) return null;
 
   let contextTokens = 0;
-  let completionTokens = 0;
+  let accumulatedPromptTokens = 0;
+  let accumulatedCompletionTokens = 0;
   let totalCost = 0;
 
   for (const metricRaw of Object.values(usageToMetricsRaw)) {
@@ -102,19 +124,31 @@ const computeConversationTotalsFromStats = (value: unknown): ConversationTotals 
     const cost = asFiniteNumber(costRaw);
     if (cost !== null && cost > 0) totalCost += cost;
 
+    const lastPrompt = getLastRequestPromptTokens(metricRaw);
+    if (lastPrompt !== null && lastPrompt > 0) contextTokens += lastPrompt;
+
     const usageRaw = metricRaw.accumulatedTokenUsage ?? metricRaw.accumulated_token_usage;
     if (!isRecord(usageRaw)) continue;
     const prompt = asFiniteNumber(usageRaw.promptTokens ?? usageRaw.prompt_tokens);
-    if (prompt !== null && prompt > 0) contextTokens += prompt;
+    if (prompt !== null && prompt > 0) accumulatedPromptTokens += prompt;
     const completion = asFiniteNumber(usageRaw.completionTokens ?? usageRaw.completion_tokens);
-    if (completion !== null && completion > 0) completionTokens += completion;
+    if (completion !== null && completion > 0) accumulatedCompletionTokens += completion;
   }
 
-  const totalTokens = contextTokens + completionTokens;
+  const totalTokens = accumulatedPromptTokens + accumulatedCompletionTokens;
   // Best-effort: treat cost as "known" only once we have non-zero usage + non-zero cost.
   const costIsKnown = totalTokens > 0 && totalCost > 0;
 
   return { contextTokens, totalTokens, totalCost, costIsKnown };
+};
+
+const parseLlmUsageInputTokens = (value: unknown): number | null => {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const raw = record.input ?? record.inputTokens ?? record.promptTokens ?? record.prompt_tokens;
+  const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  if (!Number.isFinite(num)) return null;
+  return Math.max(0, Math.trunc(num));
 };
 
 type PendingLlmProfilesRequest =
@@ -276,6 +310,7 @@ export function App() {
   const lastAgentStatusRef = useRef<string | undefined>(undefined);
   const streamingStateRef = useRef(initialLlmStreamingState);
   const submissionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLlmUsageRef = useRef(false);
   const uiStateRef = useRef({
     input: '',
     showContextPicker: false,
@@ -500,19 +535,32 @@ export function App() {
       lastAgentStatusRef.current = event.agent_status;
     }
 
+    if (event.key === 'llm_usage') {
+      const inputTokens = parseLlmUsageInputTokens(event.value);
+      if (inputTokens !== null) {
+        hasLlmUsageRef.current = true;
+        setConversationTotals((prev) => {
+          if (prev.contextTokens === inputTokens) return prev;
+          return { ...prev, contextTokens: inputTokens };
+        });
+      }
+    }
+
     if (event.key === 'stats') {
       const totals = computeConversationTotalsFromStats(event.value);
       if (totals) {
         setConversationTotals((prev) => {
+          const nextContextTokens = hasLlmUsageRef.current ? prev.contextTokens : totals.contextTokens;
+          const nextTotals: ConversationTotals = { ...totals, contextTokens: nextContextTokens };
           if (
-            prev.contextTokens === totals.contextTokens
-            && prev.totalTokens === totals.totalTokens
-            && prev.totalCost === totals.totalCost
-            && prev.costIsKnown === totals.costIsKnown
+            prev.contextTokens === nextTotals.contextTokens
+            && prev.totalTokens === nextTotals.totalTokens
+            && prev.totalCost === nextTotals.totalCost
+            && prev.costIsKnown === nextTotals.costIsKnown
           ) {
             return prev;
           }
-          return totals;
+          return nextTotals;
         });
       }
     }
@@ -866,6 +914,7 @@ export function App() {
               setAgentStatus(undefined);
               setStreamingContent(null);
               setConversationTotals(INITIAL_CONVERSATION_TOTALS);
+              hasLlmUsageRef.current = false;
               eventId.current = 1;
               const api = getVscodeApi();
               api.setState?.({});
@@ -1195,6 +1244,7 @@ export function App() {
     setAgentStatus(undefined);
     setStreamingContent(null);
     setConversationTotals(INITIAL_CONVERSATION_TOTALS);
+    hasLlmUsageRef.current = false;
     eventId.current = 1;
     setInput('');
     setSelectedContextFiles([]);
