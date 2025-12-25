@@ -182,6 +182,42 @@ describe('RemoteConversation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { label: 'enabled', enableSecurityAnalyzer: true },
+    { label: 'disabled', enableSecurityAnalyzer: false },
+  ])('handles security_analyzer payload when $label', async ({ enableSecurityAnalyzer }) => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      expect(url).toContain('/api/conversations');
+      const body = JSON.parse(init?.body ?? '{}');
+      if (enableSecurityAnalyzer) {
+        expect(body.agent.security_analyzer).toEqual({ kind: 'LLMSecurityAnalyzer' });
+      } else {
+        expect('security_analyzer' in body.agent).toBe(false);
+      }
+      return {
+        ok: true,
+        status: 201,
+        json: async () => ({ id: 'conv-1' }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: {
+        ...baseSettings,
+        agent: { ...baseSettings.agent, enableSecurityAnalyzer },
+      },
+    });
+
+    const id = await conversation.startNewConversation();
+    conversation.disconnect();
+    expect(id).toBe('conv-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('derives usage_id from profileId when usageId is default-llm', async () => {
     const dir = makeTempDir('remote-conversation-profiles-');
     try {
