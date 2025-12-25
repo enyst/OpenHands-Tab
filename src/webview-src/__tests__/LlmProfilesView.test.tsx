@@ -164,8 +164,8 @@ describe('LLM Profiles view', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
 
-    const slider = await screen.findByRole('slider', { name: 'Max output tokens' });
-    const input = await screen.findByRole('spinbutton', { name: 'Max output tokens' });
+    const slider = await screen.findByRole('slider', { name: 'Max output tokens (slider)' });
+    const input = await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' });
     expect(slider).toBeDisabled();
 
     fireEvent.change(input, { target: { value: '2048' } });
@@ -197,7 +197,7 @@ describe('LLM Profiles view', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
 
-    const input = await screen.findByRole('spinbutton', { name: 'Max output tokens' });
+    const input = await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' });
 
     fireEvent.change(input, { target: { value: '0' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));

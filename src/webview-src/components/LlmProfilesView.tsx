@@ -1130,7 +1130,7 @@ export function LlmProfilesView(props: {
                                 onChange={(v) => update('maxOutputTokens', v)}
                                 placeholder="optional"
                                 type="number"
-                                ariaLabel="Max output tokens"
+                                ariaLabel="Max output tokens (numeric input)"
                               />
                               <input
                                 type="range"
@@ -1140,7 +1140,7 @@ export function LlmProfilesView(props: {
                                 value={maxOutputTokensSlider.value}
                                 onChange={(e) => update('maxOutputTokens', e.target.value)}
                                 disabled={maxOutputTokensSlider.disabled}
-                                aria-label="Max output tokens"
+                                aria-label="Max output tokens (slider)"
                                 className="w-full accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
                               />
                               <div className="flex items-center justify-between text-[11px] text-stone-500">
