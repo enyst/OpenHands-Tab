@@ -51,11 +51,10 @@ export async function showWorkspaceDiff(args: {
 }): Promise<void> {
   ensureDiffProviderRegistered(args.context);
 
-  const { displayPath } = resolveWorkspaceFilePath(args.filePath);
-  const { beforeUri, afterUri } = createDiffUris(displayPath);
+  const { resolvedPath, displayPath } = resolveWorkspaceFilePath(args.filePath);
+  const { beforeUri } = createDiffUris(displayPath);
+  const afterUri = vscode.Uri.file(resolvedPath);
   storeDiffDocument(beforeUri, args.oldContent);
-  storeDiffDocument(afterUri, args.newContent);
 
   await vscode.commands.executeCommand('vscode.diff', beforeUri, afterUri, `Diff: ${displayPath}`, { preview: false });
 }
-
