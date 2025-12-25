@@ -1144,15 +1144,14 @@ export class Agent extends EventEmitter {
     if (!this.shouldIncludeSecurityRiskAssessment()) return definitions;
 
     return definitions.map((tool): LLMToolDefinition => {
-      const fn = tool.function ?? ({} as LLMToolDefinition['function']);
+      const fn = tool.function;
       const parameters =
         fn.parameters && typeof fn.parameters === 'object' && !Array.isArray(fn.parameters)
           ? (fn.parameters as Record<string, unknown>)
           : {};
-      const existingProps = parameters.properties;
       const properties =
-        existingProps && typeof existingProps === 'object' && !Array.isArray(existingProps)
-          ? ({ ...(existingProps as Record<string, unknown>) } as Record<string, unknown>)
+        parameters.properties && typeof parameters.properties === 'object' && !Array.isArray(parameters.properties)
+          ? { ...(parameters.properties as Record<string, unknown>) }
           : {};
 
       if (!properties.security_risk) {
@@ -1163,9 +1162,8 @@ export class Agent extends EventEmitter {
         };
       }
 
-      const existingRequired = parameters.required;
-      const required = Array.isArray(existingRequired)
-        ? existingRequired.filter((value): value is string => typeof value === 'string')
+      const required = Array.isArray(parameters.required)
+        ? parameters.required.filter((value): value is string => typeof value === 'string')
         : [];
       if (!required.includes('security_risk')) {
         required.unshift('security_risk');

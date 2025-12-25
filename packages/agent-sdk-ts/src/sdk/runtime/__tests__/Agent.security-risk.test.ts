@@ -12,8 +12,8 @@ class MockLLM implements LLMClient {
   lastRequest: ChatCompletionRequest | null = null;
   constructor(private readonly chunks: LLMStreamChunk[]) {}
 
-  async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
-    this.lastRequest = _request;
+  async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+    this.lastRequest = request;
     for (const chunk of this.chunks) {
       yield chunk;
     }
