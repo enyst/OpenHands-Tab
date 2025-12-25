@@ -149,6 +149,65 @@ describe('LLM Profiles view', () => {
     expect(await screen.findByText('Must be a valid number')).toBeInTheDocument();
   });
 
+  it('syncs Max output tokens slider with numeric input', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
+
+    const slider = await screen.findByRole('slider', { name: 'Max output tokens (slider)' });
+    const input = await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' });
+    expect(slider).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: '2048' } });
+
+    await waitFor(() => {
+      expect(slider).not.toBeDisabled();
+      expect(slider).toHaveValue('2048');
+    });
+
+    fireEvent.change(slider, { target: { value: '4096' } });
+
+    await waitFor(() => {
+      expect(input).toHaveValue(4096);
+    });
+  });
+
+  it('validates Max output tokens range', async () => {
+    render(<App />);
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(screen.getByLabelText('LLM Profiles'));
+
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfilesListRequest')).toBeTruthy();
+    });
+
+    const listRequest = getLastPostedOfType('llmProfilesListRequest');
+    postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
+
+    const input = await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' });
+
+    fireEvent.change(input, { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Must be >= 1')).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: '70000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Must be <= 65536')).toBeInTheDocument();
+  });
+
   it('offers header icon actions for create/edit (delete disabled)', async () => {
     render(<App />);
     mockApi.postMessage.mockClear();

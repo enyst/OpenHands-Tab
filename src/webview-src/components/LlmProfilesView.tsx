@@ -95,6 +95,10 @@ const PROVIDER_API_KEY_URLS: Partial<Record<Provider, string>> = {
   gemini: 'https://aistudio.google.com/app/apikey',
 };
 
+const MIN_OUTPUT_TOKENS = 1;
+const MAX_OUTPUT_TOKENS_SLIDER_MAX = 65536;
+const MAX_OUTPUT_TOKENS_SLIDER_STEP = 256;
+
 const postMessage = (message: WebviewToHostMessage) => {
   const api = getVscodeApi();
   api.postMessage(message);
@@ -211,7 +215,15 @@ const validateForm = (mode: ProfileFormMode, form: ProfileFormState): FieldError
   if (maxInputTokens.error) errors.maxInputTokens = maxInputTokens.error;
 
   const maxOutputTokens = parseOptionalInt(form.maxOutputTokens);
-  if (maxOutputTokens.error) errors.maxOutputTokens = maxOutputTokens.error;
+  if (maxOutputTokens.error) {
+    errors.maxOutputTokens = maxOutputTokens.error;
+  } else if (maxOutputTokens.value !== null) {
+    if (maxOutputTokens.value < MIN_OUTPUT_TOKENS) {
+      errors.maxOutputTokens = `Must be >= ${MIN_OUTPUT_TOKENS}`;
+    } else if (maxOutputTokens.value > MAX_OUTPUT_TOKENS_SLIDER_MAX) {
+      errors.maxOutputTokens = `Must be <= ${MAX_OUTPUT_TOKENS_SLIDER_MAX}`;
+    }
+  }
 
   const inputCost = parseOptionalNumber(form.inputCostPerToken);
   if (inputCost.error) errors.inputCostPerToken = inputCost.error;
@@ -280,6 +292,7 @@ function InputField(props: {
   placeholder?: string;
   disabled?: boolean;
   type?: string;
+  ariaLabel?: string;
 }) {
   return (
     <input
@@ -288,6 +301,7 @@ function InputField(props: {
       placeholder={props.placeholder}
       disabled={props.disabled}
       type={props.type ?? 'text'}
+      aria-label={props.ariaLabel}
       className={`
         w-full px-3 py-2 rounded-lg
         bg-white/[0.03] border border-white/[0.06]
@@ -553,6 +567,14 @@ export function LlmProfilesView(props: {
   const missingStoredApiKey = canEditApiKey && apiKeyStatus.state === 'ready' && !apiKeyStatus.hasKey;
   const missingDraftApiKey = mode === 'create' && saveAttempted && providerRequiresApiKey && !apiKeyInput.trim();
   const showMissingApiKeyWarning = providerRequiresApiKey && (missingStoredApiKey || missingDraftApiKey);
+  const maxOutputTokensSlider = (() => {
+    const parsed = parseOptionalInt(form.maxOutputTokens);
+    const value = parsed.value;
+    if (value === null || value < MIN_OUTPUT_TOKENS || value > MAX_OUTPUT_TOKENS_SLIDER_MAX) {
+      return { disabled: true, value: MIN_OUTPUT_TOKENS };
+    }
+    return { disabled: false, value };
+  })();
 
   const apiKeyStatusLabel = (() => {
     if (!canEditApiKey) return '—';
@@ -1102,7 +1124,30 @@ export function LlmProfilesView(props: {
                         <div>
                           <FieldLabel label="Max output tokens" />
                           <div className="mt-2">
-                            <InputField value={form.maxOutputTokens} onChange={(v) => update('maxOutputTokens', v)} placeholder="optional" />
+                            <div className="space-y-2">
+                              <InputField
+                                value={form.maxOutputTokens}
+                                onChange={(v) => update('maxOutputTokens', v)}
+                                placeholder="optional"
+                                type="number"
+                                ariaLabel="Max output tokens (numeric input)"
+                              />
+                              <input
+                                type="range"
+                                min={MIN_OUTPUT_TOKENS}
+                                max={MAX_OUTPUT_TOKENS_SLIDER_MAX}
+                                step={MAX_OUTPUT_TOKENS_SLIDER_STEP}
+                                value={maxOutputTokensSlider.value}
+                                onChange={(e) => update('maxOutputTokens', e.target.value)}
+                                disabled={maxOutputTokensSlider.disabled}
+                                aria-label="Max output tokens (slider)"
+                                className="w-full accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              />
+                              <div className="flex items-center justify-between text-[11px] text-stone-500">
+                                <span>{MIN_OUTPUT_TOKENS}</span>
+                                <span>{MAX_OUTPUT_TOKENS_SLIDER_MAX.toLocaleString()}</span>
+                              </div>
+                            </div>
                             <FieldError message={errors.maxOutputTokens} />
                           </div>
                         </div>
