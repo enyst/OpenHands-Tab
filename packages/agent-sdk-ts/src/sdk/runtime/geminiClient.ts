@@ -30,7 +30,12 @@ export const getGeminiClient = async (secrets: SecretRegistry, options: GeminiCl
       temperature: options.temperature ?? 0.2,
       maxOutputTokens: options.maxOutputTokens,
     },
-    { secrets }
+    {
+      secrets,
+      // Prefer the provider-specific key so a user's primary LLM key (often OpenAI) doesn't
+      // accidentally override Gemini summarizers when both are configured.
+      preferredApiKeys: 'GEMINI_API_KEY',
+    }
   );
 
   return factory.createClient();
