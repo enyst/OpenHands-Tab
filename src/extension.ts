@@ -1129,16 +1129,7 @@ export function activate(context: vscode.ExtensionContext) {
     errorPrefix: 'Failed to save ElevenLabs API key',
   });
 
-  // Deprecated: HAL now uses the global GEMINI_API_KEY. Keep command to redirect users.
-  const setGeminiApiKey = vscode.commands.registerCommand('openhands.setGeminiApiKey', async () => {
-    const action = await vscode.window.showInformationMessage(
-      'HAL now uses the global Gemini API key. Please use "OpenHands: Set Gemini API Key" instead.',
-      'Open Command'
-    );
-    if (action === 'Open Command') {
-      await vscode.commands.executeCommand('openhands.setGeminiLlmApiKey');
-    }
-  });
+
 
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
     title: 'Custom Secret 1',
@@ -1251,7 +1242,7 @@ export function activate(context: vscode.ExtensionContext) {
     setSessionApiKey,
     setGithubToken,
     setElevenLabsApiKey,
-    setGeminiApiKey,
+
     setCustomSecret1,
     setCustomSecret2,
     setCustomSecret3,
