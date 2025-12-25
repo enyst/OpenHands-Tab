@@ -701,13 +701,13 @@ export function LlmProfilesView(props: {
       }
       await setApiKey(profileId, trimmed);
       setApiKeyInput('');
-      void refreshApiKeyStatus(profileId);
+      void refreshApiKeyStatus(profileId, form.provider ? { provider: form.provider } : undefined);
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : String(err));
     } finally {
       setApiKeySaving(false);
     }
-  }, [apiKeyInput, refreshApiKeyStatus, selectedProfileId, setApiKey]);
+  }, [apiKeyInput, form.provider, refreshApiKeyStatus, selectedProfileId, setApiKey]);
 
   const handleClearApiKey = useCallback(async () => {
     if (!selectedProfileId) return;
@@ -716,13 +716,13 @@ export function LlmProfilesView(props: {
     setApiKeyError(null);
     try {
       await setApiKey(profileId, '');
-      void refreshApiKeyStatus(profileId);
+      void refreshApiKeyStatus(profileId, form.provider ? { provider: form.provider } : undefined);
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : String(err));
     } finally {
       setApiKeySaving(false);
     }
-  }, [refreshApiKeyStatus, selectedProfileId, setApiKey]);
+  }, [form.provider, refreshApiKeyStatus, selectedProfileId, setApiKey]);
 
   const handleToggleOverrideProfileApiKey = useCallback((next: boolean) => {
     setOverrideProfileApiKey(next);
