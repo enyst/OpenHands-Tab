@@ -1,14 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as os from 'os';
-import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
+import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { type HalStateSnapshot, isHalMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
-import { normalizeNonEmptyString } from './shared/stringUtils';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, isValidPastedImageId } from './shared/pastedImages';
 import { cleanupPastedImages } from './shared/pastedImagesCleanup';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
@@ -22,11 +21,11 @@ import { createFileEditNoteTracker } from './extension/fileEditNote';
 import { getGitHeadDiffSummaryForFile, resolveGitContext } from './extension/gitDiffSummary';
 import { resolveConversationStoreRoot } from './extension/conversationStoreRoot';
 import { registerSecretCommands } from './extension/secretCommands';
+import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import {
   AgentContext,
   Conversation,
   type ConversationInstance,
-  LLMFactory,
   SecretRegistry,
   type BashEvent,
   type Event,
@@ -193,45 +192,6 @@ function flushConversationEventBacklog(params: {
 function renderError(err: unknown): string {
   const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   return maskSecretsInText(rendered, secretRegistry);
-}
-
-async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string, secrets: SecretRegistry): Promise<string> {
-  const profileId = normalizeNonEmptyString(settings.llm.profileId);
-  if (!profileId) {
-    throw new Error('LLM profileId is not configured');
-  }
-
-  const model = normalizeNonEmptyString(settings.llm.model) ?? '';
-  const factory = new LLMFactory({
-    profileId,
-    // LLMFactory loads the effective provider/model/baseUrl/etc from the profile when profileId is set.
-    // Keep `model` set to satisfy the type and for error context if the profile load fails.
-    model,
-  }, {
-    secrets,
-    preferredApiKeys: [`openhands.llmProfileApiKey.${profileId}`],
-  });
-
-  const client = await factory.createClient();
-  const request = {
-    systemPrompt: '',
-    messages: [
-      {
-        role: 'user' as const,
-        content: [{ type: 'text' as const, text: prompt }],
-      },
-    ],
-  };
-
-  let text = '';
-  for await (const chunk of client.streamChat(request)) {
-    if (chunk.type === 'text') text += chunk.text;
-  }
-  const trimmed = text.trim();
-  if (!trimmed) {
-    throw new Error('LLM returned an empty summary');
-  }
-  return trimmed;
 }
 
 function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
