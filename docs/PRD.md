@@ -117,7 +117,6 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - `openhands.servers` - saved server list [{ url, label? }] for quick selection
 - `openhands.terminal.renderProgress` - coalesce carriage-return progress in terminal output
 - `openhands.llm.profileId` - selected LLM profile id from `~/.openhands/llm-profiles` (local alias; remote mode expands into `agent.llm` fields, no `profile_id` sent)
-- `openhands.llm.usageId` - maps to agent-sdk usage_id for metrics/cost tracking
 - `openhands.confirmation.policy` - never/always/risky; `risky.threshold` default MEDIUM; `risky.confirmUnknown`
 - `openhands.conversation.maxIterations` - iteration limit
 

@@ -237,7 +237,6 @@ export class SettingsManager {
       }
     }
 
-    const usageId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId'));
     const configuredProfileId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.profileId'));
     const profileId = configuredProfileId && isSafeProfileId(configuredProfileId)
       ? configuredProfileId
@@ -272,7 +271,6 @@ export class SettingsManager {
     const provider = profileConfig?.provider ?? detectProviderFromBaseUrl(profileConfig?.baseUrl);
 
     const llm: LLMSettings = {
-      usageId,
       profileId: effectiveProfileId,
       provider,
       model: profileConfig?.model,
@@ -356,7 +354,6 @@ export class SettingsManager {
     }
 
     if (partial.llm) {
-      if (partial.llm.usageId !== undefined) ops.push(this.adapter.update('openhands.llm.usageId', partial.llm.usageId, target));
       if (partial.llm.profileId !== undefined) ops.push(this.adapter.update('openhands.llm.profileId', partial.llm.profileId, target));
     }
 

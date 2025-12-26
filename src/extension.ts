@@ -313,7 +313,6 @@ async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string
     // LLMFactory loads the effective provider/model/baseUrl/etc from the profile when profileId is set.
     // Keep `model` set to satisfy the type and for error context if the profile load fails.
     model,
-    usageId: normalizeNonEmptyString(settings.llm.usageId),
   }, {
     secrets,
     preferredApiKeys: [`openhands.llmProfileApiKey.${profileId}`],
