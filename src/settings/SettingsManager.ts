@@ -56,6 +56,14 @@ const DEFAULTS: OpenHandsSettings = {
   secrets: {}
 };
 
+const DEFAULT_LLM_PROFILE_ID = 'sonnet-45';
+
+const DEFAULT_LLM_PROFILE_ID_BY_API_KEY: Array<{ secretKey: string; profileId: string }> = [
+  { secretKey: 'OPENAI_API_KEY', profileId: 'gpt-5-mini' },
+  { secretKey: 'ANTHROPIC_API_KEY', profileId: 'sonnet-45' },
+  { secretKey: 'GEMINI_API_KEY', profileId: 'gemini-flash' },
+];
+
 const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
   ['enabled', 'openhands.hal.enabled'],
   ['mode', 'openhands.hal.mode'],
@@ -70,6 +78,13 @@ const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
 const normalizeNonEmptyString = (value: string | null | undefined): string | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   return trimmed || undefined;
+};
+
+const isSafeProfileId = (value: string): boolean => {
+  if (!value.trim()) return false;
+  if (value !== value.trim()) return false;
+  if (value.includes('/') || value.includes('\\')) return false;
+  return /^[a-zA-Z0-9._-]+$/.test(value);
 };
 
 const sanitizePositiveInteger = (value: number | null | undefined): number | undefined => {
@@ -193,6 +208,25 @@ export class SettingsManager {
 
   constructor(private adapter: SettingsAdapter) {}
 
+  private async pickDefaultProfileId(): Promise<string> {
+    const hasSecret = async (key: string): Promise<boolean> => {
+      try {
+        const stored = await this.adapter.getSecret(key);
+        if (typeof stored === 'string' && stored.trim()) return true;
+      } catch {
+        // ignore
+      }
+      const envValue = process.env[key];
+      return typeof envValue === 'string' && envValue.trim().length > 0;
+    };
+
+    for (const entry of DEFAULT_LLM_PROFILE_ID_BY_API_KEY) {
+      if (await hasSecret(entry.secretKey)) return entry.profileId;
+    }
+
+    return DEFAULT_LLM_PROFILE_ID;
+  }
+
   drainServerNormalizationWarnings(): string[] {
     const warnings = this.serverNormalizationWarnings;
     this.serverNormalizationWarnings = [];
@@ -247,7 +281,25 @@ export class SettingsManager {
     const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
     const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
     const usageId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId'));
-    const profileId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.profileId'));
+    const rawConfiguredProfileId = this.adapter.getExplicit<string>('openhands.llm.profileId');
+    const hasExplicitProfileIdSetting = rawConfiguredProfileId !== undefined;
+    const configuredProfileId = normalizeNonEmptyString(rawConfiguredProfileId);
+    const profileId = configuredProfileId && isSafeProfileId(configuredProfileId)
+      ? configuredProfileId
+      : undefined;
+    let effectiveProfileId = profileId;
+    if (!profileId && !hasExplicitProfileIdSetting) {
+      try {
+        const selected = await this.pickDefaultProfileId();
+        effectiveProfileId = selected;
+        await this.update({ llm: { profileId: selected } }, 'global');
+      } catch {
+        // Best-effort: still return the computed id even if persistence fails.
+      }
+    }
+    if (!effectiveProfileId && !hasExplicitProfileIdSetting) {
+      effectiveProfileId = await this.pickDefaultProfileId();
+    }
     const explicitModel = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.model'));
     // Always provide a model name, even in remote mode: the python agent-server requires it in StartConversationRequest.
     const model = explicitModel ?? normalizeNonEmptyString(
@@ -257,7 +309,7 @@ export class SettingsManager {
       // Omit usageId unless explicitly configured (local-mode SDK can derive a stable id per config).
       // Always provide a model so LocalConversation and RemoteConversation can start reliably.
       usageId,
-      profileId,
+      profileId: effectiveProfileId,
       provider,
       model,
       openaiApiMode: normalizeOpenaiApiMode(

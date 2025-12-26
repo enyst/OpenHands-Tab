@@ -27,7 +27,8 @@ describe('SettingsManager', () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBeUndefined();
     expect(s.llm.usageId).toBeUndefined();
-    expect(s.llm.profileId).toBeUndefined();
+    expect(s.llm.profileId).toBe('sonnet-45');
+    expect(a.cfg.get('openhands.llm.profileId')).toBe('sonnet-45');
     expect(s.llm.provider).toBe('anthropic');
     expect(s.llm.openaiApiMode).toBeUndefined();
     expect(s.llm.reasoningSummary).toBeUndefined();
@@ -45,6 +46,27 @@ describe('SettingsManager', () => {
     expect(s.hal.cache).toBe(true);
     expect(s.gemini.model).toBe('gemini-2.5-flash');
     expect(s.gemini.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
+  });
+
+  it('selects gpt-5-mini when OPENAI_API_KEY is present', async () => {
+    a.secrets.set('OPENAI_API_KEY', 'sk-test');
+    const s = await mgr.get();
+    expect(s.llm.profileId).toBe('gpt-5-mini');
+    expect(a.cfg.get('openhands.llm.profileId')).toBe('gpt-5-mini');
+  });
+
+  it('does not overwrite an explicitly configured profileId', async () => {
+    a.cfg.set('openhands.llm.profileId', 'gpt-5');
+    const s = await mgr.get();
+    expect(s.llm.profileId).toBe('gpt-5');
+    expect(a.cfg.get('openhands.llm.profileId')).toBe('gpt-5');
+  });
+
+  it('does not overwrite an explicitly cleared profileId', async () => {
+    a.cfg.set('openhands.llm.profileId', '');
+    const s = await mgr.get();
+    expect(s.llm.profileId).toBeUndefined();
+    expect(a.cfg.get('openhands.llm.profileId')).toBe('');
   });
 
   it('includes a default model in remote mode', async () => {
