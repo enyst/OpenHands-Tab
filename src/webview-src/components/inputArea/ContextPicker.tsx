@@ -85,7 +85,7 @@ export function ContextPicker({
           placeholder="Search files..."
           aria-controls={listboxId}
           aria-activedescendant={activeOptionId}
-          className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/30"
+          className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:border-brand-500/40"
           autoFocus
         />
       </div>
@@ -113,10 +113,10 @@ export function ContextPicker({
                     transition-all duration-150
                     flex items-center gap-2
                     ${isSelected
-                      ? 'bg-brand-500/15 text-brand-300 border border-brand-500/20'
+                      ? 'bg-brand-500/15 text-brand-300'
                       : isActive
-                        ? 'bg-white/[0.06] text-stone-200 border border-white/[0.16]'
-                        : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300 border border-transparent'
+                        ? 'bg-brand-500/10 text-stone-200 ring-1 ring-brand-500/40'
+                        : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'
                     }
                   `}
                 >

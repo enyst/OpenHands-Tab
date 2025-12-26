@@ -65,8 +65,8 @@ export function ToolsPopover({
                     flex items-center gap-2
                     group
                     ${isEnabled
-                      ? 'bg-brand-500/10 text-stone-200 border border-brand-500/25'
-                      : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300 border border-transparent'
+                      ? 'bg-brand-500/10 text-stone-200'
+                      : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'
                     }
                   `}
                 >

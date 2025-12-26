@@ -18,7 +18,7 @@ export function AccessoryButton({ icon, label, displayLabel, onClick, badge, com
         text-xs font-medium
         transition-all duration-200
         border
-        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+        focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:ring-offset-0
         ${comingSoon
           ? 'bg-white/[0.02] text-stone-600 border-white/[0.03] cursor-not-allowed'
           : 'bg-white/[0.04] text-stone-400 border-white/[0.06] hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]'
