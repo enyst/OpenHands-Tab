@@ -308,32 +308,34 @@ export class LocalConversation extends EventEmitter {
     const usageId = toOptionalNonEmptyString(llm.usageId);
     if (usageId) config.usageId = usageId;
 
-    if (llm.openaiApiMode) config.openaiApiMode = llm.openaiApiMode;
+    if (!profileId) {
+      if (llm.openaiApiMode) config.openaiApiMode = llm.openaiApiMode;
 
-    const baseUrl = toOptionalNonEmptyString(llm.baseUrl);
-    if (baseUrl) config.baseUrl = baseUrl;
-    const apiVersion = toOptionalNonEmptyString(llm.apiVersion);
-    if (apiVersion) config.apiVersion = apiVersion;
+      const baseUrl = toOptionalNonEmptyString(llm.baseUrl);
+      if (baseUrl) config.baseUrl = baseUrl;
+      const apiVersion = toOptionalNonEmptyString(llm.apiVersion);
+      if (apiVersion) config.apiVersion = apiVersion;
 
-    if (typeof llm.timeout === 'number' && Number.isFinite(llm.timeout)) config.timeoutSeconds = llm.timeout;
-    if (typeof llm.temperature === 'number' && Number.isFinite(llm.temperature)) config.temperature = llm.temperature;
-    if (typeof llm.topP === 'number' && Number.isFinite(llm.topP)) config.topP = llm.topP;
-    if (typeof llm.topK === 'number' && Number.isFinite(llm.topK)) config.topK = llm.topK;
-    if (typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens)) {
-      config.maxInputTokens = llm.maxInputTokens;
-    }
-    if (typeof llm.maxOutputTokens === 'number' && Number.isFinite(llm.maxOutputTokens)) {
-      config.maxOutputTokens = llm.maxOutputTokens;
-    }
+      if (typeof llm.timeout === 'number' && Number.isFinite(llm.timeout)) config.timeoutSeconds = llm.timeout;
+      if (typeof llm.temperature === 'number' && Number.isFinite(llm.temperature)) config.temperature = llm.temperature;
+      if (typeof llm.topP === 'number' && Number.isFinite(llm.topP)) config.topP = llm.topP;
+      if (typeof llm.topK === 'number' && Number.isFinite(llm.topK)) config.topK = llm.topK;
+      if (typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens)) {
+        config.maxInputTokens = llm.maxInputTokens;
+      }
+      if (typeof llm.maxOutputTokens === 'number' && Number.isFinite(llm.maxOutputTokens)) {
+        config.maxOutputTokens = llm.maxOutputTokens;
+      }
 
-    if (llm.reasoningEffort) config.reasoningEffort = llm.reasoningEffort;
-    if (llm.reasoningSummary) config.reasoningSummary = llm.reasoningSummary;
+      if (llm.reasoningEffort) config.reasoningEffort = llm.reasoningEffort;
+      if (llm.reasoningSummary) config.reasoningSummary = llm.reasoningSummary;
 
-    if (typeof llm.inputCostPerToken === 'number' && Number.isFinite(llm.inputCostPerToken)) {
-      config.inputCostPerToken = llm.inputCostPerToken;
-    }
-    if (typeof llm.outputCostPerToken === 'number' && Number.isFinite(llm.outputCostPerToken)) {
-      config.outputCostPerToken = llm.outputCostPerToken;
+      if (typeof llm.inputCostPerToken === 'number' && Number.isFinite(llm.inputCostPerToken)) {
+        config.inputCostPerToken = llm.inputCostPerToken;
+      }
+      if (typeof llm.outputCostPerToken === 'number' && Number.isFinite(llm.outputCostPerToken)) {
+        config.outputCostPerToken = llm.outputCostPerToken;
+      }
     }
 
     if (!Object.keys(config).length) return;
@@ -347,26 +349,47 @@ export class LocalConversation extends EventEmitter {
     if (!persisted.profileId && !persisted.model) return;
 
     const existing = this.settings.llm ?? {};
-    const merged: OpenHandsSettings['llm'] = {
-      ...existing,
-      profileId: persisted.profileId ?? undefined,
-      provider: persisted.provider ?? undefined,
-      model: persisted.model ?? undefined,
-      usageId: persisted.usageId ?? undefined,
-      openaiApiMode: persisted.openaiApiMode ?? undefined,
-      baseUrl: persisted.baseUrl ?? undefined,
-      apiVersion: persisted.apiVersion ?? undefined,
-      timeout: persisted.timeoutSeconds ?? undefined,
-      temperature: persisted.temperature ?? undefined,
-      topP: persisted.topP ?? undefined,
-      topK: persisted.topK ?? undefined,
-      maxInputTokens: persisted.maxInputTokens ?? undefined,
-      maxOutputTokens: persisted.maxOutputTokens ?? undefined,
-      reasoningEffort: persisted.reasoningEffort ?? undefined,
-      reasoningSummary: persisted.reasoningSummary ?? undefined,
-      inputCostPerToken: persisted.inputCostPerToken ?? undefined,
-      outputCostPerToken: persisted.outputCostPerToken ?? undefined,
-    };
+    const merged: OpenHandsSettings['llm'] = persisted.profileId
+      ? {
+        ...existing,
+        profileId: persisted.profileId,
+        usageId: persisted.usageId ?? undefined,
+        provider: undefined,
+        model: undefined,
+        openaiApiMode: undefined,
+        baseUrl: undefined,
+        apiVersion: undefined,
+        timeout: undefined,
+        temperature: undefined,
+        topP: undefined,
+        topK: undefined,
+        maxInputTokens: undefined,
+        maxOutputTokens: undefined,
+        reasoningEffort: undefined,
+        reasoningSummary: undefined,
+        inputCostPerToken: undefined,
+        outputCostPerToken: undefined,
+      }
+      : {
+        ...existing,
+        profileId: undefined,
+        provider: persisted.provider ?? undefined,
+        model: persisted.model ?? undefined,
+        usageId: persisted.usageId ?? undefined,
+        openaiApiMode: persisted.openaiApiMode ?? undefined,
+        baseUrl: persisted.baseUrl ?? undefined,
+        apiVersion: persisted.apiVersion ?? undefined,
+        timeout: persisted.timeoutSeconds ?? undefined,
+        temperature: persisted.temperature ?? undefined,
+        topP: persisted.topP ?? undefined,
+        topK: persisted.topK ?? undefined,
+        maxInputTokens: persisted.maxInputTokens ?? undefined,
+        maxOutputTokens: persisted.maxOutputTokens ?? undefined,
+        reasoningEffort: persisted.reasoningEffort ?? undefined,
+        reasoningSummary: persisted.reasoningSummary ?? undefined,
+        inputCostPerToken: persisted.inputCostPerToken ?? undefined,
+        outputCostPerToken: persisted.outputCostPerToken ?? undefined,
+      };
 
     this.settings = { ...this.settings, llm: merged };
     this.agent.setSettings(this.settings);
