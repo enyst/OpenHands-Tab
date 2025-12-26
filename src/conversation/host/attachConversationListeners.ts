@@ -67,7 +67,6 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
       const shouldLogToOutputChannel = shouldLogToDebugConsole || deps.isVerboseEventLogging();
 
       if (shouldLogToOutputChannel) {
-        const outputChannel = deps.getOutputChannel();
         try {
           outputChannel?.appendLine(`[llm][${key}]`);
           outputChannel?.appendLine(deps.safeStringify(ev.value));

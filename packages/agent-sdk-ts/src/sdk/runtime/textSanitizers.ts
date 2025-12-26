@@ -38,7 +38,9 @@ const shouldRedactKey = (key: string): boolean => {
     normalized.includes('password') ||
     normalized.endsWith('token') ||
     normalized === 'auth' ||
-    normalized.includes('authorization')
+    normalized.includes('authorization') ||
+    normalized === 'pass' ||
+    normalized === 'pwd'
   );
 };
 
