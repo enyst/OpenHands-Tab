@@ -173,7 +173,7 @@ describe('SettingsManager', () => {
     expect(s.hal.cache).toBe(false);
     expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
-    // HAL no longer uses a separate Gemini key; it relies on GEMINI_API_KEY/global LLM key.
+    // HAL voice_confirm does not have a separate Gemini secret setting; it relies on profile/provider/global keys.
   });
 
   it('sanitizes invalid HAL mode and clamps volume', async () => {
