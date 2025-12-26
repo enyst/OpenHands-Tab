@@ -17,6 +17,7 @@ import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminal
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
+import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
 import { createFileEditNoteTracker } from './extension/fileEditNote';
 import { getGitHeadDiffSummaryForFile, resolveGitContext } from './extension/gitDiffSummary';
 import {
@@ -79,53 +80,6 @@ function markPrintedExitFor(commandId: string): void {
   if (printedExitFor.size <= MAX_PRINTED_EXIT_FOR) return;
   const oldest = printedExitFor.keys().next().value;
   if (oldest) printedExitFor.delete(oldest);
-}
-
-// Dev logging/instrumentation toggle and file sink
-let devBridgeEnabled = false;
-let webviewLogFile: string | undefined;
-async function initFileLogger(context: vscode.ExtensionContext) {
-  try {
-    const logDir = context.logUri.fsPath;
-    await fs.mkdir(logDir, { recursive: true });
-    webviewLogFile = path.join(logDir, 'openhands-webview.log');
-  } catch (_err) {
-    webviewLogFile = undefined;
-  }
-}
-function fileLog(line: string) {
-  if (!devBridgeEnabled || !webviewLogFile) return;
-  const masked = maskSecretsInText(line, secretRegistry);
-  const ts = new Date().toISOString();
-  fs.appendFile(webviewLogFile, `[${ts}] ${masked}\n`).catch((err: unknown) => {
-    console.warn('[OpenHands] Failed to append to webview log', err);
-  });
-}
-
-function createMaskedOutputChannel(channel: vscode.OutputChannel): vscode.OutputChannel {
-  return new Proxy(channel, {
-    get(target, prop, receiver) {
-      if (prop === 'appendLine' && typeof target.appendLine === 'function') {
-        return (value: string) => target.appendLine(maskSecretsInText(String(value), secretRegistry));
-      }
-
-      const append = (target as unknown as { append?: unknown }).append;
-      if (prop === 'append' && typeof append === 'function') {
-        return (value: string) =>
-          (target as unknown as { append: (text: string) => void }).append(maskSecretsInText(String(value), secretRegistry));
-      }
-
-      const replace = (target as unknown as { replace?: unknown }).replace;
-      if (prop === 'replace' && typeof replace === 'function') {
-        return (value: string) =>
-          (target as unknown as { replace: (text: string) => void }).replace(maskSecretsInText(String(value), secretRegistry));
-      }
-
-      const value = Reflect.get(target, prop, receiver) as unknown;
-      if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
-      return value;
-    },
-  });
 }
 
 let pastedImagesCleanupInFlight: Promise<void> | undefined;
@@ -367,9 +321,11 @@ export function activate(context: vscode.ExtensionContext) {
   const secrets = new SecretRegistry(context.secrets);
   secretRegistry = secrets;
 
+  const devBridgeLogger = createDevBridgeLogger({ secretRegistry: secrets });
+
   try {
     const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
-    outputChannel = createMaskedOutputChannel(channel);
+    outputChannel = createMaskedOutputChannel(channel, secrets);
     context.subscriptions.push(channel);
     outputChannel.show(true);
     outputChannel.appendLine('[OpenHands] Logging channel initialized');
@@ -428,9 +384,9 @@ export function activate(context: vscode.ExtensionContext) {
             lastError: typeof info.lastError === 'string' ? info.lastError : null,
           });
         },
-        isDevBridgeEnabled: () => devBridgeEnabled,
+        isDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
         getOutputChannel: () => outputChannel,
-        fileLog,
+        fileLog: devBridgeLogger.fileLog,
       }),
     onResolved: (view) => {
       chatView = view;
@@ -460,8 +416,8 @@ export function activate(context: vscode.ExtensionContext) {
       (mode === extensionMode.Development || mode === extensionMode.Test)) ||
     false;
   const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
-  devBridgeEnabled = isDevOrTest || enableFromSetting;
-  void initFileLogger(context);
+  devBridgeLogger.setEnabled(isDevOrTest || enableFromSetting);
+  void devBridgeLogger.initFileLogger(context);
 
   syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);
   context.subscriptions.push(
