@@ -408,12 +408,12 @@ describe('Chat view behavior', () => {
       ...mockSettings,
       llm: {
         ...mockSettings.llm,
-        model: 'gpt-4o-mini',
+        profileId: 'gpt-5-mini',
       },
     };
 
     (vscode as any).__triggerConfigChange({
-      affectsConfiguration: (key: string) => key === 'openhands.llm' || key === 'openhands.llm.model',
+      affectsConfiguration: (key: string) => key === 'openhands.llm' || key === 'openhands.llm.profileId',
     });
 
     const deadline = Date.now() + 2000;

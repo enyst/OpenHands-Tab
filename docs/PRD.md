@@ -116,12 +116,8 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - `openhands.serverUrl` - agent-server URL (blank for local mode)
 - `openhands.servers` - saved server list [{ url, label? }] for quick selection
 - `openhands.terminal.renderProgress` - coalesce carriage-return progress in terminal output
-- `openhands.llm.profileId` - optional LLM profile id from `~/.openhands/llm-profiles` (local alias; remote mode expands into `agent.llm` fields, no `profile_id` sent)
-- `openhands.llm.provider` - 'auto' | 'anthropic' | 'gemini' | 'openai' | 'openrouter' | 'litellm_proxy' (auto infers from baseUrl when set; otherwise defaults to Anthropic locally)
-- `openhands.llm.model` - default model
-- `openhands.llm.baseUrl`, `apiVersion`, `timeout`
-- `openhands.llm.temperature`, `topP`, `topK`, `maxInputTokens`, `maxOutputTokens`
-- `openhands.llm.usageId`, `reasoningEffort`, `nativeToolCalling`
+- `openhands.llm.profileId` - selected LLM profile id from `~/.openhands/llm-profiles` (local alias; remote mode expands into `agent.llm` fields, no `profile_id` sent)
+- `openhands.llm.usageId` - maps to agent-sdk usage_id for metrics/cost tracking
 - `openhands.confirmation.policy` - never/always/risky; `risky.threshold` default MEDIUM; `risky.confirmUnknown`
 - `openhands.conversation.maxIterations` - iteration limit
 
@@ -140,7 +136,7 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 - Tool results displayed with collapsible details
 
 ### Condensation (token-budget based; local mode)
-- Local mode only: when the next LLM request would exceed the configured input token budget (`openhands.llm.maxInputTokens`, or profile `maxInputTokens`), the SDK summarizes prior events and emits a `Condensation` event.
+- Local mode only: when the next LLM request would exceed the configured input token budget (profile `maxInputTokens`), the SDK summarizes prior events and emits a `Condensation` event.
 - If the provider returns a context-limit error, the SDK will attempt condensation and retry (up to 2 condensation attempts per agent step). If no `maxInputTokens` is configured, this fallback path uses a default budget of 8000 tokens.
 - The `Condensation` event contains:
   - `summary`: injected into the system prompt inside `<CONVERSATION SUMMARY>…</CONVERSATION SUMMARY>`

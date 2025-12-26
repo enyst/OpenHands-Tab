@@ -1,8 +1,7 @@
 {
-  "openhands.llm.reasoningEffort": "low",
   "openhands.servers": [
     {
-      "url": "localhost:3000"
+      "url": "http://localhost:3000"
     }
   ]
 }
