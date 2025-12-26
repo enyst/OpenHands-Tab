@@ -11,6 +11,7 @@ export interface SavedServer {
 export type HalSettings = {
   enabled: boolean;
   mode: HalMode;
+  llmProfileId: string;
   userName: string;
   voiceAId?: string;
   voiceUserId?: string;
@@ -19,18 +20,12 @@ export type HalSettings = {
   cache: boolean;
 };
 
-export type GeminiSettings = {
-  model: string;
-  baseUrl: string;
-};
-
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
   hal: HalSettings;
-  gemini: GeminiSettings;
   servers: SavedServer[];
   secrets: {
     sessionApiKey?: string;
@@ -52,8 +47,7 @@ const DEFAULTS: OpenHandsSettings = {
   agent: { enableSecurityAnalyzer: true, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
-  hal: { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1, cache: true },
-  gemini: { model: 'gemini-2.5-flash', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  hal: { enabled: false, mode: 'tts_only', llmProfileId: 'gemini-flash-hal', userName: 'Engel', volume: 1, cache: true },
   secrets: {}
 };
 
@@ -68,6 +62,7 @@ const DEFAULT_LLM_PROFILE_ID_BY_API_KEY: Array<{ secretKey: string; profileId: s
 const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
   ['enabled', 'openhands.hal.enabled'],
   ['mode', 'openhands.hal.mode'],
+  ['llmProfileId', 'openhands.hal.llmProfileId'],
   ['userName', 'openhands.hal.userName'],
   ['voiceAId', 'openhands.hal.voiceAId'],
   ['voiceUserId', 'openhands.hal.voiceUserId'],
@@ -307,6 +302,9 @@ export class SettingsManager {
         this.adapter.get<unknown>('openhands.hal.mode', DEFAULTS.hal.mode) ?? DEFAULTS.hal.mode,
         DEFAULTS.hal.mode
       ),
+      llmProfileId: normalizeNonEmptyString(
+        this.adapter.get<string | null>('openhands.hal.llmProfileId', DEFAULTS.hal.llmProfileId) ?? DEFAULTS.hal.llmProfileId
+      ) ?? DEFAULTS.hal.llmProfileId,
       userName: normalizeNonEmptyString(
         this.adapter.get<string | null>('openhands.hal.userName', DEFAULTS.hal.userName) ?? DEFAULTS.hal.userName
       ) ?? DEFAULTS.hal.userName,
@@ -318,14 +316,6 @@ export class SettingsManager {
         DEFAULTS.hal.volume
       ),
       cache: this.adapter.get<boolean>('openhands.hal.cache', DEFAULTS.hal.cache) ?? DEFAULTS.hal.cache,
-    };
-    const gemini: GeminiSettings = {
-      model: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.hal.gemini.model', DEFAULTS.gemini.model) ?? DEFAULTS.gemini.model
-      ) ?? DEFAULTS.gemini.model,
-      baseUrl: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.hal.gemini.baseUrl', DEFAULTS.gemini.baseUrl) ?? DEFAULTS.gemini.baseUrl
-      ) ?? DEFAULTS.gemini.baseUrl,
     };
     const secrets = {
       sessionApiKey: await this.adapter.getSecret('openhands.sessionApiKey'),
@@ -339,7 +329,7 @@ export class SettingsManager {
       customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
       customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
     };
-    return { serverUrl, servers, llm, agent, conversation, confirmation, hal, gemini, secrets };
+    return { serverUrl, servers, llm, agent, conversation, confirmation, hal, secrets };
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
@@ -391,15 +381,6 @@ export class SettingsManager {
       for (const [key, configKey] of HAL_CONFIG_UPDATES) {
         const value = partial.hal[key];
         if (value !== undefined) ops.push(this.adapter.update(configKey, value, target));
-      }
-    }
-
-    if (partial.gemini) {
-      if (partial.gemini.model !== undefined) {
-        ops.push(this.adapter.update('openhands.hal.gemini.model', partial.gemini.model, target));
-      }
-      if (partial.gemini.baseUrl !== undefined) {
-        ops.push(this.adapter.update('openhands.hal.gemini.baseUrl', partial.gemini.baseUrl, target));
       }
     }
 
