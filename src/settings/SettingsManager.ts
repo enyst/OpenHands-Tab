@@ -1,6 +1,7 @@
 import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
 import type { HalMode } from '../shared/halTypes';
 import { normalizeServerUrl } from '../shared/serverUrls';
+import { detectProviderFromBaseUrl, ensureDefaultProfiles, loadProfile } from '@openhands/agent-sdk-ts';
 
 export interface SavedServer {
   url: string;
@@ -93,49 +94,6 @@ const sanitizePositiveInteger = (value: number | null | undefined): number | und
   return int > 0 ? int : undefined;
 };
 
-const normalizeLlmProvider = (value: unknown): LLMSettings['provider'] | undefined => {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  if (!trimmed) return undefined;
-  if (trimmed === 'auto') return undefined;
-  switch (trimmed) {
-    case 'openai':
-    case 'openrouter':
-    case 'litellm_proxy':
-    case 'anthropic':
-    case 'gemini':
-      return trimmed;
-    default:
-      return undefined;
-  }
-};
-
-const normalizeOpenaiApiMode = (value: unknown): LLMSettings['openaiApiMode'] | undefined => {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  if (!trimmed) return undefined;
-  if (trimmed === 'auto') return undefined;
-  switch (trimmed) {
-    case 'chat_completions':
-    case 'responses':
-      return trimmed;
-    default:
-      return undefined;
-  }
-};
-
-const normalizeReasoningSummary = (value: unknown): LLMSettings['reasoningSummary'] | undefined => {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  if (!trimmed) return undefined;
-  if (trimmed === 'none') return undefined;
-  switch (trimmed) {
-    case 'auto':
-    case 'concise':
-    case 'detailed':
-      return trimmed;
-    default:
-      return undefined;
-  }
-};
-
 const normalizeHalMode = (value: unknown, defaultValue: HalMode): HalMode => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
   switch (trimmed) {
@@ -206,7 +164,10 @@ const normalizeSavedServers = (value: unknown, defaultValue: SavedServer[]): { s
 export class SettingsManager {
   private serverNormalizationWarnings: string[] = [];
 
-  constructor(private adapter: SettingsAdapter) {}
+  constructor(
+    private adapter: SettingsAdapter,
+    private llmProfileStoreRoot?: string,
+  ) {}
 
   private async pickDefaultProfileId(): Promise<string> {
     const hasSecret = async (key: string): Promise<boolean> => {
@@ -276,19 +237,13 @@ export class SettingsManager {
       }
     }
 
-    const isRemote = !!serverUrl;
-    const explicitBaseUrl = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.baseUrl'));
-    const explicitProvider = normalizeLlmProvider(this.adapter.getExplicit<string>('openhands.llm.provider'));
-    const provider = isRemote ? explicitProvider : explicitProvider ?? (explicitBaseUrl ? undefined : DEFAULTS.llm.provider);
     const usageId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.usageId'));
-    const rawConfiguredProfileId = this.adapter.getExplicit<string>('openhands.llm.profileId');
-    const hasExplicitProfileIdSetting = rawConfiguredProfileId !== undefined;
-    const configuredProfileId = normalizeNonEmptyString(rawConfiguredProfileId);
+    const configuredProfileId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.profileId'));
     const profileId = configuredProfileId && isSafeProfileId(configuredProfileId)
       ? configuredProfileId
       : undefined;
     let effectiveProfileId = profileId;
-    if (!profileId && !hasExplicitProfileIdSetting) {
+    if (!profileId) {
       try {
         const selected = await this.pickDefaultProfileId();
         effectiveProfileId = selected;
@@ -297,46 +252,47 @@ export class SettingsManager {
         // Best-effort: still return the computed id even if persistence fails.
       }
     }
-    if (!effectiveProfileId && !hasExplicitProfileIdSetting) {
+    if (!effectiveProfileId) {
       effectiveProfileId = await this.pickDefaultProfileId();
     }
-    const explicitModel = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.model'));
-    // Always provide a model name, even in remote mode: the python agent-server requires it in StartConversationRequest.
-    const model = explicitModel ?? normalizeNonEmptyString(
-      this.adapter.get<string | null>('openhands.llm.model', DEFAULTS.llm.model) ?? DEFAULTS.llm.model
-    );
+
+    const profileConfig = (() => {
+      const profileId = effectiveProfileId?.trim();
+      if (!profileId || !isSafeProfileId(profileId)) return undefined;
+      try {
+        const options = this.llmProfileStoreRoot ? { rootDir: this.llmProfileStoreRoot } : {};
+        if (this.llmProfileStoreRoot) {
+          try {
+            ensureDefaultProfiles(options);
+          } catch {
+            // Best-effort seeding for tests/custom dirs.
+          }
+        }
+        return loadProfile(profileId, options).config;
+      } catch {
+        return undefined;
+      }
+    })();
+    const provider = profileConfig?.provider ?? detectProviderFromBaseUrl(profileConfig?.baseUrl);
+
     const llm: LLMSettings = {
-      // Omit usageId unless explicitly configured (local-mode SDK can derive a stable id per config).
-      // Always provide a model so LocalConversation and RemoteConversation can start reliably.
       usageId,
       profileId: effectiveProfileId,
       provider,
-      model,
-      openaiApiMode: normalizeOpenaiApiMode(
-        isRemote
-          ? this.adapter.getExplicit<string>('openhands.llm.openaiApiMode')
-          : (this.adapter.get<string | null>('openhands.llm.openaiApiMode', 'auto') ?? 'auto')
-      ),
-      baseUrl: normalizeNonEmptyString(
-        isRemote
-          ? this.adapter.getExplicit<string>('openhands.llm.baseUrl')
-          : (this.adapter.get<string | null>('openhands.llm.baseUrl', DEFAULTS.llm.baseUrl) ?? DEFAULTS.llm.baseUrl)
-      ),
-      apiVersion: this.adapter.get<string | null>('openhands.llm.apiVersion', DEFAULTS.llm.apiVersion) ?? DEFAULTS.llm.apiVersion,
-      timeout: this.adapter.get<number | null>('openhands.llm.timeout', DEFAULTS.llm.timeout) ?? DEFAULTS.llm.timeout,
-      temperature: this.adapter.get<number | null>('openhands.llm.temperature', DEFAULTS.llm.temperature) ?? DEFAULTS.llm.temperature,
-      topP: this.adapter.get<number | null>('openhands.llm.topP', DEFAULTS.llm.topP) ?? DEFAULTS.llm.topP,
-      topK: this.adapter.get<number | null>('openhands.llm.topK', DEFAULTS.llm.topK) ?? DEFAULTS.llm.topK,
-      maxInputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxInputTokens', null) ?? undefined),
-      maxOutputTokens: sanitizePositiveInteger(this.adapter.get<number | null>('openhands.llm.maxOutputTokens', null) ?? undefined),
-      reasoningEffort: this.adapter.get<'low' | 'medium' | 'high' | 'none' | null>('openhands.llm.reasoningEffort', DEFAULTS.llm.reasoningEffort) ?? DEFAULTS.llm.reasoningEffort,
-      reasoningSummary: normalizeReasoningSummary(
-        isRemote
-          ? this.adapter.getExplicit<string>('openhands.llm.reasoningSummary')
-          : (this.adapter.get<string | null>('openhands.llm.reasoningSummary', 'none') ?? 'none')
-      ),
-      inputCostPerToken: this.adapter.get<number | null>('openhands.llm.inputCostPerToken', DEFAULTS.llm.inputCostPerToken) ?? DEFAULTS.llm.inputCostPerToken,
-      outputCostPerToken: this.adapter.get<number | null>('openhands.llm.outputCostPerToken', DEFAULTS.llm.outputCostPerToken) ?? DEFAULTS.llm.outputCostPerToken,
+      model: profileConfig?.model,
+      openaiApiMode: profileConfig?.openaiApiMode ?? undefined,
+      baseUrl: normalizeNonEmptyString(profileConfig?.baseUrl ?? undefined),
+      apiVersion: normalizeNonEmptyString(profileConfig?.apiVersion ?? undefined),
+      timeout: profileConfig?.timeoutSeconds ?? undefined,
+      temperature: profileConfig?.temperature ?? undefined,
+      topP: profileConfig?.topP ?? undefined,
+      topK: profileConfig?.topK ?? undefined,
+      maxInputTokens: sanitizePositiveInteger(profileConfig?.maxInputTokens ?? undefined),
+      maxOutputTokens: sanitizePositiveInteger(profileConfig?.maxOutputTokens ?? undefined),
+      reasoningEffort: profileConfig?.reasoningEffort ?? undefined,
+      reasoningSummary: profileConfig?.reasoningSummary ?? undefined,
+      inputCostPerToken: profileConfig?.inputCostPerToken ?? undefined,
+      outputCostPerToken: profileConfig?.outputCostPerToken ?? undefined,
     };
     const agent: AgentSettings = {
       enableSecurityAnalyzer: this.adapter.get<boolean>('openhands.agent.enableSecurityAnalyzer', DEFAULTS.agent.enableSecurityAnalyzer) ?? DEFAULTS.agent.enableSecurityAnalyzer,
@@ -406,25 +362,6 @@ export class SettingsManager {
     if (partial.llm) {
       if (partial.llm.usageId !== undefined) ops.push(this.adapter.update('openhands.llm.usageId', partial.llm.usageId, target));
       if (partial.llm.profileId !== undefined) ops.push(this.adapter.update('openhands.llm.profileId', partial.llm.profileId, target));
-      if (partial.llm.provider !== undefined) ops.push(this.adapter.update('openhands.llm.provider', partial.llm.provider, target));
-      if (partial.llm.model !== undefined) ops.push(this.adapter.update('openhands.llm.model', partial.llm.model, target));
-      if (partial.llm.openaiApiMode !== undefined) {
-        ops.push(this.adapter.update('openhands.llm.openaiApiMode', partial.llm.openaiApiMode ?? 'auto', target));
-      }
-      if (partial.llm.baseUrl !== undefined) ops.push(this.adapter.update('openhands.llm.baseUrl', partial.llm.baseUrl, target));
-      if (partial.llm.apiVersion !== undefined) ops.push(this.adapter.update('openhands.llm.apiVersion', partial.llm.apiVersion, target));
-      if (partial.llm.timeout !== undefined) ops.push(this.adapter.update('openhands.llm.timeout', partial.llm.timeout, target));
-      if (partial.llm.temperature !== undefined) ops.push(this.adapter.update('openhands.llm.temperature', partial.llm.temperature, target));
-      if (partial.llm.topP !== undefined) ops.push(this.adapter.update('openhands.llm.topP', partial.llm.topP, target));
-      if (partial.llm.topK !== undefined) ops.push(this.adapter.update('openhands.llm.topK', partial.llm.topK, target));
-      if (partial.llm.maxInputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxInputTokens', partial.llm.maxInputTokens, target));
-      if (partial.llm.maxOutputTokens !== undefined) ops.push(this.adapter.update('openhands.llm.maxOutputTokens', partial.llm.maxOutputTokens, target));
-      if (partial.llm.reasoningEffort !== undefined) ops.push(this.adapter.update('openhands.llm.reasoningEffort', partial.llm.reasoningEffort, target));
-      if (partial.llm.reasoningSummary !== undefined) {
-        ops.push(this.adapter.update('openhands.llm.reasoningSummary', partial.llm.reasoningSummary ?? 'none', target));
-      }
-      if (partial.llm.inputCostPerToken !== undefined) ops.push(this.adapter.update('openhands.llm.inputCostPerToken', partial.llm.inputCostPerToken, target));
-      if (partial.llm.outputCostPerToken !== undefined) ops.push(this.adapter.update('openhands.llm.outputCostPerToken', partial.llm.outputCostPerToken, target));
     }
 
     if (partial.agent) {

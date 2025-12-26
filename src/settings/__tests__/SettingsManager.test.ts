@@ -1,4 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { saveProfile } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../SettingsManager';
 import type { SettingsAdapter } from '../SettingsAdapter';
 
@@ -17,10 +21,19 @@ class MemoryAdapter implements SettingsAdapter {
 describe('SettingsManager', () => {
   let a: MemoryAdapter;
   let mgr: SettingsManager;
+  let tmpDir = '';
 
-  beforeEach(() => {
+  beforeEach(async () => {
     a = new MemoryAdapter();
-    mgr = new SettingsManager(a);
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'oh-tab-settings-'));
+    mgr = new SettingsManager(a, tmpDir);
+  });
+
+  afterEach(async () => {
+    if (tmpDir) {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+    tmpDir = '';
   });
 
   it('returns defaults when unset', async () => {
@@ -62,11 +75,35 @@ describe('SettingsManager', () => {
     expect(a.cfg.get('openhands.llm.profileId')).toBe('gpt-5');
   });
 
-  it('does not overwrite an explicitly cleared profileId', async () => {
+  it('loads effective LLM settings from the selected profile', async () => {
+    saveProfile('custom', {
+      provider: 'openai',
+      model: 'gpt-5-mini',
+      baseUrl: 'https://api.openai.com/v1',
+      timeoutSeconds: 12,
+      maxInputTokens: 4096.7,
+      maxOutputTokens: 2048.3,
+      reasoningEffort: 'high',
+      reasoningSummary: 'detailed',
+    }, { rootDir: tmpDir, includeSecrets: false });
+
+    a.cfg.set('openhands.llm.profileId', 'custom');
+    const s = await mgr.get();
+    expect(s.llm.profileId).toBe('custom');
+    expect(s.llm.provider).toBe('openai');
+    expect(s.llm.model).toBe('gpt-5-mini');
+    expect(s.llm.baseUrl).toBe('https://api.openai.com/v1');
+    expect(s.llm.timeout).toBe(12);
+    expect(s.llm.maxInputTokens).toBe(4096);
+    expect(s.llm.maxOutputTokens).toBe(2048);
+    expect(s.llm.reasoningSummary).toBe('detailed');
+  });
+
+  it('treats an explicitly cleared profileId as unset', async () => {
     a.cfg.set('openhands.llm.profileId', '');
     const s = await mgr.get();
-    expect(s.llm.profileId).toBeUndefined();
-    expect(a.cfg.get('openhands.llm.profileId')).toBe('');
+    expect(s.llm.profileId).toBe('sonnet-45');
+    expect(a.cfg.get('openhands.llm.profileId')).toBe('sonnet-45');
   });
 
   it('includes a default model in remote mode', async () => {
@@ -97,11 +134,6 @@ describe('SettingsManager', () => {
       llm: {
         usageId: 'my-usage',
         profileId: 'gpt-5',
-        provider: 'openrouter',
-        model: 'foo',
-        baseUrl: 'https://api.example.com',
-        inputCostPerToken: 0.000001,
-        outputCostPerToken: 0.000002,
       },
       agent: { enableSecurityAnalyzer: true, debug: true },
       conversation: { maxIterations: 42 },
@@ -126,11 +158,11 @@ describe('SettingsManager', () => {
     expect(s.serverUrl).toBe('http://example:1234');
     expect(s.llm.usageId).toBe('my-usage');
     expect(s.llm.profileId).toBe('gpt-5');
-    expect(s.llm.provider).toBe('openrouter');
-    expect(s.llm.model).toBe('foo');
-    expect(s.llm.baseUrl).toBe('https://api.example.com');
-    expect(s.llm.inputCostPerToken).toBe(0.000001);
-    expect(s.llm.outputCostPerToken).toBe(0.000002);
+    expect(s.llm.provider).toBe('openai');
+    expect(s.llm.model).toBe('gpt-5');
+    expect(s.llm.baseUrl).toBe('https://api.openai.com/v1');
+    expect(s.llm.inputCostPerToken).toBeUndefined();
+    expect(s.llm.outputCostPerToken).toBeUndefined();
     expect(s.agent.enableSecurityAnalyzer).toBe(true);
     expect(s.agent.debug).toBe(true);
     expect(s.conversation.maxIterations).toBe(42);
@@ -273,94 +305,6 @@ describe('SettingsManager', () => {
     expect(s.secrets.customSecret1).toBeUndefined();
     expect(s.secrets.customSecret2).toBeUndefined();
     expect(s.secrets.customSecret3).toBeUndefined();
-  });
-
-  it('updates all optional LLM fields', async () => {
-    await mgr.update({
-      llm: {
-        apiVersion: '2024-01-01',
-        timeout: 120,
-        temperature: 0.7,
-        topP: 0.9,
-        topK: 50,
-        openaiApiMode: 'chat_completions',
-        maxInputTokens: 4096,
-        maxOutputTokens: 2048,
-        reasoningEffort: 'high',
-        reasoningSummary: 'detailed',
-        inputCostPerToken: 0.000001,
-        outputCostPerToken: 0.000002,
-      }
-    });
-
-    const s = await mgr.get();
-    expect(s.llm.apiVersion).toBe('2024-01-01');
-    expect(s.llm.timeout).toBe(120);
-    expect(s.llm.temperature).toBe(0.7);
-    expect(s.llm.topP).toBe(0.9);
-    expect(s.llm.topK).toBe(50);
-    expect(s.llm.openaiApiMode).toBe('chat_completions');
-    expect(s.llm.maxInputTokens).toBe(4096);
-    expect(s.llm.maxOutputTokens).toBe(2048);
-    expect(s.llm.reasoningEffort).toBe('high');
-    expect(s.llm.reasoningSummary).toBe('detailed');
-    expect(s.llm.inputCostPerToken).toBe(0.000001);
-    expect(s.llm.outputCostPerToken).toBe(0.000002);
-  });
-
-  it('normalizes openaiApiMode and persists auto', async () => {
-    await mgr.update({ llm: { openaiApiMode: 'responses' } });
-    expect(a.cfg.get('openhands.llm.openaiApiMode')).toBe('responses');
-    let s = await mgr.get();
-    expect(s.llm.openaiApiMode).toBe('responses');
-
-    await mgr.update({ llm: { openaiApiMode: null } });
-    expect(a.cfg.get('openhands.llm.openaiApiMode')).toBe('auto');
-    s = await mgr.get();
-    expect(s.llm.openaiApiMode).toBeUndefined();
-  });
-
-  it('normalizes reasoningSummary and persists none', async () => {
-    await mgr.update({ llm: { reasoningSummary: 'detailed' } });
-    expect(a.cfg.get('openhands.llm.reasoningSummary')).toBe('detailed');
-    let s = await mgr.get();
-    expect(s.llm.reasoningSummary).toBe('detailed');
-
-    a.cfg.set('openhands.llm.reasoningSummary', 'wat');
-    s = await mgr.get();
-    expect(s.llm.reasoningSummary).toBeUndefined();
-
-    await mgr.update({ llm: { reasoningSummary: null } });
-    expect(a.cfg.get('openhands.llm.reasoningSummary')).toBe('none');
-    s = await mgr.get();
-    expect(s.llm.reasoningSummary).toBeUndefined();
-  });
-
-  it('handles sanitizePositiveInteger with invalid inputs', async () => {
-    // Test with invalid maxInputTokens and maxOutputTokens
-    await mgr.update({
-      llm: {
-        maxInputTokens: -100 as any, // Should be filtered out
-        maxOutputTokens: 0 as any, // Should be filtered out
-      }
-    });
-
-    const s = await mgr.get();
-    expect(s.llm.maxInputTokens).toBeUndefined();
-    expect(s.llm.maxOutputTokens).toBeUndefined();
-  });
-
-  it('handles sanitizePositiveInteger with fractional numbers', async () => {
-    await mgr.update({
-      llm: {
-        maxInputTokens: 4096.7 as any, // Should be truncated to 4096
-        maxOutputTokens: 2048.3 as any, // Should be truncated to 2048
-      }
-    });
-
-    const s = await mgr.get();
-    expect(s.llm.maxInputTokens).toBe(4096);
-    expect(s.llm.maxOutputTokens).toBe(2048);
   });
 
   it('handles null returns from adapter.get by falling back to defaults', async () => {
