@@ -8,6 +8,7 @@ import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
+import { normalizeNonEmptyString } from './shared/stringUtils';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, isValidPastedImageId } from './shared/pastedImages';
 import { cleanupPastedImages } from './shared/pastedImagesCleanup';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
@@ -231,11 +232,6 @@ async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string
     throw new Error('LLM returned an empty summary');
   }
   return trimmed;
-}
-
-function normalizeNonEmptyString(value: string | undefined | null): string | undefined {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  return trimmed || undefined;
 }
 
 function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
