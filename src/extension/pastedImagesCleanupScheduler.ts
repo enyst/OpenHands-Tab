@@ -1,4 +1,4 @@
-import type { Event } from '@openhands/agent-sdk-ts';
+import { isTextContent, type Event } from '@openhands/agent-sdk-ts';
 import type { BufferedConversationEvent } from '../conversation/eventBacklog';
 import { OPENHANDS_IMAGE_URL_PREFIX, isValidPastedImageId } from '../shared/pastedImages';
 import { cleanupPastedImages } from '../shared/pastedImagesCleanup';
@@ -16,12 +16,11 @@ const OPENHANDS_IMAGE_ID_REGEX = new RegExp(`${OPENHANDS_IMAGE_URL_PREFIX}([a-f0
 
 function messageHasPastedImages(event: Event): boolean {
   if (event.kind !== 'MessageEvent') return false;
-  const content = (event as unknown as { llm_message?: { content?: unknown } }).llm_message?.content;
+  const content = event.llm_message?.content;
   if (!Array.isArray(content)) return false;
-  for (const item of content) {
-    if (!item || (item as { type?: unknown }).type !== 'text') continue;
-    const text = (item as { text?: unknown }).text;
-    if (typeof text === 'string' && text.includes(OPENHANDS_IMAGE_URL_PREFIX)) return true;
+  for (const part of content) {
+    if (!isTextContent(part)) continue;
+    if (part.text.includes(OPENHANDS_IMAGE_URL_PREFIX)) return true;
   }
   return false;
 }
@@ -31,13 +30,13 @@ function collectReferencedPastedImageIdsFromBacklog(iterBacklog: SchedulerParams
   for (const item of iterBacklog()) {
     const event = item.event;
     if (event.kind !== 'MessageEvent') continue;
-    const content = (event as unknown as { llm_message?: { content?: unknown } }).llm_message?.content;
+    const content = event.llm_message?.content;
     if (!Array.isArray(content)) continue;
 
     for (const part of content) {
-      if (!part || (part as { type?: unknown }).type !== 'text') continue;
-      const text = (part as { text?: unknown }).text;
-      if (typeof text !== 'string' || !text.includes(OPENHANDS_IMAGE_URL_PREFIX)) continue;
+      if (!isTextContent(part)) continue;
+      const text = part.text;
+      if (!text.includes(OPENHANDS_IMAGE_URL_PREFIX)) continue;
 
       for (const match of text.matchAll(OPENHANDS_IMAGE_ID_REGEX)) {
         const imageId = match[1];
@@ -90,4 +89,3 @@ export function createPastedImagesCleanupScheduler(params: SchedulerParams) {
 
   return { handleBufferedEvent };
 }
-
