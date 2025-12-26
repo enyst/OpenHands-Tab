@@ -150,6 +150,46 @@ describe('App toolbar interactions', () => {
     expect(totalsRow).not.toHaveTextContent('—');
   });
 
+  it('uses the main agent usage bucket for context tokens (not sum across usages)', async () => {
+    render(<App />);
+
+    const totalsRow = await screen.findByTestId('header-totals-row');
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'remote', llmProfileLabel: 'gpt-5' }
+      }));
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'event',
+          event: {
+            kind: 'ConversationStateUpdateEvent',
+            key: 'stats',
+            value: {
+              usage_to_metrics: {
+                main: {
+                  accumulated_cost: 0.0123,
+                  accumulated_token_usage: { prompt_tokens: 100, completion_tokens: 20, per_turn_token: 50 },
+                },
+                summarizer: {
+                  accumulated_cost: 0.0004,
+                  accumulated_token_usage: { prompt_tokens: 10, completion_tokens: 5, per_turn_token: 20 },
+                },
+              },
+              usage_to_labels: {
+                main: 'gpt-5',
+                summarizer: 'gemini-flash-summarizer',
+              },
+            },
+          },
+        },
+      }));
+    });
+
+    expect(totalsRow).toHaveTextContent('Context: 50 tokens');
+    expect(totalsRow).toHaveTextContent('Total cost: $0.0127');
+  });
+
   it('resets llm usage guard when starting a new conversation', async () => {
     render(<App />);
 
