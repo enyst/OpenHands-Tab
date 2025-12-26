@@ -20,7 +20,10 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
   const requestSeqRef = useRef(1);
   const pendingRequestsRef = useRef<Map<string, PendingLlmProfilesRequest>>(new Map());
 
-  const createRequestId = (kind: string): string => `llmProfiles:${kind}:${requestSeqRef.current++}`;
+  const createRequestId = useCallback(
+    (kind: string): string => `llmProfiles:${kind}:${requestSeqRef.current++}`,
+    [],
+  );
 
   const listLlmProfiles = useCallback(async (): Promise<string[]> => {
     const requestId = createRequestId('list');
@@ -32,7 +35,7 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
       pendingRequestsRef.current.set(requestId, { kind: 'list', resolve, reject, timeout });
       postMessage({ type: 'llmProfilesListRequest', requestId });
     });
-  }, [postMessage, timeoutMs]);
+  }, [createRequestId, postMessage, timeoutMs]);
 
   const loadLlmProfile = useCallback(async (profileId: string): Promise<LLMConfiguration> => {
     const requestId = createRequestId('load');
@@ -44,7 +47,7 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
       pendingRequestsRef.current.set(requestId, { kind: 'load', resolve, reject, timeout });
       postMessage({ type: 'llmProfileLoadRequest', requestId, profileId });
     });
-  }, [postMessage, timeoutMs]);
+  }, [createRequestId, postMessage, timeoutMs]);
 
   const saveLlmProfile = useCallback(async (profileId: string, profile: LLMConfiguration): Promise<void> => {
     const requestId = createRequestId('save');
@@ -56,7 +59,7 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
       pendingRequestsRef.current.set(requestId, { kind: 'save', resolve, reject, timeout });
       postMessage({ type: 'llmProfileSaveRequest', requestId, profileId, profile });
     });
-  }, [postMessage, timeoutMs]);
+  }, [createRequestId, postMessage, timeoutMs]);
 
   const deleteLlmProfile = useCallback(async (profileId: string): Promise<void> => {
     const requestId = createRequestId('delete');
@@ -68,7 +71,7 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
       pendingRequestsRef.current.set(requestId, { kind: 'delete', resolve, reject, timeout });
       postMessage({ type: 'llmProfileDeleteRequest', requestId, profileId });
     });
-  }, [postMessage, timeoutMs]);
+  }, [createRequestId, postMessage, timeoutMs]);
 
   const getLlmProfileApiKeyStatus = useCallback(async (
     profileId: string,
@@ -90,7 +93,7 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
       };
       postMessage(message);
     });
-  }, [postMessage, timeoutMs]);
+  }, [createRequestId, postMessage, timeoutMs]);
 
   const setLlmProfileApiKey = useCallback(async (profileId: string, apiKey: string): Promise<void> => {
     const requestId = createRequestId('apiKeySet');
@@ -102,7 +105,7 @@ export function useLlmProfilesRequests(options: UseLlmProfilesRequestsOptions) {
       pendingRequestsRef.current.set(requestId, { kind: 'apiKeySet', resolve, reject, timeout });
       postMessage({ type: 'llmProfileApiKeySetRequest', requestId, profileId, apiKey });
     });
-  }, [postMessage, timeoutMs]);
+  }, [createRequestId, postMessage, timeoutMs]);
 
   return {
     pendingLlmProfilesRequestsRef: pendingRequestsRef,

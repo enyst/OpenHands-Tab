@@ -1,8 +1,9 @@
 import type { ConversationTotals } from './conversationTotals';
 
+const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
+  !!candidate && typeof candidate === 'object';
+
 export const computeConversationTotalsFromStats = (value: unknown): ConversationTotals | null => {
-  const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
-    !!candidate && typeof candidate === 'object';
   const asFiniteNumber = (raw: unknown): number | null => {
     const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
     return Number.isFinite(num) ? num : null;
@@ -63,11 +64,9 @@ export const computeConversationTotalsFromStats = (value: unknown): Conversation
 };
 
 export const parseLlmUsageInputTokens = (value: unknown): number | null => {
-  if (!value || typeof value !== 'object') return null;
-  const record = value as Record<string, unknown>;
-  const raw = record.input ?? record.inputTokens ?? record.promptTokens ?? record.prompt_tokens;
+  if (!isRecord(value)) return null;
+  const raw = value.input ?? value.inputTokens ?? value.promptTokens ?? value.prompt_tokens;
   const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
   if (!Number.isFinite(num)) return null;
   return Math.max(0, Math.trunc(num));
 };
-
