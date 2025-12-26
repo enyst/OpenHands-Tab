@@ -43,7 +43,8 @@ Key code paths:
 
 ### HAL flows (Gemini classifier)
 - `src/webview/host/createWebviewMessageHandler.ts`
-  - Attempts to load `gemini-flash-hal` profile for `{ baseUrl, model }`, but still has legacy fallbacks (`settings.gemini.*` and `settings.llm.provider` for key selection).
+  - Uses `openhands.hal.llmProfileId` (default `gemini-flash-hal`) to load `{ baseUrl, model }`.
+  - Resolves API key via profile key → provider key → global fallback (no `settings.gemini.*` / `settings.llm.provider` fallbacks).
 
 ### Tests that assume raw settings
 - `tests/e2e/suite/llmSwitching.ts` and `tests/e2e/suite/llmProfiles.ts` currently exercise both:
@@ -85,5 +86,3 @@ Key code paths:
 
 - **Override allowlist:** should any settings remain global (outside profiles) in the final state (e.g. maxIterations is global, but should token budgets/temperature ever be global overrides)?
 - **Persistence semantics:** on restore, should we restore the last selected `profileId` only, or also preserve per-conversation overrides (once overrides are removed, this becomes simpler)?
-- **HAL legacy:** do we want to fully remove `settings.gemini.*` and always source HAL classifier config from a profile?
-

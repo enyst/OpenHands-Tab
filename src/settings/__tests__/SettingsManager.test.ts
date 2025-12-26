@@ -50,14 +50,13 @@ describe('SettingsManager', () => {
     expect(s.agent.debug).toBe(false);
     expect(s.hal.enabled).toBe(false);
     expect(s.hal.mode).toBe('tts_only');
+    expect(s.hal.llmProfileId).toBe('gemini-flash-hal');
     expect(s.hal.userName).toBe('Engel');
     expect(s.hal.voiceAId).toBeUndefined();
     expect(s.hal.voiceUserId).toBeUndefined();
     expect(s.hal.modelId).toBeUndefined();
     expect(s.hal.volume).toBe(1);
     expect(s.hal.cache).toBe(true);
-    expect(s.gemini.model).toBe('gemini-2.5-flash');
-    expect(s.gemini.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
   });
 
   it('selects gpt-5-mini when OPENAI_API_KEY is present', async () => {
@@ -139,16 +138,13 @@ describe('SettingsManager', () => {
       hal: {
         enabled: true,
         mode: 'voice_confirm',
+        llmProfileId: 'gemini-flash-hal',
         userName: 'Alice',
         voiceAId: 'voice_hal',
         voiceUserId: 'voice_user',
         modelId: 'eleven_turbo_v2',
         volume: 0.25,
         cache: false,
-      },
-      gemini: {
-        model: 'gemini-2.5-pro',
-        baseUrl: 'https://proxy.example.com/v1beta',
       },
       secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
     });
@@ -168,17 +164,16 @@ describe('SettingsManager', () => {
     expect(s.confirmation.confirmUnknown).toBe(false);
     expect(s.hal.enabled).toBe(true);
     expect(s.hal.mode).toBe('voice_confirm');
+    expect(s.hal.llmProfileId).toBe('gemini-flash-hal');
     expect(s.hal.userName).toBe('Alice');
     expect(s.hal.voiceAId).toBe('voice_hal');
     expect(s.hal.voiceUserId).toBe('voice_user');
     expect(s.hal.modelId).toBe('eleven_turbo_v2');
     expect(s.hal.volume).toBe(0.25);
     expect(s.hal.cache).toBe(false);
-    expect(s.gemini.model).toBe('gemini-2.5-pro');
-    expect(s.gemini.baseUrl).toBe('https://proxy.example.com/v1beta');
     expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
-    // HAL no longer uses a separate Gemini key; it relies on GEMINI_API_KEY/global LLM key.
+    // HAL voice_confirm does not have a separate Gemini secret setting; it relies on profile/provider/global keys.
   });
 
   it('sanitizes invalid HAL mode and clamps volume', async () => {

@@ -3,13 +3,14 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import * as childProcess from 'child_process';
-import { assertValidProfileId, detectProviderFromBaseUrl, LLMProfileValidationError, type LLMProvider, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import { assertValidProfileId, DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMProfileValidationError, type LLMProvider, type SecretRegistry } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
 import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
 import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLinesForMode } from '../../shared/halScript';
+import { DEFAULT_HAL_LLM_PROFILE_ID } from '../../shared/halDefaults';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
@@ -202,13 +203,22 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       || value === 'gemini';
   };
 
-  const hasStoredSecret = async (key: string): Promise<boolean> => {
+  const getStoredSecret = async (key: string): Promise<string | undefined> => {
     const trimmedKey = key.trim();
-    if (!trimmedKey) return false;
-    const resolved = deps.secretRegistry
-      ? await deps.secretRegistry.get(trimmedKey)
-      : (process.env[trimmedKey] ?? (await context.secrets.get(trimmedKey)));
-    return typeof resolved === 'string' && resolved.trim().length > 0;
+    if (!trimmedKey) return undefined;
+    try {
+      const resolved = deps.secretRegistry
+        ? await deps.secretRegistry.get(trimmedKey)
+        : (process.env[trimmedKey] ?? (await context.secrets.get(trimmedKey)));
+      const trimmedValue = typeof resolved === 'string' ? resolved.trim() : '';
+      return trimmedValue || undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const hasStoredSecret = async (key: string): Promise<boolean> => {
+    return Boolean(await getStoredSecret(key));
   };
 
   const getElevenlabsTtsGate = (): TtsConversationGate => {
@@ -972,42 +982,63 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
 
         const settings = await settingsMgr.get();
 
-        const halGeminiConfig = (() => {
-          let baseUrl = settings.gemini.baseUrl;
-          let model = settings.gemini.model;
+        const defaultHalProfileId = DEFAULT_HAL_LLM_PROFILE_ID;
+        const configuredHalProfileId = typeof settings.hal.llmProfileId === 'string'
+          ? settings.hal.llmProfileId.trim()
+          : '';
+        const halProfileId = (() => {
+          if (!configuredHalProfileId) return defaultHalProfileId;
           try {
-            const profile = llmProfilesStore.loadProfile('gemini-flash-hal', llmProfileStoreOptions());
-            const baseUrlFromProfile = typeof profile.config.baseUrl === 'string' ? profile.config.baseUrl.trim() : '';
-            const modelFromProfile = typeof profile.config.model === 'string' ? profile.config.model.trim() : '';
-            if (baseUrlFromProfile) baseUrl = baseUrlFromProfile;
-            if (modelFromProfile) model = modelFromProfile;
+            validateProfileId(configuredHalProfileId);
+            return configuredHalProfileId;
           } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
-            outputChannel?.appendLine(`[hal] Failed to load gemini-flash-hal profile; falling back to settings: ${reason}`);
+            outputChannel?.appendLine(`[hal] Invalid HAL llmProfileId '${configuredHalProfileId}'; using '${defaultHalProfileId}': ${reason}`);
+            return defaultHalProfileId;
           }
-          return { baseUrl, model };
         })();
 
-        // Use the global Gemini provider key for HAL as well.
-        // Preference order:
-        // 1) SecretRegistry (VS Code SecretStorage key 'GEMINI_API_KEY', then process.env.GEMINI_API_KEY)
-        // 2) If the active LLM provider is Gemini, fall back to the generic llmApiKey
-        let halGeminiKey = '';
+        let halProfile: ReturnType<typeof llmProfilesStore.loadProfile> | undefined;
         try {
-          const maybe = deps.secretRegistry ? await deps.secretRegistry.get('GEMINI_API_KEY') : undefined;
-          if (typeof maybe === 'string' && maybe.trim()) halGeminiKey = maybe.trim();
-        } catch {
-          // ignore
+          halProfile = llmProfilesStore.loadProfile(halProfileId, llmProfileStoreOptions());
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          void host.postMessage({ type: 'halVoiceConfirmResponse', requestId: message.requestId, ok: false, error: reason });
+          outputChannel?.appendLine(`[hal] Failed to load HAL LLM profile '${halProfileId}': ${reason}`);
+          break;
         }
-        if (!halGeminiKey && settings.llm.provider === 'gemini') {
-          const mainKey = settings.secrets.llmApiKey;
-          if (typeof mainKey === 'string' && mainKey.trim()) halGeminiKey = mainKey.trim();
+
+        const model = typeof halProfile.config.model === 'string' ? halProfile.config.model.trim() : '';
+        const baseUrlFromProfile = typeof halProfile.config.baseUrl === 'string' ? halProfile.config.baseUrl.trim() : '';
+        const provider = halProfile.config.provider ?? detectProviderFromBaseUrl(baseUrlFromProfile);
+        if (provider !== 'gemini') {
+          const error = `HAL voice_confirm requires a Gemini profile (got provider '${provider}').`;
+          void host.postMessage({ type: 'halVoiceConfirmResponse', requestId: message.requestId, ok: false, error });
+          outputChannel?.appendLine(`[hal] ${error}`);
+          break;
+        }
+
+        const baseUrl = baseUrlFromProfile || DEFAULT_PROVIDER_BASE_URLS.gemini;
+
+        const keyOrder = [
+          getProfileApiKeySecretKey(halProfileId),
+          getProviderApiKeyName(provider),
+          'openhands.llmApiKey',
+          'LLM_API_KEY',
+        ];
+        let halGeminiKey: string | undefined;
+        for (const key of keyOrder) {
+          const candidate = await getStoredSecret(key);
+          if (candidate) {
+            halGeminiKey = candidate;
+            break;
+          }
         }
 
         const result = await classifyHalVoiceDecision({
-          baseUrl: halGeminiConfig.baseUrl,
-          apiKey: halGeminiKey,
-          model: halGeminiConfig.model,
+          baseUrl,
+          apiKey: halGeminiKey ?? '',
+          model,
           mimeType: message.mimeType,
           audioBase64: message.audioBase64,
         });

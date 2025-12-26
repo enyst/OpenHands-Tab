@@ -289,17 +289,11 @@
             "order": 8,
             "markdownDescription": "Enable caching for generated ElevenLabs audio."
           },
-          "openhands.hal.gemini.model": {
+          "openhands.hal.llmProfileId": {
             "type": "string",
-            "default": "gemini-2.5-flash",
+            "default": "gemini-flash-hal",
             "order": 9,
-            "markdownDescription": "Gemini model used for `voice_confirm` classification."
-          },
-          "openhands.hal.gemini.baseUrl": {
-            "type": "string",
-            "default": "https://generativelanguage.googleapis.com/v1beta",
-            "order": 10,
-            "markdownDescription": "Gemini API base URL (default is Google AI Studio; allow proxies)."
+            "markdownDescription": "LLM profile id used for `voice_confirm` classification (expected Gemini provider)."
           }
         }
       },
