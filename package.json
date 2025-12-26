@@ -160,11 +160,6 @@
             "default": "",
             "order": 0,
             "markdownDescription": "LLM profile identifier (filename stem). OpenHands loads provider/model/baseUrl/tuning from `~/.openhands/llm-profiles/<profileId>.json`.\n\nTo manage profiles and API keys, use the **LLM Profiles** view inside the OpenHands sidebar."
-          },
-          "openhands.llm.usageId": {
-            "type": "string",
-            "order": 30,
-            "markdownDescription": "Optional usage_id for LLM metrics tracking. If unset in local mode, the SDK derives a stable id per provider/model/config so switching models preserves per-client metrics."
           }
         }
       },

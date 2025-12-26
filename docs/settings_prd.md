@@ -71,7 +71,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - Current extension behavior (IMPLEMENTED)
   - Settings-driven configuration via SettingsManager
   - Default model: claude-sonnet-4-20250514 (configurable)
-  - Default usage_id: 'default-llm' (configurable)
+  - Main agent usageId: 'agent' (internal; not user-configurable)
   - API key stored in VS Code SecretStorage
   - All LLM parameters configurable via profiles or configuration wizard
   - ConnectionManager builds agent.llm payload dynamically from settings
@@ -90,7 +90,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - Do **not** send `profile_id` to the server until the agent-server supports it.
 - Merge rules
   - Profile config is canonical for provider/model/baseUrl/openaiApiMode and generation parameters.
-  - The only remaining VS Code LLM setting is `openhands.llm.usageId` (maps to the agent-sdk `usage_id`).
+  - The only remaining VS Code LLM setting is `openhands.llm.profileId`.
 
 4) VS Code settings split (IMPLEMENTED)
 - Keep simple values in VS Code Settings (configuration)
@@ -98,7 +98,6 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.servers: array of { url: string; label?: string } (saved servers for quick selection)
   - openhands.terminal.renderProgress: boolean (default: true) — coalesce carriage-return progress in terminal output
   - openhands.llm.profileId: string | null (default: null) — selects a profile from `~/.openhands/llm-profiles` (local alias; expanded into `agent.llm` for remote mode)
-  - openhands.llm.usageId: string (default: 'default-llm') — maps to agent-sdk usage_id
   - openhands.conversation.maxIterations: number (default: 50, max: 500)
   - openhands.confirmation.policy: enum ('never' | 'always' | 'risky') (default: 'never')
   - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'MEDIUM')

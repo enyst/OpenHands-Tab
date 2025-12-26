@@ -39,7 +39,6 @@ describe('SettingsManager', () => {
   it('returns defaults when unset', async () => {
     const s = await mgr.get();
     expect(s.serverUrl).toBeUndefined();
-    expect(s.llm.usageId).toBeUndefined();
     expect(s.llm.profileId).toBe('sonnet-45');
     expect(a.cfg.get('openhands.llm.profileId')).toBe('sonnet-45');
     expect(s.llm.provider).toBe('anthropic');
@@ -132,7 +131,6 @@ describe('SettingsManager', () => {
     await mgr.update({
       serverUrl: 'http://example:1234',
       llm: {
-        usageId: 'my-usage',
         profileId: 'gpt-5',
       },
       agent: { enableSecurityAnalyzer: true, debug: true },
@@ -156,7 +154,6 @@ describe('SettingsManager', () => {
     });
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
-    expect(s.llm.usageId).toBe('my-usage');
     expect(s.llm.profileId).toBe('gpt-5');
     expect(s.llm.provider).toBe('openai');
     expect(s.llm.model).toBe('gpt-5');
