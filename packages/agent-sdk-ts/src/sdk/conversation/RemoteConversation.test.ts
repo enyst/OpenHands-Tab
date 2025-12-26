@@ -68,7 +68,7 @@ describe('RemoteConversation', () => {
       const parsed = JSON.parse(init?.body as string) as { agent: { llm: Record<string, unknown> } };
       expect(parsed.agent.llm.profile_id).toBeUndefined();
       expect(parsed.agent.llm.model).toBe('gpt-5');
-      expect(parsed.agent.llm.base_url).toBe('http://override.example');
+      expect(parsed.agent.llm.base_url).toBe('http://profile.example');
     } finally {
       fs.rmSync(profilesRoot, { recursive: true, force: true });
     }

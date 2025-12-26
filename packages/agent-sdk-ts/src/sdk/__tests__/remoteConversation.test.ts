@@ -256,6 +256,79 @@ describe('RemoteConversation', () => {
     }
   });
 
+  it('prefers profile config over settings llm overrides when profileId is set', async () => {
+    const dir = makeTempDir('remote-conversation-profile-precedence-');
+    try {
+      saveProfile('p1', {
+        provider: 'openai',
+        model: 'profile-model',
+        baseUrl: 'https://profile.example',
+        apiVersion: '2025-01-01',
+        timeoutSeconds: 111,
+        temperature: 0.7,
+        topP: 0.8,
+        topK: 40,
+        maxInputTokens: 1234,
+        maxOutputTokens: 2345,
+        reasoningEffort: 'high',
+      }, { rootDir: dir });
+
+      let capturedReq: any = null;
+      const fetchMock = vi.fn(async (url: string, init?: any) => {
+        expect(url).toContain('/api/conversations');
+        capturedReq = JSON.parse(init?.body ?? '{}');
+        return {
+          ok: true,
+          status: 201,
+          json: async () => ({ id: 'conv-1' }),
+          text: async () => '',
+        } as any;
+      });
+      (globalThis as any).fetch = fetchMock;
+
+      const { RemoteConversation } = await import('../conversation/RemoteConversation');
+      const conversation = new RemoteConversation({
+        serverUrl: 'http://localhost:3000',
+        settings: {
+          ...baseSettings,
+          llm: {
+            profileId: 'p1',
+            model: 'settings-model',
+            baseUrl: 'https://settings.example',
+            apiVersion: '2025-12-31',
+            timeout: 999,
+            temperature: 0.1,
+            topP: 0.1,
+            topK: 1,
+            maxInputTokens: 1,
+            maxOutputTokens: 2,
+            reasoningEffort: 'low',
+          },
+        } as any,
+        profileStoreOptions: { rootDir: dir },
+      });
+
+      const id = await conversation.startNewConversation();
+      conversation.disconnect();
+
+      expect(id).toBe('conv-1');
+      const llm = capturedReq?.agent?.llm ?? {};
+      expect(llm.usage_id).toBe('p1');
+      expect(llm.model).toBe('profile-model');
+      expect(llm.base_url).toBe('https://profile.example');
+      expect(llm.api_version).toBe('2025-01-01');
+      expect(llm.timeout).toBe(111);
+      expect(llm.temperature).toBe(0.7);
+      expect(llm.top_p).toBe(0.8);
+      expect(llm.top_k).toBe(40);
+      expect(llm.max_input_tokens).toBe(1234);
+      expect(llm.max_output_tokens).toBe(2345);
+      expect(llm.reasoning_effort).toBe('high');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('omits invalid secret values when starting a new conversation', async () => {
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       expect(url).toContain('/api/conversations');

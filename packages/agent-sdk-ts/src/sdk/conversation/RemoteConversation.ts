@@ -175,41 +175,41 @@ export class RemoteConversation extends EventEmitter {
         : undefined;
       const effectiveUsageId = derivedUsageId ?? usageId ?? profileUsageId;
       const effectiveModel = profileModel ?? model;
-      const effectiveBaseUrl = baseUrl ?? profileBaseUrl;
-      const effectiveApiVersion = apiVersion ?? profileApiVersion;
+      const effectiveBaseUrl = profileBaseUrl ?? baseUrl;
+      const effectiveApiVersion = profileApiVersion ?? apiVersion;
 
       if (effectiveUsageId) llm.usage_id = effectiveUsageId;
       if (effectiveModel) llm.model = effectiveModel;
       if (effectiveBaseUrl) llm.base_url = effectiveBaseUrl;
       if (effectiveApiVersion) llm.api_version = effectiveApiVersion;
 
-      const effectiveTimeout = s?.llm.timeout ?? profileConfig?.timeoutSeconds;
+      const effectiveTimeout = profileConfig?.timeoutSeconds ?? s?.llm.timeout;
       if (typeof effectiveTimeout === 'number' && Number.isFinite(effectiveTimeout)) {
         llm.timeout = effectiveTimeout;
       }
-      const effectiveTemperature = s?.llm.temperature ?? profileConfig?.temperature;
+      const effectiveTemperature = profileConfig?.temperature ?? s?.llm.temperature;
       if (typeof effectiveTemperature === 'number' && Number.isFinite(effectiveTemperature)) {
         llm.temperature = effectiveTemperature;
       }
-      const effectiveTopP = s?.llm.topP ?? profileConfig?.topP;
+      const effectiveTopP = profileConfig?.topP ?? s?.llm.topP;
       if (typeof effectiveTopP === 'number' && Number.isFinite(effectiveTopP)) {
         llm.top_p = effectiveTopP;
       }
-      const effectiveTopK = s?.llm.topK ?? profileConfig?.topK;
+      const effectiveTopK = profileConfig?.topK ?? s?.llm.topK;
       if (typeof effectiveTopK === 'number' && Number.isFinite(effectiveTopK)) {
         llm.top_k = effectiveTopK;
       }
 
-      const maxInputTokens = s?.llm.maxInputTokens ?? profileConfig?.maxInputTokens;
+      const maxInputTokens = profileConfig?.maxInputTokens ?? s?.llm.maxInputTokens;
       if (typeof maxInputTokens === 'number' && Number.isFinite(maxInputTokens) && maxInputTokens > 0) {
         llm.max_input_tokens = Math.trunc(maxInputTokens);
       }
-      const maxOutputTokens = s?.llm.maxOutputTokens ?? profileConfig?.maxOutputTokens;
+      const maxOutputTokens = profileConfig?.maxOutputTokens ?? s?.llm.maxOutputTokens;
       if (typeof maxOutputTokens === 'number' && Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
         llm.max_output_tokens = Math.trunc(maxOutputTokens);
       }
 
-      const effectiveReasoningEffort = s?.llm.reasoningEffort ?? profileConfig?.reasoningEffort;
+      const effectiveReasoningEffort = profileConfig?.reasoningEffort ?? s?.llm.reasoningEffort;
       if (typeof effectiveReasoningEffort === 'string' && effectiveReasoningEffort) {
         llm.reasoning_effort = effectiveReasoningEffort;
       }
