@@ -10,7 +10,6 @@ import {
   DEFAULT_PROVIDER_BASE_URLS,
   detectProviderFromBaseUrl,
   isContextLimitError,
-  LLMFactory,
   loadProfile,
   wouldExceedMaxInputTokens,
 } from '../llm';
@@ -49,6 +48,8 @@ import {
   sanitizeMessageForDebug,
   truncateString,
 } from './textSanitizers';
+import { getEffectiveLlmConfigForCondensation as resolveCondensationLlmConfig } from './condensationLlmConfig';
+import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
 
 export type AgentRunInput = string | Message;
 
@@ -950,56 +951,7 @@ export class Agent extends EventEmitter {
     openaiApiMode: unknown;
     maxInputTokens: number | undefined;
   } {
-    const llm = this.options.settings?.llm ?? {};
-    const configuredBaseUrl = toOptionalNonEmptyString(llm.baseUrl);
-    const configuredModel = toOptionalNonEmptyString(llm.model) ?? '';
-    const configuredProvider = llm.provider ?? undefined;
-    const configuredOpenaiApiMode = (llm as { openaiApiMode?: unknown } | undefined)?.openaiApiMode;
-    const configuredMaxInputTokens =
-      typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens) && llm.maxInputTokens > 0
-        ? Math.trunc(llm.maxInputTokens)
-        : undefined;
-
-    const profileId = toOptionalNonEmptyString(llm.profileId);
-    if (!profileId || !isSafeProfileId(profileId)) {
-      const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
-      return {
-        provider,
-        baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
-        model: configuredModel,
-        openaiApiMode: configuredOpenaiApiMode,
-        maxInputTokens: configuredMaxInputTokens,
-      };
-    }
-
-    try {
-      const profile = loadProfile(profileId);
-      const profileModel = toOptionalNonEmptyString(profile.config.model) ?? configuredModel;
-      const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
-      const profileProvider = profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
-      const profileMaxInputTokens =
-        typeof profile.config.maxInputTokens === 'number' &&
-        Number.isFinite(profile.config.maxInputTokens) &&
-        profile.config.maxInputTokens > 0
-          ? Math.trunc(profile.config.maxInputTokens)
-          : undefined;
-      return {
-        provider: profileProvider,
-        baseUrl: profileBaseUrl ?? configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[profileProvider],
-        model: profileModel,
-        openaiApiMode: profile.config.openaiApiMode ?? configuredOpenaiApiMode,
-        maxInputTokens: profileMaxInputTokens ?? configuredMaxInputTokens,
-      };
-    } catch {
-      const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
-      return {
-        provider,
-        baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
-        model: configuredModel,
-        openaiApiMode: configuredOpenaiApiMode,
-        maxInputTokens: configuredMaxInputTokens,
-      };
-    }
+    return resolveCondensationLlmConfig(this.options.settings);
   }
 
   /**
@@ -1182,63 +1134,13 @@ export class Agent extends EventEmitter {
   }
 
   private createLlmClientFromSettings(): Promise<LLMClient> {
-    const s = this.options.settings;
-    const profileId = toOptionalNonEmptyString(s.llm?.profileId);
-    const model = toOptionalNonEmptyString(s.llm?.model);
-    if (!profileId && !model) {
-      return Promise.reject(new Error('LLM model is not configured'));
-    }
-    const effectiveUsageId = 'agent';
-
-    const configuredApiKey = toOptionalNonEmptyString(s.secrets?.llmApiKey);
-    const configuredApiKeyIsReference =
-      typeof configuredApiKey === 'string' && /^[A-Z0-9_]+$/.test(configuredApiKey);
-    const configuredApiKeyInline = configuredApiKeyIsReference ? undefined : configuredApiKey;
-    this.secrets.set('openhands.llmApiKey', configuredApiKeyInline);
-
-    const preferredApiKeys = (() => {
-      if (!profileId || !isSafeProfileId(profileId)) return undefined;
-      const keys: string[] = [`openhands.llmProfileApiKey.${profileId}`];
-      if (configuredApiKeyIsReference && configuredApiKey) {
-        keys.push(configuredApiKey);
-      }
-      return keys;
-    })();
-
-    const config = {
-      profileId,
-      provider: s.llm.provider ?? undefined,
-      model: model ?? '',
-      openaiApiMode: s.llm.openaiApiMode ?? undefined,
-      usageId: effectiveUsageId,
-      baseUrl: s.llm.baseUrl ?? undefined,
-      apiKey: profileId ? undefined : configuredApiKey,
-      apiVersion: s.llm.apiVersion ?? undefined,
-      timeoutSeconds: s.llm.timeout ?? undefined,
-      temperature: s.llm.temperature ?? undefined,
-      topP: s.llm.topP ?? undefined,
-      topK: s.llm.topK ?? undefined,
-      maxInputTokens: s.llm.maxInputTokens ?? undefined,
-      maxOutputTokens: s.llm.maxOutputTokens ?? undefined,
-      reasoningEffort: s.llm.reasoningEffort ?? undefined,
-      reasoningSummary: s.llm.reasoningSummary ?? undefined,
-      inputCostPerToken: s.llm.inputCostPerToken ?? undefined,
-      outputCostPerToken: s.llm.outputCostPerToken ?? undefined,
-    };
-    const factory = new LLMFactory(config, {
+    return createLlmClientFromSettingsFromConfig({
+      settings: this.options.settings,
       secrets: this.secrets,
-      preferredApiKeys,
       registry: this.registry,
-      onMetricsUpdate: (usageId, metrics) => {
-        if (!this.conversationStats) return;
-        // ensure entry exists and reference the same metrics
-        if (!this.conversationStats.usageToMetrics[usageId]) {
-          this.conversationStats.usageToMetrics[usageId] = metrics;
-        }
-        this.state.setValue('stats', this.conversationStats.toJSON());
-      },
+      conversationStats: this.conversationStats,
+      state: this.state,
     });
-    return factory.createClient();
   }
 
   private toConversationErrorEvent(error: unknown, options?: { code?: string; message?: string }): Event {
