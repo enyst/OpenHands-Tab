@@ -47,10 +47,10 @@ import {
   redactStringHeuristics,
   sanitizeChatRequestForDebug,
   sanitizeMessageForDebug,
-  truncateString,
 } from './textSanitizers';
 import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
+import { CIRCULAR_REFERENCE_MARKER, deepTruncate, truncateToolMessage } from './toolResultTruncation';
 
 export type AgentRunInput = string | Message;
 
@@ -76,48 +76,6 @@ export interface AgentOptions {
 }
 
 const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
-
-// Simple utility to cap logged/tool result sizes
-const CIRCULAR_REFERENCE_MARKER = '[Circular]';
-const TOOL_MESSAGE_MAX_CHARS = 8_000;
-const TOOL_MESSAGE_CLIP_MARKER = '<response clipped>';
-
-function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
-  if (typeof value === 'string') return truncateString(value);
-  if (Array.isArray(value)) {
-    if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
-    seen.add(value);
-    return value.map((v) => deepTruncate(v, seen));
-  }
-  if (value && typeof value === 'object') {
-    if (value instanceof Date) {
-      try {
-        return value.toISOString();
-      } catch {
-        return String(value);
-      }
-    }
-    const entries = Object.entries(value as Record<string, unknown>);
-    if (!entries.length) return {};
-    if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
-    seen.add(value);
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of entries) {
-      out[k] = deepTruncate(v, seen);
-    }
-    return out;
-  }
-  return value;
-}
-
-function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): string {
-  if (text.length <= maxChars) return text;
-  const available = maxChars - TOOL_MESSAGE_CLIP_MARKER.length - 2;
-  const half = Math.max(0, Math.floor(available / 2));
-  const head = text.slice(0, half);
-  const tail = text.slice(-half);
-  return `${head}\n${TOOL_MESSAGE_CLIP_MARKER}\n${tail}`;
-}
 
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash-summarizer';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
