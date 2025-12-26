@@ -55,7 +55,7 @@ export function LlmProfileSelector({
             text-xs font-medium
             transition-all duration-200
             border
-            focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+            focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:ring-offset-0
             bg-white/[0.04] text-stone-400 border-white/[0.06]
             hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]
           `}
@@ -164,4 +164,3 @@ export function LlmProfileSelector({
     </div>
   );
 }
-

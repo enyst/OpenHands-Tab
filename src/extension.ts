@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { SettingsManager, type OpenHandsSettings } from './settings/SettingsManager';
@@ -9,6 +8,7 @@ import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
+import { normalizeNonEmptyString } from './shared/stringUtils';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, isValidPastedImageId } from './shared/pastedImages';
 import { cleanupPastedImages } from './shared/pastedImagesCleanup';
 import { transformEventForWebview as transformEventForWebviewWithPastedImages } from './conversation/host/transformEventForWebview';
@@ -17,8 +17,11 @@ import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminal
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
+import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
 import { createFileEditNoteTracker } from './extension/fileEditNote';
 import { getGitHeadDiffSummaryForFile, resolveGitContext } from './extension/gitDiffSummary';
+import { resolveConversationStoreRoot } from './extension/conversationStoreRoot';
+import { registerSecretCommands } from './extension/secretCommands';
 import {
   AgentContext,
   Conversation,
@@ -79,53 +82,6 @@ function markPrintedExitFor(commandId: string): void {
   if (printedExitFor.size <= MAX_PRINTED_EXIT_FOR) return;
   const oldest = printedExitFor.keys().next().value;
   if (oldest) printedExitFor.delete(oldest);
-}
-
-// Dev logging/instrumentation toggle and file sink
-let devBridgeEnabled = false;
-let webviewLogFile: string | undefined;
-async function initFileLogger(context: vscode.ExtensionContext) {
-  try {
-    const logDir = context.logUri.fsPath;
-    await fs.mkdir(logDir, { recursive: true });
-    webviewLogFile = path.join(logDir, 'openhands-webview.log');
-  } catch (_err) {
-    webviewLogFile = undefined;
-  }
-}
-function fileLog(line: string) {
-  if (!devBridgeEnabled || !webviewLogFile) return;
-  const masked = maskSecretsInText(line, secretRegistry);
-  const ts = new Date().toISOString();
-  fs.appendFile(webviewLogFile, `[${ts}] ${masked}\n`).catch((err: unknown) => {
-    console.warn('[OpenHands] Failed to append to webview log', err);
-  });
-}
-
-function createMaskedOutputChannel(channel: vscode.OutputChannel): vscode.OutputChannel {
-  return new Proxy(channel, {
-    get(target, prop, receiver) {
-      if (prop === 'appendLine' && typeof target.appendLine === 'function') {
-        return (value: string) => target.appendLine(maskSecretsInText(String(value), secretRegistry));
-      }
-
-      const append = (target as unknown as { append?: unknown }).append;
-      if (prop === 'append' && typeof append === 'function') {
-        return (value: string) =>
-          (target as unknown as { append: (text: string) => void }).append(maskSecretsInText(String(value), secretRegistry));
-      }
-
-      const replace = (target as unknown as { replace?: unknown }).replace;
-      if (prop === 'replace' && typeof replace === 'function') {
-        return (value: string) =>
-          (target as unknown as { replace: (text: string) => void }).replace(maskSecretsInText(String(value), secretRegistry));
-      }
-
-      const value = Reflect.get(target, prop, receiver) as unknown;
-      if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
-      return value;
-    },
-  });
 }
 
 let pastedImagesCleanupInFlight: Promise<void> | undefined;
@@ -278,11 +234,6 @@ async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string
   return trimmed;
 }
 
-function normalizeNonEmptyString(value: string | undefined | null): string | undefined {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  return trimmed || undefined;
-}
-
 function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
   if (!editor) return undefined;
   const uri = editor.document.uri;
@@ -299,63 +250,6 @@ function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefin
     : undefined;
 }
 
-function resolveConfiguredPath(p: string): string {
-  const raw = p.trim();
-  if (raw.startsWith('~/') || raw === '~') {
-    const suffix = raw === '~' ? '' : raw.slice(2);
-    return path.join(os.homedir(), suffix);
-  }
-  if (raw.startsWith('~\\')) {
-    return path.join(os.homedir(), raw.slice(2));
-  }
-  if (path.isAbsolute(raw)) return raw;
-  // Prefer homedir-relative resolution so behavior is stable even with no workspace open.
-  return path.resolve(os.homedir(), raw);
-}
-
-async function ensureWritableDirectory(dir: string): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
-  const probe = path.join(dir, `.openhands-write-probe-${process.pid}-${Date.now()}`);
-  await fs.writeFile(probe, 'ok', 'utf8');
-  await fs.unlink(probe);
-}
-
-async function resolveConversationStoreRoot(context: vscode.ExtensionContext): Promise<string> {
-  const cfg = vscode.workspace.getConfiguration();
-  const configured = normalizeNonEmptyString(cfg.get<string>('openhands.conversation.storeRoot'));
-
-  const candidates: Array<{ label: string; dir: string }> = [];
-  if (configured) candidates.push({ label: 'setting openhands.conversation.storeRoot', dir: resolveConfiguredPath(configured) });
-
-  try {
-    candidates.push({ label: 'default ~/.openhands/conversations-vscode', dir: path.join(os.homedir(), '.openhands', 'conversations-vscode') });
-  } catch (err) {
-    outputChannel?.appendLine(`[storage] Failed to compute home dir default: ${renderError(err)}`);
-  }
-
-  const globalStorage = (context as unknown as { globalStorageUri?: vscode.Uri }).globalStorageUri?.fsPath;
-  if (globalStorage) {
-    candidates.push({ label: 'VS Code globalStorageUri', dir: path.join(globalStorage, 'conversations') });
-  }
-
-  candidates.push({ label: 'os.tmpdir()', dir: path.join(os.tmpdir(), 'openhands-conversations-vscode') });
-
-  for (const candidate of candidates) {
-    try {
-      await ensureWritableDirectory(candidate.dir);
-      if (candidate.dir !== candidates[0]?.dir) {
-        outputChannel?.appendLine(`[storage] Using conversation store root: ${candidate.dir} (${candidate.label})`);
-      }
-      return candidate.dir;
-    } catch (err) {
-      outputChannel?.appendLine(`[storage] Cannot use ${candidate.label} (${candidate.dir}): ${renderError(err)}`);
-    }
-  }
-
-  // Last resort: return tmp path even if we couldn't probe it; conversation may still run without persistence.
-  return path.join(os.tmpdir(), 'openhands-conversations-vscode');
-}
-
 /**
  * Initialize the OpenHands extension: create logging channel and chat webview, register commands and configuration handlers, and wire up terminal, conversation, and secret-management behavior.
  *
@@ -367,9 +261,11 @@ export function activate(context: vscode.ExtensionContext) {
   const secrets = new SecretRegistry(context.secrets);
   secretRegistry = secrets;
 
+  const devBridgeLogger = createDevBridgeLogger({ secretRegistry: secrets });
+
   try {
     const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
-    outputChannel = createMaskedOutputChannel(channel);
+    outputChannel = createMaskedOutputChannel(channel, secrets);
     context.subscriptions.push(channel);
     outputChannel.show(true);
     outputChannel.appendLine('[OpenHands] Logging channel initialized');
@@ -396,7 +292,8 @@ export function activate(context: vscode.ExtensionContext) {
         getConversation: () => conversation,
         getConversationMode: () => conversationMode,
         getConversationStoreRoot: () => conversationStoreRoot,
-        resolveConversationStoreRoot: () => resolveConversationStoreRoot(context),
+        resolveConversationStoreRoot: () =>
+          resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }),
         setWebviewReadyState: (conversationId, lastSeenSeq) => {
           chatWebviewReady = true;
           chatLastConversationId = conversationId;
@@ -428,9 +325,9 @@ export function activate(context: vscode.ExtensionContext) {
             lastError: typeof info.lastError === 'string' ? info.lastError : null,
           });
         },
-        isDevBridgeEnabled: () => devBridgeEnabled,
+        isDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
         getOutputChannel: () => outputChannel,
-        fileLog,
+        fileLog: devBridgeLogger.fileLog,
       }),
     onResolved: (view) => {
       chatView = view;
@@ -460,8 +357,8 @@ export function activate(context: vscode.ExtensionContext) {
       (mode === extensionMode.Development || mode === extensionMode.Test)) ||
     false;
   const enableFromSetting = !!vscode.workspace.getConfiguration().get<boolean>('openhands.devBridge.enabled');
-  devBridgeEnabled = isDevOrTest || enableFromSetting;
-  void initFileLogger(context);
+  devBridgeLogger.setEnabled(isDevOrTest || enableFromSetting);
+  void devBridgeLogger.initFileLogger(context);
 
   syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);
   context.subscriptions.push(
@@ -615,7 +512,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       const persistenceDir =
         desiredMode === 'local'
-          ? await resolveConversationStoreRoot(context).catch((err: unknown) => {
+          ? await resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }).catch((err: unknown) => {
               outputChannel?.appendLine(`[storage] Failed to resolve conversation store root: ${renderError(err)}`);
               return path.join(os.tmpdir(), 'openhands-conversations-vscode');
             })
@@ -811,327 +708,11 @@ export function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
   });
 
-  type SecretKey = keyof OpenHandsSettings['secrets'];
-
-  const SECRET_STATUS_SET_VALUE = '✓ set';
-
-  const syncSecretStatusIndicators = async (): Promise<void> => {
-    const cfg = vscode.workspace.getConfiguration();
-
-    const getIsSetFromSecretStorage = async (storageKey: string): Promise<boolean> => {
-      const value = await context.secrets.get(storageKey);
-      return typeof value === 'string' && value.trim().length > 0;
-    };
-
-    let settingsSecrets: OpenHandsSettings['secrets'] | undefined;
-    try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-      settingsSecrets = (await settingsMgr.get())?.secrets;
-    } catch {
-      // Best-effort: do not surface errors for a purely UX indicator.
-      settingsSecrets = undefined;
-    }
-
-    const getIsSetFromSettingsSecrets = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0;
-
-    const indicators: Array<{ key: string; isSet: boolean }> = [
-      { key: 'openhands.secrets.openaiApiKey', isSet: await getIsSetFromSecretStorage('OPENAI_API_KEY') },
-      { key: 'openhands.secrets.anthropicApiKey', isSet: await getIsSetFromSecretStorage('ANTHROPIC_API_KEY') },
-      { key: 'openhands.secrets.openrouterApiKey', isSet: await getIsSetFromSecretStorage('OPENROUTER_API_KEY') },
-      { key: 'openhands.secrets.litellmApiKey', isSet: await getIsSetFromSecretStorage('LITELLM_API_KEY') },
-      { key: 'openhands.secrets.geminiLlmApiKey', isSet: await getIsSetFromSecretStorage('GEMINI_API_KEY') },
-
-      { key: 'openhands.secrets.sessionApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.sessionApiKey) },
-      { key: 'openhands.secrets.githubToken', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.githubToken) },
-      { key: 'openhands.secrets.elevenLabsApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.elevenLabsApiKey) },
-      { key: 'openhands.secrets.customSecret1', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret1) },
-      { key: 'openhands.secrets.customSecret2', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret2) },
-      { key: 'openhands.secrets.customSecret3', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret3) },
-    ];
-
-    for (const indicator of indicators) {
-      const desired = indicator.isSet ? SECRET_STATUS_SET_VALUE : undefined;
-      const inspection = cfg.inspect<string>(indicator.key);
-      const currentGlobal = inspection?.globalValue;
-      if (currentGlobal === desired) continue;
-
-      await cfg.update(indicator.key, desired, vscode.ConfigurationTarget.Global);
-    }
-  };
-
-  const syncSecretStatusIndicatorsBestEffort = async (): Promise<void> => {
-    try {
-      await syncSecretStatusIndicators();
-    } catch {
-      // Best-effort; never block activation or secret updates.
-    }
-  };
-
-  const registerSecretCommand = (
-    commandId: string,
-    options: {
-      title: string;
-      secretKey: SecretKey;
-      prompt: string;
-      placeHolder?: string;
-      successMessage: string;
-      clearedMessage: string;
-      errorPrefix: string;
-    }
-  ) =>
-    vscode.commands.registerCommand(commandId, async () => {
-      try {
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-        const existing = await settingsMgr.get();
-        const currentValue = existing.secrets[options.secretKey];
-        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
-
-        if (isCurrentlySet) {
-          const action = await vscode.window.showQuickPick(
-            [
-              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-            ],
-            {
-              title: options.title,
-              placeHolder: 'Choose an action',
-              canPickMany: false,
-            }
-          );
-          if (!action) return;
-
-          if (action.value === 'clear') {
-            const confirmed = await vscode.window.showWarningMessage(
-              `Clear ${options.title}?`,
-              { modal: true },
-              'Clear'
-            );
-            if (confirmed !== 'Clear') return;
-
-            const secretsUpdate = { [options.secretKey]: undefined } as Partial<OpenHandsSettings['secrets']>;
-            await settingsMgr.update({ secrets: secretsUpdate });
-            vscode.window.showInformationMessage(options.clearedMessage);
-
-            const newSettings = await settingsMgr.get();
-            conversation?.setSettings(newSettings);
-            await syncSecretStatusIndicatorsBestEffort();
-            return;
-          }
-        }
-
-        const value = await vscode.window.showInputBox({
-          title: options.title,
-          password: true,
-          prompt: options.prompt,
-          placeHolder: options.placeHolder,
-        });
-
-        if (value === undefined) return;
-
-        const trimmed = value.trim();
-        if (!trimmed) return;
-
-        const secretsUpdate = { [options.secretKey]: trimmed } as Partial<OpenHandsSettings['secrets']>;
-        await settingsMgr.update({ secrets: secretsUpdate });
-        vscode.window.showInformationMessage(options.successMessage);
-
-        const newSettings = await settingsMgr.get();
-        conversation?.setSettings(newSettings);
-        await syncSecretStatusIndicatorsBestEffort();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
-      }
-    });
-
-  const registerSecretStorageCommand = (
-    commandId: string,
-    options: {
-      title: string;
-      storageKey: string;
-      prompt: string;
-      placeHolder?: string;
-      successMessage: string;
-      clearedMessage: string;
-      errorPrefix: string;
-    }
-  ) =>
-    vscode.commands.registerCommand(commandId, async () => {
-      try {
-        const currentValue = await context.secrets.get(options.storageKey);
-        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
-
-        if (isCurrentlySet) {
-          const action = await vscode.window.showQuickPick(
-            [
-              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-            ],
-            {
-              title: options.title,
-              placeHolder: 'Choose an action',
-              canPickMany: false,
-            }
-          );
-          if (!action) return;
-
-          if (action.value === 'clear') {
-            const confirmed = await vscode.window.showWarningMessage(
-              `Clear ${options.title}?`,
-              { modal: true },
-              'Clear'
-            );
-            if (confirmed !== 'Clear') return;
-
-            await context.secrets.delete(options.storageKey);
-            secrets.set(options.storageKey, undefined);
-            vscode.window.showInformationMessage(options.clearedMessage);
-            await syncSecretStatusIndicatorsBestEffort();
-            return;
-          }
-        }
-
-        const value = await vscode.window.showInputBox({
-          title: options.title,
-          password: true,
-          prompt: options.prompt,
-          placeHolder: options.placeHolder,
-        });
-
-        if (value === undefined) return;
-
-        const trimmed = value.trim();
-        if (!trimmed) return;
-
-        await context.secrets.store(options.storageKey, trimmed);
-        secrets.set(options.storageKey, trimmed);
-        vscode.window.showInformationMessage(options.successMessage);
-        await syncSecretStatusIndicatorsBestEffort();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
-      }
-    });
-
-  const setApiKey = registerSecretCommand('openhands.setApiKey', {
-    title: 'LLM API Key',
-    secretKey: 'llmApiKey',
-    prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    successMessage: 'LLM API Key saved securely.',
-    clearedMessage: 'LLM API Key cleared.',
-    errorPrefix: 'Failed to save API Key',
+  const secretCommands = registerSecretCommands({
+    context,
+    secrets,
+    getConversation: () => conversation,
   });
-
-  const setOpenAiApiKey = registerSecretStorageCommand('openhands.setOpenAiApiKey', {
-    title: 'OpenAI API Key',
-    storageKey: 'OPENAI_API_KEY',
-    prompt: 'Enter your OpenAI API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    successMessage: 'OpenAI API key saved securely.',
-    clearedMessage: 'OpenAI API key cleared.',
-    errorPrefix: 'Failed to save OpenAI API key',
-  });
-
-  const setAnthropicApiKey = registerSecretStorageCommand('openhands.setAnthropicApiKey', {
-    title: 'Anthropic API Key',
-    storageKey: 'ANTHROPIC_API_KEY',
-    prompt: 'Enter your Anthropic API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-ant-...',
-    successMessage: 'Anthropic API key saved securely.',
-    clearedMessage: 'Anthropic API key cleared.',
-    errorPrefix: 'Failed to save Anthropic API key',
-  });
-
-  const setOpenRouterApiKey = registerSecretStorageCommand('openhands.setOpenRouterApiKey', {
-    title: 'OpenRouter API Key',
-    storageKey: 'OPENROUTER_API_KEY',
-    prompt: 'Enter your OpenRouter API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-or-...',
-    successMessage: 'OpenRouter API key saved securely.',
-    clearedMessage: 'OpenRouter API key cleared.',
-    errorPrefix: 'Failed to save OpenRouter API key',
-  });
-
-  const setLiteLlmApiKey = registerSecretStorageCommand('openhands.setLiteLlmApiKey', {
-    title: 'LiteLLM Proxy API Key',
-    storageKey: 'LITELLM_API_KEY',
-    prompt: 'Enter your LiteLLM Proxy API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    successMessage: 'LiteLLM Proxy API key saved securely.',
-    clearedMessage: 'LiteLLM Proxy API key cleared.',
-    errorPrefix: 'Failed to save LiteLLM Proxy API key',
-  });
-
-  const setGeminiLlmApiKey = registerSecretStorageCommand('openhands.setGeminiLlmApiKey', {
-    title: 'Gemini API Key',
-    storageKey: 'GEMINI_API_KEY',
-    prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'AIza...',
-    successMessage: 'Gemini API key saved securely.',
-    clearedMessage: 'Gemini API key cleared.',
-    errorPrefix: 'Failed to save Gemini API key',
-  });
-
-  const setSessionApiKey = registerSecretCommand('openhands.setSessionApiKey', {
-    title: 'Session API Key',
-    secretKey: 'sessionApiKey',
-    prompt: 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Session API Key saved securely.',
-    clearedMessage: 'Session API Key cleared.',
-    errorPrefix: 'Failed to save Session API Key',
-  });
-
-  const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
-    title: 'GitHub Token',
-    secretKey: 'githubToken',
-    prompt: 'Enter your GitHub token. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'ghp_...',
-    successMessage: 'GitHub token saved securely.',
-    clearedMessage: 'GitHub token cleared.',
-    errorPrefix: 'Failed to save GitHub token',
-  });
-
-  const setElevenLabsApiKey = registerSecretCommand('openhands.setElevenLabsApiKey', {
-    title: 'ElevenLabs API Key',
-    secretKey: 'elevenLabsApiKey',
-    prompt: 'Enter your ElevenLabs API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'xi-...',
-    successMessage: 'ElevenLabs API key saved securely.',
-    clearedMessage: 'ElevenLabs API key cleared.',
-    errorPrefix: 'Failed to save ElevenLabs API key',
-  });
-
-
-
-  const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
-    title: 'Custom Secret 1',
-    secretKey: 'customSecret1',
-    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Custom secret 1 saved securely.',
-    clearedMessage: 'Custom secret 1 cleared.',
-    errorPrefix: 'Failed to save custom secret 1',
-  });
-
-  const setCustomSecret2 = registerSecretCommand('openhands.setCustomSecret2', {
-    title: 'Custom Secret 2',
-    secretKey: 'customSecret2',
-    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Custom secret 2 saved securely.',
-    clearedMessage: 'Custom secret 2 cleared.',
-    errorPrefix: 'Failed to save custom secret 2',
-  });
-
-  const setCustomSecret3 = registerSecretCommand('openhands.setCustomSecret3', {
-    title: 'Custom Secret 3',
-    secretKey: 'customSecret3',
-    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Custom secret 3 saved securely.',
-    clearedMessage: 'Custom secret 3 cleared.',
-    errorPrefix: 'Failed to save custom secret 3',
-  });
-
-  void syncSecretStatusIndicatorsBestEffort();
 
   const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
     await ensureConversationAndConnection();
@@ -1206,19 +787,7 @@ export function activate(context: vscode.ExtensionContext) {
     ...diagnosticsCommands,
     startNew,
     configure,
-    setApiKey,
-    setOpenAiApiKey,
-    setAnthropicApiKey,
-    setOpenRouterApiKey,
-    setLiteLlmApiKey,
-    setGeminiLlmApiKey,
-    setSessionApiKey,
-    setGithubToken,
-    setElevenLabsApiKey,
-
-    setCustomSecret1,
-    setCustomSecret2,
-    setCustomSecret3,
+    ...secretCommands,
     reconnect,
     pause,
     resume

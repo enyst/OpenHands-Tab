@@ -2,6 +2,7 @@ import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, Conve
 import type { HalMode } from '../shared/halTypes';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
 import { normalizeServerUrl } from '../shared/serverUrls';
+import { normalizeNonEmptyString } from '../shared/stringUtils';
 import { detectProviderFromBaseUrl, ensureDefaultProfiles, loadProfile } from '@openhands/agent-sdk-ts';
 
 export interface SavedServer {
@@ -71,11 +72,6 @@ const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
   ['volume', 'openhands.hal.volume'],
   ['cache', 'openhands.hal.cache'],
 ];
-
-const normalizeNonEmptyString = (value: string | null | undefined): string | undefined => {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  return trimmed || undefined;
-};
 
 const isSafeProfileId = (value: string): boolean => {
   if (!value.trim()) return false;

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as vscode from 'vscode';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -9,6 +10,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
   let tmpDir = '';
 
   beforeEach(async () => {
+    (vscode as any).__resetMocks();
     vi.clearAllMocks();
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'oh-tab-llm-profiles-'));
   });
@@ -19,7 +21,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     }
   });
 
-  const createHandler = () => {
+  const createHandler = (options?: { conversation?: any }) => {
     const postMessage = vi.fn(async () => true);
     const secretValues = new Map<string, string>();
     const secrets = {
@@ -36,7 +38,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       context: { globalStorageUri: { fsPath: tmpDir }, secrets } as any,
       host: { postMessage },
       secretRegistry,
-      getConversation: () => undefined,
+      getConversation: () => options?.conversation,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
       resolveConversationStoreRoot: async () => tmpDir,
@@ -160,5 +162,15 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     expect(secrets.delete).toHaveBeenCalledWith(key);
     await expect(secretRegistry.get(key)).resolves.toBeUndefined();
     await expect(fs.stat(path.join(tmpDir, 'a.json'))).rejects.toThrow();
+  });
+
+  it('applies selected LLM profileId to the active conversation immediately', async () => {
+    const conversation = { getStatus: () => 'online', setSettings: vi.fn() };
+    const { handler } = createHandler({ conversation });
+
+    await handler({ type: 'setLlmProfileId', profileId: 'test-gpt-4' });
+
+    expect(conversation.setSettings).toHaveBeenCalledTimes(1);
+    expect(conversation.setSettings.mock.calls[0]?.[0]?.llm?.profileId).toBe('test-gpt-4');
   });
 });

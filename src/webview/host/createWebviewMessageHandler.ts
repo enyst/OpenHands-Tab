@@ -530,6 +530,12 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         await settingsMgr.update({ llm: { profileId } });
 
         const updated = await settingsMgr.get();
+        try {
+          conversation?.setSettings(updated);
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          outputChannel?.appendLine(`[settings] Failed to apply profile selection to active conversation: ${reason}`);
+        }
         deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(updated));
 
         void host.postMessage({
