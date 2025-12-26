@@ -93,16 +93,25 @@ export const toFormState = (profileId: string, config: LLMConfiguration): Profil
   const nullableStr = (v: unknown): string => (typeof v === 'string' ? v : '');
   const nullableNum = (v: unknown): string => (typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
   const provider = config.provider;
+  const validProvider = provider === 'openai' || provider === 'anthropic' || provider === 'openrouter' || provider === 'litellm_proxy' || provider === 'gemini'
+    ? provider
+    : undefined;
   const openaiApiMode = provider === 'openai' && config.openaiApiMode
     ? config.openaiApiMode
     : 'auto';
+  const reasoningEffort = config.reasoningEffort;
+  const validReasoningEffort = reasoningEffort === 'none' || reasoningEffort === 'low' || reasoningEffort === 'medium' || reasoningEffort === 'high'
+    ? reasoningEffort
+    : undefined;
+  const reasoningSummary = config.reasoningSummary;
+  const validReasoningSummary = reasoningSummary === 'auto' || reasoningSummary === 'concise' || reasoningSummary === 'detailed'
+    ? reasoningSummary
+    : undefined;
 
   return {
     ...EMPTY_FORM,
     name: profileId,
-    provider: provider === 'openai' || provider === 'anthropic' || provider === 'openrouter' || provider === 'litellm_proxy' || provider === 'gemini'
-      ? provider
-      : '',
+    provider: validProvider ?? '',
     model: strOrEmpty(config.model),
     baseUrl: nullableStr(config.baseUrl),
     apiVersion: nullableStr(config.apiVersion),
@@ -113,16 +122,8 @@ export const toFormState = (profileId: string, config: LLMConfiguration): Profil
     topK: nullableNum(config.topK),
     maxInputTokens: nullableNum(config.maxInputTokens),
     maxOutputTokens: nullableNum(config.maxOutputTokens),
-    reasoningEffort: config.reasoningEffort === null || config.reasoningEffort === undefined
-      ? ''
-      : (config.reasoningEffort === 'none' || config.reasoningEffort === 'low' || config.reasoningEffort === 'medium' || config.reasoningEffort === 'high')
-        ? config.reasoningEffort
-        : '',
-    reasoningSummary: config.reasoningSummary === null || config.reasoningSummary === undefined
-      ? ''
-      : (config.reasoningSummary === 'auto' || config.reasoningSummary === 'concise' || config.reasoningSummary === 'detailed')
-        ? config.reasoningSummary
-        : '',
+    reasoningEffort: validReasoningEffort ?? '',
+    reasoningSummary: validReasoningSummary ?? '',
     inputCostPerToken: numOrEmpty(config.inputCostPerToken),
     outputCostPerToken: numOrEmpty(config.outputCostPerToken),
   };
@@ -251,4 +252,3 @@ export const buildProfileConfig = (form: ProfileFormState): LLMConfiguration => 
     outputCostPerToken,
   };
 };
-
