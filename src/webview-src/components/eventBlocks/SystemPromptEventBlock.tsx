@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { SystemPromptEvent } from '@openhands/agent-sdk-ts';
 import { EventContainer, SYSTEM_ACCENT_COLOR, withAlpha } from './shared';
+import { Tooltip } from '../Tooltip';
 
 type LoadedSkill = { label: string; path: string };
 
@@ -81,7 +82,6 @@ export function SystemPromptEventBlock({
           }
           className="ml-auto text-xs text-stone-400 hover:text-stone-300 transition-colors flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-white/[0.05]"
           aria-label={toggleLabel}
-          title={toggleLabel}
         >
           <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`} />
           <span>{isExpanded ? 'Hide' : 'Show'}</span>
@@ -93,19 +93,20 @@ export function SystemPromptEventBlock({
             {event.system_prompt.text}
           </div>
           <div className="mt-3 pt-3 border-t border-white/[0.06] text-xs text-stone-400 space-y-2">
-            <button
-              type="button"
-              onClick={() => setSkillsExpanded((prev) => !prev)}
-              className="w-full flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/[0.05] hover:text-stone-300 transition-colors"
-              aria-label={`${skillNames.length} skills loaded`}
-              aria-expanded={skillsExpanded}
-              aria-controls={skillsListId}
-              title={skillsExpanded ? 'Hide skills' : 'Show skills'}
-            >
-              <span className="codicon codicon-mortar-board" style={{ color: SYSTEM_ACCENT_COLOR }} />
-              <span>{skillNames.length} skills loaded</span>
-              <span className={`ml-auto codicon codicon-chevron-${skillsExpanded ? 'up' : 'down'} text-[10px] opacity-70`} />
-            </button>
+            <Tooltip content={skillsExpanded ? 'Hide skills' : 'Show skills'} position="top">
+              <button
+                type="button"
+                onClick={() => setSkillsExpanded((prev) => !prev)}
+                className="w-full flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/[0.05] hover:text-stone-300 transition-colors"
+                aria-label={`${skillNames.length} skills loaded`}
+                aria-expanded={skillsExpanded}
+                aria-controls={skillsListId}
+              >
+                <span className="codicon codicon-mortar-board" style={{ color: SYSTEM_ACCENT_COLOR }} />
+                <span>{skillNames.length} skills loaded</span>
+                <span className={`ml-auto codicon codicon-chevron-${skillsExpanded ? 'up' : 'down'} text-[10px] opacity-70`} />
+              </button>
+            </Tooltip>
             {skillsExpanded && (
               <div
                 id={skillsListId}
@@ -128,19 +129,20 @@ export function SystemPromptEventBlock({
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => setToolsExpanded((prev) => !prev)}
-              className="w-full flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/[0.05] hover:text-stone-300 transition-colors"
-              aria-label={`${toolNames.length} tools available`}
-              aria-expanded={toolsExpanded}
-              aria-controls={toolsListId}
-              title={toolsExpanded ? 'Hide tools' : 'Show tools'}
-            >
-              <span className="codicon codicon-tools" style={{ color: SYSTEM_ACCENT_COLOR }} />
-              <span>{toolNames.length} tools available</span>
-              <span className={`ml-auto codicon codicon-chevron-${toolsExpanded ? 'up' : 'down'} text-[10px] opacity-70`} />
-            </button>
+            <Tooltip content={toolsExpanded ? 'Hide tools' : 'Show tools'} position="top">
+              <button
+                type="button"
+                onClick={() => setToolsExpanded((prev) => !prev)}
+                className="w-full flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white/[0.05] hover:text-stone-300 transition-colors"
+                aria-label={`${toolNames.length} tools available`}
+                aria-expanded={toolsExpanded}
+                aria-controls={toolsListId}
+              >
+                <span className="codicon codicon-tools" style={{ color: SYSTEM_ACCENT_COLOR }} />
+                <span>{toolNames.length} tools available</span>
+                <span className={`ml-auto codicon codicon-chevron-${toolsExpanded ? 'up' : 'down'} text-[10px] opacity-70`} />
+              </button>
+            </Tooltip>
             {toolsExpanded && (
               <div
                 id={toolsListId}

@@ -1,5 +1,6 @@
 import { useRef, useState, useMemo } from 'react';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
+import { Tooltip } from './Tooltip';
 
 // --- Constants ---
 
@@ -147,18 +148,19 @@ function ConversationItem({
         </div>
       </button>
 
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={isActive}
-        className={`absolute right-3 top-3 h-7 w-7 rounded-md text-stone-500 flex items-center justify-center transition-all ${isActive
-          ? 'opacity-40 cursor-not-allowed'
-          : 'hover:text-stone-200 hover:bg-white/[0.06]'}`}
-        aria-label="Delete conversation"
-        title={isActive ? 'Cannot delete active conversation' : 'Delete conversation'}
-      >
-        <span className="codicon codicon-trash text-sm" />
-      </button>
+      <Tooltip content={isActive ? 'Cannot delete active conversation' : 'Delete conversation'} position="left">
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={isActive}
+          className={`absolute right-3 top-3 h-7 w-7 rounded-md text-stone-500 flex items-center justify-center transition-all ${isActive
+            ? 'opacity-40 cursor-not-allowed'
+            : 'hover:text-stone-200 hover:bg-white/[0.06]'}`}
+          aria-label="Delete conversation"
+        >
+          <span className="codicon codicon-trash text-sm" />
+        </button>
+      </Tooltip>
     </div>
   );
 }
