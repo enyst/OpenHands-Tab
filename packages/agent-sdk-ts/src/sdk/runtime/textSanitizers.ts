@@ -29,13 +29,28 @@ const SENSITIVE_KEYS = new Set([
   'sessionApiKey', 'session_api_key', 'x_api_key', 'x-api-key',
 ]);
 
+const shouldRedactKey = (key: string): boolean => {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return (
+    normalized.includes('apikey') ||
+    normalized.includes('accesskey') ||
+    normalized.includes('secret') ||
+    normalized.includes('password') ||
+    normalized.endsWith('token') ||
+    normalized === 'auth' ||
+    normalized.includes('authorization') ||
+    normalized === 'pass' ||
+    normalized === 'pwd'
+  );
+};
+
 const redactObject = (input: unknown): unknown => {
   if (Array.isArray(input)) return input.map((v) => redactObject(v));
   if (input && typeof input === 'object') {
     const src = input as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(src)) {
-      if (SENSITIVE_KEYS.has(key.toString())) {
+      if (SENSITIVE_KEYS.has(key.toString()) || shouldRedactKey(key.toString())) {
         out[key] = '***';
       } else if (typeof value === 'object') {
         out[key] = redactObject(value);

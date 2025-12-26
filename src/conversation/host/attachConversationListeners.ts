@@ -62,9 +62,20 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     }
 
     if (ev.kind === 'ConversationStateUpdateEvent' && (ev.key === 'llm_request_payload' || ev.key === 'llm_response_payload')) {
+      const key = ev.key ?? 'llm_payload';
       const shouldLogToDebugConsole = deps.context.extensionMode !== vscode.ExtensionMode.Production;
+      const shouldLogToOutputChannel = shouldLogToDebugConsole || deps.isVerboseEventLogging();
+
+      if (shouldLogToOutputChannel) {
+        try {
+          outputChannel?.appendLine(`[llm][${key}]`);
+          outputChannel?.appendLine(deps.safeStringify(ev.value));
+        } catch (e) {
+          outputChannel?.appendLine(`[llm][${key}] <failed to stringify: ${String(e)}>`);
+        }
+      }
+
       if (shouldLogToDebugConsole) {
-        const key = ev.key ?? 'llm_payload';
         try {
           console.debug(`[openhands][${key}] ${deps.safeStringify(ev.value)}`);
         } catch (e) {

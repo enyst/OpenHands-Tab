@@ -67,7 +67,7 @@ describe('Agent redacts sensitive tool-call arguments in llm_tool_call_raw', () 
     expect(parsed.nested.client_secret).toBe('***');
     expect(parsed.arr[0].secret_key).toBe('***');
     // Authorization header value should be masked
-    expect(parsed.headers.Authorization).toContain('Bearer ***');
+    expect(parsed.headers.Authorization).toBe('***');
   });
 
   it('masks nested secrets and token-like strings without requiring key names', async () => {
