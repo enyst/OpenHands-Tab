@@ -74,7 +74,7 @@ describe('Agent profile api key selection', () => {
         }
       } finally {
         globalThis.fetch = originalFetch;
-        process.env.OPENAI_API_KEY = originalOpenai;
+        if (originalOpenai === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalOpenai;
       }
 
       expect(authorization).toBe('Bearer sk-profile');
@@ -152,7 +152,7 @@ describe('Agent profile api key selection', () => {
         }
       } finally {
         globalThis.fetch = originalFetch;
-        process.env.OPENAI_API_KEY = originalOpenai;
+        if (originalOpenai === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalOpenai;
       }
 
       expect(authorization).toBe('Bearer sk-global');
