@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type ReactNode, useEffect } from 'react';
+import { useState, useRef, useCallback, type ReactNode, useEffect, isValidElement, cloneElement, type ReactElement } from 'react';
 
 type TooltipPosition = 'top' | 'bottom' | 'left' | 'right';
 
@@ -24,14 +24,49 @@ export function Tooltip({
   const [isVisible, setIsVisible] = useState(false);
   const [actualPosition, setActualPosition] = useState(position);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafRef = useRef<number | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
+  const cancelScheduledRaf = useCallback(() => {
+    if (rafRef.current === null) return;
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+
+  const updatePositionIfNeeded = useCallback(() => {
+    if (!tooltipRef.current || !triggerRef.current) return;
+
+    const tooltip = tooltipRef.current.getBoundingClientRect();
+    const trigger = triggerRef.current.getBoundingClientRect();
+    const padding = 8;
+
+    let nextPosition = position;
+
+    if (position === 'top' && trigger.top - tooltip.height - padding < 0) {
+      nextPosition = 'bottom';
+    } else if (position === 'bottom' && trigger.bottom + tooltip.height + padding > window.innerHeight) {
+      nextPosition = 'top';
+    } else if (position === 'left' && trigger.left - tooltip.width - padding < 0) {
+      nextPosition = 'right';
+    } else if (position === 'right' && trigger.right + tooltip.width + padding > window.innerWidth) {
+      nextPosition = 'left';
+    }
+
+    setActualPosition((prev) => (prev === nextPosition ? prev : nextPosition));
+  }, [position]);
+
   const showTooltip = useCallback(() => {
     timeoutRef.current = setTimeout(() => {
+      setActualPosition(position);
       setIsVisible(true);
+      cancelScheduledRaf();
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        updatePositionIfNeeded();
+      });
     }, delay);
-  }, [delay]);
+  }, [delay, position, cancelScheduledRaf, updatePositionIfNeeded]);
 
   const hideTooltip = useCallback(() => {
     if (timeoutRef.current) {
@@ -39,46 +74,18 @@ export function Tooltip({
       timeoutRef.current = null;
     }
     setIsVisible(false);
-  }, []);
-
-  // Adjust position if tooltip would overflow viewport
-  useEffect(() => {
-    if (isVisible && tooltipRef.current && triggerRef.current) {
-      const tooltip = tooltipRef.current.getBoundingClientRect();
-      const trigger = triggerRef.current.getBoundingClientRect();
-      const padding = 8;
-
-      let newPosition = position;
-
-      // Check if tooltip overflows and adjust
-      if (position === 'top' && trigger.top - tooltip.height - padding < 0) {
-        newPosition = 'bottom';
-      } else if (position === 'bottom' && trigger.bottom + tooltip.height + padding > window.innerHeight) {
-        newPosition = 'top';
-      } else if (position === 'left' && trigger.left - tooltip.width - padding < 0) {
-        newPosition = 'right';
-      } else if (position === 'right' && trigger.right + tooltip.width + padding > window.innerWidth) {
-        newPosition = 'left';
-      }
-
-      if (newPosition !== actualPosition) {
-        setActualPosition(newPosition);
-      }
-    }
-  }, [isVisible, position, actualPosition]);
-
-  // Reset position when tooltip hides
-  useEffect(() => {
-    if (!isVisible) {
-      setActualPosition(position);
-    }
-  }, [isVisible, position]);
+    cancelScheduledRaf();
+    setActualPosition(position);
+  }, [position, cancelScheduledRaf]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+      }
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
       }
     };
   }, []);
@@ -104,6 +111,11 @@ export function Tooltip({
     right: 'animate-tooltip-right',
   };
 
+  const title = !isVisible && typeof content === 'string' ? content : undefined;
+  const trigger = isValidElement(children)
+    ? cloneElement(children as ReactElement<{ title?: string }>, { title })
+    : children;
+
   return (
     <div
       ref={triggerRef}
@@ -113,7 +125,7 @@ export function Tooltip({
       onFocus={showTooltip}
       onBlur={hideTooltip}
     >
-      {children}
+      {trigger}
       {isVisible && content && (
         <div
           ref={tooltipRef}
