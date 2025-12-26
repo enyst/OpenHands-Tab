@@ -16,7 +16,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 | Module | Python | TypeScript | Notes |
 |--------|--------|-----------|-------|
-| agent/ | ✓ `Agent`, `AgentBase` | ✓ `Agent` in runtime/ | TS has separate `AgentOrchestrator` |
+| agent/ | ✓ `Agent`, `AgentBase` | ✓ `Agent` in runtime/ | TS has separate `LLMStreamer` |
 | context/ | ✓ | ✓ | Similar skill/context handling |
 | conversation/ | ✓ | ✓ | Both have Local/Remote variants |
 | critic/ | ✓ | ✗ | Evaluation framework, Python only (not planned) |
@@ -64,7 +64,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 ### Features in TypeScript but NOT in Python
 
-1. **AgentOrchestrator** - Separate orchestration layer (Python has this in Agent class)
+1. **LLMStreamer** - Separate orchestration layer (Python has this in Agent class)
 
 2. **LLM Profiles System** - Profile-based provider management, native clients (Anthropic, OpenAI-compatible, Gemini)
 
@@ -405,7 +405,7 @@ Python's RemoteConversation has significantly more features than TypeScript's im
 
 ### TypeScript shape
 
-- `Agent` wraps `AgentOrchestrator`
+- `Agent` wraps `LLMStreamer`
   - Builds/attaches `EventLog`, `ConversationState`, `SecretRegistry`
   - Optional tools/LLM client and optional `AgentContext`
 - Methods: `run`, `pause/resume`, `cancel`, `approveAction/rejectAction`
@@ -441,7 +441,7 @@ classDiagram
       +run()
       +pause()/resume()/cancel()
       +approveAction()/rejectAction()
-      -AgentOrchestrator
+      -LLMStreamer
       -ConversationState (in-memory)
       -EventLog (in-memory)
       -SecretRegistry (in-memory)
@@ -453,7 +453,7 @@ classDiagram
 
 ### Source references
 - Python: openhands/sdk/agent/base.py AgentBase; openhands/sdk/agent/agent.py Agent; openhands/sdk/conversation/state.py ConversationState; openhands/sdk/conversation/conversation.py Conversation factory glue.
-- TypeScript: packages/agent-sdk-ts/src/sdk/runtime/Agent.ts Agent; packages/agent-sdk-ts/src/sdk/runtime/AgentOrchestrator.ts AgentOrchestrator; packages/agent-sdk-ts/src/sdk/runtime/ConversationState.ts ConversationState; packages/agent-sdk-ts/src/sdk/runtime/SecretRegistry.ts SecretRegistry.
+- TypeScript: packages/agent-sdk-ts/src/sdk/runtime/Agent.ts Agent; packages/agent-sdk-ts/src/sdk/runtime/LLMStreamer.ts LLMStreamer; packages/agent-sdk-ts/src/sdk/runtime/ConversationState.ts ConversationState; packages/agent-sdk-ts/src/sdk/runtime/SecretRegistry.ts SecretRegistry.
 
 ## AgentContext and skills
 

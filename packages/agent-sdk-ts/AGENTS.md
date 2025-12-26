@@ -57,7 +57,7 @@ Skills are loaded from:
 ### 3. Runtime Layer (`src/runtime/`)
 Agent execution and state management:
 
-- **`AgentOrchestrator`** - Core orchestration layer that manages LLM streaming, tool calls, and conversation flow
+- **`LLMStreamer`** - Core orchestration layer that manages LLM streaming, tool calls, and conversation flow
   - Handles streaming chat completions from LLM providers
   - Accumulates text, reasoning content, and tool calls from stream chunks
   - Updates conversation state in real-time
@@ -356,7 +356,7 @@ conversation.disconnect();
 ### Local vs Remote Mode
 
 ```typescript
-// Local mode - runs the orchestrator in-process against the VS Code workspace
+// Local mode - runs the streamer in-process against the VS Code workspace
 const localConversation = Conversation({
   settings: { /* ... */ },
   workspaceRoot: '/workspace',
@@ -386,16 +386,16 @@ const config: LLMConfiguration = {
 const client = await new LLMFactory(config).createClient();
 ```
 
-### Using AgentOrchestrator (Low-Level)
+### Using LLMStreamer (Low-Level)
 
 For direct orchestration without the Conversation wrapper:
 
 ```typescript
-import { AgentOrchestrator } from '@openhands/agent-sdk-ts';
+import { LLMStreamer } from '@openhands/agent-sdk-ts';
 
-const orchestrator = new AgentOrchestrator(client);
+const streamer = new LLMStreamer(client);
 
-const response = await orchestrator.runChat({
+const response = await streamer.runChat({
   systemPrompt: 'You are a helpful assistant.',
   messages: [{ role: 'user', content: [{ type: 'text', text: 'Hello!' }] }],
 });

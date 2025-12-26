@@ -68,7 +68,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
   - `LocalConversation` - in-process agent execution
   - `RemoteConversation` - WebSocket to agent-server
 - **Context Layer** - AgentContext, Skills
-- **Runtime Layer** - AgentOrchestrator, EventLog, ConversationState
+- **Runtime Layer** - LLMStreamer, EventLog, ConversationState
 - **LLM Layer** - Anthropic, OpenAI-compatible clients
 - **Tools Layer** - Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate
 

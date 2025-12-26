@@ -176,7 +176,7 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
         name: call.function?.name,
         arguments: call.function?.arguments,
       });
-      // Yield only the delta, not accumulated arguments (orchestrator will accumulate)
+      // Yield only the delta, not accumulated arguments (streamer will accumulate)
       deltas.push({
         type: 'tool_call_delta',
         id: result.current.id,
