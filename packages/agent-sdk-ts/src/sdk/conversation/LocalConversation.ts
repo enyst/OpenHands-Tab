@@ -11,6 +11,7 @@ import {
 } from '../runtime';
 import type { LLMClient } from '../llm';
 import type { BashEvent, Event } from '../types';
+import { clearRawLlmFieldsWhenProfileSelected } from '../types/settings';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import { LocalWorkspace } from '../../workspace/LocalWorkspace';
@@ -350,26 +351,11 @@ export class LocalConversation extends EventEmitter {
 
     const existing = this.settings.llm ?? {};
     const merged: OpenHandsSettings['llm'] = persisted.profileId
-      ? {
+      ? clearRawLlmFieldsWhenProfileSelected({
         ...existing,
         profileId: persisted.profileId,
         usageId: persisted.usageId ?? undefined,
-        provider: undefined,
-        model: undefined,
-        openaiApiMode: undefined,
-        baseUrl: undefined,
-        apiVersion: undefined,
-        timeout: undefined,
-        temperature: undefined,
-        topP: undefined,
-        topK: undefined,
-        maxInputTokens: undefined,
-        maxOutputTokens: undefined,
-        reasoningEffort: undefined,
-        reasoningSummary: undefined,
-        inputCostPerToken: undefined,
-        outputCostPerToken: undefined,
-      }
+      })
       : {
         ...existing,
         profileId: undefined,

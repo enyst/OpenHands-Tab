@@ -988,7 +988,7 @@ export class Agent extends EventEmitter {
         baseUrl: profileBaseUrl ?? configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[profileProvider],
         model: profileModel,
         openaiApiMode: profile.config.openaiApiMode ?? configuredOpenaiApiMode,
-        maxInputTokens: configuredMaxInputTokens ?? profileMaxInputTokens,
+        maxInputTokens: profileMaxInputTokens ?? configuredMaxInputTokens,
       };
     } catch {
       const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
