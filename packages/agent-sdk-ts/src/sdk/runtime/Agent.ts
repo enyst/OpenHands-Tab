@@ -9,6 +9,7 @@ import type { ChatCompletionRequest, LLMClient, LLMProvider, LLMToolDefinition }
 import {
   DEFAULT_PROVIDER_BASE_URLS,
   detectProviderFromBaseUrl,
+  getEffectiveLlmConfigForCondensation as resolveCondensationLlmConfig,
   isContextLimitError,
   loadProfile,
   wouldExceedMaxInputTokens,
@@ -48,7 +49,6 @@ import {
   sanitizeMessageForDebug,
   truncateString,
 } from './textSanitizers';
-import { getEffectiveLlmConfigForCondensation as resolveCondensationLlmConfig } from './condensationLlmConfig';
 import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
 
 export type AgentRunInput = string | Message;

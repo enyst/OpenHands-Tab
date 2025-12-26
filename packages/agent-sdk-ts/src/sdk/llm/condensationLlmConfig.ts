@@ -1,6 +1,7 @@
-import type { LLMProvider } from '../llm';
-import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, loadProfile } from '../llm';
 import type { OpenHandsSettings } from '../types/settings';
+import type { LLMProvider } from './types';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl } from './provider';
+import { loadProfile } from './profiles';
 
 const toOptionalNonEmptyString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -34,16 +35,18 @@ export function getEffectiveLlmConfigForCondensation(settings: OpenHandsSettings
   const configuredOpenaiApiMode = (llm as { openaiApiMode?: unknown } | undefined)?.openaiApiMode;
   const configuredMaxInputTokens = toOptionalPositiveInteger(llm.maxInputTokens);
 
+  const defaultProvider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
+  const defaultConfig = (provider: LLMProvider): ReturnType<typeof getEffectiveLlmConfigForCondensation> => ({
+    provider,
+    baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
+    model: configuredModel,
+    openaiApiMode: configuredOpenaiApiMode,
+    maxInputTokens: configuredMaxInputTokens,
+  });
+
   const profileId = toOptionalNonEmptyString(llm.profileId);
   if (!profileId || !isSafeProfileId(profileId)) {
-    const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
-    return {
-      provider,
-      baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
-      model: configuredModel,
-      openaiApiMode: configuredOpenaiApiMode,
-      maxInputTokens: configuredMaxInputTokens,
-    };
+    return defaultConfig(defaultProvider);
   }
 
   try {
@@ -60,14 +63,6 @@ export function getEffectiveLlmConfigForCondensation(settings: OpenHandsSettings
       maxInputTokens: profileMaxInputTokens ?? configuredMaxInputTokens,
     };
   } catch {
-    const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
-    return {
-      provider,
-      baseUrl: configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider],
-      model: configuredModel,
-      openaiApiMode: configuredOpenaiApiMode,
-      maxInputTokens: configuredMaxInputTokens,
-    };
+    return defaultConfig(defaultProvider);
   }
 }
-

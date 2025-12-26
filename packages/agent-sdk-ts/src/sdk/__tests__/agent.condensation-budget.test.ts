@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../llm', async () => {
-  const actual = await vi.importActual<any>('../llm');
+vi.mock('../llm/profiles', async () => {
+  const actual = await vi.importActual<any>('../llm/profiles');
   return {
     ...actual,
     loadProfile: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('../llm', async () => {
 
 describe('Agent condensation config', () => {
   it('prefers profile maxInputTokens over settings when profileId is set', async () => {
-    const { loadProfile } = await import('../llm');
+    const { loadProfile } = await import('../llm/profiles');
     (loadProfile as any).mockReturnValue({
       profileId: 'p1',
       config: {
@@ -42,4 +42,3 @@ describe('Agent condensation config', () => {
     expect(config.maxInputTokens).toBe(100);
   });
 });
-
