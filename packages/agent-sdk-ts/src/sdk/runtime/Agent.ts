@@ -49,6 +49,7 @@ import {
   sanitizeMessageForDebug,
   truncateString,
 } from './textSanitizers';
+import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
 
 export type AgentRunInput = string | Message;
@@ -107,19 +108,6 @@ function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
     return out;
   }
   return value;
-}
-
-function toOptionalNonEmptyString(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function isSafeProfileId(profileId: string): boolean {
-  if (!profileId.trim()) return false;
-  if (profileId !== profileId.trim()) return false;
-  if (profileId.includes('/') || profileId.includes('\\')) return false;
-  return /^[a-zA-Z0-9._-]+$/.test(profileId);
 }
 
 function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): string {

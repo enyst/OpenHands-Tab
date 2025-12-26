@@ -3,6 +3,7 @@ import path from 'path';
 import type { AgentState } from './ConversationState';
 import type { Event } from '../types';
 import type { LLMProvider, OpenAIChatApi, ReasoningSummary } from '../llm/types';
+import { toOptionalNonEmptyString } from './settingsUtils';
 
 export type PersistedLlmConfig = {
   profileId?: string;
@@ -26,12 +27,6 @@ export type PersistedLlmConfig = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const toOptionalNonEmptyString = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-};
 
 const toOptionalFiniteNumber = (value: unknown): number | undefined => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
