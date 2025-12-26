@@ -85,6 +85,29 @@ export async function run(): Promise<void> {
       geminiStreamGenerateContent: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
     } as const;
 
+    // For profiles-first behavior, tests must create profiles that point at the mock server
+    // (profile config should be the source of truth; settings overrides should not be needed).
+    const e2eProfiles = {
+      sonnet: 'e2e-switch-sonnet',
+      gpt5Mini: 'e2e-switch-gpt-5-mini',
+    } as const;
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.sonnet,
+      profile: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-20250514',
+        baseUrl: v1BaseUrl,
+      },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.gpt5Mini,
+      profile: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        baseUrl: v1BaseUrl,
+      },
+    });
+
     // 1) Anthropic
     await setLlmConfig({
       profileId: null,
@@ -245,7 +268,7 @@ export async function run(): Promise<void> {
       context: 'step 7: gemini',
     });
 
-    // 8) LLM profile selection: Sonnet profile should override raw provider/model.
+    // 8) LLM profile selection: profile should override raw provider/model/baseUrl.
     await setLlmConfig({
       profileId: null,
       provider: 'openai',
@@ -256,7 +279,7 @@ export async function run(): Promise<void> {
 
     const setProfile = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
       action: 'setLlmProfileId',
-      payload: { profileId: 'sonnet-45' },
+      payload: { profileId: e2eProfiles.sonnet },
     });
     if (!setProfile?.sent) {
       throw new Error(`setLlmProfileId action was not sent: ${JSON.stringify(setProfile)}`);
@@ -265,36 +288,36 @@ export async function run(): Promise<void> {
     await pollUntil(async () => {
       const inspected = vscode.workspace.getConfiguration().inspect<string>('openhands.llm.profileId');
       const value = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue;
-      return value === 'sonnet-45';
+      return value === e2eProfiles.sonnet;
     }, 15000);
     const profileSonnetReq = await sendAndWaitForRequestPath({
-      text: 'E2E step 8: profile sonnet-45',
+      text: `E2E step 8: profile ${e2eProfiles.sonnet}`,
       expectedPath: expectedPaths.anthropicMessages,
       getRequests: () => mock.requests,
     });
     assertRequestHeaders(profileSonnetReq, {
       present: ['x-api-key', 'anthropic-version'],
       absent: ['authorization', 'x-goog-api-key'],
-      context: 'step 8: profile sonnet-45',
+      context: `step 8: profile ${e2eProfiles.sonnet}`,
     });
 
-    // 9) LLM profile selection: gpt-5-mini profile should override raw provider/model.
+    // 9) LLM profile selection: profile should override raw provider/model/baseUrl.
     await setLlmConfig({
-      profileId: 'gpt-5-mini',
+      profileId: e2eProfiles.gpt5Mini,
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       openaiApiMode: 'auto',
       baseUrl: v1BaseUrl,
     });
     const profileGptReq = await sendAndWaitForRequestPath({
-      text: 'E2E step 9: profile gpt-5-mini',
+      text: `E2E step 9: profile ${e2eProfiles.gpt5Mini}`,
       expectedPath: expectedPaths.openaiChatCompletions,
       getRequests: () => mock.requests,
     });
     assertRequestHeaders(profileGptReq, {
       present: ['authorization'],
       absent: ['x-api-key', 'x-goog-api-key'],
-      context: 'step 9: profile gpt-5-mini',
+      context: `step 9: profile ${e2eProfiles.gpt5Mini}`,
     });
 
     // Basic sanity: at least one request per step.

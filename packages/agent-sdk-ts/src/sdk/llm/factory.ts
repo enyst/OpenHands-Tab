@@ -59,11 +59,13 @@ export class LLMFactory {
       const requestedProfileName = normalizeOptionalString(this.config.profileName);
       if (requestedProfileName) merged.profileName = requestedProfileName;
 
-      for (const [key, value] of Object.entries(this.config)) {
-        if (value === undefined) continue;
-        if (key === 'profileId' || key === 'profileName' || key === 'provider' || key === 'model') continue;
-        (merged as unknown as Record<string, unknown>)[key] = value;
-      }
+      // Profiles-first: when `profileId` is set, treat the profile config as the single source
+      // of truth for provider/model/baseUrl/generation config. Only allow a small override
+      // set for runtime bookkeeping/secrets.
+      const requestedUsageId = normalizeOptionalString(this.config.usageId);
+      if (requestedUsageId) merged.usageId = requestedUsageId;
+      const requestedApiKey = normalizeOptionalString(this.config.apiKey);
+      if (requestedApiKey) merged.apiKey = requestedApiKey;
       return merged;
     })();
 
