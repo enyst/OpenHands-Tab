@@ -729,7 +729,7 @@ export function App() {
     postMessage({ type: 'switchToLocal' });
   }, [postMessage]);
 
-  const handleSelectLlmProfileId = useCallback((profileId: string | null) => {
+  const handleSelectLlmProfileId = useCallback((profileId: string) => {
     setLlmProfileId(profileId);
     postMessage({ type: 'setLlmProfileId', profileId });
   }, [postMessage]);
@@ -850,7 +850,6 @@ export function App() {
           disabled={status === 'offline'}
           llmProfileId={llmProfileId}
           llmProfiles={llmProfiles}
-          llmProfileLabel={llmProfileLabel}
           onSelectLlmProfileId={handleSelectLlmProfileId}
           onOpenLlmProfilesCreate={handleOpenLlmProfilesCreate}
           onOpenLlmProfilesEdit={handleOpenLlmProfilesEdit}

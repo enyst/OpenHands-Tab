@@ -258,7 +258,7 @@ describe('App toolbar interactions', () => {
     expect(await screen.findByLabelText('LLM profile')).toHaveTextContent('gpt-4.1');
   });
 
-  it('shows the effective model label when no LLM profile is configured', async () => {
+  it('shows a selector prompt when no active LLM profile is configured', async () => {
     render(<App />);
 
     await act(async () => {
@@ -271,8 +271,7 @@ describe('App toolbar interactions', () => {
     });
 
     const profileButton = await screen.findByLabelText('LLM profile');
-    expect(profileButton).toHaveTextContent('None');
-    expect(profileButton).toHaveTextContent('gpt-4.1');
+    expect(profileButton).toHaveTextContent('Select profile…');
   });
 
   it('updates the LLM profile when selected in the dropdown', async () => {
