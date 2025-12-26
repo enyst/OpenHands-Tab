@@ -10,8 +10,7 @@ interface InputAreaProps {
   // LLM profile selector
   llmProfileId: string | null;
   llmProfiles: string[];
-  llmProfileLabel?: string | null;
-  onSelectLlmProfileId: (profileId: string | null) => void;
+  onSelectLlmProfileId: (profileId: string) => void;
   onOpenLlmProfilesCreate?: () => void;
   onOpenLlmProfilesEdit?: (profileId: string) => void;
   // Context picker
@@ -62,7 +61,6 @@ export function InputArea({
   placeholder = 'Ask OpenHands anything...',
   llmProfileId,
   llmProfiles,
-  llmProfileLabel,
   onSelectLlmProfileId,
   onOpenLlmProfilesCreate,
   onOpenLlmProfilesEdit,
@@ -285,7 +283,6 @@ export function InputArea({
           <LlmProfileSelector
             profileId={llmProfileId}
             profiles={llmProfiles}
-            fallbackLabel={llmProfileLabel}
             onSelect={onSelectLlmProfileId}
             onOpenCreate={onOpenLlmProfilesCreate}
             onOpenEdit={onOpenLlmProfilesEdit}
@@ -424,8 +421,7 @@ interface AccessoryButtonProps {
 interface LlmProfileSelectorProps {
   profileId: string | null;
   profiles: string[];
-  fallbackLabel?: string | null;
-  onSelect: (profileId: string | null) => void;
+  onSelect: (profileId: string) => void;
   onOpenCreate?: () => void;
   onOpenEdit?: (profileId: string) => void;
 }
@@ -433,7 +429,6 @@ interface LlmProfileSelectorProps {
 function LlmProfileSelector({
   profileId,
   profiles,
-  fallbackLabel,
   onSelect,
   onOpenCreate,
   onOpenEdit,
@@ -443,26 +438,20 @@ function LlmProfileSelector({
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose: () => setIsOpen(false), ref: popoverRef, delay: 100 });
 
-  const normalizedFallbackLabel = typeof fallbackLabel === 'string' ? fallbackLabel.trim() : '';
-  const hasFallback = normalizedFallbackLabel.length > 0;
   const sanitizedProfiles = profiles.filter((id) => typeof id === 'string' && id.trim().length > 0);
   const hasProfiles = sanitizedProfiles.length > 0;
-  const shouldPromptCreate = profileId === null && !hasProfiles && Boolean(onOpenCreate);
-  const shown = profileId ?? (shouldPromptCreate ? 'New profile…' : (hasFallback ? `None (${normalizedFallbackLabel})` : 'None'));
-  const tooltip = profileId
-    ? `LLM profile: ${profileId}`
-    : shouldPromptCreate
-      ? 'LLM profile: New profile…'
-      : hasFallback
-        ? `LLM profile: None (using ${normalizedFallbackLabel})`
-        : 'LLM profile: None';
+  const hasValidSelection = typeof profileId === 'string' && sanitizedProfiles.includes(profileId);
+  const selectedProfileId = hasValidSelection ? profileId : null;
+  const shouldPromptCreate = selectedProfileId === null && !hasProfiles && Boolean(onOpenCreate);
+  const shown = selectedProfileId ?? (hasProfiles ? 'Select profile…' : 'New profile…');
+  const tooltip = `LLM profile: ${shown}`;
 
-  const handleSelect = (next: string | null) => {
+  const handleSelect = (next: string) => {
     onSelect(next);
     setIsOpen(false);
   };
 
-  const isSelected = (candidate: string | null) => candidate === profileId;
+  const isSelected = (candidate: string) => candidate === selectedProfileId;
 
   return (
     <div className="relative">
@@ -556,25 +545,6 @@ function LlmProfileSelector({
                   );
                 })
               )}
-
-              <button
-                type="button"
-                onClick={() => handleSelect(null)}
-                role="option"
-                aria-selected={isSelected(null)}
-                className={`
-                  w-full text-left px-3 py-2 rounded-lg
-                  text-sm
-                  transition-colors duration-150
-                  hover:bg-white/10
-                  flex items-center gap-2
-                  ${isSelected(null) ? 'bg-brand-500/20 text-brand-300' : 'text-stone-300'}
-                `}
-              >
-                <span className="codicon codicon-circle-slash" />
-                <span className="flex-1">None</span>
-                {isSelected(null) && <span className="codicon codicon-check text-brand-400" />}
-              </button>
 
               <div className="my-1 border-t border-white/10" />
 
