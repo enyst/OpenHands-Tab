@@ -10,6 +10,7 @@ import { ElevenLabsTtsService } from '../../hal/elevenlabs/ttsService';
 import { TtsConversationGate } from '../../hal/elevenlabs/ttsConversationGate';
 import { classifyHalVoiceDecision } from '../../hal/gemini/decisionClassifier';
 import { getHalDialogueLinesForMode } from '../../shared/halScript';
+import { DEFAULT_HAL_LLM_PROFILE_ID } from '../../shared/halDefaults';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
@@ -202,13 +203,22 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       || value === 'gemini';
   };
 
-  const hasStoredSecret = async (key: string): Promise<boolean> => {
+  const getStoredSecret = async (key: string): Promise<string | undefined> => {
     const trimmedKey = key.trim();
-    if (!trimmedKey) return false;
-    const resolved = deps.secretRegistry
-      ? await deps.secretRegistry.get(trimmedKey)
-      : (process.env[trimmedKey] ?? (await context.secrets.get(trimmedKey)));
-    return typeof resolved === 'string' && resolved.trim().length > 0;
+    if (!trimmedKey) return undefined;
+    try {
+      const resolved = deps.secretRegistry
+        ? await deps.secretRegistry.get(trimmedKey)
+        : (process.env[trimmedKey] ?? (await context.secrets.get(trimmedKey)));
+      const trimmedValue = typeof resolved === 'string' ? resolved.trim() : '';
+      return trimmedValue || undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const hasStoredSecret = async (key: string): Promise<boolean> => {
+    return Boolean(await getStoredSecret(key));
   };
 
   const getElevenlabsTtsGate = (): TtsConversationGate => {
@@ -972,7 +982,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
 
         const settings = await settingsMgr.get();
 
-        const defaultHalProfileId = 'gemini-flash-hal';
+        const defaultHalProfileId = DEFAULT_HAL_LLM_PROFILE_ID;
         const configuredHalProfileId = typeof settings.hal.llmProfileId === 'string'
           ? settings.hal.llmProfileId.trim()
           : '';
@@ -1009,20 +1019,6 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         }
 
         const baseUrl = baseUrlFromProfile || DEFAULT_PROVIDER_BASE_URLS.gemini;
-
-        const getStoredSecret = async (key: string): Promise<string | undefined> => {
-          const trimmedKey = key.trim();
-          if (!trimmedKey) return undefined;
-          try {
-            const resolved = deps.secretRegistry
-              ? await deps.secretRegistry.get(trimmedKey)
-              : (process.env[trimmedKey] ?? (await context.secrets.get(trimmedKey)));
-            const trimmedValue = typeof resolved === 'string' ? resolved.trim() : '';
-            return trimmedValue || undefined;
-          } catch {
-            return undefined;
-          }
-        };
 
         const keyOrder = [
           getProfileApiKeySecretKey(halProfileId),

@@ -1,5 +1,6 @@
 import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
 import type { HalMode } from '../shared/halTypes';
+import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
 import { normalizeServerUrl } from '../shared/serverUrls';
 import { detectProviderFromBaseUrl, ensureDefaultProfiles, loadProfile } from '@openhands/agent-sdk-ts';
 
@@ -47,7 +48,7 @@ const DEFAULTS: OpenHandsSettings = {
   agent: { enableSecurityAnalyzer: true, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
-  hal: { enabled: false, mode: 'tts_only', llmProfileId: 'gemini-flash-hal', userName: 'Engel', volume: 1, cache: true },
+  hal: { enabled: false, mode: 'tts_only', llmProfileId: DEFAULT_HAL_LLM_PROFILE_ID, userName: 'Engel', volume: 1, cache: true },
   secrets: {}
 };
 
@@ -303,7 +304,7 @@ export class SettingsManager {
         DEFAULTS.hal.mode
       ),
       llmProfileId: normalizeNonEmptyString(
-        this.adapter.get<string | null>('openhands.hal.llmProfileId', DEFAULTS.hal.llmProfileId) ?? DEFAULTS.hal.llmProfileId
+        this.adapter.get<string | null>('openhands.hal.llmProfileId', DEFAULTS.hal.llmProfileId)
       ) ?? DEFAULTS.hal.llmProfileId,
       userName: normalizeNonEmptyString(
         this.adapter.get<string | null>('openhands.hal.userName', DEFAULTS.hal.userName) ?? DEFAULTS.hal.userName

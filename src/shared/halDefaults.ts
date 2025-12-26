@@ -10,3 +10,4 @@ export const DEFAULT_HAL_STATE: HalStateSnapshot = {
   lastError: null,
 };
 
+export const DEFAULT_HAL_LLM_PROFILE_ID = 'gemini-flash-hal';
