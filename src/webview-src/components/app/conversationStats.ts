@@ -1,13 +1,14 @@
 import type { ConversationTotals } from './conversationTotals';
 
+const asFiniteNumber = (raw: unknown): number | null => {
+  const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  return Number.isFinite(num) ? num : null;
+};
+
 const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
   !!candidate && typeof candidate === 'object';
 
 export const computeConversationTotalsFromStats = (value: unknown): ConversationTotals | null => {
-  const asFiniteNumber = (raw: unknown): number | null => {
-    const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
-    return Number.isFinite(num) ? num : null;
-  };
   const getTokenUsageArray = (metric: Record<string, unknown>): unknown[] | null => {
     // Token usage history keys vary across backends/versions; keep fallbacks for restores.
     const raw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
@@ -66,7 +67,7 @@ export const computeConversationTotalsFromStats = (value: unknown): Conversation
 export const parseLlmUsageInputTokens = (value: unknown): number | null => {
   if (!isRecord(value)) return null;
   const raw = value.input ?? value.inputTokens ?? value.promptTokens ?? value.prompt_tokens;
-  const num = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
-  if (!Number.isFinite(num)) return null;
+  const num = asFiniteNumber(raw);
+  if (num === null) return null;
   return Math.max(0, Math.trunc(num));
 };
