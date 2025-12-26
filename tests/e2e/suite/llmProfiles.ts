@@ -33,16 +33,21 @@ export async function run(): Promise<void> {
 
     const v1BaseUrl = `${mock.baseUrl}/v1`;
 
-    // Base LLM config (used when no profile is selected).
-    await update('openhands.llm.profileId', '');
-    await update('openhands.llm.provider', 'anthropic');
-    await update('openhands.llm.model', 'claude-e2e');
-    await update('openhands.llm.baseUrl', v1BaseUrl);
-
     await vscode.commands.executeCommand('openhands.reconnect');
     await vscode.commands.executeCommand('openhands.startNewConversation');
 
     // Create profiles used by this suite.
+    // Note: the extension is profiles-only for provider/model/baseUrl/tuning, so all profiles must
+    // point at the mock LLM server.
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: 'e2e-anthropic',
+      profile: {
+        provider: 'anthropic',
+        model: 'claude-e2e',
+        baseUrl: v1BaseUrl,
+      },
+    });
+
     const openaiProfileKey = 'e2e-profile-openai-key';
 
     await vscode.commands.executeCommand('openhands._createProfile', {
@@ -85,10 +90,10 @@ export async function run(): Promise<void> {
       apiKey: openaiProfileKey,
     });
 
-    // No profile selected: should use the base anthropic config.
-    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: null });
+    // Switch to Anthropic profile (baseline).
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-anthropic' });
     await sendAndWaitForRequestPath({
-      text: 'E2E profiles step 1: base (anthropic)',
+      text: 'E2E profiles step 1: profile (anthropic)',
       expectedPath: '/v1/messages',
       getRequests: () => mock.requests,
     });
@@ -122,10 +127,10 @@ export async function run(): Promise<void> {
       getRequests: () => mock.requests,
     });
 
-    // Clearing selection returns to base config again.
-    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: null });
+    // Return to the Anthropic profile.
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-anthropic' });
     await sendAndWaitForRequestPath({
-      text: 'E2E profiles step 5: base again (anthropic)',
+      text: 'E2E profiles step 5: back to anthropic profile',
       expectedPath: '/v1/messages',
       getRequests: () => mock.requests,
     });
@@ -172,8 +177,9 @@ export async function run(): Promise<void> {
     });
 
     await vscode.commands.executeCommand('openhands._deleteProfile', { profileId: 'e2e-openai-delete' });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-anthropic' });
     await sendAndWaitForRequestPath({
-      text: 'E2E profiles step 7: after delete uses base config (anthropic)',
+      text: 'E2E profiles step 7: after delete uses anthropic profile',
       expectedPath: '/v1/messages',
       getRequests: () => mock.requests,
     });

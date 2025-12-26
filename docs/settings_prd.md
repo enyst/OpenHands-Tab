@@ -73,7 +73,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - Default model: claude-sonnet-4-20250514 (configurable)
   - Default usage_id: 'default-llm' (configurable)
   - API key stored in VS Code SecretStorage
-  - All LLM parameters configurable via settings or configuration wizard
+  - All LLM parameters configurable via profiles or configuration wizard
   - ConnectionManager builds agent.llm payload dynamically from settings
 
 3a) LLM Profiles (local alias + remote expansion)
@@ -88,11 +88,9 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - Therefore, treat `openhands.llm.profileId` as a **local alias only** for now.
   - In remote mode, the extension/SDK must load the profile locally and expand it into the existing `agent.llm` payload (only server-supported fields).
   - Do **not** send `profile_id` to the server until the agent-server supports it.
-- Merge rules (profile + explicit overrides)
-  - Base = profile config.
-  - Canonical: `provider` + `model` from profile (these should not be overridden by defaults).
-  - Apply explicit `openhands.llm.*` overrides only for optional knobs (e.g., `baseUrl`, `apiVersion`, `timeout`, `temperature`, token limits, reasoning settings).
-  - Keep local-only fields local (e.g., `headers` are never sent to the server).
+- Merge rules
+  - Profile config is canonical for provider/model/baseUrl/openaiApiMode and generation parameters.
+  - The only remaining VS Code LLM setting is `openhands.llm.usageId` (maps to the agent-sdk `usage_id`).
 
 4) VS Code settings split (IMPLEMENTED)
 - Keep simple values in VS Code Settings (configuration)
@@ -100,19 +98,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.servers: array of { url: string; label?: string } (saved servers for quick selection)
   - openhands.terminal.renderProgress: boolean (default: true) — coalesce carriage-return progress in terminal output
   - openhands.llm.profileId: string | null (default: null) — selects a profile from `~/.openhands/llm-profiles` (local alias; expanded into `agent.llm` for remote mode)
-  - openhands.llm.provider: enum ('auto' | 'anthropic' | 'gemini' | 'openai' | 'openrouter' | 'litellm_proxy') (default: 'auto') — auto infers from baseUrl when set, else defaults to Anthropic locally
   - openhands.llm.usageId: string (default: 'default-llm') — maps to agent-sdk usage_id
-  - openhands.llm.model: string (default: 'claude-sonnet-4-20250514')
-  - openhands.llm.baseUrl: string | null
-  - openhands.llm.apiVersion: string | null
-  - openhands.llm.timeout: number | null
-  - openhands.llm.temperature: number (default: 0)
-  - openhands.llm.topP: number (default: 1)
-  - openhands.llm.topK: number | null
-  - openhands.llm.maxInputTokens: number | null
-  - openhands.llm.maxOutputTokens: number | null
-  - openhands.llm.nativeToolCalling: boolean (default: false)
-  - openhands.llm.reasoningEffort: enum ('low' | 'medium' | 'high' | 'none') (default: 'none')
   - openhands.conversation.maxIterations: number (default: 50, max: 500)
   - openhands.confirmation.policy: enum ('never' | 'always' | 'risky') (default: 'never')
   - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'MEDIUM')

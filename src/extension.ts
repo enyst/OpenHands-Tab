@@ -302,28 +302,22 @@ async function resolveGitContext(workspaceRoot: string | undefined): Promise<{ r
 }
 
 async function summarizeWithLocalLlm(settings: OpenHandsSettings, prompt: string, secrets: SecretRegistry): Promise<string> {
-  const model = normalizeNonEmptyString(settings.llm.model) ?? '';
-  if (!model) {
-    throw new Error('LLM model is not configured');
+  const profileId = normalizeNonEmptyString(settings.llm.profileId);
+  if (!profileId) {
+    throw new Error('LLM profileId is not configured');
   }
-  const apiKey = normalizeNonEmptyString(settings.secrets.llmApiKey);
 
+  const model = normalizeNonEmptyString(settings.llm.model) ?? '';
   const factory = new LLMFactory({
-    provider: settings.llm.provider ?? undefined,
+    profileId,
+    // LLMFactory loads the effective provider/model/baseUrl/etc from the profile when profileId is set.
+    // Keep `model` set to satisfy the type and for error context if the profile load fails.
     model,
-    baseUrl: normalizeNonEmptyString(settings.llm.baseUrl),
-    apiKey: apiKey ?? undefined,
-    apiVersion: normalizeNonEmptyString(settings.llm.apiVersion),
-    timeoutSeconds: settings.llm.timeout ?? undefined,
-    temperature: settings.llm.temperature ?? undefined,
-    topP: settings.llm.topP ?? undefined,
-    topK: settings.llm.topK ?? undefined,
-    maxInputTokens: settings.llm.maxInputTokens ?? undefined,
-    maxOutputTokens: settings.llm.maxOutputTokens ?? undefined,
-    reasoningEffort: settings.llm.reasoningEffort ?? undefined,
-    inputCostPerToken: settings.llm.inputCostPerToken ?? undefined,
-    outputCostPerToken: settings.llm.outputCostPerToken ?? undefined,
-  }, { secrets });
+    usageId: normalizeNonEmptyString(settings.llm.usageId),
+  }, {
+    secrets,
+    preferredApiKeys: [`openhands.llmProfileApiKey.${profileId}`],
+  });
 
   const client = await factory.createClient();
   const request = {

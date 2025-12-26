@@ -51,7 +51,7 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 - **OpenHands: Set Custom Secret 1/2/3** - Set custom secrets for additional integrations
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
-**Using Gemini as the main agent LLM**: set `openhands.llm.provider = gemini`, set `openhands.llm.model` to a Gemini model id (for example `gemini-2.5-flash`), and store your API key via **OpenHands: Set API Key**. (The `openhands.hal.gemini.*` settings are only used for HAL voice-confirm decision classification, not the agent’s main LLM.)
+**Using Gemini as the main agent LLM**: set `openhands.llm.profileId` to a Gemini profile id (for example `gemini-flash`) and store your API key via **OpenHands: Set API Key**. (The `openhands.hal.gemini.*` settings are only used for HAL voice-confirm decision classification, not the agent’s main LLM.)
 
 ## Documentation
 
