@@ -31,6 +31,9 @@ describe('Agent profile api key selection', () => {
 
       const secrets = new SecretRegistry();
       secrets.set('openhands.llmProfileApiKey.p1', 'sk-profile');
+      // Avoid interference from OPENAI_API_KEY if present in CI env
+      const originalOpenai = process.env.OPENAI_API_KEY;
+      delete process.env.OPENAI_API_KEY;
 
       let authorization: string | undefined;
       const originalFetch = globalThis.fetch;
@@ -71,6 +74,7 @@ describe('Agent profile api key selection', () => {
         }
       } finally {
         globalThis.fetch = originalFetch;
+        process.env.OPENAI_API_KEY = originalOpenai;
       }
 
       expect(authorization).toBe('Bearer sk-profile');
@@ -105,6 +109,9 @@ describe('Agent profile api key selection', () => {
       });
 
       const secrets = new SecretRegistry();
+      // Avoid interference from OPENAI_API_KEY if present in CI env
+      const originalOpenai = process.env.OPENAI_API_KEY;
+      delete process.env.OPENAI_API_KEY;
 
       let authorization: string | undefined;
       const originalFetch = globalThis.fetch;
@@ -145,6 +152,7 @@ describe('Agent profile api key selection', () => {
         }
       } finally {
         globalThis.fetch = originalFetch;
+        process.env.OPENAI_API_KEY = originalOpenai;
       }
 
       expect(authorization).toBe('Bearer sk-global');
