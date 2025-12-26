@@ -232,6 +232,25 @@ describe('LocalConversation', () => {
     }
   });
 
+  it('records user messages without running when run=false', async () => {
+    const llm = new RecordingLLM();
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
+
+    const events: Event[] = [];
+    conversation.on('event', (e: Event) => events.push(e));
+
+    await conversation.startNewConversation();
+    await conversation.sendUserMessage('Environment note: user edited file:\n/tmp/example.txt', { run: false });
+
+    expect(llm.requests).toHaveLength(0);
+    const userMessage = events.find((e): e is MessageEvent => isMessageEvent(e) && e.source === 'user');
+    expect(userMessage?.llm_message).toEqual({
+      role: 'user',
+      content: [{ type: 'text', text: 'Environment note: user edited file:\n/tmp/example.txt' }],
+    });
+    expect(events.some((e) => isMessageEvent(e) && e.source === 'agent')).toBe(false);
+  });
+
   it('supports tool introspection and updates tools only before user messages', async () => {
     const llm = new RecordingLLM();
     const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });

@@ -392,28 +392,30 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  async sendUserMessage(text: string) {
+  async sendUserMessage(text: string, options?: { run?: boolean }) {
+    const run = options?.run !== false;
     if (!this.conversationId) {
       const id = await this.startNewConversation();
       if (!id) return;
     }
     const messagePayload: Message = { role: 'user', content: [{ type: 'text', text }] };
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (run && this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(messagePayload));
-    } else {
-      try {
-        const base = this.serverUrl.replace(/\/$/, '');
-        const headers = this.getAuthHeaders();
-        const httpPayload = { ...messagePayload, run: true };
-        const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events`, {
-          method: 'POST', headers, body: JSON.stringify(httpPayload)
-        }, RemoteConversation.httpTimeoutMs);
-        if (!res.ok) {
-          const info = await res.text().catch(() => '');
-          this.emit('error', new Error(`Failed to send message (HTTP ${res.status})${info ? `: ${info}` : ''}`));
-        }
-      } catch (e) { this.emit('error', e); }
+      return;
     }
+
+    try {
+      const base = this.serverUrl.replace(/\/$/, '');
+      const headers = this.getAuthHeaders();
+      const httpPayload = { ...messagePayload, run };
+      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events`, {
+        method: 'POST', headers, body: JSON.stringify(httpPayload)
+      }, RemoteConversation.httpTimeoutMs);
+      if (!res.ok) {
+        const info = await res.text().catch(() => '');
+        this.emit('error', new Error(`Failed to send message (HTTP ${res.status})${info ? `: ${info}` : ''}`));
+      }
+    } catch (e) { this.emit('error', e); }
   }
 
   disconnect() {

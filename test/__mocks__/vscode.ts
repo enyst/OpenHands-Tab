@@ -7,6 +7,7 @@ const mockCommands = new Map<string, Function>();
 const mockSubscriptions: Array<{ dispose: () => void }> = [];
 const mockConfigListeners: Function[] = [];
 const mockActiveTextEditorListeners: Function[] = [];
+const mockSaveTextDocumentListeners: Function[] = [];
 const mockConfigValues = new Map<string, any>();
 const mockWebviewViewProviders = new Map<string, any>();
 
@@ -34,6 +35,12 @@ export const workspace = {
   registerTextDocumentContentProvider: vi.fn(() => ({ dispose: vi.fn() })),
   onDidChangeConfiguration: vi.fn((listener: Function) => {
     mockConfigListeners.push(listener);
+    const disposable = { dispose: vi.fn() };
+    mockSubscriptions.push(disposable);
+    return disposable;
+  }),
+  onDidSaveTextDocument: vi.fn((listener: Function) => {
+    mockSaveTextDocumentListeners.push(listener);
     const disposable = { dispose: vi.fn() };
     mockSubscriptions.push(disposable);
     return disposable;
@@ -170,6 +177,7 @@ export function __resetMocks() {
   mockSubscriptions.length = 0;
   mockConfigListeners.length = 0;
   mockActiveTextEditorListeners.length = 0;
+  mockSaveTextDocumentListeners.length = 0;
   mockConfigValues.clear();
   mockWebviewViewProviders.clear();
   // Reset common spies to default implementations
@@ -179,6 +187,7 @@ export function __resetMocks() {
   ;(mockConfiguration.update as any).mockClear();
   ;(workspace.registerTextDocumentContentProvider as any).mockClear();
   ;(workspace.onDidChangeConfiguration as any).mockClear();
+  ;(workspace.onDidSaveTextDocument as any).mockClear();
   ;(window.showInformationMessage as any).mockClear();
   ;(window.showErrorMessage as any).mockClear();
   ;(window.showWarningMessage as any).mockClear();
@@ -205,4 +214,8 @@ export function __triggerConfigChange(e: any) {
 
 export function __triggerActiveTextEditorChange(editor: any) {
   mockActiveTextEditorListeners.forEach((listener) => listener(editor));
+}
+
+export function __triggerDidSaveTextDocument(document: any) {
+  mockSaveTextDocumentListeners.forEach((listener) => listener(document));
 }
