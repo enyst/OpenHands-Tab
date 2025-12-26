@@ -41,6 +41,14 @@ import { getGeminiClient } from './geminiClient';
 import { summarizeTerminalObservationWithGeminiFlash } from './terminalObservationSummarizer';
 import { SYSTEM_PROMPT } from './systemPrompt';
 import { sanitizeChatMessages } from './sanitizeChatMessages';
+import {
+  ELLIPSIS,
+  redactAndTruncateArgs,
+  redactStringHeuristics,
+  sanitizeChatRequestForDebug,
+  sanitizeMessageForDebug,
+  truncateString,
+} from './textSanitizers';
 
 export type AgentRunInput = string | Message;
 
@@ -68,14 +76,9 @@ export interface AgentOptions {
 const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 // Simple utility to cap logged/tool result sizes
-const TRUNCATE_LIMIT = 2000;
-const ELLIPSIS = '…(truncated)';
 const CIRCULAR_REFERENCE_MARKER = '[Circular]';
 const TOOL_MESSAGE_MAX_CHARS = 8_000;
 const TOOL_MESSAGE_CLIP_MARKER = '<response clipped>';
-function truncateString(input: string): string {
-  return input.length > TRUNCATE_LIMIT ? input.slice(0, TRUNCATE_LIMIT) + ELLIPSIS : input;
-}
 
 function deepTruncate(value: unknown, seen = new WeakSet<object>()): unknown {
   if (typeof value === 'string') return truncateString(value);
@@ -127,50 +130,6 @@ function truncateToolMessage(text: string, maxChars = TOOL_MESSAGE_MAX_CHARS): s
   return `${head}\n${TOOL_MESSAGE_CLIP_MARKER}\n${tail}`;
 }
 
-const DEBUG_TOOL_TEXT_HEAD_CHARS = 100;
-const DEBUG_TOOL_TEXT_TAIL_CHARS = 100;
-const DEBUG_TOOL_TEXT_MAX_UNCLIPPED = DEBUG_TOOL_TEXT_HEAD_CHARS + DEBUG_TOOL_TEXT_TAIL_CHARS;
-function truncateToolMessageForDebug(text: string): string {
-  if (text.length <= DEBUG_TOOL_TEXT_MAX_UNCLIPPED) return text;
-  return `${text.slice(0, DEBUG_TOOL_TEXT_HEAD_CHARS)}…${text.slice(-DEBUG_TOOL_TEXT_TAIL_CHARS)}`;
-}
-
-function sanitizeToolCallsForDebug(toolCalls: ToolCall[] | undefined): ToolCall[] | undefined {
-  if (!Array.isArray(toolCalls) || toolCalls.length === 0) return undefined;
-  return toolCalls.map((toolCall) => {
-    const rawArgs = toolCall.function.arguments;
-    const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : '';
-    return {
-      ...toolCall,
-      function: { ...toolCall.function, arguments: safeArgs },
-    };
-  });
-}
-
-function sanitizeMessageForDebug(message: Message): Message {
-  const safeToolCalls = sanitizeToolCallsForDebug(message.tool_calls);
-  const safeContent = message.role === 'tool'
-    ? message.content.map((item) => (
-      item.type === 'text'
-        ? { ...item, text: truncateToolMessageForDebug(item.text) }
-        : item
-    ))
-    : message.content;
-
-  const out: Message = { ...message, content: safeContent };
-  if (safeToolCalls) out.tool_calls = safeToolCalls;
-  return out;
-}
-
-function sanitizeChatRequestForDebug(request: ChatCompletionRequest): { systemPrompt: string; messages: Message[]; tools: string[] } {
-  const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
-  return {
-    systemPrompt: 'SYSTEM_PROMPT',
-    messages: request.messages.map(sanitizeMessageForDebug),
-    tools: toolNames,
-  };
-}
-
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash-summarizer';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
 const TOOL_SUMMARY_MAX_CHARS = 1_000;
@@ -195,70 +154,6 @@ function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
     return JSON.stringify(error);
   } catch {
     return String(error);
-  }
-}
-
-
-// Redaction utilities for tool-call argument logging
-const SENSITIVE_KEYS = new Set([
-  'apiKey', 'api_key', 'apikey',
-  'token', 'access_token', 'accessToken', 'refresh_token',
-  'authorization', 'authorization_header', 'auth',
-  'password', 'pass', 'pwd',
-  'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
-  'awsAccessKeyId', 'awsSecretAccessKey',
-  'sessionApiKey', 'session_api_key', 'x_api_key',
-]);
-function redactObject(input: unknown): unknown {
-  if (Array.isArray(input)) return input.map((v) => redactObject(v));
-  if (input && typeof input === 'object') {
-    const src = input as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(src)) {
-      if (SENSITIVE_KEYS.has(k.toString())) {
-        out[k] = '***';
-      } else if (typeof v === 'object') {
-        out[k] = redactObject(v);
-      } else if (typeof v === 'string') {
-        out[k] = redactStringHeuristics(v);
-      } else {
-        out[k] = v;
-      }
-    }
-    return out;
-  }
-  if (typeof input === 'string') return redactStringHeuristics(input);
-  return input;
-}
-function redactStringHeuristics(text: string): string {
-  let t = text;
-  // Authorization header
-  t = t.replace(/(Authorization\s*:\s*Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
-  // Standalone Bearer tokens
-  t = t.replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1***');
-  // Common token prefixes that may appear without key labels
-  const tokenPatterns = [
-    /sk-[A-Za-z0-9]{12,}/gi,
-    /ghp_[A-Za-z0-9]{12,}/gi,
-    /pat_[A-Za-z0-9_]{12,}/gi,
-  ];
-  tokenPatterns.forEach((pattern) => {
-    t = t.replace(pattern, '***');
-  });
-  // Common key=value or key: value patterns
-  const keyPattern = /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
-  t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, p1, _p2) => `${p1}: ***`);
-  // Query param style ...?api_key=xxx&
-  t = t.replace(new RegExp(`([?&])${keyPattern.source}=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=***`);
-  return t;
-}
-function redactAndTruncateArgs(raw: string): string {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    const redacted = redactObject(parsed);
-    return truncateString(JSON.stringify(redacted));
-  } catch {
-    return truncateString(redactStringHeuristics(raw));
   }
 }
 
