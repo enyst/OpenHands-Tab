@@ -61,14 +61,6 @@ export const computeConversationTotalsFromStats = (
     .map((label) => toOptionalNonEmptyString(label))
     .filter((label): label is string => typeof label === 'string');
 
-  const pickByExplicitId = (): string | undefined => {
-    const explicitUsageId = toOptionalNonEmptyString(options.mainUsageId);
-    if (explicitUsageId && Object.prototype.hasOwnProperty.call(usageToMetricsRaw, explicitUsageId)) {
-      return explicitUsageId;
-    }
-    return undefined;
-  };
-
   const pickByLabelHint = (): string | undefined => {
     if (usageToLabels && labelHints.length) {
       const normalizedLabelByUsage = new Map<string, string>();
@@ -112,8 +104,14 @@ export const computeConversationTotalsFromStats = (
   };
 
   const pickMainUsageId = (): string | undefined => {
-    return pickByExplicitId()
-      ?? pickByLabelHint()
+    const explicitUsageId = toOptionalNonEmptyString(options.mainUsageId);
+    if (explicitUsageId) {
+      return Object.prototype.hasOwnProperty.call(usageToMetricsRaw, explicitUsageId)
+        ? explicitUsageId
+        : undefined;
+    }
+
+    return pickByLabelHint()
       ?? pickByFallbackId()
       ?? pickBySingleUsage()
       ?? pickByHeuristic();

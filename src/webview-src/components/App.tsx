@@ -109,7 +109,6 @@ export function App() {
   const [status, setStatus] = useState<'online' | 'offline' | 'connecting'>('offline');
   const [mode, setMode] = useState<'local' | 'remote'>('remote');
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
-  const [llmProfileLabel, setLlmProfileLabel] = useState<string | null | undefined>(undefined);
   const [llmProfileId, setLlmProfileId] = useState<string | null>(null);
   const [llmProfiles, setLlmProfiles] = useState<string[]>([]);
 
@@ -312,8 +311,6 @@ export function App() {
     pendingActionsBatchIdRef,
     submissionTimeoutRef,
     hasLlmUsageRef,
-    llmProfileLabel,
-    llmProfileId,
     eventId,
     showStatusMessage,
     maybeUpdateHalFlow,
@@ -387,7 +384,6 @@ export function App() {
     setHistory,
     setIsMentionActive,
     setLlmProfileId,
-    setLlmProfileLabel,
     setLlmProfiles,
     setMode,
     setPendingActions,

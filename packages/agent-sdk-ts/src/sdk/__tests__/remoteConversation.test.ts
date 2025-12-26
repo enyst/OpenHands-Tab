@@ -218,7 +218,7 @@ describe('RemoteConversation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('derives usage_id from profileId when usageId is default-llm', async () => {
+  it('always uses a stable usage_id of agent', async () => {
     const dir = makeTempDir('remote-conversation-profiles-');
     try {
       saveProfile('p1', { provider: 'openai', model: 'gpt-5-mini' }, { rootDir: dir });
@@ -250,7 +250,7 @@ describe('RemoteConversation', () => {
       conversation.disconnect();
 
       expect(id).toBe('conv-1');
-      expect(capturedReq?.agent?.llm?.usage_id).toBe('p1');
+      expect(capturedReq?.agent?.llm?.usage_id).toBe('agent');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -313,7 +313,7 @@ describe('RemoteConversation', () => {
 
       expect(id).toBe('conv-1');
       const llm = capturedReq?.agent?.llm ?? {};
-      expect(llm.usage_id).toBe('p1');
+      expect(llm.usage_id).toBe('agent');
       expect(llm.model).toBe('profile-model');
       expect(llm.base_url).toBe('https://profile.example');
       expect(llm.api_version).toBe('2025-01-01');

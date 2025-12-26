@@ -146,7 +146,6 @@ export class RemoteConversation extends EventEmitter {
         }
         return undefined;
       };
-      const usageId = toOptionalString(s?.llm.usageId);
       const profileId = toOptionalString(s?.llm.profileId);
       const model = toOptionalString(s?.llm.model);
       const baseUrl = toOptionalString(s?.llm.baseUrl);
@@ -165,20 +164,16 @@ export class RemoteConversation extends EventEmitter {
 
       // NOTE: profileId is a local alias only. Remote agent-server rejects unknown llm fields
       // (like `profile_id`) with strict schema validation.
-      const profileUsageId = toOptionalString(profileConfig?.usageId);
       const profileModel = profileConfig ? toOptionalString(profileConfig.model) : undefined;
       const profileBaseUrl = toOptionalString(profileConfig?.baseUrl);
       const profileApiVersion = toOptionalString(profileConfig?.apiVersion);
 
-      const derivedUsageId = profileId && (!usageId || usageId === 'default-llm')
-        ? profileId
-        : undefined;
-      const effectiveUsageId = derivedUsageId ?? usageId ?? profileUsageId;
+      const effectiveUsageId = 'agent';
       const effectiveModel = profileModel ?? model;
       const effectiveBaseUrl = profileBaseUrl ?? baseUrl;
       const effectiveApiVersion = profileApiVersion ?? apiVersion;
 
-      if (effectiveUsageId) llm.usage_id = effectiveUsageId;
+      llm.usage_id = effectiveUsageId;
       if (effectiveModel) llm.model = effectiveModel;
       if (effectiveBaseUrl) llm.base_url = effectiveBaseUrl;
       if (effectiveApiVersion) llm.api_version = effectiveApiVersion;
