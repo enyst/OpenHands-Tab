@@ -41,11 +41,20 @@ describe('textSanitizers', () => {
   });
 
   it('redactAndTruncateArgs redacts hyphenated API key headers', () => {
-    const raw = JSON.stringify({ headers: { 'x-api-key': 'NOPE', Authorization: 'Bearer SECRET' } });
+    const raw = JSON.stringify({
+      headers: {
+        'x-api-key': 'NOPE',
+        'x-goog-api-key': 'NOPE2',
+        'xi-api-key': 'NOPE3',
+        Authorization: 'Bearer SECRET',
+      },
+    });
     const output = redactAndTruncateArgs(raw);
     const parsed = JSON.parse(output);
     expect(parsed.headers['x-api-key']).toBe('***');
-    expect(parsed.headers.Authorization).toBe('Bearer ***');
+    expect(parsed.headers['x-goog-api-key']).toBe('***');
+    expect(parsed.headers['xi-api-key']).toBe('***');
+    expect(parsed.headers.Authorization).toBe('***');
   });
 
   it('sanitizeMessageForDebug truncates tool text content', () => {
