@@ -181,19 +181,3 @@ export function Tooltip({
     </div>
   );
 }
-
-/**
- * Wrapper for elements with existing title attributes.
- * Removes the title and renders a styled tooltip instead.
- */
-export function withTooltip(
-  element: ReactNode,
-  tooltip: string,
-  position?: TooltipPosition,
-): ReactNode {
-  return (
-    <Tooltip content={tooltip} position={position}>
-      {element}
-    </Tooltip>
-  );
-}

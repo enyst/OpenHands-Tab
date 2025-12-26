@@ -69,23 +69,25 @@ export function SystemPromptEventBlock({
           <span className="codicon codicon-gear text-sm" style={{ color: SYSTEM_ACCENT_COLOR }} />
         </div>
         <div className="font-semibold text-sm text-stone-200">System Prompt</div>
-        <button
-          onClick={() =>
-            setIsExpanded((prev) => {
-              const next = !prev;
-              if (!next) {
-                setSkillsExpanded(false);
-                setToolsExpanded(false);
-              }
-              return next;
-            })
-          }
-          className="ml-auto text-xs text-stone-400 hover:text-stone-300 transition-colors flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-white/[0.05]"
-          aria-label={toggleLabel}
-        >
-          <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`} />
-          <span>{isExpanded ? 'Hide' : 'Show'}</span>
-        </button>
+        <Tooltip content={toggleLabel} position="left">
+          <button
+            onClick={() =>
+              setIsExpanded((prev) => {
+                const next = !prev;
+                if (!next) {
+                  setSkillsExpanded(false);
+                  setToolsExpanded(false);
+                }
+                return next;
+              })
+            }
+            className="ml-auto text-xs text-stone-400 hover:text-stone-300 transition-colors flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-white/[0.05]"
+            aria-label={toggleLabel}
+          >
+            <span className={`codicon codicon-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`} />
+            <span>{isExpanded ? 'Hide' : 'Show'}</span>
+          </button>
+        </Tooltip>
       </div>
       {isExpanded && (
         <>
