@@ -126,6 +126,7 @@ References:
 Settings:
 - `openhands.hal.enabled`: boolean (default `false`)
 - `openhands.hal.mode`: `bundled` | `tts_only` | `voice_confirm` (default: `tts_only`)
+- `openhands.hal.llmProfileId`: string (default `gemini-flash-hal`) — LLM profile used for `voice_confirm` classification
 - `openhands.hal.userName`: string (default: `Engel`) — used only for templated script lines in the HAL flow
 - API key:
   - Settings UI placeholder: `openhands.secrets.elevenLabsApiKey`
@@ -136,14 +137,11 @@ Settings:
 - `openhands.hal.volume`: 0.0–1.0
 - `openhands.hal.cache`: boolean (default `true`)
 - Gemini (only for `voice_confirm`):
-  - LLM profile id: `gemini-flash-hal` (seeded by default)
+  - LLM profile id: `gemini-flash-hal` (seeded by default; override with `openhands.hal.llmProfileId`)
     - Provider: `gemini`
     - Model (default): `gemini-2.5-flash`
     - Base URL (default): Gemini API base URL (allow proxies)
     - Configure model/baseUrl via the LLM Profiles UI by editing `gemini-flash-hal`.
-  - Fallback-only (if the profile cannot be loaded):
-    - `openhands.hal.gemini.model`
-    - `openhands.hal.gemini.baseUrl`
   - Settings UI placeholder: `openhands.secrets.geminiLlmApiKey`
   - Stored securely in SecretStorage: `GEMINI_API_KEY` (set via `openhands.setGeminiLlmApiKey`)
 
