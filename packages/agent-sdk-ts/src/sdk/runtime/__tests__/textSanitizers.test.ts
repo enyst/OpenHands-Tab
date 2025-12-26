@@ -41,7 +41,7 @@ describe('textSanitizers', () => {
     const output = redactAndTruncateArgs(raw);
     const parsed = JSON.parse(output);
     expect(parsed.headers['x-api-key']).toBe('***');
-    expect(parsed.headers.Authorization).toBe('***');
+    expect(parsed.headers.Authorization).toBe('Bearer ***');
   });
 
   it('sanitizeMessageForDebug truncates tool text content', () => {

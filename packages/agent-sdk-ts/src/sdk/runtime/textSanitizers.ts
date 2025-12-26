@@ -19,42 +19,15 @@ const truncateToolMessageForDebug = (text: string): string => {
 };
 
 // Redaction utilities for tool-call argument logging.
-const normalizeKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-const SENSITIVE_KEY_NORMALIZED = new Set([
-  'apikey',
-  'token',
-  'accesstoken',
-  'refreshtoken',
-  'authorization',
-  'authorizationheader',
-  'auth',
-  'password',
-  'pass',
-  'pwd',
-  'secret',
-  'secretkey',
-  'clientsecret',
-  'privatekey',
-  'awsaccesskeyid',
-  'awssecretaccesskey',
-  'sessionapikey',
-  // Headers like `x-api-key` normalize to `xapikey` and are caught by the `apikey` marker below.
+const SENSITIVE_KEYS = new Set([
+  'apiKey', 'api_key', 'api-key', 'apikey',
+  'token', 'access_token', 'accessToken', 'refresh_token',
+  'authorization', 'authorization_header', 'auth',
+  'password', 'pass', 'pwd',
+  'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
+  'awsAccessKeyId', 'awsSecretAccessKey',
+  'sessionApiKey', 'session_api_key', 'x_api_key', 'x-api-key',
 ]);
-
-const isSensitiveKey = (key: string): boolean => {
-  const normalized = normalizeKey(key);
-  if (!normalized) return false;
-  if (SENSITIVE_KEY_NORMALIZED.has(normalized)) return true;
-  // Be conservative: for debug logs, it's better to over-redact than leak secrets.
-  if (normalized.includes('apikey')) return true;
-  if (normalized.endsWith('token')) return true;
-  if (normalized.includes('secret')) return true;
-  if (normalized.includes('password')) return true;
-  if (normalized.includes('privatekey')) return true;
-  if (normalized.includes('authorization')) return true;
-  return false;
-};
 
 const redactObject = (input: unknown): unknown => {
   if (Array.isArray(input)) return input.map((v) => redactObject(v));
@@ -62,7 +35,7 @@ const redactObject = (input: unknown): unknown => {
     const src = input as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(src)) {
-      if (isSensitiveKey(key.toString())) {
+      if (SENSITIVE_KEYS.has(key.toString())) {
         out[key] = '***';
       } else if (typeof value === 'object') {
         out[key] = redactObject(value);
