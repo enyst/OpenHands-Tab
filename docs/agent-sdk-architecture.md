@@ -35,7 +35,7 @@ The SDK follows these core principles:
 │                 │                                         │
 │  ┌──────────────┴──────────────────────────────────┐    │
 │  │         Runtime Layer (Orchestration)            │    │
-│  │  AgentOrchestrator │ EventLog │ State │ Locks   │    │
+│  │  LLMStreamer │ EventLog │ State │ Locks   │    │
 │  └──────────────┬──────────────────────────────────┘    │
 │                 │                                         │
 │  ┌──────────────┴──────────────┬─────────────────┐      │
@@ -114,10 +114,10 @@ interface ConversationInstance {
 
 **Purpose**: In-memory agent execution within VS Code without an external agent-server.
 
-**Status**: Local execution path that runs the full agent loop directly inside VS Code using `AgentOrchestrator`, built-in tools, and `LocalWorkspace`.
+**Status**: Local execution path that runs the full agent loop directly inside VS Code using `LLMStreamer`, built-in tools, and `LocalWorkspace`.
 
 **Features**:
-- Runs agent orchestration locally using `AgentOrchestrator`
+- Runs agent orchestration locally using `LLMStreamer`
 - EventEmitter-based event dispatching
 - Manages tool execution with `LocalWorkspace`
 - Terminal events for VS Code integrated terminal
@@ -465,7 +465,7 @@ Third-party files supported:
 
 The runtime layer coordinates agent execution, manages conversation state, and orchestrates LLM interactions.
 
-### AgentOrchestrator
+### LLMStreamer
 
 **Purpose**: Manages the Conversation using the LLMClient with streaming support.
 
@@ -477,12 +477,12 @@ The runtime layer coordinates agent execution, manages conversation state, and o
 
 **Usage Example**:
 ```typescript
-import { AgentOrchestrator, LLMFactory } from '@openhands/agent-sdk-ts';
+import { LLMStreamer, LLMFactory } from '@openhands/agent-sdk-ts';
 
 const client = await new LLMFactory({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }).createClient();
-const orchestrator = new AgentOrchestrator(client);
+const streamer = new LLMStreamer(client);
 
-const response = await orchestrator.runChat({
+const response = await streamer.runChat({
   systemPrompt: 'You are a code assistant.',
   messages: [
     { role: 'user', content: [{ type: 'text', text: 'Write a hello world function' }] }
@@ -514,7 +514,7 @@ return { message, usage }
 
 ### Agent (TS SDK)
 
-**Purpose**: Elevates `AgentOrchestrator` into a full agent loop that mirrors the Python SDK's local execution flow.
+**Purpose**: Elevates `LLMStreamer` into a full agent loop that mirrors the Python SDK's local execution flow.
 
 **Key Responsibilities**:
 - Emit `SystemPromptEvent` up front with tool definitions
@@ -1536,7 +1536,7 @@ For advanced use cases requiring direct control:
 
 ```typescript
 import {
-  AgentOrchestrator,
+  LLMStreamer,
   LLMFactory,
   EventLog,
   ConversationState,
@@ -1553,7 +1553,7 @@ const client = await new LLMFactory({ provider: 'anthropic', model: 'claude-sonn
 
 const eventLog = new EventLog();
 const state = new ConversationState(eventLog);
-const orchestrator = new AgentOrchestrator(client, { events: eventLog, state });
+const streamer = new LLMStreamer(client, { events: eventLog, state });
 
 // Tools
 const workspace = new LocalWorkspace('/workspace');
@@ -1563,7 +1563,7 @@ const fileEditor = new FileEditorTool();
 const toolContext = { workspace, events: eventLog, secrets };
 
 // Execute agent
-const response = await orchestrator.runChat({
+const response = await streamer.runChat({
   systemPrompt: 'You are a helpful assistant.',
   messages: conversation.messages,
   tools: [

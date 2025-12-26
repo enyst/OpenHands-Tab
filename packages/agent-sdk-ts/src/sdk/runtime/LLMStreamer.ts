@@ -3,16 +3,16 @@ import { ConversationState } from './ConversationState';
 import type { ChatCompletionRequest, LLMClient, LLMResponse, LLMStreamChunk } from '../llm';
 import type { Message, ToolCall } from '../types';
 
-export interface AgentOrchestratorOptions {
+export interface LLMStreamerOptions {
   events?: EventLog;
   state?: ConversationState;
 }
 
-export class AgentOrchestrator {
+export class LLMStreamer {
   private readonly events: EventLog;
   private readonly state: ConversationState;
 
-  constructor(private readonly llm: LLMClient, options: AgentOrchestratorOptions = {}) {
+  constructor(private readonly llm: LLMClient, options: LLMStreamerOptions = {}) {
     this.events = options.events ?? new EventLog();
     this.state = options.state ?? new ConversationState({ eventLog: this.events });
     this.state.attachEventLog(this.events);

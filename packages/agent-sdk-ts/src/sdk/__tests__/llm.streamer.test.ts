@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { AgentOrchestrator } from '../runtime';
+import { LLMStreamer } from '../runtime';
 import { DEFAULT_RETRY_OPTIONS, OpenAICompatibleClient, OpenAIResponsesClient, GeminiClient, LLMFactory, LLMCredentialProvider } from '../llm';
 import type { ChatCompletionRequest, LLMConfiguration } from '../llm';
 import { ConversationState, EventLog, SecretRegistry } from '../runtime';
@@ -42,9 +42,9 @@ describe('OpenAICompatibleClient streaming', () => {
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse(sse));
     const state = new ConversationState({ eventLog: new EventLog() });
     const client = new OpenAICompatibleClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client, { state });
+    const streamer = new LLMStreamer(client, { state });
 
-    const response = await orchestrator.runChat(buildRequest());
+    const response = await streamer.runChat(buildRequest());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(response.message.content[0]).toEqual({ type: 'text', text: 'Hello' });
@@ -72,13 +72,13 @@ describe('OpenAICompatibleClient streaming', () => {
 
     const state = new ConversationState({ eventLog: new EventLog() });
     const client = new OpenAICompatibleClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client, { state });
+    const streamer = new LLMStreamer(client, { state });
 
-    const response1 = await orchestrator.runChat(buildRequest());
+    const response1 = await streamer.runChat(buildRequest());
     expect(response1.message.content[0]).toEqual({ type: 'text', text: 'Hello' });
     expect(state.snapshot.values.llm_stream).toBe('Hello');
 
-    const response2 = await orchestrator.runChat(buildRequest());
+    const response2 = await streamer.runChat(buildRequest());
     expect(response2.message.content[0]).toEqual({ type: 'text', text: 'Bye' });
     expect(state.snapshot.values.llm_stream).toBe('Bye');
 
@@ -97,8 +97,8 @@ describe('OpenAICompatibleClient streaming', () => {
       'retry-key',
       { ...DEFAULT_RETRY_OPTIONS, baseDelayMs: 0, maxDelayMs: 0 },
     );
-    const orchestrator = new AgentOrchestrator(client);
-    const response = await orchestrator.runChat(buildRequest());
+    const streamer = new LLMStreamer(client);
+    const response = await streamer.runChat(buildRequest());
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(response.message.content[0].type).toBe('text');
@@ -107,9 +107,9 @@ describe('OpenAICompatibleClient streaming', () => {
   it('propagates failure after retries', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse('error', 500));
     const client = new OpenAICompatibleClient(baseConfig, 'bad-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    await expect(orchestrator.runChat(buildRequest())).rejects.toThrow(/LLM request failed/);
+    await expect(streamer.runChat(buildRequest())).rejects.toThrow(/LLM request failed/);
   });
 });
 
@@ -132,9 +132,9 @@ describe('GeminiClient streaming', () => {
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse(sse));
     const state = new ConversationState({ eventLog: new EventLog() });
     const client = new GeminiClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client, { state });
+    const streamer = new LLMStreamer(client, { state });
 
-    const response = await orchestrator.runChat(buildRequest());
+    const response = await streamer.runChat(buildRequest());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(response.message.content[0]).toEqual({ type: 'text', text: 'Hello' });
@@ -160,8 +160,8 @@ describe('GeminiClient streaming', () => {
       'retry-key',
       { ...DEFAULT_RETRY_OPTIONS, baseDelayMs: 0, maxDelayMs: 0 },
     );
-    const orchestrator = new AgentOrchestrator(client);
-    const response = await orchestrator.runChat(buildRequest());
+    const streamer = new LLMStreamer(client);
+    const response = await streamer.runChat(buildRequest());
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(response.message.content[0].type).toBe('text');
@@ -170,9 +170,9 @@ describe('GeminiClient streaming', () => {
   it('propagates failure after retries', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse('error', 500));
     const client = new GeminiClient(baseConfig, 'bad-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    await expect(orchestrator.runChat(buildRequest())).rejects.toThrow(/LLM request failed/);
+    await expect(streamer.runChat(buildRequest())).rejects.toThrow(/LLM request failed/);
   });
 });
 
@@ -213,9 +213,9 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
     const client = new OpenAIResponsesClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    const response = await orchestrator.runChat(buildRequest());
+    const response = await streamer.runChat(buildRequest());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0]?.[0] ?? '')).toContain('/responses');
@@ -244,9 +244,9 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
     const client = new OpenAIResponsesClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    await orchestrator.runChat({
+    await streamer.runChat({
       systemPrompt: 'you are a test harness',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'hello' }] },
@@ -280,9 +280,9 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
     const client = new OpenAIResponsesClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    await orchestrator.runChat({
+    await streamer.runChat({
       systemPrompt: 'you are a test harness',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'hello' }] },
@@ -327,10 +327,10 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
     const client = new OpenAIResponsesClient(baseConfig, 'test-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
     const encryptedContent = 'encrypted\n';
-    await orchestrator.runChat({
+    await streamer.runChat({
       systemPrompt: 'you are a test harness',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'hello' }] },
@@ -367,9 +367,9 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
     const client = new OpenAIResponsesClient({ ...baseConfig, reasoningEffort: 'medium', reasoningSummary: 'detailed' }, 'test-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    await orchestrator.runChat(buildRequest());
+    await streamer.runChat(buildRequest());
 
     const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
@@ -390,9 +390,9 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 
     const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
     const client = new OpenAIResponsesClient({ ...baseConfig, reasoningEffort: 'none', reasoningSummary: 'detailed' }, 'test-key');
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    await orchestrator.runChat(buildRequest());
+    await streamer.runChat(buildRequest());
 
     const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
@@ -458,9 +458,9 @@ describe('LLMFactory integration', () => {
   maybeIt('streams from OpenAI with real credentials', async () => {
     const factory = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', maxOutputTokens: 8 });
     const client = await factory.createClient();
-    const orchestrator = new AgentOrchestrator(client);
+    const streamer = new LLMStreamer(client);
 
-    const result = await orchestrator.runChat({
+    const result = await streamer.runChat({
       systemPrompt: 'You are a concise bot',
       messages: [{ role: 'user', content: [{ type: 'text', text: 'Say hello in one short sentence.' }] }],
     });

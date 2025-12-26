@@ -3,7 +3,7 @@ export * from './ConversationState';
 export * from './SecretRegistry';
 export * from './AsyncLock';
 export * from './Agent';
-export * from './AgentOrchestrator';
+export * from './LLMStreamer';
 export * from './persistence';
 export * from './ConversationStats';
 export * from './fileDiffSummarizer';

@@ -1,7 +1,7 @@
 import EventEmitter from 'events';
 import { randomUUID } from 'crypto';
 import path from 'path';
-import { AgentOrchestrator } from './AgentOrchestrator';
+import { LLMStreamer } from './LLMStreamer';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
@@ -114,7 +114,7 @@ export class Agent extends EventEmitter {
   private readonly confirmation: ConfirmationPolicy;
   private readonly lock = new AsyncLock();
   private llmClientPromise?: Promise<LLMClient>;
-  private orchestratorPromise?: Promise<AgentOrchestrator>;
+  private streamerPromise?: Promise<LLMStreamer>;
   private paused = false;
   private cancelled = false;
   private finished = false;
@@ -401,7 +401,7 @@ export class Agent extends EventEmitter {
 
       // Force the next run to rebuild the LLM client from updated settings.
       this.llmClientPromise = undefined;
-      this.orchestratorPromise = undefined;
+      this.streamerPromise = undefined;
       return Promise.resolve();
     });
   }
@@ -596,16 +596,16 @@ export class Agent extends EventEmitter {
     }
 
     const maxIterations = this.clampMaxIterations();
-    let orchestrator: AgentOrchestrator;
+    let streamer: LLMStreamer;
     try {
-      orchestrator = await this.getOrchestrator();
+      streamer = await this.getStreamer();
     } catch (error) {
       const classified = classifyError(error, { stage: 'llm_init' });
       this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
       this.state.setStatus('IDLE');
       // Allow a future retry after settings/secrets are updated.
       this.llmClientPromise = undefined;
-      this.orchestratorPromise = undefined;
+      this.streamerPromise = undefined;
       return undefined;
     }
     let lastAssistantMessage: Message | undefined;
@@ -613,7 +613,7 @@ export class Agent extends EventEmitter {
     while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
       const llmConfig = this.getEffectiveLlmConfigForCondensation();
-      let response: Awaited<ReturnType<AgentOrchestrator['runChat']>> | undefined;
+      let response: Awaited<ReturnType<LLMStreamer['runChat']>> | undefined;
 
       // Condensation is token-budget based: before calling the LLM (and again if we hit a context-limit
       // error), we may summarize the conversation to shrink the next request.
@@ -674,7 +674,7 @@ export class Agent extends EventEmitter {
         }
 
         try {
-          const result = await orchestrator.runChat(request);
+          const result = await streamer.runChat(request);
           response = result;
           if (this.debug) {
             try {
@@ -1068,15 +1068,15 @@ export class Agent extends EventEmitter {
     return this.llmClientPromise;
   }
 
-  private async getOrchestrator(): Promise<AgentOrchestrator> {
-    if (!this.orchestratorPromise) {
-      this.orchestratorPromise = (async () => {
+  private async getStreamer(): Promise<LLMStreamer> {
+    if (!this.streamerPromise) {
+      this.streamerPromise = (async () => {
         const client = await this.getPrimaryLlmClient();
-        return new AgentOrchestrator(client, { events: this.events, state: this.state });
+        return new LLMStreamer(client, { events: this.events, state: this.state });
       })();
     }
 
-    return this.orchestratorPromise;
+    return this.streamerPromise;
   }
 
   private createLlmClientFromSettings(): Promise<LLMClient> {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { LLMFactory } from '..';
 import { SecretRegistry } from '../../runtime/SecretRegistry';
 
@@ -10,6 +10,22 @@ class TrackingSecretRegistry extends SecretRegistry {
     return super.get(name);
   }
 }
+
+let originalOpenaiKey: string | undefined;
+let originalLitellmKey: string | undefined;
+
+beforeEach(() => {
+  // Ensure environment variables do not interfere with precedence tests
+  originalOpenaiKey = process.env.OPENAI_API_KEY;
+  originalLitellmKey = process.env.LITELLM_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.LITELLM_API_KEY;
+});
+
+afterEach(() => {
+  if (originalOpenaiKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalOpenaiKey;
+  if (originalLitellmKey === undefined) delete process.env.LITELLM_API_KEY; else process.env.LITELLM_API_KEY = originalLitellmKey;
+});
 
 describe('LLMFactory API key precedence', () => {
   it('prefers provider-specific key over openhands.llmApiKey (openai)', async () => {
