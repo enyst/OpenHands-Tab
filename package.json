@@ -262,7 +262,7 @@
             "default": "",
             "order": 4,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your HAL TTS API key securely:**\n\n[🔑 Configure HAL TTS API Key](command:openhands.setHalTtsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Currently used for the ElevenLabs backend.)_"
+            "markdownDescription": "**To set your HAL TTS API key securely:**\n\n[🔑 Configure HAL TTS API Key](command:openhands.setHalTtsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Used for HAL voice synthesis (backend currently ElevenLabs).)_"
           },
           "openhands.hal.voiceAId": {
             "type": "string",
