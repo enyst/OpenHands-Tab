@@ -2,11 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-
-function normalizeNonEmptyString(value: string | undefined | null): string | undefined {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  return trimmed || undefined;
-}
+import { normalizeNonEmptyString } from '../shared/stringUtils';
 
 function resolveConfiguredPath(p: string): string {
   const raw = p.trim();
@@ -70,4 +66,3 @@ export async function resolveConversationStoreRoot(params: {
   // Last resort: return tmp path even if we couldn't probe it; conversation may still run without persistence.
   return path.join(os.tmpdir(), 'openhands-conversations-vscode');
 }
-
