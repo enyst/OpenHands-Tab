@@ -17,6 +17,7 @@ import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminal
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import type { HostToWebviewMessage } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
+import { createFileEditNoteTracker } from './extension/fileEditNote';
 import { getGitHeadDiffSummaryForFile, resolveGitContext } from './extension/gitDiffSummary';
 import {
   AgentContext,
@@ -67,11 +68,6 @@ const sentTestEvents: Event[] = [];
 // Track which command_ids have already printed an exit summary to avoid duplicates
 const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
 const printedExitFor = new Map<string, true>();
-
-// Tracks which files the agent has edited during the current conversation.
-const agentEditedFiles = new Set<string>();
-const lastUserEditNoteAtMs = new Map<string, number>();
-const USER_EDIT_NOTE_DEBOUNCE_MS = 5000;
 
 function markPrintedExitFor(commandId: string): void {
   // LRU-ish: bump recency on re-add
@@ -384,6 +380,13 @@ export function activate(context: vscode.ExtensionContext) {
 
   pastedImagesBaseDir = getGlobalStorageBaseDir(context.globalStorageUri?.fsPath);
 
+  const fileEditNoteTracker = createFileEditNoteTracker({
+    getConversation: () => conversation,
+    getOutputChannel: () => outputChannel,
+    renderError,
+    getGitHeadDiffSummaryForFile,
+  });
+
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
       createWebviewMessageHandler({
@@ -468,29 +471,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument((document) => {
-      void (async () => {
-        const activeConversation = conversation;
-        if (!activeConversation?.getConversationId()) return;
-        if (document.uri.scheme !== 'file') return;
-
-        const filePath = document.uri.fsPath;
-        if (!agentEditedFiles.has(filePath)) return;
-
-        const now = Date.now();
-        const last = lastUserEditNoteAtMs.get(filePath);
-        if (typeof last === 'number' && now - last < USER_EDIT_NOTE_DEBOUNCE_MS) return;
-        lastUserEditNoteAtMs.set(filePath, now);
-
-        const diffSummary = await getGitHeadDiffSummaryForFile(filePath);
-        const note = ['Environment note: user edited file:', filePath, diffSummary].join('\n');
-        try {
-          await activeConversation.sendUserMessage(note, { run: false });
-        } catch (err) {
-          outputChannel?.appendLine(`[error] Failed to record user edit note: ${renderError(err)}`);
-        }
-      })();
-    })
+    vscode.workspace.onDidSaveTextDocument(fileEditNoteTracker.onDidSaveTextDocument)
   );
 
   const handleTerminalEvent = (event: BashEvent) => {
@@ -630,8 +611,7 @@ export function activate(context: vscode.ExtensionContext) {
         conversation?.removeAllListeners();
         conversation?.disconnect();
       } catch {}
-      agentEditedFiles.clear();
-      lastUserEditNoteAtMs.clear();
+      fileEditNoteTracker.reset();
 
       const persistenceDir =
         desiredMode === 'local'
@@ -689,13 +669,8 @@ export function activate(context: vscode.ExtensionContext) {
         isVerboseEventLogging: () => verboseEventLogging,
         bufferConversationEvent,
         resetConversationEventBacklog,
-        trackAgentEditedFile: (filePath) => {
-          agentEditedFiles.add(filePath);
-        },
-        resetAgentEditedFiles: () => {
-          agentEditedFiles.clear();
-          lastUserEditNoteAtMs.clear();
-        },
+        trackAgentEditedFile: fileEditNoteTracker.trackAgentEditedFile,
+        resetAgentEditedFiles: fileEditNoteTracker.reset,
         transformEventForWebview: (event, webview) => transformEventForWebviewWithPastedImages(event, { webview, pastedImagesBaseDir }),
         safeStringify,
         renderError,
