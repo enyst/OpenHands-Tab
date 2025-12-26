@@ -145,6 +145,40 @@ describe('LocalConversation persistence', () => {
     expect(restoredSettings.llm.model).toBeUndefined();
   });
 
+  it('does not persist or restore raw LLM fields when a profileId is present', async () => {
+    const dir = makeTempDir('local-conversation-llm-profile-only-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const llm = new MockLLM([{ type: 'text', text: 'hello' }, { type: 'finish' }]);
+
+    const conversation = new LocalConversation({
+      settings: { ...baseSettings, llm: { profileId: 'sonnet-45', baseUrl: 'http://should-not-persist', temperature: 0.25 } },
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+    const id = await conversation.startNewConversation();
+    await conversation.sendUserMessage('hello');
+
+    const store = new FileStore({ rootDir: dir, conversationId: id! });
+    expect(store.readLlmConfig?.()).toEqual({ profileId: 'sonnet-45' });
+
+    store.writeLlmConfig?.({ profileId: 'sonnet-45', baseUrl: 'http://persisted', temperature: 0.9 });
+
+    const restored = new LocalConversation({
+      settings: { ...baseSettings, llm: { model: 'restored-model', baseUrl: 'http://restored', temperature: 0.1 } },
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+    restored.restoreConversation(id!);
+
+    const restoredSettings = (restored as unknown as { settings: OpenHandsSettings }).settings;
+    expect(restoredSettings.llm.profileId).toBe('sonnet-45');
+    expect(restoredSettings.llm.model).toBeUndefined();
+    expect(restoredSettings.llm.baseUrl).toBeUndefined();
+    expect(restoredSettings.llm.temperature).toBeUndefined();
+  });
+
   it('ignores corrupted persisted LLM config', async () => {
     const dir = makeTempDir('local-conversation-llm-corrupt-');
     const workspaceRoot = makeTempDir('local-workspace-');
