@@ -155,7 +155,7 @@ describe('Agent profile api key selection', () => {
     }
   });
 
-  it('includes effective provider/model in ConversationErrorEvent detail when profileId is set', async () => {
+  it('includes effective provider/model in ConversationErrorEvent detail when debug is enabled and profileId is set', async () => {
     const tmpHome = makeTempDir('agent-profile-error-detail-');
     const originalHome = process.env.HOME;
     const originalUserProfile = process.env.USERPROFILE;
@@ -179,6 +179,7 @@ describe('Agent profile api key selection', () => {
         workspaceRoot: tmpHome,
         settings: {
           // Raw settings are misleading when profileId is set; detail should include effective profile values.
+          agent: { debug: true },
           llm: { profileId: 'p1', provider: 'openai', model: 'gpt-4o-mini' },
           secrets: {},
         } as any,

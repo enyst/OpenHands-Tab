@@ -1134,47 +1134,51 @@ export class Agent extends EventEmitter {
   private toConversationErrorEvent(error: unknown, options?: { code?: string; message?: string }): Event {
     const message = options?.message ?? stringifyErrorWithCause(error);
     const code = options?.code ?? classifyConversationErrorCode(message);
-    const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
-    const profileId = toOptionalNonEmptyString(this.options.settings?.llm?.profileId);
-    const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
-    const configuredProvider = this.options.settings?.llm?.provider ?? undefined;
-    const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
-    const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
-    const configuredApiKey = toOptionalNonEmptyString(this.options.settings?.secrets?.llmApiKey);
-    const hasInlineApiKey =
-      typeof configuredApiKey === 'string' && !/^[A-Z0-9_]+$/.test(configuredApiKey);
-    const apiKeyStatus = configuredApiKey ? (hasInlineApiKey ? 'inline' : 'reference') : 'unset';
-    const mode = this.options.settings?.serverUrl ? 'remote' : 'local';
-    const serverUrl = toOptionalNonEmptyString(this.options.settings?.serverUrl);
+    const detail = (() => {
+      if (!this.debug) return message;
 
-    const contextParts = [
-      `mode=${mode}`,
-      `llm.model=${model ?? '(unset)'}`,
-      `llm.provider=${provider}`,
-      `llm.baseUrl=${configuredBaseUrl ?? '(default)'}`,
-      `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
-      `llm.apiKey=${apiKeyStatus}`,
-    ];
-    if (profileId) {
-      contextParts.push(`llm.profileId=${profileId}`);
+      const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
+      const profileId = toOptionalNonEmptyString(this.options.settings?.llm?.profileId);
+      const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
+      const configuredProvider = this.options.settings?.llm?.provider ?? undefined;
+      const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
+      const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
+      const configuredApiKey = toOptionalNonEmptyString(this.options.settings?.secrets?.llmApiKey);
+      const hasInlineApiKey =
+        typeof configuredApiKey === 'string' && !/^[A-Z0-9_]+$/.test(configuredApiKey);
+      const apiKeyStatus = configuredApiKey ? (hasInlineApiKey ? 'inline' : 'reference') : 'unset';
+      const mode = this.options.settings?.serverUrl ? 'remote' : 'local';
+      const serverUrl = toOptionalNonEmptyString(this.options.settings?.serverUrl);
 
-      if (isSafeProfileId(profileId)) {
-        try {
-          const profile = loadProfile(profileId);
-          const profileModel = toOptionalNonEmptyString(profile.config.model);
-          const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
-          const effectiveProfileProvider =
-            profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
-          contextParts.push(`llm.effectiveProvider=${effectiveProfileProvider}`);
-          contextParts.push(`llm.effectiveModel=${profileModel ?? '(unset)'}`);
-        } catch {
-          // best-effort: profile may be missing or unreadable
+      const contextParts = [
+        `mode=${mode}`,
+        `llm.model=${model ?? '(unset)'}`,
+        `llm.provider=${provider}`,
+        `llm.baseUrl=${configuredBaseUrl ?? '(default)'}`,
+        `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
+        `llm.apiKey=${apiKeyStatus}`,
+      ];
+      if (profileId) {
+        contextParts.push(`llm.profileId=${profileId}`);
+
+        if (isSafeProfileId(profileId)) {
+          try {
+            const profile = loadProfile(profileId);
+            const profileModel = toOptionalNonEmptyString(profile.config.model);
+            const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
+            const effectiveProfileProvider =
+              profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
+            contextParts.push(`llm.effectiveProvider=${effectiveProfileProvider}`);
+            contextParts.push(`llm.effectiveModel=${profileModel ?? '(unset)'}`);
+          } catch {
+            // best-effort: profile may be missing or unreadable
+          }
         }
       }
-    }
-    if (serverUrl) contextParts.push(`serverUrl=${serverUrl}`);
+      if (serverUrl) contextParts.push(`serverUrl=${serverUrl}`);
 
-    const detail = `${message} (${contextParts.join(', ')})`;
+      return `${message} (${contextParts.join(', ')})`;
+    })();
     return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail } as Event;
   }
 
