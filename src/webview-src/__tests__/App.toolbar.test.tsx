@@ -274,6 +274,19 @@ describe('App toolbar interactions', () => {
     expect(profileButton).toHaveTextContent('Select profile…');
   });
 
+  it('shows a selector prompt when the active LLM profile is missing from the list', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'llmProfilesUpdated', profiles: ['gpt-5'], activeProfileId: 'missing-profile' }
+      }));
+    });
+
+    const profileButton = await screen.findByLabelText('LLM profile');
+    expect(profileButton).toHaveTextContent('Select profile…');
+  });
+
   it('updates the LLM profile when selected in the dropdown', async () => {
     render(<App />);
 

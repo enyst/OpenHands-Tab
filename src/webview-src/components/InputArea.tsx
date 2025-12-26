@@ -440,10 +440,12 @@ function LlmProfileSelector({
 
   const sanitizedProfiles = profiles.filter((id) => typeof id === 'string' && id.trim().length > 0);
   const hasProfiles = sanitizedProfiles.length > 0;
-  const shouldPromptCreate = profileId === null && !hasProfiles && Boolean(onOpenCreate);
-  const shown = profileId ?? (shouldPromptCreate ? 'New profile…' : (hasProfiles ? 'Select profile…' : 'New profile…'));
-  const tooltip = profileId
-    ? `LLM profile: ${profileId}`
+  const hasValidSelection = typeof profileId === 'string' && sanitizedProfiles.includes(profileId);
+  const selectedProfileId = hasValidSelection ? profileId : null;
+  const shouldPromptCreate = selectedProfileId === null && !hasProfiles && Boolean(onOpenCreate);
+  const shown = selectedProfileId ?? (shouldPromptCreate ? 'New profile…' : (hasProfiles ? 'Select profile…' : 'New profile…'));
+  const tooltip = selectedProfileId
+    ? `LLM profile: ${selectedProfileId}`
     : shouldPromptCreate
       ? 'LLM profile: New profile…'
       : hasProfiles
@@ -455,7 +457,7 @@ function LlmProfileSelector({
     setIsOpen(false);
   };
 
-  const isSelected = (candidate: string) => candidate === profileId;
+  const isSelected = (candidate: string) => candidate === selectedProfileId;
 
   return (
     <div className="relative">
