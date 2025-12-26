@@ -220,7 +220,7 @@ export class Agent extends EventEmitter {
     this.secrets.set('CUSTOM_SECRET_1', s?.customSecret1);
     this.secrets.set('CUSTOM_SECRET_2', s?.customSecret2);
     this.secrets.set('CUSTOM_SECRET_3', s?.customSecret3);
-    this.secrets.set('ELEVENLABS_API_KEY', s?.elevenLabsApiKey);
+    this.secrets.set('ELEVENLABS_API_KEY', s?.halTtsApiKey);
   }
 
   private getSecretValuesForMasking(): string[] {

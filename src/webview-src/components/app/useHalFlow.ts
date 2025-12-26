@@ -716,7 +716,7 @@ export function useHalFlow(deps: {
 
     const shouldNotify = (payload as { shouldNotify?: unknown } | undefined)?.shouldNotify === true;
     const error = (payload as { error?: unknown } | undefined)?.error;
-    const message = typeof error === 'string' && error.trim() ? error.trim() : 'ElevenLabs TTS failed';
+    const message = typeof error === 'string' && error.trim() ? error.trim() : 'HAL TTS failed';
     const convoId = deps.conversationIdRef.current;
     if (convoId) setHalDisabledConversationId(convoId);
 

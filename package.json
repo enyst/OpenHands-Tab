@@ -33,7 +33,7 @@
     "onCommand:openhands.setGeminiLlmApiKey",
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
-    "onCommand:openhands.setElevenLabsApiKey",
+    "onCommand:openhands.setHalTtsApiKey",
 
     "onCommand:openhands.setCustomSecret1",
     "onCommand:openhands.setCustomSecret2",
@@ -94,8 +94,8 @@
         "title": "OpenHands: Set GitHub Token"
       },
       {
-        "command": "openhands.setElevenLabsApiKey",
-        "title": "OpenHands: Set ElevenLabs API Key"
+        "command": "openhands.setHalTtsApiKey",
+        "title": "OpenHands: Set HAL TTS API Key"
       },
 
       {
@@ -257,28 +257,35 @@
             "order": 3,
             "markdownDescription": "User name used only in templated HAL script lines."
           },
-          "openhands.hal.voiceAId": {
+          "openhands.hal.ttsApiKey": {
             "type": "string",
             "default": "",
             "order": 4,
-            "markdownDescription": "ElevenLabs voice ID for HAL (voice A)."
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**To set your HAL TTS API key securely:**\n\n[🔑 Configure HAL TTS API Key](command:openhands.setHalTtsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Used for HAL voice synthesis (backend currently ElevenLabs).)_"
+          },
+          "openhands.hal.voiceAId": {
+            "type": "string",
+            "default": "",
+            "order": 5,
+            "markdownDescription": "TTS voice ID for HAL (voice A). (For the ElevenLabs backend, this is an ElevenLabs voice ID.)"
           },
           "openhands.hal.voiceUserId": {
             "type": "string",
             "default": "",
-            "order": 5,
-            "markdownDescription": "ElevenLabs voice ID for the user (voice B, used in `tts_only` mode)."
+            "order": 6,
+            "markdownDescription": "TTS voice ID for the user (voice B, used in `tts_only` mode). (For the ElevenLabs backend, this is an ElevenLabs voice ID.)"
           },
           "openhands.hal.modelId": {
             "type": "string",
             "default": "",
-            "order": 6,
-            "markdownDescription": "Optional ElevenLabs model id (e.g., `eleven_turbo_v2`)."
+            "order": 7,
+            "markdownDescription": "Optional TTS model id (ElevenLabs example: `eleven_turbo_v2`)."
           },
           "openhands.hal.volume": {
             "type": "number",
             "default": 1,
-            "order": 7,
+            "order": 8,
             "minimum": 0,
             "maximum": 1,
             "markdownDescription": "Playback volume (0.0–1.0)."
@@ -286,13 +293,13 @@
           "openhands.hal.cache": {
             "type": "boolean",
             "default": true,
-            "order": 8,
-            "markdownDescription": "Enable caching for generated ElevenLabs audio."
+            "order": 9,
+            "markdownDescription": "Enable caching for generated HAL TTS audio."
           },
           "openhands.hal.llmProfileId": {
             "type": "string",
             "default": "gemini-flash-hal",
-            "order": 9,
+            "order": 10,
             "markdownDescription": "LLM profile id used for `voice_confirm` classification (expected Gemini provider)."
           }
         }
@@ -408,14 +415,6 @@
             "order": 7,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your Gemini API key securely:**\n\n[🔑 Configure Gemini API Key](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
-          },
-
-          "openhands.secrets.elevenLabsApiKey": {
-            "type": "string",
-            "default": "",
-            "order": 9,
-            "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your ElevenLabs API key securely:**\n\n[🔑 Configure ElevenLabs API Key](command:openhands.setElevenLabsApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json)_"
           },
           "openhands.secrets.customSecret1": {
             "type": "string",
