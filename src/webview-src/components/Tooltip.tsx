@@ -57,7 +57,12 @@ export function Tooltip({
   }, [position]);
 
   const showTooltip = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
     timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = null;
       setActualPosition(position);
       setIsVisible(true);
       cancelScheduledRaf();
