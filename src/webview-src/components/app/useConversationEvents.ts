@@ -32,8 +32,6 @@ type UseConversationEventsOptions = {
   pendingActionsBatchIdRef: MutableRefObject<string | null>;
   submissionTimeoutRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   hasLlmUsageRef: MutableRefObject<boolean>;
-  llmProfileLabel: string | null | undefined;
-  llmProfileId: string | null;
   eventId: MutableRefObject<number>;
   showStatusMessage: ShowStatusMessage;
   maybeUpdateHalFlow: () => void;
@@ -55,8 +53,6 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     pendingActionsBatchIdRef,
     submissionTimeoutRef,
     hasLlmUsageRef,
-    llmProfileLabel,
-    llmProfileId,
     eventId,
     showStatusMessage,
     maybeUpdateHalFlow,
@@ -105,7 +101,9 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     }
 
     if (event.key === 'stats') {
-      const totals = computeConversationTotalsFromStats(event.value, { mainUsageLabels: [llmProfileLabel, llmProfileId] });
+      const totals = computeConversationTotalsFromStats(event.value, {
+        mainUsageId: 'agent',
+      });
       if (totals) {
         setConversationTotals((prev) => {
           const nextContextTokens = hasLlmUsageRef.current ? prev.contextTokens : totals.contextTokens;
@@ -130,8 +128,6 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     lastAgentStatusRef,
     pendingActionsBatchIdRef,
     pendingActionsRef,
-    llmProfileId,
-    llmProfileLabel,
     setAgentStatus,
     setConversationTotals,
     setIsSubmitting,

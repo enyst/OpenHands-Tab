@@ -75,7 +75,6 @@ export type HostMessageHandlerOptions = {
   setHistory: Dispatch<SetStateAction<ConversationsList>>;
   setIsMentionActive: Dispatch<SetStateAction<boolean>>;
   setLlmProfileId: Dispatch<SetStateAction<string | null>>;
-  setLlmProfileLabel: Dispatch<SetStateAction<string | null | undefined>>;
   setLlmProfiles: Dispatch<SetStateAction<string[]>>;
   setMode: Dispatch<SetStateAction<'local' | 'remote'>>;
   setPendingActions: Dispatch<SetStateAction<ActionEvent[]>>;
@@ -135,7 +134,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     setHistory,
     setIsMentionActive,
     setLlmProfileId,
-    setLlmProfileLabel,
     setLlmProfiles,
     setMode,
     setPendingActions,
@@ -206,10 +204,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
             setStatus(payload.status);
             if (payload.mode === 'local' || payload.mode === 'remote') {
               setMode(payload.mode);
-            }
-            const label = payload.llmProfileLabel;
-            if (typeof label === 'string' || label === null) {
-              setLlmProfileLabel(label);
             }
             const nextBanner: StatusBannerState | null =
               payload.mode === 'local'
@@ -710,7 +704,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     setHistory,
     setIsMentionActive,
     setLlmProfileId,
-    setLlmProfileLabel,
     setLlmProfiles,
     setMode,
     setPendingActions,

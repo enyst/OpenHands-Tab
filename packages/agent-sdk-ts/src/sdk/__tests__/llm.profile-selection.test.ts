@@ -109,4 +109,39 @@ describe('LLMFactory profile selection', () => {
       }
     }
   });
+
+  it('keeps main agent usage under a stable usageId when switching profiles', async () => {
+    const dir = makeTempDir('llm-profile-switching-usageid-');
+    try {
+      saveProfile('gpt-5', { provider: 'openai', model: 'gpt-5' }, { rootDir: dir });
+      saveProfile('sonnet-45', { provider: 'anthropic', model: 'claude-sonnet-4-20250514' }, { rootDir: dir });
+
+      const registry = new LLMRegistry();
+      const stats = new ConversationStats();
+      registry.subscribe((event) => stats.registerLlm(event));
+
+      const first = await new LLMFactory(
+        { provider: 'openai', model: 'IGNORED', profileId: 'gpt-5', usageId: 'agent', apiKey: 'sk-inline' },
+        { registry, profileStoreOptions: { rootDir: dir } },
+      ).createClient();
+      expect(first).toBeInstanceOf(TrackedLLMClient);
+      (first as TrackedLLMClient).metrics.addTokenUsage({ promptTokens: 10, completionTokens: 1, responseId: 'r1' });
+
+      const second = await new LLMFactory(
+        { provider: 'openai', model: 'IGNORED', profileId: 'sonnet-45', usageId: 'agent', apiKey: 'sk-inline' },
+        { registry, profileStoreOptions: { rootDir: dir } },
+      ).createClient();
+      expect(second).toBeInstanceOf(TrackedLLMClient);
+      (second as TrackedLLMClient).metrics.addTokenUsage({ promptTokens: 5, completionTokens: 2, responseId: 'r2' });
+
+      expect(Object.keys(stats.usageToMetrics)).toEqual(['agent']);
+      expect(stats.usageToLabels.agent).toBe('sonnet-45');
+      expect(stats.usageToMetrics.agent.accumulatedTokenUsage).toMatchObject({
+        promptTokens: 15,
+        completionTokens: 3,
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

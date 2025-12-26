@@ -167,7 +167,7 @@ describe('App toolbar interactions', () => {
             key: 'stats',
             value: {
               usage_to_metrics: {
-                main: {
+                agent: {
                   accumulated_cost: 0.0123,
                   accumulated_token_usage: { prompt_tokens: 100, completion_tokens: 20, per_turn_token: 50 },
                 },
@@ -177,7 +177,7 @@ describe('App toolbar interactions', () => {
                 },
               },
               usage_to_labels: {
-                main: 'gpt-5',
+                agent: 'gpt-5',
                 summarizer: 'gemini-flash-summarizer',
               },
             },
@@ -231,7 +231,7 @@ describe('App toolbar interactions', () => {
               key: 'stats',
               value: {
                 usage_to_metrics: {
-                  default: {
+                  agent: {
                     accumulated_cost: 0,
                     accumulated_token_usage: { prompt_tokens: 1, completion_tokens: 0, per_turn_token: 7 },
                   },
