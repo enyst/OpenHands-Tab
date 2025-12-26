@@ -5,19 +5,7 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { ConversationState } from './ConversationState';
 import type { ConversationStats } from './ConversationStats';
 import type { SecretRegistry } from './SecretRegistry';
-
-const toOptionalNonEmptyString = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : undefined;
-};
-
-const isSafeProfileId = (profileId: string): boolean => {
-  if (!profileId.trim()) return false;
-  if (profileId !== profileId.trim()) return false;
-  if (profileId.includes('/') || profileId.includes('\\')) return false;
-  return /^[a-zA-Z0-9._-]+$/.test(profileId);
-};
+import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 
 export function createLlmClientFromSettings(params: {
   settings: OpenHandsSettings;
@@ -87,4 +75,3 @@ export function createLlmClientFromSettings(params: {
 
   return factory.createClient();
 }
-
