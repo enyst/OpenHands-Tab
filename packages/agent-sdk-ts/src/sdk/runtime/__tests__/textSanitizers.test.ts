@@ -36,6 +36,10 @@ describe('textSanitizers', () => {
     expect(parsed.nested.token).toBe('***');
   });
 
+  it('redactAndTruncateArgs falls back to heuristic redaction for invalid JSON', () => {
+    expect(redactAndTruncateArgs('Authorization: Bearer SECRET')).toBe('Authorization: Bearer ***');
+  });
+
   it('redactAndTruncateArgs redacts hyphenated API key headers', () => {
     const raw = JSON.stringify({ headers: { 'x-api-key': 'NOPE', Authorization: 'Bearer SECRET' } });
     const output = redactAndTruncateArgs(raw);
