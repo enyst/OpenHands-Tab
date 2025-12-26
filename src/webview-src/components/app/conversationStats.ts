@@ -8,7 +8,27 @@ const asFiniteNumber = (raw: unknown): number | null => {
 const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
   !!candidate && typeof candidate === 'object';
 
-export const computeConversationTotalsFromStats = (value: unknown): ConversationTotals | null => {
+type ConversationTotalsStatsOptions = {
+  /**
+   * Prefer using a single "main" usage bucket when computing context tokens,
+   * rather than summing across all usageIds (summarizers/HAL/etc).
+   */
+  mainUsageId?: string;
+  /**
+   * Label hints to match against `usage_to_labels` (e.g. active profile name/id).
+   */
+  mainUsageLabels?: Array<string | null | undefined>;
+};
+
+const toOptionalNonEmptyString = (value: unknown): string | undefined => {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  return trimmed ? trimmed : undefined;
+};
+
+export const computeConversationTotalsFromStats = (
+  value: unknown,
+  options: ConversationTotalsStatsOptions = {},
+): ConversationTotals | null => {
   const getTokenUsageArray = (metric: Record<string, unknown>): unknown[] | null => {
     // Token usage history keys vary across backends/versions; keep fallbacks for restores.
     const raw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
@@ -35,7 +55,79 @@ export const computeConversationTotalsFromStats = (value: unknown): Conversation
   const usageToMetricsRaw = value.usage_to_metrics ?? value.usageToMetrics ?? value.service_to_metrics ?? value.serviceToMetrics;
   if (!isRecord(usageToMetricsRaw)) return null;
 
-  let contextTokens = 0;
+  const usageToLabelsRaw = value.usage_to_labels ?? value.usageToLabels;
+  const usageToLabels = isRecord(usageToLabelsRaw) ? usageToLabelsRaw : null;
+  const labelHints = (options.mainUsageLabels ?? [])
+    .map((label) => toOptionalNonEmptyString(label))
+    .filter((label): label is string => typeof label === 'string');
+
+  const pickByExplicitId = (): string | undefined => {
+    const explicitUsageId = toOptionalNonEmptyString(options.mainUsageId);
+    if (explicitUsageId && Object.prototype.hasOwnProperty.call(usageToMetricsRaw, explicitUsageId)) {
+      return explicitUsageId;
+    }
+    return undefined;
+  };
+
+  const pickByLabelHint = (): string | undefined => {
+    if (usageToLabels && labelHints.length) {
+      const normalizedLabelByUsage = new Map<string, string>();
+      for (const [usageId, label] of Object.entries(usageToLabels)) {
+        const normalized = toOptionalNonEmptyString(label);
+        if (normalized) normalizedLabelByUsage.set(usageId, normalized);
+      }
+      for (const hint of labelHints) {
+        for (const [usageId, label] of normalizedLabelByUsage.entries()) {
+          if (label === hint) return usageId;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const pickByFallbackId = (): string | undefined => {
+    for (const fallbackId of ['default', 'default-llm']) {
+      if (Object.prototype.hasOwnProperty.call(usageToMetricsRaw, fallbackId)) return fallbackId;
+    }
+    return undefined;
+  };
+
+  const pickBySingleUsage = (): string | undefined => {
+    const usageIds = Object.keys(usageToMetricsRaw);
+    return usageIds.length === 1 ? usageIds[0] : undefined;
+  };
+
+  const pickByHeuristic = (): string | undefined => {
+    // Best-effort heuristic: pick the usage with the largest last prompt token count.
+    let best: { usageId: string; promptTokens: number } | null = null;
+    for (const [usageId, metricRaw] of Object.entries(usageToMetricsRaw)) {
+      if (!isRecord(metricRaw)) continue;
+      const lastPrompt = getLastRequestPromptTokens(metricRaw);
+      if (lastPrompt === null) continue;
+      if (!best || lastPrompt > best.promptTokens) {
+        best = { usageId, promptTokens: lastPrompt };
+      }
+    }
+    return best?.usageId;
+  };
+
+  const pickMainUsageId = (): string | undefined => {
+    return pickByExplicitId()
+      ?? pickByLabelHint()
+      ?? pickByFallbackId()
+      ?? pickBySingleUsage()
+      ?? pickByHeuristic();
+  };
+
+  const mainUsageId = pickMainUsageId();
+  const contextTokens = (() => {
+    if (!mainUsageId) return 0;
+    const metricRaw = usageToMetricsRaw[mainUsageId];
+    if (!isRecord(metricRaw)) return 0;
+    const lastPrompt = getLastRequestPromptTokens(metricRaw);
+    return lastPrompt !== null && lastPrompt > 0 ? lastPrompt : 0;
+  })();
+
   let accumulatedPromptTokens = 0;
   let accumulatedCompletionTokens = 0;
   let totalCost = 0;
@@ -45,9 +137,6 @@ export const computeConversationTotalsFromStats = (value: unknown): Conversation
     const costRaw = metricRaw.accumulatedCost ?? metricRaw.accumulated_cost;
     const cost = asFiniteNumber(costRaw);
     if (cost !== null && cost > 0) totalCost += cost;
-
-    const lastPrompt = getLastRequestPromptTokens(metricRaw);
-    if (lastPrompt !== null && lastPrompt > 0) contextTokens += lastPrompt;
 
     const usageRaw = metricRaw.accumulatedTokenUsage ?? metricRaw.accumulated_token_usage;
     if (!isRecord(usageRaw)) continue;

@@ -312,6 +312,8 @@ export function App() {
     pendingActionsBatchIdRef,
     submissionTimeoutRef,
     hasLlmUsageRef,
+    llmProfileLabel,
+    llmProfileId,
     eventId,
     showStatusMessage,
     maybeUpdateHalFlow,
