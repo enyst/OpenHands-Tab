@@ -130,12 +130,6 @@ export const validateProfile = (payload: unknown): LLMConfiguration => {
     assertValidProfileId(payload.profileId);
   }
 
-  if ('profileName' in payload && payload.profileName !== undefined && payload.profileName !== null) {
-    if (typeof payload.profileName !== 'string' || !payload.profileName.trim()) {
-      throw new LLMProfileValidationError('profileName must be a non-empty string or null');
-    }
-  }
-
   if ('provider' in payload && payload.provider !== undefined && payload.provider !== null) {
     if (!isLLMProvider(payload.provider)) {
       throw new LLMProfileValidationError(`Unsupported provider: ${JSON.stringify(payload.provider)}`);
@@ -307,6 +301,7 @@ export const saveProfile = (
   const includeSecrets = options.includeSecrets ?? false;
   const payload = includeSecrets ? { ...config } : stripSecrets(config);
   delete (payload as { profileId?: unknown }).profileId;
+  delete (payload as { profileName?: unknown }).profileName;
   validateProfile(payload);
 
   const json = `${JSON.stringify(payload, null, 2)}\n`;
@@ -361,7 +356,6 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       provider: 'gemini',
       model: 'gemini-2.5-flash',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.gemini,
-      profileName: 'Gemini Flash',
     },
   },
   {
@@ -370,7 +364,6 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       provider: 'gemini',
       model: 'gemini-2.5-flash',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.gemini,
-      profileName: 'Gemini Flash (HAL)',
     },
   },
   {
@@ -379,7 +372,6 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       provider: 'gemini',
       model: 'gemini-2.5-flash',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.gemini,
-      profileName: 'Gemini Flash (Summarizer)',
       temperature: 0.2,
       maxOutputTokens: 512,
     },
@@ -390,7 +382,6 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       provider: 'openai',
       model: 'gpt-5',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.openai,
-      profileName: 'GPT-5',
     },
   },
   {
@@ -399,7 +390,6 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       provider: 'openai',
       model: 'gpt-5-mini',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.openai,
-      profileName: 'GPT-5 Mini',
     },
   },
   {
@@ -408,7 +398,6 @@ const DEFAULT_LLM_PROFILES: Array<{ profileId: DefaultLlmProfileId; config: LLMC
       provider: 'anthropic',
       model: 'claude-sonnet-4-20250514',
       baseUrl: DEFAULT_PROVIDER_BASE_URLS.anthropic,
-      profileName: 'Sonnet 4.5',
     },
   },
 ];

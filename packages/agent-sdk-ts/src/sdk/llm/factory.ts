@@ -54,10 +54,7 @@ export class LLMFactory {
       const merged: LLMConfiguration = {
         ...profile.config,
         profileId,
-        profileName: normalizeOptionalString(profile.config.profileName) ?? profileId,
       };
-      const requestedProfileName = normalizeOptionalString(this.config.profileName);
-      if (requestedProfileName) merged.profileName = requestedProfileName;
 
       // Profiles-first: when `profileId` is set, treat the profile config as the single source
       // of truth for provider/model/baseUrl/generation config. Only allow a small override
@@ -70,7 +67,7 @@ export class LLMFactory {
     })();
 
     const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
-    const label = normalizeOptionalString(config.profileName) ?? normalizeOptionalString(config.profileId) ?? config.model;
+    const label = normalizeOptionalString(config.profileId) ?? config.model;
 
     const inlineApiKey =
       typeof config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(config.apiKey)

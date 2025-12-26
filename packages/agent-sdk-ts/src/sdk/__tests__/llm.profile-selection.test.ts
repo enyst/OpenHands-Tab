@@ -24,7 +24,6 @@ describe('LLMFactory profile selection', () => {
           provider: 'anthropic',
           model: 'IGNORED',
           profileId: 'p1',
-          profileName: 'My Profile',
           usageId: 'default',
           apiKey: 'sk-inline',
         },
@@ -36,8 +35,8 @@ describe('LLMFactory profile selection', () => {
 
       const tracked = client as TrackedLLMClient;
       expect(tracked.modelName).toBe('gpt-5');
-      expect(tracked.label).toBe('My Profile');
-      expect(stats.usageToLabels.default).toBe('My Profile');
+      expect(tracked.label).toBe('p1');
+      expect(stats.usageToLabels.default).toBe('p1');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -76,7 +75,6 @@ describe('LLMFactory profile selection', () => {
         {
           provider: 'anthropic',
           model: 'claude-sonnet-4-20250514',
-          profileName: 'Sonnet Profile',
         },
         { rootDir: dir },
       );
