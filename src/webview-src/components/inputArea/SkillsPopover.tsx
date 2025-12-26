@@ -85,7 +85,7 @@ export function SkillsPopover({
           placeholder="Search skills..."
           aria-controls={listboxId}
           aria-activedescendant={activeOptionId}
-          className="mt-2 w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/30"
+          className="mt-2 w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:border-brand-500/40"
           autoFocus
         />
       </div>
@@ -113,8 +113,8 @@ export function SkillsPopover({
                     flex items-center gap-2
                     group
                     ${isActive
-                      ? 'bg-brand-500/10 text-stone-200 border border-brand-500/25'
-                      : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300 border border-transparent'
+                      ? 'bg-brand-500/10 text-stone-200 ring-1 ring-brand-500/40'
+                      : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'
                     }
                   `}
                   data-active={isActive ? 'true' : 'false'}
