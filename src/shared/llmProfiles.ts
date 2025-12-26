@@ -1,4 +1,3 @@
-import { loadProfile } from '@openhands/agent-sdk-ts';
 import type { OpenHandsSettings } from '@openhands/agent-sdk-ts';
 
 const toOptionalNonEmptyString = (value: unknown): string | undefined => {
@@ -11,15 +10,7 @@ export const getConfiguredProfileId = (settings: OpenHandsSettings): string | un
 
 export const resolveConfiguredLlmLabel = (settings: OpenHandsSettings): string | null => {
   const profileId = getConfiguredProfileId(settings);
-  if (profileId) {
-    try {
-      const profile = loadProfile(profileId);
-      return toOptionalNonEmptyString(profile.config.profileName) ?? profileId;
-    } catch {
-      return profileId;
-    }
-  }
+  if (profileId) return profileId;
 
   return toOptionalNonEmptyString(settings.llm?.model) ?? null;
 };
-
