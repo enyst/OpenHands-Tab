@@ -113,7 +113,7 @@ export function ContextPicker({
                     transition-all duration-150
                     flex items-center gap-2
                     ${isSelected
-                      ? 'bg-brand-500/15 text-brand-300'
+                      ? `bg-brand-500/15 text-brand-300${isActive ? ' ring-1 ring-brand-500/40' : ''}`
                       : isActive
                         ? 'bg-brand-500/10 text-stone-200 ring-1 ring-brand-500/40'
                         : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'
@@ -140,4 +140,3 @@ export function ContextPicker({
     </div>
   );
 }
-
