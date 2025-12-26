@@ -68,6 +68,11 @@ const sentTestEvents: Event[] = [];
 const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
 const printedExitFor = new Map<string, true>();
 
+// Tracks which files the agent has edited during the current conversation.
+const agentEditedFiles = new Set<string>();
+const lastUserEditNoteAtMs = new Map<string, number>();
+const USER_EDIT_NOTE_DEBOUNCE_MS = 5000;
+
 function markPrintedExitFor(commandId: string): void {
   // LRU-ish: bump recency on re-add
   if (printedExitFor.has(commandId)) {
@@ -249,6 +254,38 @@ function execFileText(command: string, args: string[], cwd?: string): Promise<st
       resolve(typeof stdout === 'string' ? stdout : String(stdout));
     });
   });
+}
+
+async function getGitHeadDiffSummaryForFile(filePath: string): Promise<string> {
+  const cwd = path.dirname(filePath);
+  let root: string;
+  try {
+    root = (await execFileText('git', ['rev-parse', '--show-toplevel'], cwd)).trim();
+  } catch {
+    return '(no HEAD available)';
+  }
+
+  const relative = path.relative(root, filePath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return '(no HEAD available)';
+  }
+
+  const isTracked = await execFileText('git', ['ls-files', '--error-unmatch', '--', relative], root)
+    .then(() => true)
+    .catch(() => false);
+  if (!isTracked) {
+    return '(no HEAD available: untracked file)';
+  }
+
+  try {
+    const stat = await execFileText('git', ['diff', '--no-color', '--stat', 'HEAD', '--', relative], root);
+    const trimmed = stat.trim();
+    if (!trimmed) return '(no changes vs HEAD)';
+    const maxChars = 2000;
+    return trimmed.length > maxChars ? `${trimmed.slice(0, maxChars)}\n…(truncated)` : trimmed;
+  } catch {
+    return '(no HEAD available)';
+  }
 }
 
 async function resolveGitContext(workspaceRoot: string | undefined): Promise<{ repoName: string; branchName: string }> {
@@ -495,6 +532,32 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      void (async () => {
+        const activeConversation = conversation;
+        if (!activeConversation?.getConversationId()) return;
+        if (document.uri.scheme !== 'file') return;
+
+        const filePath = document.uri.fsPath;
+        if (!agentEditedFiles.has(filePath)) return;
+
+        const now = Date.now();
+        const last = lastUserEditNoteAtMs.get(filePath);
+        if (typeof last === 'number' && now - last < USER_EDIT_NOTE_DEBOUNCE_MS) return;
+        lastUserEditNoteAtMs.set(filePath, now);
+
+        const diffSummary = await getGitHeadDiffSummaryForFile(filePath);
+        const note = ['Environment note: user edited file:', filePath, diffSummary].join('\n');
+        try {
+          await activeConversation.sendUserMessage(note, { run: false });
+        } catch (err) {
+          outputChannel?.appendLine(`[error] Failed to record user edit note: ${renderError(err)}`);
+        }
+      })();
+    })
+  );
+
   const handleTerminalEvent = (event: BashEvent) => {
     receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
     if (receivedTerminalEvents.length > MAX_TERMINAL_EVENTS) {
@@ -632,6 +695,8 @@ export function activate(context: vscode.ExtensionContext) {
         conversation?.removeAllListeners();
         conversation?.disconnect();
       } catch {}
+      agentEditedFiles.clear();
+      lastUserEditNoteAtMs.clear();
 
       const persistenceDir =
         desiredMode === 'local'
@@ -689,6 +754,13 @@ export function activate(context: vscode.ExtensionContext) {
         isVerboseEventLogging: () => verboseEventLogging,
         bufferConversationEvent,
         resetConversationEventBacklog,
+        trackAgentEditedFile: (filePath) => {
+          agentEditedFiles.add(filePath);
+        },
+        resetAgentEditedFiles: () => {
+          agentEditedFiles.clear();
+          lastUserEditNoteAtMs.clear();
+        },
         transformEventForWebview: (event, webview) => transformEventForWebviewWithPastedImages(event, { webview, pastedImagesBaseDir }),
         safeStringify,
         renderError,

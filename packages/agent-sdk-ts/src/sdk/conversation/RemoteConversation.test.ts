@@ -150,4 +150,48 @@ describe('RemoteConversation', () => {
     ]);
     expect(parsed.workspace).toEqual({ kind: 'LocalWorkspace', working_dir: workspaceRoot });
   });
+
+  it('sends messages with run=false via HTTP', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url === 'http://localhost:3000/api/conversations') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: 'conv-run-false' }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      if (url === 'http://localhost:3000/api/conversations/conv-run-false/events') {
+        const parsed = JSON.parse(init?.body as string) as { run?: unknown; role?: unknown; content?: unknown };
+        expect(parsed.run).toBe(false);
+        expect(parsed.role).toBe('user');
+        expect(Array.isArray(parsed.content)).toBe(true);
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+    });
+
+    await conversation.startNewConversation();
+    await conversation.sendUserMessage('Environment note', { run: false });
+
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });

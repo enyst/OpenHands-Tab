@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import type { BashEvent, ConversationInstance, Event } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 import type { HostToWebviewMessage } from '../../shared/webviewMessages';
@@ -17,6 +18,8 @@ export type AttachConversationListenersDeps = {
 
   bufferConversationEvent: (event: Event) => number;
   resetConversationEventBacklog: (conversationId: string | undefined) => void;
+  trackAgentEditedFile?: (filePath: string) => void;
+  resetAgentEditedFiles?: () => void;
   safeStringify: (value: unknown) => string;
   renderError: (err: unknown) => string;
   handleTerminalEvent: (event: BashEvent) => void;
@@ -69,6 +72,19 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
         }
       }
       return;
+    }
+
+    try {
+      if (ev.kind === 'ObservationEvent' && ev.tool_name === 'file_editor') {
+        const observation = ev.observation as { command?: unknown; path?: unknown } | undefined;
+        const command = typeof observation?.command === 'string' ? observation.command : undefined;
+        const filePath = typeof observation?.path === 'string' ? observation.path : undefined;
+        if (command && command !== 'view' && filePath && path.isAbsolute(filePath)) {
+          deps.trackAgentEditedFile?.(filePath);
+        }
+      }
+    } catch (e) {
+      outputChannel?.appendLine(`[error] Failed to track agent-edited files: ${String(e)}`);
     }
 
     if (!isLlmStreamUpdate) {
@@ -131,6 +147,7 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     streamingState = initialLlmStreamingState;
 
     deps.resetConversationEventBacklog(id);
+    deps.resetAgentEditedFiles?.();
     const mode = deps.getConversationMode();
     const scopedKey = mode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
     void deps.context.workspaceState.update(scopedKey, id);

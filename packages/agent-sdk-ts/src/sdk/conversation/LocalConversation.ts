@@ -199,12 +199,23 @@ export class LocalConversation extends EventEmitter {
     }
   }
 
-  async sendUserMessage(text: string) {
+  async sendUserMessage(text: string, options?: { run?: boolean }) {
+    const run = options?.run !== false;
     await this.lock.acquire(async () => {
       if (!this.conversationId) {
         await this.startNewConversation();
       }
       this.hasUserMessage = true;
+
+      if (!run) {
+        this.events.push({
+          kind: 'MessageEvent',
+          source: 'user',
+          llm_message: { role: 'user', content: [{ type: 'text', text }] },
+        } as Event);
+        return;
+      }
+
       await this.agent.run(text);
     });
   }
