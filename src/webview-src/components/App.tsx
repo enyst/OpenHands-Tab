@@ -16,12 +16,11 @@ import { useHostMessages } from './app/useHostMessages';
 import { useConversationEvents } from './app/useConversationEvents';
 import { useLlmProfilesRequests } from './app/useLlmProfilesRequests';
 import { ConversationPane } from './app/ConversationPane';
+import { ConversationInputDock } from './app/ConversationInputDock';
 
 // Component imports
 import { Header } from './Header';
-import { InputArea } from './InputArea';
 import { ConfirmationPrompt } from './ConfirmationPrompt';
-import { StatusBanner } from './StatusBanner';
 import { HistoryView } from './HistoryView';
 import { LlmProfilesView, type LlmProfilesViewOpenRequest } from './LlmProfilesView';
 import type { HalPhase } from '../../shared/halTypes';
@@ -749,66 +748,51 @@ export function App() {
       )}
 
       {/* Input area */}
-      <div className="relative">
-        <InputArea
-          value={input}
-          onChange={handleInputChange}
-          onSubmit={handleSendMessage}
-          disabled={status === 'offline'}
-          llmProfileId={llmProfileId}
-          llmProfiles={llmProfiles}
-          onSelectLlmProfileId={handleSelectLlmProfileId}
-          onOpenLlmProfilesCreate={handleOpenLlmProfilesCreate}
-          onOpenLlmProfilesEdit={handleOpenLlmProfilesEdit}
-          onOpenContext={handleOpenContext}
-          contextCount={selectedContextFiles.length}
-          showContextPicker={showContextPicker}
-          contextPickerFiles={workspaceFiles}
-          contextPickerSelectedFiles={selectedContextFiles}
-          onToggleContextFile={handleToggleContextFile}
-          contextQuery={contextQuery}
-          onContextQueryChange={setContextQuery}
-          onCloseContextPicker={handleCloseContextPicker}
-          onOpenSkills={handleOpenSkills}
-          skillsCount={skills.length}
-          showSkillsPopover={showSkillsPopover}
-          skillsPopoverSkills={skills}
-          onOpenSkill={handleOpenSkill}
-          onCloseSkillsPopover={() => setShowSkillsPopover(false)}
-          onOpenTools={mode === 'local' ? handleOpenTools : undefined}
-          toolsCount={enabledToolIds.length}
-          showToolsPopover={showToolsPopover}
-          toolsPopoverTools={tools}
-          enabledToolIds={enabledToolIds}
-          onToggleTool={handleToggleTool}
-          onCloseToolsPopover={() => setShowToolsPopover(false)}
-          onOpenAttachments={handleOpenAttachments}
-          attachments={attachments}
-          onOpenAttachment={handleOpenAttachment}
-          onRemoveAttachment={handleRemoveAttachment}
-          inlineImages={inlineImages}
-          onPasteImageFiles={(files) => { void handlePasteImageFiles(files); }}
-          onRemoveInlineImage={handleRemoveInlineImage}
-          onSelectionChange={handleSelectionChange}
-        />
-
-        {/* Bottom status bar (below prompt + controls) */}
-        <div
-          className="px-4 pt-2 pb-2 bg-[var(--vscode-editor-background)]/95 backdrop-blur-md min-h-16"
-          data-testid="status-row"
-        >
-          {statusBanner && (
-            <StatusBanner
-              message={statusBanner.message}
-              level={statusBanner.level}
-              dismissible={statusBanner.dismissible}
-              onDismiss={() => setStatusBanner(null)}
-              autoDismiss={statusBanner.autoDismiss ?? statusBanner.level !== 'error'}
-              autoDismissDelay={statusBanner.autoDismissDelay}
-            />
-          )}
-        </div>
-      </div>
+      <ConversationInputDock
+        inputAreaProps={{
+          value: input,
+          onChange: handleInputChange,
+          onSubmit: handleSendMessage,
+          disabled: status === 'offline',
+          llmProfileId,
+          llmProfiles,
+          onSelectLlmProfileId: handleSelectLlmProfileId,
+          onOpenLlmProfilesCreate: handleOpenLlmProfilesCreate,
+          onOpenLlmProfilesEdit: handleOpenLlmProfilesEdit,
+          onOpenContext: handleOpenContext,
+          contextCount: selectedContextFiles.length,
+          showContextPicker,
+          contextPickerFiles: workspaceFiles,
+          contextPickerSelectedFiles: selectedContextFiles,
+          onToggleContextFile: handleToggleContextFile,
+          contextQuery,
+          onContextQueryChange: setContextQuery,
+          onCloseContextPicker: handleCloseContextPicker,
+          onOpenSkills: handleOpenSkills,
+          skillsCount: skills.length,
+          showSkillsPopover,
+          skillsPopoverSkills: skills,
+          onOpenSkill: handleOpenSkill,
+          onCloseSkillsPopover: () => setShowSkillsPopover(false),
+          onOpenTools: mode === 'local' ? handleOpenTools : undefined,
+          toolsCount: enabledToolIds.length,
+          showToolsPopover,
+          toolsPopoverTools: tools,
+          enabledToolIds,
+          onToggleTool: handleToggleTool,
+          onCloseToolsPopover: () => setShowToolsPopover(false),
+          onOpenAttachments: handleOpenAttachments,
+          attachments,
+          onOpenAttachment: handleOpenAttachment,
+          onRemoveAttachment: handleRemoveAttachment,
+          inlineImages,
+          onPasteImageFiles: (files) => { void handlePasteImageFiles(files); },
+          onRemoveInlineImage: handleRemoveInlineImage,
+          onSelectionChange: handleSelectionChange,
+        }}
+        statusBanner={statusBanner}
+        onDismissStatusBanner={() => setStatusBanner(null)}
+      />
 
       {/* LLM Profiles view (slide-over panel) */}
       <LlmProfilesView
