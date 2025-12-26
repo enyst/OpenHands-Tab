@@ -26,6 +26,49 @@ export type LLMSettings = {
   outputCostPerToken?: number | null;
 };
 
+export const RAW_LLM_FIELDS_IGNORED_WHEN_PROFILE_SELECTED = [
+  'provider',
+  'model',
+  'openaiApiMode',
+  'baseUrl',
+  'apiVersion',
+  'timeout',
+  'temperature',
+  'topP',
+  'topK',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'reasoningEffort',
+  'reasoningSummary',
+  'inputCostPerToken',
+  'outputCostPerToken',
+] as const;
+
+export type RawLlmFieldIgnoredWhenProfileSelected = (typeof RAW_LLM_FIELDS_IGNORED_WHEN_PROFILE_SELECTED)[number];
+
+export const clearRawLlmFieldsWhenProfileSelected = (llm: LLMSettings): LLMSettings => {
+  const profileId = typeof llm.profileId === 'string' ? llm.profileId.trim() : '';
+  if (!profileId) return llm;
+  return {
+    ...llm,
+    provider: undefined,
+    model: undefined,
+    openaiApiMode: undefined,
+    baseUrl: undefined,
+    apiVersion: undefined,
+    timeout: undefined,
+    temperature: undefined,
+    topP: undefined,
+    topK: undefined,
+    maxInputTokens: undefined,
+    maxOutputTokens: undefined,
+    reasoningEffort: undefined,
+    reasoningSummary: undefined,
+    inputCostPerToken: undefined,
+    outputCostPerToken: undefined,
+  };
+};
+
 export type ServerSettings = {
   serverUrl?: string | null;
 };
