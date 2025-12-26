@@ -21,18 +21,16 @@ import {
   MessageEventBlock,
 } from '../EventBlock';
 
-/**
- * Event dispatcher: routes agent-sdk events to appropriate rendering components.
- */
-export function RenderedEventBlock({
-  event,
-  index,
-  skills,
-}: {
+type RenderedEventBlockProps = {
   event: Event;
   index: number;
   skills: { label: string; path: string }[];
-}) {
+};
+
+/**
+ * Event dispatcher: routes agent-sdk events to appropriate rendering components.
+ */
+export function RenderedEventBlock({ event, index, skills }: RenderedEventBlockProps) {
   if (isSystemPromptEvent(event)) return <SystemPromptEventBlock event={event} index={index} skills={skills} />;
   if (isActionEvent(event)) return <ActionEventBlock event={event} index={index} />;
   if (isObservationEvent(event)) return <ObservationEventBlock event={event} index={index} />;
@@ -68,4 +66,3 @@ export function RenderedEventBlock({
     </div>
   );
 }
-
