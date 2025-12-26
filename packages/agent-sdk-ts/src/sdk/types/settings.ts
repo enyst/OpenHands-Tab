@@ -104,7 +104,7 @@ export type OpenHandsSettings = ServerSettings & {
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
     githubToken?: string;
-    elevenLabsApiKey?: string;
+    halTtsApiKey?: string;
     customSecret1?: string;
     customSecret2?: string;
     customSecret3?: string;

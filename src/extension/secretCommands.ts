@@ -35,7 +35,7 @@ async function syncSecretStatusIndicators(params: { context: vscode.ExtensionCon
 
     { key: 'openhands.secrets.sessionApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.sessionApiKey) },
     { key: 'openhands.secrets.githubToken', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.githubToken) },
-    { key: 'openhands.secrets.elevenLabsApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.elevenLabsApiKey) },
+    { key: 'openhands.hal.ttsApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.halTtsApiKey) },
     { key: 'openhands.secrets.customSecret1', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret1) },
     { key: 'openhands.secrets.customSecret2', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret2) },
     { key: 'openhands.secrets.customSecret3', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret3) },
@@ -289,14 +289,14 @@ export function registerSecretCommands(params: {
     errorPrefix: 'Failed to save GitHub token',
   });
 
-  const setElevenLabsApiKey = registerSecretCommand('openhands.setElevenLabsApiKey', {
-    title: 'ElevenLabs API Key',
-    secretKey: 'elevenLabsApiKey',
-    prompt: 'Enter your ElevenLabs API key. It will be stored securely in VS Code SecretStorage.',
+  const setHalTtsApiKey = registerSecretCommand('openhands.setHalTtsApiKey', {
+    title: 'HAL TTS API Key',
+    secretKey: 'halTtsApiKey',
+    prompt: 'Enter your HAL TTS API key. It will be stored securely in VS Code SecretStorage (currently used for the ElevenLabs backend).',
     placeHolder: 'xi-...',
-    successMessage: 'ElevenLabs API key saved securely.',
-    clearedMessage: 'ElevenLabs API key cleared.',
-    errorPrefix: 'Failed to save ElevenLabs API key',
+    successMessage: 'HAL TTS API key saved securely.',
+    clearedMessage: 'HAL TTS API key cleared.',
+    errorPrefix: 'Failed to save HAL TTS API key',
   });
 
   const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
@@ -337,7 +337,7 @@ export function registerSecretCommands(params: {
     setGeminiLlmApiKey,
     setSessionApiKey,
     setGithubToken,
-    setElevenLabsApiKey,
+    setHalTtsApiKey,
     setCustomSecret1,
     setCustomSecret2,
     setCustomSecret3,

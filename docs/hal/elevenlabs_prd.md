@@ -129,8 +129,8 @@ Settings:
 - `openhands.hal.llmProfileId`: string (default `gemini-flash-hal`) — LLM profile used for `voice_confirm` classification
 - `openhands.hal.userName`: string (default: `Engel`) — used only for templated script lines in the HAL flow
 - API key:
-  - Settings UI placeholder: `openhands.secrets.elevenLabsApiKey`
-  - Stored securely in SecretStorage: `openhands.elevenLabsApiKey` (already implemented)
+  - Settings UI placeholder: `openhands.hal.ttsApiKey`
+  - Stored securely in SecretStorage: `openhands.hal.ttsApiKey`
 - `openhands.hal.voiceAId`: string (`voice_hal` / HAL voice id)
 - `openhands.hal.voiceUserId`: string (`voice_user` / user voice id; used for `tts_only`)
 - `openhands.hal.modelId`: e.g. `eleven_turbo_v2` (optional)

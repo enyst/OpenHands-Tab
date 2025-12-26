@@ -945,7 +945,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           break;
         }
 
-        const apiKey = settings.secrets.elevenLabsApiKey ?? '';
+        const apiKey = settings.secrets.halTtsApiKey ?? '';
         const voiceId = line.voice === 'voice_hal' ? (settings.hal.voiceAId ?? '') : (settings.hal.voiceUserId ?? '');
 
         const result = await getElevenlabsTtsGate().synthesize({

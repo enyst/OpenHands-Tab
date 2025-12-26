@@ -167,7 +167,7 @@ describe('RemoteConversation', () => {
       settings: {
         ...baseSettings,
         secrets: {
-          elevenLabsApiKey: 'xi-example123',
+          halTtsApiKey: 'xi-example123',
           githubToken: 'ghp_example123',
           customSecret1: 'secret-1',
           customSecret2: 'secret-2',
@@ -351,7 +351,7 @@ describe('RemoteConversation', () => {
       settings: {
         ...baseSettings,
         secrets: {
-          elevenLabsApiKey: 'xi-example123',
+          halTtsApiKey: 'xi-example123',
           githubToken: 123 as any,
           customSecret1: {} as any,
           customSecret2: '   ' as any,

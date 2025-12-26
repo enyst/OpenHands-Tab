@@ -217,7 +217,7 @@ export class RemoteConversation extends EventEmitter {
         const secret = toStaticSecret(value);
         if (secret) typedSecrets[key] = secret;
       };
-      maybeSetSecret('ELEVENLABS_API_KEY', s?.secrets.elevenLabsApiKey);
+      maybeSetSecret('ELEVENLABS_API_KEY', s?.secrets.halTtsApiKey);
       maybeSetSecret('GITHUB_TOKEN', s?.secrets.githubToken);
       maybeSetSecret('CUSTOM_SECRET_1', s?.secrets.customSecret1);
       maybeSetSecret('CUSTOM_SECRET_2', s?.secrets.customSecret2);
