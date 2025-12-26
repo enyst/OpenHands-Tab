@@ -4,10 +4,6 @@ import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
 import type { MockLlmRequest } from './mockLlmServer';
 
-type WebviewActionResult = {
-  sent?: boolean;
-};
-
 function assertRequestHeaders(
   request: MockLlmRequest,
   options: {
@@ -54,17 +50,6 @@ export async function run(): Promise<void> {
     await setProviderApiKey('gemini', 'sk-e2e-gemini');
 
     const cfg = vscode.workspace.getConfiguration();
-    const setLlmConfig = async (
-      config: Record<string, unknown>,
-      options: { reconnect?: boolean } = {},
-    ): Promise<void> => {
-      for (const [key, value] of Object.entries(config)) {
-        await cfg.update(`openhands.llm.${key}`, value, vscode.ConfigurationTarget.Global);
-      }
-      if (options.reconnect ?? true) {
-        await vscode.commands.executeCommand('openhands.reconnect');
-      }
-    };
 
     // Force local mode + short runs for E2E.
     await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
@@ -85,14 +70,21 @@ export async function run(): Promise<void> {
       geminiStreamGenerateContent: '/v1beta/models/gemini-2.5-flash:streamGenerateContent',
     } as const;
 
-    // For profiles-first behavior, tests must create profiles that point at the mock server
-    // (profile config should be the source of truth; settings overrides should not be needed).
+    await vscode.commands.executeCommand('openhands.reconnect');
+
+    // For profiles-first behavior, tests must create profiles that point at the mock server.
+    // This suite should avoid writing raw openhands.llm.provider/model/baseUrl/openaiApiMode keys.
     const e2eProfiles = {
-      sonnet: 'e2e-switch-sonnet',
-      gpt5Mini: 'e2e-switch-gpt-5-mini',
+      anthropic: 'e2e-switch-anthropic',
+      openaiChat: 'e2e-switch-openai-chat',
+      openaiAuto: 'e2e-switch-openai-auto',
+      openaiResponses: 'e2e-switch-openai-responses',
+      openrouterChat: 'e2e-switch-openrouter-chat',
+      litellmProxy: 'e2e-switch-litellm-proxy',
+      gemini: 'e2e-switch-gemini',
     } as const;
     await vscode.commands.executeCommand('openhands._createProfile', {
-      profileId: e2eProfiles.sonnet,
+      profileId: e2eProfiles.anthropic,
       profile: {
         provider: 'anthropic',
         model: 'claude-sonnet-4-20250514',
@@ -100,21 +92,60 @@ export async function run(): Promise<void> {
       },
     });
     await vscode.commands.executeCommand('openhands._createProfile', {
-      profileId: e2eProfiles.gpt5Mini,
+      profileId: e2eProfiles.openaiChat,
+      profile: {
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        baseUrl: v1BaseUrl,
+        openaiApiMode: 'chat_completions',
+      },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.openaiAuto,
+      profile: {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        // Deliberately omit openaiApiMode so the factory uses its default auto selection
+        // (and falls back to chat_completions when baseUrl is not the default OpenAI URL).
+        baseUrl: v1BaseUrl,
+      },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.openaiResponses,
       profile: {
         provider: 'openai',
         model: 'gpt-5-mini',
         baseUrl: v1BaseUrl,
+        openaiApiMode: 'responses',
+      },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.openrouterChat,
+      profile: {
+        provider: 'openrouter',
+        model: 'google/gemini-2.0-flash',
+        baseUrl: apiV1BaseUrl,
+      },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.litellmProxy,
+      profile: {
+        provider: 'litellm_proxy',
+        model: 'gpt-4o-mini',
+        baseUrl: v1BaseUrl,
+      },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: e2eProfiles.gemini,
+      profile: {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        baseUrl: `${mock.baseUrl}/v1beta`,
       },
     });
 
     // 1) Anthropic
-    await setLlmConfig({
-      profileId: null,
-      provider: 'anthropic',
-      baseUrl: v1BaseUrl,
-      model: 'claude-sonnet-4-20250514',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.anthropic });
     await vscode.commands.executeCommand('openhands.startNewConversation');
     const anthropicReq = await sendAndWaitForRequestPath({
       text: 'E2E step 1: anthropic',
@@ -128,13 +159,7 @@ export async function run(): Promise<void> {
     });
 
     // 2) OpenAI-compatible (chat_completions)
-    await setLlmConfig({
-      profileId: null,
-      provider: 'openai',
-      openaiApiMode: 'chat_completions',
-      baseUrl: v1BaseUrl,
-      model: 'gpt-4o-mini',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.openaiChat });
     const openaiChatReq = await sendAndWaitForRequestPath({
       text: 'E2E step 2: openai chat',
       expectedPath: expectedPaths.openaiChatCompletions,
@@ -157,13 +182,7 @@ export async function run(): Promise<void> {
     }
 
     // 3) OpenAI GPT-5 auto mode + custom baseUrl should fall back to chat_completions.
-    await setLlmConfig({
-      profileId: null,
-      provider: 'openai',
-      openaiApiMode: 'auto',
-      baseUrl: v1BaseUrl,
-      model: 'gpt-5-mini',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.openaiAuto });
     const openaiAutoReq = await sendAndWaitForRequestPath({
       text: 'E2E step 3: openai gpt-5 auto (custom baseUrl)',
       expectedPath: expectedPaths.openaiChatCompletions,
@@ -176,13 +195,7 @@ export async function run(): Promise<void> {
     });
 
     // 4) OpenAI Responses API (gpt-5 + openaiApiMode=responses)
-    await setLlmConfig({
-      profileId: null,
-      provider: 'openai',
-      openaiApiMode: 'responses',
-      baseUrl: v1BaseUrl,
-      model: 'gpt-5-mini',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.openaiResponses });
     const openaiResponsesReq = await sendAndWaitForRequestPath({
       text: 'E2E step 4: openai responses',
       expectedPath: expectedPaths.openaiResponses,
@@ -205,13 +218,7 @@ export async function run(): Promise<void> {
     }
 
     // 5) Provider variation: openrouter adds extra headers and still hits chat_completions.
-    await setLlmConfig({
-      profileId: null,
-      provider: 'openrouter',
-      openaiApiMode: 'chat_completions',
-      baseUrl: apiV1BaseUrl,
-      model: 'google/gemini-2.0-flash',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.openrouterChat });
     const openrouterReq = await sendAndWaitForRequestPath({
       text: 'E2E step 5: openrouter header check',
       expectedPath: expectedPaths.openrouterChatCompletions,
@@ -231,13 +238,7 @@ export async function run(): Promise<void> {
     }
 
     // 6) litellm_proxy is OpenAI-compatible.
-    await setLlmConfig({
-      profileId: null,
-      provider: 'litellm_proxy',
-      openaiApiMode: 'chat_completions',
-      baseUrl: v1BaseUrl,
-      model: 'gpt-4o-mini',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.litellmProxy });
     const litellmReq = await sendAndWaitForRequestPath({
       text: 'E2E step 6: litellm_proxy',
       expectedPath: expectedPaths.openaiChatCompletions,
@@ -250,13 +251,7 @@ export async function run(): Promise<void> {
     });
 
     // 7) Gemini native API (streamGenerateContent SSE).
-    await setLlmConfig({
-      profileId: null,
-      provider: 'gemini',
-      openaiApiMode: null,
-      baseUrl: `${mock.baseUrl}/v1beta`,
-      model: 'gemini-2.5-flash',
-    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: e2eProfiles.gemini });
     const geminiReq = await sendAndWaitForRequestPath({
       text: 'E2E step 7: gemini',
       expectedPath: expectedPaths.geminiStreamGenerateContent,
@@ -266,58 +261,6 @@ export async function run(): Promise<void> {
       present: ['x-goog-api-key'],
       absent: ['authorization', 'x-api-key'],
       context: 'step 7: gemini',
-    });
-
-    // 8) LLM profile selection: profile should override raw provider/model/baseUrl.
-    await setLlmConfig({
-      profileId: null,
-      provider: 'openai',
-      model: 'gpt-4o-mini',
-      openaiApiMode: 'chat_completions',
-      baseUrl: v1BaseUrl,
-    });
-
-    const setProfile = await vscode.commands.executeCommand<WebviewActionResult>('openhands._webviewAction', {
-      action: 'setLlmProfileId',
-      payload: { profileId: e2eProfiles.sonnet },
-    });
-    if (!setProfile?.sent) {
-      throw new Error(`setLlmProfileId action was not sent: ${JSON.stringify(setProfile)}`);
-    }
-
-    await pollUntil(async () => {
-      const inspected = vscode.workspace.getConfiguration().inspect<string>('openhands.llm.profileId');
-      const value = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue;
-      return value === e2eProfiles.sonnet;
-    }, 15000);
-    const profileSonnetReq = await sendAndWaitForRequestPath({
-      text: `E2E step 8: profile ${e2eProfiles.sonnet}`,
-      expectedPath: expectedPaths.anthropicMessages,
-      getRequests: () => mock.requests,
-    });
-    assertRequestHeaders(profileSonnetReq, {
-      present: ['x-api-key', 'anthropic-version'],
-      absent: ['authorization', 'x-goog-api-key'],
-      context: `step 8: profile ${e2eProfiles.sonnet}`,
-    });
-
-    // 9) LLM profile selection: profile should override raw provider/model/baseUrl.
-    await setLlmConfig({
-      profileId: e2eProfiles.gpt5Mini,
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-20250514',
-      openaiApiMode: 'auto',
-      baseUrl: v1BaseUrl,
-    });
-    const profileGptReq = await sendAndWaitForRequestPath({
-      text: `E2E step 9: profile ${e2eProfiles.gpt5Mini}`,
-      expectedPath: expectedPaths.openaiChatCompletions,
-      getRequests: () => mock.requests,
-    });
-    assertRequestHeaders(profileGptReq, {
-      present: ['authorization'],
-      absent: ['x-api-key', 'x-goog-api-key'],
-      context: `step 9: profile ${e2eProfiles.gpt5Mini}`,
     });
 
     // Basic sanity: at least one request per step.
