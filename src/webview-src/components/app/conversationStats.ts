@@ -17,7 +17,7 @@ type ConversationTotalsStatsOptions = {
   /**
    * Label hints to match against `usage_to_labels` (e.g. active profile name/id).
    */
-  mainUsageLabels?: string[];
+  mainUsageLabels?: Array<string | null | undefined>;
 };
 
 const toOptionalNonEmptyString = (value: unknown): string | undefined => {
@@ -61,12 +61,15 @@ export const computeConversationTotalsFromStats = (
     .map((label) => toOptionalNonEmptyString(label))
     .filter((label): label is string => typeof label === 'string');
 
-  const pickMainUsageId = (): string | undefined => {
+  const pickByExplicitId = (): string | undefined => {
     const explicitUsageId = toOptionalNonEmptyString(options.mainUsageId);
     if (explicitUsageId && Object.prototype.hasOwnProperty.call(usageToMetricsRaw, explicitUsageId)) {
       return explicitUsageId;
     }
+    return undefined;
+  };
 
+  const pickByLabelHint = (): string | undefined => {
     if (usageToLabels && labelHints.length) {
       const normalizedLabelByUsage = new Map<string, string>();
       for (const [usageId, label] of Object.entries(usageToLabels)) {
@@ -79,14 +82,22 @@ export const computeConversationTotalsFromStats = (
         }
       }
     }
+    return undefined;
+  };
 
+  const pickByFallbackId = (): string | undefined => {
     for (const fallbackId of ['default', 'default-llm']) {
       if (Object.prototype.hasOwnProperty.call(usageToMetricsRaw, fallbackId)) return fallbackId;
     }
+    return undefined;
+  };
 
+  const pickBySingleUsage = (): string | undefined => {
     const usageIds = Object.keys(usageToMetricsRaw);
-    if (usageIds.length === 1) return usageIds[0];
+    return usageIds.length === 1 ? usageIds[0] : undefined;
+  };
 
+  const pickByHeuristic = (): string | undefined => {
     // Best-effort heuristic: pick the usage with the largest last prompt token count.
     let best: { usageId: string; promptTokens: number } | null = null;
     for (const [usageId, metricRaw] of Object.entries(usageToMetricsRaw)) {
@@ -98,6 +109,14 @@ export const computeConversationTotalsFromStats = (
       }
     }
     return best?.usageId;
+  };
+
+  const pickMainUsageId = (): string | undefined => {
+    return pickByExplicitId()
+      ?? pickByLabelHint()
+      ?? pickByFallbackId()
+      ?? pickBySingleUsage()
+      ?? pickByHeuristic();
   };
 
   const mainUsageId = pickMainUsageId();

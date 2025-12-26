@@ -105,10 +105,7 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     }
 
     if (event.key === 'stats') {
-      const mainUsageLabels = [llmProfileLabel, llmProfileId].filter(
-        (label): label is string => typeof label === 'string' && label.trim().length > 0
-      );
-      const totals = computeConversationTotalsFromStats(event.value, { mainUsageLabels });
+      const totals = computeConversationTotalsFromStats(event.value, { mainUsageLabels: [llmProfileLabel, llmProfileId] });
       if (totals) {
         setConversationTotals((prev) => {
           const nextContextTokens = hasLlmUsageRef.current ? prev.contextTokens : totals.contextTokens;
