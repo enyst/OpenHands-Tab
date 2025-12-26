@@ -132,4 +132,66 @@
     backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
+
+  /* Tooltip animations - warm technical refinement style */
+  .animate-tooltip-up {
+    animation: tooltipUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-tooltip-down {
+    animation: tooltipDown 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-tooltip-left {
+    animation: tooltipLeft 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-tooltip-right {
+    animation: tooltipRight 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/* Tooltip keyframe animations */
+@keyframes tooltipUp {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes tooltipDown {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes tooltipLeft {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+@keyframes tooltipRight {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
 }

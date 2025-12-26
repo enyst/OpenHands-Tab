@@ -1,3 +1,5 @@
+import { Tooltip } from './Tooltip';
+
 export type SecurityRiskLevel = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 
 const RISK_STYLES: Record<SecurityRiskLevel, string> = {
@@ -19,13 +21,14 @@ export function SecurityRiskBadge({ risk, labelSuffix = '' }: { risk: SecurityRi
   const label = `${risk.toLowerCase()}${labelSuffix}`;
 
   return (
-    <span
-      title={tooltip}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${RISK_STYLES[risk]}`}
-    >
-      <span className={`codicon codicon-${RISK_ICONS[risk]} text-[10px]`} />
-      {label}
-    </span>
+    <Tooltip content={tooltip} position="top">
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border cursor-default ${RISK_STYLES[risk]}`}
+      >
+        <span className={`codicon codicon-${RISK_ICONS[risk]} text-[10px]`} />
+        {label}
+      </span>
+    </Tooltip>
   );
 }
 

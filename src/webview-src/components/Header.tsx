@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ServerSelector, getServerDisplayLabel, type SavedServer } from './ServerSelector';
+import { Tooltip } from './Tooltip';
 
 interface HeaderProps {
   status: 'online' | 'offline' | 'connecting';
@@ -78,31 +79,32 @@ function IconButton({
   statusDot?: { color: string; animate?: boolean };
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`
-        relative inline-flex items-center justify-center
-        h-9 w-9 rounded-lg
-        bg-white/[0.04] border border-white/[0.06]
-        text-stone-400 hover:text-stone-200
-        transition-all duration-200
-        hover:bg-white/[0.08] hover:border-white/[0.1]
-        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
-        disabled:opacity-40 disabled:cursor-not-allowed
-      `}
-      aria-label={label}
-      title={label}
-    >
-      <span className={`codicon codicon-${icon} text-base`} />
-      {statusDot && (
-        <span
-          className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--vscode-editor-background)] ${statusDot.animate ? 'animate-pulse' : ''}`}
-          style={{ backgroundColor: statusDot.color }}
-        />
-      )}
-    </button>
+    <Tooltip content={label} position="bottom">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`
+          relative inline-flex items-center justify-center
+          h-9 w-9 rounded-lg
+          bg-white/[0.04] border border-white/[0.06]
+          text-stone-400 hover:text-stone-200
+          transition-all duration-200
+          hover:bg-white/[0.08] hover:border-white/[0.1]
+          focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+          disabled:opacity-40 disabled:cursor-not-allowed
+        `}
+        aria-label={label}
+      >
+        <span className={`codicon codicon-${icon} text-base`} />
+        {statusDot && (
+          <span
+            className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--vscode-editor-background)] ${statusDot.animate ? 'animate-pulse' : ''}`}
+            style={{ backgroundColor: statusDot.color }}
+          />
+        )}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -160,22 +162,24 @@ export function Header({
 
           {/* Server selector button - shows current server/mode */}
           <div className="relative">
-            <button
-              onClick={() => setShowServerSelector(!showServerSelector)}
-              className={`
-                flex items-center gap-2 px-3 py-1.5 rounded-lg
-                text-xs font-medium
-                transition-all duration-200
-                ${mode === 'local'
-                  ? 'bg-teal-500/15 text-teal-300 border border-teal-500/25 hover:bg-teal-500/20'
-                  : 'bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]'}
-              `}
-              title="Select server"
-            >
-              <span className={`codicon codicon-${mode === 'local' ? 'device-desktop' : 'cloud'}`} />
-              <span className="max-w-24 truncate">{getServerDisplayName()}</span>
-              <span className="codicon codicon-chevron-down text-[10px] opacity-50" />
-            </button>
+            <Tooltip content="Select server" position="bottom">
+              <button
+                onClick={() => setShowServerSelector(!showServerSelector)}
+                className={`
+                  flex items-center gap-2 px-3 py-1.5 rounded-lg
+                  text-xs font-medium
+                  transition-all duration-200
+                  ${mode === 'local'
+                    ? 'bg-teal-500/15 text-teal-300 border border-teal-500/25 hover:bg-teal-500/20'
+                    : 'bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1]'}
+                `}
+                aria-label="Select server"
+              >
+                <span className={`codicon codicon-${mode === 'local' ? 'device-desktop' : 'cloud'}`} />
+                <span className="max-w-24 truncate">{getServerDisplayName()}</span>
+                <span className="codicon codicon-chevron-down text-[10px] opacity-50" />
+              </button>
+            </Tooltip>
 
             <ServerSelector
               isOpen={showServerSelector}
