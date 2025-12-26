@@ -443,14 +443,8 @@ function LlmProfileSelector({
   const hasValidSelection = typeof profileId === 'string' && sanitizedProfiles.includes(profileId);
   const selectedProfileId = hasValidSelection ? profileId : null;
   const shouldPromptCreate = selectedProfileId === null && !hasProfiles && Boolean(onOpenCreate);
-  const shown = selectedProfileId ?? (shouldPromptCreate ? 'New profile…' : (hasProfiles ? 'Select profile…' : 'New profile…'));
-  const tooltip = selectedProfileId
-    ? `LLM profile: ${selectedProfileId}`
-    : shouldPromptCreate
-      ? 'LLM profile: New profile…'
-      : hasProfiles
-        ? 'LLM profile: Select profile…'
-        : 'LLM profile: New profile…';
+  const shown = selectedProfileId ?? (hasProfiles ? 'Select profile…' : 'New profile…');
+  const tooltip = `LLM profile: ${shown}`;
 
   const handleSelect = (next: string) => {
     onSelect(next);
