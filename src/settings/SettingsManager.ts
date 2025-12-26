@@ -243,17 +243,13 @@ export class SettingsManager {
       ? configuredProfileId
       : undefined;
     let effectiveProfileId = profileId;
-    if (!profileId) {
+    if (!effectiveProfileId) {
+      effectiveProfileId = await this.pickDefaultProfileId();
       try {
-        const selected = await this.pickDefaultProfileId();
-        effectiveProfileId = selected;
-        await this.update({ llm: { profileId: selected } }, 'global');
+        await this.update({ llm: { profileId: effectiveProfileId } }, 'global');
       } catch {
         // Best-effort: still return the computed id even if persistence fails.
       }
-    }
-    if (!effectiveProfileId) {
-      effectiveProfileId = await this.pickDefaultProfileId();
     }
 
     const profileConfig = (() => {
