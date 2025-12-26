@@ -15,7 +15,7 @@ import { useStatusMessages } from './app/useStatusMessages';
 import { useHostMessages } from './app/useHostMessages';
 import { useConversationEvents } from './app/useConversationEvents';
 import { useLlmProfilesRequests } from './app/useLlmProfilesRequests';
-import { RenderedEventBlock } from './app/RenderedEventBlock';
+import { ConversationPane } from './app/ConversationPane';
 
 // Component imports
 import { Header } from './Header';
@@ -26,9 +26,6 @@ import { HistoryView } from './HistoryView';
 import { LlmProfilesView, type LlmProfilesViewOpenRequest } from './LlmProfilesView';
 import type { HalPhase } from '../../shared/halTypes';
 import { HalOverlay } from './HalOverlay';
-import {
-  StreamingMessageBlock,
-} from './EventBlock';
 import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type RenderedEvent = { id: number; event: Event };
@@ -667,9 +664,6 @@ export function App() {
     postMessage({ type: 'setLlmProfileId', profileId });
   }, [postMessage]);
 
-  // Derived state: conversation is empty when no events and no streaming
-  const isEmptyConversation = events.length === 0 && streamingContent === null;
-
   const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
   const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
   const firstHighRiskAction = pendingActions.find((action) => action.security_risk === 'HIGH');
@@ -711,32 +705,12 @@ export function App() {
         onSwitchToLocal={handleSwitchToLocal}
       />
 
-      {/* Main conversation area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {isEmptyConversation ? (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="text-6xl mb-6">🙌</div>
-            <h2 className="text-2xl font-semibold mb-3 text-stone-100">Welcome to OpenHands</h2>
-            <p className="text-sm text-stone-400 max-w-md leading-relaxed">
-              Start a conversation to collaborate with your AI agent.
-            </p>
-            <div className="mt-6 flex items-center gap-2 text-xs text-stone-500">
-              <span className="codicon codicon-lightbulb text-brand-400" />
-              <span>Type a message below to get started</span>
-            </div>
-          </div>
-        ) : (
-          <>
-            {events.map((ev, index) => (
-              <RenderedEventBlock key={ev.id} event={ev.event} index={index} skills={skills} />
-            ))}
-            {streamingContent !== null && (
-              <StreamingMessageBlock content={streamingContent} />
-            )}
-            <div ref={endRef} />
-          </>
-        )}
-      </div>
+      <ConversationPane
+        events={events}
+        streamingContent={streamingContent}
+        skills={skills}
+        endRef={endRef}
+      />
 
       {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
       {shouldShowHalOverlay && (
