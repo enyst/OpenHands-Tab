@@ -21,6 +21,7 @@ export function Tooltip({
   delay = 400,
   className = '',
 }: TooltipProps) {
+  const [isMounted, setIsMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [actualPosition, setActualPosition] = useState(position);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,7 +30,11 @@ export function Tooltip({
 
   const setTooltipNode = useCallback((node: HTMLDivElement | null) => {
     tooltipRef.current = node;
-    if (!node || !triggerRef.current) return;
+    if (!node) return;
+    if (!triggerRef.current) {
+      setIsVisible(true);
+      return;
+    }
 
     const tooltip = node.getBoundingClientRect();
     const trigger = triggerRef.current.getBoundingClientRect();
@@ -48,6 +53,7 @@ export function Tooltip({
     }
 
     setActualPosition((prev) => (prev === nextPosition ? prev : nextPosition));
+    setIsVisible(true);
   }, [position]);
 
   const showTooltip = useCallback(() => {
@@ -58,7 +64,8 @@ export function Tooltip({
     timeoutRef.current = setTimeout(() => {
       timeoutRef.current = null;
       setActualPosition(position);
-      setIsVisible(true);
+      setIsMounted(true);
+      setIsVisible(false);
     }, delay);
   }, [delay, position]);
 
@@ -68,6 +75,7 @@ export function Tooltip({
       timeoutRef.current = null;
     }
     setIsVisible(false);
+    setIsMounted(false);
     setActualPosition(position);
   }, [position]);
 
@@ -101,7 +109,7 @@ export function Tooltip({
     right: 'animate-tooltip-right',
   };
 
-  const title = !isVisible && typeof content === 'string' ? content : undefined;
+  const title = !isMounted && typeof content === 'string' ? content : undefined;
   const trigger = isValidElement(children)
     ? cloneElement(children as ReactElement<{ title?: string }>, { title })
     : children;
@@ -116,14 +124,15 @@ export function Tooltip({
       onBlur={hideTooltip}
     >
       {trigger}
-      {isVisible && content && (
+      {isMounted && content && (
         <div
           ref={setTooltipNode}
           role="tooltip"
           className={`
             absolute z-50 pointer-events-none
             ${positionClasses[actualPosition]}
-            ${animationClasses[actualPosition]}
+            ${isVisible ? animationClasses[actualPosition] : ''}
+            ${isVisible ? 'opacity-100' : 'opacity-0'}
           `}
         >
           {/* Tooltip content */}

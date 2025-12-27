@@ -618,7 +618,7 @@ export function LlmProfilesView(props: {
                         id={profileFieldId('provider')}
                         value={form.provider}
                         onChange={(v) => update('provider', v as ProfileFormState['provider'])}
-                        preferPlacement="up"
+                        preferPlacement="down"
                         ariaLabel="Provider"
                         icon="codicon-plug"
                         options={[
@@ -833,7 +833,19 @@ export function LlmProfilesView(props: {
                                 onChange={(e) => update('maxOutputTokens', e.target.value)}
                                 disabled={maxOutputTokensSlider.disabled}
                                 aria-label="Max output tokens (slider)"
-                                className="w-full accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="
+                                  w-full h-2 rounded-lg
+                                  appearance-none bg-transparent
+                                  focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-0
+                                  disabled:opacity-50 disabled:cursor-not-allowed
+                                  [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-lg [&::-webkit-slider-runnable-track]:bg-white/10
+                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:-mt-1
+                                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-stone-300 [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/20
+                                  [&::-moz-range-track]:h-2 [&::-moz-range-track]:rounded-lg [&::-moz-range-track]:bg-white/10
+                                  [&::-moz-range-progress]:h-2 [&::-moz-range-progress]:rounded-lg [&::-moz-range-progress]:bg-white/20
+                                  [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-stone-300
+                                  [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-white/20
+                                "
                               />
                               <div className="flex items-center justify-between text-[11px] text-stone-500">
                                 <span>{MIN_OUTPUT_TOKENS}</span>
