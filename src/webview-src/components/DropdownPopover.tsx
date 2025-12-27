@@ -47,16 +47,8 @@ export function DropdownPopover({
 
     const next =
       preferPlacement === 'up'
-        ? canUp
-          ? 'up'
-          : canDown
-            ? 'down'
-            : 'up'
-        : canDown
-          ? 'down'
-          : canUp
-            ? 'up'
-            : 'down';
+        ? (canUp || !canDown) ? 'up' : 'down'
+        : (canDown || !canUp) ? 'down' : 'up';
 
     setPlacement((prev) => (prev === next ? prev : next));
   }, [isOpen, preferPlacement, triggerRef]);
