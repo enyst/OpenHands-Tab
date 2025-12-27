@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ObservationEvent } from '@openhands/agent-sdk-ts';
-import { EventContainer, FileEditorObservationSummary, OBSERVATION_ACCENT_COLOR, TerminalObservationSummary, withAlpha } from './shared';
+import { EventContainer, FileEditorObservationSummary, OBSERVATION_ACCENT_COLOR, TerminalObservationSummary, withAlpha, MarkdownMessage } from './shared';
 import { Tooltip } from '../Tooltip';
 
 /**
@@ -25,13 +25,18 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
           </div>
           <div className="font-semibold text-sm text-stone-200">Tool Result</div>
           <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
-          {finishMessage && (
-            <div className="ml-auto flex items-center gap-1.5">
-              <span className="codicon codicon-check text-green-700" />
-              <span className="text-xs font-medium text-green-700 whitespace-pre-wrap break-words">{finishMessage}</span>
-            </div>
-          )}
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="codicon codicon-check text-green-700" />
+          </div>
         </div>
+
+        {finishMessage && (
+          <div className="mt-2 text-sm leading-relaxed">
+            <div className="text-green-700">
+              <MarkdownMessage text={finishMessage} />
+            </div>
+          </div>
+        )}
       </EventContainer>
     );
   }
