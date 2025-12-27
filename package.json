@@ -42,7 +42,7 @@
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
     "onCommand:openhands.resumeCurrentRun",
-    "onView:openhands.chat"
+    "onView:openhands.agent"
   ],
   "contributes": {
     "commands": [
@@ -454,9 +454,10 @@
     "views": {
       "openhands": [
         {
-          "id": "openhands.chat",
+          "id": "openhands.agent",
           "name": "Agent",
-          "type": "webview"
+          "type": "webview",
+          "icon": "media/icons/openhands-activitybar.svg"
         }
       ]
     }
