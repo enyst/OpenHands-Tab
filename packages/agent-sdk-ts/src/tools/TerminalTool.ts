@@ -27,7 +27,9 @@ export interface TerminalResult {
   };
 }
 
-const DEFAULT_NO_CHANGE_TIMEOUT_SECONDS = 60;
+const DEFAULT_NO_CHANGE_TIMEOUT_SECONDS = 30;
+const TIMEOUT_MESSAGE_TEMPLATE =
+  'You may wait longer to see additional output by sending an empty command, send other commands to interact with the current process, send keys ("C-c", "C-z", "C-d") to interrupt/kill the previous command before sending your new command, or use the timeout parameter in terminal for future commands.';
 
 type SupportedSignal = 'SIGTERM' | 'SIGINT' | 'SIGTSTP';
 
@@ -76,7 +78,11 @@ class TerminalSession {
 
   async injectSecretsFromCommand(
     command: string,
-    secrets: { getRegisteredNames: () => string[]; get: (name: string) => Promise<string | undefined> },
+    secrets: {
+      getRegisteredNames: () => string[];
+      get: (name: string) => Promise<string | undefined>;
+      recordExported?: (name: string, value: string) => void;
+    },
   ): Promise<void> {
     const trimmed = command.trim();
     if (!trimmed) return;
@@ -93,6 +99,7 @@ class TerminalSession {
       const value = await secrets.get(candidate);
       if (!value) continue;
       updates[candidate] = value;
+      secrets.recordExported?.(candidate, value);
     }
 
     for (const [key, value] of Object.entries(updates)) {
@@ -225,13 +232,28 @@ class TerminalSession {
     }
   }
 
-  private async waitForNoChangeOrDone(cmd: RunningTerminalProcess, timeoutMs: number): Promise<'done' | 'no_change'> {
+  private async waitForState(
+    cmd: RunningTerminalProcess,
+    opts: { callStart: number; noChangeTimeoutMs: number | null; hardTimeoutMs: number | null },
+  ): Promise<'done' | 'no_change' | 'hard_timeout'> {
     if (cmd.done) return 'done';
 
     while (!cmd.done) {
-      const elapsed = Date.now() - cmd.lastActivityTs;
-      const remaining = timeoutMs - elapsed;
-      if (remaining <= 0) return 'no_change';
+      const now = Date.now();
+      const elapsedSinceActivity = now - cmd.lastActivityTs;
+      const elapsedSinceCall = now - opts.callStart;
+
+      if (opts.hardTimeoutMs !== null && elapsedSinceCall >= opts.hardTimeoutMs) {
+        return 'hard_timeout';
+      }
+      if (opts.noChangeTimeoutMs !== null && elapsedSinceActivity >= opts.noChangeTimeoutMs) {
+        return 'no_change';
+      }
+
+      const waits: number[] = [];
+      if (opts.hardTimeoutMs !== null) waits.push(Math.max(0, opts.hardTimeoutMs - elapsedSinceCall));
+      if (opts.noChangeTimeoutMs !== null) waits.push(Math.max(0, opts.noChangeTimeoutMs - elapsedSinceActivity));
+      const waitMs = waits.length > 0 ? Math.min(...waits) : 1000;
 
       await new Promise<void>((resolve) => {
         const waiter = () => {
@@ -241,16 +263,13 @@ class TerminalSession {
         const timer = setTimeout(() => {
           cleanup();
           resolve();
-        }, remaining);
+        }, waitMs);
         const cleanup = () => {
           clearTimeout(timer);
           cmd.waiters.delete(waiter);
         };
         cmd.waiters.add(waiter);
       });
-
-      if (cmd.done) return 'done';
-      if (Date.now() - cmd.lastActivityTs >= timeoutMs) return 'no_change';
     }
 
     return 'done';
@@ -267,7 +286,8 @@ class TerminalSession {
   async execute(args: {
     command: string;
     is_input: boolean;
-    timeoutSeconds: number;
+    noChangeTimeoutSeconds: number | null;
+    hardTimeoutSeconds: number | null;
   }): Promise<{
     stdout: string;
     stderr: string;
@@ -276,7 +296,15 @@ class TerminalSession {
     command: string | null;
     previous: { stdout: string; stderr: string; exitCode: number | null; command: string } | null;
   }> {
-    const timeoutMs = Math.max(0, Math.floor(args.timeoutSeconds * 1000));
+    const noChangeTimeoutMs =
+      args.noChangeTimeoutSeconds !== null && args.noChangeTimeoutSeconds !== undefined
+        ? Math.max(0, Math.floor(args.noChangeTimeoutSeconds * 1000))
+        : null;
+    const hardTimeoutMs =
+      args.hardTimeoutSeconds !== null && args.hardTimeoutSeconds !== undefined
+        ? Math.max(0, Math.floor(args.hardTimeoutSeconds * 1000))
+        : null;
+    const callStart = Date.now();
 
     let completed: { stdout: string; stderr: string; exitCode: number | null; command: string } | null = null;
     let running = this.running;
@@ -289,10 +317,16 @@ class TerminalSession {
 
     if (running) {
       if (!args.is_input && args.command.trim().length > 0) {
-        throw new Error(
-          `Cannot start a new terminal command while another is running ($ ${running.command}). ` +
-            `Poll with command="" or send input with is_input=true (e.g., "C-c" to interrupt).`,
-        );
+        const drained = this.drain(running);
+        const header = `[Your command "${args.command}" was NOT executed. The previous command ($ ${running.command}) is still running - you cannot send new commands until it completes. ${TIMEOUT_MESSAGE_TEMPLATE}]\n`;
+        return {
+          stdout: `${header}${drained.stdout}`,
+          stderr: drained.stderr,
+          exitCode: -1,
+          done: false,
+          command: args.command,
+          previous: null,
+        };
       }
       if (args.is_input) {
         const input = args.command ?? '';
@@ -308,15 +342,24 @@ class TerminalSession {
         }
       }
 
-      const status = await this.waitForNoChangeOrDone(running, timeoutMs);
+      const status = await this.waitForState(running, { callStart, noChangeTimeoutMs, hardTimeoutMs });
       const drained = this.drain(running);
       const done = status === 'done';
       const exitCode = done ? running.exitCode : -1;
       const command = running.command;
+      let stdout = drained.stdout;
+      if (status === 'no_change' && noChangeTimeoutMs !== null) {
+        const timeoutSeconds = (noChangeTimeoutMs / 1000).toFixed(1).replace(/\.0$/, '');
+        stdout += `${stdout.endsWith('\n') || stdout.length === 0 ? '' : '\n'}[The command has no new output after ${timeoutSeconds} seconds. ${TIMEOUT_MESSAGE_TEMPLATE}]`;
+      }
+      if (status === 'hard_timeout' && hardTimeoutMs !== null) {
+        const timeoutSeconds = (hardTimeoutMs / 1000).toFixed(1).replace(/\.0$/, '');
+        stdout += `${stdout.endsWith('\n') || stdout.length === 0 ? '' : '\n'}[The command timed out after ${timeoutSeconds} seconds. ${TIMEOUT_MESSAGE_TEMPLATE}]`;
+      }
       if (done) {
         this.running = null;
       }
-      return { ...drained, exitCode, done, command, previous: null };
+      return { ...drained, stdout, exitCode, done, command, previous: null };
     }
 
     if (args.is_input) {
@@ -435,18 +478,27 @@ class TerminalSession {
 
     child.on('close', (code) => {
       cmd.done = true;
+      cmd.lastActivityTs = Date.now();
       cmd.exitCode = typeof code === 'number' ? code : cmd.exitCode ?? 0;
       this.tryParseMeta(cmd);
       this.signal(cmd);
     });
 
-    const status = await this.waitForNoChangeOrDone(cmd, timeoutMs);
+    const status = await this.waitForState(cmd, { callStart, noChangeTimeoutMs, hardTimeoutMs });
     const drained = this.drain(cmd);
     const done = status === 'done';
     const exitCode = done ? cmd.exitCode : -1;
     let stdout = drained.stdout;
     const stderr = drained.stderr;
     let previous: { stdout: string; stderr: string; exitCode: number | null; command: string } | null = null;
+    if (status === 'no_change' && noChangeTimeoutMs !== null) {
+      const timeoutSeconds = (noChangeTimeoutMs / 1000).toFixed(1).replace(/\.0$/, '');
+      stdout += `${stdout.endsWith('\n') || stdout.length === 0 ? '' : '\n'}[The command has no new output after ${timeoutSeconds} seconds. ${TIMEOUT_MESSAGE_TEMPLATE}]`;
+    }
+    if (status === 'hard_timeout' && hardTimeoutMs !== null) {
+      const timeoutSeconds = (hardTimeoutMs / 1000).toFixed(1).replace(/\.0$/, '');
+      stdout += `${stdout.endsWith('\n') || stdout.length === 0 ? '' : '\n'}[The command timed out after ${timeoutSeconds} seconds. ${TIMEOUT_MESSAGE_TEMPLATE}]`;
+    }
     if (completed) {
       const completedText = [completed.stdout, completed.stderr].filter(Boolean).join('');
       const header = `[Below is the output of the previous command ($ ${completed.command}, exit_code: ${completed.exitCode ?? 0}).]\n`;
@@ -468,12 +520,12 @@ const TOOL_DESCRIPTION = `Execute a bash command in the terminal within a persis
 * One command at a time: You can only execute one bash command at a time. If you need to run multiple commands sequentially, use \`&&\` or \`;\` to chain them together.
   - If a command is still running (exit code \`-1\`), starting a different non-empty \`command\` will fail. Poll with \`command: ""\` or use \`is_input: true\` to interact with the running process.
 * Persistent session: Commands execute in a persistent shell session where environment variables, virtual environments, and working directory persist between commands.
-* Soft timeout: Commands have a soft timeout of 60 seconds, once that's reached, you have the option to continue or interrupt the command (see section below for details)
+* Soft timeout: Commands have a soft timeout of 30 seconds with no new output when no timeout is provided. If you set the "timeout" parameter on a call, it acts as a hard limit for how long that call will wait before returning (even if output is still streaming).
 * Shell options: Do NOT use \`set -e\`, \`set -eu\`, or \`set -euo pipefail\` in shell scripts or commands in this environment. The runtime may not support them and can cause unusable shell sessions. If you want to run multi-line bash commands, write the commands to a file and then run it, instead.
 
 ### Long-running Commands
 * For commands that may run indefinitely, run them in the background and redirect output to a file, e.g. \`python3 app.py > server.log 2>&1 &\`.
-* For commands that may run for a long time (e.g. installation or testing commands), or commands that run for a fixed amount of time (e.g. sleep), you should set the "timeout" parameter of your function call to an appropriate value.
+* For commands that may run for a long time (e.g. installation or testing commands), or commands that run for a fixed amount of time (e.g. sleep), you should set the "timeout" parameter of your function call to an appropriate value to control how long each call waits before returning.
 * If a bash command returns exit code \`-1\`, this means the process hit the soft timeout and is not yet finished. By setting \`is_input\` to \`true\`, you can:
   - Send empty \`command\` to retrieve additional logs
   - Send text (set \`command\` to the text) to STDIN of the running process
@@ -499,7 +551,7 @@ const terminalSchema = z.object({
       'The bash command to execute. Can be empty string to poll additional logs when the previous exit code is `-1`. Can be `C-c` (Ctrl+C) to interrupt the currently running process (use with `is_input=true`). Note: You can only execute one bash command at a time. If a command is still running, starting a different non-empty command will fail.',
     ),
   is_input: z.boolean().optional().default(false).describe('If True, the command is an input to the running process. If False, the command is a bash command to be executed in the terminal. Default is False.'),
-  timeout: z.number().nonnegative().optional().nullable().describe('Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or stop it. If you don’t set a value, the command will instead pause and ask for confirmation when it produces no new output for 60 seconds. Use a higher value if the command is expected to take a long time (like installation or testing), or if it has a known fixed duration (like sleep).'),
+  timeout: z.number().nonnegative().optional().nullable().describe('Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or stop it. If you don’t set a value, the command will instead pause and ask for confirmation when it produces no new output for 30 seconds. Use a higher value if the command is expected to take a long time (like installation or testing), or if it has a known fixed duration (like sleep).'),
   reset: z.boolean().optional().default(false).describe('If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables and session state will be lost after reset. Cannot be used with is_input=True.'),
 });
 
@@ -531,31 +583,32 @@ export class TerminalTool extends ZodTool<z.infer<typeof terminalSchema>, Termin
         await this.session.injectSecretsFromCommand(command, context.secrets);
       }
 
-      const timeoutSeconds =
-        typeof args.timeout === 'number' && Number.isFinite(args.timeout)
-          ? args.timeout
-          : DEFAULT_NO_CHANGE_TIMEOUT_SECONDS;
+      const hasHardTimeout = typeof args.timeout === 'number' && Number.isFinite(args.timeout);
+      const hardTimeoutSeconds = hasHardTimeout ? Math.max(0, args.timeout ?? 0) : null;
+      const noChangeTimeoutSeconds = hasHardTimeout ? null : DEFAULT_NO_CHANGE_TIMEOUT_SECONDS;
 
       const result = await this.session.execute({
         command,
         is_input: isInput,
-        timeoutSeconds,
+        hardTimeoutSeconds,
+        noChangeTimeoutSeconds,
       });
 
+      const mask = (text: string | undefined) => (context.secrets ? context.secrets.maskSecretsInText(text) : text ?? '');
       const exitCode = result.exitCode;
       const resolvedCommand = result.command ?? command;
       return {
         command: resolvedCommand,
-        stdout: result.stdout,
-        stderr: result.stderr,
+        stdout: mask(result.stdout),
+        stderr: mask(result.stderr),
         exit_code: exitCode,
         timeout: exitCode === -1,
         previous: result.previous
           ? {
               command: result.previous.command,
               exit_code: result.previous.exitCode,
-              stdout: result.previous.stdout,
-              stderr: result.previous.stderr,
+              stdout: mask(result.previous.stdout),
+              stderr: mask(result.previous.stderr),
             }
           : undefined,
       };

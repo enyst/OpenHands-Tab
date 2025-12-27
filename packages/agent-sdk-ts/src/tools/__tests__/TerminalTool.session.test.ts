@@ -32,7 +32,8 @@ describe('TerminalTool session behavior', () => {
     );
 
     expect(result.exit_code).toBe(0);
-    expect((result.stdout ?? '').trim()).toBe('ghp_example123');
+    expect((result.stdout ?? '').trim()).toBe('<secret-hidden>');
+    expect(result.stdout ?? '').not.toContain('ghp_example123');
 
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
   });
@@ -131,9 +132,11 @@ describe('TerminalTool session behavior', () => {
     const started = await tool.execute(tool.validate({ command: 'sleep 2', timeout: 0.05 }), { workspace });
     expect(started.exit_code).toBe(-1);
 
-    await expect(tool.execute(tool.validate({ command: 'echo nope', timeout: 0.05 }), { workspace })).rejects.toThrowError(
-      /Cannot start a new terminal command/i,
-    );
+    const blocked = await tool.execute(tool.validate({ command: 'echo nope', timeout: 0.05 }), { workspace });
+    expect(blocked.exit_code).toBe(-1);
+    expect(`${blocked.stdout ?? ''}${blocked.stderr ?? ''}`).toMatch(/NOT executed/i);
+    expect(blocked.command).toBe('echo nope');
+    expect(`${blocked.stdout ?? ''}${blocked.stderr ?? ''}`).toContain('sleep 2');
 
     await tool.execute(tool.validate({ command: 'C-c', is_input: true, timeout: 0.2 }), { workspace });
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });

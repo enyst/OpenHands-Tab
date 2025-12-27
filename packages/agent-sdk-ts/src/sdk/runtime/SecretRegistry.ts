@@ -11,6 +11,7 @@ const loadVscode = (): typeof import('vscode') | null => {
 
 export class SecretRegistry {
   private readonly secrets: Map<string, string> = new Map();
+  private readonly exportedValues: Map<string, string> = new Map();
   private readonly vscodeApi: typeof import('vscode') | null;
   private readonly storage?: SecretStorage;
 
@@ -34,7 +35,11 @@ export class SecretRegistry {
 
   async get(name: string): Promise<string | undefined> {
     if (this.secrets.has(name)) {
-      return this.secrets.get(name);
+      const value = this.secrets.get(name);
+      if (value) {
+        this.exportedValues.set(name, value);
+      }
+      return value;
     }
 
     // Prefer SecretStorage over environment variables to allow user-set keys to override env.
@@ -42,6 +47,7 @@ export class SecretRegistry {
       const stored = await this.storage.get(name);
       if (stored) {
         this.secrets.set(name, stored);
+        this.exportedValues.set(name, stored);
         return stored;
       }
     }
@@ -50,10 +56,27 @@ export class SecretRegistry {
     const envValue = process.env[envKey];
     if (envValue) {
       this.secrets.set(name, envValue);
+      this.exportedValues.set(name, envValue);
       return envValue;
     }
 
     return undefined;
+  }
+
+  recordExported(name: string, value: string): void {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    this.exportedValues.set(name, trimmed);
+  }
+
+  maskSecretsInText(text: string | undefined | null): string {
+    if (!text) return text ?? '';
+    let masked = text;
+    for (const value of this.exportedValues.values()) {
+      if (!value) continue;
+      masked = masked.split(value).join('<secret-hidden>');
+    }
+    return masked;
   }
 
   getRegisteredValues(): string[] {
