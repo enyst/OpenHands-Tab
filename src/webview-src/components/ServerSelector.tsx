@@ -152,6 +152,8 @@ export function ServerSelector({
               return (
                 <div
                   key={server.url}
+                  role="option"
+                  aria-selected={selected}
                   className={`
                     flex items-center gap-2 px-3 py-2 rounded-lg
                     text-sm
@@ -166,8 +168,6 @@ export function ServerSelector({
                       onClose();
                     }}
                     className="flex-1 text-left flex items-center gap-2"
-                    role="option"
-                    aria-selected={selected}
                   >
                     <span className="codicon codicon-cloud" />
                     <div className="flex-1 min-w-0">
