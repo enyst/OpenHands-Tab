@@ -96,6 +96,8 @@ export function LlmProfilesView(props: {
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const activeProfileIdRef = useRef<string | null>(null);
+  const didInitializeSelectionRef = useRef(false);
+  const lastHandledOpenRequestRef = useRef<string | null>(null);
   const [profiles, setProfiles] = useState<string[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [mode, setMode] = useState<ProfileFormMode>('create');
@@ -222,15 +224,36 @@ export function LlmProfilesView(props: {
   }, [applyEditorTransition, loadProfile]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    if (openRequest?.mode === 'create') {
-      startCreate();
+    if (!isOpen) {
+      didInitializeSelectionRef.current = false;
+      lastHandledOpenRequestRef.current = null;
       return;
     }
-    if (openRequest?.mode === 'edit') {
-      void startEdit(openRequest.profileId);
-      return;
+
+    const openRequestKey = (() => {
+      if (!openRequest) return null;
+      if (openRequest.mode === 'create') return 'create';
+      if (openRequest.mode === 'edit') return `edit:${openRequest.profileId}`;
+      return null;
+    })();
+
+    if (openRequest && openRequestKey && lastHandledOpenRequestRef.current !== openRequestKey) {
+      lastHandledOpenRequestRef.current = openRequestKey;
+      didInitializeSelectionRef.current = true;
+
+      if (openRequest.mode === 'create') {
+        startCreate();
+        return;
+      }
+      if (openRequest.mode === 'edit') {
+        void startEdit(openRequest.profileId);
+        return;
+      }
     }
+
+    if (didInitializeSelectionRef.current) return;
+    didInitializeSelectionRef.current = true;
+
     const normalizedActiveProfileId = typeof activeProfileId === 'string' ? activeProfileId.trim() : '';
     if (normalizedActiveProfileId) {
       void startEdit(normalizedActiveProfileId);
