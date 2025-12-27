@@ -54,7 +54,9 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
         w-full px-3 py-2 rounded-lg
         bg-white/[0.03] border border-white/[0.06]
         text-stone-200 placeholder:text-stone-600
-        focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+        focus:outline-none focus:ring-0
+        focus:border-white/[0.08]
+        focus:shadow-[0_0_0_1px_rgba(232,166,66,0.16)]
         disabled:opacity-50 disabled:cursor-not-allowed
         ${hideNumberSpinners}
       `}
