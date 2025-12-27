@@ -15,6 +15,7 @@ import { useStatusMessages } from './app/useStatusMessages';
 import { useHostMessages } from './app/useHostMessages';
 import { useConversationEvents } from './app/useConversationEvents';
 import { useLlmProfilesRequests } from './app/useLlmProfilesRequests';
+import { useWebviewReady } from './app/useWebviewReady';
 import { ConversationPane } from './app/ConversationPane';
 import { ConversationInputDock } from './app/ConversationInputDock';
 
@@ -28,11 +29,6 @@ import { HalOverlay } from './HalOverlay';
 import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type RenderedEvent = { id: number; event: Event };
-
-type WebviewPersistedState = {
-  conversationId?: string;
-  lastSeenSeq?: number;
-};
 
 /**
  * Main App component: React webview root for OpenHands extension.
@@ -255,37 +251,7 @@ export function App() {
     setConversationTotals,
   });
 
-  // Signal webview is ready on mount
-  useEffect(() => {
-    const vscodeApi = getVscodeApi();
-    let didRequestSkills = false;
-    let didRequestTools = false;
-    const sendReady = () => {
-      const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
-      const payload: WebviewToHostMessage = { type: 'webviewReady' };
-      if (typeof state.conversationId === 'string') payload.conversationId = state.conversationId;
-      if (typeof state.lastSeenSeq === 'number') payload.lastSeenSeq = state.lastSeenSeq;
-      postMessage(payload);
-      if (!didRequestSkills) {
-        didRequestSkills = true;
-        postMessage({ type: 'requestSkills' });
-      }
-      if (!didRequestTools) {
-        didRequestTools = true;
-        postMessage({ type: 'requestTools' });
-      }
-    };
-
-    sendReady();
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        sendReady();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [postMessage]);
+  useWebviewReady({ postMessage });
 
   useHostMessages({
     applyHalSettings,
