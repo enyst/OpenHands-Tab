@@ -94,6 +94,11 @@
     outline: none;
     background-color: rgba(255, 255, 255, 0.1);
   }
+
+  /* Don't double-apply background to buttons inside option containers */
+  [role="option"] button:focus-visible {
+    background-color: transparent;
+  }
 }
 
 /* Custom utilities for OpenHands design */
