@@ -32,7 +32,8 @@ export function Tooltip({
     tooltipRef.current = node;
     if (!node) return;
     if (!triggerRef.current) {
-      setIsVisible(true);
+      setIsVisible(false);
+      setIsMounted(false);
       return;
     }
 
