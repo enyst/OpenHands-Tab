@@ -527,7 +527,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'setLlmProfileId': {
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
-        await settingsMgr.update({ llm: { profileId } });
+        try {
+          await settingsMgr.update({ llm: { profileId } }, 'global');
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          outputChannel?.appendLine(`[settings] Failed to persist LLM profile selection: ${reason}`);
+          postStatusError(`Failed to save profile selection: ${reason}`);
+          break;
+        }
 
         const updated = await settingsMgr.get();
         try {
@@ -620,7 +627,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           const before = await settingsMgr.get();
           const activeProfileId = before.llm.profileId ?? null;
           if (activeProfileId === profileId) {
-            await settingsMgr.update({ llm: { profileId: '' } });
+            await settingsMgr.update({ llm: { profileId: '' } }, 'global');
             void host.postMessage({
               type: 'statusMessage',
               level: 'error',

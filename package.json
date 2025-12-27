@@ -158,6 +158,7 @@
           "openhands.llm.profileId": {
             "type": "string",
             "default": "",
+            "scope": "machine",
             "order": 0,
             "markdownDescription": "LLM profile identifier (filename stem). OpenHands loads provider/model/baseUrl/tuning from `~/.openhands/llm-profiles/<profileId>.json`.\n\nTo manage profiles and API keys, use the **LLM Profiles** view inside the OpenHands sidebar."
           }
