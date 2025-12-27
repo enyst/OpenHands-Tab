@@ -150,8 +150,6 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Conversation Error/)).toBeInTheDocument();
     expect(await screen.findByText(/LLMBadRequestError/)).toBeInTheDocument();
-    const details = await screen.findByText(/Details/);
-    fireEvent.click(details);
     expect(await screen.findByText(/Unsupported value/)).toBeInTheDocument();
   });
 

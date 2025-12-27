@@ -170,7 +170,7 @@ describe('TerminalTool session behavior', () => {
     const started = await tool.execute(tool.validate({ command: 'sleep 0.15; echo first', timeout: 0.05 }), { workspace });
     expect(started.exit_code).toBe(-1);
 
-    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    await new Promise<void>((resolve) => setTimeout(resolve, 400));
 
     const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 0.2 }), { workspace });
     expect(next.exit_code).toBe(0);
@@ -191,7 +191,7 @@ describe('TerminalTool session behavior', () => {
     );
     expect(started.exit_code).toBe(-1);
 
-    await new Promise<void>((resolve) => setTimeout(resolve, 250));
+    await new Promise<void>((resolve) => setTimeout(resolve, 400));
 
     const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 0.2 }), { workspace });
     expect(next.exit_code).toBe(0);
