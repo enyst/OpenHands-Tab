@@ -148,19 +148,21 @@ function ConversationItem({
         </div>
       </button>
 
-      <Tooltip content={isActive ? 'Cannot delete active conversation' : 'Delete conversation'} position="left" className="absolute right-3 top-3">
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={isActive}
-          className={`h-7 w-7 rounded-md text-stone-500 flex items-center justify-center transition-all ${isActive
-            ? 'opacity-40 cursor-not-allowed'
-            : 'hover:text-stone-200 hover:bg-white/[0.06]'}`}
-          aria-label="Delete conversation"
-        >
-          <span className="codicon codicon-trash text-sm" />
-        </button>
-      </Tooltip>
+      <div className="absolute right-3 top-4">
+        <Tooltip content={isActive ? 'Cannot delete active conversation' : 'Delete conversation'} position="left">
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isActive}
+            className={`h-7 w-7 rounded-md text-stone-500 flex items-center justify-center transition-all ${isActive
+              ? 'opacity-40 cursor-not-allowed'
+              : 'hover:text-stone-200 hover:bg-white/[0.06]'}`}
+            aria-label="Delete conversation"
+          >
+            <span className="codicon codicon-trash text-sm" />
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 }
