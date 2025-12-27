@@ -8,6 +8,34 @@ import { Tooltip } from '../Tooltip';
  */
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const isFinishTool = event.tool_name === 'finish';
+  const maybeMessage = isFinishTool ? event.observation['message'] : undefined;
+  const finishMessage = typeof maybeMessage === 'string' ? maybeMessage.trim() : '';
+
+  // Special-case: Finish tool should show a concise, green summary inline on the header row
+  if (isFinishTool) {
+    return (
+      <EventContainer accentColor={OBSERVATION_ACCENT_COLOR} bgOpacity={0.04} index={index}>
+        <div className="flex items-center gap-2.5 mb-3">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: withAlpha(OBSERVATION_ACCENT_COLOR, 9) }}
+          >
+            <span className="codicon codicon-eye text-sm" style={{ color: OBSERVATION_ACCENT_COLOR }} />
+          </div>
+          <div className="font-semibold text-sm text-stone-200">Tool Result</div>
+          <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
+          {finishMessage && (
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="codicon codicon-check text-green-700" />
+              <span className="text-xs font-medium text-green-700 whitespace-pre-wrap break-words">{finishMessage}</span>
+            </div>
+          )}
+        </div>
+      </EventContainer>
+    );
+  }
+
   const isFileEditObservation = (() => {
     if (event.tool_name !== 'file_editor') return false;
     const candidate = (event.observation as Record<string, unknown> | null) ?? null;
