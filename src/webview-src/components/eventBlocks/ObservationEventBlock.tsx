@@ -9,11 +9,8 @@ import { Tooltip } from '../Tooltip';
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isFinishTool = event.tool_name === 'finish';
-  let finishMessage = '';
-  if (isFinishTool) {
-    const maybe = (event.observation ?? {}) as { message?: unknown };
-    if (typeof maybe.message === 'string') finishMessage = maybe.message.trim();
-  }
+  const maybeMessage = isFinishTool ? event.observation['message'] : undefined;
+  const finishMessage = typeof maybeMessage === 'string' ? maybeMessage.trim() : '';
 
   // Special-case: Finish tool should show a concise, green summary inline on the header row
   if (isFinishTool) {
