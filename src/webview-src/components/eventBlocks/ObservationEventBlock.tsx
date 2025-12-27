@@ -27,8 +27,8 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
           <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
           {finishMessage && (
             <div className="ml-auto flex items-center gap-1.5">
-              <span className="codicon codicon-check text-emerald-400" />
-              <span className="text-xs font-medium text-emerald-400 whitespace-pre-wrap break-words">{finishMessage}</span>
+              <span className="codicon codicon-check text-green-700" />
+              <span className="text-xs font-medium text-green-700 whitespace-pre-wrap break-words">{finishMessage}</span>
             </div>
           )}
         </div>
