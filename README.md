@@ -1,6 +1,6 @@
 # OpenHands-Tab Prototype
 
-<img width="1278" height="830" alt="image" src="https://github.com/user-attachments/assets/2f259567-d906-44ba-8f08-eef92585890d" />
+<img width="607" height="450" alt="image" src="https://github.com/user-attachments/assets/32e27cd3-452a-4a90-bf57-45a1b4f76ec8" />
 
 A VS Code extension for interacting with OpenHands AI agents directly in your IDE.
 
