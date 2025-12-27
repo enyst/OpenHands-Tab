@@ -10,7 +10,7 @@ The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation fo
 
 The SDK is organized into seven main layers:
 
-### 1. Conversation Layer (`src/conversation/`) - Primary API
+### 1. Conversation Layer (`src/sdk/conversation/`) - Primary API
 
 High-level conversation management with dual-mode support (local vs remote execution):
 
@@ -31,7 +31,7 @@ High-level conversation management with dual-mode support (local vs remote execu
   - HTTP fallback for message delivery when WebSocket unavailable
   - Exponential backoff retry strategy (1s base, 15s max, 10 retries)
 
-### 2. Context Layer (`src/context/`)
+### 2. Context Layer (`src/sdk/context/`)
 Prompt extension and skill management:
 
 - **`AgentContext`** - Central structure for managing prompt extensions
@@ -54,7 +54,7 @@ Prompt extension and skill management:
 Skills are loaded from:
 1. `~/.openhands/skills/` - Primary skills directory
 
-### 3. Runtime Layer (`src/runtime/`)
+### 3. Runtime Layer (`src/sdk/runtime/`)
 Agent execution and state management:
 
 - **`AgentOrchestrator`** - Core orchestration layer that manages LLM streaming, tool calls, and conversation flow
@@ -85,7 +85,7 @@ Agent execution and state management:
   - Queue-based lock acquisition
 
 
-### 4. LLM Integration Layer (`src/llm/`)
+### 4. LLM Integration Layer (`src/sdk/llm/`)
 Streaming LLM clients and configuration:
 
 - **`types.ts`** - Core LLM types and interfaces
@@ -200,19 +200,21 @@ packages/agent-sdk-ts/
 ├── src/
 │   ├── index.ts              # Main exports
 │   ├── browser.ts            # Browser-specific exports
-│   ├── conversation/         # Conversation layer (primary API)
-│   │   ├── index.ts          # Conversation() factory
-│   │   ├── LocalConversation.ts
-│   │   └── RemoteConversation.ts
-│   ├── context/              # Context and skills layer
-│   │   ├── agent-context.ts  # AgentContext class
-│   │   └── skills/           # Skill system
-│   │       ├── skill.ts      # Skill class and loading
-│   │       └── types.ts      # Skill types
-│   ├── types/                # Protocol types and guards
-│   ├── runtime/              # Agent runtime and state
-│   ├── llm/                  # LLM clients and streaming
+│   ├── sdk/                  # SDK core modules
+│   │   ├── conversation/     # Conversation layer (primary API)
+│   │   │   ├── index.ts      # Conversation() factory
+│   │   │   ├── LocalConversation.ts
+│   │   │   └── RemoteConversation.ts
+│   │   ├── context/          # Context and skills layer
+│   │   │   ├── agent-context.ts  # AgentContext class
+│   │   │   └── skills/       # Skill system
+│   │   │       ├── skill.ts  # Skill class and loading
+│   │   │       └── types.ts  # Skill types
+│   │   ├── types/            # Protocol types and guards
+│   │   ├── runtime/          # Agent runtime and state
+│   │   └── llm/              # LLM clients and streaming
 │   ├── tools/                # Tool implementations
+│   ├── types/                # Additional protocol types
 │   ├── workspace/            # File system abstraction
 │   └── __tests__/            # Unit tests
 ├── dist/                     # Generated bundles (ESM/CJS)

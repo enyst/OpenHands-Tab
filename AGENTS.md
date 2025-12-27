@@ -4,7 +4,7 @@ Essential information for working with this codebase.
 
 ## Prerequisites
 
-- Node.js 22 LTS (npm >= 10)
+- Node.js >= 22 (npm >= 10)
 - VS Code >= 1.104
 
 
@@ -85,7 +85,7 @@ code "$(pwd)" --extensionDevelopmentPath="$(pwd)"
 
 If tooling is missing in your environment:
 
-- Install Node 22 (e.g., with nvm: `nvm install 22 && nvm use 22`, or via tarball)
+- Install Node.js >= 22 (e.g., with nvm: `nvm install 22 && nvm use 22`, or via tarball)
 - Ensure `node` and `npm` are on PATH
 
 ## Project Structure

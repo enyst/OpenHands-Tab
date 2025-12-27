@@ -60,7 +60,7 @@ The conversation layer provides the main API for the SDK, wrapping all lower lay
 
 **Purpose**: Entry point for creating conversation instances with automatic mode detection.
 
-**Files**: `src/conversation/index.ts`
+**Files**: `src/sdk/conversation/index.ts`
 
 **API**:
 ```typescript
@@ -110,7 +110,7 @@ interface ConversationInstance {
 
 ### LocalConversation
 
-**File**: `src/conversation/LocalConversation.ts`
+**File**: `src/sdk/conversation/LocalConversation.ts`
 
 **Purpose**: In-memory agent execution within VS Code without an external agent-server.
 
@@ -132,7 +132,7 @@ LocalConversation supports persistent conversations through the `persistenceDir`
 
 ### RemoteConversation
 
-**File**: `src/conversation/RemoteConversation.ts`
+**File**: `src/sdk/conversation/RemoteConversation.ts`
 
 **Purpose**: WebSocket-based connection to OpenHands agent-server.
 
@@ -259,7 +259,7 @@ The context layer manages prompt extensions through skills and agent context, en
 
 **Purpose**: Central structure for managing all prompt extensions and contextual inputs that shape how the system interprets user requests.
 
-**Files**: `src/context/agent-context.ts`
+**Files**: `src/sdk/context/agent-context.ts`
 
 **Key Responsibilities**:
 - Manage repository context, runtime context, and conversation instructions
@@ -323,7 +323,7 @@ const augmented = context.getUserMessageSuffix(userMessage);
 
 **Purpose**: Provides specialized knowledge or functionality that can be activated based on triggers.
 
-**Files**: `src/context/skills/skill.ts`, `src/context/skills/types.ts`
+**Files**: `src/sdk/context/skills/skill.ts`, `src/sdk/context/skills/types.ts`
 
 **Key Responsibilities**:
 - Load skills from markdown files with frontmatter metadata
@@ -947,7 +947,7 @@ interface LLMClient {
 
 ### Anthropic Client
 
-**File**: `src/llm/anthropic.ts`
+**File**: `src/sdk/llm/anthropic.ts`
 
 **Features**:
 - Native Anthropic Messages API
@@ -984,7 +984,7 @@ class AnthropicClient implements LLMClient {
 
 ### OpenAI-Compatible Client
 
-**File**: `src/llm/openai-compatible.ts`
+**File**: `src/sdk/llm/openai-compatible.ts`
 
 **Supports**:
 - OpenAI
@@ -999,9 +999,26 @@ class AnthropicClient implements LLMClient {
 - Retry logic with exponential backoff
 - Custom base URLs
 
+### Gemini Client
+
+**File**: `src/sdk/llm/gemini.ts`
+
+**Features**:
+- Native Google Gemini API integration
+- Streaming support
+- Tool calling with Gemini format
+- Multi-modal support (text and images)
+- Token usage tracking
+
+**Supported Models**:
+- gemini-2.0-flash-exp
+- gemini-1.5-flash
+- gemini-1.5-pro
+- And other Gemini models via API
+
 ### LLM Factory
 
-**File**: `src/llm/factory.ts`
+**File**: `src/sdk/llm/factory.ts`
 
 **Purpose**: Auto-detect provider and create appropriate client.
 
@@ -1026,7 +1043,7 @@ const client2 = await new LLMFactory({
 
 ### Credential Management
 
-**File**: `src/llm/credentials.ts`
+**File**: `src/sdk/llm/credentials.ts`
 
 **Resolution Order**:
 1. Explicit `apiKey` in configuration
@@ -1227,17 +1244,27 @@ console.log(result.content);  // Response body
 - Enforces write operations against `PLAN.md` while allowing read access to other files
 - Supports simple view ranges and inline replacement/insert helpers for plan content
 
-### IntegratedTerminalRunner
+### FinishTool
 
-**File**: `src/tools/IntegratedTerminalRunner.ts`
+**File**: `src/tools/FinishTool.ts`
 
-**Purpose**: Execute commands in VS Code integrated terminal with streaming output.
+**Capabilities**:
+- Signal that the agent has completed its task and should stop the current run
+- Optional message parameter to describe why the agent is finished
 
-**Features**:
-- Real-time output streaming
-- Terminal lifecycle management
-- Multiple terminal support
-- Command history
+**Usage Example**:
+```typescript
+import { FinishTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
+
+const workspace = new LocalWorkspace('/workspace');
+const finish = new FinishTool();
+const context = { workspace };
+
+// Signal completion
+const result = await finish.execute({
+  message: 'Task completed successfully'
+}, context);
+```
 
 ## Layer 5: Workspace Abstraction
 
@@ -1660,7 +1687,6 @@ describe('Type Guards', () => {
 ### Planned Features
 
 1. **Additional LLM Providers**
-   - Google Gemini
    - Mistral
    - Cohere
 
