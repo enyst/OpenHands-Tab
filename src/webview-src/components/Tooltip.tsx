@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, type ReactNode, useEffect, isValidElement, cloneElement, type ReactElement } from 'react';
+import { useState, useRef, useCallback, type ReactNode, useEffect } from 'react';
 
 type TooltipPosition = 'top' | 'bottom' | 'left' | 'right';
 
@@ -109,11 +109,6 @@ export function Tooltip({
     right: 'animate-tooltip-right',
   };
 
-  const title = !isMounted && typeof content === 'string' ? content : undefined;
-  const trigger = isValidElement(children)
-    ? cloneElement(children as ReactElement<{ title?: string }>, { title })
-    : children;
-
   return (
     <div
       ref={triggerRef}
@@ -123,7 +118,7 @@ export function Tooltip({
       onFocus={showTooltip}
       onBlur={hideTooltip}
     >
-      {trigger}
+      {children}
       {isMounted && content && (
         <div
           ref={setTooltipNode}
