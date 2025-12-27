@@ -2,8 +2,7 @@
   "name": "openhands-tab",
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
-  "icon": "media/icons/openhands-activitybar.svg",
-
+  "icon": "media/icons/openhands-icon.png",
   "version": "0.0.4",
   "description": "A VS Code extension to interact with OpenHands agents in a dedicated sidebar chat view",
   "license": "MIT",
@@ -509,6 +508,7 @@
     "ws"
   ],
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/cli": "^4.1.13",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
