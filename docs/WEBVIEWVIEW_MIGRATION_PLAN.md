@@ -44,7 +44,7 @@ The webview sent a `webviewReady` handshake. The extension host responded by re-
 What “clicking the OpenHands icon” should do is now straightforward: it should reveal the OpenHands view container and the chat `WebviewView`.
 
 End-state UX (no double-open, no editor tab):
-- Chat UI is a single sidebar `WebviewView` (e.g. `openhands.chat`).
+- Chat UI is a single sidebar `WebviewView` (e.g. `openhands.agent`).
 - The OpenHands view container contains only the chat view; any “quick actions” should move into the chat header (or live only in the command palette).
 
 ### Notes: `WebviewView` constraints
@@ -53,7 +53,7 @@ End-state UX (no double-open, no editor tab):
 - The extension should provide one “open” command whose job is to focus/reveal the view (and nothing else).
 
 Recommended command surface:
-- `OpenHands: Open` (command id `openhands.open`) reveals the OpenHands view container and focuses `openhands.chat`.
+- `OpenHands: Open` (command id `openhands.open`) reveals the OpenHands view container and focuses `openhands.agent`.
 - `openhands.openTab` is removed as part of the migration (clean command surface; no alias).
 
 ---
@@ -116,11 +116,11 @@ This is the main “state restore nuance” required to achieve parity with `Web
 Tasks:
 - `package.json`
   - Add a new contributed view in the `openhands` container:
-    - `id`: `openhands.chat`
+    - `id`: `openhands.agent`
     - `type`: `webview`
-  - Add activation event: `onView:openhands.chat`
+  - Add activation event: `onView:openhands.agent`
 - Extension host
-  - Register `vscode.window.registerWebviewViewProvider('openhands.chat', provider, { webviewOptions: { retainContextWhenHidden: true } })`
+  - Register `vscode.window.registerWebviewViewProvider('openhands.agent', provider, { webviewOptions: { retainContextWhenHidden: true } })`
   - Provider `resolveWebviewView(webviewView, ...)` sets:
     - `webviewView.webview.options = { enableScripts: true, localResourceRoots: [...] }`
     - `webviewView.webview.html = getWebviewHtml(...)`

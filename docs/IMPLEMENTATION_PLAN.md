@@ -143,7 +143,7 @@ Status: COMPLETED
 Plan: `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`
 
 Implementation:
-- Chat UI moved to a sidebar `WebviewView` (`openhands.chat`)
+- Chat UI moved to a sidebar `WebviewView` (`openhands.agent`)
 - Removed editor `WebviewPanel` and legacy `openhands.openTab` / quick-actions view
 - Added event backlog + `webviewReady` catch-up for hide/show lifecycle
 - Updated unit + e2e tests and docs for the new command surface
@@ -156,7 +156,6 @@ Status: TODO
 Backlog (webview-facing):
 - MCP server selection UI (if/when MCP integration lands)
 - History UX improvements (search implemented in PR #203; pagination TBD)
-- Mid-conversation LLM switching UX (may require conversation boundary semantics)
 
 ## Notes
 - Fonts/CSP: Keep CSP strict; rely on fallback fonts. Optionally localize fonts later.
