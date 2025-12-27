@@ -155,43 +155,43 @@
 @keyframes tooltipUp {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(4px);
+    transform: translateY(4px);
   }
   100% {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
   }
 }
 
 @keyframes tooltipDown {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
+    transform: translateY(-4px);
   }
   100% {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
   }
 }
 
 @keyframes tooltipLeft {
   0% {
     opacity: 0;
-    transform: translateY(-50%) translateX(4px);
+    transform: translateX(4px);
   }
   100% {
     opacity: 1;
-    transform: translateY(-50%) translateX(0);
+    transform: translateX(0);
   }
 }
 
 @keyframes tooltipRight {
   0% {
     opacity: 0;
-    transform: translateY(-50%) translateX(-4px);
+    transform: translateX(-4px);
   }
   100% {
     opacity: 1;
-    transform: translateY(-50%) translateX(0);
+    transform: translateX(0);
   }
 }
