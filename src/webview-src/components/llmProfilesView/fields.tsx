@@ -36,6 +36,9 @@ type InputFieldProps = {
 };
 
 export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function InputField(props, ref) {
+  const hideNumberSpinners = props.type === 'number'
+    ? '[appearance:textfield] [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none'
+    : '';
   return (
     <input
       ref={ref}
@@ -52,6 +55,7 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
         text-stone-200 placeholder:text-stone-600
         focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
         disabled:opacity-50 disabled:cursor-not-allowed
+        ${hideNumberSpinners}
       `}
     />
   );
@@ -85,4 +89,3 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(funct
     </select>
   );
 });
-
