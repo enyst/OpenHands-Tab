@@ -99,6 +99,12 @@
     box-shadow: 0 0 16px rgba(232, 166, 66, 0.35);
   }
 
+  .shadow-glow-outline {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
   .shadow-glow-lg {
     box-shadow: 0 0 24px rgba(232, 166, 66, 0.45);
   }
@@ -131,6 +137,21 @@
     );
     backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Soft focus + selection outline (replace thick brand rings) */
+  .oh-outline-soft {
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
+  .oh-focus-outline:focus {
+    outline: none;
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
+  .oh-focus-outline:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
   }
 
   /* Tooltip animations - warm technical refinement style */

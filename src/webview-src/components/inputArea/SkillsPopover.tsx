@@ -21,31 +21,33 @@ export function SkillsPopover({
 }: SkillsPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: popoverRef, delay: 100 });
 
   const filteredSkills = skills.filter((skill) => skill.label.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const listboxId = 'skills-picker-listbox';
-  const safeActiveIndex = filteredSkills.length > 0 ? Math.min(activeIndex, filteredSkills.length - 1) : 0;
-  const activeOptionId = filteredSkills.length > 0 ? `skills-picker-option-${safeActiveIndex}` : undefined;
+  const safeActiveIndex = filteredSkills.length > 0 ? Math.min(activeIndex, filteredSkills.length - 1) : -1;
+  const activeOptionId = safeActiveIndex >= 0 ? `skills-picker-option-${safeActiveIndex}` : undefined;
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex(() => Math.min(safeActiveIndex + 1, Math.max(filteredSkills.length - 1, 0)));
+      if (filteredSkills.length === 0) return;
+      setActiveIndex(() => (safeActiveIndex < 0 ? 0 : Math.min(safeActiveIndex + 1, filteredSkills.length - 1)));
       return;
     }
 
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex(() => Math.max(safeActiveIndex - 1, 0));
+      if (filteredSkills.length === 0) return;
+      setActiveIndex(() => (safeActiveIndex < 0 ? filteredSkills.length - 1 : Math.max(safeActiveIndex - 1, 0)));
       return;
     }
 
     if (e.key === 'Enter') {
-      const skill = filteredSkills[safeActiveIndex];
+      const skill = filteredSkills[safeActiveIndex < 0 ? 0 : safeActiveIndex];
       if (!skill) return;
       e.preventDefault();
       onOpenSkill(skill.path);
@@ -79,13 +81,13 @@ export function SkillsPopover({
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
-            setActiveIndex(0);
+            setActiveIndex(-1);
           }}
           onKeyDown={handleSearchKeyDown}
           placeholder="Search skills..."
           aria-controls={listboxId}
           aria-activedescendant={activeOptionId}
-          className="mt-2 w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:border-brand-500/40"
+          className="mt-2 w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-0 focus:border-white/[0.08] focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)] oh-focus-outline"
           autoFocus
         />
       </div>
@@ -113,7 +115,7 @@ export function SkillsPopover({
                     flex items-center gap-2
                     group
                     ${isActive
-                      ? 'bg-brand-500/10 text-stone-200 ring-1 ring-brand-500/40'
+                      ? 'bg-brand-500/10 text-stone-200 oh-outline-soft'
                       : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'
                     }
                   `}
@@ -131,4 +133,3 @@ export function SkillsPopover({
     </div>
   );
 }
-

@@ -172,7 +172,7 @@ export function InputArea({
             transition-all duration-200
             border
             ${isFocused
-              ? 'shadow-glow border-brand-500/30 ring-1 ring-brand-500/20'
+              ? 'shadow-glow-outline border-white/[0.08]'
               : 'shadow-event border-white/[0.06]'}
             ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
           `}
@@ -183,7 +183,7 @@ export function InputArea({
           }}
         >
           {/* Textarea */}
-            <textarea
+          <textarea
             id="openhands-chat-input"
             ref={textareaRef}
             value={value}
@@ -198,20 +198,20 @@ export function InputArea({
             disabled={disabled}
             placeholder={placeholder}
             rows={1}
-              className={`
-                w-full px-4 py-3 pr-24
-                bg-transparent
-                text-sm leading-relaxed text-stone-200
-                resize-none
-                focus:outline-none
+            className={`
+              w-full px-4 py-3 pr-24
+              bg-transparent
+              text-sm leading-relaxed text-stone-200
+              resize-none
+              focus:outline-none
               placeholder:text-stone-500
               disabled:cursor-not-allowed
             `}
             style={{
               minHeight: '44px',
-                maxHeight: '200px',
-              }}
-            />
+              maxHeight: '200px',
+            }}
+          />
 
             <div className="absolute right-2 bottom-2 flex items-center gap-2">
               {/* Attachments button (icon-only) */}
@@ -224,7 +224,7 @@ export function InputArea({
                     h-9 w-9 rounded-lg
                     flex items-center justify-center
                     transition-all duration-200
-                    focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:ring-offset-0
+                    oh-focus-outline
                     bg-white/[0.06] text-stone-300 border border-white/[0.04]
                     hover:bg-white/[0.08] hover:border-white/[0.1]
                   `}
@@ -249,7 +249,7 @@ export function InputArea({
                   h-9 w-9 rounded-lg
                   flex items-center justify-center
                   transition-all duration-200
-                  focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:ring-offset-0
+                  oh-focus-outline
                   ${canSend && !disabled
                     ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
                     : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'

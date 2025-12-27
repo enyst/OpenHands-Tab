@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCloseOnEscapeAndOutsideClick, type CloseReason } from '../useCloseOnEscapeAndOutsideClick';
 
 interface ToolDescriptor {
@@ -22,8 +22,59 @@ export function ToolsPopover({
   onToggleTool,
 }: ToolsPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: popoverRef, delay: 100 });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    requestAnimationFrame(() => listboxRef.current?.focus());
+  }, [isOpen]);
+
+  const safeActiveIndex = tools.length > 0 ? Math.min(activeIndex, tools.length - 1) : -1;
+  const activeOptionId = safeActiveIndex >= 0 ? `tools-picker-option-${safeActiveIndex}` : undefined;
+
+  const handleListboxKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onClose('escape');
+      return;
+    }
+
+    if (tools.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < 0 ? 0 : Math.min(prev + 1, tools.length - 1)));
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < 0 ? tools.length - 1 : Math.max(prev - 1, 0)));
+      return;
+    }
+
+    if (e.key === 'Home') {
+      e.preventDefault();
+      setActiveIndex(0);
+      return;
+    }
+
+    if (e.key === 'End') {
+      e.preventDefault();
+      setActiveIndex(tools.length - 1);
+      return;
+    }
+
+    if (e.key === 'Enter' || e.key === ' ') {
+      const tool = tools[safeActiveIndex < 0 ? 0 : safeActiveIndex];
+      if (!tool) return;
+      e.preventDefault();
+      onToggleTool(tool.id);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -47,27 +98,37 @@ export function ToolsPopover({
         {tools.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-stone-500">No tools available</div>
         ) : (
-          <div className="p-2 space-y-0.5" role="listbox" aria-label="Tools">
-            {tools.map((tool) => {
+          <div
+            ref={listboxRef}
+            className="p-2 space-y-0.5 focus:outline-none oh-focus-outline"
+            role="listbox"
+            aria-label="Tools"
+            aria-activedescendant={activeOptionId}
+            tabIndex={0}
+            onKeyDown={handleListboxKeyDown}
+          >
+            {tools.map((tool, index) => {
               const isEnabled = enabledToolIds.includes(tool.id);
+              const isActive = index === safeActiveIndex;
               return (
                 <button
                   key={tool.id}
                   type="button"
                   onClick={() => onToggleTool(tool.id)}
                   role="option"
+                  id={`tools-picker-option-${index}`}
                   aria-label={tool.label}
                   aria-selected={isEnabled ? 'true' : 'false'}
+                  onMouseEnter={() => setActiveIndex(index)}
                   className={`
                     w-full text-left px-3 py-2 rounded-lg
                     text-sm
                     transition-all duration-150
                     flex items-center gap-2
                     group
-                    ${isEnabled
-                      ? 'bg-brand-500/10 text-stone-200'
-                      : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'
-                    }
+                    ${isEnabled ? 'bg-brand-500/10 text-stone-200 oh-outline-soft' : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'}
+                    ${isActive && !isEnabled ? 'bg-white/[0.04] text-stone-200 oh-outline-soft' : ''}
+                    ${isActive && isEnabled ? 'bg-brand-500/15' : ''}
                   `}
                 >
                   <span className="codicon codicon-symbol-method text-brand-400/70" />
@@ -82,4 +143,3 @@ export function ToolsPopover({
     </div>
   );
 }
-

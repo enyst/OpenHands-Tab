@@ -452,7 +452,23 @@ describe('LLM Profiles view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
     expect(await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' })).toHaveValue(2048);
 
-    expect(screen.getByText('Use provider key')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeyStatusRequest')).toBeTruthy();
+    });
+
+    const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest.requestId,
+      ok: true,
+      profileId: statusRequest.profileId,
+      hasKey: true,
+      hasProfileKey: false,
+      hasProviderKey: true,
+      providerKeyName: 'OPENAI_API_KEY',
+    });
+
+    expect(await screen.findByLabelText('Provider key configured')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Override for this profile' })).not.toBeChecked();
     expect(screen.queryByLabelText('API key override')).toBeNull();
   });

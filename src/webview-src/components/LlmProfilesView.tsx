@@ -181,8 +181,10 @@ export function LlmProfilesView(props: {
     setIsAdvancedOpen(false);
   }, []);
 
+  const DRAFT_PROFILE_ID = '__draft_profile__';
+
   const startCreate = useCallback(() => {
-    activeProfileIdRef.current = null;
+    activeProfileIdRef.current = DRAFT_PROFILE_ID;
     applyEditorTransition({
       mode: 'create',
       selectedProfileId: null,
@@ -190,7 +192,7 @@ export function LlmProfilesView(props: {
       loadingProfile: false,
       useCustomBaseUrl: false,
     });
-  }, [applyEditorTransition]);
+  }, [DRAFT_PROFILE_ID, applyEditorTransition]);
 
   const startEdit = useCallback(async (profileId: string) => {
     activeProfileIdRef.current = profileId;
@@ -238,10 +240,17 @@ export function LlmProfilesView(props: {
   }, [activeProfileId, isOpen, openRequest, startCreate, startEdit]);
 
   useEffect(() => {
-    if (mode !== 'edit' || !selectedProfileId || loadingProfile) return;
+    if (!isOpen) return;
     if (!form.provider) return;
-    void refreshApiKeyStatus(selectedProfileId, { provider: form.provider });
-  }, [form.provider, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
+
+    if (mode === 'edit') {
+      if (!selectedProfileId || loadingProfile) return;
+      void refreshApiKeyStatus(selectedProfileId, { provider: form.provider });
+      return;
+    }
+
+    void refreshApiKeyStatus(DRAFT_PROFILE_ID, { provider: form.provider });
+  }, [DRAFT_PROFILE_ID, form.provider, isOpen, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
 
   const handleSave = useCallback(async () => {
     setSaveAttempted(true);
@@ -353,22 +362,29 @@ export function LlmProfilesView(props: {
   })();
 
   const showProviderKeyConfiguredIndicator = providerRequiresApiKey
-    && mode === 'edit'
+    && !overrideProfileApiKey
     && apiKeyStatus.state === 'ready'
     && apiKeyStatus.hasProviderKey
     && !apiKeyStatus.hasProfileKey;
 
   const apiKeyStatusLabel = (() => {
     if (!providerRequiresApiKey) return '—';
-    if (mode === 'create') return overrideProfileApiKey ? (apiKeyInput.trim() ? 'Draft' : 'Not set') : 'Use provider key';
-    if (apiKeyStatus.state === 'loading') return 'Checking…';
-    if (apiKeyStatus.state === 'ready') {
-      if (apiKeyStatus.hasProfileKey) return 'Override set';
-      if (apiKeyStatus.hasProviderKey) return '';
-      return 'Missing';
+
+    if (overrideProfileApiKey) {
+      if (mode === 'create') {
+        return apiKeyInput.trim() ? 'Draft' : 'Not set';
+      }
+      if (apiKeyStatus.state === 'loading') return 'Checking…';
+      if (apiKeyStatus.state === 'ready') return apiKeyStatus.hasProfileKey ? 'Override set' : 'Not set';
+      if (apiKeyStatus.state === 'error') return 'Error';
+      return '—';
     }
+
+    // Using provider key (no per-profile override).
+    if (apiKeyStatus.state === 'loading') return 'Checking…';
+    if (apiKeyStatus.state === 'ready') return apiKeyStatus.hasProviderKey ? '' : 'Missing';
     if (apiKeyStatus.state === 'error') return 'Error';
-    return '—';
+    return mode === 'create' ? 'Use provider key' : '—';
   })();
 
   const showProfileApiKeyOverrideSetIndicator = canEditApiKey
@@ -460,7 +476,7 @@ export function LlmProfilesView(props: {
     if (mode !== 'edit') return;
 
     const source = form;
-    activeProfileIdRef.current = null;
+    activeProfileIdRef.current = DRAFT_PROFILE_ID;
     const nextForm = { ...source, name: '' };
     applyEditorTransition({
       mode: 'create',
@@ -474,7 +490,7 @@ export function LlmProfilesView(props: {
     requestAnimationFrame(() => {
       nameInputRef.current?.focus();
     });
-  }, [applyEditorTransition, form, mode]);
+  }, [DRAFT_PROFILE_ID, applyEditorTransition, form, mode]);
 
   const isDirty = useMemo(() => {
     return JSON.stringify(normalizeFormStateForDirtyCheck(form)) !== JSON.stringify(normalizeFormStateForDirtyCheck(baselineForm));
@@ -664,7 +680,7 @@ export function LlmProfilesView(props: {
                             setUseCustomBaseUrl(next);
                             if (!next) update('baseUrl', '');
                           }}
-                          className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0"
+                          className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 oh-focus-outline"
                         />
                         Use custom base URL
                       </label>
@@ -836,7 +852,7 @@ export function LlmProfilesView(props: {
                                 className="
                                   w-full h-2 rounded-lg
                                   appearance-none bg-transparent
-                                  focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:ring-offset-0
+                                  oh-focus-outline
                                   disabled:opacity-50 disabled:cursor-not-allowed
                                   [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-lg [&::-webkit-slider-runnable-track]:bg-white/10
                                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:-mt-1
@@ -947,7 +963,7 @@ export function LlmProfilesView(props: {
                     bg-white/[0.04] text-stone-300
                     hover:bg-white/[0.08] hover:border-white/[0.1]
                     focus:outline-none focus:ring-0
-                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.16)]
+                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]
                   "
                 >
                   {isDirty ? 'Cancel' : 'Close'}
@@ -962,10 +978,10 @@ export function LlmProfilesView(props: {
                     transition-all
                     border
                     focus:outline-none focus:ring-0
-                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.16)]
+                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]
                     ${!canSave
                       ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                      : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
+                      : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-white/[0.06] oh-outline-soft hover:from-brand-500/35 hover:to-brand-600/30 hover:border-white/[0.1]'}
                   `}
                 >
                   <span className={`codicon codicon-${saving ? 'loading' : 'save'} ${saving ? 'animate-spin' : ''}`} />

@@ -91,7 +91,7 @@ function IconButton({
           text-stone-400 hover:text-stone-200
           transition-all duration-200
           hover:bg-white/[0.08] hover:border-white/[0.1]
-          focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0
+          oh-focus-outline
           disabled:opacity-40 disabled:cursor-not-allowed
         `}
         aria-label={label}

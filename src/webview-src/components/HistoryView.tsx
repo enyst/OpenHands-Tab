@@ -110,9 +110,9 @@ function ConversationItem({
           transition-all duration-200
           border
           hover:bg-white/[0.04]
-          focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0 focus:border-brand-500/25
+          oh-focus-outline
           ${isActive
-            ? 'bg-brand-500/10 border-brand-500/25 hover:bg-brand-500/15'
+            ? 'bg-brand-500/10 border-white/[0.06] oh-outline-soft hover:bg-brand-500/15 hover:border-white/[0.08]'
             : 'bg-white/[0.02] border-white/[0.04] hover:border-white/[0.08]'}
         `}
       >
@@ -295,7 +295,7 @@ export function HistoryView({
           </div>
           <button
             onClick={onClose}
-            className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center"
+            className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center oh-focus-outline"
             aria-label="Close history"
             title="Close"
           >
@@ -317,7 +317,7 @@ export function HistoryView({
                 }
               }}
               placeholder="Search history…"
-              className="w-full pl-9 pr-9 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0 focus:border-brand-500/25"
+              className="w-full pl-9 pr-9 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-0 focus:border-white/[0.08] focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]"
               aria-label="Search conversation history"
             />
             {hasAnyQuery && (

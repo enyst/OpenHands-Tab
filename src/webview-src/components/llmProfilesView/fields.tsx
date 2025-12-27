@@ -56,7 +56,7 @@ export const InputField = forwardRef<HTMLInputElement, InputFieldProps>(function
         text-stone-200 placeholder:text-stone-600
         focus:outline-none focus:ring-0
         focus:border-white/[0.08]
-        focus:shadow-[0_0_0_1px_rgba(232,166,66,0.16)]
+        focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]
         disabled:opacity-50 disabled:cursor-not-allowed
         ${hideNumberSpinners}
       `}
@@ -108,7 +108,7 @@ export function PopoverSelectField(props: PopoverSelectFieldProps) {
           text-xs font-medium
           transition-all duration-200
           border
-          focus:outline-none focus:ring-1 focus:ring-brand-500/30 focus:ring-offset-0
+          oh-focus-outline
           bg-white/[0.03] text-stone-400 border-white/[0.06]
           hover:bg-white/[0.08] hover:text-stone-300 hover:border-white/[0.1]
           disabled:opacity-50 disabled:cursor-not-allowed

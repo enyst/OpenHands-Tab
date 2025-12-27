@@ -668,14 +668,19 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           const key = getProfileApiKeySecretKey(profileId);
           const stored = await context.secrets.get(key);
           const hasProfileKey = typeof stored === 'string' && stored.trim().length > 0;
-          const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
           const overrideProviderRaw = typeof message.provider === 'string' ? message.provider.trim() : '';
           const overrideProvider = overrideProviderRaw && isLlmProvider(overrideProviderRaw) ? overrideProviderRaw : null;
           const overrideBaseUrl = typeof message.baseUrl === 'string' ? message.baseUrl.trim() : '';
-          const provider = overrideProvider
-            ?? (overrideBaseUrl ? detectProviderFromBaseUrl(overrideBaseUrl) : null)
-            ?? profile.config.provider
-            ?? detectProviderFromBaseUrl(profile.config.baseUrl);
+
+          // Prefer explicit provider/baseUrl overrides so we can check provider keys even for
+          // draft/new profiles that do not exist yet on disk.
+          const provider = (() => {
+            if (overrideProvider) return overrideProvider;
+            if (overrideBaseUrl) return detectProviderFromBaseUrl(overrideBaseUrl);
+
+            const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
+            return profile.config.provider ?? detectProviderFromBaseUrl(profile.config.baseUrl);
+          })();
           const providerKeyName = getProviderApiKeyName(provider);
           const hasProviderKey = await hasStoredSecret(providerKeyName);
           void host.postMessage({
