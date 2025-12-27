@@ -35,4 +35,48 @@ describe('buildLlmRequestParametersForDebug', () => {
 
     expect(parameters?.encrypted_reasoning).toBe('abc123');
   });
+
+  it('keeps exactly eight characters unchanged', () => {
+    const llmSettings: OpenHandsSettings['llm'] = { encrypted_reasoning: '12345678' };
+
+    const parameters = buildLlmRequestParametersForDebug({
+      llmSettings,
+      model: 'gpt-4o',
+    });
+
+    expect(parameters?.encrypted_reasoning).toBe('12345678');
+  });
+
+  it('omits encrypted_reasoning when empty or whitespace', () => {
+    const llmSettings: OpenHandsSettings['llm'] = { encrypted_reasoning: '   ' };
+
+    const parameters = buildLlmRequestParametersForDebug({
+      llmSettings,
+      model: 'gpt-4o',
+    });
+
+    expect(parameters).toBeUndefined();
+  });
+
+  it('omits encrypted_reasoning when nullish', () => {
+    const llmSettings: OpenHandsSettings['llm'] = { encrypted_reasoning: null };
+
+    const parameters = buildLlmRequestParametersForDebug({
+      llmSettings,
+      model: 'gpt-4o',
+    });
+
+    expect(parameters).toBeUndefined();
+  });
+
+  it('retains temperature for non GPT-5 models', () => {
+    const llmSettings: OpenHandsSettings['llm'] = { temperature: 0.6 };
+
+    const parameters = buildLlmRequestParametersForDebug({
+      llmSettings,
+      model: 'claude-3-opus-20240229',
+    });
+
+    expect(parameters?.temperature).toBe(0.6);
+  });
 });
