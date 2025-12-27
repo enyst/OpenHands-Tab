@@ -86,6 +86,19 @@
     background: rgba(232, 166, 66, 0.3);
     color: inherit;
   }
+
+  /* Global focus styling for interactive elements - same as hover */
+  button:focus-visible,
+  [role="option"]:focus-visible,
+  [role="option"]:focus-within {
+    outline: none;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Don't double-apply background to buttons inside option containers */
+  [role="option"] button:focus-visible {
+    background-color: transparent;
+  }
 }
 
 /* Custom utilities for OpenHands design */
