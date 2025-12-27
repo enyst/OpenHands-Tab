@@ -87,12 +87,14 @@
     color: inherit;
   }
 
-  /* Global focus styling for interactive elements - warm amber border */
+  /* Global focus styling for interactive elements - matches Tooltip styling */
   button:focus-visible,
   [role="option"]:focus-visible,
   [role="listbox"]:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(232, 166, 66, 0.08);
   }
 }
 
