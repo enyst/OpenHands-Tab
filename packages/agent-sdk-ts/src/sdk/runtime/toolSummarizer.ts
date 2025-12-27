@@ -212,7 +212,7 @@ export class ToolSummarizer {
     return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS) + '…' : summary;
   }
 
-  private async getClient(): Promise<LLMClient> {
+  public async getClient(): Promise<LLMClient> {
     if (this.deps.injectedClient) return this.deps.injectedClient;
     if (this.client) return this.client;
     if (this.clientInitPromise) return this.clientInitPromise;
