@@ -44,14 +44,14 @@ import { sanitizeChatMessages } from './sanitizeChatMessages';
 import {
   ELLIPSIS,
   redactAndTruncateArgs,
-  redactStringHeuristics,
   sanitizeChatRequestForDebug,
   sanitizeMessageForDebug,
 } from './textSanitizers';
 import { formatToolMessageText } from './toolMessageFormatting';
 import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
-import { CIRCULAR_REFERENCE_MARKER, deepTruncate, truncateToolMessage } from './toolResultTruncation';
+import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
+import { SecretMasker } from './secretMasker';
 
 export type AgentRunInput = string | Message;
 
@@ -111,6 +111,7 @@ export class Agent extends EventEmitter {
   private readonly events: EventLog;
   readonly state: ConversationState;
   private readonly secrets: SecretRegistry;
+  private readonly secretMasker: SecretMasker;
   private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
   private readonly confirmation: ConfirmationPolicy;
   private readonly lock = new AsyncLock();
@@ -131,7 +132,6 @@ export class Agent extends EventEmitter {
   private toolSummarizerClient?: LLMClient;
   private toolSummarizerInitPromise?: Promise<LLMClient>;
   private toolSummarizerFailed = false;
-  private secretValuesForMaskingCache: { signature: string; values: string[] } | null = null;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -140,6 +140,10 @@ export class Agent extends EventEmitter {
     this.state = options.state ?? new ConversationState({ eventLog: this.events });
     this.state.attachEventLog(this.events);
     this.secrets = options.secrets ?? new SecretRegistry();
+    this.secretMasker = new SecretMasker({
+      getConfiguredSecrets: () => Object.values(this.options.settings?.secrets ?? {}),
+      getRegisteredSecrets: () => this.secrets.getRegisteredValues(),
+    });
     const providedTools = options.tools ?? [];
     const toolsWithFinish = providedTools.some((tool) => tool.name === 'finish')
       ? providedTools
@@ -182,86 +186,6 @@ export class Agent extends EventEmitter {
     this.secrets.set('ELEVENLABS_API_KEY', s?.halTtsApiKey);
   }
 
-  private getSecretValuesForMasking(): string[] {
-    const configuredSecrets = Object.values(this.options.settings?.secrets ?? {})
-      .filter((secret): secret is string => typeof secret === 'string')
-      .map((secret) => secret.trim())
-      .filter(Boolean);
-    const registeredSecrets = this.secrets.getRegisteredValues();
-    const signature = `${configuredSecrets.join('\u0000')}\u0001${registeredSecrets.join('\u0000')}`;
-    if (this.secretValuesForMaskingCache?.signature === signature) {
-      return this.secretValuesForMaskingCache.values;
-    }
-
-    const values = new Set<string>();
-    const maybePush = (candidate: unknown) => {
-      if (typeof candidate !== 'string') return;
-      const trimmed = candidate.trim();
-      if (!trimmed) return;
-      if (/^[A-Z0-9_]+$/.test(trimmed)) {
-        values.add(trimmed);
-        const envValue = process.env[trimmed];
-        if (envValue) {
-          values.add(envValue);
-        }
-      } else {
-        values.add(trimmed);
-      }
-    };
-
-    for (const secret of configuredSecrets) {
-      maybePush(secret);
-    }
-
-    for (const secret of registeredSecrets) {
-      maybePush(secret);
-    }
-
-    const envKeyLooksSensitive = /(?:^|_)(?:API_?KEY|ACCESS_TOKEN|REFRESH_TOKEN|TOKEN|SECRET|PASSWORD)(?:$|_)/i;
-    for (const [key, value] of Object.entries(process.env)) {
-      if (!value) continue;
-      if (!envKeyLooksSensitive.test(key)) continue;
-      values.add(value);
-    }
-
-    const computed = Array.from(values)
-      .filter((value) => value.length >= 8)
-      .sort((a, b) => b.length - a.length);
-    this.secretValuesForMaskingCache = { signature, values: computed };
-    return computed;
-  }
-
-  private maskSecretsInText(text: string): string {
-    let masked = text;
-    for (const secret of this.getSecretValuesForMasking()) {
-      masked = masked.replaceAll(secret, '***');
-    }
-    return redactStringHeuristics(masked);
-  }
-
-  private maskSecretsInUnknown(value: unknown, seen = new WeakSet<object>()): unknown {
-    if (typeof value === 'string') {
-      return this.maskSecretsInText(value);
-    }
-    if (Array.isArray(value)) {
-      if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
-      seen.add(value);
-      return value.map((item) => this.maskSecretsInUnknown(item, seen));
-    }
-    if (value && typeof value === 'object') {
-      const entries = Object.entries(value as Record<string, unknown>);
-      if (!entries.length) return value;
-      if (seen.has(value)) return CIRCULAR_REFERENCE_MARKER;
-      seen.add(value);
-      const masked: Record<string, unknown> = {};
-      for (const [key, inner] of entries) {
-        masked[key] = this.maskSecretsInUnknown(inner, seen);
-      }
-      return masked;
-    }
-    return value;
-  }
-
   private async maybeSummarizeToolCall(toolCall: ToolCall, result: unknown): Promise<void> {
     if (!this.summarizeToolCallsEnabled) return;
     if (this.toolSummarizerFailed) return;
@@ -285,7 +209,7 @@ export class Agent extends EventEmitter {
     const safeArgs = rawArgs ? redactAndTruncateArgs(rawArgs) : '';
 
     const formatted = formatToolMessageText(toolCall, result);
-    const masked = this.maskSecretsInText(formatted);
+    const masked = this.secretMasker.maskText(formatted);
     const clipped = truncateToolMessage(masked, TOOL_SUMMARY_PROMPT_MAX_CHARS);
 
     const prompt = [
@@ -310,7 +234,7 @@ export class Agent extends EventEmitter {
       if (chunk.type === 'text') text += chunk.text;
     }
 
-    const summary = this.maskSecretsInText(text).trim();
+    const summary = this.secretMasker.maskText(text).trim();
     if (!summary) return undefined;
 
     return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS) + '…' : summary;
@@ -507,7 +431,7 @@ export class Agent extends EventEmitter {
 
     // OpenAI-compatible providers require that assistant tool_calls are followed by tool messages for each tool_call_id.
     // If the user rejects a tool call, emit a synthetic tool response so subsequent LLM calls remain valid.
-    const rejectionText = truncateToolMessage(this.maskSecretsInText(`User rejected tool call: ${rejectionReason}`));
+    const rejectionText = truncateToolMessage(this.secretMasker.maskText(`User rejected tool call: ${rejectionReason}`));
     this.events.push({
       kind: 'MessageEvent',
       source: 'environment',
@@ -1165,7 +1089,7 @@ export class Agent extends EventEmitter {
   }
 
   private emitSkippedToolCall(toolCall: ToolCall, actionEvent: ActionEvent, reason: string): void {
-    const maskedReason = this.maskSecretsInText(reason);
+    const maskedReason = this.secretMasker.maskText(reason);
     const clipped = truncateToolMessage(maskedReason);
     this.events.push({
       kind: 'ObservationEvent',
@@ -1251,7 +1175,7 @@ export class Agent extends EventEmitter {
       const observation = {
         kind: 'ObservationEvent',
         source: 'environment',
-        observation: deepTruncate(this.maskSecretsInUnknown(enrichedResult)) as Record<string, unknown>,
+        observation: deepTruncate(this.secretMasker.maskUnknown(enrichedResult)) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
@@ -1259,7 +1183,7 @@ export class Agent extends EventEmitter {
       this.events.push(observation);
 
       const formatted = formatToolMessageText(toolCall, enrichedResult);
-      const masked = this.maskSecretsInText(formatted);
+      const masked = this.secretMasker.maskText(formatted);
       const clipped = truncateToolMessage(masked);
 
       const toolMessage: MessageEvent = {
@@ -1392,9 +1316,9 @@ export class Agent extends EventEmitter {
     const payload = result as { command?: string; stdout?: string; stderr?: string; exit_code?: number | null };
     const commandId = toolCall.id;
     const timestamp = new Date().toISOString();
-    const command = this.maskSecretsInText(payload.command ?? toolCall.function.arguments);
-    const stdout = payload.stdout ? this.maskSecretsInText(payload.stdout) : null;
-    const stderr = payload.stderr ? this.maskSecretsInText(payload.stderr) : null;
+    const command = this.secretMasker.maskText(payload.command ?? toolCall.function.arguments);
+    const stdout = payload.stdout ? this.secretMasker.maskText(payload.stdout) : null;
+    const stderr = payload.stderr ? this.secretMasker.maskText(payload.stderr) : null;
     const exitCode = typeof payload.exit_code === 'number' ? payload.exit_code : 0;
     const events: BashEvent[] = [
       {
