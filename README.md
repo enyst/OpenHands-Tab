@@ -18,7 +18,7 @@ A VS Code extension for interacting with OpenHands AI agents directly in your ID
 ### Prerequisites
 
 - VS Code 1.104.0+
-- Node.js 22+
+- Node.js >= 22
 
 ### Installation
 
@@ -45,13 +45,22 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 ### Configuration
 
 - **OpenHands: Configure** - Set up server URL, LLM settings, API keys
-- **OpenHands: Set API Key** - Quick LLM API key configuration
+- **OpenHands: Explain Selection** - Explain selected code in the editor (context menu)
+- **OpenHands: Set API Key** - Quick LLM API key configuration (generic)
+- **OpenHands: Set OpenAI API Key** - Set OpenAI API key
+- **OpenHands: Set Anthropic API Key** - Set Anthropic API key
+- **OpenHands: Set OpenRouter API Key** - Set OpenRouter API key
+- **OpenHands: Set LiteLLM Proxy API Key** - Set LiteLLM Proxy API key
+- **OpenHands: Set Gemini API Key** - Set Gemini API key
+- **OpenHands: Set ElevenLabs API Key** - Set ElevenLabs API key
 - **OpenHands: Set Session API Key** - Set session API key for agent-server authentication
 - **OpenHands: Set GitHub Token** - Set GitHub token for repository access
 - **OpenHands: Set Custom Secret 1/2/3** - Set custom secrets for additional integrations
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
-**Using Gemini as the main agent LLM**: set `openhands.llm.profileId` to a Gemini profile id (for example `gemini-flash`) and store your API key via **OpenHands: Set API Key**. (The `openhands.hal.gemini.*` settings are only used for HAL voice-confirm decision classification, not the agent’s main LLM.)
+**Using Gemini**: Gemini can be used in two ways:
+- **As the main agent LLM**: set `openhands.llm.profileId` to a Gemini profile id (e.g., `gemini-flash`) and configure your API key via **OpenHands: Set Gemini API Key**
+- **For HAL voice confirmation** (optional): HAL uses its own Gemini profile specified by `openhands.hal.llmProfileId` (default: `gemini-flash-hal`) for audio understanding in voice_confirm mode
 
 ## Documentation
 
@@ -74,7 +83,7 @@ This is an npm workspace with two packages:
 The SDK provides:
 - `Conversation` API for local/remote agent execution
 - LLM clients (Anthropic, OpenAI-compatible, Gemini)
-- Tools (Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate)
+- Tools (Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate, Finish)
 - Protocol types and event handling
 
 ## Commands

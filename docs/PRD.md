@@ -176,18 +176,25 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 ```
 src/
 ├── extension.ts                 # Entry point, commands
-├── conversation/host/
-│   └── ConversationManager.ts   # Conversation state management
-├── settings/
+├── conversation/                # Conversation management
+│   └── host/
+│       └── ConversationManager.ts # Conversation state management
+├── dev/                         # Development utilities
+├── extension/                   # Extension utilities
+├── hal/                         # HAL 9000 easter egg (high-risk confirmation flow)
+│   ├── elevenlabs/              # ElevenLabs TTS integration
+│   └── gemini/                  # Gemini audio understanding
+├── settings/                    # Settings management
 │   ├── host/                    # Host-side settings
 │   ├── SettingsManager.ts       # Settings access layer
 │   └── VscodeSettingsAdapter.ts # VS Code implementation
 ├── shared/                      # Shared types and utilities
-├── sidebar/
-│   └── OpenHandsChatViewProvider.ts # Chat sidebar WebviewView provider
-├── webview/host/                # Webview host integration
-└── webview-src/
-    ├── webview.tsx              # Entry point
+├── sidebar/                     # Sidebar webview provider (host side)
+│   └── OpenHandsChatViewProvider.ts # WebviewViewProvider that loads the React UI below
+├── terminal/                    # Terminal integration
+├── webview/host/                # Webview host integration (message passing)
+└── webview-src/                 # React webview UI (actual view content)
+    ├── webview.tsx              # React entry point
     ├── __tests__/               # Webview unit tests
     ├── shared/                  # Shared webview utilities
     └── components/
@@ -204,7 +211,7 @@ src/
 
 ## 11. Packaging & Distribution
 - Engine: VS Code >= 1.104.0
-- Node: 22.x
+- Node: >= 22
 - Publish as VSIX; Marketplace later
 - Extension ID: openhands.openhands-tab
 
