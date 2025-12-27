@@ -903,13 +903,12 @@ describe('App - Advanced Test Coverage', () => {
 
       postToWindow({ type: 'event', event: action });
 
-      await waitFor(() => {
-        const badge = screen.getByText('high');
-        expect(badge).toBeInTheDocument();
-        expect(badge.closest('[title]')).toHaveAttribute('title', 'The model assessed high risk for this action.');
-        expect(badge.className).toContain('bg-red-500/15');
+        await waitFor(() => {
+          const badge = screen.getByText('high');
+          expect(badge).toBeInTheDocument();
+          expect(badge.className).toContain('bg-red-500/15');
+        });
       });
-    });
 
     it('displays MEDIUM security risk badge', async () => {
       render(<App />);
@@ -921,13 +920,12 @@ describe('App - Advanced Test Coverage', () => {
 
       postToWindow({ type: 'event', event: action });
 
-      await waitFor(() => {
-        const badge = screen.getByText('medium');
-        expect(badge).toBeInTheDocument();
-        expect(badge.closest('[title]')).toHaveAttribute('title', 'The model assessed medium risk for this action.');
-        expect(badge.className).toContain('bg-amber-500/15');
+        await waitFor(() => {
+          const badge = screen.getByText('medium');
+          expect(badge).toBeInTheDocument();
+          expect(badge.className).toContain('bg-amber-500/15');
+        });
       });
-    });
 
     it('displays LOW security risk badge', async () => {
       render(<App />);
@@ -942,7 +940,6 @@ describe('App - Advanced Test Coverage', () => {
       await waitFor(() => {
         const badge = screen.getByText('low');
         expect(badge).toBeInTheDocument();
-        expect(badge.closest('[title]')).toHaveAttribute('title', 'The model assessed low risk for this action.');
         expect(badge.className).toContain('bg-stone-500/15');
       });
     });

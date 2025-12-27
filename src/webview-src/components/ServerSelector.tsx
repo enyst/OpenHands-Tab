@@ -152,6 +152,8 @@ export function ServerSelector({
               return (
                 <div
                   key={server.url}
+                  role="option"
+                  aria-selected={selected}
                   className={`
                     flex items-center gap-2 px-3 py-2 rounded-lg
                     text-sm
@@ -166,8 +168,6 @@ export function ServerSelector({
                       onClose();
                     }}
                     className="flex-1 text-left flex items-center gap-2"
-                    role="option"
-                    aria-selected={selected}
                   >
                     <span className="codicon codicon-cloud" />
                     <div className="flex-1 min-w-0">
@@ -210,8 +210,10 @@ export function ServerSelector({
               onKeyDown={handleKeyDown}
               placeholder="https://server-url..."
               autoFocus
-              className={`w-full px-3 py-2 text-sm bg-black/20 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/50 ${
-                urlError ? 'border-red-500/50' : 'border-white/10'
+              className={`w-full px-3 py-2 text-sm bg-black/20 border rounded-lg text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-0 ${
+                urlError
+                  ? 'border-red-500/50 focus:border-red-500/50 focus:shadow-[0_0_0_1px_rgba(248,113,113,0.35)]'
+                  : 'border-white/10 focus:border-white/[0.08] focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]'
               }`}
             />
             {urlError && (
@@ -223,19 +225,19 @@ export function ServerSelector({
               onChange={(e) => setNewLabel(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Label (optional)"
-              className="w-full px-3 py-2 text-sm bg-black/20 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+              className="w-full px-3 py-2 text-sm bg-black/20 border border-white/10 rounded-lg text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-0 focus:border-white/[0.08] focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]"
             />
             <div className="flex gap-2">
               <button
                 onClick={handleAddServer}
                 disabled={!newUrl.trim()}
-                className="flex-1 px-3 py-1.5 text-sm bg-brand-500/20 text-brand-300 rounded-lg hover:bg-brand-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-3 py-1.5 text-sm bg-brand-500/20 text-brand-300 rounded-lg hover:bg-brand-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors oh-focus-outline"
               >
                 Add
               </button>
               <button
                 onClick={handleCancelAdd}
-                className="px-3 py-1.5 text-sm bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                className="px-3 py-1.5 text-sm bg-white/5 rounded-lg hover:bg-white/10 transition-colors oh-focus-outline"
               >
                 Cancel
               </button>
@@ -247,7 +249,7 @@ export function ServerSelector({
             onClick={() => {
               setShowAddForm(true);
             }}
-            className="w-full px-4 py-3 text-sm text-left hover:bg-white/5 transition-colors flex items-center gap-2"
+            className="w-full px-4 py-3 text-sm text-left hover:bg-white/5 transition-colors flex items-center gap-2 oh-focus-outline"
           >
             <span className="codicon codicon-add" />
             <span>Add Server</span>

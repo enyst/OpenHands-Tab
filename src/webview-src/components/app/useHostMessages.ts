@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type { ActionEvent, Event, LLMConfiguration } from '@openhands/agent-sdk-ts';
 import { isEvent } from '@openhands/agent-sdk-ts';
@@ -162,6 +162,8 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     uiStateRef,
   } = options;
 
+  const lastModeRef = useRef<'local' | 'remote' | null>(null);
+
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       const payload = event.data as {
@@ -204,6 +206,12 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
             setStatus(payload.status);
             if (payload.mode === 'local' || payload.mode === 'remote') {
               setMode(payload.mode);
+              if (payload.mode === 'local' && lastModeRef.current !== 'local') {
+                lastModeRef.current = 'local';
+                postMessage({ type: 'requestTools' });
+              } else if (payload.mode === 'remote' && lastModeRef.current !== 'remote') {
+                lastModeRef.current = 'remote';
+              }
             }
             const nextBanner: StatusBannerState | null =
               payload.mode === 'local'

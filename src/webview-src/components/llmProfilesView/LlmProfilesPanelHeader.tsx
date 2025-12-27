@@ -1,4 +1,5 @@
 import type { ProfileFormMode } from './formState';
+import { Tooltip } from '../Tooltip';
 
 export function LlmProfilesPanelHeader(props: {
   mode: ProfileFormMode;
@@ -25,46 +26,49 @@ export function LlmProfilesPanelHeader(props: {
         <h2 className="font-semibold text-base leading-tight text-stone-100">OpenHands - LLM Profiles</h2>
       </div>
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onCreate}
-          className="h-9 w-9 rounded-lg bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40 transition-all flex items-center justify-center"
-          aria-label="Create profile"
-          title="Create profile"
-        >
-          <span className="codicon codicon-add" />
-        </button>
-        <button
-          type="button"
-          onClick={onDuplicate}
-          disabled={duplicateDisabled}
-          className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Duplicate profile"
-          title="Duplicate profile"
-        >
-          <span className="codicon codicon-copy" />
-        </button>
-        <button
-          type="button"
-          onClick={() => { void onDelete(); }}
-          disabled={deleteDisabled}
-          className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 hover:bg-red-500/15 hover:border-red-500/30 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Delete profile"
-          title="Delete profile"
-        >
-          <span className={`codicon codicon-${deleting ? 'loading' : 'trash'} ${deleting ? 'animate-spin' : ''}`} />
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center"
-          aria-label="Close profiles view"
-          title="Close"
-        >
-          <span className="codicon codicon-close" />
-        </button>
+        <Tooltip content="Create profile" position="bottom">
+          <button
+            type="button"
+            onClick={onCreate}
+            className="h-9 w-9 rounded-lg bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-white/[0.06] oh-outline-soft hover:from-brand-500/35 hover:to-brand-600/30 hover:border-white/[0.1] transition-all flex items-center justify-center oh-focus-outline"
+            aria-label="Create profile"
+          >
+            <span className="codicon codicon-add" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Duplicate profile" position="bottom">
+          <button
+            type="button"
+            onClick={onDuplicate}
+            disabled={duplicateDisabled}
+            className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed oh-focus-outline"
+            aria-label="Duplicate profile"
+          >
+            <span className="codicon codicon-copy" />
+          </button>
+        </Tooltip>
+        <Tooltip content="Delete profile" position="bottom">
+          <button
+            type="button"
+            onClick={() => { void onDelete(); }}
+            disabled={deleteDisabled}
+            className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 hover:bg-red-500/15 hover:border-red-500/30 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed oh-focus-outline"
+            aria-label="Delete profile"
+          >
+            <span className={`codicon codicon-${deleting ? 'loading' : 'trash'} ${deleting ? 'animate-spin' : ''}`} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Close" position="bottom">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center oh-focus-outline"
+            aria-label="Close profiles view"
+          >
+            <span className="codicon codicon-close" />
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
 }
-

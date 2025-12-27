@@ -5,7 +5,7 @@ import { getVscodeApi } from '../shared/vscodeApi';
 import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';
 import { LlmProfileApiKeySection } from './llmProfilesView/LlmProfileApiKeySection';
 import { LlmProfilesPanelHeader } from './llmProfilesView/LlmProfilesPanelHeader';
-import { FieldError, FieldLabel, InputField, SelectField } from './llmProfilesView/fields';
+import { FieldError, FieldLabel, InputField, PopoverSelectField } from './llmProfilesView/fields';
 import {
   ADVANCED_FIELD_KEYS,
   EMPTY_FORM,
@@ -91,7 +91,6 @@ export function LlmProfilesView(props: {
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
 
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const providerSelectRef = useRef<HTMLSelectElement>(null);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const activeProfileIdRef = useRef<string | null>(null);
@@ -182,8 +181,10 @@ export function LlmProfilesView(props: {
     setIsAdvancedOpen(false);
   }, []);
 
+  const DRAFT_PROFILE_ID = '__draft_profile__';
+
   const startCreate = useCallback(() => {
-    activeProfileIdRef.current = null;
+    activeProfileIdRef.current = DRAFT_PROFILE_ID;
     applyEditorTransition({
       mode: 'create',
       selectedProfileId: null,
@@ -191,7 +192,7 @@ export function LlmProfilesView(props: {
       loadingProfile: false,
       useCustomBaseUrl: false,
     });
-  }, [applyEditorTransition]);
+  }, [DRAFT_PROFILE_ID, applyEditorTransition]);
 
   const startEdit = useCallback(async (profileId: string) => {
     activeProfileIdRef.current = profileId;
@@ -239,10 +240,17 @@ export function LlmProfilesView(props: {
   }, [activeProfileId, isOpen, openRequest, startCreate, startEdit]);
 
   useEffect(() => {
-    if (mode !== 'edit' || !selectedProfileId || loadingProfile) return;
+    if (!isOpen) return;
     if (!form.provider) return;
-    void refreshApiKeyStatus(selectedProfileId, { provider: form.provider });
-  }, [form.provider, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
+
+    if (mode === 'edit') {
+      if (!selectedProfileId || loadingProfile) return;
+      void refreshApiKeyStatus(selectedProfileId, { provider: form.provider });
+      return;
+    }
+
+    void refreshApiKeyStatus(DRAFT_PROFILE_ID, { provider: form.provider });
+  }, [DRAFT_PROFILE_ID, form.provider, isOpen, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
 
   const handleSave = useCallback(async () => {
     setSaveAttempted(true);
@@ -354,22 +362,29 @@ export function LlmProfilesView(props: {
   })();
 
   const showProviderKeyConfiguredIndicator = providerRequiresApiKey
-    && mode === 'edit'
+    && !overrideProfileApiKey
     && apiKeyStatus.state === 'ready'
     && apiKeyStatus.hasProviderKey
     && !apiKeyStatus.hasProfileKey;
 
   const apiKeyStatusLabel = (() => {
     if (!providerRequiresApiKey) return '—';
-    if (mode === 'create') return overrideProfileApiKey ? (apiKeyInput.trim() ? 'Draft' : 'Not set') : 'Use provider key';
-    if (apiKeyStatus.state === 'loading') return 'Checking…';
-    if (apiKeyStatus.state === 'ready') {
-      if (apiKeyStatus.hasProfileKey) return 'Override set';
-      if (apiKeyStatus.hasProviderKey) return '';
-      return 'Missing';
+
+    if (overrideProfileApiKey) {
+      if (mode === 'create') {
+        return apiKeyInput.trim() ? 'Draft' : 'Not set';
+      }
+      if (apiKeyStatus.state === 'loading') return 'Checking…';
+      if (apiKeyStatus.state === 'ready') return apiKeyStatus.hasProfileKey ? 'Override set' : 'Not set';
+      if (apiKeyStatus.state === 'error') return 'Error';
+      return '—';
     }
+
+    // Using provider key (no per-profile override).
+    if (apiKeyStatus.state === 'loading') return 'Checking…';
+    if (apiKeyStatus.state === 'ready') return apiKeyStatus.hasProviderKey ? '' : 'Missing';
     if (apiKeyStatus.state === 'error') return 'Error';
-    return '—';
+    return mode === 'create' ? 'Use provider key' : '—';
   })();
 
   const showProfileApiKeyOverrideSetIndicator = canEditApiKey
@@ -461,7 +476,7 @@ export function LlmProfilesView(props: {
     if (mode !== 'edit') return;
 
     const source = form;
-    activeProfileIdRef.current = null;
+    activeProfileIdRef.current = DRAFT_PROFILE_ID;
     const nextForm = { ...source, name: '' };
     applyEditorTransition({
       mode: 'create',
@@ -475,7 +490,7 @@ export function LlmProfilesView(props: {
     requestAnimationFrame(() => {
       nameInputRef.current?.focus();
     });
-  }, [applyEditorTransition, form, mode]);
+  }, [DRAFT_PROFILE_ID, applyEditorTransition, form, mode]);
 
   const isDirty = useMemo(() => {
     return JSON.stringify(normalizeFormStateForDirtyCheck(form)) !== JSON.stringify(normalizeFormStateForDirtyCheck(baselineForm));
@@ -516,17 +531,19 @@ export function LlmProfilesView(props: {
             <div className="px-6 py-5 border-b border-white/[0.06] space-y-4">
               <div>
                 <FieldLabel label="Profile" htmlFor={profileSelectId} />
-                <SelectField
+                <PopoverSelectField
                   id={profileSelectId}
                   value={profileSelectValue}
                   onChange={handleSelectProfile}
                   disabled={loadingList}
-                >
-                  <option value={NEW_PROFILE_SELECT_VALUE}>New Profile…</option>
-                  {profileSelectOptions.map((id) => (
-                    <option key={id} value={id}>{id}</option>
-                  ))}
-                </SelectField>
+                  preferPlacement="down"
+                  ariaLabel="Profile"
+                  icon="codicon-symbol-parameter"
+                  options={[
+                    { value: NEW_PROFILE_SELECT_VALUE, label: 'New Profile…' },
+                    ...profileSelectOptions.map((id) => ({ value: id, label: id })),
+                  ]}
+                />
                 {loadingList ? (
                   <div className="text-xs text-stone-500 mt-1">Loading profiles…</div>
                 ) : profileSelectOptions.length === 0 ? (
@@ -613,19 +630,22 @@ export function LlmProfilesView(props: {
                       )}
                     </div>
                     <div className="mt-2">
-                      <SelectField
-                        ref={providerSelectRef}
+                      <PopoverSelectField
                         id={profileFieldId('provider')}
                         value={form.provider}
                         onChange={(v) => update('provider', v as ProfileFormState['provider'])}
-                      >
-                        <option value="">Select…</option>
-                        <option value="openai">openai</option>
-                        <option value="anthropic">anthropic</option>
-                        <option value="openrouter">openrouter</option>
-                        <option value="litellm_proxy">litellm_proxy</option>
-                        <option value="gemini">gemini</option>
-                      </SelectField>
+                        preferPlacement="down"
+                        ariaLabel="Provider"
+                        icon="codicon-plug"
+                        options={[
+                          { value: '', label: 'Select…' },
+                          { value: 'openai', label: 'openai' },
+                          { value: 'anthropic', label: 'anthropic' },
+                          { value: 'openrouter', label: 'openrouter' },
+                          { value: 'litellm_proxy', label: 'litellm_proxy' },
+                          { value: 'gemini', label: 'gemini' },
+                        ]}
+                      />
                       <FieldError message={errors.provider} />
                     </div>
                   </div>
@@ -660,7 +680,7 @@ export function LlmProfilesView(props: {
                             setUseCustomBaseUrl(next);
                             if (!next) update('baseUrl', '');
                           }}
-                          className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0"
+                          className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 oh-focus-outline"
                         />
                         Use custom base URL
                       </label>
@@ -685,16 +705,20 @@ export function LlmProfilesView(props: {
                   <div>
                     <FieldLabel label="OpenAI API mode" htmlFor={profileFieldId('openaiApiMode')} />
                     <div className="mt-2">
-                      <SelectField
+                      <PopoverSelectField
                         id={profileFieldId('openaiApiMode')}
                         value={form.openaiApiMode}
                         onChange={(v) => update('openaiApiMode', v as ProfileFormState['openaiApiMode'])}
                         disabled={form.provider !== 'openai'}
-                      >
-                        <option value="auto">auto</option>
-                        <option value="chat_completions">chat_completions</option>
-                        <option value="responses">responses</option>
-                      </SelectField>
+                        preferPlacement="up"
+                        ariaLabel="OpenAI API mode"
+                        icon="codicon-json"
+                        options={[
+                          { value: 'auto', label: 'auto' },
+                          { value: 'chat_completions', label: 'chat_completions' },
+                          { value: 'responses', label: 'responses' },
+                        ]}
+                      />
                       <FieldError message={errors.openaiApiMode} />
                     </div>
                   </div>
@@ -825,7 +849,19 @@ export function LlmProfilesView(props: {
                                 onChange={(e) => update('maxOutputTokens', e.target.value)}
                                 disabled={maxOutputTokensSlider.disabled}
                                 aria-label="Max output tokens (slider)"
-                                className="w-full accent-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="
+                                  w-full h-2 rounded-lg
+                                  appearance-none bg-transparent
+                                  oh-focus-outline
+                                  disabled:opacity-50 disabled:cursor-not-allowed
+                                  [&::-webkit-slider-runnable-track]:h-2 [&::-webkit-slider-runnable-track]:rounded-lg [&::-webkit-slider-runnable-track]:bg-white/10
+                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:-mt-1
+                                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-stone-300 [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-white/20
+                                  [&::-moz-range-track]:h-2 [&::-moz-range-track]:rounded-lg [&::-moz-range-track]:bg-white/10
+                                  [&::-moz-range-progress]:h-2 [&::-moz-range-progress]:rounded-lg [&::-moz-range-progress]:bg-white/20
+                                  [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-stone-300
+                                  [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-white/20
+                                "
                               />
                               <div className="flex items-center justify-between text-[11px] text-stone-500">
                                 <span>{MIN_OUTPUT_TOKENS}</span>
@@ -841,33 +877,41 @@ export function LlmProfilesView(props: {
                         <div>
                           <FieldLabel label="Reasoning effort" htmlFor={profileFieldId('reasoningEffort')} />
                           <div className="mt-2">
-                            <SelectField
+                            <PopoverSelectField
                               id={profileFieldId('reasoningEffort')}
                               value={form.reasoningEffort}
                               onChange={(v) => update('reasoningEffort', v as ProfileFormState['reasoningEffort'])}
-                            >
-                              <option value="">default</option>
-                              <option value="none">none</option>
-                              <option value="low">low</option>
-                              <option value="medium">medium</option>
-                              <option value="high">high</option>
-                            </SelectField>
+                              preferPlacement="up"
+                              ariaLabel="Reasoning effort"
+                              icon="codicon-lightbulb"
+                              options={[
+                                { value: '', label: 'default' },
+                                { value: 'none', label: 'none' },
+                                { value: 'low', label: 'low' },
+                                { value: 'medium', label: 'medium' },
+                                { value: 'high', label: 'high' },
+                              ]}
+                            />
                             <FieldError message={errors.reasoningEffort} />
                           </div>
                         </div>
                         <div>
                           <FieldLabel label="Reasoning summary" htmlFor={profileFieldId('reasoningSummary')} />
                           <div className="mt-2">
-                            <SelectField
+                            <PopoverSelectField
                               id={profileFieldId('reasoningSummary')}
                               value={form.reasoningSummary}
                               onChange={(v) => update('reasoningSummary', v as ProfileFormState['reasoningSummary'])}
-                            >
-                              <option value="">default</option>
-                              <option value="auto">auto</option>
-                              <option value="concise">concise</option>
-                              <option value="detailed">detailed</option>
-                            </SelectField>
+                              preferPlacement="up"
+                              ariaLabel="Reasoning summary"
+                              icon="codicon-preview"
+                              options={[
+                                { value: '', label: 'default' },
+                                { value: 'auto', label: 'auto' },
+                                { value: 'concise', label: 'concise' },
+                                { value: 'detailed', label: 'detailed' },
+                              ]}
+                            />
                             <FieldError message={errors.reasoningSummary} />
                           </div>
                         </div>
@@ -911,7 +955,16 @@ export function LlmProfilesView(props: {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1] transition-all"
+                  className="
+                    inline-flex items-center gap-2 px-4 py-2 rounded-lg
+                    text-sm font-medium
+                    transition-all
+                    border border-white/[0.06]
+                    bg-white/[0.04] text-stone-300
+                    hover:bg-white/[0.08] hover:border-white/[0.1]
+                    focus:outline-none focus:ring-0
+                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]
+                  "
                 >
                   {isDirty ? 'Cancel' : 'Close'}
                 </button>
@@ -924,9 +977,11 @@ export function LlmProfilesView(props: {
                     text-sm font-medium
                     transition-all
                     border
+                    focus:outline-none focus:ring-0
+                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]
                     ${!canSave
                       ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                      : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
+                      : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-white/[0.06] oh-outline-soft hover:from-brand-500/35 hover:to-brand-600/30 hover:border-white/[0.1]'}
                   `}
                 >
                   <span className={`codicon codicon-${saving ? 'loading' : 'save'} ${saving ? 'animate-spin' : ''}`} />

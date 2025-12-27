@@ -314,7 +314,6 @@ describe('Agent-SDK event rendering', () => {
     const button = await screen.findByRole('button', { name: 'View diff for /tmp/nested/README.md' });
     expect(button).toHaveTextContent('README.md');
     expect(button).not.toHaveTextContent('/tmp/nested/README.md');
-    expect(button).toHaveAttribute('title', 'View diff for /tmp/nested/README.md');
     fireEvent.click(button);
 
     expect(mockApi.postMessage).toHaveBeenCalledWith(
