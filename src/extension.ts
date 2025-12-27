@@ -23,6 +23,7 @@ import { registerExplainSelectionCommand } from './extension/explainSelectionCom
 import { createPastedImagesCleanupScheduler } from './extension/pastedImagesCleanupScheduler';
 import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
+import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import {
   AgentContext,
   Conversation,
@@ -610,20 +611,16 @@ export function activate(context: vscode.ExtensionContext) {
     getOutputChannel: () => outputChannel,
     renderError,
   });
+  const onHalConfigurationChange = createHalConfigurationChangeHandler({
+    context,
+    getChatView: () => chatView,
+    isChatWebviewReady: () => chatWebviewReady,
+    getOutputChannel: () => outputChannel,
+    renderError,
+  });
   const onConfigurationChange = async (e: vscode.ConfigurationChangeEvent) => {
     await onConfigurationChangeBase(e);
-
-    if (e.affectsConfiguration('openhands.hal')) {
-      try {
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-        const settings = await settingsMgr.get();
-        if (chatView && chatWebviewReady) {
-          void chatView.webview.postMessage({ type: 'halSettings', hal: settings.hal } satisfies HostToWebviewMessage);
-        }
-      } catch (err: unknown) {
-        outputChannel?.appendLine(`[settings] Failed to apply HAL settings update: ${renderError(err)}`);
-      }
-    }
+    await onHalConfigurationChange(e);
   };
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(onConfigurationChange));
 
