@@ -149,7 +149,7 @@ describe('LLM Profiles view', () => {
 
     const apiKeyInput = await screen.findByLabelText('API key override');
     fireEvent.change(apiKeyInput, { target: { value: 'sk-test' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save API key' }));
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileApiKeySetRequest')).toBeTruthy();

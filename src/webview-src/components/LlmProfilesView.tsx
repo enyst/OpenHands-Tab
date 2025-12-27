@@ -939,7 +939,16 @@ export function LlmProfilesView(props: {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1] transition-all"
+                  className="
+                    inline-flex items-center gap-2 px-4 py-2 rounded-lg
+                    text-sm font-medium
+                    transition-all
+                    border border-white/[0.06]
+                    bg-white/[0.04] text-stone-300
+                    hover:bg-white/[0.08] hover:border-white/[0.1]
+                    focus:outline-none focus:ring-0
+                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.16)]
+                  "
                 >
                   {isDirty ? 'Cancel' : 'Close'}
                 </button>
@@ -952,6 +961,8 @@ export function LlmProfilesView(props: {
                     text-sm font-medium
                     transition-all
                     border
+                    focus:outline-none focus:ring-0
+                    focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.16)]
                     ${!canSave
                       ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
                       : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
