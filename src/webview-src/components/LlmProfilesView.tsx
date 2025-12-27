@@ -42,6 +42,25 @@ const openMarkdownLink = (href: string) => {
   postMessage({ type: 'openMarkdownLink', href });
 };
 
+const normalizeFormStateForDirtyCheck = (value: ProfileFormState) => ({
+  name: value.name.trim(),
+  provider: value.provider,
+  model: value.model.trim(),
+  baseUrl: value.baseUrl.trim(),
+  apiVersion: value.apiVersion.trim(),
+  openaiApiMode: value.openaiApiMode,
+  timeoutSeconds: value.timeoutSeconds.trim(),
+  temperature: value.temperature.trim(),
+  topP: value.topP.trim(),
+  topK: value.topK.trim(),
+  maxInputTokens: value.maxInputTokens.trim(),
+  maxOutputTokens: value.maxOutputTokens.trim(),
+  reasoningEffort: value.reasoningEffort,
+  reasoningSummary: value.reasoningSummary,
+  inputCostPerToken: value.inputCostPerToken.trim(),
+  outputCostPerToken: value.outputCostPerToken.trim(),
+});
+
 export function LlmProfilesView(props: {
   isOpen: boolean;
   activeProfileId?: string | null;
@@ -458,26 +477,8 @@ export function LlmProfilesView(props: {
     });
   }, [applyEditorTransition, form, mode]);
 
-  const normalizeFormState = (value: ProfileFormState) => ({
-    name: value.name.trim(),
-    provider: value.provider,
-    model: value.model.trim(),
-    baseUrl: value.baseUrl.trim(),
-    apiVersion: value.apiVersion.trim(),
-    openaiApiMode: value.openaiApiMode,
-    timeoutSeconds: value.timeoutSeconds.trim(),
-    temperature: value.temperature.trim(),
-    topP: value.topP.trim(),
-    topK: value.topK.trim(),
-    maxInputTokens: value.maxInputTokens.trim(),
-    maxOutputTokens: value.maxOutputTokens.trim(),
-    reasoningEffort: value.reasoningEffort,
-    reasoningSummary: value.reasoningSummary,
-    inputCostPerToken: value.inputCostPerToken.trim(),
-    outputCostPerToken: value.outputCostPerToken.trim(),
-  });
   const isDirty = useMemo(() => {
-    return JSON.stringify(normalizeFormState(form)) !== JSON.stringify(normalizeFormState(baselineForm));
+    return JSON.stringify(normalizeFormStateForDirtyCheck(form)) !== JSON.stringify(normalizeFormStateForDirtyCheck(baselineForm));
   }, [baselineForm, form]);
   const canSave = isDirty && !saving && !loadingProfile;
 
