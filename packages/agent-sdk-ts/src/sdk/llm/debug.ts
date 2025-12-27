@@ -45,8 +45,11 @@ const mergeGenerationParams = (
   if (reasoningSummary) target.reasoningSummary = reasoningSummary;
 };
 
-const mergeEncryptedReasoning = (source: { encrypted_reasoning?: unknown } | undefined, target: Record<string, unknown>) => {
-  const preview = pickEncryptedReasoningPreview(source?.encrypted_reasoning);
+const mergeEncryptedReasoning = (source: unknown, target: Record<string, unknown>) => {
+  const encryptedReasoning = typeof source === 'object' && source !== null
+    ? (source as { encrypted_reasoning?: unknown }).encrypted_reasoning
+    : undefined;
+  const preview = pickEncryptedReasoningPreview(encryptedReasoning);
   if (preview) target.encrypted_reasoning = preview;
 };
 

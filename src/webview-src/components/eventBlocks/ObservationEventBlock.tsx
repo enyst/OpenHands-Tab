@@ -15,11 +15,19 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
     const command = typeof candidate.command === 'string' ? candidate.command : '';
     return command === 'insert' || command === 'str_replace';
   })();
+  const isFinishTool = event.tool_name === 'finish';
+  const finishMessageCandidate = isFinishTool ? (event.observation as { message?: unknown })?.message : undefined;
+  const finishMessage = typeof finishMessageCandidate === 'string' ? finishMessageCandidate.trim() : '';
+  const finishSummary = isFinishTool ? (
+    <div className="text-sm leading-relaxed text-stone-300">
+      {finishMessage || 'Agent indicated the run is finished.'}
+    </div>
+  ) : null;
   const observationSummary = event.tool_name === 'file_editor'
     ? <FileEditorObservationSummary observation={event.observation} />
     : event.tool_name === 'terminal'
       ? <TerminalObservationSummary observation={event.observation} isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
-      : null;
+      : finishSummary;
   const hasSummary = observationSummary !== null;
   const shouldShowRaw = isFileEditObservation ? false : !hasSummary || isExpanded;
   const observationString = shouldShowRaw ? JSON.stringify(event.observation, null, 2) : '';

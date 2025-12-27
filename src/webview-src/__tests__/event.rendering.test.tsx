@@ -219,6 +219,29 @@ describe('Agent-SDK event rendering', () => {
     expect(await screen.findByText(/Directory listing output from bash execution/)).toBeInTheDocument();
   });
 
+  it('renders finish tool observations with friendly summary', async () => {
+    render(<App />);
+    const ev = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: { message: '  All done here.  ' },
+      tool_name: 'finish',
+      tool_call_id: 'call_finish_1',
+      action_id: 'action_finish_1',
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+    expect(await screen.findByText('All done here.')).toBeInTheDocument();
+    expect(screen.queryByText(/All done here\./, { selector: 'pre' })).toBeNull();
+
+    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    fireEvent.click(toggle);
+    const rawBlock = await screen.findByText((_, element) => {
+      return element?.tagName === 'PRE' && (element.textContent ?? '').includes('All done here.');
+    });
+    expect(rawBlock).toBeInTheDocument();
+  });
+
   it('renders UserRejectObservation', async () => {
     render(<App />);
     const ev = {

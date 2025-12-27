@@ -4,7 +4,7 @@ import { buildLlmRequestParametersForDebug } from '../debug';
 
 describe('buildLlmRequestParametersForDebug', () => {
   it('strips temperature for GPT-5 model variants', () => {
-    const llmSettings = { temperature: 0.3 } as unknown as OpenHandsSettings['llm'];
+    const llmSettings: OpenHandsSettings['llm'] = { temperature: 0.3 };
 
     const parameters = buildLlmRequestParametersForDebug({
       llmSettings,
@@ -15,7 +15,7 @@ describe('buildLlmRequestParametersForDebug', () => {
   });
 
   it('truncates encrypted_reasoning for readability', () => {
-    const llmSettings = { encrypted_reasoning: 'abcdefghijklmnop' } as unknown as OpenHandsSettings['llm'];
+    const llmSettings: OpenHandsSettings['llm'] = { encrypted_reasoning: 'abcdefghijklmnop' };
 
     const parameters = buildLlmRequestParametersForDebug({
       llmSettings,
@@ -26,7 +26,7 @@ describe('buildLlmRequestParametersForDebug', () => {
   });
 
   it('keeps short encrypted_reasoning values intact', () => {
-    const llmSettings = { encrypted_reasoning: 'abc123' } as unknown as OpenHandsSettings['llm'];
+    const llmSettings: OpenHandsSettings['llm'] = { encrypted_reasoning: 'abc123' };
 
     const parameters = buildLlmRequestParametersForDebug({
       llmSettings,
