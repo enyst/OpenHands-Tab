@@ -61,6 +61,8 @@ const normalizeFormStateForDirtyCheck = (value: ProfileFormState) => ({
   outputCostPerToken: value.outputCostPerToken.trim(),
 });
 
+const DRAFT_PROFILE_ID = '__draft_profile__';
+
 export function LlmProfilesView(props: {
   isOpen: boolean;
   activeProfileId?: string | null;
@@ -181,8 +183,6 @@ export function LlmProfilesView(props: {
     setIsAdvancedOpen(false);
   }, []);
 
-  const DRAFT_PROFILE_ID = '__draft_profile__';
-
   const startCreate = useCallback(() => {
     activeProfileIdRef.current = DRAFT_PROFILE_ID;
     applyEditorTransition({
@@ -192,7 +192,7 @@ export function LlmProfilesView(props: {
       loadingProfile: false,
       useCustomBaseUrl: false,
     });
-  }, [DRAFT_PROFILE_ID, applyEditorTransition]);
+  }, [applyEditorTransition]);
 
   const startEdit = useCallback(async (profileId: string) => {
     activeProfileIdRef.current = profileId;
@@ -250,7 +250,7 @@ export function LlmProfilesView(props: {
     }
 
     void refreshApiKeyStatus(DRAFT_PROFILE_ID, { provider: form.provider });
-  }, [DRAFT_PROFILE_ID, form.provider, isOpen, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
+  }, [form.provider, isOpen, loadingProfile, mode, refreshApiKeyStatus, selectedProfileId]);
 
   const handleSave = useCallback(async () => {
     setSaveAttempted(true);
@@ -490,7 +490,7 @@ export function LlmProfilesView(props: {
     requestAnimationFrame(() => {
       nameInputRef.current?.focus();
     });
-  }, [DRAFT_PROFILE_ID, applyEditorTransition, form, mode]);
+  }, [applyEditorTransition, form, mode]);
 
   const isDirty = useMemo(() => {
     return JSON.stringify(normalizeFormStateForDirtyCheck(form)) !== JSON.stringify(normalizeFormStateForDirtyCheck(baselineForm));
