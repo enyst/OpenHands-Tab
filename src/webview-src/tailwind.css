@@ -89,7 +89,8 @@
 
   /* Global focus styling for interactive elements - same as hover */
   button:focus-visible,
-  [role="option"]:focus-visible {
+  [role="option"]:focus-visible,
+  [role="option"]:focus-within {
     outline: none;
     background-color: rgba(255, 255, 255, 0.1);
   }
