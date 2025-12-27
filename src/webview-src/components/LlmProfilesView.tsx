@@ -80,6 +80,7 @@ export function LlmProfilesView(props: {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [mode, setMode] = useState<ProfileFormMode>('create');
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM);
+  const [baselineForm, setBaselineForm] = useState<ProfileFormState>(EMPTY_FORM);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [loadingList, setLoadingList] = useState(false);
@@ -147,6 +148,7 @@ export function LlmProfilesView(props: {
     setMode(target.mode);
     setSelectedProfileId(target.selectedProfileId);
     setForm(target.form);
+    setBaselineForm(target.form);
     setLoadingProfile(target.loadingProfile);
     setUseCustomBaseUrl(target.useCustomBaseUrl);
 
@@ -184,7 +186,9 @@ export function LlmProfilesView(props: {
     try {
       const config = await loadProfile(profileId);
       if (activeProfileIdRef.current !== profileId) return;
-      setForm(toFormState(profileId, config));
+      const nextForm = toFormState(profileId, config);
+      setForm(nextForm);
+      setBaselineForm(nextForm);
       const initialBaseUrl = typeof config.baseUrl === 'string' ? config.baseUrl.trim() : '';
       setUseCustomBaseUrl(Boolean(initialBaseUrl));
     } catch (err) {
@@ -266,6 +270,9 @@ export function LlmProfilesView(props: {
         }
       }
       await refreshProfiles();
+      const nextForm = toFormState(profileId, config);
+      setForm(nextForm);
+      setBaselineForm(nextForm);
       activeProfileIdRef.current = profileId;
       setMode('edit');
       setSelectedProfileId(profileId);
@@ -436,10 +443,11 @@ export function LlmProfilesView(props: {
 
     const source = form;
     activeProfileIdRef.current = null;
+    const nextForm = { ...source, name: '' };
     applyEditorTransition({
       mode: 'create',
       selectedProfileId: null,
-      form: { ...source, name: '' },
+      form: nextForm,
       loadingProfile: false,
       useCustomBaseUrl: Boolean(source.baseUrl.trim()),
     });
@@ -449,6 +457,29 @@ export function LlmProfilesView(props: {
       nameInputRef.current?.focus();
     });
   }, [applyEditorTransition, form, mode]);
+
+  const normalizeFormState = (value: ProfileFormState) => ({
+    name: value.name.trim(),
+    provider: value.provider,
+    model: value.model.trim(),
+    baseUrl: value.baseUrl.trim(),
+    apiVersion: value.apiVersion.trim(),
+    openaiApiMode: value.openaiApiMode,
+    timeoutSeconds: value.timeoutSeconds.trim(),
+    temperature: value.temperature.trim(),
+    topP: value.topP.trim(),
+    topK: value.topK.trim(),
+    maxInputTokens: value.maxInputTokens.trim(),
+    maxOutputTokens: value.maxOutputTokens.trim(),
+    reasoningEffort: value.reasoningEffort,
+    reasoningSummary: value.reasoningSummary,
+    inputCostPerToken: value.inputCostPerToken.trim(),
+    outputCostPerToken: value.outputCostPerToken.trim(),
+  });
+  const isDirty = useMemo(() => {
+    return JSON.stringify(normalizeFormState(form)) !== JSON.stringify(normalizeFormState(baselineForm));
+  }, [baselineForm, form]);
+  const canSave = isDirty && !saving && !loadingProfile;
 
   if (!isOpen) return null;
 
@@ -881,18 +912,18 @@ export function LlmProfilesView(props: {
                   onClick={onClose}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white/[0.04] text-stone-300 border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/[0.1] transition-all"
                 >
-                  Cancel
+                  {isDirty ? 'Cancel' : 'Close'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { void handleSave(); }}
-                  disabled={saving || loadingProfile}
+                  disabled={!canSave}
                   className={`
                     inline-flex items-center gap-2 px-4 py-2 rounded-lg
                     text-sm font-medium
                     transition-all
                     border
-                    ${saving || loadingProfile
+                    ${!canSave
                       ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
                       : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
                   `}
