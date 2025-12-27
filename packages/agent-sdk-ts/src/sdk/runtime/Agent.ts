@@ -49,6 +49,7 @@ import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } 
 import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
+import { buildLlmRequestParametersForDebug } from '../llm/debug';
 
 export type AgentRunInput = string | Message;
 
@@ -427,6 +428,10 @@ export class Agent extends EventEmitter {
           try {
             const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
             const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
+            const debugParameters = buildLlmRequestParametersForDebug({
+              llmSettings: this.options.settings.llm,
+              model: llmConfig.model,
+            });
             this.events.push({
               kind: 'ConversationStateUpdateEvent',
               source: 'agent',
@@ -438,7 +443,7 @@ export class Agent extends EventEmitter {
                   baseUrl,
                   ...(typeof llmConfig.openaiApiMode === 'string' ? { openaiApiMode: llmConfig.openaiApiMode } : {}),
                 },
-                request: sanitizeChatRequestForDebug(request),
+                request: sanitizeChatRequestForDebug(request, { parameters: debugParameters }),
               },
             } as Event);
           } catch (error) {

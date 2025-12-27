@@ -2,11 +2,14 @@ import * as vscode from 'vscode';
 import type { Event, MessageEvent } from '@openhands/agent-sdk-ts';
 import { isTextContent } from '@openhands/agent-sdk-ts';
 import { getPastedImagePath, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
+import { summarizeAgentErrorEvent, summarizeConversationErrorEvent } from '../../shared/errorSummaries';
 
 export function transformEventForWebview(
   event: Event,
   params: { webview: vscode.Webview; pastedImagesBaseDir: string }
 ): Event {
+  if (event.kind === 'AgentErrorEvent') return summarizeAgentErrorEvent(event);
+  if (event.kind === 'ConversationErrorEvent') return summarizeConversationErrorEvent(event);
   if (event.kind !== 'MessageEvent') return event;
   const msgEvent: MessageEvent = event;
   const msg = msgEvent.llm_message;

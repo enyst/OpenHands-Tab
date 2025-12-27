@@ -20,7 +20,7 @@ class MultiCallMockLLM implements LLMClient {
 }
 
 const baseSettings: OpenHandsSettings = {
-  llm: { model: 'test-model', provider: 'openai' },
+  llm: { model: 'test-model', provider: 'openai', temperature: 0.25, maxOutputTokens: 64 },
   agent: { debug: true },
   conversation: { maxIterations: 2 },
   confirmation: {},
@@ -68,6 +68,7 @@ describe('Agent debug LLM payload events', () => {
     expect(Array.isArray(firstRequest.request.tools)).toBe(true);
     expect(firstRequest.request.tools).toContain('noop');
     expect(typeof firstRequest.request.tools[0]).toBe('string');
+    expect(firstRequest.request.parameters).toEqual({ temperature: 0.25, maxOutputTokens: 64 });
 
     const secondRequest = requestPayloads[1];
     const toolMessage = (secondRequest.request.messages as any[]).find((m) => m?.role === 'tool');
@@ -97,4 +98,3 @@ describe('Agent debug LLM payload events', () => {
     expect(argStr.length).toBeLessThanOrEqual(2015);
   });
 });
-

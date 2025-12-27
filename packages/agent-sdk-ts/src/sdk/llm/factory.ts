@@ -7,6 +7,7 @@ import { GeminiClient } from './gemini';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
 import type { LLMProfileStoreOptions } from './profiles';
 import { loadProfile } from './profiles';
+import { normalizeGenerationParamsForModel } from './configGuards';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient, llmRegistryKeyToString, toLLMRegistryKey } from './registry';
 import { Metrics } from './metrics';
@@ -48,7 +49,7 @@ export class LLMFactory {
     };
 
     const profileId = normalizeOptionalString(this.config.profileId);
-    const config: LLMConfiguration = (() => {
+    let config: LLMConfiguration = (() => {
       if (!profileId) return this.config;
       const profile = loadProfile(profileId, this.profileStoreOptions);
       const merged: LLMConfiguration = {
@@ -65,6 +66,7 @@ export class LLMFactory {
       if (requestedApiKey) merged.apiKey = requestedApiKey;
       return merged;
     })();
+    config = normalizeGenerationParamsForModel(config);
 
     const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
     const label = normalizeOptionalString(config.profileId) ?? config.model;

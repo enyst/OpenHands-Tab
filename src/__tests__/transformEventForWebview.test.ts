@@ -27,5 +27,19 @@ describe('transformEventForWebview', () => {
     expect(text).toContain('/tmp/oh-tab-test/pasted-images/0123456789abcdef.png');
     expect(text).not.toContain(OPENHANDS_IMAGE_URL_PREFIX);
   });
-});
 
+  it('summarizes error events for webview display', () => {
+    const event: any = {
+      kind: 'ConversationErrorEvent',
+      source: 'agent',
+      detail:
+        "LLM request failed (400): {\"error\":{\"message\":\"Unsupported parameter: 'temperature' is not supported with this model.\"}} (mode=local, llm.model=gpt-5)",
+    };
+
+    const transformed: any = transformEventForWebview(event, { webview: {} as any, pastedImagesBaseDir: '/tmp' });
+    expect(transformed.detail).toBe(
+      "LLM request failed (400): Unsupported parameter: 'temperature' is not supported with this model.",
+    );
+    expect(transformed.hint).toContain('temperature');
+  });
+});
