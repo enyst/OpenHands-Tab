@@ -40,15 +40,25 @@ This audit compared the documentation in README.md and docs/ against the actual 
 - `openhands.agent.debug` - Enable local-mode debug events
 - `openhands.agent.summarizeToolCalls` - Generate Gemini summaries for tool calls
 - `openhands.devBridge.enabled` - Enable webview debugging bridge
-- **Entire HAL (High-risk Action Listener) section**:
-  - `openhands.hal.enabled`
-  - `openhands.hal.mode` (bundled/tts_only/voice_confirm)
-  - `openhands.hal.userName`
-  - `openhands.hal.voiceAId`, `voiceUserId`, `modelId`
-  - `openhands.hal.volume`, `cache`
-  - `openhands.hal.llmProfileId`
+- **Entire HAL 9000 Easter Egg section** (10+ settings for a theatrical high-risk confirmation flow):
+  - `openhands.hal.enabled` - Enable the HAL 9000 easter egg
+  - `openhands.hal.mode` - Choose mode: `bundled` (E2E/CI), `tts_only` (demo with buttons), `voice_confirm` (interactive - you can talk to HAL!)
+  - `openhands.hal.userName` - Your name in HAL's dialogue (default: "Engel" as in "I'm sorry, Engel...")
+  - `openhands.hal.voiceAId`, `voiceUserId` - ElevenLabs voice IDs for HAL and user voices
+  - `openhands.hal.modelId` - ElevenLabs model ID
+  - `openhands.hal.volume`, `cache` - Audio settings
+  - `openhands.hal.llmProfileId` - Gemini profile for voice confirmation classification
 
-**Recommendation**: Add a "Configuration" or "Advanced Settings" section to README documenting these features, especially HAL which appears to be a significant feature.
+**What HAL actually does** (from docs/hal/elevenlabs_prd.md):
+When a HIGH-risk action requires confirmation, instead of showing a normal dialog, HAL displays:
+- A pulsating red eye overlay (like HAL 9000's camera)
+- Scripted dialogue: "I'm sorry, {userName}, I can't let you do that..."
+- Three options: Approve locally / Teleport to remote runtime / Reject
+- In `voice_confirm` mode: you can actually SPEAK your decision to HAL via microphone!
+- When teleporting: plays Rhapsody in Blue while setting up the remote connection
+- Uses ElevenLabs TTS for HAL's voice and optionally Gemini for understanding your voice response
+
+**Recommendation**: Add an "Easter Eggs" or "Advanced Features" section to README documenting HAL. This is too cool to hide!
 
 ---
 
