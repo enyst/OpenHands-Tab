@@ -63,7 +63,7 @@ describe('Gemini summarizers prefer GEMINI_API_KEY', () => {
       secrets,
     });
 
-    await (agent as any).getToolSummarizerClient();
+    await (agent as any).toolSummarizer.getClient();
 
     expect(secrets.calls[0]).toBe('GEMINI_API_KEY');
   });
