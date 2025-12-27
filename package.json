@@ -453,7 +453,7 @@
       "openhands": [
         {
           "id": "openhands.chat",
-          "name": "Chat",
+          "name": "Agent",
           "type": "webview"
         }
       ]
