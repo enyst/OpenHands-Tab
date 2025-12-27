@@ -78,7 +78,7 @@ export function App() {
 
   // Tools state (local mode only)
   const [showToolsPopover, setShowToolsPopover] = useState(false);
-  const [tools, setTools] = useState<{ id: string; label: string }[]>([]);
+  const [tools, setTools] = useState<{ id: string; label: string; description?: string; isDefault?: boolean }[]>([]);
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
 
   // History state

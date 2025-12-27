@@ -44,9 +44,13 @@ describe('Tools picker host messages', () => {
 
     const payload = postMessage.mock.calls[0][0] as any;
     expect(payload.tools).toEqual([
-      { id: 'terminal', label: 'Terminal' },
-      { id: 'file_editor', label: 'File Editor' },
-      { id: 'task_tracker', label: 'Task Tracker' },
+      { id: 'terminal', label: 'Terminal', description: 'Execute shell commands in a controlled environment', isDefault: true },
+      { id: 'file_editor', label: 'File Editor', description: 'Read, create, and modify files in the workspace', isDefault: true },
+      { id: 'task_tracker', label: 'Task Tracker', description: 'Track tasks and progress during the conversation', isDefault: true },
+      { id: 'glob', label: 'File Search (Glob)', description: 'Find files by name patterns (e.g., **/*.ts)', isDefault: false },
+      { id: 'grep', label: 'Content Search (Grep)', description: 'Search file contents using regex patterns', isDefault: false },
+      { id: 'browser', label: 'Web Fetch', description: 'Make HTTP GET/POST requests to fetch web content', isDefault: false },
+      { id: 'finish', label: 'Finish', description: 'Signal that the agent has completed its task', isDefault: false },
     ]);
   });
 

@@ -480,4 +480,143 @@ describe('Agent-SDK event rendering', () => {
     });
   });
 
+  it('renders friendly summaries for glob tool events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Finding TypeScript files' }],
+      action: { pattern: '**/*.ts', path: '/workspace' },
+      tool_name: 'glob',
+      tool_call_id: 'call_glob_1',
+      tool_call: { id: 'call_glob_1', type: 'function' as const, function: { name: 'glob', arguments: '{}' } },
+      llm_response_id: 'resp_glob_1',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to search for files matching a pattern/)).toBeInTheDocument();
+    expect(await screen.findByText('**/*.ts')).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        files: ['/workspace/src/index.ts', '/workspace/src/utils.ts', '/workspace/test/test.ts'],
+        pattern: '**/*.ts',
+        searchPath: '/workspace',
+        truncated: false,
+      },
+      tool_name: 'glob',
+      tool_call_id: 'call_glob_1',
+      action_id: 'action_glob_1',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    const foundTexts = await screen.findAllByText(/Found/);
+    expect(foundTexts.length).toBeGreaterThan(0);
+    expect(await screen.findByText('3')).toBeInTheDocument();
+    // Check file count is displayed
+    const fileTexts = await screen.findAllByText(/file/i);
+    expect(fileTexts.length).toBeGreaterThan(0);
+  });
+
+  it('renders friendly summaries for grep tool events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Searching for TODO comments' }],
+      action: { pattern: 'TODO:', include: '*.ts' },
+      tool_name: 'grep',
+      tool_call_id: 'call_grep_1',
+      tool_call: { id: 'call_grep_1', type: 'function' as const, function: { name: 'grep', arguments: '{}' } },
+      llm_response_id: 'resp_grep_1',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to search file contents for a pattern/)).toBeInTheDocument();
+    expect(await screen.findByText('TODO:')).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        matches: ['/workspace/src/index.ts', '/workspace/src/utils.ts'],
+        pattern: 'TODO:',
+        searchPath: '/workspace',
+        includePattern: '*.ts',
+        truncated: false,
+      },
+      tool_name: 'grep',
+      tool_call_id: 'call_grep_1',
+      action_id: 'action_grep_1',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText(/Found/)).toBeInTheDocument();
+    expect(await screen.findByText('2')).toBeInTheDocument();
+    expect(await screen.findByText(/matching file/)).toBeInTheDocument();
+  });
+
+  it('renders friendly summaries for browser tool events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Fetching API data' }],
+      action: { url: 'https://api.example.com/data', method: 'GET' },
+      tool_name: 'browser',
+      tool_call_id: 'call_browser_1',
+      tool_call: { id: 'call_browser_1', type: 'function' as const, function: { name: 'browser', arguments: '{}' } },
+      llm_response_id: 'resp_browser_1',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to fetch a web resource/)).toBeInTheDocument();
+    expect(await screen.findByText('GET')).toBeInTheDocument();
+    expect(await screen.findByText('https://api.example.com/data')).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        url: 'https://api.example.com/data',
+        status: 200,
+        content: '{"result": "success"}',
+      },
+      tool_name: 'browser',
+      tool_call_id: 'call_browser_1',
+      action_id: 'action_browser_1',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    expect(await screen.findByText('200')).toBeInTheDocument();
+    expect(await screen.findByText(/Received 21 characters/)).toBeInTheDocument();
+  });
+
+  it('renders friendly summaries for finish tool events', async () => {
+    render(<App />);
+    const actionEvent = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [{ type: 'text' as const, text: 'Task completed successfully' }],
+      action: { message: 'All tests pass and the code is ready for review.' },
+      tool_name: 'finish',
+      tool_call_id: 'call_finish_1',
+      tool_call: { id: 'call_finish_1', type: 'function' as const, function: { name: 'finish', arguments: '{}' } },
+      llm_response_id: 'resp_finish_1',
+    } as any;
+    postToWindow({ type: 'event', event: actionEvent });
+    expect(await screen.findByText(/The agent wants to finish the current task/)).toBeInTheDocument();
+    expect(await screen.findByText(/All tests pass and the code is ready for review/)).toBeInTheDocument();
+
+    const observationEvent = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        message: 'All tests pass and the code is ready for review.',
+      },
+      tool_name: 'finish',
+      tool_call_id: 'call_finish_1',
+      action_id: 'action_finish_1',
+    } as any;
+    postToWindow({ type: 'event', event: observationEvent });
+    const completedTexts = await screen.findAllByText(/Task completed/);
+    expect(completedTexts.length).toBeGreaterThan(0);
+  });
+
 });

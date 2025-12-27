@@ -509,12 +509,19 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
         case 'toolsList': {
           if (!Array.isArray(payload.tools) || !Array.isArray(payload.enabledToolIds)) break;
           setTools(
-            payload.tools.filter((tool): tool is { id: string; label: string } => (
-              typeof tool === 'object'
-              && tool !== null
-              && typeof (tool as { id?: unknown }).id === 'string'
-              && typeof (tool as { label?: unknown }).label === 'string'
-            ))
+            payload.tools
+              .filter((tool): tool is { id: string; label: string; description?: string; isDefault?: boolean } => (
+                typeof tool === 'object'
+                && tool !== null
+                && typeof (tool as { id?: unknown }).id === 'string'
+                && typeof (tool as { label?: unknown }).label === 'string'
+              ))
+              .map((tool) => ({
+                id: tool.id,
+                label: tool.label,
+                description: typeof tool.description === 'string' ? tool.description : undefined,
+                isDefault: typeof tool.isDefault === 'boolean' ? tool.isDefault : undefined,
+              }))
           );
           setEnabledToolIds(payload.enabledToolIds.filter((id): id is string => typeof id === 'string'));
           break;

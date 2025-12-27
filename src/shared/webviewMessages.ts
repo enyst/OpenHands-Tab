@@ -53,7 +53,7 @@ export type HostToWebviewMessage =
   }
   | { type: 'workspaceFiles'; files: string[] }
   | { type: 'skillsList'; skills: Array<{ label: string; path: string }> }
-  | { type: 'toolsList'; tools: Array<{ id: string; label: string }>; enabledToolIds: string[] }
+  | { type: 'toolsList'; tools: Array<{ id: string; label: string; description?: string; isDefault?: boolean }>; enabledToolIds: string[] }
   | { type: 'attachmentsSelected'; attachments: Array<{ uri: string; label: string; sizeBytes?: number }> }
   | { type: 'config'; serverUrl: string | null; mode: 'local' | 'remote' }
   | { type: 'conversationStarted'; conversationId: string }

@@ -1,17 +1,73 @@
 import type { ToolDefinition } from '@openhands/agent-sdk-ts';
-import { FileEditorTool, TaskTrackerTool, TerminalTool } from '@openhands/agent-sdk-ts';
+import {
+  BrowserTool,
+  FileEditorTool,
+  FinishTool,
+  GlobTool,
+  GrepTool,
+  TaskTrackerTool,
+  TerminalTool,
+} from '@openhands/agent-sdk-ts';
 
-export type LocalToolId = 'terminal' | 'file_editor' | 'task_tracker';
+export type LocalToolId =
+  | 'terminal'
+  | 'file_editor'
+  | 'task_tracker'
+  | 'glob'
+  | 'grep'
+  | 'browser'
+  | 'finish';
 
 export type LocalToolDescriptor = {
   id: LocalToolId;
   label: string;
+  description: string;
+  isDefault: boolean;
 };
 
 const LOCAL_TOOLS: LocalToolDescriptor[] = [
-  { id: 'terminal', label: 'Terminal' },
-  { id: 'file_editor', label: 'File Editor' },
-  { id: 'task_tracker', label: 'Task Tracker' },
+  {
+    id: 'terminal',
+    label: 'Terminal',
+    description: 'Execute shell commands in a controlled environment',
+    isDefault: true,
+  },
+  {
+    id: 'file_editor',
+    label: 'File Editor',
+    description: 'Read, create, and modify files in the workspace',
+    isDefault: true,
+  },
+  {
+    id: 'task_tracker',
+    label: 'Task Tracker',
+    description: 'Track tasks and progress during the conversation',
+    isDefault: true,
+  },
+  {
+    id: 'glob',
+    label: 'File Search (Glob)',
+    description: 'Find files by name patterns (e.g., **/*.ts)',
+    isDefault: false,
+  },
+  {
+    id: 'grep',
+    label: 'Content Search (Grep)',
+    description: 'Search file contents using regex patterns',
+    isDefault: false,
+  },
+  {
+    id: 'browser',
+    label: 'Web Fetch',
+    description: 'Make HTTP GET/POST requests to fetch web content',
+    isDefault: false,
+  },
+  {
+    id: 'finish',
+    label: 'Finish',
+    description: 'Signal that the agent has completed its task',
+    isDefault: false,
+  },
 ];
 
 type LocalToolInstances = Record<LocalToolId, ToolDefinition<unknown, unknown>>;
@@ -23,7 +79,13 @@ export function listLocalToolDescriptors(): LocalToolDescriptor[] {
 }
 
 export function getDefaultLocalToolIds(): LocalToolId[] {
-  return LOCAL_TOOLS.map((tool) => tool.id);
+  return LOCAL_TOOLS.filter((tool) => tool.isDefault).map((tool) => tool.id);
+}
+
+const VALID_TOOL_IDS = new Set<LocalToolId>(LOCAL_TOOLS.map((tool) => tool.id));
+
+export function isValidLocalToolId(id: string): id is LocalToolId {
+  return VALID_TOOL_IDS.has(id as LocalToolId);
 }
 
 export function normalizeLocalToolIds(value: unknown): LocalToolId[] | null {
@@ -34,8 +96,8 @@ export function normalizeLocalToolIds(value: unknown): LocalToolId[] | null {
   const seen = new Set<LocalToolId>();
   for (const item of value) {
     if (typeof item !== 'string') continue;
-    const id = item.trim() as LocalToolId;
-    if (id !== 'terminal' && id !== 'file_editor' && id !== 'task_tracker') continue;
+    const id = item.trim();
+    if (!isValidLocalToolId(id)) continue;
     if (seen.has(id)) continue;
     seen.add(id);
     out.push(id);
@@ -49,6 +111,10 @@ function getOrCreateLocalToolInstances(): LocalToolInstances {
     terminal: new TerminalTool(),
     file_editor: new FileEditorTool(),
     task_tracker: new TaskTrackerTool(),
+    glob: new GlobTool(),
+    grep: new GrepTool(),
+    browser: new BrowserTool(),
+    finish: new FinishTool(),
   };
   return instances;
 }
@@ -59,7 +125,7 @@ export function resolveLocalTools(toolIds?: LocalToolId[] | null): ToolDefinitio
   const ids = toolIds === undefined || toolIds === null ? getDefaultLocalToolIds() : toolIds;
 
   for (const id of ids) {
-    if (id === 'terminal' || id === 'file_editor' || id === 'task_tracker') {
+    if (isValidLocalToolId(id)) {
       resolved.push(byId[id]);
     }
   }
