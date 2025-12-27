@@ -5,7 +5,7 @@ import { getVscodeApi } from '../shared/vscodeApi';
 import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';
 import { LlmProfileApiKeySection } from './llmProfilesView/LlmProfileApiKeySection';
 import { LlmProfilesPanelHeader } from './llmProfilesView/LlmProfilesPanelHeader';
-import { FieldError, FieldLabel, InputField, SelectField } from './llmProfilesView/fields';
+import { FieldError, FieldLabel, InputField, PopoverSelectField } from './llmProfilesView/fields';
 import {
   ADVANCED_FIELD_KEYS,
   EMPTY_FORM,
@@ -91,7 +91,6 @@ export function LlmProfilesView(props: {
   useCloseOnEscapeAndOutsideClick({ isOpen, onClose, ref: panelRef, delay: 100 });
 
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const providerSelectRef = useRef<HTMLSelectElement>(null);
   const apiKeyInputRef = useRef<HTMLInputElement>(null);
 
   const activeProfileIdRef = useRef<string | null>(null);
@@ -516,17 +515,19 @@ export function LlmProfilesView(props: {
             <div className="px-6 py-5 border-b border-white/[0.06] space-y-4">
               <div>
                 <FieldLabel label="Profile" htmlFor={profileSelectId} />
-                <SelectField
+                <PopoverSelectField
                   id={profileSelectId}
                   value={profileSelectValue}
                   onChange={handleSelectProfile}
                   disabled={loadingList}
-                >
-                  <option value={NEW_PROFILE_SELECT_VALUE}>New Profile…</option>
-                  {profileSelectOptions.map((id) => (
-                    <option key={id} value={id}>{id}</option>
-                  ))}
-                </SelectField>
+                  preferPlacement="down"
+                  ariaLabel="Profile"
+                  icon="codicon-symbol-parameter"
+                  options={[
+                    { value: NEW_PROFILE_SELECT_VALUE, label: 'New Profile…' },
+                    ...profileSelectOptions.map((id) => ({ value: id, label: id })),
+                  ]}
+                />
                 {loadingList ? (
                   <div className="text-xs text-stone-500 mt-1">Loading profiles…</div>
                 ) : profileSelectOptions.length === 0 ? (
@@ -613,19 +614,22 @@ export function LlmProfilesView(props: {
                       )}
                     </div>
                     <div className="mt-2">
-                      <SelectField
-                        ref={providerSelectRef}
+                      <PopoverSelectField
                         id={profileFieldId('provider')}
                         value={form.provider}
                         onChange={(v) => update('provider', v as ProfileFormState['provider'])}
-                      >
-                        <option value="">Select…</option>
-                        <option value="openai">openai</option>
-                        <option value="anthropic">anthropic</option>
-                        <option value="openrouter">openrouter</option>
-                        <option value="litellm_proxy">litellm_proxy</option>
-                        <option value="gemini">gemini</option>
-                      </SelectField>
+                        preferPlacement="up"
+                        ariaLabel="Provider"
+                        icon="codicon-plug"
+                        options={[
+                          { value: '', label: 'Select…' },
+                          { value: 'openai', label: 'openai' },
+                          { value: 'anthropic', label: 'anthropic' },
+                          { value: 'openrouter', label: 'openrouter' },
+                          { value: 'litellm_proxy', label: 'litellm_proxy' },
+                          { value: 'gemini', label: 'gemini' },
+                        ]}
+                      />
                       <FieldError message={errors.provider} />
                     </div>
                   </div>
@@ -685,16 +689,20 @@ export function LlmProfilesView(props: {
                   <div>
                     <FieldLabel label="OpenAI API mode" htmlFor={profileFieldId('openaiApiMode')} />
                     <div className="mt-2">
-                      <SelectField
+                      <PopoverSelectField
                         id={profileFieldId('openaiApiMode')}
                         value={form.openaiApiMode}
                         onChange={(v) => update('openaiApiMode', v as ProfileFormState['openaiApiMode'])}
                         disabled={form.provider !== 'openai'}
-                      >
-                        <option value="auto">auto</option>
-                        <option value="chat_completions">chat_completions</option>
-                        <option value="responses">responses</option>
-                      </SelectField>
+                        preferPlacement="up"
+                        ariaLabel="OpenAI API mode"
+                        icon="codicon-json"
+                        options={[
+                          { value: 'auto', label: 'auto' },
+                          { value: 'chat_completions', label: 'chat_completions' },
+                          { value: 'responses', label: 'responses' },
+                        ]}
+                      />
                       <FieldError message={errors.openaiApiMode} />
                     </div>
                   </div>
@@ -841,33 +849,41 @@ export function LlmProfilesView(props: {
                         <div>
                           <FieldLabel label="Reasoning effort" htmlFor={profileFieldId('reasoningEffort')} />
                           <div className="mt-2">
-                            <SelectField
+                            <PopoverSelectField
                               id={profileFieldId('reasoningEffort')}
                               value={form.reasoningEffort}
                               onChange={(v) => update('reasoningEffort', v as ProfileFormState['reasoningEffort'])}
-                            >
-                              <option value="">default</option>
-                              <option value="none">none</option>
-                              <option value="low">low</option>
-                              <option value="medium">medium</option>
-                              <option value="high">high</option>
-                            </SelectField>
+                              preferPlacement="up"
+                              ariaLabel="Reasoning effort"
+                              icon="codicon-lightbulb"
+                              options={[
+                                { value: '', label: 'default' },
+                                { value: 'none', label: 'none' },
+                                { value: 'low', label: 'low' },
+                                { value: 'medium', label: 'medium' },
+                                { value: 'high', label: 'high' },
+                              ]}
+                            />
                             <FieldError message={errors.reasoningEffort} />
                           </div>
                         </div>
                         <div>
                           <FieldLabel label="Reasoning summary" htmlFor={profileFieldId('reasoningSummary')} />
                           <div className="mt-2">
-                            <SelectField
+                            <PopoverSelectField
                               id={profileFieldId('reasoningSummary')}
                               value={form.reasoningSummary}
                               onChange={(v) => update('reasoningSummary', v as ProfileFormState['reasoningSummary'])}
-                            >
-                              <option value="">default</option>
-                              <option value="auto">auto</option>
-                              <option value="concise">concise</option>
-                              <option value="detailed">detailed</option>
-                            </SelectField>
+                              preferPlacement="up"
+                              ariaLabel="Reasoning summary"
+                              icon="codicon-preview"
+                              options={[
+                                { value: '', label: 'default' },
+                                { value: 'auto', label: 'auto' },
+                                { value: 'concise', label: 'concise' },
+                                { value: 'detailed', label: 'detailed' },
+                              ]}
+                            />
                             <FieldError message={errors.reasoningSummary} />
                           </div>
                         </div>

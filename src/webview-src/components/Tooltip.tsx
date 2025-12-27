@@ -24,20 +24,14 @@ export function Tooltip({
   const [isVisible, setIsVisible] = useState(false);
   const [actualPosition, setActualPosition] = useState(position);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rafRef = useRef<number | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
-  const cancelScheduledRaf = useCallback(() => {
-    if (rafRef.current === null) return;
-    cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-  }, []);
+  const setTooltipNode = useCallback((node: HTMLDivElement | null) => {
+    tooltipRef.current = node;
+    if (!node || !triggerRef.current) return;
 
-  const updatePositionIfNeeded = useCallback(() => {
-    if (!tooltipRef.current || !triggerRef.current) return;
-
-    const tooltip = tooltipRef.current.getBoundingClientRect();
+    const tooltip = node.getBoundingClientRect();
     const trigger = triggerRef.current.getBoundingClientRect();
     const padding = 8;
 
@@ -65,13 +59,8 @@ export function Tooltip({
       timeoutRef.current = null;
       setActualPosition(position);
       setIsVisible(true);
-      cancelScheduledRaf();
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        updatePositionIfNeeded();
-      });
     }, delay);
-  }, [delay, position, cancelScheduledRaf, updatePositionIfNeeded]);
+  }, [delay, position]);
 
   const hideTooltip = useCallback(() => {
     if (timeoutRef.current) {
@@ -79,18 +68,14 @@ export function Tooltip({
       timeoutRef.current = null;
     }
     setIsVisible(false);
-    cancelScheduledRaf();
     setActualPosition(position);
-  }, [position, cancelScheduledRaf]);
+  }, [position]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
-      }
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
       }
     };
   }, []);
@@ -133,7 +118,7 @@ export function Tooltip({
       {trigger}
       {isVisible && content && (
         <div
-          ref={tooltipRef}
+          ref={setTooltipNode}
           role="tooltip"
           className={`
             absolute z-50 pointer-events-none
