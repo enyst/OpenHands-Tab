@@ -86,6 +86,21 @@
     background: rgba(232, 166, 66, 0.3);
     color: inherit;
   }
+
+  /* Global focus styling for interactive elements - subtle warm border */
+  button:focus,
+  [role="option"]:focus,
+  [role="listbox"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
+  button:focus-visible,
+  [role="option"]:focus-visible,
+  [role="listbox"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
 }
 
 /* Custom utilities for OpenHands design */
