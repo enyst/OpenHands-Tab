@@ -5,7 +5,7 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   constructor(private context: vscode.ExtensionContext) {}
 
   private isGlobalOnlyKey(key: string): boolean {
-    return key === 'openhands.serverUrl' || key === 'openhands.servers';
+    return key === 'openhands.serverUrl' || key === 'openhands.servers' || key === 'openhands.llm.profileId';
   }
 
   private getWorkspaceConfiguration(): vscode.WorkspaceConfiguration {
