@@ -20,6 +20,14 @@ const pickReasoningSummary = (value: unknown): 'auto' | 'concise' | 'detailed' |
   return value === 'auto' || value === 'concise' || value === 'detailed' ? value : undefined;
 };
 
+const pickEncryptedReasoningPreview = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.length <= 8) return trimmed;
+  return `${trimmed.slice(0, 4)}..${trimmed.slice(-4)}`;
+};
+
 const mergeGenerationParams = (
   source: { temperature?: unknown; maxOutputTokens?: unknown; reasoningEffort?: unknown; reasoningSummary?: unknown } | undefined,
   target: Record<string, unknown>,
@@ -37,6 +45,11 @@ const mergeGenerationParams = (
   if (reasoningSummary) target.reasoningSummary = reasoningSummary;
 };
 
+const mergeEncryptedReasoning = (source: { encrypted_reasoning?: unknown } | undefined, target: Record<string, unknown>) => {
+  const preview = pickEncryptedReasoningPreview(source?.encrypted_reasoning);
+  if (preview) target.encrypted_reasoning = preview;
+};
+
 export const buildLlmRequestParametersForDebug = (params: {
   llmSettings?: OpenHandsSettings['llm'];
   model: string;
@@ -45,16 +58,18 @@ export const buildLlmRequestParametersForDebug = (params: {
   const parameters: Record<string, unknown> = {};
 
   mergeGenerationParams(settings, parameters);
+  mergeEncryptedReasoning(settings, parameters);
 
   const profileId = toOptionalNonEmptyString(settings?.profileId);
   if (profileId) {
     assertValidProfileId(profileId);
     const profile = loadProfile(profileId);
     mergeGenerationParams(profile.config, parameters);
+    mergeEncryptedReasoning(profile.config, parameters);
   }
 
   const normalizedModel = params.model.trim().toLowerCase();
-  if (normalizedModel.startsWith('gpt-5')) {
+  if (normalizedModel.includes('gpt-5')) {
     delete parameters.temperature;
   }
 
