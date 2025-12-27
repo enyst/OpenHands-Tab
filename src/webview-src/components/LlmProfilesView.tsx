@@ -4,6 +4,7 @@ import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideCli
 import { getVscodeApi } from '../shared/vscodeApi';
 import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';
 import { LlmProfileApiKeySection } from './llmProfilesView/LlmProfileApiKeySection';
+import { LlmProfilesPanelHeader } from './llmProfilesView/LlmProfilesPanelHeader';
 import { FieldError, FieldLabel, InputField, SelectField } from './llmProfilesView/fields';
 import {
   ADVANCED_FIELD_KEYS,
@@ -465,54 +466,17 @@ export function LlmProfilesView(props: {
         className="relative ml-auto w-full max-w-5xl h-full bg-[var(--vscode-editor-background)] border-l border-white/[0.08] shadow-2xl flex flex-col animate-slide-in-right"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
-          <div className="flex items-center gap-2.5">
-            <div className="text-2xl" aria-label="OpenHands">
-              🙌
-            </div>
-            <h2 className="font-semibold text-base leading-tight text-stone-100">OpenHands - LLM Profiles</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={startCreate}
-              className="h-9 w-9 rounded-lg bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40 transition-all flex items-center justify-center"
-              aria-label="Create profile"
-              title="Create profile"
-            >
-              <span className="codicon codicon-add" />
-            </button>
-            <button
-              type="button"
-              onClick={handleDuplicateProfile}
-              disabled={mode !== 'edit' || !selectedProfileId || loadingProfile}
-              className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Duplicate profile"
-              title="Duplicate profile"
-            >
-              <span className="codicon codicon-copy" />
-            </button>
-            <button
-              type="button"
-              onClick={() => { void handleDeleteProfile(); }}
-              disabled={mode !== 'edit' || !selectedProfileId || loadingProfile || saving || deleting}
-              className="h-9 w-9 rounded-lg bg-red-500/10 border border-red-500/20 text-red-200 hover:bg-red-500/15 hover:border-red-500/30 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Delete profile"
-              title="Delete profile"
-            >
-              <span className={`codicon codicon-${deleting ? 'loading' : 'trash'} ${deleting ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-9 w-9 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:text-stone-100 hover:bg-white/[0.08] transition-all flex items-center justify-center"
-              aria-label="Close profiles view"
-              title="Close"
-            >
-              <span className="codicon codicon-close" />
-            </button>
-          </div>
-        </div>
+        <LlmProfilesPanelHeader
+          mode={mode}
+          selectedProfileId={selectedProfileId}
+          loadingProfile={loadingProfile}
+          saving={saving}
+          deleting={deleting}
+          onCreate={startCreate}
+          onDuplicate={handleDuplicateProfile}
+          onDelete={handleDeleteProfile}
+          onClose={onClose}
+        />
 
         {/* Body */}
         <div className="flex-1 overflow-hidden flex">
