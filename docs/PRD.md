@@ -189,12 +189,12 @@ src/
 │   ├── SettingsManager.ts       # Settings access layer
 │   └── VscodeSettingsAdapter.ts # VS Code implementation
 ├── shared/                      # Shared types and utilities
-├── sidebar/                     # Sidebar view
-│   └── OpenHandsChatViewProvider.ts # Chat sidebar WebviewView provider
+├── sidebar/                     # Sidebar webview provider (host side)
+│   └── OpenHandsChatViewProvider.ts # WebviewViewProvider that loads the React UI below
 ├── terminal/                    # Terminal integration
-├── webview/host/                # Webview host integration
-└── webview-src/                 # React webview UI
-    ├── webview.tsx              # Entry point
+├── webview/host/                # Webview host integration (message passing)
+└── webview-src/                 # React webview UI (actual view content)
+    ├── webview.tsx              # React entry point
     ├── __tests__/               # Webview unit tests
     ├── shared/                  # Shared webview utilities
     └── components/
