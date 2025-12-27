@@ -92,7 +92,7 @@
   [role="option"]:focus-visible,
   [role="listbox"]:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.35);
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.2);
   }
 }
 
