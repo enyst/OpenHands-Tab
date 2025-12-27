@@ -11,7 +11,6 @@ Guiding principles:
 
 Related docs:
 - `docs/PRD.md` (requirements + feature status)
-- `docs/WEBVIEWVIEW_MIGRATION_PLAN.md` (sidebar `WebviewView` migration plan)
 - `docs/vscode_local_setup.md` (local dev + webview debugging tips)
 
 ## Phase 0 — Baseline
@@ -140,7 +139,6 @@ Goal: Make the chat UI live in the sidebar as a `WebviewView` (sidebar-only) and
 
 Status: COMPLETED
 
-Plan: `docs/WEBVIEWVIEW_MIGRATION_PLAN.md`
 
 Implementation:
 - Chat UI moved to a sidebar `WebviewView` (`openhands.agent`)
