@@ -12,6 +12,8 @@
  * 3. Creating a new file (tool call)
  * 4. Confirming completion (text response)
  * 
+ * The test ACTUALLY executes file operations to verify end-to-end behavior.
+ * 
  * API Documentation:
  * - Anthropic Messages API: https://platform.claude.com/docs/en/api/messages.md
  * - Extended thinking: https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
@@ -33,10 +35,24 @@
  */
 
 import { LLMFactory } from './dist/index.mjs';
+import { readFile, writeFile, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Use the repo root README.md (two levels up from packages/agent-sdk-ts)
+const REPO_ROOT = join(__dirname, '..', '..');
+const README_PATH = join(REPO_ROOT, 'README.md');
 
 const LITELLM_BASE_URL = 'https://llm-proxy.eval.all-hands.dev';
 const LITELLM_MODEL = 'anthropic/claude-haiku-4-5';
 const ANTHROPIC_MODEL = 'claude-haiku-4-5-20241022';
+
+// Files created during test - will be cleaned up
+const TEST_OUTPUT_FILE = 'summary.md';
 
 const fileEditorTool = {
   type: 'function',
@@ -231,7 +247,7 @@ async function runTest(config, testName) {
       break;
     }
 
-    // Process tool calls
+    // Process tool calls - ACTUALLY execute them
     const toolResults = {};
     for (const [id, tc] of Object.entries(result.toolCalls)) {
       let args;
@@ -244,19 +260,30 @@ async function runTest(config, testName) {
       console.log(`  Executing: ${tc.name}(${JSON.stringify(args).slice(0, 100)}...)`);
 
       if (tc.name === 'file_editor') {
-        if (args.command === 'view' && args.path === 'README.md') {
-          toolResults[id] = `File content:\n${README_CONTENT}`;
-        } else if (args.command === 'create') {
-          toolResults[id] = `File created successfully at ${args.path}`;
-          console.log(`  Created file: ${args.path}`);
-          if (args.file_text) {
-            console.log(`  Content preview: ${args.file_text.slice(0, 200)}...`);
+        try {
+          if (args.command === 'view') {
+            // Map README.md to the actual repo README
+            const filePath = args.path === 'README.md' ? README_PATH : args.path;
+            const content = await readFile(filePath, 'utf-8');
+            toolResults[id] = `File content:\n${content}`;
+            console.log(`  Read file: ${args.path} -> ${filePath} (${content.length} chars)`);
+          } else if (args.command === 'create') {
+            // Actually create the file in cwd
+            await writeFile(args.path, args.file_text || '');
+            toolResults[id] = `File created successfully at ${args.path}`;
+            console.log(`  Created file: ${args.path}`);
+            if (args.file_text) {
+              console.log(`  Content preview: ${args.file_text.slice(0, 200)}...`);
+            }
+          } else {
+            toolResults[id] = `Command ${args.command} not implemented in test`;
           }
-        } else {
-          toolResults[id] = `Command ${args.command} executed on ${args.path}`;
+        } catch (err) {
+          toolResults[id] = `Error: ${err.message}`;
+          console.log(`  Error: ${err.message}`);
         }
       } else {
-        toolResults[id] = 'Tool executed successfully';
+        toolResults[id] = 'Tool not implemented in test';
       }
     }
 
@@ -276,6 +303,21 @@ async function runTest(config, testName) {
   if (!hadThinking) issues.push('No thinking/reasoning content received');
   if (!hadSignature) issues.push('No thinking signature received');
   if (!hadToolCalls) issues.push('No tool calls made');
+
+  // Verify the output file was actually created
+  if (existsSync(TEST_OUTPUT_FILE)) {
+    const content = await readFile(TEST_OUTPUT_FILE, 'utf-8');
+    console.log(`\n📄 Verified ${TEST_OUTPUT_FILE} was created (${content.length} chars)`);
+    console.log('--- File content ---');
+    console.log(content);
+    console.log('--- End of file ---');
+    
+    // Clean up
+    await unlink(TEST_OUTPUT_FILE);
+    console.log(`🧹 Cleaned up ${TEST_OUTPUT_FILE}`);
+  } else {
+    issues.push(`Output file ${TEST_OUTPUT_FILE} was not created`);
+  }
 
   if (issues.length > 0) {
     console.log('\n⚠️  Warnings:');
