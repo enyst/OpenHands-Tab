@@ -199,16 +199,24 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
             </div>
           )}
 
-          {message.reasoning_content && (
-            <details className="mt-3 text-xs">
-              <summary className="cursor-pointer text-stone-400 hover:text-stone-300 font-medium mb-2 transition-colors">
-                Extended Thinking
-              </summary>
-              <div className="font-mono bg-black/20 border border-white/[0.04] rounded-lg p-3 mt-2 leading-relaxed text-stone-400">
-                {message.reasoning_content}
-              </div>
-            </details>
-          )}
+          {(() => {
+            // Use reasoning_content if available (Anthropic/OpenAI Chat Completions),
+            // otherwise fall back to responses_reasoning_item.summary (OpenAI Responses API / GPT-5)
+            const reasoningContent = message.reasoning_content
+              ?? (message.responses_reasoning_item?.summary?.length
+                ? message.responses_reasoning_item.summary.join('\n\n')
+                : undefined);
+            return reasoningContent ? (
+              <details className="mt-3 text-xs">
+                <summary className="cursor-pointer text-stone-400 hover:text-stone-300 font-medium mb-2 transition-colors">
+                  Extended Thinking
+                </summary>
+                <div className="font-mono bg-black/20 border border-white/[0.04] rounded-lg p-3 mt-2 leading-relaxed text-stone-400">
+                  {reasoningContent}
+                </div>
+              </details>
+            ) : null;
+          })()}
 
           {event.activated_skills && event.activated_skills.length > 0 && (
             <div className="mt-3 pt-3 border-t border-white/[0.06] flex flex-wrap gap-2">

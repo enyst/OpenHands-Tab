@@ -1032,11 +1032,17 @@ export class Agent extends EventEmitter {
     securityRisk?: SecurityRisk,
   ): ActionEvent {
     const thought = message.content.filter(isTextContent);
+    // Use reasoning_content if available (Anthropic/OpenAI Chat Completions),
+    // otherwise fall back to responses_reasoning_item.summary (OpenAI Responses API / GPT-5)
+    const reasoningContent = message.reasoning_content
+      ?? (message.responses_reasoning_item?.summary?.length
+        ? message.responses_reasoning_item.summary.join('\n\n')
+        : undefined);
     return {
       kind: 'ActionEvent',
       source: 'agent',
       thought,
-      reasoning_content: message.reasoning_content,
+      reasoning_content: reasoningContent,
       action: args,
       tool_name: toolCall.function.name,
       tool_call_id: toolCall.id,
