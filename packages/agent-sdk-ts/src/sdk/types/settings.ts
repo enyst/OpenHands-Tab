@@ -24,6 +24,7 @@ export type LLMSettings = {
   reasoningSummary?: ReasoningSummary | null;
   inputCostPerToken?: number | null;
   outputCostPerToken?: number | null;
+  encrypted_reasoning?: string | null;
 };
 
 export const RAW_LLM_FIELDS_IGNORED_WHEN_PROFILE_SELECTED = [

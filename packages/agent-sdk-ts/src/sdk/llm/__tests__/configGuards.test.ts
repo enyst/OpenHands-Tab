@@ -17,4 +17,9 @@ describe('normalizeGenerationParamsForModel', () => {
     const config = normalizeGenerationParamsForModel(makeConfig({ model: 'gpt-5.1', temperature: 0.2 }));
     expect(config.temperature).toBeNull();
   });
+
+  it('drops temperature for models containing gpt-5 mid-string', () => {
+    const config = normalizeGenerationParamsForModel(makeConfig({ model: 'openai/gpt-5-codex', temperature: 0.7 }));
+    expect(config.temperature).toBeNull();
+  });
 });
