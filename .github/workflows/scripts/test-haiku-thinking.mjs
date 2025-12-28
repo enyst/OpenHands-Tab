@@ -34,7 +34,7 @@
  *   2 - Missing required environment variables
  */
 
-import { LLMFactory } from './dist/index.mjs';
+import { LLMFactory } from '../../../packages/agent-sdk-ts/dist/index.mjs';
 import { readFile, writeFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';
@@ -43,8 +43,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Use the repo root README.md (two levels up from packages/agent-sdk-ts)
-const REPO_ROOT = join(__dirname, '..', '..');
+// Repo root is three levels up from .github/workflows/scripts/
+const REPO_ROOT = join(__dirname, '..', '..', '..');
 const README_PATH = join(REPO_ROOT, 'README.md');
 
 const LITELLM_BASE_URL = 'https://llm-proxy.eval.all-hands.dev';

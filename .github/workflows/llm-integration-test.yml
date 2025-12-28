@@ -51,7 +51,6 @@ jobs:
 
       - name: Run LLM Integration Test
         id: test
-        working-directory: packages/agent-sdk-ts
         env:
           LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -63,13 +62,13 @@ jobs:
           set +e
           case "$MODE" in
             litellm)
-              node test-haiku-thinking.mjs 2>&1 | tee test-output.log
+              node .github/workflows/scripts/test-haiku-thinking.mjs 2>&1 | tee test-output.log
               ;;
             direct)
-              node test-haiku-thinking.mjs --direct 2>&1 | tee test-output.log
+              node .github/workflows/scripts/test-haiku-thinking.mjs --direct 2>&1 | tee test-output.log
               ;;
             all)
-              node test-haiku-thinking.mjs --all 2>&1 | tee test-output.log
+              node .github/workflows/scripts/test-haiku-thinking.mjs --all 2>&1 | tee test-output.log
               ;;
           esac
           TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -97,7 +96,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: llm-test-logs-${{ github.run_number }}
-          path: packages/agent-sdk-ts/test-output.log
+          path: test-output.log
           retention-days: 30
 
       - name: Create GitHub Step Summary
