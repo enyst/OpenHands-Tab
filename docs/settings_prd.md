@@ -61,25 +61,16 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - reasoning_effort: 'low' | 'medium' | 'high' | 'none' | None
     - caching_prompt: bool
     - disable_vision: bool | None
-    - seed: int | None
-    - safety_settings: list[dict[str, str]] | None
     - usage_id: string (defaults to 'default-llm')
-    - metadata: dict[str, any]
   - Serialization/secret handling
     - api_key and select fields are masked by default; can be exposed with context={'expose_secrets': True}
-  - MVP note: we will not surface safety_settings in the extension UI
-- Current extension behavior (IMPLEMENTED)
-  - Settings-driven configuration via SettingsManager
-  - Default model: claude-sonnet-4-20250514 (configurable)
-  - Main agent usageId: 'agent' (internal; not user-configurable)
-  - API key stored in VS Code SecretStorage
-  - All LLM parameters configurable via profiles or configuration wizard
-  - ConnectionManager builds agent.llm payload dynamically from settings
+- Current extension behavior
+  - We use ONLY LLM Profiles to hold these settings per profile (see below)
 
 3a) LLM Profiles (local alias + remote expansion)
 - Motivation
   - Profiles are a small JSON file containing a reusable LLM config (model/provider/baseUrl/etc).
-  - Users select a profile via `openhands.llm.profileId`.
+  - Users select a main agent profile via `openhands.llm.profileId`.
 - Storage
   - Profiles live at `~/.openhands/llm-profiles/<profileId>.json`.
   - `profileId` is a file name, not a server-side identifier.
@@ -112,20 +103,19 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
     - const llmApiKey = await context.secrets.get('openhands.llmApiKey')
 - Configuration UI
-  - Multi-step wizard via "OpenHands: Configure" command
-  - Dedicated "OpenHands: Set API Key" command for quick API key updates
+  - Multi-step wizard (optional) via "OpenHands: Configure" command
   - All settings accessible via VS Code Settings UI
+  - LLM Profiles separate Webview View for configuring LLM profiles
 - Scoping guidance
   - serverUrl: workspace-level default (Workspace/WorkspaceFolder) — can override globally
-  - LLM defaults: user-level defaults, overridable per workspace
-  - Secrets: always global SecretStorage (per machine), not synced in settings
+  - Secrets: always uses global VSCode SecretStorage (per machine), not synced in settings
 
 5) Practical mapping at runtime
 - Start New Conversation request body (extension → server)
   - agent.llm: built from
-    - model/base_url/api_version from settings
+    - model/base_url/api_version from openhands.llm.profileId
     - api_key from SecretStorage (fallback to env for dev)
-  - agent.tools: unchanged (extension-defined)
+  - agent.tools: load default tools - note that it will become user-configurable for a New conversation (only new)
   - confirmation policy: include if configured via settings (else let server default)
   - max_iterations: from settings
 - WebSocket URL
@@ -133,7 +123,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - append ?session_api_key=... if secret present
 
 6) What we won’t configure in the extension (but are in agent-server)
-- Server-side configuration not surfaced in the extension: session_api_keys list, allow_cors_origins, conversations_path, static_files_path, webhooks, enable_vscode/vnc, ports
+- Server-side configuration not surfaced in the extension: session_api_keys list, allow_cors_origins, static_files_path, webhooks, enable_vscode/vnc, ports
   - Rationale: these are server deployment choices; the extension only needs to connect
 
 7) References (agent-sdk source)
@@ -146,15 +136,15 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 8) VS Code Secret Manager and Settings UI (IMPLEMENTED)
 - VS Code SecretStorage
   - API: extensionContext.secrets (stores values in OS keychain/secure store)
-  - Used for: sessionApiKey, llmApiKey, AWS credentials
+  - llm keys are per provider, first, and the user has the choice to override the key per profile
+  - Used for: sessionApiKey, llm key for the chosen profile, AWS credentials
   - Not synced in settings.json, not checked into source control
 - Settings UI capabilities
   - VS Code supports string/number/boolean and object types in configuration schemas
-  - Extension uses curated simple keys for all common LLM options
 - Configuration commands (IMPLEMENTED)
   - OpenHands: Configure - multi-step wizard for all settings (server URL, LLM config, agent options, confirmation policy, API keys)
-  - OpenHands: Set API Key - dedicated command for quick LLM API key updates
   - All settings also accessible via standard VS Code Settings UI
+  - LLM Profiles Webview View for LLMs
 
 9) Implementation status
 - ✓ IMPLEMENTED: All proposed settings from section 4 are now implemented
@@ -165,4 +155,4 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - ✓ IMPLEMENTED: Terminal integration (local mode emits terminal events from agent's tool execution)
 - ✓ IMPLEMENTED: Security analyzer toggle and confirmation policies
 - Settings are stored in VS Code workspace/user settings and secrets in OS keychain
-- Configuration is applied when starting new conversations and can be updated during extension runtime
+- Configuration is applied when starting new conversations and *can be updated* during extension runtime
