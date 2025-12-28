@@ -20,7 +20,8 @@ export interface SummarizeFileChangesOptions {
 }
 
 const DEFAULT_MAX_PROMPT_CHARS = 4_000;
-const DEFAULT_MAX_SUMMARY_CHARS = 1_000;
+// Increased from 1000 to reduce mid-sentence truncation (see oh-tab-qxzs)
+const DEFAULT_MAX_SUMMARY_CHARS = 5_000;
 const CLIP_MARKER = '<diff clipped>';
 
 const resolveNonNegativeIntOption = (value: unknown, defaultValue: number): number => {

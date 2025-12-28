@@ -13,7 +13,8 @@ import { ELLIPSIS, redactAndTruncateArgs } from './textSanitizers';
 
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash-summarizer';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
-const TOOL_SUMMARY_MAX_CHARS = 1_000;
+// Increased from 1000 to reduce mid-sentence truncation (see oh-tab-qxzs)
+const TOOL_SUMMARY_MAX_CHARS = 5_000;
 
 export class ToolSummarizer {
   private enabled = false;
@@ -188,7 +189,7 @@ export class ToolSummarizer {
     const summary = this.deps.secretMasker.maskText(text).trim();
     if (!summary) return undefined;
 
-    return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS) + '…' : summary;
+    return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS - 1) + '…' : summary;
   }
 
   public async getClient(): Promise<LLMClient> {
