@@ -134,7 +134,7 @@ jobs:
             const summary = '${{ steps.test.outputs.summary }}'.trim() || 'No summary available';
             
             const body = [
-              '## Gemini Integration Test ' + status,
+              '## LLM Quirks - Gemini ' + status,
               '',
               '| Field | Value |',
               '|-------|-------|',
