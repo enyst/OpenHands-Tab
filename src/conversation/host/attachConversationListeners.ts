@@ -3,12 +3,14 @@ import * as path from 'path';
 import type { BashEvent, ConversationInstance, Event } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 import type { HostToWebviewMessage } from '../../shared/webviewMessages';
+import type { DebugJsonOutputChannel } from '../../extension/debugJsonOutputChannel';
 
 export type AttachConversationListenersDeps = {
   context: vscode.ExtensionContext;
   conversation: ConversationInstance;
 
   getOutputChannel: () => vscode.OutputChannel | undefined;
+  getDebugJsonChannel?: () => DebugJsonOutputChannel | undefined;
   getChatView: () => vscode.WebviewView | undefined;
   isChatWebviewReady: () => boolean;
   getConversationMode: () => 'local' | 'remote';
@@ -66,6 +68,13 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
       const shouldLogToDebugConsole = deps.context.extensionMode !== vscode.ExtensionMode.Production;
       const shouldLogToOutputChannel = shouldLogToDebugConsole || deps.isVerboseEventLogging();
 
+      // Log pretty-printed JSON to the debug channel (dev/test only)
+      const debugChannel = deps.getDebugJsonChannel?.();
+      if (debugChannel?.isEnabled()) {
+        const category = key === 'llm_request_payload' ? 'LLM_REQUEST' : 'LLM_RESPONSE';
+        debugChannel.logJson(category, ev.value);
+      }
+
       if (shouldLogToOutputChannel) {
         try {
           outputChannel?.appendLine(`[llm][${key}]`);
@@ -104,6 +113,12 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
         outputChannel?.appendLine(`[event] ${deps.safeStringify(ev)}`);
       } else {
         outputChannel?.appendLine(`[event] ${ev.kind}`);
+      }
+
+      // Log events to debug JSON channel (dev/test only)
+      const debugChannel = deps.getDebugJsonChannel?.();
+      if (debugChannel?.isEnabled() && (deps.isVerboseEventLogging() || isErrorLike)) {
+        debugChannel.logJson(`EVENT_${ev.kind}`, ev);
       }
     }
 

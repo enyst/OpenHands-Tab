@@ -16,6 +16,7 @@ import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnaps
 import type { HostToWebviewMessage } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
 import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
+import { createDebugJsonOutputChannel, type DebugJsonOutputChannel } from './extension/debugJsonOutputChannel';
 import { createFileEditNoteTracker } from './extension/fileEditNote';
 import { getGitHeadDiffSummaryForFile, resolveGitContext } from './extension/gitDiffSummary';
 import { resolveConversationStoreRoot } from './extension/conversationStoreRoot';
@@ -53,6 +54,7 @@ let chatWebviewReady = false; // Track if chat WebviewView is ready
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
+let debugJsonChannel: DebugJsonOutputChannel | undefined;
 let secretRegistry: SecretRegistry | undefined;
 let conversationStoreRoot: string | undefined;
 let lastKnownLlmLabel: string | null = null;
@@ -170,6 +172,12 @@ export function activate(context: vscode.ExtensionContext) {
   } catch (err) {
     console.warn('[OpenHands] Failed to create output channel:', err);
     outputChannel = undefined;
+  }
+
+  // Create debug JSON output channel (only in dev/test modes or with devBridge enabled)
+  debugJsonChannel = createDebugJsonOutputChannel({ context, secretRegistry: secrets });
+  if (debugJsonChannel.isEnabled()) {
+    outputChannel?.appendLine('[OpenHands-DEBUG] Debug JSON channel initialized');
   }
 
   pastedImagesBaseDir = getGlobalStorageBaseDir(context.globalStorageUri?.fsPath);
@@ -457,6 +465,7 @@ export function activate(context: vscode.ExtensionContext) {
         context,
         conversation,
         getOutputChannel: () => outputChannel,
+        getDebugJsonChannel: () => debugJsonChannel,
         getChatView: () => chatView,
         isChatWebviewReady: () => chatWebviewReady,
         getConversationMode: () => conversationMode,
@@ -640,11 +649,13 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   try { conversation?.disconnect(); } catch { }
   try { terminal?.dispose(); } catch { }
+  try { debugJsonChannel?.dispose(); } catch { }
   // Reset module state to ensure clean slate for tests and re-activation
   chatView = undefined;
   conversation = undefined;
   terminal = undefined;
   terminalLogPty = undefined;
+  debugJsonChannel = undefined;
   localAgentContext = undefined;
   activeEditorFilePath = undefined;
   pendingRenderedEventsRequests.clear();
