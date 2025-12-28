@@ -38,20 +38,20 @@ type OpenAIChatMessage = {
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
 };
 
+type OpenAIThinkingBlock = {
+  type: 'thinking';
+  thinking?: string;
+  signature?: string;
+};
+
 type OpenAIContentPart =
   | { type: 'text'; text?: string }
-  | { type: 'thinking'; thinking?: string; signature?: string };
+  | OpenAIThinkingBlock;
 
 type OpenAIToolCallDelta = {
   id?: string;
   index?: number;
   function?: { name?: string; arguments?: string };
-};
-
-type OpenAIThinkingBlock = {
-  type: 'thinking';
-  thinking?: string;
-  signature?: string;
 };
 
 type OpenAIChoiceDelta = {
@@ -60,9 +60,6 @@ type OpenAIChoiceDelta = {
   reasoning_content?: string | { text?: string }[];
   /** Anthropic thinking blocks (via LiteLLM) - contains signature at the end */
   thinking_blocks?: OpenAIThinkingBlock[];
-  /** Anthropic thinking signature (via LiteLLM) */
-  // HUMAN NOTE: probably should be deleted! Signature is not here if it's above!
-  // thinking_signature?: string;
 };
 
 type OpenAIChoice = {
