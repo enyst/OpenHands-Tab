@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
+import { supportsThinkingBlocks } from './configGuards';
 
 const decoder = new TextDecoder();
 
@@ -70,12 +71,18 @@ type OpenAIStreamChunk = {
 const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
   typeof value === 'object' && value !== null && ('choices' in value || 'usage' in value);
 
-const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number]): OpenAIChatMessage => {
+/**
+ * Convert internal message format to OpenAI-compatible format.
+ * When targeting Anthropic models (via LiteLLM), includes thinking blocks.
+ */
+const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], config: LLMConfiguration): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
 
-  // For assistant messages with thinking content and tool calls, we need to include
-  // thinking blocks in the content array (required by Anthropic via LiteLLM)
-  if (message.role === 'assistant' && message.reasoning_content && message.tool_calls?.length) {
+  // For Anthropic models with thinking enabled: include thinking blocks in content array
+  // This is required when assistant messages have both thinking content and tool calls
+  const includeThinkingBlocks = supportsThinkingBlocks(config);
+
+  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.tool_calls?.length) {
     const contentBlocks: OpenAIContentBlock[] = [];
 
     // Thinking block must come first
@@ -113,7 +120,7 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number]): Op
     };
   }
 
-  // Standard case: plain text content
+  // Standard case: plain text content (for non-Anthropic models or messages without thinking+tools)
   const base: OpenAIChatMessage = {
     role: message.role,
     content: contentText,
@@ -131,7 +138,7 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
       role: 'system',
       content: request.systemPrompt,
     },
-    ...request.messages.map(toOpenAIMessage),
+    ...request.messages.map((msg) => toOpenAIMessage(msg, config)),
   ],
   stream: true,
   stream_options: { include_usage: true },

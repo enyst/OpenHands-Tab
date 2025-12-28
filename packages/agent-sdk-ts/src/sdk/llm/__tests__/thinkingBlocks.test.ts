@@ -21,7 +21,13 @@ afterEach(() => {
 });
 
 describe('OpenAICompatibleClient thinking blocks', () => {
-  const baseConfig: LLMConfiguration = { model: 'claude-opus-4-5-20251101', provider: 'litellm_proxy', baseUrl: 'http://localhost:4000' };
+  // Config with extended thinking enabled (required for thinking blocks)
+  const baseConfig: LLMConfiguration = {
+    model: 'claude-opus-4-5-20251101',
+    provider: 'litellm_proxy',
+    baseUrl: 'http://localhost:4000',
+    reasoningEffort: 'medium',
+  };
 
   it('includes thinking blocks in assistant messages with tool calls', async () => {
     const sse = [
@@ -130,6 +136,64 @@ describe('OpenAICompatibleClient thinking blocks', () => {
     // Should have string content (no thinking block needed when no tool_calls)
     expect(typeof assistantMsg.content).toBe('string');
     expect(assistantMsg.content).toBe('Hello there!');
+  });
+
+  it('does not include thinking blocks for non-Anthropic models', async () => {
+    // Use a non-Anthropic model (GPT-4)
+    const gptConfig: LLMConfiguration = { model: 'gpt-4o', provider: 'openai' };
+
+    const sse = [
+      'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Done"}]}}]}',
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
+      'data: [DONE]',
+    ].join('\n');
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(createStreamResponse(sse));
+
+    const client = new OpenAICompatibleClient(gptConfig, 'test-key');
+    const streamer = new LLMStreamer(client);
+
+    const request: ChatCompletionRequest = {
+      systemPrompt: 'you are a test harness',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'I will use a tool' }],
+          reasoning_content: 'This is my thinking process',
+          thinking_signature: 'sig_abc123',
+          tool_calls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'bash', arguments: '{"command":"echo hi"}' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'hi' }],
+          tool_call_id: 'call_1',
+        },
+      ],
+      tools: [{ type: 'function', function: { name: 'bash' } }],
+    };
+
+    await streamer.runChat(request);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+
+    // Find the assistant message
+    const assistantMsg = body?.messages?.find((m: { role: string }) => m.role === 'assistant');
+    expect(assistantMsg).toBeDefined();
+
+    // For non-Anthropic models, should NOT include thinking blocks even with tool_calls
+    // Content should be string, tool_calls in separate field
+    expect(typeof assistantMsg.content).toBe('string');
+    expect(assistantMsg.content).toBe('I will use a tool');
+    expect(assistantMsg.tool_calls).toBeDefined();
   });
 
   it('streams thinking content and signature', async () => {
