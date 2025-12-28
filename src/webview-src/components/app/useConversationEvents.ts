@@ -184,9 +184,18 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     } else if (isAgentErrorEvent(event)) {
       // Truncate long error messages for status bar; full details stay in chat timeline
       const maxLen = 80;
-      const statusMessage = event.error.length > maxLen
-        ? event.error.slice(0, maxLen).replace(/\s+\S*$/, '') + '…'
-        : event.error;
+      let statusMessage = event.error;
+      if (event.error.length > maxLen) {
+        let truncated = event.error.substring(0, maxLen);
+        // If we cut mid-word, backtrack to the last space to avoid partial words.
+        if (event.error[maxLen] && event.error[maxLen] !== ' ') {
+          const lastSpaceIndex = truncated.lastIndexOf(' ');
+          if (lastSpaceIndex > -1) {
+            truncated = truncated.substring(0, lastSpaceIndex);
+          }
+        }
+        statusMessage = truncated.trimEnd() + '…';
+      }
       showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: 5000 });
       clearSubmissionState();
     } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {

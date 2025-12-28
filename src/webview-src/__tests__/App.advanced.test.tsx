@@ -197,8 +197,7 @@ describe('App - Advanced Test Coverage', () => {
         expect(container.textContent).toContain('Critical error');
       });
 
-      // Error message should be visible
-      // (Error messages don't auto-dismiss per implementation)
+      // Error message should be visible (auto-dismisses after 5 seconds)
       expect(container.textContent).toContain('Critical error');
     });
   });
