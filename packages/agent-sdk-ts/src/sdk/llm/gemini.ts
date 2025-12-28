@@ -2,6 +2,23 @@ import { DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, 
 import type { Content, Message, ToolCall } from '../types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 
+/**
+ * Gemini Client
+ * 
+ * Supports Gemini 3 models with extended thinking (thought signatures).
+ * 
+ * API Documentation:
+ * - Gemini Thought Signatures: https://ai.google.dev/gemini-api/docs/thought-signatures
+ * - Gemini 3 Models: https://ai.google.dev/gemini-api/docs/gemini-3
+ * 
+ * Key Gemini 3 Thinking Quirks:
+ * - thoughtSignature MUST be passed back during function calling (400 error otherwise)
+ * - For parallel function calls, only the FIRST function call has the signature
+ * - For sequential function calls, ALL signatures must be preserved
+ * - Non-function-call responses may have optional signatures (recommended to preserve)
+ * - thinkingLevel can be: 'NONE', 'LOW', 'MEDIUM', 'HIGH'
+ */
+
 const decoder = new TextDecoder();
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -9,8 +26,8 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 type GeminiRole = 'user' | 'model';
 
 type GeminiPart =
-  | { text: string }
-  | { functionCall: { name: string; args?: unknown } }
+  | { text: string; thoughtSignature?: string }
+  | { functionCall: { name: string; args?: unknown }; thoughtSignature?: string }
   | { functionResponse: { name: string; response?: unknown } };
 
 type GeminiContent = {
@@ -24,6 +41,9 @@ type GeminiFunctionDeclaration = {
   parameters?: unknown;
 };
 
+// Gemini thinking levels map to reasoningEffort
+type GeminiThinkingLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH';
+
 type GeminiGenerateContentRequest = {
   systemInstruction?: { parts: Array<{ text: string }> };
   contents: GeminiContent[];
@@ -34,12 +54,15 @@ type GeminiGenerateContentRequest = {
     topP?: number;
     topK?: number;
     maxOutputTokens?: number;
+    thinkingConfig?: {
+      thinkingLevel: GeminiThinkingLevel;
+    };
   };
 };
 
 type GeminiStreamCandidatePart =
-  | { text?: string }
-  | { functionCall?: { name?: string; args?: unknown } };
+  | { text?: string; thoughtSignature?: string }
+  | { functionCall?: { name?: string; args?: unknown }; thoughtSignature?: string };
 
 type GeminiStreamResponse = {
   candidates?: Array<{
@@ -86,14 +109,24 @@ const toGeminiPartsForMessage = (message: Message): GeminiPart[] => {
 
   const parts: GeminiPart[] = [];
 
+  // Add text content with optional thought signature
+  // Gemini 3 requires thoughtSignature to be preserved on text parts
   for (const item of message.content) {
     if (item.type === 'text') {
-      parts.push({ text: item.text });
+      const part: GeminiPart = { text: item.text };
+      // Preserve thinking_signature if present (from previous assistant response)
+      if (message.thinking_signature) {
+        part.thoughtSignature = message.thinking_signature;
+      }
+      parts.push(part);
     }
   }
 
+  // Add function calls with thought signatures
+  // Gemini 3 requires thoughtSignature on the FIRST function call in each step
   if (Array.isArray(message.tool_calls)) {
-    for (const call of message.tool_calls) {
+    for (let i = 0; i < message.tool_calls.length; i++) {
+      const call = message.tool_calls[i];
       const args = (() => {
         const raw = typeof call.function.arguments === 'string' ? call.function.arguments : '';
         if (!raw.trim()) return {};
@@ -103,7 +136,12 @@ const toGeminiPartsForMessage = (message: Message): GeminiPart[] => {
           return { __raw: raw };
         }
       })();
-      parts.push({ functionCall: { name: call.function.name, args } });
+      const part: GeminiPart = { functionCall: { name: call.function.name, args } };
+      // Preserve thinking_signature on the first function call (Gemini requirement)
+      if (i === 0 && message.thinking_signature) {
+        part.thoughtSignature = message.thinking_signature;
+      }
+      parts.push(part);
     }
   }
 
@@ -137,14 +175,32 @@ const toGeminiTools = (tools: ChatCompletionRequest['tools']): GeminiGenerateCon
   return [{ functionDeclarations }];
 };
 
+/**
+ * Map reasoningEffort to Gemini thinkingLevel
+ * See: https://ai.google.dev/gemini-api/docs/thought-signatures
+ */
+const toGeminiThinkingLevel = (reasoningEffort: LLMConfiguration['reasoningEffort']): GeminiThinkingLevel | undefined => {
+  if (!reasoningEffort || reasoningEffort === 'none') return undefined;
+  switch (reasoningEffort) {
+    case 'low': return 'LOW';
+    case 'medium': return 'MEDIUM';
+    case 'high': return 'HIGH';
+    default: return undefined;
+  }
+};
+
 const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest): GeminiGenerateContentRequest => {
   const systemPrompt = typeof request.systemPrompt === 'string' ? request.systemPrompt.trim() : '';
   const tools = toGeminiTools(request.tools);
+  const thinkingLevel = toGeminiThinkingLevel(config.reasoningEffort);
+  
   const generationConfig: GeminiGenerateContentRequest['generationConfig'] = {
     temperature: typeof config.temperature === 'number' ? config.temperature : undefined,
     topP: typeof config.topP === 'number' ? config.topP : undefined,
     topK: typeof config.topK === 'number' ? config.topK : undefined,
     maxOutputTokens: typeof config.maxOutputTokens === 'number' ? config.maxOutputTokens : undefined,
+    // Enable thinking for Gemini 3 models when reasoningEffort is set
+    ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
   };
 
   const body: GeminiGenerateContentRequest = {
@@ -237,6 +293,13 @@ export class GeminiClient implements LLMClient {
       }
 
       for (const part of parts) {
+        // Extract thoughtSignature from any part (text or functionCall)
+        // Gemini 3 returns thoughtSignature on the first functionCall or on text parts
+        const signature = 'thoughtSignature' in part ? part.thoughtSignature : undefined;
+        if (signature) {
+          yield { type: 'thinking_signature', signature };
+        }
+
         const call = 'functionCall' in part ? (part.functionCall ?? undefined) : undefined;
         if (!call || typeof call !== 'object') continue;
         const toolCall = normalizeToolCall(call, toolCallIndex);

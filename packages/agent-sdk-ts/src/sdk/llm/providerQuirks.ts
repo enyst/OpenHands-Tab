@@ -9,6 +9,8 @@ import type { LLMConfiguration } from './types';
  * References:
  * - Anthropic Messages API: https://platform.claude.com/docs/en/api/messages.md
  * - Anthropic Extended Thinking: https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
+ * - Gemini Thought Signatures: https://ai.google.dev/gemini-api/docs/thought-signatures
+ * - Gemini 3 Models: https://ai.google.dev/gemini-api/docs/gemini-3
  */
 
 // =============================================================================
@@ -30,6 +32,27 @@ import type { LLMConfiguration } from './types';
 // 3. Thinking signature is required when sending thinking blocks back
 //    - The signature field from the response must be included
 //    - See: toAnthropicMessages() in anthropic.ts
+// =============================================================================
+
+// =============================================================================
+// Gemini 3 Thinking Constraints (Thought Signatures)
+// =============================================================================
+//
+// When using Gemini 3 models with thinking enabled:
+//
+// 1. thinkingLevel maps to reasoningEffort: 'NONE' | 'LOW' | 'MEDIUM' | 'HIGH'
+//    - Set via generationConfig.thinkingConfig.thinkingLevel
+//
+// 2. thoughtSignature MUST be passed back during function calling
+//    - Failure to include signatures results in 400 error
+//    - For parallel function calls, only the FIRST function call has the signature
+//    - For sequential function calls, ALL signatures must be preserved
+//    - See: https://ai.google.dev/gemini-api/docs/thought-signatures
+//
+// 3. Non-function-call responses may have optional signatures
+//    - Recommended to preserve for better reasoning quality
+//    - No validation error if omitted
+//
 // =============================================================================
 
 const ANTHROPIC_THINKING_MIN_BUDGET = 1024;
