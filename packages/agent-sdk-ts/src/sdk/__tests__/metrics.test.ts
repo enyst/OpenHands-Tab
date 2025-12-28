@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Metrics } from '../llm/metrics';
+import { Cost, Metrics, TokenUsage } from '../llm/metrics';
 
 describe('Metrics', () => {
   it('adds token usage and response latency and computes snapshot', () => {
@@ -121,8 +121,8 @@ describe('Metrics', () => {
     }
 
     const json = m.toJSON();
-    expect((json.tokenUsages as unknown[]).length).toBe(10);
-    expect((json.costs as unknown[]).length).toBe(10);
+    expect((json.tokenUsages as TokenUsage[]).length).toBe(10);
+    expect((json.costs as Cost[]).length).toBe(10);
 
     // Last should still be the most recent
     expect(m.lastTokenUsage?.responseId).toBe('r14');
@@ -143,7 +143,7 @@ describe('Metrics', () => {
 
     a.merge(b);
     const json = a.toJSON();
-    expect((json.tokenUsages as unknown[]).length).toBe(10);
+    expect((json.tokenUsages as TokenUsage[]).length).toBe(10);
 
     // Last should be from merged (b's last)
     expect(a.lastTokenUsage?.responseId).toBe('b7');
