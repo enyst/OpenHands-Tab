@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: llm-test-${{ github.sha }}
@@ -46,13 +47,10 @@ jobs:
       - name: Determine test mode
         id: mode
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "mode=${{ github.event.inputs.test_mode }}" >> $GITHUB_OUTPUT
-          else
-            echo "mode=all" >> $GITHUB_OUTPUT
-          fi
+          echo "mode=${{ github.event.inputs.test_mode }}" >> $GITHUB_OUTPUT
 
       - name: Run LLM Integration Test
+        id: test
         working-directory: packages/agent-sdk-ts
         env:
           LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
@@ -61,29 +59,98 @@ jobs:
           MODE="${{ steps.mode.outputs.mode }}"
           echo "Running test in mode: $MODE"
           
+          # Run test and capture output
+          set +e
           case "$MODE" in
             litellm)
-              node test-haiku-thinking.mjs
+              node test-haiku-thinking.mjs 2>&1 | tee test-output.log
               ;;
             direct)
-              node test-haiku-thinking.mjs --direct
+              node test-haiku-thinking.mjs --direct 2>&1 | tee test-output.log
               ;;
             all)
-              node test-haiku-thinking.mjs --all
+              node test-haiku-thinking.mjs --all 2>&1 | tee test-output.log
               ;;
           esac
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          
+          # Parse results from log
+          if grep -q "🎉 All tests passed!" test-output.log; then
+            echo "result=PASS" >> $GITHUB_OUTPUT
+            echo "status=✅ PASS" >> $GITHUB_OUTPUT
+          else
+            echo "result=FAIL" >> $GITHUB_OUTPUT
+            echo "status=❌ FAIL" >> $GITHUB_OUTPUT
+          fi
+          
+          # Extract test summary lines
+          SUMMARY=$(grep -E "^(✅|❌) (PASS|FAIL)" test-output.log || echo "No summary found")
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          exit $TEST_EXIT_CODE
 
-      - name: Test Summary
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llm-test-logs-${{ github.run_number }}
+          path: packages/agent-sdk-ts/test-output.log
+          retention-days: 30
+
+      - name: Create GitHub Step Summary
         if: always()
         run: |
           echo "## LLM Integration Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ steps.test.outputs.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Test Mode:** ${{ steps.mode.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ job.status }}" = "success" ]; then
-            echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Some tests failed.**" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "### Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.test.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on tracking issue
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.test.outputs.status }}' || '⚠️ Unknown';
+            const result = '${{ steps.test.outputs.result }}' || 'UNKNOWN';
+            const mode = '${{ steps.mode.outputs.mode }}';
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            const artifactUrl = `${runUrl}#artifacts`;
+            const summary = `${{ steps.test.outputs.summary }}`.trim() || 'No summary available';
+            
+            const body = `## LLM Integration Test ${status}
+
+| Field | Value |
+|-------|-------|
+| **Result** | ${status} |
+| **Mode** | \`${mode}\` |
+| **Branch** | \`${{ github.ref_name }}\` |
+| **Commit** | \`${{ github.sha }}\` |
+| **Triggered by** | @${{ github.actor }} |
+
+### Test Summary
+\`\`\`
+${summary}
+\`\`\`
+
+### Links
+- 📋 [Workflow Run #${{ github.run_number }}](${runUrl})
+- 📦 [Download Logs](${artifactUrl})
+`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 595,
+              body: body
+            });
