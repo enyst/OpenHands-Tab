@@ -14,7 +14,10 @@ function main() {
   });
   const pngData = resvg.render().asPng();
   fs.writeFileSync(OUT, pngData);
-  const { width, height } = resvg.render();
+  const rendered = resvg.render();
+  const pngData = rendered.asPng();
+  fs.writeFileSync(OUT, pngData);
+  const { width, height } = rendered;
   console.log(`Wrote ${OUT} (${width}x${height})`);
 }
 

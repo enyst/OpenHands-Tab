@@ -242,7 +242,7 @@ export function activate(context: vscode.ExtensionContext) {
     },
   });
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('openhands.chat', chatViewProvider, {
+    vscode.window.registerWebviewViewProvider('openhands.agent', chatViewProvider, {
       webviewOptions: { retainContextWhenHidden: true },
     })
   );
@@ -501,7 +501,7 @@ export function activate(context: vscode.ExtensionContext) {
   const open = vscode.commands.registerCommand('openhands.open', async () => {
     try {
       // VS Code auto-creates a focus command for views: `<viewId>.focus`
-      await vscode.commands.executeCommand('openhands.chat.focus');
+      await vscode.commands.executeCommand('openhands.agent.focus');
     } catch {
       // Fallback: open the container and reveal the view if already resolved
       await vscode.commands.executeCommand('workbench.view.extension.openhands');
