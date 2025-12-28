@@ -12,6 +12,10 @@
  * 3. Creating a new file (tool call)
  * 4. Confirming completion (text response)
  * 
+ * API Documentation:
+ * - Anthropic Messages API: https://platform.claude.com/docs/en/api/messages.md
+ * - Extended thinking: https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking
+ * 
  * Usage:
  *   # Via LiteLLM proxy (default)
  *   LITELLM_API_KEY=... node test-haiku-thinking.mjs
