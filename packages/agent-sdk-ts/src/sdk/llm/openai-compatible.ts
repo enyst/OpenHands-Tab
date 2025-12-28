@@ -84,32 +84,24 @@ const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
 
 /**
  * Convert internal message format to OpenAI-compatible format.
- * When targeting Anthropic models (via LiteLLM), includes thinking blocks.
+ * When targeting Anthropic models (via LiteLLM), includes thinking blocks in content.
+ * 
+ * IMPORTANT: LiteLLM expects OpenAI format with tool_calls, NOT Anthropic format with
+ * tool_use blocks in content. LiteLLM converts tool_calls to tool_use when proxying to Anthropic.
+ * However, thinking blocks must be sent in the content array since there's no OpenAI equivalent.
  */
 const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], config: LLMConfiguration): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
 
-  // DEBUG: Log conversion context
-  console.log('DEBUG toOpenAIMessage:', JSON.stringify({
-    role: message.role,
-    hasReasoningContent: !!message.reasoning_content,
-    hasThinkingSignature: !!message.thinking_signature,
-    hasToolCalls: !!message.tool_calls?.length,
-    supportsThinkingBlocks: supportsThinkingBlocks(config),
-    provider: config.provider,
-    model: config.model,
-    reasoningEffort: config.reasoningEffort,
-  }));
-
   // For Anthropic models with thinking enabled: include thinking blocks in content array
-  // This is required when assistant messages have both thinking content and tool calls.
+  // This is required when assistant messages have thinking content that needs to be preserved.
   // IMPORTANT: Anthropic API requires the `signature` field when sending thinking blocks,
   // so we only include thinking blocks when we have BOTH reasoning_content AND thinking_signature.
   const includeThinkingBlocks = supportsThinkingBlocks(config);
 
-  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.thinking_signature && message.tool_calls?.length) {
-    // For Anthropic via LiteLLM proxy
-    // HUMAN NOTE: this is suspicious. Why do we create a new OpenAIThinkingBlock if we use here the old one?
+  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.thinking_signature) {
+    // For Anthropic via LiteLLM proxy: send thinking in content array, tool_calls separately
+    // LiteLLM will convert tool_calls to tool_use blocks when sending to Anthropic
     const contentBlocks: OpenAIContentBlock[] = [];
 
     // Thinking block must come first (signature is required by Anthropic)
@@ -124,32 +116,18 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
       contentBlocks.push({ type: 'text', text: contentText });
     }
 
-    // Then tool_use blocks
-    for (const toolCall of message.tool_calls) {
-      let input: unknown;
-      try {
-        input = JSON.parse(toolCall.function.arguments);
-      } catch {
-        input = toolCall.function.arguments;
-      }
-      contentBlocks.push({
-        type: 'tool_use',
-        id: toolCall.id,
-        name: toolCall.function.name,
-        input,
-      });
-    }
-
-    const result = {
-      role: 'assistant' as const,
+    // Return with content array for thinking, but tool_calls in OpenAI format
+    // LiteLLM will merge these appropriately when converting to Anthropic format
+    const result: OpenAIChatMessage = {
+      role: 'assistant',
       content: contentBlocks,
       ...(message.name ? { name: message.name } : {}),
+      ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
     };
-    console.log('DEBUG toOpenAIMessage OUTPUT (thinking+tools):', JSON.stringify(result));
     return result;
   }
 
-  // Standard case: plain text content (for non-Anthropic models or messages without thinking+tools)
+  // Standard case: plain text content (for non-Anthropic models or messages without thinking)
   const base: OpenAIChatMessage = {
     role: message.role,
     content: contentText,
@@ -186,8 +164,8 @@ const defaultBaseUrls: Record<string, string> = {
   litellm_proxy: DEFAULT_PROVIDER_BASE_URLS.litellm_proxy,
 };
 
-// TEMPORARY DEBUG: log chunks to find signature format from LiteLLM
-const DEBUG_LLM_CHUNKS = true;  // TEMP: force-enabled for debugging
+// Debug logging for LLM chunks (controlled by environment variable)
+const DEBUG_LLM_CHUNKS = typeof process !== 'undefined' && process.env?.OPENHANDS_DEBUG_LLM_CHUNKS === '1';
 const debugChunks: { time: string; payload: string }[] = [];
 
 const parseSseLines = async function* (response: Response): AsyncGenerator<string> {
