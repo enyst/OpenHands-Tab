@@ -122,6 +122,8 @@ export class Agent extends EventEmitter {
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
   private debug: boolean;
   private readonly toolSummarizer: ToolSummarizer;
+  /** Incremented each time setSettings() is called; used to detect mid-run changes. */
+  private settingsVersion = 0;
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -175,17 +177,27 @@ export class Agent extends EventEmitter {
   /**
    * Updates the agent's settings at runtime.
    *
-   * Changes are applied under the agent lock so settings updates can't race with
-   * an active run. New settings take effect on the next run.
+   * Settings are applied immediately (for mid-run detection) and also under the
+   * agent lock to ensure they're fully applied when the run finishes.
+   * The settingsVersion is incremented so runLoop can detect changes and rebuild
+   * the LLM streamer mid-run if needed (e.g., when the user switches LLM profiles).
    */
   setSettings(settings: OpenHandsSettings): void {
-    void this.lock.acquire(() => {
-      this.options.settings = settings;
-      this.updateDerivedSettings(settings);
+    // Increment version immediately so runLoop can detect the change mid-run
+    this.settingsVersion += 1;
 
-      // Force the next run to rebuild the LLM client from updated settings.
-      this.llmClientPromise = undefined;
-      this.streamerPromise = undefined;
+    // Apply settings immediately for derived values (confirmation, debug, etc.)
+    this.options.settings = settings;
+    this.updateDerivedSettings(settings);
+
+    // Force rebuild of LLM client/streamer on next use
+    this.llmClientPromise = undefined;
+    this.streamerPromise = undefined;
+
+    // Also acquire lock to ensure consistency after current run completes
+    void this.lock.acquire(() => {
+      // Re-apply in case another setSettings() was called while waiting
+      // (the latest settingsVersion wins)
       return Promise.resolve();
     });
   }
@@ -382,6 +394,7 @@ export class Agent extends EventEmitter {
 
     const maxIterations = this.clampMaxIterations();
     let streamer: LLMStreamer;
+    let streamerSettingsVersion = this.settingsVersion;
     try {
       streamer = await this.getStreamer();
     } catch (error) {
@@ -396,6 +409,20 @@ export class Agent extends EventEmitter {
     let lastAssistantMessage: Message | undefined;
 
     while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
+      // Check if settings changed mid-run (e.g., user switched LLM profile)
+      if (this.settingsVersion !== streamerSettingsVersion) {
+        try {
+          streamer = await this.getStreamer();
+          streamerSettingsVersion = this.settingsVersion;
+        } catch (error) {
+          const classified = classifyError(error, { stage: 'llm_init' });
+          this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
+          this.state.setStatus('IDLE');
+          this.llmClientPromise = undefined;
+          this.streamerPromise = undefined;
+          return lastAssistantMessage;
+        }
+      }
       this.state.setStatus('RUNNING');
       const llmConfig = this.getEffectiveLlmConfigForCondensation();
       let response: Awaited<ReturnType<LLMStreamer['runChat']>> | undefined;

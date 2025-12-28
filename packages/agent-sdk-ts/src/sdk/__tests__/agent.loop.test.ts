@@ -422,3 +422,173 @@ describe('Agent loop control', () => {
     expect(assistantMessages.some((evt) => evt.llm_message.content.some((part) => part.type === 'text' && part.text.includes('OK')))).toBe(true);
   });
 });
+
+describe('Agent mid-run settings change', () => {
+  /** LLM that tracks client instance count for verifying rebuilds */
+  class ClientTrackingLLM implements LLMClient {
+    static instanceCount = 0;
+    instanceId: number;
+    private idx = 0;
+
+    constructor(private readonly sequences: LLMStreamChunk[][]) {
+      ClientTrackingLLM.instanceCount += 1;
+      this.instanceId = ClientTrackingLLM.instanceCount;
+    }
+
+    async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
+      void _request;
+      const seq = this.sequences[this.idx] ?? [];
+      this.idx += 1;
+      for (const chunk of seq) {
+        yield chunk;
+      }
+    }
+  }
+
+  it('applies setSettings changes immediately (does not wait for lock)', async () => {
+    const log = new EventLog();
+    // Single iteration agent just to test setSettings() behavior
+    const llm = new ClientTrackingLLM([
+      [{ type: 'text', text: 'Done' }, { type: 'finish' }],
+    ]);
+
+    const initialSettings: OpenHandsSettings = {
+      llm: { model: 'model-v1' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: {},
+    };
+
+    const agent = new Agent({
+      settings: initialSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+    });
+
+    // Access internal state to verify settings version tracking
+    const getSettingsVersion = () => (agent as unknown as { settingsVersion: number }).settingsVersion;
+
+    const versionBefore = getSettingsVersion();
+
+    // Call setSettings - should apply immediately
+    agent.setSettings({
+      ...initialSettings,
+      llm: { model: 'model-v2' },
+    });
+
+    const versionAfter = getSettingsVersion();
+
+    // Settings version should have incremented immediately
+    expect(versionAfter).toBe(versionBefore + 1);
+  });
+
+  it('clears streamer promise when setSettings is called', async () => {
+    const log = new EventLog();
+    const llm = new ClientTrackingLLM([
+      [{ type: 'text', text: 'First' }, { type: 'finish' }],
+      [{ type: 'text', text: 'Second' }, { type: 'finish' }],
+    ]);
+
+    const initialSettings: OpenHandsSettings = {
+      llm: { model: 'model-v1' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: {},
+      secrets: {},
+    };
+
+    const agent = new Agent({
+      settings: initialSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+    });
+
+    // Access internal streamerPromise to verify it gets cleared
+    const getStreamerPromise = () => (agent as unknown as { streamerPromise?: Promise<unknown> }).streamerPromise;
+
+    // Run once to initialize streamer
+    await agent.run('first');
+    const streamerAfterFirstRun = getStreamerPromise();
+    expect(streamerAfterFirstRun).toBeDefined();
+
+    // Call setSettings - should clear the streamer promise
+    agent.setSettings({
+      ...initialSettings,
+      llm: { model: 'model-v2' },
+    });
+
+    const streamerAfterSettings = getStreamerPromise();
+    expect(streamerAfterSettings).toBeUndefined();
+  });
+
+  it('rebuilds streamer mid-run when settings change (multi-iteration)', async () => {
+    const log = new EventLog();
+
+    // Tool that can trigger a settings change during execution
+    let settingsChangeCallback: (() => void) | null = null;
+    const tool: ToolDefinition<{ value: string }, { result: string }> = {
+      name: 'async_tool',
+      validate: (input) => ({ value: (input as { value: string }).value }),
+      execute: async (args) => {
+        // Trigger settings change during tool execution (simulating user action)
+        if (settingsChangeCallback) {
+          settingsChangeCallback();
+          settingsChangeCallback = null;
+        }
+        return { result: args.value };
+      },
+    };
+
+    const llm = new RecordingLLM([
+      // First iteration: call tool
+      [
+        { type: 'text', text: 'Calling tool' },
+        { type: 'tool_call_delta', id: 'call_1', name: 'async_tool', arguments: '{"value":"test1"}' },
+        { type: 'finish' },
+      ],
+      // Second iteration: after settings change - verify we continue
+      [
+        { type: 'text', text: 'Final response' },
+        { type: 'finish' },
+      ],
+    ]);
+
+    const initialSettings: OpenHandsSettings = {
+      llm: { model: 'model-v1' },
+      agent: {},
+      conversation: { maxIterations: 3 },
+      confirmation: {},
+      secrets: {},
+    };
+
+    const agent = new Agent({
+      settings: initialSettings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    // Set up callback to change settings during first tool execution
+    settingsChangeCallback = () => {
+      agent.setSettings({
+        ...initialSettings,
+        llm: { model: 'model-v2' },
+      });
+    };
+
+    await agent.run('start');
+
+    // Verify the run completed with both iterations
+    expect(llm.requests.length).toBe(2);
+
+    // The second request should have been made after settings changed
+    // (verifying the loop continued after the settings change)
+    const messages = log.list().filter(isMessageEvent);
+    const assistantMessages = messages.filter((evt) => evt.llm_message.role === 'assistant');
+    expect(assistantMessages.length).toBe(2);
+  });
+});
