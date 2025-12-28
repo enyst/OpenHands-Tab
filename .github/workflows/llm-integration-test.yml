@@ -1,4 +1,4 @@
-name: LLM Integration Test (Haiku Extended Thinking)
+name: LLM Quirks
 
 on:
   # Manual trigger only
