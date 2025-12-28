@@ -59,7 +59,7 @@ interface AnthropicContentBlockStartEvent {
 }
 
 interface AnthropicContentDeltaEvent {
-  index?: number;
+  index: number;
   delta?: {
     type?: string;
     text?: string;
@@ -81,7 +81,7 @@ const isContentBlockStartEvent = (data: unknown): data is AnthropicContentBlockS
   typeof data === 'object' && data !== null && 'index' in data && 'content_block' in data;
 
 const isContentDeltaEvent = (data: unknown): data is AnthropicContentDeltaEvent =>
-  typeof data === 'object' && data !== null && 'delta' in data;
+  typeof data === 'object' && data !== null && 'delta' in data && 'index' in data && typeof (data as { index: unknown }).index === 'number';
 
 const isMessageDeltaEvent = (data: unknown): data is AnthropicMessageDeltaEvent =>
   typeof data === 'object' && data !== null && 'delta' in data;
@@ -293,7 +293,7 @@ export class AnthropicClient implements LLMClient {
         case 'content_block_delta':
           if (isContentDeltaEvent(data)) {
             const delta = data.delta;
-            const index = data.index ?? 0;
+            const index = data.index;
 
             if (delta?.type === 'text_delta' && delta.text) {
               yield { type: 'text', text: delta.text };
