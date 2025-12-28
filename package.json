@@ -509,7 +509,6 @@
     "ws"
   ],
   "devDependencies": {
-    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/cli": "^4.1.13",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
