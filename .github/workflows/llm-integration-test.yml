@@ -1,0 +1,96 @@
+name: LLM Integration Test (Haiku Extended Thinking)
+
+on:
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - litellm
+          - direct
+  # Run on push to develop branch
+  push:
+    branches: [ develop ]
+    paths:
+      - 'packages/agent-sdk-ts/src/sdk/llm/**'
+      - 'packages/agent-sdk-ts/test-haiku-thinking.mjs'
+      - '.github/workflows/llm-integration-test.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: llm-test-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test-haiku-thinking:
+    runs-on: ubuntu-latest
+    environment: LLM
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          check-latest: true
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build SDK
+        run: npm run build -w @openhands/agent-sdk-ts
+
+      - name: Determine test mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.test_mode }}" >> $GITHUB_OUTPUT
+          else
+            echo "mode=all" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run LLM Integration Test
+        working-directory: packages/agent-sdk-ts
+        env:
+          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          echo "Running test in mode: $MODE"
+          
+          case "$MODE" in
+            litellm)
+              node test-haiku-thinking.mjs
+              ;;
+            direct)
+              node test-haiku-thinking.mjs --direct
+              ;;
+            all)
+              node test-haiku-thinking.mjs --all
+              ;;
+          esac
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## LLM Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Mode:** ${{ steps.mode.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Some tests failed.**" >> $GITHUB_STEP_SUMMARY
+          fi

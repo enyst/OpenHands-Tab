@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * Test script for claude-haiku-4-5 with extended thinking via LiteLLM proxy.
+ * Test script for claude-haiku-4-5 with extended thinking.
+ * 
+ * Supports two modes:
+ * 1. LiteLLM proxy (default) - uses LITELLM_API_KEY
+ * 2. Direct Anthropic API - uses ANTHROPIC_API_KEY
  * 
  * This script tests the agent-sdk-ts with a simple prompt that requires:
  * 1. Reading a file (tool call)
@@ -9,19 +13,26 @@
  * 4. Confirming completion (text response)
  * 
  * Usage:
+ *   # Via LiteLLM proxy (default)
  *   LITELLM_API_KEY=... node test-haiku-thinking.mjs
+ *   
+ *   # Direct Anthropic API
+ *   ANTHROPIC_API_KEY=... node test-haiku-thinking.mjs --direct
+ *   
+ *   # Run both modes
+ *   LITELLM_API_KEY=... ANTHROPIC_API_KEY=... node test-haiku-thinking.mjs --all
+ * 
+ * Exit codes:
+ *   0 - All tests passed
+ *   1 - Test failed
+ *   2 - Missing required environment variables
  */
 
 import { LLMFactory } from './dist/index.mjs';
 
 const LITELLM_BASE_URL = 'https://llm-proxy.eval.all-hands.dev';
-const MODEL = 'anthropic/claude-haiku-4-5';
-
-const apiKey = process.env.LITELLM_API_KEY;
-if (!apiKey) {
-  console.error('Missing LITELLM_API_KEY environment variable');
-  process.exit(1);
-}
+const LITELLM_MODEL = 'anthropic/claude-haiku-4-5';
+const ANTHROPIC_MODEL = 'claude-haiku-4-5-20241022';
 
 const fileEditorTool = {
   type: 'function',
@@ -141,24 +152,27 @@ function buildToolMessages(toolCalls, results) {
   }));
 }
 
-async function main() {
-  console.log('=== Testing claude-haiku-4-5 with extended thinking ===');
-  console.log(`Base URL: ${LITELLM_BASE_URL}`);
-  console.log(`Model: ${MODEL}`);
-  console.log('');
+/**
+ * Run a single test with the given configuration
+ * @returns {Promise<{success: boolean, turns: number, error?: string}>}
+ */
+async function runTest(config, testName) {
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`Testing: ${testName}`);
+  console.log(`Provider: ${config.provider}`);
+  console.log(`Model: ${config.model}`);
+  if (config.baseUrl) console.log(`Base URL: ${config.baseUrl}`);
+  console.log('='.repeat(60));
 
-  const config = {
-    provider: 'litellm_proxy',
-    model: MODEL,
-    baseUrl: LITELLM_BASE_URL,
-    apiKey: apiKey,
-    reasoningEffort: 'low',  // Enable extended thinking
-    maxOutputTokens: 8000,
-  };
-
-  console.log('Creating LLM client...');
-  const factory = new LLMFactory(config);
-  const client = await factory.createClient();
+  let client;
+  try {
+    console.log('\nCreating LLM client...');
+    const factory = new LLMFactory(config);
+    client = await factory.createClient();
+  } catch (error) {
+    console.error(`Failed to create client: ${error.message}`);
+    return { success: false, turns: 0, error: `Client creation failed: ${error.message}` };
+  }
 
   const systemPrompt = 'You are a helpful assistant. Use the file_editor tool to read and create files.';
   const userMessage = {
@@ -169,6 +183,9 @@ async function main() {
   let messages = [userMessage];
   let turn = 0;
   const maxTurns = 5;
+  let hadThinking = false;
+  let hadSignature = false;
+  let hadToolCalls = false;
 
   while (turn < maxTurns) {
     turn++;
@@ -184,8 +201,8 @@ async function main() {
     try {
       result = await streamResponse(client, request);
     } catch (error) {
-      console.error(`\nError during turn ${turn}:`, error.message);
-      process.exit(1);
+      console.error(`\nError during turn ${turn}: ${error.message}`);
+      return { success: false, turns: turn, error: error.message };
     }
 
     console.log('');
@@ -196,6 +213,11 @@ async function main() {
     if (result.usage) {
       console.log(`  Usage: input=${result.usage.input}, output=${result.usage.output}`);
     }
+
+    // Track what we've seen
+    if (result.reasoningContent.length > 0) hadThinking = true;
+    if (result.thinkingSignature) hadSignature = true;
+    if (Object.keys(result.toolCalls).length > 0) hadToolCalls = true;
 
     // If no tool calls, we're done
     if (Object.keys(result.toolCalls).length === 0) {
@@ -242,9 +264,100 @@ async function main() {
 
   if (turn >= maxTurns) {
     console.log('\n=== Max turns reached ===');
+    return { success: false, turns: turn, error: 'Max turns reached without completion' };
   }
 
-  console.log('\n=== Test completed successfully ===');
+  // Validate results
+  const issues = [];
+  if (!hadThinking) issues.push('No thinking/reasoning content received');
+  if (!hadSignature) issues.push('No thinking signature received');
+  if (!hadToolCalls) issues.push('No tool calls made');
+
+  if (issues.length > 0) {
+    console.log('\n⚠️  Warnings:');
+    issues.forEach(issue => console.log(`  - ${issue}`));
+  }
+
+  console.log(`\n✅ Test "${testName}" completed successfully in ${turn} turns`);
+  return { success: true, turns: turn, hadThinking, hadSignature, hadToolCalls };
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const runDirect = args.includes('--direct');
+  const runAll = args.includes('--all');
+  const runLitellm = !runDirect || runAll;
+  const runAnthropicDirect = runDirect || runAll;
+
+  const results = [];
+
+  // Test via LiteLLM proxy
+  if (runLitellm) {
+    const litellmKey = process.env.LITELLM_API_KEY;
+    if (!litellmKey) {
+      console.error('Missing LITELLM_API_KEY environment variable');
+      if (!runAll) process.exit(2);
+    } else {
+      const config = {
+        provider: 'litellm_proxy',
+        model: LITELLM_MODEL,
+        baseUrl: LITELLM_BASE_URL,
+        apiKey: litellmKey,
+        reasoningEffort: 'low',
+        maxOutputTokens: 8000,
+      };
+      const result = await runTest(config, 'LiteLLM Proxy');
+      results.push({ name: 'LiteLLM Proxy', ...result });
+    }
+  }
+
+  // Test direct Anthropic API
+  if (runAnthropicDirect) {
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) {
+      console.error('Missing ANTHROPIC_API_KEY environment variable');
+      if (!runAll) process.exit(2);
+    } else {
+      const config = {
+        provider: 'anthropic',
+        model: ANTHROPIC_MODEL,
+        apiKey: anthropicKey,
+        reasoningEffort: 'low',
+        maxOutputTokens: 8000,
+      };
+      const result = await runTest(config, 'Direct Anthropic API');
+      results.push({ name: 'Direct Anthropic API', ...result });
+    }
+  }
+
+  // Summary
+  console.log('\n' + '='.repeat(60));
+  console.log('TEST SUMMARY');
+  console.log('='.repeat(60));
+
+  let allPassed = true;
+  for (const result of results) {
+    const status = result.success ? '✅ PASS' : '❌ FAIL';
+    console.log(`${status} - ${result.name} (${result.turns} turns)`);
+    if (result.error) {
+      console.log(`       Error: ${result.error}`);
+    }
+    if (!result.success) allPassed = false;
+  }
+
+  if (results.length === 0) {
+    console.log('No tests were run. Check environment variables.');
+    process.exit(2);
+  }
+
+  console.log('');
+  if (allPassed) {
+    console.log('🎉 All tests passed!');
+    process.exit(0);
+  } else {
+    console.log('💥 Some tests failed.');
+    process.exit(1);
+  }
 }
 
 main().catch(err => {
