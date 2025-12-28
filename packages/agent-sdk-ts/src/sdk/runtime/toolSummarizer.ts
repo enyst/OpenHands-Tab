@@ -189,7 +189,7 @@ export class ToolSummarizer {
     const summary = this.deps.secretMasker.maskText(text).trim();
     if (!summary) return undefined;
 
-    return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS) + '…' : summary;
+    return summary.length > TOOL_SUMMARY_MAX_CHARS ? summary.slice(0, TOOL_SUMMARY_MAX_CHARS - 1) + '…' : summary;
   }
 
   public async getClient(): Promise<LLMClient> {

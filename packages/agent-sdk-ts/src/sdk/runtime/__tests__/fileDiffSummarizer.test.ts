@@ -201,6 +201,6 @@ describe('summarizeFileChangesWithGeminiFlash', () => {
 
     // With default limit of 2000, this should not be truncated
     expect(summary).toBe(longSummary);
-    expect(summary?.endsWith('…')).toBe(false);
+    expect(summary.endsWith('…')).toBe(false);
   });
 });
