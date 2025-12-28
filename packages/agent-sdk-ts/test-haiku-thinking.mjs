@@ -65,7 +65,7 @@ const fileEditorTool = {
   }
 };
 
-// Simulated README content
+// test README content
 const README_CONTENT = `# OpenHands-Tab
 
 A VS Code extension for interacting with OpenHands AI agents directly in your IDE.
