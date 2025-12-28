@@ -15,10 +15,10 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
     const command = typeof candidate.command === 'string' ? candidate.command : '';
     return command === 'insert' || command === 'str_replace';
   })();
-  const isFinishTool = event.tool_name === 'finish';
-  const finishMessageCandidate = isFinishTool ? (event.observation as { message?: unknown })?.message : undefined;
+  const isFinishObservation = event.tool_name === 'finish';
+  const finishMessageCandidate = isFinishObservation ? (event.observation as { message?: unknown })?.message : undefined;
   const finishMessage = typeof finishMessageCandidate === 'string' ? finishMessageCandidate.trim() : '';
-  const finishSummary = isFinishTool ? (
+  const finishSummary = isFinishObservation ? (
     <div className="text-sm leading-relaxed text-stone-300">
       {finishMessage || 'Agent indicated the run is finished.'}
     </div>
