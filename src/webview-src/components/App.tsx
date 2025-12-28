@@ -175,6 +175,11 @@ export function App() {
     showStatusMessage('info', 'Rejection submitted');
   }, [isSubmitting, postMessage, showStatusMessage]);
 
+  const handleStopAgent = useCallback(() => {
+    postMessage({ type: 'command', command: 'pause' });
+    showStatusMessage('info', 'Stopping agent...');
+  }, [postMessage, showStatusMessage]);
+
   const {
     halSettings,
     applyHalSettings,
@@ -758,6 +763,8 @@ export function App() {
         }}
         statusBanner={statusBanner}
         onDismissStatusBanner={() => setStatusBanner(null)}
+        agentStatus={agentStatus}
+        onStopAgent={handleStopAgent}
       />
 
       {/* LLM Profiles view (slide-over panel) */}

@@ -275,6 +275,61 @@ describe('App - Advanced Test Coverage', () => {
         expect(mockApi.postMessage).toHaveBeenCalled();
       });
     });
+
+    it('shows stop button when agent is RUNNING and sends pause command on click', async () => {
+      render(<App />);
+
+      // Initially no stop button
+      expect(screen.queryByTestId('stop-agent-button')).not.toBeInTheDocument();
+
+      // Transition to RUNNING
+      const stateRunning: ConversationStateUpdateEvent = {
+        kind: 'ConversationStateUpdateEvent',
+        agent_status: 'RUNNING'
+      };
+      postToWindow({ type: 'event', event: stateRunning });
+
+      // Stop button should appear
+      await waitFor(() => {
+        expect(screen.getByTestId('stop-agent-button')).toBeInTheDocument();
+      });
+
+      // Clear previous calls to isolate the pause command
+      mockApi.postMessage.mockClear();
+
+      // Click the stop button
+      await userEvent.click(screen.getByTestId('stop-agent-button'));
+
+      // Should send pause command
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'pause' });
+    });
+
+    it('hides stop button when agent transitions from RUNNING to IDLE', async () => {
+      render(<App />);
+
+      // Transition to RUNNING
+      const stateRunning: ConversationStateUpdateEvent = {
+        kind: 'ConversationStateUpdateEvent',
+        agent_status: 'RUNNING'
+      };
+      postToWindow({ type: 'event', event: stateRunning });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('stop-agent-button')).toBeInTheDocument();
+      });
+
+      // Transition to IDLE
+      const stateIdle: ConversationStateUpdateEvent = {
+        kind: 'ConversationStateUpdateEvent',
+        agent_status: 'IDLE'
+      };
+      postToWindow({ type: 'event', event: stateIdle });
+
+      // Stop button should disappear
+      await waitFor(() => {
+        expect(screen.queryByTestId('stop-agent-button')).not.toBeInTheDocument();
+      });
+    });
   });
 
   describe('Status banner updates', () => {
