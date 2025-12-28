@@ -1,5 +1,5 @@
 import type { ChatCompletionRequest, LLMClient } from '../llm';
-import type { Message, ToolCall } from '../types';
+import type { ToolCall } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import { summarizeFileChangesWithGeminiFlash } from './fileDiffSummarizer';
 import { getGeminiClient } from './geminiClient';
@@ -19,7 +19,6 @@ export class ToolSummarizer {
   private enabled = false;
   private failed = false;
   private debug = false;
-  private pendingToolSummaries: Array<{ toolName: string; summary: string }> = [];
   private client?: LLMClient;
   private clientInitPromise?: Promise<LLMClient>;
 
@@ -34,9 +33,6 @@ export class ToolSummarizer {
   updateSettings(settings: OpenHandsSettings, options: { debug: boolean }): void {
     this.debug = options.debug;
     this.enabled = settings?.agent?.summarizeToolCalls ?? false;
-    if (!this.enabled) {
-      this.pendingToolSummaries = [];
-    }
 
     // If the user updates settings/secrets, allow retrying tool summarization.
     this.failed = false;
@@ -47,39 +43,22 @@ export class ToolSummarizer {
     }
   }
 
-  resetPendingSummaries(): void {
-    this.pendingToolSummaries = [];
-  }
+  async maybeAttachToolCallSummary(toolCall: ToolCall, result: unknown): Promise<unknown> {
+    if (!this.enabled) return result;
+    if (this.failed) return result;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) return result;
 
-  buildToolSummaryMessage(): Message | undefined {
-    if (!this.enabled) return undefined;
-    if (!this.pendingToolSummaries.length) return undefined;
-
-    if (this.pendingToolSummaries.length === 1) {
-      const only = this.pendingToolSummaries[0];
-      return {
-        role: 'assistant',
-        content: [{ type: 'text', text: `Tool summary (${only.toolName}): ${only.summary}` }],
-      };
-    }
-
-    const lines = [
-      'Tool summaries:',
-      ...this.pendingToolSummaries.map((entry) => `- ${entry.toolName}: ${entry.summary}`),
-    ];
-    return { role: 'assistant', content: [{ type: 'text', text: lines.join('\n') }] };
-  }
-
-  async maybeSummarizeToolCall(toolCall: ToolCall, result: unknown): Promise<void> {
-    if (!this.enabled) return;
-    if (this.failed) return;
+    const record = result as Record<string, unknown>;
+    // Skip if already has a summary (from specialized summarizers like file diff or terminal)
+    if (typeof record.summary === 'string' && record.summary.trim()) return result;
 
     try {
       const summary = await this.summarizeToolCall(toolCall, result);
-      if (!summary) return;
-      this.pendingToolSummaries.push({ toolName: toolCall.function.name, summary });
+      if (!summary) return result;
+      return { ...record, summary };
     } catch (error) {
       this.markFailed('[Agent] Tool call summarization failed; disabling for this session:', error);
+      return result;
     }
   }
 

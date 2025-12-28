@@ -6,6 +6,7 @@ import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm
 import { Agent, EventLog } from '..';
 import type { OpenHandsSettings } from '../../types/settings';
 import type { ToolDefinition } from '../../types/tools';
+import type { Event, ObservationEvent } from '../../types';
 
 class RecordingLLM implements LLMClient {
   readonly requests: ChatCompletionRequest[] = [];
@@ -51,8 +52,10 @@ afterEach(() => {
   }
 });
 
-describe('Agent tool-call summaries (optional)', () => {
-  it('injects a summary into the next LLM request when enabled', async () => {
+describe('Agent tool-call summaries', () => {
+  it('attaches summary to observation event for UI display but does NOT send to LLM', async () => {
+    // Gemini summaries should be saved in events for UI display, but NOT sent to the LLM.
+    // Messages with role="assistant" must only come from the LLM, not be invented.
     const settings: OpenHandsSettings = {
       llm: { model: 'test-model' },
       agent: { summarizeToolCalls: true },
@@ -62,7 +65,7 @@ describe('Agent tool-call summaries (optional)', () => {
     };
     const log = new EventLog();
     const llm = new RecordingLLM();
-    const summarizer = new SummaryLLM('Ran example tool successfully.');
+    const summarizer = new SummaryLLM('Tool executed successfully with value 1.');
 
     const tool: ToolDefinition<Record<string, unknown>, Record<string, unknown>> = {
       name: 'example',
@@ -81,18 +84,39 @@ describe('Agent tool-call summaries (optional)', () => {
 
     await agent.run('hi');
 
-    expect(summarizer.requests).toHaveLength(1);
-    expect(llm.requests).toHaveLength(2);
+    // Verify summary is attached to observation event for UI display
+    const events = log.list();
+    const observationEvent = events.find((e: Event) => e.kind === 'ObservationEvent') as ObservationEvent | undefined;
+    expect(observationEvent).toBeDefined();
+    expect(observationEvent!.observation.summary).toBe('Tool executed successfully with value 1.');
 
+    // Verify that NO synthetic assistant messages with tool summaries are injected into LLM requests
+    expect(llm.requests).toHaveLength(2);
+    for (const request of llm.requests) {
+      for (const message of request.messages) {
+        if (message.role === 'assistant') {
+          const text = message.content
+            .filter((part) => part.type === 'text')
+            .map((part) => part.text)
+            .join('\n');
+          // Synthetic tool summary messages should NOT be present
+          expect(text).not.toContain('Tool summary');
+          expect(text).not.toContain('Tool executed successfully');
+        }
+      }
+    }
+
+    // The last message in the second request should be a tool message, not an assistant message
     const secondRequest = llm.requests[1];
     const lastMessage = secondRequest.messages[secondRequest.messages.length - 1];
-    expect(lastMessage.role).toBe('assistant');
+    expect(lastMessage.role).toBe('tool');
 
-    const lastText = lastMessage.content
+    // Verify the tool message content does NOT contain the summary
+    const toolMessageText = lastMessage.content
       .filter((part) => part.type === 'text')
       .map((part) => part.text)
-      .join('\n');
-    expect(lastText).toContain('Ran example tool successfully.');
+      .join('');
+    expect(toolMessageText).not.toContain('Tool executed successfully with value 1.');
   });
 
   it('does not summarize tools when disabled', async () => {
@@ -124,15 +148,20 @@ describe('Agent tool-call summaries (optional)', () => {
 
     await agent.run('hi');
 
+    // Verify no summary is attached when disabled
+    const events = log.list();
+    const observationEvent = events.find((e: Event) => e.kind === 'ObservationEvent') as ObservationEvent | undefined;
+    expect(observationEvent).toBeDefined();
+    expect(observationEvent!.observation.summary).toBeUndefined();
+
+    // Verify summarizer was not called
     expect(summarizer.requests).toHaveLength(0);
+
     expect(llm.requests).toHaveLength(2);
     const secondRequest = llm.requests[1];
     const lastMessage = secondRequest.messages[secondRequest.messages.length - 1];
-    const lastText = lastMessage.content
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('\n');
-    expect(lastText).not.toContain('should not be used');
+    // Last message should be a tool message, not an assistant message with summaries
+    expect(lastMessage.role).toBe('tool');
   });
 });
 
