@@ -151,11 +151,11 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
     }
   });
 
-  it('does not truncate summaries up to 2000 characters (oh-tab-qxzs)', async () => {
+  it('does not truncate summaries up to 5000 characters (oh-tab-qxzs)', async () => {
     const secrets = new SecretRegistry();
-    // Create a summary that's close to but under 2000 chars (new default limit)
+    // Create a summary that's close to but under 5000 chars (new default limit)
     // Note: the summarizer trims the result, so we build a string without trailing spaces
-    const longSummary = 'The agent executed a git branch operation. '.repeat(45).trim(); // ~1980 chars
+    const longSummary = 'The agent executed a git branch operation. '.repeat(115).trim(); // ~4945 chars
     const llm = new RecordingLLM(longSummary);
 
     const summary = await summarizeTerminalObservationWithGeminiFlash(
@@ -163,7 +163,7 @@ describe('summarizeTerminalObservationWithGeminiFlash', () => {
       { secrets, llmClient: llm }
     );
 
-    // With default limit of 2000, this should not be truncated
+    // With default limit of 5000, this should not be truncated
     expect(summary).toBe(longSummary);
     expect(summary.endsWith('…')).toBe(false);
   });
