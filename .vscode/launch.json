@@ -26,7 +26,10 @@
       "outFiles": [
         "${workspaceFolder}/dist/**/*.js"
       ],
-      "preLaunchTask": "npm: build"
+      "preLaunchTask": "npm: build",
+      "env": {
+        "OPENHANDS_DEBUG_LLM_CHUNKS": "1"
+      }
     },
     {
       "name": "OH-Tab-Tests",

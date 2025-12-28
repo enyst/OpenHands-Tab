@@ -48,12 +48,21 @@ type OpenAIToolCallDelta = {
   function?: { name?: string; arguments?: string };
 };
 
+type OpenAIThinkingBlock = {
+  type: 'thinking';
+  thinking?: string;
+  signature?: string;
+};
+
 type OpenAIChoiceDelta = {
   content?: string | OpenAIContentPart[];
   tool_calls?: OpenAIToolCallDelta[];
   reasoning_content?: string | { text?: string }[];
+  /** Anthropic thinking blocks (via LiteLLM) - contains signature at the end */
+  thinking_blocks?: OpenAIThinkingBlock[];
   /** Anthropic thinking signature (via LiteLLM) */
-  thinking_signature?: string;
+  // HUMAN NOTE: probably should be deleted! Signature is not here if it's above!
+  // thinking_signature?: string;
 };
 
 type OpenAIChoice = {
@@ -80,6 +89,18 @@ const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
 const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], config: LLMConfiguration): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
 
+  // DEBUG: Log conversion context
+  console.log('DEBUG toOpenAIMessage:', JSON.stringify({
+    role: message.role,
+    hasReasoningContent: !!message.reasoning_content,
+    hasThinkingSignature: !!message.thinking_signature,
+    hasToolCalls: !!message.tool_calls?.length,
+    supportsThinkingBlocks: supportsThinkingBlocks(config),
+    provider: config.provider,
+    model: config.model,
+    reasoningEffort: config.reasoningEffort,
+  }));
+
   // For Anthropic models with thinking enabled: include thinking blocks in content array
   // This is required when assistant messages have both thinking content and tool calls.
   // IMPORTANT: Anthropic API requires the `signature` field when sending thinking blocks,
@@ -87,6 +108,8 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
   const includeThinkingBlocks = supportsThinkingBlocks(config);
 
   if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.thinking_signature && message.tool_calls?.length) {
+    // For Anthropic via LiteLLM proxy
+    // HUMAN NOTE: this is suspicious. Why do we create a new OpenAIThinkingBlock if we use here the old one?
     const contentBlocks: OpenAIContentBlock[] = [];
 
     // Thinking block must come first (signature is required by Anthropic)
@@ -117,11 +140,13 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
       });
     }
 
-    return {
-      role: 'assistant',
+    const result = {
+      role: 'assistant' as const,
       content: contentBlocks,
       ...(message.name ? { name: message.name } : {}),
     };
+    console.log('DEBUG toOpenAIMessage OUTPUT (thinking+tools):', JSON.stringify(result));
+    return result;
   }
 
   // Standard case: plain text content (for non-Anthropic models or messages without thinking+tools)
@@ -161,8 +186,8 @@ const defaultBaseUrls: Record<string, string> = {
   litellm_proxy: DEFAULT_PROVIDER_BASE_URLS.litellm_proxy,
 };
 
-// TEMPORARY DEBUG: Set OPENHANDS_DEBUG_LLM_CHUNKS=1 to log raw chunks
-const DEBUG_LLM_CHUNKS = process.env.OPENHANDS_DEBUG_LLM_CHUNKS === '1';
+// TEMPORARY DEBUG: log chunks to find signature format from LiteLLM
+const DEBUG_LLM_CHUNKS = true;  // TEMP: force-enabled for debugging
 const debugChunks: { time: string; payload: string }[] = [];
 
 const parseSseLines = async function* (response: Response): AsyncGenerator<string> {
@@ -280,9 +305,22 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
     if (reasoning) deltas.push({ type: 'reasoning', reasoning });
   }
 
-  if (delta.thinking_signature) {
-    deltas.push({ type: 'thinking_signature', signature: delta.thinking_signature });
+  // Handle thinking_blocks from LiteLLM (signature is in the final thinking_block)
+  if (Array.isArray(delta.thinking_blocks)) {
+    for (const block of delta.thinking_blocks) {
+      // Human note: pushing thinking here is suspicious. Reasoning content was streamed before.
+      if (block?.type === 'thinking') {
+        if (block.thinking) {
+          deltas.push({ type: 'reasoning', reasoning: block.thinking });
+        }
+        // Human note: signature works, it's sent in a single final chunk.
+        if (block.signature) {
+          deltas.push({ type: 'thinking_signature', signature: block.signature });
+        }
+      }
+    }
   }
+
 
   if (chunk.usage) {
     deltas.push({
