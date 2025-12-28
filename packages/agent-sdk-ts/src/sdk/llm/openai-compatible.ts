@@ -162,10 +162,6 @@ const defaultBaseUrls: Record<string, string> = {
   litellm_proxy: DEFAULT_PROVIDER_BASE_URLS.litellm_proxy,
 };
 
-// Debug logging for LLM chunks (controlled by environment variable)
-const DEBUG_LLM_CHUNKS = typeof process !== 'undefined' && process.env?.OPENHANDS_DEBUG_LLM_CHUNKS === '1';
-const debugChunks: { time: string; payload: string }[] = [];
-
 const parseSseLines = async function* (response: Response): AsyncGenerator<string> {
   const reader = response.body?.getReader();
   if (!reader) return;
