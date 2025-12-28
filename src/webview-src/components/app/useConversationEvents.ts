@@ -182,7 +182,12 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       }
       clearSubmissionState();
     } else if (isAgentErrorEvent(event)) {
-      showStatusMessage('error', event.error);
+      // Truncate long error messages for status bar; full details stay in chat timeline
+      const maxLen = 80;
+      const statusMessage = event.error.length > maxLen
+        ? event.error.slice(0, maxLen).replace(/\s+\S*$/, '') + '…'
+        : event.error;
+      showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: 5000 });
       clearSubmissionState();
     } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
       showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: 8000 });
