@@ -49,7 +49,7 @@ const README_PATH = join(REPO_ROOT, 'README.md');
 
 const LITELLM_BASE_URL = 'https://llm-proxy.eval.all-hands.dev';
 const LITELLM_MODEL = 'anthropic/claude-haiku-4-5';
-const ANTHROPIC_MODEL = 'claude-haiku-4-5-20241022';
+const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001';
 
 // Files created during test - will be cleaned up
 const TEST_OUTPUT_FILE = 'summary.md';
