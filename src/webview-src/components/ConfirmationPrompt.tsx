@@ -182,7 +182,7 @@ export function ConfirmationPrompt({
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="Reason for rejection (optional)"
                 rows={3}
-                className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 resize-none focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500/30"
+                className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 resize-none focus:outline-none focus:ring-0 focus:border-white/[0.08] focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]"
                 autoFocus
               />
             </div>
@@ -206,14 +206,14 @@ export function ConfirmationPrompt({
                 <button
                   onClick={handleCancel}
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:bg-white/[0.08] hover:text-stone-300 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:bg-white/[0.08] hover:text-stone-300 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed oh-focus-outline"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReject}
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 text-sm font-medium transition-all border border-red-400/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 text-sm font-medium transition-all border border-red-400/30 disabled:opacity-50 disabled:cursor-not-allowed oh-focus-outline"
                 >
                   Confirm Rejection
                 </button>
@@ -223,7 +223,7 @@ export function ConfirmationPrompt({
                 <button
                   onClick={handleReject}
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:bg-white/[0.08] hover:text-stone-300 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="px-4 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-400 hover:bg-white/[0.08] hover:text-stone-300 text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 oh-focus-outline"
                 >
                   <span className="codicon codicon-close" />
                   Reject
@@ -231,7 +231,7 @@ export function ConfirmationPrompt({
                 <button
                   onClick={handleApprove}
                   disabled={isSubmitting}
-                  className="px-4 py-2.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 text-white text-sm font-medium transition-all shadow-glow-sm hover:from-brand-400 hover:to-brand-500 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2.5 rounded-lg bg-gradient-to-b from-brand-500 to-brand-600 text-white text-sm font-medium transition-all shadow-glow-sm hover:from-brand-400 hover:to-brand-500 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed oh-focus-outline"
                 >
                   <span className="codicon codicon-check" />
                   Approve & Continue

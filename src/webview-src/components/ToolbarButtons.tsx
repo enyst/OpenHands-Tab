@@ -1,8 +1,8 @@
 import React from 'react';
 import { Tooltip } from './Tooltip';
 
-const iconButtonBase = 'relative inline-flex h-8 w-8 items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--vscode-toolbar-background)_92%,transparent)] text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_85%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
-const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] focus:outline focus:outline-1 focus:outline-[var(--vscode-focusBorder)]';
+const iconButtonBase = 'relative inline-flex h-8 w-8 items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--vscode-toolbar-background)_92%,transparent)] text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_85%,transparent)] oh-focus-outline';
+const accessoryButtonBase = 'relative inline-flex h-7 w-7 items-center justify-center rounded-sm bg-transparent text-[var(--vscode-foreground)] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_35%,transparent)] oh-focus-outline';
 
 export interface ToolbarButtonProps {
   icon: string;

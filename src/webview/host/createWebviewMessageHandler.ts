@@ -527,7 +527,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'setLlmProfileId': {
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
-        await settingsMgr.update({ llm: { profileId } });
+        try {
+          await settingsMgr.update({ llm: { profileId } }, 'global');
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : String(err);
+          outputChannel?.appendLine(`[settings] Failed to persist LLM profile selection: ${reason}`);
+          postStatusError(`Failed to save profile selection: ${reason}`);
+          break;
+        }
 
         const updated = await settingsMgr.get();
         try {
@@ -620,7 +627,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           const before = await settingsMgr.get();
           const activeProfileId = before.llm.profileId ?? null;
           if (activeProfileId === profileId) {
-            await settingsMgr.update({ llm: { profileId: '' } });
+            await settingsMgr.update({ llm: { profileId: '' } }, 'global');
             void host.postMessage({
               type: 'statusMessage',
               level: 'error',
@@ -668,14 +675,19 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           const key = getProfileApiKeySecretKey(profileId);
           const stored = await context.secrets.get(key);
           const hasProfileKey = typeof stored === 'string' && stored.trim().length > 0;
-          const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
           const overrideProviderRaw = typeof message.provider === 'string' ? message.provider.trim() : '';
           const overrideProvider = overrideProviderRaw && isLlmProvider(overrideProviderRaw) ? overrideProviderRaw : null;
           const overrideBaseUrl = typeof message.baseUrl === 'string' ? message.baseUrl.trim() : '';
-          const provider = overrideProvider
-            ?? (overrideBaseUrl ? detectProviderFromBaseUrl(overrideBaseUrl) : null)
-            ?? profile.config.provider
-            ?? detectProviderFromBaseUrl(profile.config.baseUrl);
+
+          // Prefer explicit provider/baseUrl overrides so we can check provider keys even for
+          // draft/new profiles that do not exist yet on disk.
+          const provider = (() => {
+            if (overrideProvider) return overrideProvider;
+            if (overrideBaseUrl) return detectProviderFromBaseUrl(overrideBaseUrl);
+
+            const profile = llmProfilesStore.loadProfile(profileId, llmProfileStoreOptions());
+            return profile.config.provider ?? detectProviderFromBaseUrl(profile.config.baseUrl);
+          })();
           const providerKeyName = getProviderApiKeyName(provider);
           const hasProviderKey = await hasStoredSecret(providerKeyName);
           void host.postMessage({

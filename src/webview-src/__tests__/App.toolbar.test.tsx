@@ -459,6 +459,7 @@ describe('App toolbar interactions', () => {
 
     const searchInput = await screen.findByPlaceholderText('Search skills...');
     fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+    fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
     fireEvent.keyDown(searchInput, { key: 'Enter' });
 
     await waitFor(() => {

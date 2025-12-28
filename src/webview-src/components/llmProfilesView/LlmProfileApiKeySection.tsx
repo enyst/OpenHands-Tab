@@ -84,13 +84,13 @@ export function LlmProfileApiKeySection(props: LlmProfileApiKeySectionProps) {
               )}
             </div>
             <label className="flex items-center gap-2 text-xs text-stone-300 select-none">
-              <input
-                type="checkbox"
-                checked={overrideProfileApiKey}
-                onChange={(e) => { onToggleOverrideProfileApiKey(e.target.checked); }}
-                disabled={apiKeySaving || (mode === 'edit' && !canEditApiKey)}
-                className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-0 disabled:opacity-50"
-              />
+                <input
+                  type="checkbox"
+                  checked={overrideProfileApiKey}
+                  onChange={(e) => { onToggleOverrideProfileApiKey(e.target.checked); }}
+                  disabled={apiKeySaving || (mode === 'edit' && !canEditApiKey)}
+                  className="h-4 w-4 rounded border border-white/[0.2] bg-white/[0.02] text-brand-500 disabled:opacity-50 oh-focus-outline"
+                />
               Override for this profile
             </label>
           </div>
@@ -155,18 +155,21 @@ export function LlmProfileApiKeySection(props: LlmProfileApiKeySectionProps) {
               type="button"
               onClick={() => { void onSaveApiKey(); }}
               disabled={apiKeySaving}
+              aria-label="Save API key"
               className={`
-                inline-flex items-center gap-2 px-3 py-2 rounded-lg
-                text-xs font-medium
+                inline-flex items-center gap-2 px-4 py-2 rounded-lg
+                text-sm font-medium
                 transition-all
                 border
+                focus:outline-none focus:ring-0
+                focus-visible:shadow-[0_0_0_1px_rgba(232,166,66,0.08)]
                 ${apiKeySaving
                   ? 'bg-white/[0.03] text-stone-500 border-white/[0.06] cursor-not-allowed'
-                  : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-brand-500/30 hover:from-brand-500/35 hover:to-brand-600/30 hover:border-brand-500/40'}
+                  : 'bg-gradient-to-b from-brand-500/25 to-brand-600/20 text-brand-200 border-white/[0.06] oh-outline-soft hover:from-brand-500/35 hover:to-brand-600/30 hover:border-white/[0.1]'}
               `}
             >
               <span className={`codicon codicon-${apiKeySaving ? 'loading' : 'save'} ${apiKeySaving ? 'animate-spin' : ''}`} />
-              Save key
+              {apiKeySaving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>

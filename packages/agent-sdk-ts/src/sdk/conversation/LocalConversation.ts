@@ -115,6 +115,12 @@ export class LocalConversation extends EventEmitter {
     // Reset persistence so a new store is created for the new id (if configured)
     this.persistence = undefined;
 
+    // Clear the LLM registry so cached clients with stale metrics don't carry over
+    this.llmRegistry.clear();
+
+    // Reset stats so accumulated metrics from previous conversations don't carry over
+    this.stats.clear();
+
     // Recreate logs/state
     this.events = new EventLog();
     this.state = new ConversationState({ eventLog: this.events });

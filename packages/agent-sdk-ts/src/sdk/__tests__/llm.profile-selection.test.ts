@@ -35,8 +35,6 @@ describe('LLMFactory profile selection', () => {
 
       const tracked = client as TrackedLLMClient;
       expect(tracked.modelName).toBe('gpt-5');
-      expect(tracked.label).toBe('p1');
-      expect(stats.usageToLabels.default).toBe('p1');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -61,8 +59,6 @@ describe('LLMFactory profile selection', () => {
     expect(client).toBeInstanceOf(TrackedLLMClient);
     const tracked = client as TrackedLLMClient;
     expect(tracked.modelName).toBe('gpt-5-mini');
-    expect(tracked.label).toBe('gpt-5-mini');
-    expect(stats.usageToLabels.default).toBe('gpt-5-mini');
   });
 
   it('falls back to provider env key when profileId key is missing', async () => {
@@ -133,7 +129,6 @@ describe('LLMFactory profile selection', () => {
       (second as TrackedLLMClient).metrics.addTokenUsage({ promptTokens: 5, completionTokens: 2, responseId: 'r2' });
 
       expect(Object.keys(stats.usageToMetrics)).toEqual(['agent']);
-      expect(stats.usageToLabels.agent).toBe('sonnet-45');
       expect(stats.usageToMetrics.agent.accumulatedTokenUsage).toMatchObject({
         promptTokens: 15,
         completionTokens: 3,

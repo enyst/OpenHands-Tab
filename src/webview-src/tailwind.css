@@ -86,6 +86,19 @@
     background: rgba(232, 166, 66, 0.3);
     color: inherit;
   }
+
+  /* Global focus styling for interactive elements - same as hover */
+  button:focus-visible,
+  [role="option"]:focus-visible,
+  [role="option"]:focus-within {
+    outline: none;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Don't double-apply background to buttons inside option containers */
+  [role="option"] button:focus-visible {
+    background-color: transparent;
+  }
 }
 
 /* Custom utilities for OpenHands design */
@@ -97,6 +110,12 @@
 
   .shadow-glow {
     box-shadow: 0 0 16px rgba(232, 166, 66, 0.35);
+  }
+
+  .shadow-glow-outline {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(232, 166, 66, 0.08);
   }
 
   .shadow-glow-lg {
@@ -133,6 +152,21 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
+  /* Soft focus + selection outline (replace thick brand rings) */
+  .oh-outline-soft {
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
+  .oh-focus-outline:focus {
+    outline: none;
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
+  .oh-focus-outline:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px rgba(232, 166, 66, 0.08);
+  }
+
   /* Tooltip animations - warm technical refinement style */
   .animate-tooltip-up {
     animation: tooltipUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
@@ -155,43 +189,43 @@
 @keyframes tooltipUp {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(4px);
+    transform: translateY(4px);
   }
   100% {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
   }
 }
 
 @keyframes tooltipDown {
   0% {
     opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
+    transform: translateY(-4px);
   }
   100% {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transform: translateY(0);
   }
 }
 
 @keyframes tooltipLeft {
   0% {
     opacity: 0;
-    transform: translateY(-50%) translateX(4px);
+    transform: translateX(4px);
   }
   100% {
     opacity: 1;
-    transform: translateY(-50%) translateX(0);
+    transform: translateX(0);
   }
 }
 
 @keyframes tooltipRight {
   0% {
     opacity: 0;
-    transform: translateY(-50%) translateX(-4px);
+    transform: translateX(-4px);
   }
   100% {
     opacity: 1;
-    transform: translateY(-50%) translateX(0);
+    transform: translateX(0);
   }
 }

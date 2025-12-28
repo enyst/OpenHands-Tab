@@ -11,3 +11,4 @@ export * from './registry';
 export * from './profiles';
 export * from './contextLimit';
 export * from './condensationLlmConfig';
+export * from './debug';

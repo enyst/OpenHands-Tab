@@ -2,6 +2,7 @@
   "name": "openhands-tab",
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
+  "icon": "media/icons/openhands-icon.png",
   "version": "0.0.4",
   "description": "A VS Code extension to interact with OpenHands agents in a dedicated sidebar chat view",
   "license": "MIT",
@@ -41,7 +42,7 @@
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
     "onCommand:openhands.resumeCurrentRun",
-    "onView:openhands.chat"
+    "onView:openhands.agent"
   ],
   "contributes": {
     "commands": [
@@ -158,6 +159,7 @@
           "openhands.llm.profileId": {
             "type": "string",
             "default": "",
+            "scope": "machine",
             "order": 0,
             "markdownDescription": "LLM profile identifier (filename stem). OpenHands loads provider/model/baseUrl/tuning from `~/.openhands/llm-profiles/<profileId>.json`.\n\nTo manage profiles and API keys, use the **LLM Profiles** view inside the OpenHands sidebar."
           }
@@ -452,9 +454,10 @@
     "views": {
       "openhands": [
         {
-          "id": "openhands.chat",
+          "id": "openhands.agent",
           "name": "Agent",
-          "type": "webview"
+          "type": "webview",
+          "icon": "media/icons/openhands-activitybar.svg"
         }
       ]
     }
@@ -506,6 +509,7 @@
     "ws"
   ],
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/cli": "^4.1.13",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",

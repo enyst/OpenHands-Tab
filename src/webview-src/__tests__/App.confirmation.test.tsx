@@ -59,7 +59,6 @@ describe('App - Confirmation Flow', () => {
     expect(scope.getAllByText(/terminal/i).length).toBeGreaterThanOrEqual(1);
     const riskBadge = scope.getByText(/high risk/);
     expect(riskBadge).toBeInTheDocument();
-    expect(riskBadge.closest('[title]')).toHaveAttribute('title', 'The model assessed high risk for this action.');
     expect(riskBadge.className).toContain('bg-red-500/15');
     expect(scope.getByText(/Reasoning/)).toBeInTheDocument();
   });

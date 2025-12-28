@@ -341,7 +341,7 @@ function createMockWebviewView() {
 
 async function resolveChatView(mockContext: any) {
   const provider = (vscode.window.registerWebviewViewProvider as Mock).mock.calls.find(
-    (call) => call[0] === 'openhands.chat'
+    (call) => call[0] === 'openhands.agent'
   )?.[1];
   expect(provider).toBeTruthy();
 

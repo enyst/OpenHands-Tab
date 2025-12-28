@@ -150,8 +150,6 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: ev });
     expect(await screen.findByText(/Conversation Error/)).toBeInTheDocument();
     expect(await screen.findByText(/LLMBadRequestError/)).toBeInTheDocument();
-    const details = await screen.findByText(/Details/);
-    fireEvent.click(details);
     expect(await screen.findByText(/Unsupported value/)).toBeInTheDocument();
   });
 
@@ -314,7 +312,6 @@ describe('Agent-SDK event rendering', () => {
     const button = await screen.findByRole('button', { name: 'View diff for /tmp/nested/README.md' });
     expect(button).toHaveTextContent('README.md');
     expect(button).not.toHaveTextContent('/tmp/nested/README.md');
-    expect(button).toHaveAttribute('title', 'View diff for /tmp/nested/README.md');
     fireEvent.click(button);
 
     expect(mockApi.postMessage).toHaveBeenCalledWith(

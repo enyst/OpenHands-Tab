@@ -129,13 +129,23 @@ export const sanitizeMessageForDebug = (message: Message): Message => {
   return out;
 };
 
-export function sanitizeChatRequestForDebug(request: ChatCompletionRequest): { systemPrompt: string; messages: Message[]; tools: string[] } {
+export function sanitizeChatRequestForDebug(
+  request: ChatCompletionRequest,
+  options?: { parameters?: Record<string, unknown> },
+): { systemPrompt: string; messages: Message[]; tools: string[]; parameters?: Record<string, unknown> } {
   const toolNames = (request.tools ?? [])
     .map((t) => t.function?.name)
     .filter((n): n is string => typeof n === 'string' && n.trim().length > 0);
+  const parameters = Object.entries(options?.parameters ?? {})
+    .filter(([, value]) => value !== undefined)
+    .reduce<Record<string, unknown>>((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
   return {
     systemPrompt: 'SYSTEM_PROMPT',
     messages: request.messages.map(sanitizeMessageForDebug),
     tools: toolNames,
+    ...(Object.keys(parameters).length ? { parameters } : {}),
   };
 }

@@ -3,6 +3,7 @@ import { ERROR_ACCENT_COLOR, EventContainer, withAlpha } from './shared';
 
 /** Renders agent error events with tool context. */
 export function AgentErrorBlock({ event, index }: { event: AgentErrorEvent; index?: number }) {
+  const hint = (event as AgentErrorEvent & { hint?: string }).hint;
   return (
     <EventContainer accentColor={ERROR_ACCENT_COLOR} bgOpacity={0.06} index={index}>
       <div className="flex items-center gap-2.5 mb-3">
@@ -20,12 +21,19 @@ export function AgentErrorBlock({ event, index }: { event: AgentErrorEvent; inde
       <div className="text-sm font-mono bg-red-500/5 border border-red-500/10 rounded-lg p-3 leading-relaxed text-red-200">
         {event.error}
       </div>
+      {hint && (
+        <div className="text-xs text-stone-400 mt-2">
+          Hint: {hint}
+        </div>
+      )}
     </EventContainer>
   );
 }
 
 /** Renders conversation-level errors (connection, auth, etc). */
 export function ConversationErrorBlock({ event, index }: { event: ConversationErrorEvent; index?: number }) {
+  const hint = (event as ConversationErrorEvent & { hint?: string }).hint;
+  const detail = event.detail ?? 'Conversation error';
   return (
     <EventContainer accentColor={ERROR_ACCENT_COLOR} bgOpacity={0.06} index={index}>
       <div className="flex items-center gap-2.5 mb-3">
@@ -37,20 +45,15 @@ export function ConversationErrorBlock({ event, index }: { event: ConversationEr
         </div>
         <div className="font-semibold text-sm text-stone-200">Conversation Error</div>
       </div>
-      {event.code && (
-        <div className="text-xs font-mono mb-2 text-stone-500">Code: {event.code}</div>
-      )}
-      {event.detail && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-stone-400 hover:text-stone-300 font-medium transition-colors">
-            Details
-          </summary>
-          <div className="mt-2 text-sm bg-red-500/5 border border-red-500/10 rounded-lg p-3 font-mono whitespace-pre-wrap break-words text-red-200">
-            {event.detail}
-          </div>
-        </details>
+      {event.code && <div className="text-xs font-mono mb-2 text-stone-500">Code: {event.code}</div>}
+      <div className="text-sm bg-red-500/5 border border-red-500/10 rounded-lg p-3 font-mono whitespace-pre-wrap break-words text-red-200">
+        {detail}
+      </div>
+      {hint && (
+        <div className="text-xs text-stone-400 mt-2">
+          Hint: {hint}
+        </div>
       )}
     </EventContainer>
   );
 }
-

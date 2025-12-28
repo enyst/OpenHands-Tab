@@ -40,6 +40,7 @@ export interface LLMConfiguration {
   inputCostPerToken?: number | null;
   /** Cost per output token in USD (or base currency). */
   outputCostPerToken?: number | null;
+  encrypted_reasoning?: string | null;
 }
 
 export interface ChatCompletionRequest {

@@ -69,7 +69,7 @@ describe('textSanitizers', () => {
     expect(text.length).toBeLessThan(250);
   });
 
-  it('sanitizeChatRequestForDebug strips system prompt and lists tool names', () => {
+  it('sanitizeChatRequestForDebug strips system prompt, lists tool names, and includes parameters when provided', () => {
     const request: ChatCompletionRequest = {
       systemPrompt: 'REAL_SYSTEM',
       messages: [
@@ -79,11 +79,12 @@ describe('textSanitizers', () => {
       tools: [{ type: 'function', function: { name: 'terminal', description: '', parameters: {} } }],
     };
 
-    const sanitized = sanitizeChatRequestForDebug(request);
+    const sanitized = sanitizeChatRequestForDebug(request, { parameters: { temperature: 0.4, maxOutputTokens: undefined } });
     expect(sanitized.systemPrompt).toBe('SYSTEM_PROMPT');
     expect(sanitized.tools).toEqual(['terminal']);
     expect(sanitized.messages).toHaveLength(2);
     const toolText = sanitized.messages[1].content[0].type === 'text' ? sanitized.messages[1].content[0].text : '';
     expect(toolText).toContain('…');
+    expect(sanitized.parameters).toEqual({ temperature: 0.4 });
   });
 });

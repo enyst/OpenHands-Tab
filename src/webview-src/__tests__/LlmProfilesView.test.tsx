@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { App } from '../components/App';
 import { postToWindow } from './testUtils';
 
@@ -13,6 +13,16 @@ const getLastPostedOfType = (type: string): any | null => {
     if (candidate?.type === type) return candidate;
   }
   return null;
+};
+
+const selectDropdownOption = async (controlLabel: string, optionLabel: string) => {
+  const control = await screen.findByLabelText(controlLabel);
+  await waitFor(() => expect(control).not.toBeDisabled());
+
+  fireEvent.click(control);
+
+  const listbox = await screen.findByRole('listbox', { name: controlLabel });
+  fireEvent.click(within(listbox).getByRole('option', { name: optionLabel }));
 };
 
 describe('LLM Profiles view', () => {
@@ -79,7 +89,7 @@ describe('LLM Profiles view', () => {
     });
 
     const profileSelect = await screen.findByLabelText('Profile');
-    expect(profileSelect).toHaveValue('gpt-5');
+    expect(profileSelect).toHaveTextContent('gpt-5');
     expect(await screen.findByText('Edit profile')).toBeInTheDocument();
   });
 
@@ -98,9 +108,7 @@ describe('LLM Profiles view', () => {
 
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileSelect = await screen.findByLabelText('Profile');
-    await waitFor(() => expect(profileSelect).not.toBeDisabled());
-    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+    await selectDropdownOption('Profile', 'gpt-5');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -141,7 +149,7 @@ describe('LLM Profiles view', () => {
 
     const apiKeyInput = await screen.findByLabelText('API key override');
     fireEvent.change(apiKeyInput, { target: { value: 'sk-test' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save key' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save API key' }));
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileApiKeySetRequest')).toBeTruthy();
@@ -195,9 +203,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileSelect = await screen.findByLabelText('Profile');
-    await waitFor(() => expect(profileSelect).not.toBeDisabled());
-    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+    await selectDropdownOption('Profile', 'gpt-5');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -232,7 +238,7 @@ describe('LLM Profiles view', () => {
     expect(screen.queryByText('Using OPENAI_API_KEY')).toBeNull();
     expect(await screen.findByLabelText('Provider key configured')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'litellm_proxy' } });
+    await selectDropdownOption('Provider', 'litellm_proxy');
 
     await waitFor(() => {
       const latest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
@@ -364,9 +370,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileSelect = await screen.findByLabelText('Profile');
-    await waitFor(() => expect(profileSelect).not.toBeDisabled());
-    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+    await selectDropdownOption('Profile', 'gpt-5');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -408,9 +412,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileSelect = await screen.findByLabelText('Profile');
-    await waitFor(() => expect(profileSelect).not.toBeDisabled());
-    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+    await selectDropdownOption('Profile', 'gpt-5');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -450,7 +452,23 @@ describe('LLM Profiles view', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show advanced settings' }));
     expect(await screen.findByRole('spinbutton', { name: 'Max output tokens (numeric input)' })).toHaveValue(2048);
 
-    expect(screen.getByText('Use provider key')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getLastPostedOfType('llmProfileApiKeyStatusRequest')).toBeTruthy();
+    });
+
+    const statusRequest = getLastPostedOfType('llmProfileApiKeyStatusRequest');
+    postToWindow({
+      type: 'llmProfileApiKeyStatusResponse',
+      requestId: statusRequest.requestId,
+      ok: true,
+      profileId: statusRequest.profileId,
+      hasKey: true,
+      hasProfileKey: false,
+      hasProviderKey: true,
+      providerKeyName: 'OPENAI_API_KEY',
+    });
+
+    expect(await screen.findByLabelText('Provider key configured')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'Override for this profile' })).not.toBeChecked();
     expect(screen.queryByLabelText('API key override')).toBeNull();
   });
@@ -468,9 +486,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileSelect = await screen.findByLabelText('Profile');
-    await waitFor(() => expect(profileSelect).not.toBeDisabled());
-    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+    await selectDropdownOption('Profile', 'gpt-5');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -531,7 +547,7 @@ describe('LLM Profiles view', () => {
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'gpt-5' } });
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
-    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'openai' } });
+    await selectDropdownOption('Provider', 'openai');
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Override for this profile' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -562,7 +578,7 @@ describe('LLM Profiles view', () => {
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'gpt-5' } });
     fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gpt-5' } });
-    fireEvent.change(screen.getByLabelText('Provider'), { target: { value: 'openai' } });
+    await selectDropdownOption('Provider', 'openai');
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Override for this profile' }));
     fireEvent.change(await screen.findByLabelText('API key override'), { target: { value: 'sk-test' } });
@@ -626,9 +642,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: ['gpt-5'] });
 
-    const profileSelect = await screen.findByLabelText('Profile');
-    await waitFor(() => expect(profileSelect).not.toBeDisabled());
-    fireEvent.change(profileSelect, { target: { value: 'gpt-5' } });
+    await selectDropdownOption('Profile', 'gpt-5');
 
     await waitFor(() => {
       expect(getLastPostedOfType('llmProfileLoadRequest')).toBeTruthy();
@@ -681,9 +695,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    const providerSelect = screen.getByLabelText('Provider');
-
-    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+    await selectDropdownOption('Provider', 'openai');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Provider docs' }));
 
@@ -693,7 +705,7 @@ describe('LLM Profiles view', () => {
 
     expect(getLastPostedOfType('openMarkdownLink')?.href).toBe('https://platform.openai.com/docs');
 
-    fireEvent.change(providerSelect, { target: { value: 'openrouter' } });
+    await selectDropdownOption('Provider', 'openrouter');
     fireEvent.click(screen.getByRole('button', { name: 'Provider docs' }));
 
     await waitFor(() => {
@@ -714,9 +726,7 @@ describe('LLM Profiles view', () => {
     const listRequest = getLastPostedOfType('llmProfilesListRequest');
     postToWindow({ type: 'llmProfilesListResponse', requestId: listRequest.requestId, ok: true, profiles: [] });
 
-    const providerSelect = screen.getByLabelText('Provider');
-
-    fireEvent.change(providerSelect, { target: { value: 'openai' } });
+    await selectDropdownOption('Provider', 'openai');
 
     fireEvent.click(await screen.findByRole('button', { name: 'Get OpenAI API Key' }));
 

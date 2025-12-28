@@ -98,13 +98,17 @@ export class LLMRegistry {
   }
 
   listUsageIds(): string[] { return Array.from(this.usageToLLM.keys()); }
+
+  clear(): void {
+    this.usageToLLM.clear();
+    this.keyToLLM.clear();
+  }
 }
 
 export class TrackedLLMClient implements LLMClient {
   readonly inner: LLMClient;
   readonly usageId: string;
   readonly modelName: string;
-  label: string;
   readonly metrics: Metrics;
   private onMetricsUpdate?: (usageId: string, metrics: Metrics) => void;
 
@@ -112,24 +116,18 @@ export class TrackedLLMClient implements LLMClient {
     inner: LLMClient;
     usageId: string;
     modelName: string;
-    label?: string;
     metrics: Metrics;
     onMetricsUpdate?: (usageId: string, metrics: Metrics) => void;
   }) {
     this.inner = params.inner;
     this.usageId = params.usageId;
     this.modelName = params.modelName;
-    this.label = params.label ?? params.modelName;
     this.metrics = params.metrics;
     this.onMetricsUpdate = params.onMetricsUpdate;
   }
 
   setOnMetricsUpdate(cb?: (usageId: string, metrics: Metrics) => void): void {
     this.onMetricsUpdate = cb;
-  }
-
-  setLabel(label: string): void {
-    this.label = label;
   }
 
   async *streamChat(request: import('./types').ChatCompletionRequest): AsyncGenerator<import('./types').LLMStreamChunk> {
