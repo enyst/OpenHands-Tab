@@ -69,7 +69,6 @@ export class LLMFactory {
     config = normalizeGenerationParamsForModel(config);
 
     const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
-    const label = normalizeOptionalString(config.profileId) ?? config.model;
 
     const inlineApiKey =
       typeof config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(config.apiKey)
@@ -151,7 +150,6 @@ export class LLMFactory {
       try {
         const cached = this.registry.get(derivedUsageId);
         cached.setOnMetricsUpdate(this.onMetricsUpdate);
-        cached.setLabel(label);
         // Re-announce selection so stats/UI have a consistent "current llm" signal.
         this.registry.switchLlm(cached, registryKey);
         return cached;
@@ -179,7 +177,6 @@ export class LLMFactory {
         inner: base,
         usageId: derivedUsageId,
         modelName: config.model,
-        label,
         metrics,
         onMetricsUpdate: this.onMetricsUpdate,
       });

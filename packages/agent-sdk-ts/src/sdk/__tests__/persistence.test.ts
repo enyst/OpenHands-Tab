@@ -85,6 +85,33 @@ describe('FileStore', () => {
   });
 });
 
+
+describe('EventLog filtering', () => {
+  it('does not persist transient LLM streaming updates (llm_stream, llm_tool_call)', () => {
+    const dir = makeTempDir('conversation-stream-filter-');
+    const persistence = new FileStore({ rootDir: dir, conversationId: 'conv-stream' });
+    const log = new EventLog({ persistence });
+
+    // Push transient streaming updates
+    log.push({ kind: 'ConversationStateUpdateEvent', key: 'llm_stream', value: 'partial', source: 'agent' } as unknown as Event);
+    log.push({ kind: 'ConversationStateUpdateEvent', key: 'llm_tool_call', value: 'call_123', source: 'agent' } as unknown as Event);
+
+    // Push a durable final assistant message
+    log.push({
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: { role: 'assistant', content: [{ type: 'text', text: 'final answer' }] },
+    } as Event);
+
+    const events = persistence.readEvents();
+    expect(events).toHaveLength(1);
+    const only = events[0] as MessageEvent;
+    expect(only.kind).toBe('MessageEvent');
+    expect((only.llm_message.content[0] as TextContent).text).toBe('final answer');
+  });
+});
+
+
 describe('LocalConversation persistence', () => {
   it('replays persisted history when restored', async () => {
     const dir = makeTempDir('local-conversation-');

@@ -29,14 +29,13 @@ function makePricedMetrics(params: {
 describe('ConversationStats', () => {
   it('registers llm metrics and combines', () => {
     const stats = new ConversationStats();
-    const llmA = { llm: { usageId: 'a', metrics: makeMetrics(1), label: 'profile-a' } };
-    const llmB = { llm: { usageId: 'b', metrics: makeMetrics(2), label: 'profile-b' } };
+    const llmA = { llm: { usageId: 'a', metrics: makeMetrics(1) } };
+    const llmB = { llm: { usageId: 'b', metrics: makeMetrics(2) } };
 
     stats.registerLlm(llmA);
     stats.registerLlm(llmB);
 
     expect(Object.keys(stats.usageToMetrics)).toEqual(['a', 'b']);
-    expect(stats.usageToLabels).toEqual({ a: 'profile-a', b: 'profile-b' });
 
     const combined = stats.getCombinedMetrics().getSnapshot();
     expect(combined.accumulatedTokenUsage?.promptTokens).toBe(3);
@@ -44,14 +43,13 @@ describe('ConversationStats', () => {
 
   it('serializes and restores from JSON', () => {
     const stats = new ConversationStats();
-    stats.registerLlm({ llm: { usageId: 'a', metrics: makeMetrics(3), label: 'profile-a' } });
+    stats.registerLlm({ llm: { usageId: 'a', metrics: makeMetrics(3) } });
 
     const json = stats.toJSON();
     const restored = ConversationStats.fromJSON(json);
 
     const m = restored.getMetricsForUsage('a');
     expect(m.getSnapshot().accumulatedTokenUsage?.promptTokens).toBe(3);
-    expect(restored.usageToLabels).toEqual({ a: 'profile-a' });
   });
 
   it('restores and merges metrics correctly on re-registration', () => {

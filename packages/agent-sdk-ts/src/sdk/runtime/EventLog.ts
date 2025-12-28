@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { isEvent, type Event } from '../types';
+import { isEvent, isConversationStateUpdateEvent, type Event } from '../types';
 import type { ConversationPersistence } from './persistence';
 
 export type EventListener = (event: Event) => void;
@@ -56,8 +56,17 @@ export class EventLog {
 
     this.events.push(normalized);
 
+    // Persist only durable events. Drop transient LLM streaming state updates to avoid
+    // bloating events.jsonl with in-stream fragments.
     if (options.persist && this.persistence) {
-      this.persistence.appendEvent(normalized);
+      let shouldPersist = true;
+      if (isConversationStateUpdateEvent(normalized)) {
+        const key = normalized.key;
+        if (key === 'llm_stream' || key === 'llm_tool_call') {
+          shouldPersist = false;
+        }
+      }
+      if (shouldPersist) this.persistence.appendEvent(normalized);
     }
 
     if (options.emit) {
