@@ -1,0 +1,116 @@
+name: OpenAI LLM Quirks
+
+on:
+  # Manual trigger only
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Test mode to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - litellm
+          - direct
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: openai-llm-test-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  test-openai-tools:
+    runs-on: ubuntu-latest
+    environment: LLM
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          check-latest: true
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build SDK
+        run: npm run build -w @openhands/agent-sdk-ts
+
+      - name: Determine test mode
+        id: mode
+        run: |
+          echo "mode=${{ github.event.inputs.test_mode }}" >> $GITHUB_OUTPUT
+
+      - name: Run OpenAI Integration Test
+        id: test
+        env:
+          LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          echo "Running test in mode: $MODE"
+          
+          # Run test and capture output
+          set +e
+          case "$MODE" in
+            litellm)
+              node .github/workflows/scripts/test-openai-tools.mjs 2>&1 | tee test-output.log
+              ;;
+            direct)
+              node .github/workflows/scripts/test-openai-tools.mjs --direct 2>&1 | tee test-output.log
+              ;;
+            all)
+              node .github/workflows/scripts/test-openai-tools.mjs --all 2>&1 | tee test-output.log
+              ;;
+          esac
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          
+          # Parse results from log
+          if grep -q "🎉 All tests passed!" test-output.log; then
+            echo "result=PASS" >> $GITHUB_OUTPUT
+            echo "status=✅ PASS" >> $GITHUB_OUTPUT
+          else
+            echo "result=FAIL" >> $GITHUB_OUTPUT
+            echo "status=❌ FAIL" >> $GITHUB_OUTPUT
+          fi
+          
+          # Extract test summary lines
+          SUMMARY=$(grep -E "^(✅|❌) (PASS|FAIL)" test-output.log || echo "No summary found")
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          exit $TEST_EXIT_CODE
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openai-test-logs-${{ github.run_number }}
+          path: test-output.log
+          retention-days: 30
+
+      - name: Create GitHub Step Summary
+        if: always()
+        run: |
+          echo "## OpenAI Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ steps.test.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test Mode:** ${{ steps.mode.outputs.mode }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.test.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
