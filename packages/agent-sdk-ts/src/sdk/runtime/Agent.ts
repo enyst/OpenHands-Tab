@@ -278,6 +278,7 @@ export class Agent extends EventEmitter {
   async run(input: AgentRunInput): Promise<Message | undefined> {
     this.cancelled = false;
     this.finished = false;
+    this.paused = false;
     return this.lock.acquire(async () => {
       this.ensureSystemPrompt();
       this.pushUserMessage(input);
@@ -518,6 +519,11 @@ export class Agent extends EventEmitter {
       }
       this.state.incrementIteration();
       lastAssistantMessage = response.message;
+
+      // Check if paused during streaming - don't execute tool calls
+      if (this.paused || this.cancelled) {
+        break;
+      }
 
       const toolCalls = response.message.tool_calls ?? [];
       if (!toolCalls.length) {
