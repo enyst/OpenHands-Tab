@@ -146,7 +146,7 @@ async function runTest() {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('Missing GEMINI_API_KEY environment variable');
-    return { success: false, turns: 0, error: 'Missing GEMINI_API_KEY' };
+    process.exit(2);
   }
 
   const config = {
