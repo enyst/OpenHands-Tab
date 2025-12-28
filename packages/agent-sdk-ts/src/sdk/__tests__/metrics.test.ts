@@ -98,4 +98,86 @@ describe('Metrics', () => {
     });
     expect(m.accumulatedCost).toBe(0);
   });
+
+  it('tracks last* values for most recent entries', () => {
+    const m = new Metrics('test-model');
+    m.addTokenUsage({ promptTokens: 10, completionTokens: 5, responseId: 'r1' });
+    m.addTokenUsage({ promptTokens: 20, completionTokens: 10, responseId: 'r2' });
+
+    const snap = m.getSnapshot();
+    expect(snap.lastTokenUsage?.responseId).toBe('r2');
+    expect(snap.lastTokenUsage?.promptTokens).toBe(20);
+
+    // Accumulated should sum all
+    expect(snap.accumulatedTokenUsage?.promptTokens).toBe(30);
+  });
+
+  it('caps arrays at MAX_HISTORY_ENTRIES (10) to prevent unbounded growth', () => {
+    const m = new Metrics('test-model', { inputCostPerToken: 0.001, outputCostPerToken: 0.002 });
+
+    // Add 15 token usages
+    for (let i = 0; i < 15; i++) {
+      m.addTokenUsage({ promptTokens: 10, completionTokens: 5, responseId: `r${i}` });
+    }
+
+    const json = m.toJSON();
+    expect((json.tokenUsages as unknown[]).length).toBe(10);
+    expect((json.costs as unknown[]).length).toBe(10);
+
+    // Last should still be the most recent
+    expect(m.lastTokenUsage?.responseId).toBe('r14');
+
+    // Accumulated should sum all 15
+    expect(m.accumulatedTokenUsage?.promptTokens).toBe(150);
+  });
+
+  it('caps arrays after merge', () => {
+    const a = new Metrics('m');
+    const b = new Metrics('m');
+
+    // Add 8 to each (total 16 after merge)
+    for (let i = 0; i < 8; i++) {
+      a.addTokenUsage({ promptTokens: 1, completionTokens: 1, responseId: `a${i}` });
+      b.addTokenUsage({ promptTokens: 2, completionTokens: 2, responseId: `b${i}` });
+    }
+
+    a.merge(b);
+    const json = a.toJSON();
+    expect((json.tokenUsages as unknown[]).length).toBe(10);
+
+    // Last should be from merged (b's last)
+    expect(a.lastTokenUsage?.responseId).toBe('b7');
+  });
+
+  it('restores last* fields from JSON when arrays are capped', () => {
+    const m = new Metrics('test-model');
+    for (let i = 0; i < 15; i++) {
+      m.addTokenUsage({ promptTokens: i, completionTokens: 0, responseId: `r${i}` });
+    }
+
+    const json = m.toJSON();
+    const restored = Metrics.fromJSON(json);
+
+    // lastTokenUsage should be preserved even though array is capped
+    expect(restored.lastTokenUsage?.responseId).toBe('r14');
+    expect(restored.lastTokenUsage?.promptTokens).toBe(14);
+  });
+
+  it('falls back to array tail for last* when not explicitly stored', () => {
+    // Simulate legacy JSON without last* fields
+    const legacyJson = {
+      modelName: 'legacy-model',
+      accumulatedCost: 0,
+      tokenUsages: [
+        { model: 'legacy-model', promptTokens: 10, completionTokens: 5, responseId: 'old1' },
+        { model: 'legacy-model', promptTokens: 20, completionTokens: 10, responseId: 'old2' },
+      ],
+      costs: [],
+      responseLatencies: [],
+    };
+
+    const restored = Metrics.fromJSON(legacyJson);
+    expect(restored.lastTokenUsage?.responseId).toBe('old2');
+    expect(restored.lastTokenUsage?.promptTokens).toBe(20);
+  });
 });

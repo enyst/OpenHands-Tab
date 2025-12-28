@@ -3,6 +3,12 @@ export type MetricsSnapshot = {
   accumulatedCost: number;
   maxBudgetPerTask?: number | null;
   accumulatedTokenUsage?: TokenUsage | null;
+  /** The most recent token usage (for UI display of context size). */
+  lastTokenUsage?: TokenUsage | null;
+  /** The most recent cost entry. */
+  lastCost?: Cost | null;
+  /** The most recent latency entry. */
+  lastLatency?: ResponseLatency | null;
 };
 
 export type Cost = { model: string; cost: number; timestamp: number };
@@ -20,16 +26,34 @@ export type TokenUsage = {
   responseId: string;
 };
 
+/**
+ * Maximum number of historical entries to retain for per-turn arrays.
+ * Keeping a small window allows debugging recent requests while preventing
+ * unbounded memory growth in long conversations.
+ */
+const MAX_HISTORY_ENTRIES = 10;
+
 export class Metrics {
   modelName: string;
   accumulatedCost = 0;
   inputCostPerToken: number | null = null;
   outputCostPerToken: number | null = null;
   maxBudgetPerTask: number | null = null;
+
+  /** @deprecated Use lastCost and accumulatedCost instead. Capped at MAX_HISTORY_ENTRIES. */
   costs: Cost[] = [];
+  /** @deprecated Use lastLatency instead. Capped at MAX_HISTORY_ENTRIES. */
   responseLatencies: ResponseLatency[] = [];
+  /** @deprecated Use lastTokenUsage and accumulatedTokenUsage instead. Capped at MAX_HISTORY_ENTRIES. */
   tokenUsages: TokenUsage[] = [];
   accumulatedTokenUsage: TokenUsage | null = null;
+
+  /** The most recent cost entry (for UI display). */
+  lastCost: Cost | null = null;
+  /** The most recent latency entry (for UI display). */
+  lastLatency: ResponseLatency | null = null;
+  /** The most recent token usage snapshot (for UI display of context size). */
+  lastTokenUsage: TokenUsage | null = null;
 
   constructor(
     modelName = 'default',
@@ -131,6 +155,46 @@ export class Metrics {
       m.accumulatedTokenUsage = null;
     }
 
+    // Restore last* fields from persisted state (or fallback to array tail)
+    const lastUsageRaw = obj['lastTokenUsage'] ?? obj['last_token_usage'];
+    if (isRecord(lastUsageRaw)) {
+      m.lastTokenUsage = {
+        model: getStr(lastUsageRaw['model'], m.modelName),
+        promptTokens: Math.max(0, getNum(lastUsageRaw['promptTokens'] ?? lastUsageRaw['prompt_tokens'], 0)),
+        completionTokens: Math.max(0, getNum(lastUsageRaw['completionTokens'] ?? lastUsageRaw['completion_tokens'], 0)),
+        cacheReadTokens: Math.max(0, getNum(lastUsageRaw['cacheReadTokens'] ?? lastUsageRaw['cache_read_tokens'], 0)),
+        cacheWriteTokens: Math.max(0, getNum(lastUsageRaw['cacheWriteTokens'] ?? lastUsageRaw['cache_write_tokens'], 0)),
+        reasoningTokens: Math.max(0, getNum(lastUsageRaw['reasoningTokens'] ?? lastUsageRaw['reasoning_tokens'], 0)),
+        contextWindow: Math.max(0, getNum(lastUsageRaw['contextWindow'] ?? lastUsageRaw['context_window'], 0)),
+        perTurnToken: Math.max(0, getNum(lastUsageRaw['perTurnToken'] ?? lastUsageRaw['per_turn_token'], 0)),
+        responseId: getStr(lastUsageRaw['responseId'] ?? lastUsageRaw['response_id'], ''),
+      };
+    } else if (m.tokenUsages.length > 0) {
+      m.lastTokenUsage = m.tokenUsages[m.tokenUsages.length - 1] ?? null;
+    }
+
+    const lastCostRaw = obj['lastCost'] ?? obj['last_cost'];
+    if (isRecord(lastCostRaw)) {
+      m.lastCost = {
+        model: getStr(lastCostRaw['model'], m.modelName),
+        cost: getNum(lastCostRaw['cost'], 0),
+        timestamp: getNum(lastCostRaw['timestamp'], Date.now()),
+      };
+    } else if (m.costs.length > 0) {
+      m.lastCost = m.costs[m.costs.length - 1] ?? null;
+    }
+
+    const lastLatencyRaw = obj['lastLatency'] ?? obj['last_latency'];
+    if (isRecord(lastLatencyRaw)) {
+      m.lastLatency = {
+        model: getStr(lastLatencyRaw['model'], m.modelName),
+        latency: Math.max(0, getNum(lastLatencyRaw['latency'], 0)),
+        responseId: getStr(lastLatencyRaw['responseId'] ?? lastLatencyRaw['response_id'], ''),
+      };
+    } else if (m.responseLatencies.length > 0) {
+      m.lastLatency = m.responseLatencies[m.responseLatencies.length - 1] ?? null;
+    }
+
     return m;
   }
 
@@ -140,6 +204,9 @@ export class Metrics {
       accumulatedCost: this.accumulatedCost,
       maxBudgetPerTask: this.maxBudgetPerTask,
       accumulatedTokenUsage: this.accumulatedTokenUsage ? { ...this.accumulatedTokenUsage } : null,
+      lastTokenUsage: this.lastTokenUsage ? { ...this.lastTokenUsage } : null,
+      lastCost: this.lastCost ? { ...this.lastCost } : null,
+      lastLatency: this.lastLatency ? { ...this.lastLatency } : null,
     };
   }
 
@@ -149,6 +216,9 @@ export class Metrics {
       accumulatedCost: this.accumulatedCost,
       maxBudgetPerTask: this.maxBudgetPerTask,
       accumulatedTokenUsage: this.accumulatedTokenUsage,
+      lastTokenUsage: this.lastTokenUsage,
+      lastCost: this.lastCost,
+      lastLatency: this.lastLatency,
       costs: this.costs,
       responseLatencies: this.responseLatencies,
       tokenUsages: this.tokenUsages,
@@ -158,12 +228,24 @@ export class Metrics {
   addCost(value: number): void {
     if (value < 0) return;
     this.accumulatedCost += value;
-    this.costs.push({ model: this.modelName, cost: value, timestamp: Date.now() });
+    const entry: Cost = { model: this.modelName, cost: value, timestamp: Date.now() };
+    this.lastCost = entry;
+    this.costs.push(entry);
+    // Cap array to prevent unbounded growth
+    if (this.costs.length > MAX_HISTORY_ENTRIES) {
+      this.costs = this.costs.slice(-MAX_HISTORY_ENTRIES);
+    }
   }
 
   addResponseLatency(seconds: number, responseId: string): void {
     const latency = Math.max(0, seconds);
-    this.responseLatencies.push({ model: this.modelName, latency, responseId });
+    const entry: ResponseLatency = { model: this.modelName, latency, responseId };
+    this.lastLatency = entry;
+    this.responseLatencies.push(entry);
+    // Cap array to prevent unbounded growth
+    if (this.responseLatencies.length > MAX_HISTORY_ENTRIES) {
+      this.responseLatencies = this.responseLatencies.slice(-MAX_HISTORY_ENTRIES);
+    }
   }
 
   addTokenUsage(params: {
@@ -186,7 +268,12 @@ export class Metrics {
       perTurnToken: Math.max(0, (params.promptTokens ?? 0) + (params.completionTokens ?? 0)),
       responseId: String(params.responseId ?? ''),
     };
+    this.lastTokenUsage = usage;
     this.tokenUsages.push(usage);
+    // Cap array to prevent unbounded growth
+    if (this.tokenUsages.length > MAX_HISTORY_ENTRIES) {
+      this.tokenUsages = this.tokenUsages.slice(-MAX_HISTORY_ENTRIES);
+    }
     this.maybeAddCostForTokenUsage(usage);
 
     const add = {
@@ -232,6 +319,22 @@ export class Metrics {
     this.costs.push(...other.costs);
     this.responseLatencies.push(...other.responseLatencies);
     this.tokenUsages.push(...other.tokenUsages);
+
+    // Cap arrays after merge to prevent unbounded growth
+    if (this.costs.length > MAX_HISTORY_ENTRIES) {
+      this.costs = this.costs.slice(-MAX_HISTORY_ENTRIES);
+    }
+    if (this.responseLatencies.length > MAX_HISTORY_ENTRIES) {
+      this.responseLatencies = this.responseLatencies.slice(-MAX_HISTORY_ENTRIES);
+    }
+    if (this.tokenUsages.length > MAX_HISTORY_ENTRIES) {
+      this.tokenUsages = this.tokenUsages.slice(-MAX_HISTORY_ENTRIES);
+    }
+
+    // Take the other's last* values as they are more recent
+    if (other.lastCost) this.lastCost = { ...other.lastCost };
+    if (other.lastLatency) this.lastLatency = { ...other.lastLatency };
+    if (other.lastTokenUsage) this.lastTokenUsage = { ...other.lastTokenUsage };
 
     if (!this.accumulatedTokenUsage) {
       this.accumulatedTokenUsage = other.accumulatedTokenUsage ? { ...other.accumulatedTokenUsage } : null;
