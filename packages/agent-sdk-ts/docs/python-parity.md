@@ -799,7 +799,7 @@ export function formatToolMessageText(toolCall: ToolCall, result: unknown): stri
 
 ## Quick checklist for parity work
 - **Observation formatting (#587)**: Add `formatForLLM()` to tools so observations own their LLM representation (like Python's `to_llm_content`).
-- Implement workspace factory/base with remote support, path validation, git helpers, and richer command metadata.
+- Implement workspace factory/base with remote support, and maybe richer command metadata.
 - Extend conversations with visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
 - Augment agent with condenser/security analyzers, persisted state replay, and expanded confirmation policies.
 - Add template-aware `AgentContext`, `Skill` metadata/validation, and richer trigger matching.
