@@ -56,7 +56,7 @@ const fileEditorTool = {
       properties: {
         command: {
           type: 'string',
-          enum: ['view', 'create', 'str_replace'],
+          enum: ['view', 'create'],
           description: 'The command to run'
         },
         path: {
@@ -111,14 +111,18 @@ async function streamResponse(client, request) {
 }
 
 function buildAssistantMessage(result) {
+  const toolCallsArray = Object.values(result.toolCalls);
   return {
     role: 'assistant',
     content: result.textContent ? [{ type: 'text', text: result.textContent }] : [],
-    tool_calls: Object.values(result.toolCalls).map(tc => ({
-      id: tc.id,
-      type: 'function',
-      function: { name: tc.name, arguments: tc.arguments }
-    })),
+    // Only include tool_calls if there are any (some APIs reject empty arrays)
+    ...(toolCallsArray.length > 0 && {
+      tool_calls: toolCallsArray.map(tc => ({
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.name, arguments: tc.arguments }
+      }))
+    }),
     reasoning_content: result.reasoningContent || undefined,
     thinking_signature: result.thinkingSignature || undefined,
   };
@@ -299,9 +303,10 @@ async function runTest() {
   if (issues.length > 0) {
     console.log('\n⚠️  Warnings:');
     issues.forEach(issue => console.log(`  - ${issue}`));
+    console.log(`\n⚠️ Test "Gemini 3 Flash Thinking" completed with warnings in ${turn} turns`);
+  } else {
+    console.log(`\n✅ Test "Gemini 3 Flash Thinking" completed successfully in ${turn} turns`);
   }
-
-  console.log(`\n✅ Test "Gemini 3 Flash Thinking" completed successfully in ${turn} turns`);
   return { success: true, turns: turn, hadThinking, hadSignature, hadToolCalls };
 }
 
