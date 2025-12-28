@@ -527,11 +527,13 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'setLlmProfileId': {
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        outputChannel?.appendLine('[LLM Profile] Switch requested: profileId=' + (profileId || '(none)'));
         try {
           await settingsMgr.update({ llm: { profileId } }, 'global');
+          outputChannel?.appendLine('[LLM Profile] Settings persisted');
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[settings] Failed to persist LLM profile selection: ${reason}`);
+          outputChannel?.appendLine('[LLM Profile] FAILED to persist: ' + reason);
           postStatusError(`Failed to save profile selection: ${reason}`);
           break;
         }
@@ -539,9 +541,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const updated = await settingsMgr.get();
         try {
           conversation?.setSettings(updated);
+          outputChannel?.appendLine('[LLM Profile] Applied to conversation: profileId=' + (updated.llm.profileId || '(none)'));
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[settings] Failed to apply profile selection to active conversation: ${reason}`);
+          outputChannel?.appendLine('[LLM Profile] FAILED to apply to conversation: ' + reason);
         }
         deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(updated));
 
