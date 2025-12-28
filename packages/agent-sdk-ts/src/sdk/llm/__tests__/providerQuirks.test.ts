@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LLMConfiguration } from '../types';
-import { normalizeGenerationParamsForModel, isAnthropicModel, supportsThinkingBlocks } from '../configGuards';
+import { normalizeGenerationParamsForModel, isAnthropicModel, supportsThinkingBlocks } from '../providerQuirks';
 
 const makeConfig = (overrides: Partial<LLMConfiguration> = {}): LLMConfiguration => ({
   model: 'gpt-4o',

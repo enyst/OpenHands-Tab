@@ -408,7 +408,7 @@ export class AnthropicClient implements LLMClient {
     return {
       model: this.config.model,
       max_tokens: this.config.maxOutputTokens ?? 1024,
-      // Note: temperature is normalized by configGuards.normalizeGenerationParamsForModel()
+      // Note: temperature is normalized by providerQuirks.normalizeGenerationParamsForModel()
       // which sets temperature=1 when thinking is enabled (Anthropic requirement)
       temperature: this.config.temperature ?? 0,
       system: [{ type: 'text', text: request.systemPrompt }],

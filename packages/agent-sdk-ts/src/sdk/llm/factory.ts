@@ -7,7 +7,7 @@ import { GeminiClient } from './gemini';
 import type { ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
 import type { LLMProfileStoreOptions } from './profiles';
 import { loadProfile } from './profiles';
-import { normalizeGenerationParamsForModel } from './configGuards';
+import { normalizeGenerationParamsForModel } from './providerQuirks';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient, llmRegistryKeyToString, toLLMRegistryKey } from './registry';
 import { Metrics } from './metrics';
