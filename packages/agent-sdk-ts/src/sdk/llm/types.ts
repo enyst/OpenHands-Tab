@@ -52,6 +52,7 @@ export interface ChatCompletionRequest {
 export type LLMStreamChunk =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; reasoning: string }
+  | { type: 'thinking_signature'; signature: string }
   | { type: 'responses_reasoning_item'; item: ResponsesReasoningItem }
   | { type: 'tool_call_delta'; id: string; name?: string; arguments?: string }
   | { type: 'usage'; inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number }

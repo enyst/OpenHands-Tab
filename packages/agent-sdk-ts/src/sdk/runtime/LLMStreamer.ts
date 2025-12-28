@@ -39,6 +39,9 @@ export class LLMStreamer {
         case 'reasoning':
           message.reasoning_content = (message.reasoning_content ?? '') + chunk.reasoning;
           break;
+        case 'thinking_signature':
+          message.thinking_signature = chunk.signature;
+          break;
         case 'responses_reasoning_item':
           message.responses_reasoning_item = chunk.item;
           break;

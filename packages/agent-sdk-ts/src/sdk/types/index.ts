@@ -35,6 +35,8 @@ export interface Message {
   tool_call_id?: string;
   name?: string;
   reasoning_content?: string;
+  /** Signature for the thinking block (required when passing thinking back to Anthropic) */
+  thinking_signature?: string;
   responses_reasoning_item?: ResponsesReasoningItem | null;
 }
 

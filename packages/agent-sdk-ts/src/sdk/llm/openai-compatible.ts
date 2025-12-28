@@ -9,9 +9,29 @@ const mergeHeaders = (base?: Record<string, string>, overrides?: Record<string, 
   ...(overrides ?? {}),
 });
 
+type OpenAIThinkingContentBlock = {
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+};
+
+type OpenAITextContentBlock = {
+  type: 'text';
+  text: string;
+};
+
+type OpenAIToolUseContentBlock = {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: unknown;
+};
+
+type OpenAIContentBlock = OpenAIThinkingContentBlock | OpenAITextContentBlock | OpenAIToolUseContentBlock;
+
 type OpenAIChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | OpenAIContentBlock[];
   name?: string;
   tool_call_id?: string;
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
@@ -29,6 +49,8 @@ type OpenAIChoiceDelta = {
   content?: string | OpenAIContentPart[];
   tool_calls?: OpenAIToolCallDelta[];
   reasoning_content?: string | { text?: string }[];
+  /** Anthropic thinking signature (via LiteLLM) */
+  thinking_signature?: string;
 };
 
 type OpenAIChoice = {
@@ -50,6 +72,48 @@ const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
 
 const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number]): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
+
+  // For assistant messages with thinking content and tool calls, we need to include
+  // thinking blocks in the content array (required by Anthropic via LiteLLM)
+  if (message.role === 'assistant' && message.reasoning_content && message.tool_calls?.length) {
+    const contentBlocks: OpenAIContentBlock[] = [];
+
+    // Thinking block must come first
+    contentBlocks.push({
+      type: 'thinking',
+      thinking: message.reasoning_content,
+      ...(message.thinking_signature ? { signature: message.thinking_signature } : {}),
+    });
+
+    // Then text content (if any)
+    if (contentText) {
+      contentBlocks.push({ type: 'text', text: contentText });
+    }
+
+    // Then tool_use blocks
+    for (const toolCall of message.tool_calls) {
+      let input: unknown;
+      try {
+        input = JSON.parse(toolCall.function.arguments);
+      } catch {
+        input = toolCall.function.arguments;
+      }
+      contentBlocks.push({
+        type: 'tool_use',
+        id: toolCall.id,
+        name: toolCall.function.name,
+        input,
+      });
+    }
+
+    return {
+      role: 'assistant',
+      content: contentBlocks,
+      ...(message.name ? { name: message.name } : {}),
+    };
+  }
+
+  // Standard case: plain text content
   const base: OpenAIChatMessage = {
     role: message.role,
     content: contentText,
@@ -191,6 +255,10 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
       ? delta.reasoning_content.map((entry) => entry?.text ?? '').join('')
       : String(delta.reasoning_content ?? '');
     if (reasoning) deltas.push({ type: 'reasoning', reasoning });
+  }
+
+  if (delta.thinking_signature) {
+    deltas.push({ type: 'thinking_signature', signature: delta.thinking_signature });
   }
 
   if (chunk.usage) {
