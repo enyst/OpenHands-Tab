@@ -614,8 +614,13 @@ export class Agent extends EventEmitter {
       }
     }
 
-    // Check if we exited due to maxIterations being reached
+    // Check if we exited due to maxIterations being reached.
+    // We only emit the error if the agent is still RUNNING - because all normal exit paths
+    // (no tool calls, finish tool, errors) set status to IDLE before breaking.
+    // If status is still RUNNING and iteration >= maxIterations, it means the while loop
+    // condition failed due to the iteration limit.
     if (
+      this.state.snapshot.status === 'RUNNING' &&
       !this.paused &&
       !this.pendingAction &&
       !this.cancelled &&
@@ -627,7 +632,7 @@ export class Agent extends EventEmitter {
         source: 'agent',
         code: 'max_iterations_exceeded',
         detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
-      } as Event);
+      });
       this.state.setStatus('IDLE');
     }
 
