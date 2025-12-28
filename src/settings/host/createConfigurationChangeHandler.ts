@@ -105,5 +105,18 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
         deps.getOutputChannel()?.appendLine(`[settings] Failed to apply confirmation settings update: ${deps.renderError(err)}`);
       }
     }
+
+    if (e.affectsConfiguration('openhands.conversation.maxIterations')) {
+      try {
+        await deps.ensureConversationAndConnection();
+        if (deps.getConversationMode() === 'remote') {
+          deps.getOutputChannel()?.appendLine('[settings] Max iterations setting updated (remote mode: applies on next conversation)');
+        } else {
+          deps.getOutputChannel()?.appendLine('[settings] Max iterations setting updated (local mode: applies on next run)');
+        }
+      } catch (err: unknown) {
+        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply max iterations update: ${deps.renderError(err)}`);
+      }
+    }
   };
 }

@@ -614,6 +614,23 @@ export class Agent extends EventEmitter {
       }
     }
 
+    // Check if we exited due to maxIterations being reached
+    if (
+      !this.paused &&
+      !this.pendingAction &&
+      !this.cancelled &&
+      !this.finished &&
+      this.state.snapshot.iteration >= maxIterations
+    ) {
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'agent',
+        code: 'max_iterations_exceeded',
+        detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
+      } as Event);
+      this.state.setStatus('IDLE');
+    }
+
     return lastAssistantMessage;
   }
 
