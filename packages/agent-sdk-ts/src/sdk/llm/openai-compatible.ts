@@ -38,7 +38,9 @@ type OpenAIChatMessage = {
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
 };
 
-type OpenAIContentPart = { type: 'text'; text?: string };
+type OpenAIContentPart =
+  | { type: 'text'; text?: string }
+  | { type: 'thinking'; thinking?: string; signature?: string };
 
 type OpenAIToolCallDelta = {
   id?: string;
@@ -79,17 +81,19 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
   const contentText = reduceTextContent(message);
 
   // For Anthropic models with thinking enabled: include thinking blocks in content array
-  // This is required when assistant messages have both thinking content and tool calls
+  // This is required when assistant messages have both thinking content and tool calls.
+  // IMPORTANT: Anthropic API requires the `signature` field when sending thinking blocks,
+  // so we only include thinking blocks when we have BOTH reasoning_content AND thinking_signature.
   const includeThinkingBlocks = supportsThinkingBlocks(config);
 
-  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.tool_calls?.length) {
+  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.thinking_signature && message.tool_calls?.length) {
     const contentBlocks: OpenAIContentBlock[] = [];
 
-    // Thinking block must come first
+    // Thinking block must come first (signature is required by Anthropic)
     contentBlocks.push({
       type: 'thinking',
       thinking: message.reasoning_content,
-      ...(message.thinking_signature ? { signature: message.thinking_signature } : {}),
+      signature: message.thinking_signature,
     });
 
     // Then text content (if any)
@@ -156,6 +160,10 @@ const defaultBaseUrls: Record<string, string> = {
   openrouter: DEFAULT_PROVIDER_BASE_URLS.openrouter,
   litellm_proxy: DEFAULT_PROVIDER_BASE_URLS.litellm_proxy,
 };
+
+// TEMPORARY DEBUG: Set OPENHANDS_DEBUG_LLM_CHUNKS=1 to log raw chunks
+const DEBUG_LLM_CHUNKS = process.env.OPENHANDS_DEBUG_LLM_CHUNKS === '1';
+const debugChunks: { time: string; payload: string }[] = [];
 
 const parseSseLines = async function* (response: Response): AsyncGenerator<string> {
   const reader = response.body?.getReader();
@@ -231,6 +239,14 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
     for (const part of content) {
       if (part?.type === 'text' && typeof part.text === 'string') {
         deltas.push({ type: 'text', text: part.text });
+      } else if (part?.type === 'thinking') {
+        // Handle thinking blocks from LiteLLM (content array format)
+        if (part.thinking) {
+          deltas.push({ type: 'reasoning', reasoning: part.thinking });
+        }
+        if (part.signature) {
+          deltas.push({ type: 'thinking_signature', signature: part.signature });
+        }
       }
     }
   }
@@ -300,6 +316,19 @@ export class OpenAICompatibleClient implements LLMClient {
     const accumulator = new OpenAIToolCallAccumulator();
 
     for await (const payload of parseSseLines(response)) {
+      // TEMPORARY DEBUG: Log raw chunks for signature investigation
+      if (DEBUG_LLM_CHUNKS) {
+        debugChunks.push({ time: new Date().toISOString(), payload });
+        if (payload === '[DONE]' || debugChunks.length >= 100) {
+          console.log('=== OPENHANDS DEBUG: Raw LLM chunks (last 100) ===');
+          for (const c of debugChunks.slice(-100)) {
+            console.log(`[${c.time}] ${c.payload.slice(0, 500)}`);
+          }
+          console.log('=== END DEBUG ===');
+          debugChunks.length = 0;
+        }
+      }
+
       if (payload === '[DONE]') {
         yield { type: 'finish' };
         break;
