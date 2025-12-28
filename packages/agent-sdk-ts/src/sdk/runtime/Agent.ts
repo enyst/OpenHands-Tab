@@ -506,7 +506,6 @@ export class Agent extends EventEmitter {
       }
 
       if (!response) break;
-      this.toolSummarizer.resetPendingSummaries();
 
       const assistantEvent: MessageEvent = {
         kind: 'MessageEvent',
@@ -642,11 +641,7 @@ export class Agent extends EventEmitter {
         }
         return event.llm_message;
       });
-    const messages = (() => {
-      const sanitized = sanitizeChatMessages(rawMessages);
-      const summaryMessage = this.toolSummarizer.buildToolSummaryMessage();
-      return summaryMessage ? [...sanitized, summaryMessage] : sanitized;
-    })();
+    const messages = sanitizeChatMessages(rawMessages);
     const tools = this.getToolDefinitions();
     return { systemPrompt, messages, tools };
   }
@@ -1074,8 +1069,10 @@ export class Agent extends EventEmitter {
     try {
       const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
       const result = await tool.execute(validated, context);
+      // Attach specialized summaries first (file diff, terminal), then general tool call summary as fallback
       let enrichedResult = await this.toolSummarizer.maybeAttachFileDiffSummary(toolCall, result);
       enrichedResult = await this.toolSummarizer.maybeAttachTerminalObservationSummary(toolCall, enrichedResult);
+      enrichedResult = await this.toolSummarizer.maybeAttachToolCallSummary(toolCall, enrichedResult);
 
       if (toolCall.function.name === 'terminal') {
         this.emitTerminalEvents(toolCall, enrichedResult);
@@ -1091,7 +1088,18 @@ export class Agent extends EventEmitter {
       } as Event;
       this.events.push(observation);
 
-      const formatted = formatToolMessageText(toolCall, enrichedResult);
+      // Remove summary from result before formatting for LLM - summaries are for UI display only
+      const resultForLlm = (() => {
+        if (enrichedResult && typeof enrichedResult === 'object' && !Array.isArray(enrichedResult) && 'summary' in enrichedResult) {
+          const record = enrichedResult as Record<string, unknown>;
+          const rest = { ...record };
+          delete rest.summary;
+          return rest;
+        }
+        return enrichedResult;
+      })();
+
+      const formatted = formatToolMessageText(toolCall, resultForLlm);
       const masked = this.secretMasker.maskText(formatted);
       const clipped = truncateToolMessage(masked);
 
@@ -1106,8 +1114,6 @@ export class Agent extends EventEmitter {
         },
       };
       this.events.push(toolMessage);
-
-      await this.toolSummarizer.maybeSummarizeToolCall(toolCall, enrichedResult);
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_execute', toolName: tool.name });
       if (classified.classification === 'agent') {
