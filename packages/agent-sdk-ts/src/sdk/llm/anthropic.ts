@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type LLMToolDefinition, type RetryOptions, type ToolCallAccumulator } from './types';
+import { getAnthropicThinkingBudget } from './providerQuirks';
 
 const decoder = new TextDecoder();
 
@@ -404,10 +405,11 @@ export class AnthropicClient implements LLMClient {
 
   private requestBody(request: ChatCompletionRequest): Record<string, unknown> {
     const anthropicTools = toAnthropicTools(request.tools);
-    const thinkingEnabled = this.config.reasoningEffort && this.config.reasoningEffort !== 'none';
+    const thinkingBudget = getAnthropicThinkingBudget(this.config);
+
     return {
       model: this.config.model,
-      max_tokens: this.config.maxOutputTokens ?? 1024,
+      max_tokens: this.config.maxOutputTokens ?? 16000,
       // Note: temperature is normalized by providerQuirks.normalizeGenerationParamsForModel()
       // which sets temperature=1 when thinking is enabled (Anthropic requirement)
       temperature: this.config.temperature ?? 0,
@@ -415,8 +417,8 @@ export class AnthropicClient implements LLMClient {
       messages: toAnthropicMessages(request),
       stream: true,
       ...(anthropicTools ? { tools: anthropicTools, tool_choice: { type: 'auto' } } : {}),
-      thinking: thinkingEnabled
-        ? { type: 'enabled', budget_tokens: this.config.maxOutputTokens ?? undefined }
+      thinking: thinkingBudget !== undefined
+        ? { type: 'enabled', budget_tokens: thinkingBudget }
         : undefined,
     };
   }
