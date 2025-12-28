@@ -177,13 +177,12 @@ export class Agent extends EventEmitter {
   /**
    * Updates the agent's settings at runtime.
    *
-   * Settings are applied immediately (for mid-run detection) and also under the
-   * agent lock to ensure they're fully applied when the run finishes.
-   * The settingsVersion is incremented so runLoop can detect changes and rebuild
-   * the LLM streamer mid-run if needed (e.g., when the user switches LLM profiles).
+   * Settings are applied immediately so the runLoop can detect changes mid-run
+   * via settingsVersion and rebuild the LLM streamer if needed (e.g., when the
+   * user switches LLM profiles).
    */
   setSettings(settings: OpenHandsSettings): void {
-    // Increment version immediately so runLoop can detect the change mid-run
+    // Increment version so runLoop can detect the change mid-run
     this.settingsVersion += 1;
 
     // Apply settings immediately for derived values (confirmation, debug, etc.)
@@ -193,13 +192,6 @@ export class Agent extends EventEmitter {
     // Force rebuild of LLM client/streamer on next use
     this.llmClientPromise = undefined;
     this.streamerPromise = undefined;
-
-    // Also acquire lock to ensure consistency after current run completes
-    void this.lock.acquire(() => {
-      // Re-apply in case another setSettings() was called while waiting
-      // (the latest settingsVersion wins)
-      return Promise.resolve();
-    });
   }
 
   get pendingActionId(): string | undefined {
