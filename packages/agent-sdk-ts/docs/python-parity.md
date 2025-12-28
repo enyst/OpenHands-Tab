@@ -801,7 +801,7 @@ export function formatToolMessageText(toolCall: ToolCall, result: unknown): stri
 - **Observation formatting (#587)**: Add `formatForLLM()` to tools so observations own their LLM representation (like Python's `to_llm_content`).
 - Implement workspace factory/base with remote support, and maybe richer command metadata.
 - Extend conversations with visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
-- Augment agent with condenser/security analyzers, persisted state replay, and expanded confirmation policies.
+- Augment agent with what is missing from condenser/security analyzers, and test confirmation policies.
 - Add template-aware `AgentContext`, `Skill` metadata/validation, and richer trigger matching.
 - Align tool message formatting (Terminal/FileEditor) with Python’s LLM-facing observations (truncation markers, optional metadata, secrets masking).
 - Add missing event variants (condensation request/summary) if VS Code needs them for UI parity.
