@@ -14,7 +14,7 @@ const isOpus45Model = (model: string | undefined): boolean => {
 };
 
 const hasExtendedThinking = (config: LLMConfiguration): boolean => {
-  return config.reasoningEffort != null && config.reasoningEffort !== 'none';
+  return config.reasoningEffort !== null && config.reasoningEffort !== undefined && config.reasoningEffort !== 'none';
 };
 
 export const normalizeGenerationParamsForModel = (config: LLMConfiguration): LLMConfiguration => {
