@@ -119,7 +119,7 @@ export class LocalConversation extends EventEmitter {
     this.llmRegistry.clear();
 
     // Reset stats so accumulated metrics from previous conversations don't carry over
-    this.stats.usageToMetrics = {};
+    this.stats.clear();
 
     // Recreate logs/state
     this.events = new EventLog();

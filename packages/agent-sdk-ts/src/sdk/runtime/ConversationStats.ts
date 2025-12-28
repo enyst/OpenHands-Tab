@@ -32,6 +32,11 @@ export class ConversationStats {
     this.restoredUsageIds = new Set(other.restoredUsageIds);
   }
 
+  clear(): void {
+    this.usageToMetrics = {};
+    this.restoredUsageIds.clear();
+  }
+
   getCombinedMetrics(): Metrics {
     const total = new Metrics('combined');
     for (const m of Object.values(this.usageToMetrics)) total.merge(m);
