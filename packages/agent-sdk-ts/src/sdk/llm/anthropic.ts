@@ -404,15 +404,18 @@ export class AnthropicClient implements LLMClient {
 
   private requestBody(request: ChatCompletionRequest): Record<string, unknown> {
     const anthropicTools = toAnthropicTools(request.tools);
+    const thinkingEnabled = this.config.reasoningEffort && this.config.reasoningEffort !== 'none';
     return {
       model: this.config.model,
       max_tokens: this.config.maxOutputTokens ?? 1024,
+      // Note: temperature is normalized by providerQuirks.normalizeGenerationParamsForModel()
+      // which sets temperature=1 when thinking is enabled (Anthropic requirement)
       temperature: this.config.temperature ?? 0,
       system: [{ type: 'text', text: request.systemPrompt }],
       messages: toAnthropicMessages(request),
       stream: true,
       ...(anthropicTools ? { tools: anthropicTools, tool_choice: { type: 'auto' } } : {}),
-      thinking: this.config.reasoningEffort && this.config.reasoningEffort !== 'none'
+      thinking: thinkingEnabled
         ? { type: 'enabled', budget_tokens: this.config.maxOutputTokens ?? undefined }
         : undefined,
     };

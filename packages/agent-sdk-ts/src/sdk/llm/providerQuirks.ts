@@ -6,13 +6,6 @@ const isGpt5Model = (model: string | undefined): boolean => {
   return normalized.includes('gpt-5');
 };
 
-const isOpus45Model = (model: string | undefined): boolean => {
-  if (typeof model !== 'string') return false;
-  const normalized = model.trim().toLowerCase();
-  // Match opus-4-5, opus-4.5, claude-opus-4-5, claude-opus-4.5, etc.
-  return normalized.includes('opus-4-5') || normalized.includes('opus-4.5');
-};
-
 const hasExtendedThinking = (config: LLMConfiguration): boolean => {
   return config.reasoningEffort !== null && config.reasoningEffort !== undefined && config.reasoningEffort !== 'none';
 };
@@ -49,14 +42,23 @@ export const supportsThinkingBlocks = (config: LLMConfiguration): boolean => {
   return isAnthropicModel(config) && hasExtendedThinking(config);
 };
 
+/**
+ * Normalize generation parameters based on provider-specific requirements.
+ * 
+ * Provider quirks handled:
+ * - GPT-5 models: temperature must be stripped entirely
+ * - Anthropic with extended thinking: temperature must be exactly 1
+ *   See: https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations
+ */
 export const normalizeGenerationParamsForModel = (config: LLMConfiguration): LLMConfiguration => {
   // GPT-5 models: strip temperature entirely
   if (isGpt5Model(config.model)) {
     return { ...config, temperature: null };
   }
 
-  // Opus 4.5 with extended thinking: temperature must be exactly 1
-  if (isOpus45Model(config.model) && hasExtendedThinking(config)) {
+  // Anthropic models with extended thinking: temperature must be exactly 1
+  // This applies to ALL Anthropic models when thinking is enabled, not just specific ones
+  if (isAnthropicModel(config) && hasExtendedThinking(config)) {
     return { ...config, temperature: 1 };
   }
 

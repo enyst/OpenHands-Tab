@@ -1,7 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
-import { supportsThinkingBlocks } from './configGuards';
+import { supportsThinkingBlocks } from './providerQuirks';
 
 const decoder = new TextDecoder();
 

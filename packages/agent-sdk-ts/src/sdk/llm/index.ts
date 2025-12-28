@@ -12,4 +12,4 @@ export * from './profiles';
 export * from './contextLimit';
 export * from './condensationLlmConfig';
 export * from './debug';
-export * from './configGuards';
+export * from './providerQuirks';
