@@ -56,12 +56,15 @@ type GeminiGenerateContentRequest = {
     maxOutputTokens?: number;
     thinkingConfig?: {
       thinkingLevel: GeminiThinkingLevel;
+      // Enable thought summaries in response
+      // See: https://ai.google.dev/gemini-api/docs/thinking#thought_summaries
+      includeThoughts?: boolean;
     };
   };
 };
 
 type GeminiStreamCandidatePart =
-  | { text?: string; thoughtSignature?: string }
+  | { text?: string; thought?: boolean; thoughtSignature?: string }
   | { functionCall?: { name?: string; args?: unknown }; thoughtSignature?: string };
 
 type GeminiStreamResponse = {
@@ -200,7 +203,8 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
     topK: typeof config.topK === 'number' ? config.topK : undefined,
     maxOutputTokens: typeof config.maxOutputTokens === 'number' ? config.maxOutputTokens : undefined,
     // Enable thinking for Gemini 3 models when reasoningEffort is set
-    ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
+    // includeThoughts enables thought summaries in the response
+    ...(thinkingLevel ? { thinkingConfig: { thinkingLevel, includeThoughts: true } } : {}),
   };
 
   const body: GeminiGenerateContentRequest = {
@@ -280,17 +284,6 @@ export class GeminiClient implements LLMClient {
       }
 
       const parts = parsed.candidates?.[0]?.content?.parts ?? [];
-      const chunkText = parts
-        .flatMap((part) => ('text' in part && typeof part.text === 'string' ? [part.text] : []))
-        .join('');
-
-      if (chunkText) {
-        const delta = chunkText.startsWith(emittedText) ? chunkText.slice(emittedText.length) : chunkText;
-        if (delta) {
-          emittedText = chunkText.startsWith(emittedText) ? chunkText : `${emittedText}${delta}`;
-          yield { type: 'text', text: delta };
-        }
-      }
 
       for (const part of parts) {
         // Extract thoughtSignature from any part (text or functionCall)
@@ -300,6 +293,23 @@ export class GeminiClient implements LLMClient {
           yield { type: 'thinking_signature', signature };
         }
 
+        // Handle text parts - check if it's a thought summary or regular text
+        if ('text' in part && typeof part.text === 'string' && part.text) {
+          const isThought = 'thought' in part && part.thought === true;
+          if (isThought) {
+            // Thought summary - emit as reasoning
+            yield { type: 'reasoning', reasoning: part.text };
+          } else {
+            // Regular text - emit as text with delta tracking
+            const delta = part.text.startsWith(emittedText) ? part.text.slice(emittedText.length) : part.text;
+            if (delta) {
+              emittedText = part.text.startsWith(emittedText) ? part.text : `${emittedText}${delta}`;
+              yield { type: 'text', text: delta };
+            }
+          }
+        }
+
+        // Handle function calls
         const call = 'functionCall' in part ? (part.functionCall ?? undefined) : undefined;
         if (!call || typeof call !== 'object') continue;
         const toolCall = normalizeToolCall(call, toolCallIndex);
