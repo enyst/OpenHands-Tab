@@ -305,18 +305,15 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
     if (reasoning) deltas.push({ type: 'reasoning', reasoning });
   }
 
-  // Handle thinking_blocks from LiteLLM (signature is in the final thinking_block)
+  // Handle thinking_blocks from LiteLLM (signature is in the final thinking_block).
+  // IMPORTANT: Only extract the signature here, NOT the thinking content.
+  // LiteLLM streams reasoning via delta.reasoning_content (handled above), and then
+  // sends thinking_blocks in a final chunk with the signature. If we also pushed
+  // block.thinking here, reasoning would be accumulated twice and get mangled.
   if (Array.isArray(delta.thinking_blocks)) {
     for (const block of delta.thinking_blocks) {
-      // Human note: pushing thinking here is suspicious. Reasoning content was streamed before.
-      if (block?.type === 'thinking') {
-        if (block.thinking) {
-          deltas.push({ type: 'reasoning', reasoning: block.thinking });
-        }
-        // Human note: signature works, it's sent in a single final chunk.
-        if (block.signature) {
-          deltas.push({ type: 'thinking_signature', signature: block.signature });
-        }
+      if (block?.type === 'thinking' && block.signature) {
+        deltas.push({ type: 'thinking_signature', signature: block.signature });
       }
     }
   }

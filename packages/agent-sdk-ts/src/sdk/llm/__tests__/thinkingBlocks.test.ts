@@ -197,9 +197,12 @@ describe('OpenAICompatibleClient thinking blocks', () => {
   });
 
   it('streams thinking content and signature', async () => {
+    // LiteLLM streams reasoning_content during generation, then sends thinking_blocks
+    // with the signature in a final chunk. We should NOT extract thinking content from
+    // thinking_blocks (that would double it), only the signature.
     const sse = [
       'data: {"choices":[{"delta":{"reasoning_content":"Thinking..."}}]}',
-      'data: {"choices":[{"delta":{"thinking_signature":"sig_xyz"}}]}',
+      'data: {"choices":[{"delta":{"thinking_blocks":[{"type":"thinking","signature":"sig_xyz"}]}}]}',
       'data: {"choices":[{"delta":{"content":"Hello"}}]}',
       'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
       'data: [DONE]',
