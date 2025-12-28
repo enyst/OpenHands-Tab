@@ -1,4 +1,4 @@
-name: LLM Quirks - Anthropic
+name: LLM Quirks - Gemini
 
 on:
   # Manual trigger only
@@ -7,23 +7,23 @@ on:
       test_mode:
         description: 'Test mode to run'
         required: true
-        default: 'all'
+        default: 'direct'
         type: choice
         options:
-          - all
-          - litellm
           - direct
+          - litellm
+          - all
 
 permissions:
   contents: read
   issues: write
 
 concurrency:
-  group: llm-test-${{ github.sha }}
+  group: llm-gemini-test-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  test-haiku-thinking:
+  test-gemini-thinking:
     runs-on: ubuntu-latest
     environment: LLM
     
@@ -49,26 +49,32 @@ jobs:
         run: |
           echo "mode=${{ github.event.inputs.test_mode }}" >> $GITHUB_OUTPUT
 
-      - name: Run LLM Integration Test
+      - name: Run Gemini Integration Test
         id: test
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
-          echo "Running test in mode: $MODE"
+          echo "Running Gemini test in mode: $MODE"
           
           # Run test and capture output
           set +e
           case "$MODE" in
-            litellm)
-              node .github/workflows/scripts/test-haiku-thinking.mjs 2>&1 | tee test-output.log
-              ;;
             direct)
-              node .github/workflows/scripts/test-haiku-thinking.mjs --direct 2>&1 | tee test-output.log
+              cd packages/agent-sdk-ts
+              node ../../.github/workflows/scripts/llm-quirks-gemini.mjs 2>&1 | tee ../../test-output.log
+              cd ../..
+              ;;
+            litellm)
+              echo "LiteLLM mode not yet implemented for Gemini"
+              echo "❌ FAIL - LiteLLM mode not implemented" > test-output.log
+              exit 1
               ;;
             all)
-              node .github/workflows/scripts/test-haiku-thinking.mjs --all 2>&1 | tee test-output.log
+              cd packages/agent-sdk-ts
+              node ../../.github/workflows/scripts/llm-quirks-gemini.mjs 2>&1 | tee ../../test-output.log
+              cd ../..
               ;;
           esac
           TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -84,7 +90,7 @@ jobs:
           fi
           
           # Extract test summary lines
-          SUMMARY=$(grep -E "^(✅|❌) (PASS|FAIL)" test-output.log || echo "No summary found")
+          SUMMARY=$(grep -E "^(✅|❌|⚠️) (PASS|FAIL)" test-output.log || echo "No summary found")
           echo "summary<<EOF" >> $GITHUB_OUTPUT
           echo "$SUMMARY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -95,14 +101,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: llm-test-logs-${{ github.run_number }}
+          name: gemini-test-logs-${{ github.run_number }}
           path: test-output.log
           retention-days: 30
 
       - name: Create GitHub Step Summary
         if: always()
         run: |
-          echo "## LLM Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Gemini Integration Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ${{ steps.test.outputs.status }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
@@ -128,7 +134,7 @@ jobs:
             const summary = '${{ steps.test.outputs.summary }}'.trim() || 'No summary available';
             
             const body = [
-              '## LLM Quirks - Anthropic ' + status,
+              '## LLM Quirks - Gemini ' + status,
               '',
               '| Field | Value |',
               '|-------|-------|',

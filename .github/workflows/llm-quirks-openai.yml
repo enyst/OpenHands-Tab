@@ -62,13 +62,13 @@ jobs:
           set +e
           case "$MODE" in
             litellm)
-              node .github/workflows/scripts/test-openai-tools.mjs 2>&1 | tee test-output.log
+              node .github/workflows/scripts/llm-quirks-openai.mjs 2>&1 | tee test-output.log
               ;;
             direct)
-              node .github/workflows/scripts/test-openai-tools.mjs --direct 2>&1 | tee test-output.log
+              node .github/workflows/scripts/llm-quirks-openai.mjs --direct 2>&1 | tee test-output.log
               ;;
             all)
-              node .github/workflows/scripts/test-openai-tools.mjs --all 2>&1 | tee test-output.log
+              node .github/workflows/scripts/llm-quirks-openai.mjs --all 2>&1 | tee test-output.log
               ;;
           esac
           TEST_EXIT_CODE=${PIPESTATUS[0]}
