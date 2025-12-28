@@ -1,5 +1,7 @@
 # ESLint Configuration Guide
 
+## WARNING: this file may be outdated. Use with caution. The codebase/config are the source of truth.
+
 This document explains the ESLint configuration choices for the OpenHands-Tab VS Code extension and provides guidance for maintaining and extending the linting setup.
 
 ## Table of Contents
