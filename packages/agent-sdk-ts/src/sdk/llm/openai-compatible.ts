@@ -94,6 +94,7 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
   // This is required when assistant messages have thinking content that needs to be preserved.
   // IMPORTANT: Anthropic API requires the `signature` field when sending thinking blocks,
   // so we only include thinking blocks when we have BOTH reasoning_content AND thinking_signature.
+  // However, keep in mind that it REQUIRES thinking blocks when reasoningEffort/extended thinking is enabled.
   const includeThinkingBlocks = supportsThinkingBlocks(config);
 
   if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.thinking_signature) {
