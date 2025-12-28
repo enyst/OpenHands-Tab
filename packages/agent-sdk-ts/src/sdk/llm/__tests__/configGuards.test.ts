@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LLMConfiguration } from '../types';
-import { normalizeGenerationParamsForModel } from '../configGuards';
+import { normalizeGenerationParamsForModel, isAnthropicModel, supportsThinkingBlocks } from '../configGuards';
 
 const makeConfig = (overrides: Partial<LLMConfiguration> = {}): LLMConfiguration => ({
   model: 'gpt-4o',
@@ -49,5 +49,72 @@ describe('normalizeGenerationParamsForModel', () => {
       makeConfig({ model: 'claude-opus-4-5', temperature: 0.5, reasoningEffort: 'none' })
     );
     expect(config.temperature).toBe(0.5);
+  });
+});
+
+describe('isAnthropicModel', () => {
+  it('returns true for anthropic provider', () => {
+    expect(isAnthropicModel(makeConfig({ provider: 'anthropic' }))).toBe(true);
+  });
+
+  it('returns true for claude model names', () => {
+    expect(isAnthropicModel(makeConfig({ model: 'claude-3-opus' }))).toBe(true);
+    expect(isAnthropicModel(makeConfig({ model: 'claude-opus-4-5-20251101' }))).toBe(true);
+    expect(isAnthropicModel(makeConfig({ model: 'claude-3-5-sonnet' }))).toBe(true);
+  });
+
+  it('returns true for LiteLLM anthropic routing prefix', () => {
+    expect(isAnthropicModel(makeConfig({ model: 'anthropic/claude-3-opus' }))).toBe(true);
+  });
+
+  it('returns true for anthropic.com baseUrl', () => {
+    expect(isAnthropicModel(makeConfig({ baseUrl: 'https://api.anthropic.com/v1' }))).toBe(true);
+  });
+
+  it('returns false for OpenAI models', () => {
+    expect(isAnthropicModel(makeConfig({ model: 'gpt-4o', provider: 'openai' }))).toBe(false);
+    expect(isAnthropicModel(makeConfig({ model: 'gpt-5-mini' }))).toBe(false);
+  });
+
+  it('returns false for Gemini models', () => {
+    expect(isAnthropicModel(makeConfig({ model: 'gemini-2.5-flash', provider: 'gemini' }))).toBe(false);
+  });
+
+  it('returns false for LiteLLM proxy without anthropic model', () => {
+    expect(isAnthropicModel(makeConfig({
+      model: 'gpt-4o',
+      provider: 'litellm_proxy',
+      baseUrl: 'http://localhost:4000',
+    }))).toBe(false);
+  });
+});
+
+describe('supportsThinkingBlocks', () => {
+  it('returns true for Anthropic model with extended thinking', () => {
+    expect(supportsThinkingBlocks(makeConfig({
+      model: 'claude-opus-4-5',
+      reasoningEffort: 'high',
+    }))).toBe(true);
+  });
+
+  it('returns false for Anthropic model without extended thinking', () => {
+    expect(supportsThinkingBlocks(makeConfig({
+      model: 'claude-3-opus',
+    }))).toBe(false);
+  });
+
+  it('returns false for Anthropic model with reasoningEffort=none', () => {
+    expect(supportsThinkingBlocks(makeConfig({
+      model: 'claude-opus-4-5',
+      reasoningEffort: 'none',
+    }))).toBe(false);
+  });
+
+  it('returns false for non-Anthropic model even with extended thinking', () => {
+    expect(supportsThinkingBlocks(makeConfig({
+      model: 'gpt-4o',
+      provider: 'openai',
+      reasoningEffort: 'high',
+    }))).toBe(false);
   });
 });

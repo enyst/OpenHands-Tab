@@ -1,15 +1,41 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions } from './types';
+import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type LLMToolDefinition, type RetryOptions, type ToolCallAccumulator } from './types';
 
 const decoder = new TextDecoder();
 
+// Anthropic content block types
+type AnthropicThinkingBlock = {
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+};
+
+type AnthropicTextBlock = {
+  type: 'text';
+  text: string;
+};
+
+type AnthropicToolUseBlock = {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: unknown;
+};
+
+type AnthropicToolResultBlock = {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+};
+
+type AnthropicContentBlock = AnthropicThinkingBlock | AnthropicTextBlock | AnthropicToolUseBlock | AnthropicToolResultBlock;
+
 interface AnthropicMessage {
   role: 'user' | 'assistant';
-  content: Array<{ type: 'text'; text: string }>;
-  name?: string;
+  content: AnthropicContentBlock[];
 }
 
-type AnthropicEventName = 'message_start' | 'content_block_delta' | 'message_delta' | (string & {});
+type AnthropicEventName = 'message_start' | 'content_block_start' | 'content_block_delta' | 'message_delta' | (string & {});
 
 interface AnthropicMessageStartEvent {
   message?: {
@@ -22,31 +48,167 @@ interface AnthropicMessageStartEvent {
   };
 }
 
+interface AnthropicContentBlockStartEvent {
+  index: number;
+  content_block?: {
+    type: 'text' | 'tool_use' | 'thinking';
+    id?: string;
+    name?: string;
+    signature?: string;
+  };
+}
+
 interface AnthropicContentDeltaEvent {
-  delta?: { type?: string; text?: string };
+  index: number;
+  delta?: {
+    type?: string;
+    text?: string;
+    thinking?: string;
+    partial_json?: string;
+    signature?: string;
+  };
 }
 
 interface AnthropicMessageDeltaEvent {
   delta?: { stop_reason?: string };
+  usage?: { output_tokens?: number };
 }
 
 const isMessageStartEvent = (data: unknown): data is AnthropicMessageStartEvent =>
   typeof data === 'object' && data !== null && 'message' in data;
 
+const isContentBlockStartEvent = (data: unknown): data is AnthropicContentBlockStartEvent =>
+  typeof data === 'object' && data !== null && 'index' in data && 'content_block' in data;
+
 const isContentDeltaEvent = (data: unknown): data is AnthropicContentDeltaEvent =>
-  typeof data === 'object' && data !== null && 'delta' in data;
+  typeof data === 'object' && data !== null && 'delta' in data && 'index' in data && typeof (data as { index: unknown }).index === 'number';
 
 const isMessageDeltaEvent = (data: unknown): data is AnthropicMessageDeltaEvent =>
   typeof data === 'object' && data !== null && 'delta' in data;
 
-const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[] =>
-  request.messages
-    .filter((message) => message.role === 'user' || message.role === 'assistant')
-    .map((message) => ({
-      role: message.role as AnthropicMessage['role'],
-      content: [{ type: 'text', text: reduceTextContent(message) }],
-      name: message.name,
+// Tool call accumulator for Anthropic streaming
+class AnthropicToolCallAccumulator implements ToolCallAccumulator {
+  complete = [] as ToolCallAccumulator['complete'];
+  private readonly partial = new Map<number, { id: string; name: string; arguments: string }>();
+
+  applyDelta(delta: { index: number; id?: string; name?: string; arguments?: string }): { accumulated: ToolCallAccumulator['complete']; current: { id: string; name: string; argumentsDelta: string } } {
+    const existing = this.partial.get(delta.index);
+    const id = delta.id ?? existing?.id ?? `tool_call_${delta.index}`;
+    const name = delta.name ?? existing?.name ?? '';
+    const updated = {
+      id,
+      name,
+      arguments: `${existing?.arguments ?? ''}${delta.arguments ?? ''}`,
+    };
+    this.partial.set(delta.index, updated);
+
+    this.complete = Array.from(this.partial.values()).map((value) => ({
+      id: value.id,
+      type: 'function',
+      function: { name: value.name, arguments: value.arguments },
     }));
+
+    return {
+      accumulated: this.complete,
+      current: {
+        id,
+        name,
+        argumentsDelta: delta.arguments ?? '',
+      },
+    };
+  }
+}
+
+const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[] => {
+  const result: AnthropicMessage[] = [];
+
+  for (const message of request.messages) {
+    if (message.role === 'user') {
+      // User messages: simple text content
+      result.push({
+        role: 'user',
+        content: [{ type: 'text', text: reduceTextContent(message) }],
+      });
+    } else if (message.role === 'assistant') {
+      // Assistant messages: may have thinking + tool_use
+      const contentBlocks: AnthropicContentBlock[] = [];
+
+      // Thinking block must come first if present
+      if (message.reasoning_content) {
+        contentBlocks.push({
+          type: 'thinking',
+          thinking: message.reasoning_content,
+          ...(message.thinking_signature ? { signature: message.thinking_signature } : {}),
+        });
+      }
+
+      // Text content
+      const textContent = reduceTextContent(message);
+      if (textContent) {
+        contentBlocks.push({ type: 'text', text: textContent });
+      }
+
+      // Tool use blocks
+      if (message.tool_calls?.length) {
+        for (const toolCall of message.tool_calls) {
+          let input: unknown;
+          try {
+            input = JSON.parse(toolCall.function.arguments);
+          } catch {
+            input = toolCall.function.arguments;
+          }
+          contentBlocks.push({
+            type: 'tool_use',
+            id: toolCall.id,
+            name: toolCall.function.name,
+            input,
+          });
+        }
+      }
+
+      // Only add message if there's content
+      if (contentBlocks.length > 0) {
+        result.push({
+          role: 'assistant',
+          content: contentBlocks,
+        });
+      }
+    } else if (message.role === 'tool') {
+      // Tool results must be sent as user messages with tool_result content
+      // Find the last user message or create a new one
+      const lastMessage = result[result.length - 1];
+      const toolResultBlock: AnthropicToolResultBlock = {
+        type: 'tool_result',
+        tool_use_id: message.tool_call_id ?? '',
+        content: reduceTextContent(message),
+      };
+
+      if (lastMessage?.role === 'user') {
+        // Append to existing user message
+        lastMessage.content.push(toolResultBlock);
+      } else {
+        // Create new user message
+        result.push({
+          role: 'user',
+          content: [toolResultBlock],
+        });
+      }
+    }
+    // Skip 'system' role - handled separately
+  }
+
+  return result;
+};
+
+// Convert OpenAI tool definitions to Anthropic format
+const toAnthropicTools = (tools?: LLMToolDefinition[]): Array<{ name: string; description?: string; input_schema: unknown }> | undefined => {
+  if (!tools?.length) return undefined;
+  return tools.map((tool) => ({
+    name: tool.function.name,
+    description: tool.function.description,
+    input_schema: tool.function.parameters ?? { type: 'object', properties: {} },
+  }));
+};
 
 const parseAnthropicStream = async function* (response: Response): AsyncGenerator<{ event?: AnthropicEventName; data?: unknown }> {
   const reader = response.body?.getReader();
@@ -93,6 +255,10 @@ export class AnthropicClient implements LLMClient {
 
   async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     const response = await this.fetchWithRetry(request);
+    const accumulator = new AnthropicToolCallAccumulator();
+    // Track which content block indices are tool_use blocks
+    const toolBlockIndices = new Map<number, { id: string; name: string }>();
+
     for await (const { event, data } of parseAnthropicStream(response)) {
       if (!data) continue;
       switch (event) {
@@ -107,14 +273,64 @@ export class AnthropicClient implements LLMClient {
             };
           }
           break;
+        case 'content_block_start':
+          if (isContentBlockStartEvent(data)) {
+            const block = data.content_block;
+            if (block?.type === 'tool_use' && block.id && block.name) {
+              // Register this index as a tool_use block
+              toolBlockIndices.set(data.index, { id: block.id, name: block.name });
+              // Emit initial tool call delta with id and name
+              accumulator.applyDelta({ index: data.index, id: block.id, name: block.name });
+              yield {
+                type: 'tool_call_delta',
+                id: block.id,
+                name: block.name,
+                arguments: '',
+              };
+            }
+          }
+          break;
         case 'content_block_delta':
-          if (isContentDeltaEvent(data) && data.delta?.type === 'text_delta' && data.delta.text) {
-            yield { type: 'text', text: data.delta.text };
+          if (isContentDeltaEvent(data)) {
+            const delta = data.delta;
+            const index = data.index;
+
+            if (delta?.type === 'text_delta' && delta.text) {
+              yield { type: 'text', text: delta.text };
+            } else if (delta?.type === 'thinking_delta' && delta.thinking) {
+              yield { type: 'reasoning', reasoning: delta.thinking };
+            } else if (delta?.type === 'signature_delta' && delta.signature) {
+              yield { type: 'thinking_signature', signature: delta.signature };
+            } else if (delta?.type === 'input_json_delta' && delta.partial_json) {
+              // Tool call argument delta
+              const toolInfo = toolBlockIndices.get(index);
+              if (toolInfo) {
+                const result = accumulator.applyDelta({
+                  index,
+                  arguments: delta.partial_json,
+                });
+                yield {
+                  type: 'tool_call_delta',
+                  id: result.current.id,
+                  name: result.current.name,
+                  arguments: result.current.argumentsDelta,
+                };
+              }
+            }
           }
           break;
         case 'message_delta':
-          if (isMessageDeltaEvent(data) && data.delta?.stop_reason) {
-            yield { type: 'finish', finishReason: data.delta.stop_reason };
+          if (isMessageDeltaEvent(data)) {
+            // Anthropic sends output_tokens in message_delta
+            if (data.usage?.output_tokens) {
+              yield {
+                type: 'usage',
+                outputTokens: data.usage.output_tokens,
+              };
+            }
+            if (data.delta?.stop_reason) {
+              yield { type: 'finish', finishReason: data.delta.stop_reason };
+            }
           }
           break;
         default:
@@ -184,6 +400,7 @@ export class AnthropicClient implements LLMClient {
   }
 
   private requestBody(request: ChatCompletionRequest): Record<string, unknown> {
+    const anthropicTools = toAnthropicTools(request.tools);
     return {
       model: this.config.model,
       max_tokens: this.config.maxOutputTokens ?? 1024,
@@ -191,6 +408,7 @@ export class AnthropicClient implements LLMClient {
       system: [{ type: 'text', text: request.systemPrompt }],
       messages: toAnthropicMessages(request),
       stream: true,
+      ...(anthropicTools ? { tools: anthropicTools, tool_choice: { type: 'auto' } } : {}),
       thinking: this.config.reasoningEffort && this.config.reasoningEffort !== 'none'
         ? { type: 'enabled', budget_tokens: this.config.maxOutputTokens ?? undefined }
         : undefined,

@@ -1,6 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
+import { supportsThinkingBlocks } from './configGuards';
 
 const decoder = new TextDecoder();
 
@@ -9,9 +10,29 @@ const mergeHeaders = (base?: Record<string, string>, overrides?: Record<string, 
   ...(overrides ?? {}),
 });
 
+type OpenAIThinkingContentBlock = {
+  type: 'thinking';
+  thinking: string;
+  signature?: string;
+};
+
+type OpenAITextContentBlock = {
+  type: 'text';
+  text: string;
+};
+
+type OpenAIToolUseContentBlock = {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: unknown;
+};
+
+type OpenAIContentBlock = OpenAIThinkingContentBlock | OpenAITextContentBlock | OpenAIToolUseContentBlock;
+
 type OpenAIChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | OpenAIContentBlock[];
   name?: string;
   tool_call_id?: string;
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
@@ -29,6 +50,8 @@ type OpenAIChoiceDelta = {
   content?: string | OpenAIContentPart[];
   tool_calls?: OpenAIToolCallDelta[];
   reasoning_content?: string | { text?: string }[];
+  /** Anthropic thinking signature (via LiteLLM) */
+  thinking_signature?: string;
 };
 
 type OpenAIChoice = {
@@ -48,8 +71,56 @@ type OpenAIStreamChunk = {
 const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
   typeof value === 'object' && value !== null && ('choices' in value || 'usage' in value);
 
-const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number]): OpenAIChatMessage => {
+/**
+ * Convert internal message format to OpenAI-compatible format.
+ * When targeting Anthropic models (via LiteLLM), includes thinking blocks.
+ */
+const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], config: LLMConfiguration): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
+
+  // For Anthropic models with thinking enabled: include thinking blocks in content array
+  // This is required when assistant messages have both thinking content and tool calls
+  const includeThinkingBlocks = supportsThinkingBlocks(config);
+
+  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.tool_calls?.length) {
+    const contentBlocks: OpenAIContentBlock[] = [];
+
+    // Thinking block must come first
+    contentBlocks.push({
+      type: 'thinking',
+      thinking: message.reasoning_content,
+      ...(message.thinking_signature ? { signature: message.thinking_signature } : {}),
+    });
+
+    // Then text content (if any)
+    if (contentText) {
+      contentBlocks.push({ type: 'text', text: contentText });
+    }
+
+    // Then tool_use blocks
+    for (const toolCall of message.tool_calls) {
+      let input: unknown;
+      try {
+        input = JSON.parse(toolCall.function.arguments);
+      } catch {
+        input = toolCall.function.arguments;
+      }
+      contentBlocks.push({
+        type: 'tool_use',
+        id: toolCall.id,
+        name: toolCall.function.name,
+        input,
+      });
+    }
+
+    return {
+      role: 'assistant',
+      content: contentBlocks,
+      ...(message.name ? { name: message.name } : {}),
+    };
+  }
+
+  // Standard case: plain text content (for non-Anthropic models or messages without thinking+tools)
   const base: OpenAIChatMessage = {
     role: message.role,
     content: contentText,
@@ -67,7 +138,7 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
       role: 'system',
       content: request.systemPrompt,
     },
-    ...request.messages.map(toOpenAIMessage),
+    ...request.messages.map((msg) => toOpenAIMessage(msg, config)),
   ],
   stream: true,
   stream_options: { include_usage: true },
@@ -191,6 +262,10 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
       ? delta.reasoning_content.map((entry) => entry?.text ?? '').join('')
       : String(delta.reasoning_content ?? '');
     if (reasoning) deltas.push({ type: 'reasoning', reasoning });
+  }
+
+  if (delta.thinking_signature) {
+    deltas.push({ type: 'thinking_signature', signature: delta.thinking_signature });
   }
 
   if (chunk.usage) {
