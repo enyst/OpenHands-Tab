@@ -2,7 +2,6 @@ import { Metrics } from '../llm/metrics';
 
 export class ConversationStats {
   usageToMetrics: Record<string, Metrics> = {};
-  usageToLabels: Record<string, string> = {};
   private restoredUsageIds = new Set<string>();
 
   static fromJSON(json: unknown): ConversationStats {
@@ -16,14 +15,6 @@ export class ConversationStats {
         stats.usageToMetrics[key] = Metrics.fromJSON(value);
       }
     }
-    const labels = obj['usage_to_labels'];
-    if (labels && typeof labels === 'object') {
-      for (const [usageId, label] of Object.entries(labels as Record<string, unknown>)) {
-        if (typeof label === 'string' && label.trim()) {
-          stats.usageToLabels[usageId] = label;
-        }
-      }
-    }
     const restored = obj['_restored_usage_ids'];
     if (Array.isArray(restored)) restored.forEach((id) => stats.restoredUsageIds.add(String(id)));
     return stats;
@@ -32,15 +23,18 @@ export class ConversationStats {
   toJSON(): Record<string, unknown> {
     return {
       usage_to_metrics: Object.fromEntries(Object.entries(this.usageToMetrics).map(([k, v]) => [k, v.toJSON()])),
-      usage_to_labels: { ...this.usageToLabels },
       _restored_usage_ids: Array.from(this.restoredUsageIds),
     };
   }
 
   restore(other: ConversationStats): void {
     this.usageToMetrics = other.usageToMetrics;
-    this.usageToLabels = other.usageToLabels;
     this.restoredUsageIds = new Set(other.restoredUsageIds);
+  }
+
+  clear(): void {
+    this.usageToMetrics = {};
+    this.restoredUsageIds.clear();
   }
 
   getCombinedMetrics(): Metrics {
@@ -55,7 +49,7 @@ export class ConversationStats {
     return metrics;
   }
 
-  registerLlm(event: { llm: { usageId: string; metrics: Metrics; label?: string } }): void {
+  registerLlm(event: { llm: { usageId: string; metrics: Metrics } }): void {
     const llm = event.llm;
     const usageId = llm.usageId;
     const existing = this.usageToMetrics[usageId];
@@ -66,8 +60,5 @@ export class ConversationStats {
     }
     // Ensure we track the live metrics object.
     this.usageToMetrics[usageId] = llm.metrics;
-    if (llm.label) {
-      this.usageToLabels[usageId] = llm.label;
-    }
   }
 }
