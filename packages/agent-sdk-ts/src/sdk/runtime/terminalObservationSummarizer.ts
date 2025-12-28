@@ -21,7 +21,8 @@ export interface SummarizeTerminalObservationOptions {
 
 const DEFAULT_MAX_OUTPUT_CHARS = 4_000;
 const DEFAULT_MAX_PROMPT_CHARS = 6_000;
-const DEFAULT_MAX_SUMMARY_CHARS = 1_000;
+// Increased from 1000 to reduce mid-sentence truncation (see oh-tab-qxzs)
+const DEFAULT_MAX_SUMMARY_CHARS = 2_000;
 const CLIP_MARKER = '<output clipped>';
 
 const resolveNonNegativeIntOption = (value: unknown, defaultValue: number): number => {

@@ -13,7 +13,8 @@ import { ELLIPSIS, redactAndTruncateArgs } from './textSanitizers';
 
 const TOOL_SUMMARY_PROFILE_ID = 'gemini-flash-summarizer';
 const TOOL_SUMMARY_PROMPT_MAX_CHARS = 4_000;
-const TOOL_SUMMARY_MAX_CHARS = 1_000;
+// Increased from 1000 to reduce mid-sentence truncation (see oh-tab-qxzs)
+const TOOL_SUMMARY_MAX_CHARS = 2_000;
 
 export class ToolSummarizer {
   private enabled = false;
