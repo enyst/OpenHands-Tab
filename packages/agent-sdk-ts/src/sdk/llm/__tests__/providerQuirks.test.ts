@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LLMConfiguration } from '../types';
-import { normalizeGenerationParamsForModel, isAnthropicModel, supportsThinkingBlocks } from '../providerQuirks';
+import { normalizeGenerationParamsForModel, isAnthropicModel, supportsThinkingBlocks, getAnthropicThinkingBudget } from '../providerQuirks';
 
 const makeConfig = (overrides: Partial<LLMConfiguration> = {}): LLMConfiguration => ({
   model: 'gpt-4o',
@@ -132,5 +132,62 @@ describe('supportsThinkingBlocks', () => {
       provider: 'openai',
       reasoningEffort: 'high',
     }))).toBe(false);
+  });
+});
+
+describe('getAnthropicThinkingBudget', () => {
+  it('returns undefined for non-Anthropic models', () => {
+    expect(getAnthropicThinkingBudget(makeConfig({
+      model: 'gpt-4o',
+      reasoningEffort: 'high',
+    }))).toBeUndefined();
+  });
+
+  it('returns undefined when thinking is not enabled', () => {
+    expect(getAnthropicThinkingBudget(makeConfig({
+      model: 'claude-3-opus',
+    }))).toBeUndefined();
+  });
+
+  it('returns undefined when reasoningEffort is none', () => {
+    expect(getAnthropicThinkingBudget(makeConfig({
+      model: 'claude-3-opus',
+      reasoningEffort: 'none',
+    }))).toBeUndefined();
+  });
+
+  it('returns 80% of maxOutputTokens for Anthropic with thinking', () => {
+    const budget = getAnthropicThinkingBudget(makeConfig({
+      model: 'claude-3-opus',
+      reasoningEffort: 'high',
+      maxOutputTokens: 10000,
+    }));
+    expect(budget).toBe(8000); // 80% of 10000
+  });
+
+  it('enforces minimum budget of 1024', () => {
+    const budget = getAnthropicThinkingBudget(makeConfig({
+      model: 'claude-3-opus',
+      reasoningEffort: 'high',
+      maxOutputTokens: 500, // 80% = 400, below minimum
+    }));
+    expect(budget).toBe(1024);
+  });
+
+  it('enforces maximum budget of 128000', () => {
+    const budget = getAnthropicThinkingBudget(makeConfig({
+      model: 'claude-3-opus',
+      reasoningEffort: 'high',
+      maxOutputTokens: 200000, // 80% = 160000, above maximum
+    }));
+    expect(budget).toBe(128000);
+  });
+
+  it('uses default maxOutputTokens of 16000 when not specified', () => {
+    const budget = getAnthropicThinkingBudget(makeConfig({
+      model: 'claude-3-opus',
+      reasoningEffort: 'high',
+    }));
+    expect(budget).toBe(12800); // 80% of 16000
   });
 });
