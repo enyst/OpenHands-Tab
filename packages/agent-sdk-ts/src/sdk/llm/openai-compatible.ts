@@ -38,7 +38,15 @@ type OpenAIChatMessage = {
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
 };
 
-type OpenAIContentPart = { type: 'text'; text?: string };
+type OpenAIThinkingBlock = {
+  type: 'thinking';
+  thinking?: string;
+  signature?: string;
+};
+
+type OpenAIContentPart =
+  | { type: 'text'; text?: string }
+  | OpenAIThinkingBlock;
 
 type OpenAIToolCallDelta = {
   id?: string;
@@ -50,8 +58,8 @@ type OpenAIChoiceDelta = {
   content?: string | OpenAIContentPart[];
   tool_calls?: OpenAIToolCallDelta[];
   reasoning_content?: string | { text?: string }[];
-  /** Anthropic thinking signature (via LiteLLM) */
-  thinking_signature?: string;
+  /** Anthropic thinking blocks (via LiteLLM) - contains signature at the end */
+  thinking_blocks?: OpenAIThinkingBlock[];
 };
 
 type OpenAIChoice = {
@@ -73,23 +81,32 @@ const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
 
 /**
  * Convert internal message format to OpenAI-compatible format.
- * When targeting Anthropic models (via LiteLLM), includes thinking blocks.
+ * When targeting Anthropic models (via LiteLLM), includes thinking blocks in content.
+ * 
+ * IMPORTANT: LiteLLM expects OpenAI format with tool_calls, NOT Anthropic format with
+ * tool_use blocks in content. LiteLLM converts tool_calls to tool_use when proxying to Anthropic.
+ * However, thinking blocks must be sent in the content array since there's no OpenAI equivalent.
  */
 const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], config: LLMConfiguration): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
 
   // For Anthropic models with thinking enabled: include thinking blocks in content array
-  // This is required when assistant messages have both thinking content and tool calls
+  // This is required when assistant messages have thinking content that needs to be preserved.
+  // IMPORTANT: Anthropic API requires the `signature` field when sending thinking blocks,
+  // so we only include thinking blocks when we have BOTH reasoning_content AND thinking_signature.
+  // However, keep in mind that it REQUIRES thinking blocks when reasoningEffort/extended thinking is enabled.
   const includeThinkingBlocks = supportsThinkingBlocks(config);
 
-  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.tool_calls?.length) {
+  if (includeThinkingBlocks && message.role === 'assistant' && message.reasoning_content && message.thinking_signature) {
+    // For Anthropic via LiteLLM proxy: send thinking in content array, tool_calls separately
+    // LiteLLM will convert tool_calls to tool_use blocks when sending to Anthropic
     const contentBlocks: OpenAIContentBlock[] = [];
 
-    // Thinking block must come first
+    // Thinking block must come first (signature is required by Anthropic)
     contentBlocks.push({
       type: 'thinking',
       thinking: message.reasoning_content,
-      ...(message.thinking_signature ? { signature: message.thinking_signature } : {}),
+      signature: message.thinking_signature,
     });
 
     // Then text content (if any)
@@ -97,30 +114,18 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
       contentBlocks.push({ type: 'text', text: contentText });
     }
 
-    // Then tool_use blocks
-    for (const toolCall of message.tool_calls) {
-      let input: unknown;
-      try {
-        input = JSON.parse(toolCall.function.arguments);
-      } catch {
-        input = toolCall.function.arguments;
-      }
-      contentBlocks.push({
-        type: 'tool_use',
-        id: toolCall.id,
-        name: toolCall.function.name,
-        input,
-      });
-    }
-
-    return {
+    // Return with content array for thinking, but tool_calls in OpenAI format
+    // LiteLLM will merge these appropriately when converting to Anthropic format
+    const result: OpenAIChatMessage = {
       role: 'assistant',
       content: contentBlocks,
       ...(message.name ? { name: message.name } : {}),
+      ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
     };
+    return result;
   }
 
-  // Standard case: plain text content (for non-Anthropic models or messages without thinking+tools)
+  // Standard case: plain text content (for non-Anthropic models or messages without thinking)
   const base: OpenAIChatMessage = {
     role: message.role,
     content: contentText,
@@ -231,6 +236,14 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
     for (const part of content) {
       if (part?.type === 'text' && typeof part.text === 'string') {
         deltas.push({ type: 'text', text: part.text });
+      } else if (part?.type === 'thinking') {
+        // Handle thinking blocks from LiteLLM (content array format)
+        if (part.thinking) {
+          deltas.push({ type: 'reasoning', reasoning: part.thinking });
+        }
+        if (part.signature) {
+          deltas.push({ type: 'thinking_signature', signature: part.signature });
+        }
       }
     }
   }
@@ -264,9 +277,19 @@ const mapChunkToStream = (chunk: OpenAIStreamChunk, accumulator: OpenAIToolCallA
     if (reasoning) deltas.push({ type: 'reasoning', reasoning });
   }
 
-  if (delta.thinking_signature) {
-    deltas.push({ type: 'thinking_signature', signature: delta.thinking_signature });
+  // Handle thinking_blocks from LiteLLM (signature is in the final thinking_block).
+  // IMPORTANT: Only extract the signature here, NOT the thinking content.
+  // LiteLLM streams reasoning via delta.reasoning_content (handled above), and then
+  // sends thinking_blocks in a final chunk with the signature. If we also pushed
+  // block.thinking here, reasoning would be accumulated twice and get mangled.
+  if (Array.isArray(delta.thinking_blocks)) {
+    for (const block of delta.thinking_blocks) {
+      if (block?.type === 'thinking' && block.signature) {
+        deltas.push({ type: 'thinking_signature', signature: block.signature });
+      }
+    }
   }
+
 
   if (chunk.usage) {
     deltas.push({
@@ -300,6 +323,7 @@ export class OpenAICompatibleClient implements LLMClient {
     const accumulator = new OpenAIToolCallAccumulator();
 
     for await (const payload of parseSseLines(response)) {
+
       if (payload === '[DONE]') {
         yield { type: 'finish' };
         break;

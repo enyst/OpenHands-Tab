@@ -133,12 +133,15 @@ const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[]
       // Assistant messages: may have thinking + tool_use
       const contentBlocks: AnthropicContentBlock[] = [];
 
-      // Thinking block must come first if present
-      if (message.reasoning_content) {
+      // Thinking block must come first if present.
+      // IMPORTANT: Anthropic API requires the `signature` field when sending thinking blocks,
+      // so we only include thinking blocks when we have BOTH reasoning_content AND thinking_signature.
+      // However, keep in mind that it REQUIRES thinking blocks when reasoningEffort/extended thinking are enabled.
+      if (message.reasoning_content && message.thinking_signature) {
         contentBlocks.push({
           type: 'thinking',
           thinking: message.reasoning_content,
-          ...(message.thinking_signature ? { signature: message.thinking_signature } : {}),
+          signature: message.thinking_signature,
         });
       }
 

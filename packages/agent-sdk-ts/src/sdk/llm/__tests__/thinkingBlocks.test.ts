@@ -29,7 +29,9 @@ describe('OpenAICompatibleClient thinking blocks', () => {
     reasoningEffort: 'medium',
   };
 
-  it('includes thinking blocks in assistant messages with tool calls', async () => {
+  it('includes thinking blocks in assistant messages with tool calls (LiteLLM format)', async () => {
+    // For LiteLLM proxy: thinking blocks go in content array, but tool_calls stay in OpenAI format
+    // LiteLLM will convert tool_calls to tool_use blocks when sending to Anthropic
     const sse = [
       'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Done"}]}}]}',
       'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
@@ -90,13 +92,19 @@ describe('OpenAICompatibleClient thinking blocks', () => {
     const textBlock = assistantMsg.content.find((b: { type: string }) => b.type === 'text');
     expect(textBlock).toEqual({ type: 'text', text: 'I will use a tool' });
 
-    const toolUseBlock = assistantMsg.content.find((b: { type: string }) => b.type === 'tool_use');
-    expect(toolUseBlock).toMatchObject({
-      type: 'tool_use',
+    // For LiteLLM: tool_calls should be in OpenAI format (separate field), NOT as tool_use in content
+    // LiteLLM will convert these to tool_use blocks when proxying to Anthropic
+    expect(assistantMsg.tool_calls).toBeDefined();
+    expect(assistantMsg.tool_calls).toHaveLength(1);
+    expect(assistantMsg.tool_calls[0]).toMatchObject({
       id: 'call_1',
-      name: 'bash',
-      input: { command: 'echo hi' },
+      type: 'function',
+      function: { name: 'bash', arguments: '{"command":"echo hi"}' },
     });
+
+    // Should NOT have tool_use blocks in content (that's Anthropic native format, not LiteLLM)
+    const toolUseBlock = assistantMsg.content.find((b: { type: string }) => b.type === 'tool_use');
+    expect(toolUseBlock).toBeUndefined();
   });
 
   it('does not include thinking blocks for assistant messages without tool calls', async () => {
@@ -197,9 +205,12 @@ describe('OpenAICompatibleClient thinking blocks', () => {
   });
 
   it('streams thinking content and signature', async () => {
+    // LiteLLM streams reasoning_content during generation, then sends thinking_blocks
+    // with the signature in a final chunk. We should NOT extract thinking content from
+    // thinking_blocks (that would double it), only the signature.
     const sse = [
       'data: {"choices":[{"delta":{"reasoning_content":"Thinking..."}}]}',
-      'data: {"choices":[{"delta":{"thinking_signature":"sig_xyz"}}]}',
+      'data: {"choices":[{"delta":{"thinking_blocks":[{"type":"thinking","signature":"sig_xyz"}]}}]}',
       'data: {"choices":[{"delta":{"content":"Hello"}}]}',
       'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}',
       'data: [DONE]',
