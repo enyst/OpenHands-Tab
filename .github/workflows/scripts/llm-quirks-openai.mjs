@@ -30,13 +30,13 @@
  * 
  * Usage:
  *   # Via LiteLLM proxy (default) - tests Chat Completions API
- *   LITELLM_API_KEY=... node test-openai-tools.mjs
+ *   LITELLM_API_KEY=... node llm-quirks-openai.mjs
  *   
  *   # Direct OpenAI API only (tests Responses API)
- *   OPENAI_API_KEY=... node test-openai-tools.mjs --direct
+ *   OPENAI_API_KEY=... node llm-quirks-openai.mjs --direct
  *   
  *   # Run all tests
- *   LITELLM_API_KEY=... OPENAI_API_KEY=... node test-openai-tools.mjs --all
+ *   LITELLM_API_KEY=... OPENAI_API_KEY=... node llm-quirks-openai.mjs --all
  * 
  * Exit codes:
  *   0 - All tests passed

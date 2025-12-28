@@ -20,13 +20,13 @@
  * 
  * Usage:
  *   # Via LiteLLM proxy (default)
- *   LITELLM_API_KEY=... node test-haiku-thinking.mjs
+ *   LITELLM_API_KEY=... node llm-quirks-anthropic.mjs
  *   
  *   # Direct Anthropic API
- *   ANTHROPIC_API_KEY=... node test-haiku-thinking.mjs --direct
+ *   ANTHROPIC_API_KEY=... node llm-quirks-anthropic.mjs --direct
  *   
  *   # Run both modes
- *   LITELLM_API_KEY=... ANTHROPIC_API_KEY=... node test-haiku-thinking.mjs --all
+ *   LITELLM_API_KEY=... ANTHROPIC_API_KEY=... node llm-quirks-anthropic.mjs --all
  * 
  * Exit codes:
  *   0 - All tests passed

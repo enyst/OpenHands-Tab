@@ -19,11 +19,11 @@ permissions:
   issues: write
 
 concurrency:
-  group: openai-llm-test-${{ github.sha }}
+  group: llm-quirks-openai-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  test-openai-tools:
+  llm-quirks-openai:
     runs-on: ubuntu-latest
     environment: LLM
     
@@ -95,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openai-test-logs-${{ github.run_number }}
+          name: llm-quirks-openai-logs-${{ github.run_number }}
           path: test-output.log
           retention-days: 30
 

@@ -19,11 +19,11 @@ permissions:
   issues: write
 
 concurrency:
-  group: llm-test-${{ github.sha }}
+  group: llm-quirks-anthropic-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  test-haiku-thinking:
+  llm-quirks-anthropic:
     runs-on: ubuntu-latest
     environment: LLM
     
@@ -95,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: llm-test-logs-${{ github.run_number }}
+          name: llm-quirks-anthropic-logs-${{ github.run_number }}
           path: test-output.log
           retention-days: 30
 

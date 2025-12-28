@@ -20,7 +20,7 @@
  * - Non-function-call responses may have optional signatures (recommended to preserve)
  * 
  * Usage:
- *   GEMINI_API_KEY=... node test-gemini-thinking.mjs
+ *   GEMINI_API_KEY=... node llm-quirks-gemini.mjs
  * 
  * Exit codes:
  *   0 - Test passed

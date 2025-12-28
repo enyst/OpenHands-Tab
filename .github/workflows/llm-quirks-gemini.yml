@@ -19,11 +19,11 @@ permissions:
   issues: write
 
 concurrency:
-  group: llm-gemini-test-${{ github.sha }}
+  group: llm-quirks-gemini-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  test-gemini-thinking:
+  llm-quirks-gemini:
     runs-on: ubuntu-latest
     environment: LLM
     
@@ -101,7 +101,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gemini-test-logs-${{ github.run_number }}
+          name: llm-quirks-gemini-logs-${{ github.run_number }}
           path: test-output.log
           retention-days: 30
 
