@@ -527,36 +527,73 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'setLlmProfileId': {
         const profileId = typeof message.profileId === 'string' ? message.profileId.trim() : '';
+        const currentSettings = await settingsMgr.get();
+        const previousProfileId = currentSettings.llm.profileId || '(none)';
+        const convMode = deps.getConversationMode();
+        const convStatus = conversation?.getStatus() ?? 'offline';
+        const convId = conversation?.getConversationId?.() || '(no conversation)';
+
+        outputChannel?.appendLine('[LLM Profile] ========== SWITCH REQUESTED ==========');
+        outputChannel?.appendLine('[LLM Profile] From: ' + previousProfileId + ' -> To: ' + (profileId || '(none)'));
+        outputChannel?.appendLine('[LLM Profile] Conversation: mode=' + convMode + ', status=' + convStatus + ', id=' + convId);
+        outputChannel?.appendLine('[LLM Profile] Current settings.llm: ' + JSON.stringify(currentSettings.llm));
+
         try {
+          outputChannel?.appendLine('[LLM Profile] Calling settingsMgr.update({ llm: { profileId: "' + profileId + '" } }, "global")...');
           await settingsMgr.update({ llm: { profileId } }, 'global');
+          outputChannel?.appendLine('[LLM Profile] Settings persisted successfully');
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[settings] Failed to persist LLM profile selection: ${reason}`);
+          outputChannel?.appendLine('[LLM Profile] FAILED to persist: ' + reason);
           postStatusError(`Failed to save profile selection: ${reason}`);
           break;
         }
 
         const updated = await settingsMgr.get();
+        outputChannel?.appendLine('[LLM Profile] Updated settings.llm: ' + JSON.stringify(updated.llm));
+
+        outputChannel?.appendLine('[LLM Profile] Applying to conversation...');
+        outputChannel?.appendLine('[LLM Profile] conversation exists: ' + (conversation ? 'yes' : 'no'));
+        if (conversation) {
+          outputChannel?.appendLine('[LLM Profile] conversation.setSettings exists: ' + (typeof conversation.setSettings === 'function' ? 'yes' : 'no'));
+        }
+
         try {
           conversation?.setSettings(updated);
+          outputChannel?.appendLine('[LLM Profile] Applied to conversation successfully');
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
-          outputChannel?.appendLine(`[settings] Failed to apply profile selection to active conversation: ${reason}`);
+          outputChannel?.appendLine('[LLM Profile] FAILED to apply to conversation: ' + reason);
         }
-        deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(updated));
+
+        const newLabel = resolveConfiguredLlmLabel(updated);
+        const oldLabel = deps.getLastKnownLlmLabel();
+        outputChannel?.appendLine('[LLM Profile] Label: ' + (oldLabel || '(null)') + ' -> ' + (newLabel || '(null)'));
+        deps.setLastKnownLlmLabel(newLabel);
+
+        const finalStatus = conversation?.getStatus() ?? 'offline';
+        const finalMode = deps.getConversationMode();
+        const finalLabel = deps.getLastKnownLlmLabel();
+        outputChannel?.appendLine('[LLM Profile] Posting status message: status=' + finalStatus + ', mode=' + finalMode + ', label=' + (finalLabel || '(null)'));
 
         void host.postMessage({
           type: 'status',
-          status: conversation?.getStatus() ?? 'offline',
-          mode: deps.getConversationMode(),
-          llmProfileLabel: deps.getLastKnownLlmLabel(),
+          status: finalStatus,
+          mode: finalMode,
+          llmProfileLabel: finalLabel,
         });
+
+        const profiles = listAvailableLlmProfiles();
+        const activeProfileId = updated.llm.profileId ?? null;
+        outputChannel?.appendLine('[LLM Profile] Posting llmProfilesUpdated: profiles=[' + profiles.join(', ') + '], activeProfileId=' + (activeProfileId || '(null)'));
 
         void host.postMessage({
           type: 'llmProfilesUpdated',
-          profiles: listAvailableLlmProfiles(),
-          activeProfileId: updated.llm.profileId ?? null,
+          profiles,
+          activeProfileId,
         });
+
+        outputChannel?.appendLine('[LLM Profile] ========== SWITCH COMPLETE ==========');
         break;
       }
       case 'llmProfilesListRequest': {
