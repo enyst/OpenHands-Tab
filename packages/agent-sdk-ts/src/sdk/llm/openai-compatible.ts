@@ -327,18 +327,6 @@ export class OpenAICompatibleClient implements LLMClient {
     const accumulator = new OpenAIToolCallAccumulator();
 
     for await (const payload of parseSseLines(response)) {
-      // TEMPORARY DEBUG: Log raw chunks for signature investigation
-      if (DEBUG_LLM_CHUNKS) {
-        debugChunks.push({ time: new Date().toISOString(), payload });
-        if (payload === '[DONE]' || debugChunks.length >= 100) {
-          console.log('=== OPENHANDS DEBUG: Raw LLM chunks (last 100) ===');
-          for (const c of debugChunks.slice(-100)) {
-            console.log(`[${c.time}] ${c.payload.slice(0, 500)}`);
-          }
-          console.log('=== END DEBUG ===');
-          debugChunks.length = 0;
-        }
-      }
 
       if (payload === '[DONE]') {
         yield { type: 'finish' };
