@@ -1,7 +1,7 @@
 name: LLM Integration Test (Haiku Extended Thinking)
 
 on:
-  # Manual trigger with options
+  # Manual trigger only
   workflow_dispatch:
     inputs:
       test_mode:
@@ -13,13 +13,6 @@ on:
           - all
           - litellm
           - direct
-  # Run on push to develop branch
-  push:
-    branches: [ develop ]
-    paths:
-      - 'packages/agent-sdk-ts/src/sdk/llm/**'
-      - 'packages/agent-sdk-ts/test-haiku-thinking.mjs'
-      - '.github/workflows/llm-integration-test.yml'
 
 permissions:
   contents: read
