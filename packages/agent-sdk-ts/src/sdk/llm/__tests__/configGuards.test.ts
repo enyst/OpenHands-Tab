@@ -23,28 +23,44 @@ describe('normalizeGenerationParamsForModel', () => {
     expect(config.temperature).toBeNull();
   });
 
-  it('forces temperature to 1 for opus-4.5 with extended thinking', () => {
+  // Anthropic requires temperature=1 when extended thinking is enabled
+  // See: https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations
+  it('forces temperature to 1 for any Anthropic model with extended thinking', () => {
     const config = normalizeGenerationParamsForModel(
-      makeConfig({ model: 'claude-opus-4-5', temperature: 0, reasoningEffort: 'high' })
+      makeConfig({ model: 'claude-3-5-sonnet', temperature: 0, reasoningEffort: 'high' })
     );
     expect(config.temperature).toBe(1);
   });
 
-  it('forces temperature to 1 for opus-4.5 variant with extended thinking', () => {
+  it('forces temperature to 1 for claude-haiku with extended thinking', () => {
     const config = normalizeGenerationParamsForModel(
-      makeConfig({ model: 'anthropic/opus-4.5', temperature: 0.5, reasoningEffort: 'medium' })
+      makeConfig({ model: 'claude-haiku-4-5-20241022', temperature: 0.5, reasoningEffort: 'low' })
     );
     expect(config.temperature).toBe(1);
   });
 
-  it('preserves temperature for opus-4.5 without extended thinking', () => {
+  it('forces temperature to 1 for LiteLLM anthropic routing with extended thinking', () => {
     const config = normalizeGenerationParamsForModel(
-      makeConfig({ model: 'claude-opus-4-5', temperature: 0.7 })
+      makeConfig({ model: 'anthropic/claude-haiku-4-5', temperature: 0.5, reasoningEffort: 'medium' })
+    );
+    expect(config.temperature).toBe(1);
+  });
+
+  it('forces temperature to 1 for anthropic provider with extended thinking', () => {
+    const config = normalizeGenerationParamsForModel(
+      makeConfig({ provider: 'anthropic', model: 'claude-3-opus', temperature: 0, reasoningEffort: 'high' })
+    );
+    expect(config.temperature).toBe(1);
+  });
+
+  it('preserves temperature for Anthropic model without extended thinking', () => {
+    const config = normalizeGenerationParamsForModel(
+      makeConfig({ model: 'claude-3-opus', temperature: 0.7 })
     );
     expect(config.temperature).toBe(0.7);
   });
 
-  it('preserves temperature for opus-4.5 with reasoningEffort=none', () => {
+  it('preserves temperature for Anthropic model with reasoningEffort=none', () => {
     const config = normalizeGenerationParamsForModel(
       makeConfig({ model: 'claude-opus-4-5', temperature: 0.5, reasoningEffort: 'none' })
     );
