@@ -1,4 +1,4 @@
-name: OpenAI LLM Quirks
+name: LLM Quirks - OpenAI
 
 on:
   # Manual trigger only
@@ -19,11 +19,11 @@ permissions:
   issues: write
 
 concurrency:
-  group: openai-llm-test-${{ github.sha }}
+  group: llm-quirks-openai-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  test-openai-tools:
+  llm-quirks-openai:
     runs-on: ubuntu-latest
     environment: LLM
     
@@ -62,13 +62,13 @@ jobs:
           set +e
           case "$MODE" in
             litellm)
-              node .github/workflows/scripts/test-openai-tools.mjs 2>&1 | tee test-output.log
+              node .github/workflows/scripts/llm-quirks-openai.mjs 2>&1 | tee test-output.log
               ;;
             direct)
-              node .github/workflows/scripts/test-openai-tools.mjs --direct 2>&1 | tee test-output.log
+              node .github/workflows/scripts/llm-quirks-openai.mjs --direct 2>&1 | tee test-output.log
               ;;
             all)
-              node .github/workflows/scripts/test-openai-tools.mjs --all 2>&1 | tee test-output.log
+              node .github/workflows/scripts/llm-quirks-openai.mjs --all 2>&1 | tee test-output.log
               ;;
           esac
           TEST_EXIT_CODE=${PIPESTATUS[0]}
@@ -95,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: openai-test-logs-${{ github.run_number }}
+          name: llm-quirks-openai-logs-${{ github.run_number }}
           path: test-output.log
           retention-days: 30
 
@@ -114,3 +114,43 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.test.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on tracking issue
+        if: always()
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const status = '${{ steps.test.outputs.status }}' || '⚠️ Unknown';
+            const result = '${{ steps.test.outputs.result }}' || 'UNKNOWN';
+            const mode = '${{ steps.mode.outputs.mode }}';
+            const runUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
+            const artifactUrl = runUrl + '#artifacts';
+            const summary = '${{ steps.test.outputs.summary }}'.trim() || 'No summary available';
+            
+            const body = [
+              '## LLM Quirks - OpenAI ' + status,
+              '',
+              '| Field | Value |',
+              '|-------|-------|',
+              '| **Result** | ' + status + ' |',
+              '| **Mode** | `' + mode + '` |',
+              '| **Branch** | `${{ github.ref_name }}` |',
+              '| **Commit** | `${{ github.sha }}` |',
+              '| **Triggered by** | @${{ github.actor }} |',
+              '',
+              '### Test Summary',
+              '```',
+              summary,
+              '```',
+              '',
+              '### Links',
+              '- 📋 [Workflow Run #${{ github.run_number }}](' + runUrl + ')',
+              '- 📦 [Download Logs](' + artifactUrl + ')'
+            ].join('\n');
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 595,
+              body: body
+            });
