@@ -720,7 +720,85 @@ classDiagram
 - Python: openhands/sdk/conversation/event_store.py EventLog; openhands/sdk/conversation/state.py ConversationState; openhands/sdk/conversation/persistence_const.py persistence constants; openhands/sdk/event/types.py event discriminators; openhands/sdk/event/conversation_state.py ConversationStateUpdateEvent; openhands/sdk/event/conversation_error.py ConversationErrorEvent; openhands/sdk/event/token.py TokenEvent; openhands/sdk/event/user_action.py ActionEvent/UserRejectObservation; openhands/sdk/event/condenser.py condensation events; openhands/sdk/event/base.py Event/LLMConvertibleEvent.
 - TypeScript: packages/agent-sdk-ts/src/sdk/runtime/EventLog.ts EventLog; packages/agent-sdk-ts/src/sdk/runtime/ConversationState.ts ConversationState; packages/agent-sdk-ts/src/sdk/runtime/SecretRegistry.ts SecretRegistry; packages/agent-sdk-ts/src/sdk/types/index.ts SystemPromptEvent, MessageEvent, ActionEvent, ObservationEvent, ConversationStateUpdateEvent, ConversationErrorEvent, PauseEvent, Condensation, is* guards.
 
+## Observation LLM/UI formatting (Issue #587)
+
+A key architectural difference: in Python, **Observations own their LLM and UI representations**.
+
+### Python design
+
+Each `Observation` subclass defines how it formats for LLM vs UI:
+
+```python
+# openhands/sdk/tool/schema.py
+class Observation(Schema, ABC):
+    @property
+    def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
+        """Content formatting for LLM. Subclasses override for custom formatting."""
+        
+    @property
+    def visualize(self) -> Text:
+        """Rich Text representation for UI display."""
+```
+
+Tool-specific observations override these (e.g., `TerminalObservation` in `openhands/tools/terminal/definition.py`):
+
+```python
+class TerminalObservation(Observation):
+    @property
+    def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
+        # Only includes relevant fields (command, stdout, stderr, exit_code)
+        # Adds metadata suffix, applies truncation
+        
+    @property
+    def visualize(self) -> Text:
+        # Rich formatting with colors, icons for UI
+```
+
+The `ObservationEvent` delegates to these methods:
+
+```python
+# openhands/sdk/event/llm_convertible/observation.py
+class ObservationEvent(LLMConvertibleEvent):
+    def to_llm_message(self) -> Message:
+        return Message(role="tool", content=self.observation.to_llm_content, ...)
+```
+
+### TypeScript current state
+
+Tool execution produces **two separate events**:
+1. `ObservationEvent` - full result object (for UI)
+2. `MessageEvent` with `role: 'tool'` - formatted text (for LLM)
+
+Formatting logic lives externally in `toolMessageFormatting.ts` with hardcoded tool name checks:
+
+```typescript
+// toolMessageFormatting.ts
+export function formatToolMessageText(toolCall: ToolCall, result: unknown): string {
+  if (toolName === 'terminal') { /* terminal-specific */ }
+  if (toolName === 'file_editor') { /* file editor-specific */ }
+  // Generic fallback - JSON.stringify(result) - leaks everything!
+  return JSON.stringify(result, null, 2);
+}
+```
+
+**Problems:**
+- Formatting logic external to tools, not owned by them
+- Generic fallback leaks internal fields (like `summary`) to the LLM
+- Adding a new tool requires updating `toolMessageFormatting.ts`
+
+### Migration plan
+
+1. Add `formatForLLM?(result: TResult): string` to `ToolDefinition` interface
+2. Implement in each tool (move logic from `toolMessageFormatting.ts`)
+3. Update `Agent.ts` to use tool's formatter
+4. Remove generic JSON.stringify fallback (or make it throw)
+
+### Source references
+- Python: `openhands-sdk/openhands/sdk/tool/schema.py` (Observation.to_llm_content); `openhands-sdk/openhands/sdk/event/llm_convertible/observation.py` (ObservationEvent.to_llm_message); `openhands-tools/openhands/tools/terminal/definition.py` (TerminalObservation)
+- TypeScript: `packages/agent-sdk-ts/src/sdk/types/tools.ts` (ToolDefinition); `packages/agent-sdk-ts/src/sdk/runtime/toolMessageFormatting.ts`; `packages/agent-sdk-ts/src/sdk/runtime/Agent.ts`
+
 ## Quick checklist for parity work
+- **Observation formatting (#587)**: Add `formatForLLM()` to tools so observations own their LLM representation (like Python's `to_llm_content`).
 - Implement workspace factory/base with remote support, path validation, git helpers, and richer command metadata.
 - Extend conversations with visualizer/stuck-detection hooks, callback stacks, and remote workspace helpers.
 - Augment agent with condenser/security analyzers, persisted state replay, and expanded confirmation policies.
