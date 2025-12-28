@@ -55,7 +55,7 @@ describe('normalizeGenerationParamsForModel', () => {
 
   it('preserves temperature for Anthropic model without extended thinking', () => {
     const config = normalizeGenerationParamsForModel(
-      makeConfig({ model: 'claude-3-opus', temperature: 0.7 })
+      makeConfig({ provider: 'anthropic', model: 'claude-4-5-opus', temperature: 0.7 })
     );
     expect(config.temperature).toBe(0.7);
   });
