@@ -305,17 +305,21 @@ async function runTest(config, testName) {
   if (!hadToolCalls) issues.push('No tool calls made');
 
   // Verify the output file was actually created
-  if (existsSync(TEST_OUTPUT_FILE)) {
-    const content = await readFile(TEST_OUTPUT_FILE, 'utf-8');
-    console.log(`\n📄 Verified ${TEST_OUTPUT_FILE} was created (${content.length} chars)`);
+  const outputPath = join(process.cwd(), TEST_OUTPUT_FILE);
+  console.log(`\n🔍 Checking for output file at: ${outputPath}`);
+  
+  if (existsSync(outputPath)) {
+    const content = await readFile(outputPath, 'utf-8');
+    console.log(`📄 Verified ${TEST_OUTPUT_FILE} was created (${content.length} chars)`);
     console.log('--- File content ---');
     console.log(content);
     console.log('--- End of file ---');
     
     // Clean up
-    await unlink(TEST_OUTPUT_FILE);
+    await unlink(outputPath);
     console.log(`🧹 Cleaned up ${TEST_OUTPUT_FILE}`);
   } else {
+    console.log(`❌ File NOT found at ${outputPath}`);
     issues.push(`Output file ${TEST_OUTPUT_FILE} was not created`);
   }
 
