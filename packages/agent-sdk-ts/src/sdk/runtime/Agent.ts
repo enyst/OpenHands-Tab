@@ -179,6 +179,8 @@ export class Agent extends EventEmitter {
    * an active run. New settings take effect on the next run.
    */
   setSettings(settings: OpenHandsSettings): void {
+    const prevModel = this.options.settings?.llm?.model;
+    const prevProfileId = this.options.settings?.llm?.profileId;
     void this.lock.acquire(() => {
       this.options.settings = settings;
       this.updateDerivedSettings(settings);
@@ -186,6 +188,12 @@ export class Agent extends EventEmitter {
       // Force the next run to rebuild the LLM client from updated settings.
       this.llmClientPromise = undefined;
       this.streamerPromise = undefined;
+
+      // Debug logging for mid-run settings changes (oh-tab-rw1k)
+      const newModel = settings?.llm?.model;
+      const newProfileId = settings?.llm?.profileId;
+      console.log(`[Agent.setSettings] Settings updated. Profile: ${prevProfileId} -> ${newProfileId}, Model: ${prevModel} -> ${newModel}. Cleared streamerPromise.`);
+
       return Promise.resolve();
     });
   }
@@ -411,6 +419,13 @@ export class Agent extends EventEmitter {
     while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
       const llmConfig = this.getEffectiveLlmConfigForCondensation();
+
+      // Debug logging for mid-run settings tracking (oh-tab-rw1k)
+      const currentModel = this.options.settings?.llm?.model;
+      const currentProfileId = this.options.settings?.llm?.profileId;
+      const hasStreamerPromise = !!this.streamerPromise;
+      console.log(`[Agent.runLoop] Iteration ${this.state.snapshot.iteration}. Settings: profile=${currentProfileId}, model=${currentModel}. streamerPromise cached=${hasStreamerPromise}`);
+
       let response: Awaited<ReturnType<LLMStreamer['runChat']>> | undefined;
 
       // Condensation is token-budget based: before calling the LLM (and again if we hit a context-limit
@@ -865,10 +880,15 @@ export class Agent extends EventEmitter {
 
   private async getStreamer(): Promise<LLMStreamer> {
     if (!this.streamerPromise) {
+      const model = this.options.settings?.llm?.model;
+      const profileId = this.options.settings?.llm?.profileId;
+      console.log(`[Agent.getStreamer] Creating new streamer. Profile: ${profileId}, Model: ${model}`);
       this.streamerPromise = (async () => {
         const client = await this.getPrimaryLlmClient();
         return new LLMStreamer(client, { events: this.events, state: this.state });
       })();
+    } else {
+      console.log(`[Agent.getStreamer] Reusing cached streamer.`);
     }
 
     return this.streamerPromise;
