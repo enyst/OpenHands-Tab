@@ -161,6 +161,18 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       return typeof id === 'string' ? id : null;
     };
 
+    // Helper to clear a pending action by tool_call_id and reset submission state.
+    const clearPendingActionByToolCallId = (toolCallId: string) => {
+      const prev = pendingActionsRef.current;
+      const next = prev.filter((a) => a.tool_call_id !== toolCallId);
+      if (next.length !== prev.length) {
+        pendingActionsRef.current = next;
+        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
+        setPendingActions(next);
+      }
+      clearSubmissionState();
+    };
+
     if (isActionEvent(event)) {
       const prev = pendingActionsRef.current;
       const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
@@ -174,33 +186,17 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       pendingActionsBatchIdRef.current = nextBatchId;
       setPendingActions(next);
     } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
-      const prev = pendingActionsRef.current;
-      const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
-      if (next.length !== prev.length) {
-        pendingActionsRef.current = next;
-        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
-        setPendingActions(next);
-      }
-      clearSubmissionState();
+      clearPendingActionByToolCallId(event.tool_call_id);
     } else if (isAgentErrorEvent(event)) {
-      // Truncate long error messages for status bar; full details stay in chat timeline
-      const maxLen = 80;
-      let statusMessage = event.error;
-      if (event.error.length > maxLen) {
-        let truncated = event.error.substring(0, maxLen);
-        // If we cut mid-word, backtrack to the last space to avoid partial words.
-        if (event.error[maxLen] && event.error[maxLen] !== ' ') {
-          const lastSpaceIndex = truncated.lastIndexOf(' ');
-          if (lastSpaceIndex > -1) {
-            truncated = truncated.substring(0, lastSpaceIndex);
-          }
-        }
-        statusMessage = truncated.trimEnd() + '…';
-      }
+      // AgentErrorEvents go back to the LLM for self-correction; no status bar message needed.
+      // Clear the matching pending action so the confirmation prompt updates.
+      clearPendingActionByToolCallId(event.tool_call_id);
+    } else if (isConversationErrorEvent(event)) {
+      // ConversationErrorEvents are shown to user; AgentErrorEvents go to LLM
+      const statusMessage = event.code === 'missing_llm_api_key'
+        ? 'Missing API key. Set it in LLM Profiles.'
+        : 'Conversation error occurred.';
       showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
-      clearSubmissionState();
-    } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
-      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
     } else if (isPauseEvent(event)) {
       showStatusMessage('warn', 'Conversation paused');
     }
