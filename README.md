@@ -6,12 +6,10 @@ A VS Code extension for interacting with OpenHands AI agents directly in your ID
 
 ## Features
 
-- Chat interface with streaming event display
+- UX first: switching LLM at runtime
+- Streaming event display and most other OpenHands features
 - Local mode (runs agent in VS Code) or remote mode (connects to agent-server)
-- Action confirmation with security risk indicators
-- Conversation history and persistence
-- Workspace file context and skills support
-- Integrated terminal output
+- might have also an a lil' cheesy Easter Egg (because why not?)
 
 ## Quick Start
 
