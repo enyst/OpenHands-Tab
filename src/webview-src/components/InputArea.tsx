@@ -224,14 +224,14 @@ export function InputArea({
                 <button
                   type="button"
                   onClick={onStopAgent}
-                  className="
+                  className={`
                     h-9 w-9 rounded-lg
                     flex items-center justify-center
                     transition-all duration-200
                     oh-focus-outline
                     bg-red-500/20 text-red-400 border border-red-500/30
                     hover:bg-red-500/30 hover:border-red-500/40 hover:text-red-300
-                  "
+                  `}
                   aria-label="Stop the agent"
                   title="Stop the agent"
                   data-testid="stop-agent-button"
