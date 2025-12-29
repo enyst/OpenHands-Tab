@@ -13,6 +13,7 @@ import {
   type Event,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../../shared/llmStreaming';
+import { STATUS_MESSAGE_DISMISS_DELAY_MS } from '../../../shared/webviewMessages';
 import { MAX_RENDERED_EVENTS } from '../../shared/constants';
 import type { ConversationTotals } from './conversationTotals';
 import { computeConversationTotalsFromStats, parseLlmUsageInputTokens } from './conversationStats';
@@ -196,10 +197,10 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
         }
         statusMessage = truncated.trimEnd() + '…';
       }
-      showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: 5000 });
+      showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
       clearSubmissionState();
     } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
-      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: 8000 });
+      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
     } else if (isPauseEvent(event)) {
       showStatusMessage('warn', 'Conversation paused');
     }

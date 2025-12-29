@@ -15,7 +15,7 @@ import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
 import { normalizeServerUrl } from '../../shared/serverUrls';
-import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
+import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 import { getConversationHistoryList } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
@@ -670,7 +670,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
               level: 'error',
               message: `Active LLM profile '${profileId}' was deleted; selection cleared.`,
               autoDismiss: true,
-              autoDismissDelay: 8000,
+              autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS,
             });
           } else {
             void host.postMessage({
@@ -678,7 +678,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
               level: 'info',
               message: `Deleted profile '${profileId}'.`,
               autoDismiss: true,
-              autoDismissDelay: 4000,
+              autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS,
             });
           }
 
