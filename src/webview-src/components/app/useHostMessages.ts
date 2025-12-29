@@ -56,8 +56,9 @@ export type HostMessageHandlerOptions = {
   handleHalExit: () => void;
   handleHalReject: (reason?: string) => void;
   handleHalTeleport: () => void;
-  handleHalTeleportFailed: (error: unknown) => void;
+  handleHalTeleportFailed: (error: unknown, serverUrl?: string) => void;
   handleHalTeleportUnavailable: (error: unknown) => void;
+  handleHalTeleportStarting: (serverUrl: string, serverLabel?: string) => void;
   handleHalTtsResponse: (payload: Record<string, unknown>) => void;
   handleHalVoiceConfirmResponse: (payload: Record<string, unknown>) => void;
   maybeUpdateHalFlow: () => void;
@@ -117,6 +118,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     handleHalTeleport,
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
+    handleHalTeleportStarting,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
     maybeUpdateHalFlow,
@@ -172,6 +174,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
         ok?: unknown;
         status?: 'online' | 'offline' | 'connecting';
         serverUrl?: string | null;
+        serverLabel?: string;
         mode?: 'local' | 'remote';
         llmProfileLabel?: string | null;
         profiles?: string[];
@@ -465,7 +468,14 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
           break;
         }
         case 'halTeleportFailed': {
-          handleHalTeleportFailed(payload.error);
+          const serverUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl : undefined;
+          handleHalTeleportFailed(payload.error, serverUrl);
+          break;
+        }
+        case 'halTeleportStarting': {
+          if (typeof payload.serverUrl === 'string') {
+            handleHalTeleportStarting(payload.serverUrl, payload.serverLabel);
+          }
           break;
         }
         case 'conversationStarted':
@@ -692,6 +702,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     handleHalTeleport,
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
+    handleHalTeleportStarting,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
     mentionStartRef,

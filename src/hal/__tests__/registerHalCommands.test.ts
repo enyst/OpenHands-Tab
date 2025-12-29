@@ -26,7 +26,7 @@ vi.mock('../../settings/VscodeSettingsAdapter', () => ({
   }),
 }));
 
-import { registerHalCommands, type RegisterHalCommandsDeps } from '../registerHalCommands';
+import { registerHalCommands, formatTeleportError, type RegisterHalCommandsDeps } from '../registerHalCommands';
 
 function createMockContext(): Partial<vscode.ExtensionContext> {
   return {
@@ -52,6 +52,67 @@ function createMockContext(): Partial<vscode.ExtensionContext> {
     } as any,
   };
 }
+
+describe('formatTeleportError', () => {
+  it('formats ECONNREFUSED errors', () => {
+    expect(formatTeleportError('Error: connect ECONNREFUSED 127.0.0.1:3000')).toBe(
+      'Server is unreachable. Please check that the server is running and the URL is correct.'
+    );
+  });
+
+  it('formats connection refused errors', () => {
+    expect(formatTeleportError('Connection refused by server')).toBe(
+      'Server is unreachable. Please check that the server is running and the URL is correct.'
+    );
+  });
+
+  it('formats timeout errors', () => {
+    expect(formatTeleportError('Error: ETIMEDOUT')).toBe(
+      'Connection timed out. The server may be down or experiencing high load.'
+    );
+    expect(formatTeleportError('Request timed out after 30s')).toBe(
+      'Connection timed out. The server may be down or experiencing high load.'
+    );
+  });
+
+  it('formats DNS resolution errors', () => {
+    expect(formatTeleportError('Error: getaddrinfo ENOTFOUND example.com')).toBe(
+      'Server address not found. Please verify the server URL is correct.'
+    );
+  });
+
+  it('formats network unreachable errors', () => {
+    expect(formatTeleportError('Error: ENETUNREACH')).toBe(
+      'Network unreachable. Please check your internet connection.'
+    );
+  });
+
+  it('formats SSL/TLS errors', () => {
+    expect(formatTeleportError('SSL certificate problem')).toBe(
+      'SSL/TLS connection error. The server may have an invalid certificate.'
+    );
+    expect(formatTeleportError('TLS handshake failed')).toBe(
+      'SSL/TLS connection error. The server may have an invalid certificate.'
+    );
+  });
+
+  it('formats connection reset errors', () => {
+    expect(formatTeleportError('Error: ECONNRESET')).toBe(
+      'Connection was reset by the server. Please try again.'
+    );
+  });
+
+  it('formats WebSocket errors', () => {
+    expect(formatTeleportError('WebSocket connection failed')).toBe(
+      'WebSocket connection failed. The server may not be accepting connections.'
+    );
+  });
+
+  it('returns original error for unknown patterns', () => {
+    const unknownError = 'Some unknown error occurred';
+    expect(formatTeleportError(unknownError)).toBe(unknownError);
+  });
+});
 
 describe('registerHalCommands', () => {
   let mockContext: any;
@@ -110,7 +171,7 @@ describe('registerHalCommands', () => {
     });
   });
 
-  it('teleport command shows error when no server is available', async () => {
+  it('teleport command shows helpful error when no server is configured', async () => {
     const mockOutputChannel = {
       appendLine: vi.fn(),
     };
@@ -124,8 +185,75 @@ describe('registerHalCommands', () => {
     await teleportCommand!();
 
     expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('No server available')
+      expect.stringContaining('No remote server configured')
     );
-    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('No server available');
+    expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
+      'No remote server configured. Add a server in the Server Selection menu to enable teleport.'
+    );
+  });
+
+  it('teleport command posts halTeleportStarting message with server info', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com', label: 'My Server' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    // Make ensureConversationAndConnection throw to stop execution early
+    mockDeps.ensureConversationAndConnection = vi.fn().mockRejectedValue(new Error('Test stop'));
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // Check that halTeleportStarting was posted with server info
+    expect(mockWebview.postMessage).toHaveBeenCalledWith({
+      type: 'halTeleportStarting',
+      serverUrl: 'https://example.com',
+      serverLabel: 'My Server',
+    });
+  });
+
+  it('teleport command posts halTeleportFailed with serverUrl on error', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+    mockDeps.renderError = vi.fn().mockReturnValue('ECONNREFUSED');
+
+    // Make ensureConversationAndConnection throw
+    mockDeps.ensureConversationAndConnection = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // Check that halTeleportFailed was posted with formatted error and serverUrl
+    expect(mockWebview.postMessage).toHaveBeenCalledWith({
+      type: 'halTeleportFailed',
+      error: 'Server is unreachable. Please check that the server is running and the URL is correct.',
+      serverUrl: 'https://example.com',
+    });
   });
 });

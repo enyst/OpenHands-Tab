@@ -31,6 +31,52 @@ export type RegisterHalCommandsDeps = {
   summarizeWithLocalLlm: SummarizeWithLocalLlm;
 };
 
+/**
+ * Formats teleport error messages to be more user-friendly.
+ * Converts technical error messages into actionable guidance.
+ */
+export function formatTeleportError(rawError: string): string {
+  const lower = rawError.toLowerCase();
+
+  // Connection refused / unreachable
+  if (lower.includes('econnrefused') || lower.includes('connection refused')) {
+    return 'Server is unreachable. Please check that the server is running and the URL is correct.';
+  }
+
+  // Timeout errors
+  if (lower.includes('timeout') || lower.includes('etimedout') || lower.includes('timed out')) {
+    return 'Connection timed out. The server may be down or experiencing high load.';
+  }
+
+  // DNS resolution failures
+  if (lower.includes('enotfound') || lower.includes('getaddrinfo') || lower.includes('dns')) {
+    return 'Server address not found. Please verify the server URL is correct.';
+  }
+
+  // Network unreachable
+  if (lower.includes('enetunreach') || lower.includes('network unreachable')) {
+    return 'Network unreachable. Please check your internet connection.';
+  }
+
+  // SSL/TLS errors
+  if (lower.includes('ssl') || lower.includes('tls') || lower.includes('certificate')) {
+    return 'SSL/TLS connection error. The server may have an invalid certificate.';
+  }
+
+  // Connection reset
+  if (lower.includes('econnreset') || lower.includes('connection reset')) {
+    return 'Connection was reset by the server. Please try again.';
+  }
+
+  // WebSocket errors
+  if (lower.includes('websocket') || lower.includes('ws://') || lower.includes('wss://')) {
+    return 'WebSocket connection failed. The server may not be accepting connections.';
+  }
+
+  // Return original if no pattern matched
+  return rawError;
+}
+
 export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Disposable[] {
   const postToWebview = async (message: HostToWebviewMessage): Promise<boolean> => {
     const chatView = deps.getChatView();
@@ -39,13 +85,16 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
   };
 
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
+    let targetServerUrl: string | undefined;
+    let targetServerLabel: string | undefined;
     try {
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
       const settings = await settingsMgr.get();
 
-      const firstServerUrl = typeof settings.servers?.[0]?.url === 'string' ? settings.servers[0].url.trim() : '';
+      const firstServer = settings.servers?.[0];
+      const firstServerUrl = typeof firstServer?.url === 'string' ? firstServer.url.trim() : '';
       if (!firstServerUrl) {
-        const message = 'No server available';
+        const message = 'No remote server configured. Add a server in the Server Selection menu to enable teleport.';
         deps.getOutputChannel()?.appendLine(`[hal.teleport] ${message}`);
         const posted = await postToWebview({ type: 'halTeleportUnavailable', error: message });
         if (!posted) {
@@ -53,6 +102,16 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         }
         return;
       }
+
+      targetServerUrl = firstServerUrl;
+      targetServerLabel = typeof firstServer?.label === 'string' ? firstServer.label.trim() : undefined;
+
+      // Notify webview that teleport is starting with server info
+      await postToWebview({
+        type: 'halTeleportStarting',
+        serverUrl: targetServerUrl,
+        serverLabel: targetServerLabel,
+      });
 
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       const { repoName, branchName } = await deps.resolveGitContext(workspaceRoot);
@@ -98,9 +157,9 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       await deps.getConversation()?.startNewConversation();
       await deps.getConversation()?.sendUserMessage(firstRemoteMessage);
     } catch (err) {
-      const reason = deps.renderError(err);
+      const reason = formatTeleportError(deps.renderError(err));
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
-      const posted = await postToWebview({ type: 'halTeleportFailed', error: reason });
+      const posted = await postToWebview({ type: 'halTeleportFailed', error: reason, serverUrl: targetServerUrl });
       if (!posted) {
         void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
       }

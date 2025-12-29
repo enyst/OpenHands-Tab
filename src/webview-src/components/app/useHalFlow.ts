@@ -788,14 +788,20 @@ export function useHalFlow(deps: {
     deps.showStatusMessage('error', message);
   }, [deps.showStatusMessage, resetHalUiState]);
 
-  const handleHalTeleportFailed = useCallback((error: unknown) => {
+  const handleHalTeleportFailed = useCallback((error: unknown, serverUrl?: string) => {
     const message = typeof error === 'string' && error.trim() ? error.trim() : 'Teleport failed';
+    const serverInfo = serverUrl ? ` (${serverUrl})` : '';
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
     setHalForceRejectInput(false);
     resetHalUiState({ phase: 'error', eye: 'dim', lastError: message });
-    deps.showStatusMessage('error', message);
+    deps.showStatusMessage('error', `${message}${serverInfo}`);
   }, [deps.showStatusMessage, resetHalUiState]);
+
+  const handleHalTeleportStarting = useCallback((serverUrl: string, serverLabel?: string) => {
+    const displayName = serverLabel || serverUrl;
+    deps.showStatusMessage('info', `Connecting to ${displayName}…`);
+  }, [deps.showStatusMessage]);
 
   const resetForServerTargetChange = useCallback(() => {
     setHalDisabledConversationId(null);
@@ -861,6 +867,7 @@ export function useHalFlow(deps: {
     handleHalVoiceConfirmResponse,
     handleHalTeleportUnavailable,
     handleHalTeleportFailed,
+    handleHalTeleportStarting,
     handleConversationStarted,
     resetForServerTargetChange,
   };
