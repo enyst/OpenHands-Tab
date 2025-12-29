@@ -49,6 +49,11 @@ export async function run(): Promise<void> {
     return runAgentServerRemoteTest();
   }
 
+  if (testName === 'agentServerRemoteRestore') {
+    const { run: runAgentServerRemoteRestoreTest } = await import('./agentServerRemoteRestore');
+    return runAgentServerRemoteRestoreTest();
+  }
+
   if (testName === 'terminalLog') {
     const { run: runTerminalLogTest } = await import('./terminalLog');
     return runTerminalLogTest();

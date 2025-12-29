@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
-import { startMockLlmServer } from './mockLlmServer';
+import * as fs from 'fs';
 
 type DiagnosticsInfo = {
   chat?: { hasView?: boolean; webviewReady?: boolean };
@@ -58,10 +58,17 @@ export async function run(): Promise<void> {
     throw new Error('Missing required env var: AGENT_SERVER_URL');
   }
 
-  const mockA = await startMockLlmServer();
-  const mockB = await startMockLlmServer();
+  const mockABase = process.env.E2E_MOCK_LLM_A_BASE_URL;
+  const mockBBase = process.env.E2E_MOCK_LLM_B_BASE_URL;
+  if (typeof mockABase !== 'string' || !mockABase.trim()) {
+    throw new Error('Missing required env var: E2E_MOCK_LLM_A_BASE_URL');
+  }
+  if (typeof mockBBase !== 'string' || !mockBBase.trim()) {
+    throw new Error('Missing required env var: E2E_MOCK_LLM_B_BASE_URL');
+  }
 
-  try {
+  const stateFile = process.env.E2E_STATE_FILE;
+
   const markerPrefix = `e2e_remote_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const markerFor = (index: number) => `${markerPrefix}_${index.toString().padStart(2, '0')}`;
 
@@ -96,8 +103,8 @@ export async function run(): Promise<void> {
   const profileB = `${markerPrefix}_profile_b`;
   const modelA = `openai/${markerPrefix}_a`;
   const modelB = `openai/${markerPrefix}_b`;
-  const baseUrlA = `${mockA.baseUrl}/v1`;
-  const baseUrlB = `${mockB.baseUrl}/v1`;
+  const baseUrlA = `${mockABase.replace(/\/+$/, '')}/v1`;
+  const baseUrlB = `${mockBBase.replace(/\/+$/, '')}/v1`;
   const normalizeUrl = (value: unknown): string => typeof value === 'string' ? value.replace(/\/+$/, '') : '';
 
   const fetchConversationInfo = async (conversationId: string): Promise<ConversationInfoResponse> => {
@@ -105,6 +112,14 @@ export async function run(): Promise<void> {
     const res = await fetch(`${base}/api/conversations/${conversationId}`, { method: 'GET' });
     if (!res.ok) throw new Error(`GET /api/conversations/${conversationId} failed: HTTP ${res.status}`);
     return await res.json() as ConversationInfoResponse;
+  };
+
+  const fetchMockRequestCount = async (base: string): Promise<number> => {
+    const res = await fetch(`${base.replace(/\/+$/, '')}/__log`, { method: 'GET' });
+    if (!res.ok) throw new Error(`GET ${base}/__log failed: HTTP ${res.status}`);
+    const data = await res.json() as { requests?: unknown };
+    const requests = Array.isArray(data?.requests) ? data.requests : [];
+    return requests.length;
   };
 
   try {
@@ -132,6 +147,22 @@ export async function run(): Promise<void> {
   const diagStarted = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
   const conversationId = typeof diagStarted?.conversationId === 'string' ? diagStarted.conversationId : '';
   if (!conversationId) throw new Error('Missing conversationId after startNewConversation');
+
+  if (typeof stateFile === 'string' && stateFile.trim()) {
+    fs.writeFileSync(
+      stateFile,
+      JSON.stringify({
+        conversationId,
+        profileA,
+        profileB,
+        modelA,
+        modelB,
+        baseUrlA,
+        baseUrlB,
+      }, null, 2),
+      'utf8'
+    );
+  }
 
   const matches = (info: ConversationInfoResponse, model: string, baseUrl: string): boolean => {
     return info.agent?.llm?.model === model && normalizeUrl(info.agent?.llm?.base_url) === normalizeUrl(baseUrl);
@@ -166,7 +197,7 @@ export async function run(): Promise<void> {
     );
   }
 
-  const mockBeforeB = mockB.requests.length;
+  const mockBeforeB = await fetchMockRequestCount(mockBBase);
 
   const before = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const beforeCount = typeof before?.count === 'number' ? before.count : 0;
@@ -204,7 +235,7 @@ export async function run(): Promise<void> {
     return hasUserMessage && hasRemoteResponse;
   }, 60000);
 
-  await pollUntil(async () => mockB.requests.length > mockBeforeB, 10000, 200);
+  await pollUntil(async () => (await fetchMockRequestCount(mockBBase)) > mockBeforeB, 10000, 200);
 
   const afterRemote = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const baselineCount = typeof afterRemote?.count === 'number' ? afterRemote.count : 0;
@@ -383,8 +414,4 @@ export async function run(): Promise<void> {
   );
 
   console.log('✓ Remote agent-server E2E test passed');
-} finally {
-  await mockA.close();
-  await mockB.close();
-}
 }

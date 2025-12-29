@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { downloadVSCodeWithRetry } from './testHelpers';
+import { startMockLlmServer } from './suite/mockLlmServer';
 
 function getDefaultAgentSdkDir(): string {
   return path.join(os.homedir(), 'repos', 'agent-sdk');
@@ -193,36 +194,56 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
     }
 
     const { child, serverUrl, output } = await startAgentServerWithRetry(agentSdkDir, env, 3);
+    const mockA = await startMockLlmServer();
+    const mockB = await startMockLlmServer();
 
     try {
       const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
       const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
       const extensionTestsPath = path.resolve(__dirname, './suite');
       const userDataDir = path.join(os.tmpdir(), `vscode-test-agent-server-${Date.now()}`);
+      const stateFile = path.join(userDataDir, 'agent-server-remote-state.json');
 
       // Isolate ~/.openhands/llm-profiles + VS Code argv settings for this suite.
       await fs.promises.mkdir(path.join(userDataDir, '.vscode'), { recursive: true });
+      await fs.promises.writeFile(path.join(userDataDir, '.vscode', 'argv.json'), '{}\n', 'utf8');
+
+      const launchArgs = [
+        '--no-sandbox',
+        '--user-data-dir', userDataDir,
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--use-inmemory-secretstorage',
+        '--disable-software-rasterizer',
+        extensionDevelopmentPath,
+      ];
+
+      const baseEnv = {
+        AGENT_SERVER_URL: serverUrl,
+        E2E_STATE_FILE: stateFile,
+        E2E_MOCK_LLM_A_BASE_URL: mockA.baseUrl,
+        E2E_MOCK_LLM_B_BASE_URL: mockB.baseUrl,
+        HOME: userDataDir,
+        USERPROFILE: userDataDir,
+      };
+
+      await runTests({
+        vscodeExecutablePath,
+        extensionDevelopmentPath,
+        extensionTestsPath,
+        launchArgs,
+        extensionTestsEnv: { TEST_NAME: 'agentServerRemote', ...baseEnv },
+      });
+
+      // VS Code may mutate argv.json; rewrite to avoid spurious parse warnings in the second run.
       await fs.promises.writeFile(path.join(userDataDir, '.vscode', 'argv.json'), '{}\n', 'utf8');
 
       await runTests({
         vscodeExecutablePath,
         extensionDevelopmentPath,
         extensionTestsPath,
-        launchArgs: [
-          '--no-sandbox',
-          '--user-data-dir', userDataDir,
-          '--disable-gpu',
-          '--disable-dev-shm-usage',
-          '--use-inmemory-secretstorage',
-          '--disable-software-rasterizer',
-          extensionDevelopmentPath
-        ],
-        extensionTestsEnv: {
-          TEST_NAME: 'agentServerRemote',
-          AGENT_SERVER_URL: serverUrl,
-          HOME: userDataDir,
-          USERPROFILE: userDataDir,
-        }
+        launchArgs,
+        extensionTestsEnv: { TEST_NAME: 'agentServerRemoteRestore', ...baseEnv },
       });
 
       assert.ok(true);
@@ -230,6 +251,8 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       console.error('agent-server output (tail):\n', output.dump());
       throw err;
     } finally {
+      await mockA.close();
+      await mockB.close();
       await killProcessTree(child);
     }
   });

@@ -538,6 +538,28 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     }
   });
 
+  const restoreConversation = vscode.commands.registerCommand('openhands._restoreConversation', async (raw: unknown) => {
+    const nestedId = (raw as { conversationId?: unknown; id?: unknown } | undefined)?.conversationId
+      ?? (raw as { conversationId?: unknown; id?: unknown } | undefined)?.id;
+    const idRaw = nestedId === undefined ? raw : nestedId;
+    if (typeof idRaw !== 'string') {
+      throw new Error('conversationId must be a string');
+    }
+    const conversationId = idRaw.trim();
+    if (!conversationId) throw new Error('conversationId is required');
+
+    if (!deps.getConversation()) {
+      await deps.ensureConversationAndConnection();
+    }
+
+    const conversation = deps.getConversation();
+    if (!conversation) throw new Error('Conversation not initialized');
+
+    const maybe = conversation.restoreConversation(conversationId);
+    await Promise.resolve(maybe);
+    return { ok: true, conversationId };
+  });
+
   return [
     diag,
     serversGet,
@@ -558,5 +580,6 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     setProfileApiKey,
     setProviderApiKey,
     injectTerminalEvent,
+    restoreConversation,
   ];
 }
