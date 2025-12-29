@@ -66,6 +66,7 @@ export type HostToWebviewMessage =
   | { type: 'halTeleportUnavailable'; error: string }
   | { type: 'halTeleportFailed'; error: string; serverUrl?: string }
   | { type: 'halTeleportStarting'; serverUrl: string; serverLabel?: string }
+  | { type: 'halTeleportSuccess'; serverUrl: string; serverLabel?: string }
   | { type: 'halTtsResponse'; requestId: string; ok: true; audioBase64: string; volume: number }
   | { type: 'halTtsResponse'; requestId: string; ok: false; error: string; shouldNotify?: boolean; disabled?: boolean }
   | { type: 'halVoiceConfirmResponse'; requestId: string; ok: true; decision: string }

@@ -803,6 +803,12 @@ export function useHalFlow(deps: {
     deps.showStatusMessage('info', `Connecting to ${displayName}…`);
   }, [deps.showStatusMessage]);
 
+  const handleHalTeleportSuccess = useCallback((serverUrl: string, serverLabel?: string) => {
+    const displayName = serverLabel || serverUrl;
+    deps.showStatusMessage('info', `Teleported to ${displayName}!`);
+    // Note: The HAL UI state will be reset by handleConversationStarted when the new conversation starts
+  }, [deps.showStatusMessage]);
+
   const resetForServerTargetChange = useCallback(() => {
     setHalDisabledConversationId(null);
     setHalVoiceConfirmFallbackKey(null);
@@ -868,6 +874,7 @@ export function useHalFlow(deps: {
     handleHalTeleportUnavailable,
     handleHalTeleportFailed,
     handleHalTeleportStarting,
+    handleHalTeleportSuccess,
     handleConversationStarted,
     resetForServerTargetChange,
   };

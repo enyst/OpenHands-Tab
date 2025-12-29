@@ -11,7 +11,7 @@ type EnsureConversationAndConnection = (options?: { uiJustCreated?: boolean; mod
 
 type RenderError = (err: unknown) => string;
 
-type ResolveGitContext = (workspaceRoot: string | undefined) => Promise<{ repoName: string; branchName: string }>;
+type ResolveGitContext = (workspaceRoot: string | undefined) => Promise<{ repoName: string; branchName: string; remoteUrl: string }>;
 
 type SummarizeWithLocalLlm = (settings: OpenHandsSettings, prompt: string, secrets: SecretRegistry) => Promise<string>;
 
@@ -33,44 +33,44 @@ export type RegisterHalCommandsDeps = {
 
 /**
  * Formats teleport error messages to be more user-friendly.
- * Converts technical error messages into actionable guidance.
+ * Converts technical error messages into short, actionable guidance.
  */
 export function formatTeleportError(rawError: string): string {
   const lower = rawError.toLowerCase();
 
   // Connection refused / unreachable
   if (lower.includes('econnrefused') || lower.includes('connection refused')) {
-    return 'Server is unreachable. Please check that the server is running and the URL is correct.';
+    return 'Server unreachable. Check if it is running.';
   }
 
   // Timeout errors
   if (lower.includes('timeout') || lower.includes('etimedout') || lower.includes('timed out')) {
-    return 'Connection timed out. The server may be down or experiencing high load.';
+    return 'Connection timed out. Server may be down.';
   }
 
   // DNS resolution failures
   if (lower.includes('enotfound') || lower.includes('getaddrinfo') || lower.includes('dns')) {
-    return 'Server address not found. Please verify the server URL is correct.';
+    return 'Server not found. Check the URL.';
   }
 
   // Network unreachable
   if (lower.includes('enetunreach') || lower.includes('network unreachable')) {
-    return 'Network unreachable. Please check your internet connection.';
+    return 'Network unreachable. Check your connection.';
   }
 
   // SSL/TLS errors
   if (lower.includes('ssl') || lower.includes('tls') || lower.includes('certificate')) {
-    return 'SSL/TLS connection error. The server may have an invalid certificate.';
+    return 'SSL/TLS error. Invalid certificate?';
   }
 
   // Connection reset
   if (lower.includes('econnreset') || lower.includes('connection reset')) {
-    return 'Connection was reset by the server. Please try again.';
+    return 'Connection reset. Try again.';
   }
 
   // WebSocket errors
   if (lower.includes('websocket') || lower.includes('ws://') || lower.includes('wss://')) {
-    return 'WebSocket connection failed. The server may not be accepting connections.';
+    return 'WebSocket failed. Server not accepting connections.';
   }
 
   // Return original if no pattern matched
@@ -87,6 +87,8 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
     let targetServerUrl: string | undefined;
     let targetServerLabel: string | undefined;
+    let connectionEstablished = false;
+
     try {
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
       const settings = await settingsMgr.get();
@@ -94,7 +96,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       const firstServer = settings.servers?.[0];
       const firstServerUrl = typeof firstServer?.url === 'string' ? firstServer.url.trim() : '';
       if (!firstServerUrl) {
-        const message = 'No remote server configured. Add a server in the Server Selection menu to enable teleport.';
+        const message = 'No server configured. Add one in Server Selection.';
         deps.getOutputChannel()?.appendLine(`[hal.teleport] ${message}`);
         const posted = await postToWebview({ type: 'halTeleportUnavailable', error: message });
         if (!posted) {
@@ -105,6 +107,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
 
       targetServerUrl = firstServerUrl;
       targetServerLabel = typeof firstServer?.label === 'string' ? firstServer.label.trim() : undefined;
+      const serverDisplayName = targetServerLabel || targetServerUrl;
 
       // Notify webview that teleport is starting with server info
       await postToWebview({
@@ -113,14 +116,40 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
 
+      // STEP 1: Try to connect to the remote server FIRST
+      // This must succeed before we do anything else (reject local action, prepare summary, etc.)
+      deps.getOutputChannel()?.appendLine(`[hal.teleport] Attempting connection to ${serverDisplayName}...`);
+
+      // Ensure we always start a new remote conversation instead of restoring a prior one.
+      await deps.context.workspaceState.update('openhands.conversationId.remote', undefined);
+
+      await settingsMgr.update({ serverUrl: firstServerUrl });
+      await deps.ensureConversationAndConnection({ uiJustCreated: true });
+
+      // Connection succeeded - mark it so we know we can proceed
+      connectionEstablished = true;
+      deps.getOutputChannel()?.appendLine(`[hal.teleport] Connection established to ${serverDisplayName}`);
+
+      // STEP 2: Now that connection is established, reject the local action
+      // This is safe because we know the remote server is available
+      try {
+        await deps.getConversation()?.rejectAction('Teleported to remote runtime');
+      } catch (err) {
+        deps.getOutputChannel()?.appendLine(`[hal.teleport] Failed to reject local confirmation: ${deps.renderError(err)}`);
+      }
+
+      // STEP 3: Prepare the summary message (only after connection is established)
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      const { repoName, branchName } = await deps.resolveGitContext(workspaceRoot);
+      const { repoName, branchName, remoteUrl } = await deps.resolveGitContext(workspaceRoot);
       const introLines = [
         'Teleported from the local VS Code runtime after a HIGH-risk confirmation.',
         `Repo: ${repoName}`,
         `Branch: ${branchName}`,
-        'Note: uncommitted local changes may not be present remotely.',
       ];
+      if (remoteUrl) {
+        introLines.push(`Remote: ${remoteUrl}`);
+      }
+      introLines.push('Note: uncommitted local changes may not be present remotely.');
       const intro = introLines.join('\n');
 
       const backlogEvents = Array.from(deps.iterConversationEventBacklog(), (item) => item.event);
@@ -141,24 +170,29 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         firstRemoteMessage = `${intro}\n\n---\n\nTeleport summary failed: ${reason}\n\nLast 10 events (Action/Observation/Message only):\n\n${block}`;
       }
 
-      try {
-        await deps.getConversation()?.rejectAction('Teleported to remote runtime');
-      } catch (err) {
-        deps.getOutputChannel()?.appendLine(`[hal.teleport] Failed to reject local confirmation: ${deps.renderError(err)}`);
-      }
-
-      // Ensure we always start a new remote conversation instead of restoring a prior one.
-      await deps.context.workspaceState.update('openhands.conversationId.remote', undefined);
-
-      await settingsMgr.update({ serverUrl: firstServerUrl });
-      await deps.ensureConversationAndConnection({ uiJustCreated: true });
+      // STEP 4: Start new conversation and send the summary
       deps.sentTestEvents.length = 0;
       deps.printedExitFor.clear();
       await deps.getConversation()?.startNewConversation();
       await deps.getConversation()?.sendUserMessage(firstRemoteMessage);
+
+      // STEP 5: Notify success
+      deps.getOutputChannel()?.appendLine(`[hal.teleport] Teleport successful to ${serverDisplayName}`);
+      await postToWebview({
+        type: 'halTeleportSuccess',
+        serverUrl: targetServerUrl,
+        serverLabel: targetServerLabel,
+      });
     } catch (err) {
       const reason = formatTeleportError(deps.renderError(err));
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
+
+      // If connection was never established, we haven't touched the local conversation
+      // The local agent is still active and the pending action is still pending
+      if (!connectionEstablished) {
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Connection failed - local conversation unchanged');
+      }
+
       const posted = await postToWebview({ type: 'halTeleportFailed', error: reason, serverUrl: targetServerUrl });
       if (!posted) {
         void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);

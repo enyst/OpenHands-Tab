@@ -56,55 +56,55 @@ function createMockContext(): Partial<vscode.ExtensionContext> {
 describe('formatTeleportError', () => {
   it('formats ECONNREFUSED errors', () => {
     expect(formatTeleportError('Error: connect ECONNREFUSED 127.0.0.1:3000')).toBe(
-      'Server is unreachable. Please check that the server is running and the URL is correct.'
+      'Server unreachable. Check if it is running.'
     );
   });
 
   it('formats connection refused errors', () => {
     expect(formatTeleportError('Connection refused by server')).toBe(
-      'Server is unreachable. Please check that the server is running and the URL is correct.'
+      'Server unreachable. Check if it is running.'
     );
   });
 
   it('formats timeout errors', () => {
     expect(formatTeleportError('Error: ETIMEDOUT')).toBe(
-      'Connection timed out. The server may be down or experiencing high load.'
+      'Connection timed out. Server may be down.'
     );
     expect(formatTeleportError('Request timed out after 30s')).toBe(
-      'Connection timed out. The server may be down or experiencing high load.'
+      'Connection timed out. Server may be down.'
     );
   });
 
   it('formats DNS resolution errors', () => {
     expect(formatTeleportError('Error: getaddrinfo ENOTFOUND example.com')).toBe(
-      'Server address not found. Please verify the server URL is correct.'
+      'Server not found. Check the URL.'
     );
   });
 
   it('formats network unreachable errors', () => {
     expect(formatTeleportError('Error: ENETUNREACH')).toBe(
-      'Network unreachable. Please check your internet connection.'
+      'Network unreachable. Check your connection.'
     );
   });
 
   it('formats SSL/TLS errors', () => {
     expect(formatTeleportError('SSL certificate problem')).toBe(
-      'SSL/TLS connection error. The server may have an invalid certificate.'
+      'SSL/TLS error. Invalid certificate?'
     );
     expect(formatTeleportError('TLS handshake failed')).toBe(
-      'SSL/TLS connection error. The server may have an invalid certificate.'
+      'SSL/TLS error. Invalid certificate?'
     );
   });
 
   it('formats connection reset errors', () => {
     expect(formatTeleportError('Error: ECONNRESET')).toBe(
-      'Connection was reset by the server. Please try again.'
+      'Connection reset. Try again.'
     );
   });
 
   it('formats WebSocket errors', () => {
     expect(formatTeleportError('WebSocket connection failed')).toBe(
-      'WebSocket connection failed. The server may not be accepting connections.'
+      'WebSocket failed. Server not accepting connections.'
     );
   });
 
@@ -145,7 +145,7 @@ describe('registerHalCommands', () => {
       getConversation: vi.fn().mockReturnValue(undefined),
       getOutputChannel: vi.fn().mockReturnValue(undefined),
       renderError: vi.fn((err: unknown) => String(err)),
-      resolveGitContext: vi.fn().mockResolvedValue({ repoName: 'test-repo', branchName: 'main' }),
+      resolveGitContext: vi.fn().mockResolvedValue({ repoName: 'test-repo', branchName: 'main', remoteUrl: 'https://github.com/test/test-repo.git' }),
       summarizeWithLocalLlm: vi.fn().mockResolvedValue('Test summary'),
     };
   });
@@ -185,10 +185,10 @@ describe('registerHalCommands', () => {
     await teleportCommand!();
 
     expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
-      expect.stringContaining('No remote server configured')
+      expect.stringContaining('No server configured')
     );
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(
-      'No remote server configured. Add a server in the Server Selection menu to enable teleport.'
+      'No server configured. Add one in Server Selection.'
     );
   });
 
@@ -252,8 +252,138 @@ describe('registerHalCommands', () => {
     // Check that halTeleportFailed was posted with formatted error and serverUrl
     expect(mockWebview.postMessage).toHaveBeenCalledWith({
       type: 'halTeleportFailed',
-      error: 'Server is unreachable. Please check that the server is running and the URL is correct.',
+      error: 'Server unreachable. Check if it is running.',
       serverUrl: 'https://example.com',
     });
+  });
+
+  it('does NOT reject local action when connection fails', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const mockConversation = {
+      rejectAction: vi.fn().mockResolvedValue(undefined),
+      startNewConversation: vi.fn().mockResolvedValue(undefined),
+      sendUserMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+
+    // Make ensureConversationAndConnection throw - simulating connection failure
+    mockDeps.ensureConversationAndConnection = vi.fn().mockRejectedValue(new Error('Connection failed'));
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // The local action should NOT be rejected because connection failed
+    expect(mockConversation.rejectAction).not.toHaveBeenCalled();
+  });
+
+  it('posts halTeleportSuccess on successful teleport', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com', label: 'My Server' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const mockConversation = {
+      rejectAction: vi.fn().mockResolvedValue(undefined),
+      startNewConversation: vi.fn().mockResolvedValue(undefined),
+      sendUserMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+
+    // Connection succeeds
+    mockDeps.ensureConversationAndConnection = vi.fn().mockResolvedValue(undefined);
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // Check that halTeleportSuccess was posted
+    expect(mockWebview.postMessage).toHaveBeenCalledWith({
+      type: 'halTeleportSuccess',
+      serverUrl: 'https://example.com',
+      serverLabel: 'My Server',
+    });
+
+    // The local action SHOULD be rejected because connection succeeded
+    expect(mockConversation.rejectAction).toHaveBeenCalledWith('Teleported to remote runtime');
+  });
+
+  it('rejects local action only after successful connection', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const callOrder: string[] = [];
+
+    const mockConversation = {
+      rejectAction: vi.fn().mockImplementation(() => {
+        callOrder.push('rejectAction');
+        return Promise.resolve(undefined);
+      }),
+      startNewConversation: vi.fn().mockImplementation(() => {
+        callOrder.push('startNewConversation');
+        return Promise.resolve(undefined);
+      }),
+      sendUserMessage: vi.fn().mockImplementation(() => {
+        callOrder.push('sendUserMessage');
+        return Promise.resolve(undefined);
+      }),
+    };
+    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+
+    mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(() => {
+      callOrder.push('ensureConversationAndConnection');
+      return Promise.resolve(undefined);
+    });
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // Verify the order: connection first, then reject, then new conversation
+    expect(callOrder).toEqual([
+      'ensureConversationAndConnection',
+      'rejectAction',
+      'startNewConversation',
+      'sendUserMessage',
+    ]);
   });
 });
