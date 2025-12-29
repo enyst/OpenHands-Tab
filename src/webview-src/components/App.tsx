@@ -779,6 +779,7 @@ export function App() {
         deleteProfile={deleteLlmProfile}
         getApiKeyStatus={getLlmProfileApiKeyStatus}
         setApiKey={setLlmProfileApiKey}
+        onSelectActiveProfile={handleSelectLlmProfileId}
       />
 
       {/* History view (slide-over panel) */}
