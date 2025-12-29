@@ -168,12 +168,30 @@ const toGeminiContents = (messages: Message[]): GeminiContent[] => {
   return contents;
 };
 
+/**
+ * Recursively strip unsupported JSON Schema properties for Gemini.
+ * Gemini's function calling API rejects additionalProperties and other
+ * OpenAI-style schema fields that zod-to-json-schema adds automatically.
+ */
+export const stripUnsupportedSchemaProps = (schema: unknown): unknown => {
+  if (schema === null || typeof schema !== 'object') return schema;
+  if (Array.isArray(schema)) return schema.map(stripUnsupportedSchemaProps);
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+    // Skip properties Gemini doesn't support
+    if (key === 'additionalProperties') continue;
+    result[key] = stripUnsupportedSchemaProps(value);
+  }
+  return result;
+};
+
 const toGeminiTools = (tools: ChatCompletionRequest['tools']): GeminiGenerateContentRequest['tools'] | undefined => {
   if (!tools?.length) return undefined;
   const functionDeclarations: GeminiFunctionDeclaration[] = tools.map((tool) => ({
     name: tool.function.name,
     description: tool.function.description,
-    parameters: tool.function.parameters,
+    parameters: stripUnsupportedSchemaProps(tool.function.parameters),
   }));
   return [{ functionDeclarations }];
 };
