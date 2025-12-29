@@ -46,15 +46,21 @@ export async function getGitHeadDiffSummaryForFile(filePath: string): Promise<st
   }
 }
 
-export async function resolveGitContext(workspaceRoot: string | undefined): Promise<{ repoName: string; branchName: string }> {
+export async function resolveGitContext(workspaceRoot: string | undefined): Promise<{ repoName: string; branchName: string; remoteUrl: string }> {
   const fallbackRepo = workspaceRoot ? path.basename(workspaceRoot) : 'unknown';
-  if (!workspaceRoot) return { repoName: fallbackRepo, branchName: 'unknown' };
+  if (!workspaceRoot) return { repoName: fallbackRepo, branchName: 'unknown', remoteUrl: '' };
 
   try {
     const root = (await execFileText('git', ['rev-parse', '--show-toplevel'], workspaceRoot)).trim();
     const branch = (await execFileText('git', ['rev-parse', '--abbrev-ref', 'HEAD'], root)).trim();
-    return { repoName: path.basename(root) || fallbackRepo, branchName: branch || 'unknown' };
+    let remoteUrl = '';
+    try {
+      remoteUrl = (await execFileText('git', ['remote', 'get-url', 'origin'], root)).trim();
+    } catch {
+      // No remote configured, that's fine
+    }
+    return { repoName: path.basename(root) || fallbackRepo, branchName: branch || 'unknown', remoteUrl };
   } catch {
-    return { repoName: fallbackRepo, branchName: 'unknown' };
+    return { repoName: fallbackRepo, branchName: 'unknown', remoteUrl: '' };
   }
 }

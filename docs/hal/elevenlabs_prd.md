@@ -168,7 +168,7 @@ Settings:
 - **Reject**: reject the current confirmation and continue (or pause) as the normal confirmation flow would.
 - **Teleport to remote runtime**:
   - Pick the **first** configured remote server in the ServerSelect list.
-    - If no server is available (empty list): **abort the HAL flow** (exit overlay/audio), show "No remote server configured. Add a server in the Server Selection menu to enable teleport.", then proceed with the normal Reject path (including the usual reject-reason prompt).
+    - If no server is available (empty list): **abort the HAL flow** (exit overlay/audio), show "No server configured. Add one in Server Selection.", then proceed with the normal Reject path (including the usual reject-reason prompt).
   - **Connection-first approach** (critical for clean state management):
     1. Show "Connecting to (server name)…" status message.
     2. Attempt to connect to the remote server **first**.
@@ -180,12 +180,12 @@ Settings:
     4. **If connection fails**:
        - Do **NOT** cancel/reject the local confirmation (the local agent remains active with the pending action).
        - Do **NOT** prepare or send any summary.
-       - Show a user-friendly error message (e.g., "Server is unreachable. Please check that the server is running and the URL is correct.").
+       - Show a short, user-friendly error message (e.g., "Server unreachable. Check if it is running.").
        - Return to the local conversation state (HAL flow resets to error phase).
   - Summary message content (only prepared after successful connection):
     - If summarization succeeds: intro + summary.
     - If summarization fails: intro + note that summarization failed + last 10 events (Action/Observation/Message only; exclude system prompt/tools/skills).
-    - Intro includes: repo name, branch name, and a note that uncommitted local changes may not be present in remote.
+    - Intro includes: repo name, branch name, remote URL (if configured), and a note that uncommitted local changes may not be present in remote.
     - Do **not** send the system prompt, tool list, or skills list (the remote agent/runtime has its own).
     - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn't emit them today).
   - Show the "Teleporting…" overlay and play the "Rhapsody in Blue…" snippet while waiting for the remote conversation to be ready.
