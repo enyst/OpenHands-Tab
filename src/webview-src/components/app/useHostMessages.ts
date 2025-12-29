@@ -65,7 +65,6 @@ export type HostMessageHandlerOptions = {
   maybeUpdateHalFlow: () => void;
   pendingLlmProfilesRequestsRef: RefObject<Map<string, PendingLlmProfilesRequest>>;
   postMessage: (msg: WebviewToHostMessage) => void;
-  resetForServerTargetChange: () => void;
   setAgentStatus: Dispatch<SetStateAction<string | undefined>>;
   setAttachments: Dispatch<SetStateAction<Array<{ uri: string; label: string; sizeBytes?: number }>>>;
   setContextQuery: Dispatch<SetStateAction<string>>;
@@ -126,7 +125,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     maybeUpdateHalFlow,
     pendingLlmProfilesRequestsRef,
     postMessage,
-    resetForServerTargetChange,
     setAgentStatus,
     setAttachments,
     setContextQuery,
@@ -259,8 +257,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
         case 'config': {
           const url = typeof payload.serverUrl === 'string' ? payload.serverUrl : null;
           const nextUrl = url ? url : undefined;
-          currentServerUrlRef.current = nextUrl;
-          setCurrentServerUrl(nextUrl);
 
           if (payload.mode === 'local') {
             lastModeRef.current = 'local';
@@ -272,6 +268,11 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
           } else if (payload.mode === 'remote') {
             lastModeRef.current = 'remote';
             setMode('remote');
+            currentServerUrlRef.current = nextUrl;
+            setCurrentServerUrl(nextUrl);
+          } else {
+            currentServerUrlRef.current = nextUrl;
+            setCurrentServerUrl(nextUrl);
           }
           break;
         }
@@ -718,7 +719,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     pendingActionsRef,
     postMessage,
     pendingLlmProfilesRequestsRef,
-    resetForServerTargetChange,
     setAgentStatus,
     setAttachments,
     setContextQuery,
