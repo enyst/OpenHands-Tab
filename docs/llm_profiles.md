@@ -12,7 +12,7 @@ Related docs:
 - The user can **switch profiles at runtime**; the change applies to the **next** LLM request only (in-flight requests keep streaming).
 - Profiles are a **local-only** concept in VS Code:
   - Local mode: the SDK resolves `profileId` locally and uses it directly.
-  - Remote mode: the extension resolves `profileId` locally and **expands** it into server-supported `agent.llm` fields (do not send `profile_id` until the agent-server supports it).
+  - Remote mode: the extension resolves `profileId` locally, **expands** it into server-supported `agent.llm` fields, and updates the active remote conversation via `POST /api/conversations/{id}/llm` (sending an inline `llm` payload; no `profile_id`).
 
 Non-goals:
 - “Freezing”/diffing the agent state (`diff_from_deserialized`, etc.) is explicitly out of scope.
@@ -136,4 +136,3 @@ User-facing errors should **not** include internal diagnostic fields like:
 
 Internal diagnostics (full request payload, effective resolution details) belong in:
 - Debug logs / Output channel gated behind a debug setting, not in normal UI error blocks.
-

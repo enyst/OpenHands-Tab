@@ -33,6 +33,15 @@ const toStaticSecret = (value: unknown): StaticSecret | undefined => {
   return { kind: 'StaticSecret', value: trimmed };
 };
 
+const toOptionalString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value.trim() || undefined;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    const text = String(value).trim();
+    return text.length > 0 ? text : undefined;
+  }
+  return undefined;
+};
+
 const normalizeRemoteServerUrl = (raw: string): string => {
   let url = raw.trim();
   if (!url) return url;
@@ -84,6 +93,10 @@ export class RemoteConversation extends EventEmitter {
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
   private hasEverConnected = false;
+  private desiredLlmSignature?: string;
+  private desiredLlmPayload?: Record<string, unknown>;
+  private lastAppliedLlmSignature?: string;
+  private llmUpdateInFlight?: Promise<void>;
 
   constructor(options: RemoteConversationOptions) {
     super();
@@ -96,15 +109,18 @@ export class RemoteConversation extends EventEmitter {
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
+      this.desiredLlmPayload = undefined;
+      this.desiredLlmSignature = undefined;
+      this.lastAppliedLlmSignature = undefined;
       this.emit('conversationStarted', this.conversationId);
       void this.replayHistory().then((ok) => {
         if (!ok) {
           this.setStatus('offline');
           return;
         }
-        if (this.conversationId === options.conversationId) {
-          this.connect();
-        }
+        if (this.conversationId !== options.conversationId) return;
+        this.captureDesiredRemoteLlm();
+        this.connect();
       }).catch((err) => {
         this.emit('error', err instanceof Error ? err : new Error(String(err)));
       });
@@ -119,10 +135,141 @@ export class RemoteConversation extends EventEmitter {
 
   setSettings(settings: OpenHandsSettings) {
     this.settings = settings;
+    this.queueRemoteLlmUpdate();
   }
 
   setServerUrl(url: string) {
     this.serverUrl = normalizeRemoteServerUrl(url);
+  }
+
+  private buildAgentLlmPayload(): Record<string, unknown> {
+    const s = this.settings;
+    const llm: Record<string, unknown> = {};
+
+    const profileId = toOptionalString(s?.llm.profileId);
+    const model = toOptionalString(s?.llm.model);
+    const baseUrl = toOptionalString(s?.llm.baseUrl);
+    const apiVersion = toOptionalString(s?.llm.apiVersion);
+
+    const profileConfig: LLMConfiguration | null = (() => {
+      if (!profileId) return null;
+      try {
+        const profile = loadProfile(profileId, this.profileStoreOptions);
+        return profile.config;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        throw new Error(`Failed to load LLM profile '${profileId}': ${reason}`);
+      }
+    })();
+
+    const profileModel = profileConfig ? toOptionalString(profileConfig.model) : undefined;
+    const profileBaseUrl = toOptionalString(profileConfig?.baseUrl);
+    const profileApiVersion = toOptionalString(profileConfig?.apiVersion);
+
+    const effectiveUsageId = 'agent';
+    const effectiveModel = profileModel ?? model;
+    const effectiveBaseUrl = profileBaseUrl ?? baseUrl;
+    const effectiveApiVersion = profileApiVersion ?? apiVersion;
+
+    llm.usage_id = effectiveUsageId;
+    if (effectiveModel) llm.model = effectiveModel;
+    if (effectiveBaseUrl) llm.base_url = effectiveBaseUrl;
+    if (effectiveApiVersion) llm.api_version = effectiveApiVersion;
+
+    const effectiveTimeout = profileConfig?.timeoutSeconds ?? s?.llm.timeout;
+    if (typeof effectiveTimeout === 'number' && Number.isFinite(effectiveTimeout)) {
+      llm.timeout = effectiveTimeout;
+    }
+    const effectiveTemperature = profileConfig?.temperature ?? s?.llm.temperature;
+    if (typeof effectiveTemperature === 'number' && Number.isFinite(effectiveTemperature)) {
+      llm.temperature = effectiveTemperature;
+    }
+    const effectiveTopP = profileConfig?.topP ?? s?.llm.topP;
+    if (typeof effectiveTopP === 'number' && Number.isFinite(effectiveTopP)) {
+      llm.top_p = effectiveTopP;
+    }
+    const effectiveTopK = profileConfig?.topK ?? s?.llm.topK;
+    if (typeof effectiveTopK === 'number' && Number.isFinite(effectiveTopK)) {
+      llm.top_k = effectiveTopK;
+    }
+
+    const maxInputTokens = profileConfig?.maxInputTokens ?? s?.llm.maxInputTokens;
+    if (typeof maxInputTokens === 'number' && Number.isFinite(maxInputTokens) && maxInputTokens > 0) {
+      llm.max_input_tokens = Math.trunc(maxInputTokens);
+    }
+    const maxOutputTokens = profileConfig?.maxOutputTokens ?? s?.llm.maxOutputTokens;
+    if (typeof maxOutputTokens === 'number' && Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
+      llm.max_output_tokens = Math.trunc(maxOutputTokens);
+    }
+
+    const effectiveReasoningEffort = profileConfig?.reasoningEffort ?? s?.llm.reasoningEffort;
+    if (typeof effectiveReasoningEffort === 'string' && effectiveReasoningEffort) {
+      llm.reasoning_effort = effectiveReasoningEffort;
+    }
+    if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
+    if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
+    if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
+
+    return llm;
+  }
+
+  private captureDesiredRemoteLlm(): void {
+    if (!this.conversationId) return;
+    let llm: Record<string, unknown>;
+    try {
+      llm = this.buildAgentLlmPayload();
+    } catch (err) {
+      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+      return;
+    }
+
+    const signature = JSON.stringify(llm);
+    this.desiredLlmSignature = signature;
+    this.desiredLlmPayload = llm;
+  }
+
+  private queueRemoteLlmUpdate(): void {
+    this.captureDesiredRemoteLlm();
+    const signature = this.desiredLlmSignature;
+    if (!signature) return;
+    if (signature === this.lastAppliedLlmSignature) return;
+    if (this.llmUpdateInFlight) return;
+    void this.flushRemoteLlmUpdate();
+  }
+
+  private async flushRemoteLlmUpdate(): Promise<void> {
+    if (!this.conversationId) return;
+    if (this.llmUpdateInFlight) {
+      await this.llmUpdateInFlight;
+      return this.flushRemoteLlmUpdate();
+    }
+    const signature = this.desiredLlmSignature;
+    const llm = this.desiredLlmPayload;
+    if (!signature || !llm) return;
+    if (signature === this.lastAppliedLlmSignature) return;
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    this.llmUpdateInFlight = this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/llm`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ llm }),
+    }, RemoteConversation.httpTimeoutMs).then(async (res) => {
+      if (!res.ok) {
+        const info = await res.text().catch(() => '');
+        throw new Error(`Failed to update conversation LLM (HTTP ${res.status})${info ? `: ${info}` : ''}`);
+      }
+      this.lastAppliedLlmSignature = signature;
+    }).catch((err) => {
+      this.emit('error', err instanceof Error ? err : new Error(String(err)));
+    }).finally(() => {
+      this.llmUpdateInFlight = undefined;
+    });
+
+    await this.llmUpdateInFlight;
+    if (this.desiredLlmSignature && this.desiredLlmSignature !== this.lastAppliedLlmSignature) {
+      await this.flushRemoteLlmUpdate();
+    }
   }
 
   async startNewConversation(): Promise<string | undefined> {
@@ -134,83 +281,14 @@ export class RemoteConversation extends EventEmitter {
       }
       this.clearWsHandshakeTimer();
       this.seenEventIds.clear();
+      this.desiredLlmPayload = undefined;
+      this.desiredLlmSignature = undefined;
+      this.lastAppliedLlmSignature = undefined;
       this.setStatus('connecting');
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
-      const llm: Record<string, unknown> = {};
-      const toOptionalString = (value: unknown): string | undefined => {
-        if (typeof value === 'string') return value.trim() || undefined;
-        if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
-          const text = String(value).trim();
-          return text.length > 0 ? text : undefined;
-        }
-        return undefined;
-      };
-      const profileId = toOptionalString(s?.llm.profileId);
-      const model = toOptionalString(s?.llm.model);
-      const baseUrl = toOptionalString(s?.llm.baseUrl);
-      const apiVersion = toOptionalString(s?.llm.apiVersion);
-
-      const profileConfig: LLMConfiguration | null = (() => {
-        if (!profileId) return null;
-        try {
-          const profile = loadProfile(profileId, this.profileStoreOptions);
-          return profile.config;
-        } catch (err) {
-          const reason = err instanceof Error ? err.message : String(err);
-          throw new Error(`Failed to load LLM profile '${profileId}': ${reason}`);
-        }
-      })();
-
-      // NOTE: profileId is a local alias only. Remote agent-server rejects unknown llm fields
-      // (like `profile_id`) with strict schema validation.
-      const profileModel = profileConfig ? toOptionalString(profileConfig.model) : undefined;
-      const profileBaseUrl = toOptionalString(profileConfig?.baseUrl);
-      const profileApiVersion = toOptionalString(profileConfig?.apiVersion);
-
-      const effectiveUsageId = 'agent';
-      const effectiveModel = profileModel ?? model;
-      const effectiveBaseUrl = profileBaseUrl ?? baseUrl;
-      const effectiveApiVersion = profileApiVersion ?? apiVersion;
-
-      llm.usage_id = effectiveUsageId;
-      if (effectiveModel) llm.model = effectiveModel;
-      if (effectiveBaseUrl) llm.base_url = effectiveBaseUrl;
-      if (effectiveApiVersion) llm.api_version = effectiveApiVersion;
-
-      const effectiveTimeout = profileConfig?.timeoutSeconds ?? s?.llm.timeout;
-      if (typeof effectiveTimeout === 'number' && Number.isFinite(effectiveTimeout)) {
-        llm.timeout = effectiveTimeout;
-      }
-      const effectiveTemperature = profileConfig?.temperature ?? s?.llm.temperature;
-      if (typeof effectiveTemperature === 'number' && Number.isFinite(effectiveTemperature)) {
-        llm.temperature = effectiveTemperature;
-      }
-      const effectiveTopP = profileConfig?.topP ?? s?.llm.topP;
-      if (typeof effectiveTopP === 'number' && Number.isFinite(effectiveTopP)) {
-        llm.top_p = effectiveTopP;
-      }
-      const effectiveTopK = profileConfig?.topK ?? s?.llm.topK;
-      if (typeof effectiveTopK === 'number' && Number.isFinite(effectiveTopK)) {
-        llm.top_k = effectiveTopK;
-      }
-
-      const maxInputTokens = profileConfig?.maxInputTokens ?? s?.llm.maxInputTokens;
-      if (typeof maxInputTokens === 'number' && Number.isFinite(maxInputTokens) && maxInputTokens > 0) {
-        llm.max_input_tokens = Math.trunc(maxInputTokens);
-      }
-      const maxOutputTokens = profileConfig?.maxOutputTokens ?? s?.llm.maxOutputTokens;
-      if (typeof maxOutputTokens === 'number' && Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
-        llm.max_output_tokens = Math.trunc(maxOutputTokens);
-      }
-
-      const effectiveReasoningEffort = profileConfig?.reasoningEffort ?? s?.llm.reasoningEffort;
-      if (typeof effectiveReasoningEffort === 'string' && effectiveReasoningEffort) {
-        llm.reasoning_effort = effectiveReasoningEffort;
-      }
-      if (s?.secrets.llmApiKey) llm.api_key = s.secrets.llmApiKey;
-      if (s?.secrets.awsAccessKeyId) llm.aws_access_key_id = s.secrets.awsAccessKeyId;
-      if (s?.secrets.awsSecretAccessKey) llm.aws_secret_access_key = s.secrets.awsSecretAccessKey;
+      const llm = this.buildAgentLlmPayload();
+      const llmSignature = JSON.stringify(llm);
 
       const typedSecrets: Record<string, StaticSecret> = {};
       const maybeSetSecret = (key: string, value: unknown) => {
@@ -284,6 +362,9 @@ export class RemoteConversation extends EventEmitter {
       if (!this.conversationId) {
         throw new Error('Server response missing conversation ID. Check agent-server logs.');
       }
+      this.desiredLlmSignature = llmSignature;
+      this.desiredLlmPayload = llm;
+      this.lastAppliedLlmSignature = llmSignature;
       this.emit('conversationStarted', this.conversationId);
       this.connect();
       return this.conversationId;
@@ -302,6 +383,9 @@ export class RemoteConversation extends EventEmitter {
   async restoreConversation(id: string) {
     this.conversationId = id;
     this.seenEventIds.clear();
+    this.desiredLlmPayload = undefined;
+    this.desiredLlmSignature = undefined;
+    this.lastAppliedLlmSignature = undefined;
     this.setStatus('connecting');
     this.emit('conversationStarted', id);
     const ok = await this.replayHistory();
@@ -309,6 +393,7 @@ export class RemoteConversation extends EventEmitter {
       this.setStatus('offline');
       return;
     }
+    this.captureDesiredRemoteLlm();
     this.connect();
   }
 
@@ -338,6 +423,8 @@ export class RemoteConversation extends EventEmitter {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
+      this.queueRemoteLlmUpdate();
+      await this.flushRemoteLlmUpdate();
       const headers = this.getAuthHeaders();
       const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers }, RemoteConversation.httpTimeoutMs);
       if (!res.ok) {
@@ -366,6 +453,8 @@ export class RemoteConversation extends EventEmitter {
     }
     const base = this.serverUrl.replace(/\/$/, '');
     try {
+      this.queueRemoteLlmUpdate();
+      await this.flushRemoteLlmUpdate();
       const headers = this.getAuthHeaders();
 
       const payload: { accept: boolean; reason?: string } = { accept };
@@ -392,6 +481,9 @@ export class RemoteConversation extends EventEmitter {
     if (!this.conversationId) {
       const id = await this.startNewConversation();
       if (!id) return;
+    } else {
+      this.queueRemoteLlmUpdate();
+      await this.flushRemoteLlmUpdate();
     }
     const messagePayload: Message = { role: 'user', content: [{ type: 'text', text }] };
     if (run && this.ws && this.ws.readyState === WebSocket.OPEN) {

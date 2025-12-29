@@ -20,6 +20,15 @@ type WebviewActionResult = {
   sent?: boolean;
 };
 
+type ConversationInfoResponse = {
+  agent?: {
+    llm?: {
+      model?: unknown;
+      base_url?: unknown;
+    };
+  };
+};
+
 type RenderedEventSnapshot = {
   type?: unknown;
   marker?: unknown;
@@ -78,12 +87,71 @@ export async function run(): Promise<void> {
     return diag?.mode === 'remote' && diag?.serverUrl === serverUrl;
   }, 15000);
 
+  const profileA = `${markerPrefix}_profile_a`;
+  const profileB = `${markerPrefix}_profile_b`;
+  const modelA = `openai/${markerPrefix}_a`;
+  const modelB = `openai/${markerPrefix}_b`;
+  const baseUrlA = 'http://127.0.0.1:1';
+  const baseUrlB = 'http://127.0.0.1:2';
+
+  const fetchConversationInfo = async (conversationId: string): Promise<ConversationInfoResponse> => {
+    const base = serverUrl.replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/conversations/${conversationId}`, { method: 'GET' });
+    if (!res.ok) throw new Error(`GET /api/conversations/${conversationId} failed: HTTP ${res.status}`);
+    return await res.json() as ConversationInfoResponse;
+  };
+
+  try {
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: profileA,
+      profile: { provider: 'openai', model: modelA, baseUrl: baseUrlA },
+    });
+    await vscode.commands.executeCommand('openhands._createProfile', {
+      profileId: profileB,
+      profile: { provider: 'openai', model: modelB, baseUrl: baseUrlB },
+    });
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: profileA });
+  } catch (err) {
+    throw new Error(`Failed to set up test LLM profiles: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   await vscode.commands.executeCommand('openhands.startNewConversation');
 
   await pollUntil(async () => {
     const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     return diag?.mode === 'remote' && diag?.status === 'online' && typeof diag?.conversationId === 'string';
   }, 45000);
+
+  const diagStarted = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  const conversationId = typeof diagStarted?.conversationId === 'string' ? diagStarted.conversationId : '';
+  if (!conversationId) throw new Error('Missing conversationId after startNewConversation');
+
+  await pollUntil(async () => {
+    const info = await fetchConversationInfo(conversationId);
+    return info.agent?.llm?.model === modelA && info.agent?.llm?.base_url === baseUrlA;
+  }, 15000);
+
+  await vscode.commands.executeCommand('openhands._selectProfile', { profileId: profileB });
+  await pollUntil(async () => {
+    const info = await fetchConversationInfo(conversationId);
+    return info.agent?.llm?.model === modelB && info.agent?.llm?.base_url === baseUrlB;
+  }, 20000);
+
+  // Force a RemoteConversation re-create + restore path by mutating serverUrl (still the same server).
+  await vscode.workspace.getConfiguration().update('openhands.serverUrl', `${serverUrl.replace(/\/+$/, '')}/`, vscode.ConfigurationTarget.Global);
+  await pollUntil(async () => {
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    const normalize = (value: unknown): string => typeof value === 'string' ? value.replace(/\/+$/, '') : '';
+    return diag?.mode === 'remote'
+      && normalize(diag?.serverUrl) === normalize(serverUrl)
+      && diag?.status === 'online'
+      && diag?.conversationId === conversationId;
+  }, 45000);
+
+  await pollUntil(async () => {
+    const info = await fetchConversationInfo(conversationId);
+    return info.agent?.llm?.model === modelB && info.agent?.llm?.base_url === baseUrlB;
+  }, 15000);
 
   const before = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const beforeCount = typeof before?.count === 'number' ? before.count : 0;

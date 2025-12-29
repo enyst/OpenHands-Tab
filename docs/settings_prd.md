@@ -75,10 +75,10 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - Profiles live at `~/.openhands/llm-profiles/<profileId>.json`.
   - `profileId` is a file name, not a server-side identifier.
 - Remote compatibility constraint
-  - The agent-server `StartConversationRequest` schema is strict and currently rejects unknown fields like `llm.profile_id`.
-  - Therefore, treat `openhands.llm.profileId` as a **local alias only** for now.
-  - In remote mode, the extension/SDK must load the profile locally and expand it into the existing `agent.llm` payload (only server-supported fields).
-  - Do **not** send `profile_id` to the server until the agent-server supports it.
+  - `profileId` is a **local alias** (a filename stem), not a server-side identifier.
+  - In remote mode, the extension resolves the profile locally and expands it into a server-supported `agent.llm` payload.
+  - Runtime switching (remote): when the user changes `profileId`, the extension updates the active remote conversation via `POST /api/conversations/{id}/llm` with an inline `llm` payload (no `profile_id`).
+  - Server-side `profile_id` switching is supported by the Python agent-server, but it requires the profile files to exist on the server.
 - Merge rules
   - Profile config is canonical for provider/model/baseUrl/openaiApiMode and generation parameters.
   - The only remaining VS Code LLM setting is `openhands.llm.profileId`.

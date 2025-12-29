@@ -74,6 +74,69 @@ describe('RemoteConversation', () => {
     }
   });
 
+  it('updates active conversation LLM via POST /api/conversations/{id}/llm when settings change', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url === 'http://localhost:3000/api/conversations') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: 'conv-switch' }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      if (url === 'http://localhost:3000/api/conversations/conv-switch/llm') {
+        const parsed = JSON.parse(init?.body as string) as { llm: Record<string, unknown> };
+        expect(parsed.llm.profile_id).toBeUndefined();
+        expect(parsed.llm.model).toBe('gpt-4o');
+        expect(parsed.llm.base_url).toBe('http://profile-b.example');
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ success: true }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const profilesRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'remote-llm-update-'));
+    try {
+      saveProfile(
+        'profile-a',
+        { provider: 'openai', model: 'gpt-5', baseUrl: 'http://profile-a.example' },
+        { rootDir: profilesRoot }
+      );
+      saveProfile(
+        'profile-b',
+        { provider: 'openai', model: 'gpt-4o', baseUrl: 'http://profile-b.example' },
+        { rootDir: profilesRoot }
+      );
+
+      const conversation = new RemoteConversation({
+        serverUrl: 'http://localhost:3000',
+        settings: { ...baseSettings, llm: { profileId: 'profile-a' } },
+        profileStoreOptions: { rootDir: profilesRoot },
+      });
+
+      await conversation.startNewConversation();
+      conversation.setSettings({ ...baseSettings, llm: { profileId: 'profile-b' } });
+
+      await vi.waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+      });
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      fs.rmSync(profilesRoot, { recursive: true, force: true });
+    }
+  });
+
   it('passes provided tools and workspace through to POST /api/conversations', async () => {
     const connectSpy = vi
       .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')

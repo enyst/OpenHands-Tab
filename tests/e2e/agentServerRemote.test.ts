@@ -200,6 +200,10 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       const extensionTestsPath = path.resolve(__dirname, './suite');
       const userDataDir = path.join(os.tmpdir(), `vscode-test-agent-server-${Date.now()}`);
 
+      // Isolate ~/.openhands/llm-profiles + VS Code argv settings for this suite.
+      await fs.promises.mkdir(path.join(userDataDir, '.vscode'), { recursive: true });
+      await fs.promises.writeFile(path.join(userDataDir, '.vscode', 'argv.json'), '{}\n', 'utf8');
+
       await runTests({
         vscodeExecutablePath,
         extensionDevelopmentPath,
@@ -209,12 +213,15 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
           '--user-data-dir', userDataDir,
           '--disable-gpu',
           '--disable-dev-shm-usage',
+          '--use-inmemory-secretstorage',
           '--disable-software-rasterizer',
           extensionDevelopmentPath
         ],
         extensionTestsEnv: {
           TEST_NAME: 'agentServerRemote',
           AGENT_SERVER_URL: serverUrl,
+          HOME: userDataDir,
+          USERPROFILE: userDataDir,
         }
       });
 

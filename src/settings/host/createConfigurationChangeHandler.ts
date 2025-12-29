@@ -84,7 +84,7 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
       try {
         await deps.ensureConversationAndConnection();
         if (deps.getConversationMode() === 'remote') {
-          deps.getOutputChannel()?.appendLine('[settings] LLM settings updated (remote mode: applies on next conversation)');
+          deps.getOutputChannel()?.appendLine('[settings] LLM settings updated (remote mode: applies on next request)');
         } else {
           deps.getOutputChannel()?.appendLine('[settings] LLM settings updated (local mode: applies immediately)');
         }
