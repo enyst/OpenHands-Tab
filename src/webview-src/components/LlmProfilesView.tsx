@@ -74,6 +74,7 @@ export function LlmProfilesView(props: {
   deleteProfile: (profileId: string) => Promise<void>;
   getApiKeyStatus: (profileId: string, overrides?: LlmProfileApiKeyStatusOverrides) => Promise<LlmProfileApiKeyStatusInfo>;
   setApiKey: (profileId: string, apiKey: string) => Promise<void>;
+  onSelectActiveProfile?: (profileId: string) => void;
 }) {
   const {
     isOpen,
@@ -86,6 +87,7 @@ export function LlmProfilesView(props: {
     deleteProfile,
     getApiKeyStatus,
     setApiKey,
+    onSelectActiveProfile,
   } = props;
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -426,7 +428,8 @@ export function LlmProfilesView(props: {
       return;
     }
     void startEdit(next);
-  }, [startCreate, startEdit]);
+    onSelectActiveProfile?.(next);
+  }, [onSelectActiveProfile, startCreate, startEdit]);
 
   const handleSetApiKey = useCallback(async () => {
     if (!selectedProfileId) return;
