@@ -4,7 +4,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { Agent, EventLog } from '../runtime';
 import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../llm';
-import { isActionEvent, isCondensation, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
+import { isActionEvent, isCondensation, isConversationErrorEvent, isMessageEvent, isObservationEvent, isPauseEvent } from '../types';
 import type { ToolDefinition } from '../types/tools';
 import type { OpenHandsSettings } from '../types/settings';
 import { FileEditorTool } from '../../tools';
@@ -420,5 +420,136 @@ describe('Agent loop control', () => {
 
     const assistantMessages = log.list().filter(isMessageEvent).filter((evt) => evt.llm_message.role === 'assistant');
     expect(assistantMessages.some((evt) => evt.llm_message.content.some((part) => part.type === 'text' && part.text.includes('OK')))).toBe(true);
+  });
+
+  it('emits ConversationErrorEvent and sets status to IDLE when maxIterations is reached', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input) => ({ value: (input as { value: string }).value }),
+      execute: async (args) => ({ echoed: args.value }),
+    };
+
+    // LLM that always returns a tool call, forcing continuous iterations
+    const llm = new SequencedLLM([
+      [
+        { type: 'text', text: 'Calling tool 1' },
+        { type: 'tool_call_delta', id: 'call_1', name: 'echo', arguments: '{"value":"1"}' },
+        { type: 'finish' },
+      ],
+      [
+        { type: 'text', text: 'Calling tool 2' },
+        { type: 'tool_call_delta', id: 'call_2', name: 'echo', arguments: '{"value":"2"}' },
+        { type: 'finish' },
+      ],
+      [
+        { type: 'text', text: 'Calling tool 3' },
+        { type: 'tool_call_delta', id: 'call_3', name: 'echo', arguments: '{"value":"3"}' },
+        { type: 'finish' },
+      ],
+    ]);
+
+    const agent = new Agent({
+      settings: { ...baseSettings, conversation: { maxIterations: 2 } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('keep iterating');
+
+    // Should have stopped after 2 iterations
+    expect(agent.state.snapshot.iteration).toBe(2);
+
+    // Should have emitted a ConversationErrorEvent with max_iterations_exceeded code
+    const errorEvents = log.list().filter(isConversationErrorEvent);
+    expect(errorEvents.length).toBe(1);
+    expect(errorEvents[0]?.code).toBe('max_iterations_exceeded');
+    expect(errorEvents[0]?.detail).toContain('maximum iteration limit');
+    expect(errorEvents[0]?.detail).toContain('2');
+
+    // Status should be IDLE, not stuck on RUNNING
+    expect(agent.state.snapshot.status).toBe('IDLE');
+  });
+
+  it('does not emit maxIterations error when loop exits for other reasons', async () => {
+    const log = new EventLog();
+    const llm = new MockLLM([
+      { type: 'text', text: 'Hello, done!' },
+      { type: 'finish' },
+    ]);
+
+    const agent = new Agent({
+      settings: { ...baseSettings, conversation: { maxIterations: 10 } },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+    });
+
+    await agent.run('hi');
+
+    // Should complete after 1 iteration (no tool calls)
+    expect(agent.state.snapshot.iteration).toBe(1);
+
+    // Should NOT have a max_iterations_exceeded error
+    const errorEvents = log.list().filter(isConversationErrorEvent);
+    const maxIterErrors = errorEvents.filter((e) => e.code === 'max_iterations_exceeded');
+    expect(maxIterErrors.length).toBe(0);
+
+    // Status should be IDLE
+    expect(agent.state.snapshot.status).toBe('IDLE');
+  });
+
+  it('allows continuation after maxIterations is increased', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input) => ({ value: (input as { value: string }).value }),
+      execute: async (args) => ({ echoed: args.value }),
+    };
+
+    const llm = new SequencedLLM([
+      [
+        { type: 'text', text: 'Calling tool 1' },
+        { type: 'tool_call_delta', id: 'call_1', name: 'echo', arguments: '{"value":"1"}' },
+        { type: 'finish' },
+      ],
+      [
+        { type: 'text', text: 'Done now' },
+        { type: 'finish' },
+      ],
+    ]);
+
+    const settings = { ...baseSettings, conversation: { maxIterations: 1 } };
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('start');
+
+    // First run hits maxIterations
+    expect(agent.state.snapshot.iteration).toBe(1);
+    expect(agent.state.snapshot.status).toBe('IDLE');
+    const firstErrors = log.list().filter(isConversationErrorEvent).filter((e) => e.code === 'max_iterations_exceeded');
+    expect(firstErrors.length).toBe(1);
+
+    // Increase maxIterations via setSettings
+    agent.setSettings({ ...settings, conversation: { maxIterations: 10 } });
+
+    // Continue conversation
+    await agent.run('continue please');
+
+    // Should have completed additional iterations
+    expect(agent.state.snapshot.iteration).toBe(2);
+    expect(agent.state.snapshot.status).toBe('IDLE');
+
+    // No new max_iterations_exceeded error
+    const allErrors = log.list().filter(isConversationErrorEvent).filter((e) => e.code === 'max_iterations_exceeded');
+    expect(allErrors.length).toBe(1); // Still just the first one
   });
 });

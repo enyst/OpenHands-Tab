@@ -381,6 +381,19 @@ export class Agent extends EventEmitter {
     }
 
     const maxIterations = this.clampMaxIterations();
+
+    // Check if we've already reached maxIterations
+    if (this.state.snapshot.iteration >= maxIterations) {
+      this.events.push({
+        kind: 'ConversationErrorEvent',
+        source: 'agent',
+        code: 'max_iterations_exceeded',
+        detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
+      });
+      this.state.setStatus('IDLE');
+      return undefined;
+    }
+
     let streamer: LLMStreamer;
     try {
       streamer = await this.getStreamer();
@@ -611,6 +624,18 @@ export class Agent extends EventEmitter {
       if (toolExecutionFailed) {
         this.state.setStatus('IDLE');
         continue;
+      }
+
+      // Check if we've reached maxIterations
+      if (this.state.snapshot.iteration >= maxIterations) {
+        this.events.push({
+          kind: 'ConversationErrorEvent',
+          source: 'agent',
+          code: 'max_iterations_exceeded',
+          detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
+        });
+        this.state.setStatus('IDLE');
+        break;
       }
     }
 
