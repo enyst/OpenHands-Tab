@@ -499,7 +499,7 @@ export function GlobObservationSummary({ observation }: { observation: JsonRecor
       )}
       {count > 10 && (
         <div className="text-xs text-stone-500">
-          Showing first 10 results. Use the expand button to see all files.
+          Showing first 10 results. Expand to see the full raw data.
         </div>
       )}
     </div>
@@ -573,7 +573,7 @@ export function GrepObservationSummary({ observation }: { observation: JsonRecor
       )}
       {count > 10 && (
         <div className="text-xs text-stone-500">
-          Showing first 10 results. Use the expand button to see all files.
+          Showing first 10 results. Expand to see the full raw data.
         </div>
       )}
     </div>

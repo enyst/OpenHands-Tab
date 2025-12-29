@@ -89,7 +89,7 @@ export type HostMessageHandlerOptions = {
   setStatus: Dispatch<SetStateAction<'online' | 'offline' | 'connecting'>>;
   setStatusBanner: Dispatch<SetStateAction<StatusBannerState | null>>;
   setStreamingContent: Dispatch<SetStateAction<string | null>>;
-  setTools: Dispatch<SetStateAction<{ id: string; label: string }[]>>;
+  setTools: Dispatch<SetStateAction<{ id: string; label: string; description?: string; isDefault?: boolean }[]>>;
   setWorkspaceFiles: Dispatch<SetStateAction<string[]>>;
   showStatusMessage: ShowStatusMessage;
   currentServerUrlRef: RefObject<string | undefined>;
