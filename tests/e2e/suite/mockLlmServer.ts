@@ -52,14 +52,14 @@ function sendOpenAiChatCompletionsSse(res: http.ServerResponse, text: string): v
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
-  res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: [{ type: 'text', text }] } }] })}\n`);
+  res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: [{ type: 'text', text }] } }] })}\n\n`);
   res.write(
     `data: ${JSON.stringify({
       choices: [{ delta: {}, finish_reason: 'stop' }],
       usage: { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } },
-    })}\n`,
+    })}\n\n`,
   );
-  res.write('data: [DONE]\n');
+  res.write('data: [DONE]\n\n');
   res.end();
 }
 
@@ -70,12 +70,39 @@ function sendAnthropicMessagesSse(res: http.ServerResponse, text: string): void 
     Connection: 'keep-alive',
   });
   res.write('event: message_start\n');
-  res.write(`data: ${JSON.stringify({ message: { usage: { input_tokens: 1, output_tokens: 1 } } })}\n`);
+  res.write(`data: ${JSON.stringify({ message: { usage: { input_tokens: 1, output_tokens: 1 } } })}\n\n`);
   res.write('event: content_block_delta\n');
-  res.write(`data: ${JSON.stringify({ delta: { type: 'text_delta', text } })}\n`);
+  res.write(`data: ${JSON.stringify({ delta: { type: 'text_delta', text } })}\n\n`);
   res.write('event: message_delta\n');
-  res.write(`data: ${JSON.stringify({ delta: { stop_reason: 'end_turn' } })}\n`);
+  res.write(`data: ${JSON.stringify({ delta: { stop_reason: 'end_turn' } })}\n\n`);
   res.end();
+}
+
+function sendOpenAiChatCompletionsJson(res: http.ServerResponse, text: string): void {
+  const payload = {
+    id: 'chatcmpl_mock',
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  };
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
+}
+
+function sendAnthropicMessagesJson(res: http.ServerResponse, text: string): void {
+  const payload = {
+    id: 'msg_mock',
+    type: 'message',
+    role: 'assistant',
+    content: [{ type: 'text', text }],
+    model: 'claude-mock',
+    stop_reason: 'end_turn',
+    stop_sequence: null,
+    usage: { input_tokens: 1, output_tokens: 1 },
+  };
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
 }
 
 function sendOpenAiResponsesJson(res: http.ServerResponse, text: string): void {
@@ -152,6 +179,13 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
         ...(json !== undefined ? { json } : {}),
       });
 
+      const wantsStream = Boolean(
+        json &&
+          typeof json === 'object' &&
+          'stream' in (json as Record<string, unknown>) &&
+          (json as Record<string, unknown>).stream === true
+      );
+
       if (method !== 'POST') {
         res.writeHead(405, { 'Content-Type': 'text/plain' });
         res.end('Method not allowed');
@@ -162,7 +196,11 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
       const normalizedPath = prefix ? path.slice(prefix.length) : path;
 
       if (normalizedPath === '/chat/completions') {
-        sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');
+        if (wantsStream) {
+          sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');
+        } else {
+          sendOpenAiChatCompletionsJson(res, 'OK (chat_completions)');
+        }
         return;
       }
 
@@ -172,7 +210,11 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
       }
 
       if (normalizedPath === '/messages') {
-        sendAnthropicMessagesSse(res, 'OK (anthropic)');
+        if (wantsStream) {
+          sendAnthropicMessagesSse(res, 'OK (anthropic)');
+        } else {
+          sendAnthropicMessagesJson(res, 'OK (anthropic)');
+        }
         return;
       }
 

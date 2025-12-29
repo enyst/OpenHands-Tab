@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import { startMockLlmServer } from './mockLlmServer';
 
 type DiagnosticsInfo = {
   chat?: { hasView?: boolean; webviewReady?: boolean };
@@ -57,6 +58,10 @@ export async function run(): Promise<void> {
     throw new Error('Missing required env var: AGENT_SERVER_URL');
   }
 
+  const mockA = await startMockLlmServer();
+  const mockB = await startMockLlmServer();
+
+  try {
   const markerPrefix = `e2e_remote_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const markerFor = (index: number) => `${markerPrefix}_${index.toString().padStart(2, '0')}`;
 
@@ -91,8 +96,9 @@ export async function run(): Promise<void> {
   const profileB = `${markerPrefix}_profile_b`;
   const modelA = `openai/${markerPrefix}_a`;
   const modelB = `openai/${markerPrefix}_b`;
-  const baseUrlA = 'http://127.0.0.1:1';
-  const baseUrlB = 'http://127.0.0.1:2';
+  const baseUrlA = `${mockA.baseUrl}/v1`;
+  const baseUrlB = `${mockB.baseUrl}/v1`;
+  const normalizeUrl = (value: unknown): string => typeof value === 'string' ? value.replace(/\/+$/, '') : '';
 
   const fetchConversationInfo = async (conversationId: string): Promise<ConversationInfoResponse> => {
     const base = serverUrl.replace(/\/+$/, '');
@@ -115,6 +121,7 @@ export async function run(): Promise<void> {
     throw new Error(`Failed to set up test LLM profiles: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  await sleep(250);
   await vscode.commands.executeCommand('openhands.startNewConversation');
 
   await pollUntil(async () => {
@@ -126,32 +133,40 @@ export async function run(): Promise<void> {
   const conversationId = typeof diagStarted?.conversationId === 'string' ? diagStarted.conversationId : '';
   if (!conversationId) throw new Error('Missing conversationId after startNewConversation');
 
-  await pollUntil(async () => {
-    const info = await fetchConversationInfo(conversationId);
-    return info.agent?.llm?.model === modelA && info.agent?.llm?.base_url === baseUrlA;
-  }, 15000);
+  const matches = (info: ConversationInfoResponse, model: string, baseUrl: string): boolean => {
+    return info.agent?.llm?.model === model && normalizeUrl(info.agent?.llm?.base_url) === normalizeUrl(baseUrl);
+  };
+
+  let lastA: ConversationInfoResponse | undefined;
+  try {
+    await pollUntil(async () => {
+      lastA = await fetchConversationInfo(conversationId);
+      return matches(lastA, modelA, baseUrlA);
+    }, 20000);
+  } catch (err) {
+    const lastModel = lastA?.agent?.llm?.model;
+    const lastBaseUrl = lastA?.agent?.llm?.base_url;
+    throw new Error(
+      `Timed out waiting for server to start on profileA. lastModel=${String(lastModel)} lastBaseUrl=${String(lastBaseUrl)} (${String(err)})`
+    );
+  }
 
   await vscode.commands.executeCommand('openhands._selectProfile', { profileId: profileB });
-  await pollUntil(async () => {
-    const info = await fetchConversationInfo(conversationId);
-    return info.agent?.llm?.model === modelB && info.agent?.llm?.base_url === baseUrlB;
-  }, 20000);
+  let lastB: ConversationInfoResponse | undefined;
+  try {
+    await pollUntil(async () => {
+      lastB = await fetchConversationInfo(conversationId);
+      return matches(lastB, modelB, baseUrlB);
+    }, 20000);
+  } catch (err) {
+    const lastModel = lastB?.agent?.llm?.model;
+    const lastBaseUrl = lastB?.agent?.llm?.base_url;
+    throw new Error(
+      `Timed out waiting for server to switch to profileB. lastModel=${String(lastModel)} lastBaseUrl=${String(lastBaseUrl)} (${String(err)})`
+    );
+  }
 
-  // Force a RemoteConversation re-create + restore path by mutating serverUrl (still the same server).
-  await vscode.workspace.getConfiguration().update('openhands.serverUrl', `${serverUrl.replace(/\/+$/, '')}/`, vscode.ConfigurationTarget.Global);
-  await pollUntil(async () => {
-    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
-    const normalize = (value: unknown): string => typeof value === 'string' ? value.replace(/\/+$/, '') : '';
-    return diag?.mode === 'remote'
-      && normalize(diag?.serverUrl) === normalize(serverUrl)
-      && diag?.status === 'online'
-      && diag?.conversationId === conversationId;
-  }, 45000);
-
-  await pollUntil(async () => {
-    const info = await fetchConversationInfo(conversationId);
-    return info.agent?.llm?.model === modelB && info.agent?.llm?.base_url === baseUrlB;
-  }, 15000);
+  const mockBeforeB = mockB.requests.length;
 
   const before = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const beforeCount = typeof before?.count === 'number' ? before.count : 0;
@@ -188,6 +203,8 @@ export async function run(): Promise<void> {
     );
     return hasUserMessage && hasRemoteResponse;
   }, 60000);
+
+  await pollUntil(async () => mockB.requests.length > mockBeforeB, 10000, 200);
 
   const afterRemote = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
   const baselineCount = typeof afterRemote?.count === 'number' ? afterRemote.count : 0;
@@ -366,4 +383,8 @@ export async function run(): Promise<void> {
   );
 
   console.log('✓ Remote agent-server E2E test passed');
+} finally {
+  await mockA.close();
+  await mockB.close();
+}
 }

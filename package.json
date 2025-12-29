@@ -470,7 +470,7 @@
     "vscode:prepublish": "npm run build",
     "package": "node scripts/run-vsce-package.cjs",
     "e2e": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
-    "e2e:agent-server": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/agentServerRemote.test.js",
+    "e2e:agent-server": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run build -w @openhands/agent-sdk-ts && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/agentServerRemote.test.js",
     "test": "npm test -w @openhands/agent-sdk-ts && vitest run --dir src",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
