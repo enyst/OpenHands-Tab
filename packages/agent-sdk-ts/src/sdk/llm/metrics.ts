@@ -43,6 +43,17 @@ export class Metrics {
     this.outputCostPerToken = sanitizeRate(options.outputCostPerToken);
   }
 
+  /**
+   * Deserialize metrics from JSON.
+   *
+   * NOTE: Remote agent-server (Python SDK) may send metrics in the legacy format with
+   * tokenUsages/costs/responseLatencies arrays. This method handles both the simplified
+   * format (accumulatedTokenUsage, lastTokenUsage) and the legacy array format by falling
+   * back to the last array element for lastTokenUsage.
+   *
+   * When adding remote conversation metrics display, ensure the remote server's stats
+   * events are properly forwarded and that this parsing handles the server's format.
+   */
   static fromJSON(json: unknown): Metrics {
     const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object';
     if (!isRecord(json)) return new Metrics();
