@@ -56,13 +56,13 @@ These are emitted by the Agent and appear in both the chat timeline AND status b
 
 In `src/webview-src/components/app/useConversationEvents.ts`:
 
-```typescript
-} else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
-  showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, ... });
+} else if (isConversationErrorEvent(event)) {
+  // ConversationErrorEvents are shown to user; AgentErrorEvents go to LLM
+  const statusMessage = event.code === 'missing_llm_api_key'
+    ? 'Missing API key. Set it in LLM Profiles.'
+    : 'Conversation error occurred.';
+  showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
 }
-```
-
-**Note:** Only `missing_llm_api_key` has special handling. All other ConversationErrorEvents are shown in the timeline but NOT the status bar.
 
 ---
 
