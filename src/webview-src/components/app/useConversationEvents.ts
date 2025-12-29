@@ -161,6 +161,18 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       return typeof id === 'string' ? id : null;
     };
 
+    // Helper to clear a pending action by tool_call_id and reset submission state.
+    const clearPendingActionByToolCallId = (toolCallId: string) => {
+      const prev = pendingActionsRef.current;
+      const next = prev.filter((a) => a.tool_call_id !== toolCallId);
+      if (next.length !== prev.length) {
+        pendingActionsRef.current = next;
+        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
+        setPendingActions(next);
+      }
+      clearSubmissionState();
+    };
+
     if (isActionEvent(event)) {
       const prev = pendingActionsRef.current;
       const exists = prev.some((a) => a.tool_call_id === event.tool_call_id);
@@ -174,18 +186,11 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       pendingActionsBatchIdRef.current = nextBatchId;
       setPendingActions(next);
     } else if (isObservationEvent(event) || isUserRejectObservation(event)) {
-      const prev = pendingActionsRef.current;
-      const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
-      if (next.length !== prev.length) {
-        pendingActionsRef.current = next;
-        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
-        setPendingActions(next);
-      }
-      clearSubmissionState();
+      clearPendingActionByToolCallId(event.tool_call_id);
     } else if (isAgentErrorEvent(event)) {
       // AgentErrorEvents go back to the LLM for self-correction; no status bar message needed.
-      // Pending actions are cleared by ConversationStateUpdateEvent when agent_status changes.
-      clearSubmissionState();
+      // Clear the matching pending action so the confirmation prompt updates.
+      clearPendingActionByToolCallId(event.tool_call_id);
     } else if (isConversationErrorEvent(event)) {
       // ConversationErrorEvents are shown to user; AgentErrorEvents go to LLM
       const statusMessage = event.code === 'missing_llm_api_key'

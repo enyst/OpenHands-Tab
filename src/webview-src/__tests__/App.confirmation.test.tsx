@@ -281,18 +281,20 @@ describe('App - Confirmation Flow', () => {
     expect(approveBtnAfter).not.toBeDisabled();
   });
 
-  it('resets isSubmitting=false and re-enables buttons on AgentErrorEvent', async () => {
+  it('clears pending action and confirmation prompt on AgentErrorEvent', async () => {
     await renderAppAndWaitReady();
     setWaitingForConfirmation();
     postToWindow({ type: 'event', event: mkAction({ tool_call_id: 'call-err' }) });
 
-const approveBtn = await screen.findByRole('button', { name: /approve/i });
+    const approveBtn = await screen.findByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
     expect(approveBtn).toBeDisabled();
 
-    // Send AgentErrorEvent which should reset isSubmitting (pending actions cleared by ConversationStateUpdateEvent)
+    // AgentErrorEvent clears the matching pending action (like ObservationEvent)
     postToWindow({ type: 'event', event: { kind: 'AgentErrorEvent', source: 'agent', error: 'oops', tool_name: 'terminal', tool_call_id: 'call-err' } });
-    await waitFor(() => expect(approveBtn).not.toBeDisabled());
+    await waitFor(() => {
+      expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
+    });
   });
 
   it('renders action JSON details in prompt', async () => {

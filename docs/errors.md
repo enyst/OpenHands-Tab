@@ -5,8 +5,8 @@ This document catalogs all error messages that can appear in the VS Code extensi
 ## Changes Made
 
 ### 1. AgentErrorEvent - Removed from status bar
-AgentErrorEvents are sent back to the LLM for self-correction. They should NOT be shown to users in the status bar. Previously, they were truncated to 80 chars and displayed. Now they only:
-- Clear the matching pending action
+AgentErrorEvents are sent back to the LLM for self-correction. They should NOT be shown to users in the status bar. Previously, they were truncated to 80 chars and displayed. Now they:
+- Clear the matching pending action (same as ObservationEvent)
 - Reset submission state (re-enable buttons)
 - Remain visible in the chat timeline (EventBlock)
 
