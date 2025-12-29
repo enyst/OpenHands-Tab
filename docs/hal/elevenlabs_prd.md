@@ -167,17 +167,28 @@ Settings:
 - **Approve locally**: approve the current confirmation and continue the local run.
 - **Reject**: reject the current confirmation and continue (or pause) as the normal confirmation flow would.
 - **Teleport to remote runtime**:
-  - Cancel the local confirmation (do not execute the risky local action).
   - Pick the **first** configured remote server in the ServerSelect list.
-    - If no server is available (empty list): **abort the HAL flow** (exit overlay/audio), show “No server available”, then proceed with the normal Reject path (including the usual reject-reason prompt).
-  - Before starting the new remote conversation:
-    - Run a one-shot **local** LLM summarization and send **only the summary** as the first user message in the remote conversation (not full JSON event history).
-    - If summarization fails: still teleport; send a note that summarization failed **plus the last 10 events** (Action/Observation/Message only; exclude system prompt/tools/skills).
-    - Include repo name + branch name, and a note that uncommitted local changes may not be present in remote.
+    - If no server is available (empty list): **abort the HAL flow** (exit overlay/audio), show "No remote server configured. Add a server in the Server Selection menu to enable teleport.", then proceed with the normal Reject path (including the usual reject-reason prompt).
+  - **Connection-first approach** (critical for clean state management):
+    1. Show "Connecting to (server name)…" status message.
+    2. Attempt to connect to the remote server **first**.
+    3. **Only if connection succeeds**:
+       - Cancel the local confirmation (reject the risky local action with reason "Teleported to remote runtime").
+       - Run a one-shot **local** LLM summarization.
+       - Start a new remote conversation and send the summary as the first user message.
+       - Show "Teleported to (server name)!" success message.
+    4. **If connection fails**:
+       - Do **NOT** cancel/reject the local confirmation (the local agent remains active with the pending action).
+       - Do **NOT** prepare or send any summary.
+       - Show a user-friendly error message (e.g., "Server is unreachable. Please check that the server is running and the URL is correct.").
+       - Return to the local conversation state (HAL flow resets to error phase).
+  - Summary message content (only prepared after successful connection):
+    - If summarization succeeds: intro + summary.
+    - If summarization fails: intro + note that summarization failed + last 10 events (Action/Observation/Message only; exclude system prompt/tools/skills).
+    - Intro includes: repo name, branch name, and a note that uncommitted local changes may not be present in remote.
     - Do **not** send the system prompt, tool list, or skills list (the remote agent/runtime has its own).
-    - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn’t emit them today).
-  - Switch to remote mode and start a new conversation on that server.
-  - Show the “Teleporting…” overlay and play the “Rhapsody in Blue…” snippet until the remote conversation is ready.
+    - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn't emit them today).
+  - Show the "Teleporting…" overlay and play the "Rhapsody in Blue…" snippet while waiting for the remote conversation to be ready.
 
 ## Testing plan
 ### Unit tests (webview)

@@ -59,6 +59,7 @@ export type HostMessageHandlerOptions = {
   handleHalTeleportFailed: (error: unknown, serverUrl?: string) => void;
   handleHalTeleportUnavailable: (error: unknown) => void;
   handleHalTeleportStarting: (serverUrl: string, serverLabel?: string) => void;
+  handleHalTeleportSuccess: (serverUrl: string, serverLabel?: string) => void;
   handleHalTtsResponse: (payload: Record<string, unknown>) => void;
   handleHalVoiceConfirmResponse: (payload: Record<string, unknown>) => void;
   maybeUpdateHalFlow: () => void;
@@ -119,6 +120,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
     handleHalTeleportStarting,
+    handleHalTeleportSuccess,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
     maybeUpdateHalFlow,
@@ -478,6 +480,12 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
           }
           break;
         }
+        case 'halTeleportSuccess': {
+          if (typeof payload.serverUrl === 'string') {
+            handleHalTeleportSuccess(payload.serverUrl, payload.serverLabel);
+          }
+          break;
+        }
         case 'conversationStarted':
           if (typeof payload.conversationId === 'string') {
             handleConversationStarted();
@@ -703,6 +711,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
     handleHalTeleportStarting,
+    handleHalTeleportSuccess,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
     mentionStartRef,

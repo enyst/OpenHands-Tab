@@ -256,4 +256,134 @@ describe('registerHalCommands', () => {
       serverUrl: 'https://example.com',
     });
   });
+
+  it('does NOT reject local action when connection fails', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const mockConversation = {
+      rejectAction: vi.fn().mockResolvedValue(undefined),
+      startNewConversation: vi.fn().mockResolvedValue(undefined),
+      sendUserMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+
+    // Make ensureConversationAndConnection throw - simulating connection failure
+    mockDeps.ensureConversationAndConnection = vi.fn().mockRejectedValue(new Error('Connection failed'));
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // The local action should NOT be rejected because connection failed
+    expect(mockConversation.rejectAction).not.toHaveBeenCalled();
+  });
+
+  it('posts halTeleportSuccess on successful teleport', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com', label: 'My Server' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const mockConversation = {
+      rejectAction: vi.fn().mockResolvedValue(undefined),
+      startNewConversation: vi.fn().mockResolvedValue(undefined),
+      sendUserMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+
+    // Connection succeeds
+    mockDeps.ensureConversationAndConnection = vi.fn().mockResolvedValue(undefined);
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // Check that halTeleportSuccess was posted
+    expect(mockWebview.postMessage).toHaveBeenCalledWith({
+      type: 'halTeleportSuccess',
+      serverUrl: 'https://example.com',
+      serverLabel: 'My Server',
+    });
+
+    // The local action SHOULD be rejected because connection succeeded
+    expect(mockConversation.rejectAction).toHaveBeenCalledWith('Teleported to remote runtime');
+  });
+
+  it('rejects local action only after successful connection', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const callOrder: string[] = [];
+
+    const mockConversation = {
+      rejectAction: vi.fn().mockImplementation(() => {
+        callOrder.push('rejectAction');
+        return Promise.resolve(undefined);
+      }),
+      startNewConversation: vi.fn().mockImplementation(() => {
+        callOrder.push('startNewConversation');
+        return Promise.resolve(undefined);
+      }),
+      sendUserMessage: vi.fn().mockImplementation(() => {
+        callOrder.push('sendUserMessage');
+        return Promise.resolve(undefined);
+      }),
+    };
+    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+
+    mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(() => {
+      callOrder.push('ensureConversationAndConnection');
+      return Promise.resolve(undefined);
+    });
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    // Verify the order: connection first, then reject, then new conversation
+    expect(callOrder).toEqual([
+      'ensureConversationAndConnection',
+      'rejectAction',
+      'startNewConversation',
+      'sendUserMessage',
+    ]);
+  });
 });

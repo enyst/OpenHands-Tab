@@ -210,6 +210,7 @@ export function App() {
     handleHalTeleportUnavailable,
     handleHalTeleportFailed,
     handleHalTeleportStarting,
+    handleHalTeleportSuccess,
     handleConversationStarted,
     resetForServerTargetChange,
   } = useHalFlow({
@@ -273,6 +274,7 @@ export function App() {
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
     handleHalTeleportStarting,
+    handleHalTeleportSuccess,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
     maybeUpdateHalFlow,
