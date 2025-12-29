@@ -13,6 +13,7 @@ import { transformEventForWebview as transformEventForWebviewWithPastedImages } 
 import { ConversationEventBacklog, type BufferedConversationEvent } from './conversation/eventBacklog';
 import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminalLogPseudoterminal';
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
+import { registerHalCommands } from './hal/registerHalCommands';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
 import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
@@ -536,7 +537,6 @@ export function activate(context: vscode.ExtensionContext) {
     pendingUiStateRequests,
     pendingHalStateRequests,
     ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
-    printedExitFor,
     secretRegistry: secrets,
     getConversation: () => conversation,
     getConversationMode: () => conversationMode,
@@ -545,7 +545,20 @@ export function activate(context: vscode.ExtensionContext) {
     getReceivedTerminalEventsCount: () => receivedTerminalEvents.length,
     getRecentTerminalEvents: (max = 10) => receivedTerminalEvents.slice(-Math.max(0, Math.min(max, MAX_TERMINAL_EVENTS))),
     onTerminalEvent: (event) => handleTerminalEvent(event),
+    getOutputChannel: () => outputChannel,
+    renderError,
+  });
 
+  const halCommands = registerHalCommands({
+    context,
+    getChatView: () => chatView,
+    getChatWebviewReady: () => chatWebviewReady,
+    iterConversationEventBacklog,
+    sentTestEvents,
+    ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
+    printedExitFor,
+    secretRegistry: secrets,
+    getConversation: () => conversation,
     getOutputChannel: () => outputChannel,
     renderError,
     resolveGitContext,
@@ -637,6 +650,7 @@ export function activate(context: vscode.ExtensionContext) {
     open,
     explainSelection,
     ...diagnosticsCommands,
+    ...halCommands,
     startNew,
     configure,
     ...secretCommands,
