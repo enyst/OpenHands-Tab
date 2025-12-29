@@ -28,8 +28,33 @@ vi.mock('../../settings/VscodeSettingsAdapter', () => ({
 
 import { registerHalCommands, type RegisterHalCommandsDeps } from '../registerHalCommands';
 
+function createMockContext(): Partial<vscode.ExtensionContext> {
+  return {
+    subscriptions: [],
+    extensionUri: { fsPath: '/test/extension' } as vscode.Uri,
+    workspaceState: {
+      get: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
+      keys: vi.fn(() => []),
+      setKeysForSync: vi.fn(),
+    } as any,
+    globalState: {
+      get: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
+      keys: vi.fn(() => []),
+      setKeysForSync: vi.fn(),
+    } as any,
+    secrets: {
+      get: vi.fn().mockResolvedValue(undefined),
+      store: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
+      onDidChange: vi.fn(),
+    } as any,
+  };
+}
+
 describe('registerHalCommands', () => {
-  let mockContext: vscode.ExtensionContext;
+  let mockContext: any;
   let mockSecretRegistry: SecretRegistry;
   let mockDeps: RegisterHalCommandsDeps;
   let registeredCommands: Map<string, (...args: unknown[]) => unknown>;
@@ -43,39 +68,7 @@ describe('registerHalCommands', () => {
       return { dispose: vi.fn() };
     });
 
-    mockContext = {
-      subscriptions: [],
-      secrets: {
-        get: vi.fn().mockResolvedValue(undefined),
-        store: vi.fn().mockResolvedValue(undefined),
-        delete: vi.fn().mockResolvedValue(undefined),
-        onDidChange: vi.fn(),
-      },
-      workspaceState: {
-        get: vi.fn(),
-        update: vi.fn().mockResolvedValue(undefined),
-        keys: vi.fn().mockReturnValue([]),
-      },
-      globalState: {
-        get: vi.fn(),
-        update: vi.fn().mockResolvedValue(undefined),
-        keys: vi.fn().mockReturnValue([]),
-        setKeysForSync: vi.fn(),
-      },
-      extensionPath: '/test/extension',
-      extensionUri: { fsPath: '/test/extension' } as vscode.Uri,
-      globalStorageUri: { fsPath: '/test/global-storage' } as vscode.Uri,
-      storageUri: { fsPath: '/test/storage' } as vscode.Uri,
-      logUri: { fsPath: '/test/log' } as vscode.Uri,
-      extensionMode: 2, // vscode.ExtensionMode.Test
-      asAbsolutePath: vi.fn((p: string) => `/test/extension/${p}`),
-      storagePath: '/test/storage',
-      globalStoragePath: '/test/global-storage',
-      logPath: '/test/log',
-      extension: {} as vscode.Extension<unknown>,
-      environmentVariableCollection: {} as vscode.GlobalEnvironmentVariableCollection,
-      languageModelAccessInformation: {} as vscode.LanguageModelAccessInformation,
-    } as unknown as vscode.ExtensionContext;
+    mockContext = createMockContext();
 
     mockSecretRegistry = new SecretRegistry(mockContext.secrets);
 
