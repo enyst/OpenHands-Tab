@@ -183,14 +183,8 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       }
       clearSubmissionState();
     } else if (isAgentErrorEvent(event)) {
-      // AgentErrorEvents go back to the LLM for self-correction; no status bar message needed
-      const prev = pendingActionsRef.current;
-      const next = prev.filter((a) => a.tool_call_id !== event.tool_call_id);
-      if (next.length !== prev.length) {
-        pendingActionsRef.current = next;
-        pendingActionsBatchIdRef.current = getBatchIdFromActions(next);
-        setPendingActions(next);
-      }
+      // AgentErrorEvents go back to the LLM for self-correction; no status bar message needed.
+      // Pending actions are cleared by ConversationStateUpdateEvent when agent_status changes.
       clearSubmissionState();
     } else if (isConversationErrorEvent(event)) {
       // ConversationErrorEvents are shown to user; AgentErrorEvents go to LLM

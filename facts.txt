@@ -1,0 +1,7 @@
+3 Facts about OpenHands-Tab:
+
+1. It's a VS Code extension that requires VS Code 1.104.0+ and Node.js >= 22.
+
+2. The project is an npm workspace with two packages: the root VS Code extension (src/) and @openhands/agent-sdk-ts TypeScript SDK (packages/agent-sdk-ts/).
+
+3. The SDK provides 10 tools: Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate, and Finish.
