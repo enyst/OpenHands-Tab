@@ -468,7 +468,8 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
           break;
         }
         case 'halTeleportFailed': {
-          handleHalTeleportFailed(payload.error, payload.serverUrl);
+          const serverUrl = typeof payload.serverUrl === 'string' ? payload.serverUrl : undefined;
+          handleHalTeleportFailed(payload.error, serverUrl);
           break;
         }
         case 'halTeleportStarting': {
