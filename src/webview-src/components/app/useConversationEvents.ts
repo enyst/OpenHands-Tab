@@ -13,6 +13,7 @@ import {
   type Event,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../../shared/llmStreaming';
+import { STATUS_MESSAGE_DISMISS_DELAY_MS } from '../../../shared/webviewMessages';
 import { MAX_RENDERED_EVENTS } from '../../shared/constants';
 import type { ConversationTotals } from './conversationTotals';
 import { computeConversationTotalsFromStats, parseLlmUsageInputTokens } from './conversationStats';
@@ -182,10 +183,24 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       }
       clearSubmissionState();
     } else if (isAgentErrorEvent(event)) {
-      showStatusMessage('error', event.error);
+      // Truncate long error messages for status bar; full details stay in chat timeline
+      const maxLen = 80;
+      let statusMessage = event.error;
+      if (event.error.length > maxLen) {
+        let truncated = event.error.substring(0, maxLen);
+        // If we cut mid-word, backtrack to the last space to avoid partial words.
+        if (event.error[maxLen] && event.error[maxLen] !== ' ') {
+          const lastSpaceIndex = truncated.lastIndexOf(' ');
+          if (lastSpaceIndex > -1) {
+            truncated = truncated.substring(0, lastSpaceIndex);
+          }
+        }
+        statusMessage = truncated.trimEnd() + '…';
+      }
+      showStatusMessage('error', statusMessage, { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
       clearSubmissionState();
     } else if (isConversationErrorEvent(event) && event.code === 'missing_llm_api_key') {
-      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: 8000 });
+      showStatusMessage('error', 'Missing API key. Set it in LLM Profiles.', { autoDismiss: true, autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS });
     } else if (isPauseEvent(event)) {
       showStatusMessage('warn', 'Conversation paused');
     }

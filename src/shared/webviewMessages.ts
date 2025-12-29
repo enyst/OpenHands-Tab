@@ -2,6 +2,9 @@ import type { BashEvent, Event } from '@openhands/agent-sdk-ts';
 import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
 import type { OpenHandsSettings, SavedServer } from '../settings/SettingsManager';
 
+/** Default auto-dismiss delay for transient status messages (in milliseconds). */
+export const STATUS_MESSAGE_DISMISS_DELAY_MS = 5000;
+
 export type LlmProfileApiKeyStatusInfo = {
   hasKey: boolean;
   hasProfileKey: boolean;

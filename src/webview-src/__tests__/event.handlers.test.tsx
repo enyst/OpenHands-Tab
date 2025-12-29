@@ -191,4 +191,5 @@ describe('App event handling helpers', () => {
       expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
     });
   });
+
 });

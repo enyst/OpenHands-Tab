@@ -13,7 +13,7 @@ import { transformEventForWebview as transformEventForWebviewWithPastedImages } 
 import { ConversationEventBacklog, type BufferedConversationEvent } from './conversation/eventBacklog';
 import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminalLogPseudoterminal';
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
-import type { HostToWebviewMessage } from './shared/webviewMessages';
+import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
 import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
 import { createDebugJsonOutputChannel, type DebugJsonOutputChannel } from './extension/debugJsonOutputChannel';
@@ -380,7 +380,7 @@ export function activate(context: vscode.ExtensionContext) {
             level: 'error',
             message: 'No Gemini key found, tool summarization disabled',
             autoDismiss: true,
-            autoDismissDelay: 5000,
+            autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS,
           } satisfies HostToWebviewMessage);
         }
       }
