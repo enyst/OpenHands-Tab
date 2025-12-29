@@ -143,14 +143,26 @@ describe('stripUnsupportedSchemaProps', () => {
     };
 
     const result = stripUnsupportedSchemaProps(schema) as Record<string, unknown>;
-
-    // Verify no additionalProperties at any level
-    expect(result).not.toHaveProperty('additionalProperties');
-    const properties = result['properties'] as Record<string, unknown>;
-    const action = properties['action'] as Record<string, unknown>;
-    expect(action).not.toHaveProperty('additionalProperties');
-    const actionProps = action['properties'] as Record<string, unknown>;
-    const params = actionProps['params'] as Record<string, unknown>;
-    expect(params).not.toHaveProperty('additionalProperties');
+    expect(result).toEqual({
+      type: 'object',
+      properties: {
+        action: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['read', 'write'] },
+            params: {
+              type: 'object',
+              properties: {
+                file: { type: 'string' },
+                content: { type: 'string' }
+              },
+              required: ['file']
+            }
+          },
+          required: ['type', 'params']
+        }
+      },
+      required: ['action']
+    });
   });
 });
