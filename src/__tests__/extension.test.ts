@@ -135,22 +135,21 @@ function createMockContext(): Partial<vscode.ExtensionContext> {
     extensionUri: { fsPath: '/test/extension' } as vscode.Uri,
     workspaceState: {
       get: vi.fn(),
-      update: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
       keys: vi.fn(() => []),
-      setKeysForSync: vi.fn(),
-    } as any,
+    } satisfies vscode.Memento,
     globalState: {
       get: vi.fn(),
-      update: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
       keys: vi.fn(() => []),
       setKeysForSync: vi.fn(),
-    } as any,
+    } satisfies vscode.Memento & { setKeysForSync(keys: readonly string[]): void },
     secrets: {
-      get: vi.fn(),
-      store: vi.fn(),
-      delete: vi.fn(),
+      get: vi.fn().mockResolvedValue(undefined),
+      store: vi.fn().mockResolvedValue(undefined),
+      delete: vi.fn().mockResolvedValue(undefined),
       onDidChange: vi.fn(),
-    } as any,
+    } satisfies vscode.SecretStorage,
   };
 }
 
