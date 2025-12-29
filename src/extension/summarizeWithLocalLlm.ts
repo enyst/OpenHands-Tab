@@ -25,7 +25,7 @@ export async function summarizeWithLocalLlm(
 
   const client = await factory.createClient();
   const request = {
-    systemPrompt: '',
+    systemPrompt: 'You are a very good summarizer.',
     messages: [
       {
         role: 'user' as const,
