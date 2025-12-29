@@ -290,9 +290,12 @@ const approveBtn = await screen.findByRole('button', { name: /approve/i });
     await userEvent.click(approveBtn);
     expect(approveBtn).toBeDisabled();
 
-    // Send AgentErrorEvent which should reset isSubmitting
+    // Send AgentErrorEvent which should clear pending action and reset isSubmitting
     postToWindow({ type: 'event', event: { kind: 'AgentErrorEvent', source: 'agent', error: 'oops', tool_name: 'terminal', tool_call_id: 'call-err' } });
-    await waitFor(() => expect(approveBtn).not.toBeDisabled());
+    // Confirmation prompt should disappear since pending action was cleared
+    await waitFor(() => {
+      expect(screen.queryByText(/Confirmation Required/)).not.toBeInTheDocument();
+    });
   });
 
   it('renders action JSON details in prompt', async () => {
