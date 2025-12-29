@@ -22,7 +22,7 @@ describe('App render', () => {
     expect(screen.getByLabelText('Add context')).toBeInTheDocument();
   });
 
-  it('clears conversation UI when server selection changes', async () => {
+  it('keeps conversation UI when server selection changes', async () => {
     render(<App />);
 
     act(() => {
@@ -60,7 +60,7 @@ describe('App render', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText('hello-server-switch')).not.toBeInTheDocument();
+      expect(screen.getAllByText('hello-server-switch').length).toBeGreaterThan(0);
     });
   });
 
