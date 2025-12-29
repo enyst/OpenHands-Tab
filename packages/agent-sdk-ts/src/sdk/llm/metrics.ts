@@ -175,6 +175,7 @@ export class Metrics {
   private maybeAddCostForTokenUsage(usage: TokenUsage): void {
     const inputRate = this.inputCostPerToken;
     const outputRate = this.outputCostPerToken;
+    // Best-effort: only compute cost when both rates are known.
     if (typeof inputRate !== 'number' || typeof outputRate !== 'number') return;
     const cost = usage.promptTokens * inputRate + usage.completionTokens * outputRate;
     if (cost > 0) this.addCost(cost);
