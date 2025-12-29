@@ -12,7 +12,7 @@ export const detectProviderFromBaseUrl = (baseUrl?: string | null): LLMProvider 
   const normalized = (baseUrl ?? '').toLowerCase();
   if (normalized.includes('anthropic.com')) return 'anthropic';
   if (normalized.includes('openrouter.ai')) return 'openrouter';
-  if (normalized.includes('litellm')) return 'litellm_proxy';
+  if (normalized.includes('litellm') || normalized.includes('llm-proxy')) return 'litellm_proxy';
   if (normalized.includes('generativelanguage.googleapis.com') || normalized.includes('ai.google.dev')) return 'gemini';
   return 'openai';
 };
