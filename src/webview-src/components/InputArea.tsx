@@ -56,6 +56,9 @@ interface InputAreaProps {
   onOpenMCP?: () => void;
   // Selection tracking (for mention-style context)
   onSelectionChange?: (start: number, end: number) => void;
+  // Stop agent (shown when running)
+  isRunning?: boolean;
+  onStopAgent?: () => void;
 }
 
 export function InputArea({
@@ -100,6 +103,8 @@ export function InputArea({
   onRemoveInlineImage,
   onOpenMCP,
   onSelectionChange,
+  isRunning = false,
+  onStopAgent,
 }: InputAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -214,6 +219,27 @@ export function InputArea({
           />
 
             <div className="absolute right-2 bottom-2 flex items-center gap-2">
+              {/* Stop button - shown when agent is running */}
+              {isRunning && onStopAgent && (
+                <button
+                  type="button"
+                  onClick={onStopAgent}
+                  className="
+                    h-9 w-9 rounded-lg
+                    flex items-center justify-center
+                    transition-all duration-200
+                    oh-focus-outline
+                    bg-red-500/20 text-red-400 border border-red-500/30
+                    hover:bg-red-500/30 hover:border-red-500/40 hover:text-red-300
+                  "
+                  aria-label="Stop the agent"
+                  title="Stop the agent"
+                  data-testid="stop-agent-button"
+                >
+                  <span className="codicon codicon-debug-stop" />
+                </button>
+              )}
+
               {/* Attachments button (icon-only) */}
               {onOpenAttachments && (
                 <button
