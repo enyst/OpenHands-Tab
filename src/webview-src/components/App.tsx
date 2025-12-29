@@ -212,7 +212,6 @@ export function App() {
     handleHalTeleportStarting,
     handleHalTeleportSuccess,
     handleConversationStarted,
-    resetForServerTargetChange,
   } = useHalFlow({
     conversationId,
     conversationIdRef,
@@ -280,7 +279,6 @@ export function App() {
     maybeUpdateHalFlow,
     pendingLlmProfilesRequestsRef,
     postMessage,
-    resetForServerTargetChange,
     setAgentStatus,
     setAttachments,
     setContextQuery,

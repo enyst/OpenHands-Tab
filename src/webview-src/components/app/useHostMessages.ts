@@ -8,7 +8,7 @@ import type { HalSettingsSnapshot } from './useHalFlow';
 import type { PendingLlmProfilesRequest } from './llmProfilesRequests';
 import type { StatusBannerState } from './useStatusMessages';
 import { isHalDecision, type HalDecision, type HalStateSnapshot } from '../../../shared/halTypes';
-import { INITIAL_CONVERSATION_TOTALS, type ConversationTotals } from './conversationTotals';
+import type { ConversationTotals } from './conversationTotals';
 
 type WebviewPersistedState = {
   conversationId?: string;
@@ -65,7 +65,6 @@ export type HostMessageHandlerOptions = {
   maybeUpdateHalFlow: () => void;
   pendingLlmProfilesRequestsRef: RefObject<Map<string, PendingLlmProfilesRequest>>;
   postMessage: (msg: WebviewToHostMessage) => void;
-  resetForServerTargetChange: () => void;
   setAgentStatus: Dispatch<SetStateAction<string | undefined>>;
   setAttachments: Dispatch<SetStateAction<Array<{ uri: string; label: string; sizeBytes?: number }>>>;
   setContextQuery: Dispatch<SetStateAction<string>>;
@@ -126,7 +125,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     maybeUpdateHalFlow,
     pendingLlmProfilesRequestsRef,
     postMessage,
-    resetForServerTargetChange,
     setAgentStatus,
     setAttachments,
     setContextQuery,
@@ -253,6 +251,28 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
               ? Math.max(0, payload.autoDismissDelay)
               : undefined;
             showStatusMessage(level, message.trim(), { autoDismiss, autoDismissDelay });
+          }
+          break;
+        }
+        case 'config': {
+          const url = typeof payload.serverUrl === 'string' ? payload.serverUrl : null;
+          const nextUrl = url ? url : undefined;
+
+          if (payload.mode === 'local') {
+            lastModeRef.current = 'local';
+            setMode('local');
+            currentServerUrlRef.current = undefined;
+            setCurrentServerUrl(undefined);
+            setStatusBanner({ message: 'Local mode: running without remote server', level: 'info', dismissible: false });
+            postMessage({ type: 'requestTools' });
+          } else if (payload.mode === 'remote') {
+            lastModeRef.current = 'remote';
+            setMode('remote');
+            currentServerUrlRef.current = nextUrl;
+            setCurrentServerUrl(nextUrl);
+          } else {
+            currentServerUrlRef.current = nextUrl;
+            setCurrentServerUrl(nextUrl);
           }
           break;
         }
@@ -396,29 +416,8 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
           }
           if (typeof payload.serverUrl === 'string') {
             const nextUrl = payload.serverUrl || undefined;
-            const prevUrl = currentServerUrlRef.current;
             currentServerUrlRef.current = nextUrl;
             setCurrentServerUrl(nextUrl);
-
-            // If the server target changed (Local ↔ Remote or remote server URL changed),
-            // start a fresh conversation UI instead of implicitly resuming prior state.
-            if (prevUrl !== nextUrl) {
-              resetForServerTargetChange();
-              conversationIdRef.current = undefined;
-              setConversationId(undefined);
-              setEvents([]);
-              pendingActionsRef.current = [];
-              setPendingActions([]);
-              agentStatusRef.current = undefined;
-              setAgentStatus(undefined);
-              setStreamingContent(null);
-              setConversationTotals(INITIAL_CONVERSATION_TOTALS);
-              hasLlmUsageRef.current = false;
-              eventId.current = 1;
-              const api = getVscodeApi();
-              api.setState?.({});
-              maybeUpdateHalFlow();
-            }
           }
           break;
         }
@@ -720,7 +719,6 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     pendingActionsRef,
     postMessage,
     pendingLlmProfilesRequestsRef,
-    resetForServerTargetChange,
     setAgentStatus,
     setAttachments,
     setContextQuery,

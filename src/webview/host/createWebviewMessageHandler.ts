@@ -1109,16 +1109,19 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'command': {
         switch (message.command) {
           case 'reconnect':
-            conversation?.reconnect();
+            // Use the VS Code command so we re-evaluate settings (local ↔ remote) before reconnecting.
+            await vscode.commands.executeCommand('openhands.reconnect');
             break;
           case 'pause':
             await conversation?.pause();
             break;
-          case 'startNewConversation':
-            await conversation?.startNewConversation();
-            if (isLocalConversationToolControls(conversation)) {
+          case 'startNewConversation': {
+            // Use the VS Code command so we re-evaluate settings (local ↔ remote) before starting.
+            await vscode.commands.executeCommand('openhands.startNewConversation');
+            const refreshedConversation = deps.getConversation();
+            if (isLocalConversationToolControls(refreshedConversation)) {
               try {
-                conversation.setTools(resolveLocalTools(getDefaultLocalToolIds()));
+                refreshedConversation.setTools(resolveLocalTools(getDefaultLocalToolIds()));
               } catch (err) {
                 const reason = err instanceof Error ? err.message : String(err);
                 outputChannel?.appendLine(`[tools] Failed to reset tools: ${reason}`);
@@ -1126,6 +1129,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
               postToolsList();
             }
             break;
+          }
           case 'approveAction':
             await conversation?.approveAction();
             break;

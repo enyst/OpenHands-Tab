@@ -809,12 +809,6 @@ export function useHalFlow(deps: {
     // Note: The HAL UI state will be reset by handleConversationStarted when the new conversation starts
   }, [deps.showStatusMessage]);
 
-  const resetForServerTargetChange = useCallback(() => {
-    setHalDisabledConversationId(null);
-    setHalVoiceConfirmFallbackKey(null);
-    cleanupHalVoiceConfirm();
-  }, [cleanupHalVoiceConfirm]);
-
   const handleConversationStarted = useCallback(() => {
     setHalDisabledConversationId(null);
     setHalVoiceConfirmFallbackKey(null);
@@ -876,6 +870,5 @@ export function useHalFlow(deps: {
     handleHalTeleportStarting,
     handleHalTeleportSuccess,
     handleConversationStarted,
-    resetForServerTargetChange,
   };
 }
