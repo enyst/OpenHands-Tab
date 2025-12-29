@@ -27,20 +27,23 @@ export const computeConversationTotalsFromStats = (
   value: unknown,
   options: ConversationTotalsStatsOptions = {},
 ): ConversationTotals | null => {
-  const getTokenUsageArray = (metric: Record<string, unknown>): unknown[] | null => {
-    // Token usage history keys vary across backends/versions; keep fallbacks for restores.
-    const raw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
-    return Array.isArray(raw) ? raw : null;
-  };
   const getLastRequestPromptTokens = (metric: Record<string, unknown>): number | null => {
-    const tokenUsages = getTokenUsageArray(metric);
-    if (tokenUsages?.length) {
-      const last = tokenUsages[tokenUsages.length - 1];
+    // Prefer lastTokenUsage (simplified metrics format)
+    const lastUsageRaw = metric.lastTokenUsage ?? metric.last_token_usage;
+    if (isRecord(lastUsageRaw)) {
+      const prompt = asFiniteNumber(lastUsageRaw.promptTokens ?? lastUsageRaw.prompt_tokens);
+      if (prompt !== null && prompt >= 0) return prompt;
+    }
+    // Legacy fallback: read from old tokenUsages array
+    const tokenUsagesRaw = metric.tokenUsages ?? metric.token_usages ?? metric.token_usages_history ?? metric.tokenUsagesHistory;
+    if (Array.isArray(tokenUsagesRaw) && tokenUsagesRaw.length > 0) {
+      const last: unknown = tokenUsagesRaw[tokenUsagesRaw.length - 1];
       if (isRecord(last)) {
         const prompt = asFiniteNumber(last.promptTokens ?? last.prompt_tokens);
         if (prompt !== null && prompt >= 0) return prompt;
       }
     }
+    // Final fallback: perTurnToken from accumulated usage
     const usageRaw = metric.accumulatedTokenUsage ?? metric.accumulated_token_usage;
     if (isRecord(usageRaw)) {
       const perTurn = asFiniteNumber(usageRaw.perTurnToken ?? usageRaw.per_turn_token);

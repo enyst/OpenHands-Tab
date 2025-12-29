@@ -3,6 +3,8 @@ export type MetricsSnapshot = {
   accumulatedCost: number;
   maxBudgetPerTask?: number | null;
   accumulatedTokenUsage?: TokenUsage | null;
+  /** The most recent token usage (for UI display of context size). */
+  lastTokenUsage?: TokenUsage | null;
 };
 
 export type Cost = { model: string; cost: number; timestamp: number };
@@ -26,10 +28,9 @@ export class Metrics {
   inputCostPerToken: number | null = null;
   outputCostPerToken: number | null = null;
   maxBudgetPerTask: number | null = null;
-  costs: Cost[] = [];
-  responseLatencies: ResponseLatency[] = [];
-  tokenUsages: TokenUsage[] = [];
   accumulatedTokenUsage: TokenUsage | null = null;
+  /** The most recent token usage snapshot (for UI display of context size). */
+  lastTokenUsage: TokenUsage | null = null;
 
   constructor(
     modelName = 'default',
@@ -42,6 +43,17 @@ export class Metrics {
     this.outputCostPerToken = sanitizeRate(options.outputCostPerToken);
   }
 
+  /**
+   * Deserialize metrics from JSON.
+   *
+   * NOTE: Remote agent-server (Python SDK) may send metrics in the legacy format with
+   * tokenUsages/costs/responseLatencies arrays. This method handles both the simplified
+   * format (accumulatedTokenUsage, lastTokenUsage) and the legacy array format by falling
+   * back to the last array element for lastTokenUsage.
+   *
+   * When adding remote conversation metrics display, ensure the remote server's stats
+   * events are properly forwarded and that this parsing handles the server's format.
+   */
   static fromJSON(json: unknown): Metrics {
     const isRecord = (x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object';
     if (!isRecord(json)) return new Metrics();
@@ -53,82 +65,50 @@ export class Metrics {
       return Number.isFinite(n) ? n : fallback;
     };
 
+    const parseTokenUsage = (raw: unknown, defaultModel: string): TokenUsage | null => {
+      if (!isRecord(raw)) return null;
+      return {
+        model: getStr(raw['model'], defaultModel),
+        promptTokens: Math.max(0, getNum(raw['promptTokens'] ?? raw['prompt_tokens'], 0)),
+        completionTokens: Math.max(0, getNum(raw['completionTokens'] ?? raw['completion_tokens'], 0)),
+        cacheReadTokens: Math.max(0, getNum(raw['cacheReadTokens'] ?? raw['cache_read_tokens'], 0)),
+        cacheWriteTokens: Math.max(0, getNum(raw['cacheWriteTokens'] ?? raw['cache_write_tokens'], 0)),
+        reasoningTokens: Math.max(0, getNum(raw['reasoningTokens'] ?? raw['reasoning_tokens'], 0)),
+        contextWindow: Math.max(0, getNum(raw['contextWindow'] ?? raw['context_window'], 0)),
+        perTurnToken: Math.max(0, getNum(raw['perTurnToken'] ?? raw['per_turn_token'], 0)),
+        responseId: getStr(raw['responseId'] ?? raw['response_id'], ''),
+      };
+    };
+
     const m = new Metrics(getStr(obj['modelName'] ?? obj['model_name'], 'default'));
     m.accumulatedCost = getNum(obj['accumulatedCost'] ?? obj['accumulated_cost'], 0);
+
     const mbptA = obj['maxBudgetPerTask'];
     const mbptB = obj['max_budget_per_task'];
     if (typeof mbptA === 'number' || mbptA === null) {
       m.maxBudgetPerTask = mbptA;
     } else if (typeof mbptB === 'number' || mbptB === null) {
       m.maxBudgetPerTask = mbptB;
-
     } else {
       m.maxBudgetPerTask = null;
     }
 
-    const costs = obj['costs'];
-    if (Array.isArray(costs)) {
-      m.costs = [];
-      for (const raw of costs) {
-        if (isRecord(raw)) {
-          m.costs.push({
-            model: getStr(raw['model'], m.modelName),
-            cost: getNum(raw['cost'], 0),
-            timestamp: getNum(raw['timestamp'], Date.now()),
-          });
-        }
-      }
-    }
+    // Restore accumulatedTokenUsage
+    m.accumulatedTokenUsage = parseTokenUsage(
+      obj['accumulatedTokenUsage'] ?? obj['accumulated_token_usage'],
+      m.modelName,
+    );
 
-    const lats = obj['responseLatencies'];
-    if (Array.isArray(lats)) {
-      m.responseLatencies = [];
-      for (const raw of lats) {
-        if (isRecord(raw)) {
-          m.responseLatencies.push({
-            model: getStr(raw['model'], m.modelName),
-            latency: Math.max(0, getNum(raw['latency'], 0)),
-            responseId: getStr(raw['responseId'] ?? raw['response_id'], ''),
-          });
-        }
-      }
-    }
-
-    const usages = obj['tokenUsages'];
-    if (Array.isArray(usages)) {
-      m.tokenUsages = [];
-      for (const raw of usages) {
-        if (isRecord(raw)) {
-          m.tokenUsages.push({
-            model: getStr(raw['model'], m.modelName),
-            promptTokens: Math.max(0, getNum(raw['promptTokens'] ?? raw['prompt_tokens'], 0)),
-            completionTokens: Math.max(0, getNum(raw['completionTokens'] ?? raw['completion_tokens'], 0)),
-            cacheReadTokens: Math.max(0, getNum(raw['cacheReadTokens'] ?? raw['cache_read_tokens'], 0)),
-            cacheWriteTokens: Math.max(0, getNum(raw['cacheWriteTokens'] ?? raw['cache_write_tokens'], 0)),
-            reasoningTokens: Math.max(0, getNum(raw['reasoningTokens'] ?? raw['reasoning_tokens'], 0)),
-            contextWindow: Math.max(0, getNum(raw['contextWindow'] ?? raw['context_window'], 0)),
-            perTurnToken: Math.max(0, getNum(raw['perTurnToken'] ?? raw['per_turn_token'], 0)),
-            responseId: getStr(raw['responseId'] ?? raw['response_id'], ''),
-          });
-        }
-      }
-    }
-
-    const accRaw = obj['accumulatedTokenUsage'] ?? obj['accumulated_token_usage'];
-    if (isRecord(accRaw)) {
-      m.accumulatedTokenUsage = {
-        model: getStr(accRaw['model'] ?? accRaw['model_name'], m.modelName),
-        promptTokens: Math.max(0, getNum(accRaw['promptTokens'] ?? accRaw['prompt_tokens'], 0)),
-        completionTokens: Math.max(0, getNum(accRaw['completionTokens'] ?? accRaw['completion_tokens'], 0)),
-        cacheReadTokens: Math.max(0, getNum(accRaw['cacheReadTokens'] ?? accRaw['cache_read_tokens'], 0)),
-        cacheWriteTokens: Math.max(0, getNum(accRaw['cacheWriteTokens'] ?? accRaw['cache_write_tokens'], 0)),
-        reasoningTokens: Math.max(0, getNum(accRaw['reasoningTokens'] ?? accRaw['reasoning_tokens'], 0)),
-        contextWindow: Math.max(0, getNum(accRaw['contextWindow'] ?? accRaw['context_window'], 0)),
-        perTurnToken: Math.max(0, getNum(accRaw['perTurnToken'] ?? accRaw['per_turn_token'], 0)),
-        responseId: getStr(accRaw['responseId'] ?? accRaw['response_id'], ''),
-      };
+    // Restore lastTokenUsage (or fallback to legacy tokenUsages array tail)
+    const lastUsageRaw = obj['lastTokenUsage'] ?? obj['last_token_usage'];
+    if (isRecord(lastUsageRaw)) {
+      m.lastTokenUsage = parseTokenUsage(lastUsageRaw, m.modelName);
     } else {
-      m.accumulatedTokenUsage = null;
+      // Legacy fallback: read from old tokenUsages array
+      const usages = obj['tokenUsages'];
+      if (Array.isArray(usages) && usages.length > 0) {
+        m.lastTokenUsage = parseTokenUsage(usages[usages.length - 1], m.modelName);
+      }
     }
 
     return m;
@@ -140,6 +120,7 @@ export class Metrics {
       accumulatedCost: this.accumulatedCost,
       maxBudgetPerTask: this.maxBudgetPerTask,
       accumulatedTokenUsage: this.accumulatedTokenUsage ? { ...this.accumulatedTokenUsage } : null,
+      lastTokenUsage: this.lastTokenUsage ? { ...this.lastTokenUsage } : null,
     };
   }
 
@@ -149,21 +130,18 @@ export class Metrics {
       accumulatedCost: this.accumulatedCost,
       maxBudgetPerTask: this.maxBudgetPerTask,
       accumulatedTokenUsage: this.accumulatedTokenUsage,
-      costs: this.costs,
-      responseLatencies: this.responseLatencies,
-      tokenUsages: this.tokenUsages,
+      lastTokenUsage: this.lastTokenUsage,
     };
   }
 
   addCost(value: number): void {
     if (value < 0) return;
     this.accumulatedCost += value;
-    this.costs.push({ model: this.modelName, cost: value, timestamp: Date.now() });
   }
 
-  addResponseLatency(seconds: number, responseId: string): void {
-    const latency = Math.max(0, seconds);
-    this.responseLatencies.push({ model: this.modelName, latency, responseId });
+  addResponseLatency(_seconds: number, _responseId: string): void {
+    // No-op: latency tracking removed as it was unused.
+    // Kept for API compatibility.
   }
 
   addTokenUsage(params: {
@@ -186,33 +164,21 @@ export class Metrics {
       perTurnToken: Math.max(0, (params.promptTokens ?? 0) + (params.completionTokens ?? 0)),
       responseId: String(params.responseId ?? ''),
     };
-    this.tokenUsages.push(usage);
+    this.lastTokenUsage = usage;
     this.maybeAddCostForTokenUsage(usage);
 
-    const add = {
-      model: this.modelName,
-      promptTokens: usage.promptTokens,
-      completionTokens: usage.completionTokens,
-      cacheReadTokens: usage.cacheReadTokens,
-      cacheWriteTokens: usage.cacheWriteTokens,
-      reasoningTokens: usage.reasoningTokens,
-      contextWindow: usage.contextWindow,
-      perTurnToken: usage.perTurnToken,
-      responseId: '',
-    };
-
     if (this.accumulatedTokenUsage === null) {
-      this.accumulatedTokenUsage = add;
+      this.accumulatedTokenUsage = { ...usage, responseId: '' };
     } else {
       this.accumulatedTokenUsage = {
         ...this.accumulatedTokenUsage,
-        promptTokens: this.accumulatedTokenUsage.promptTokens + add.promptTokens,
-        completionTokens: this.accumulatedTokenUsage.completionTokens + add.completionTokens,
-        cacheReadTokens: this.accumulatedTokenUsage.cacheReadTokens + add.cacheReadTokens,
-        cacheWriteTokens: this.accumulatedTokenUsage.cacheWriteTokens + add.cacheWriteTokens,
-        reasoningTokens: this.accumulatedTokenUsage.reasoningTokens + add.reasoningTokens,
-        contextWindow: Math.max(this.accumulatedTokenUsage.contextWindow, add.contextWindow),
-        perTurnToken: add.perTurnToken,
+        promptTokens: this.accumulatedTokenUsage.promptTokens + usage.promptTokens,
+        completionTokens: this.accumulatedTokenUsage.completionTokens + usage.completionTokens,
+        cacheReadTokens: this.accumulatedTokenUsage.cacheReadTokens + usage.cacheReadTokens,
+        cacheWriteTokens: this.accumulatedTokenUsage.cacheWriteTokens + usage.cacheWriteTokens,
+        reasoningTokens: this.accumulatedTokenUsage.reasoningTokens + usage.reasoningTokens,
+        contextWindow: Math.max(this.accumulatedTokenUsage.contextWindow, usage.contextWindow),
+        perTurnToken: usage.perTurnToken,
       };
     }
   }
@@ -228,10 +194,14 @@ export class Metrics {
 
   merge(other: Metrics): void {
     this.accumulatedCost += other.accumulatedCost;
-    if (this.maxBudgetPerTask === null && other.maxBudgetPerTask !== null) this.maxBudgetPerTask = other.maxBudgetPerTask;
-    this.costs.push(...other.costs);
-    this.responseLatencies.push(...other.responseLatencies);
-    this.tokenUsages.push(...other.tokenUsages);
+    if (this.maxBudgetPerTask === null && other.maxBudgetPerTask !== null) {
+      this.maxBudgetPerTask = other.maxBudgetPerTask;
+    }
+
+    // Take the other's lastTokenUsage as it is more recent
+    if (other.lastTokenUsage) {
+      this.lastTokenUsage = { ...other.lastTokenUsage };
+    }
 
     if (!this.accumulatedTokenUsage) {
       this.accumulatedTokenUsage = other.accumulatedTokenUsage ? { ...other.accumulatedTokenUsage } : null;

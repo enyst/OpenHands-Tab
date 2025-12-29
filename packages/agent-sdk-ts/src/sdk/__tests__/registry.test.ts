@@ -30,13 +30,12 @@ describe('LLMRegistry and TrackedLLMClient', () => {
     for await (const ch of tracked.streamChat({ systemPrompt: '', messages: [] })) chunks.push(ch);
 
     expect(onUpdate).toHaveBeenCalled();
-    const json = metrics.toJSON();
-    expect((json.responseLatencies as unknown[]).length).toBe(1);
-    // Verify token usage accumulation
-    const tokenUsages = json.tokenUsages as any[];
-    expect(tokenUsages.length).toBeGreaterThan(0);
-    expect(tokenUsages[0].promptTokens).toBe(3);
-    expect(tokenUsages[0].completionTokens).toBe(2);
+    // Verify token usage tracking (simplified metrics without arrays)
+    expect(metrics.lastTokenUsage).toBeTruthy();
+    expect(metrics.lastTokenUsage?.promptTokens).toBe(3);
+    expect(metrics.lastTokenUsage?.completionTokens).toBe(2);
+    expect(metrics.accumulatedTokenUsage?.promptTokens).toBe(3);
+    expect(metrics.accumulatedTokenUsage?.completionTokens).toBe(2);
   });
 
   it('throws on duplicate usageId', () => {
