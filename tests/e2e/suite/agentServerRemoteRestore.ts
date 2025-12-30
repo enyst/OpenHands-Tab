@@ -8,6 +8,7 @@ type DiagnosticsInfo = {
   serverUrl?: string;
   status?: string;
   conversationId?: string;
+  eventBacklog?: { size?: number };
 };
 
 type WebviewActionResult = {
@@ -28,6 +29,7 @@ type SavedState = {
   profileA: string;
   modelA: string;
   baseUrlA: string;
+  historyEventCount?: number;
 };
 
 export async function run(): Promise<void> {
@@ -54,6 +56,7 @@ export async function run(): Promise<void> {
   const profileA = typeof state.profileA === 'string' ? state.profileA : '';
   const modelA = typeof state.modelA === 'string' ? state.modelA : '';
   const baseUrlA = typeof state.baseUrlA === 'string' ? state.baseUrlA : '';
+  const historyEventCount = typeof state.historyEventCount === 'number' ? state.historyEventCount : 0;
   if (!conversationId || !profileA || !modelA || !baseUrlA) {
     throw new Error(`Invalid state file: ${stateFile}`);
   }
@@ -63,6 +66,16 @@ export async function run(): Promise<void> {
     const res = await fetch(`${base}/api/conversations/${id}`, { method: 'GET' });
     if (!res.ok) throw new Error(`GET /api/conversations/${id} failed: HTTP ${res.status}`);
     return await res.json() as ConversationInfoResponse;
+  };
+
+  const fetchEventCount = async (id: string): Promise<number> => {
+    const base = serverUrl.replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/conversations/${id}/events/count`, { method: 'GET' });
+    if (!res.ok) throw new Error(`GET /api/conversations/${id}/events/count failed: HTTP ${res.status}`);
+    const raw = await res.text();
+    const n = Number(raw);
+    if (!Number.isFinite(n)) throw new Error(`Invalid events/count response: ${raw}`);
+    return n;
   };
 
   const fetchMockRequestCount = async (base: string): Promise<number> => {
@@ -108,6 +121,19 @@ export async function run(): Promise<void> {
     return diag?.mode === 'remote' && diag?.status === 'online' && diag?.conversationId === conversationId;
   }, 60000);
 
+  if (historyEventCount > 0) {
+    await pollUntil(async () => {
+      const serverCount = await fetchEventCount(conversationId);
+      return serverCount >= historyEventCount;
+    }, 30000);
+
+    await pollUntil(async () => {
+      const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+      const backlog = typeof diag?.eventBacklog?.size === 'number' ? diag.eventBacklog.size : 0;
+      return backlog >= historyEventCount;
+    }, 60000);
+  }
+
   await vscode.commands.executeCommand('openhands._selectProfile', { profileId: profileA });
 
   const normalizeUrl = (value: unknown): string => typeof value === 'string' ? value.replace(/\/+$/, '') : '';
@@ -128,4 +154,3 @@ export async function run(): Promise<void> {
 
   console.log('✓ Remote agent-server restore + LLM switch E2E test passed');
 }
-

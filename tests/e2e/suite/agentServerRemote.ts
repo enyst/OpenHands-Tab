@@ -114,6 +114,44 @@ export async function run(): Promise<void> {
     return await res.json() as ConversationInfoResponse;
   };
 
+  const postConversationEvent = async (conversationId: string, text: string): Promise<void> => {
+    const base = serverUrl.replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/conversations/${conversationId}/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        role: 'user',
+        content: [{ type: 'text', text }],
+        run: false,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`POST /api/conversations/${conversationId}/events failed: HTTP ${res.status} ${body}`);
+    }
+  };
+
+  const fetchEventCount = async (conversationId: string): Promise<number> => {
+    const base = serverUrl.replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/conversations/${conversationId}/events/count`, { method: 'GET' });
+    if (!res.ok) throw new Error(`GET /api/conversations/${conversationId}/events/count failed: HTTP ${res.status}`);
+    const raw = await res.text();
+    const n = Number(raw);
+    if (!Number.isFinite(n)) throw new Error(`Invalid events/count response: ${raw}`);
+    return n;
+  };
+
+  const fetchEventsFirstPage = async (conversationId: string): Promise<{ count: number; hasNextPage: boolean }> => {
+    const base = serverUrl.replace(/\/+$/, '');
+    const url = new URL(`${base}/api/conversations/${conversationId}/events/search`);
+    url.searchParams.set('limit', '100');
+    const res = await fetch(url.toString(), { method: 'GET' });
+    if (!res.ok) throw new Error(`GET /api/conversations/${conversationId}/events/search failed: HTTP ${res.status}`);
+    const json = await res.json() as { items?: unknown; next_page_id?: unknown };
+    const items = Array.isArray(json?.items) ? json.items : [];
+    return { count: items.length, hasNextPage: typeof json?.next_page_id === 'string' && json.next_page_id.length > 0 };
+  };
+
   const fetchMockRequestCount = async (base: string): Promise<number> => {
     const res = await fetch(`${base.replace(/\/+$/, '')}/__log`, { method: 'GET' });
     if (!res.ok) throw new Error(`GET ${base}/__log failed: HTTP ${res.status}`);
@@ -148,6 +186,13 @@ export async function run(): Promise<void> {
   const conversationId = typeof diagStarted?.conversationId === 'string' ? diagStarted.conversationId : '';
   if (!conversationId) throw new Error('Missing conversationId after startNewConversation');
 
+  // Pre-populate a realistic number of events on the server without triggering LLM calls.
+  // This exercises restore + pagination in the remote client (agent-sdk-ts / VS Code).
+  const historyEventCount = 120;
+  for (let i = 0; i < historyEventCount / 2; i += 1) {
+    await postConversationEvent(conversationId, `E2E history pre-switch ${i}`);
+  }
+
   if (typeof stateFile === 'string' && stateFile.trim()) {
     fs.writeFileSync(
       stateFile,
@@ -159,6 +204,7 @@ export async function run(): Promise<void> {
         modelB,
         baseUrlA,
         baseUrlB,
+        historyEventCount,
       }, null, 2),
       'utf8'
     );
@@ -195,6 +241,20 @@ export async function run(): Promise<void> {
     throw new Error(
       `Timed out waiting for server to switch to profileB. lastModel=${String(lastModel)} lastBaseUrl=${String(lastBaseUrl)} (${String(err)})`
     );
+  }
+
+  // Add more history after switching to ensure the conversation has a sizable log under both LLM configs.
+  for (let i = 0; i < historyEventCount / 2; i += 1) {
+    await postConversationEvent(conversationId, `E2E history post-switch ${i}`);
+  }
+
+  const serverCount = await fetchEventCount(conversationId);
+  if (serverCount < historyEventCount) {
+    throw new Error(`Expected server to have >=${historyEventCount} events, got ${serverCount}`);
+  }
+  const firstPage = await fetchEventsFirstPage(conversationId);
+  if (firstPage.count !== 100 || !firstPage.hasNextPage) {
+    throw new Error(`Expected first page to have 100 items and a next_page_id (got count=${firstPage.count}, hasNextPage=${firstPage.hasNextPage})`);
   }
 
   const mockBeforeB = await fetchMockRequestCount(mockBBase);
