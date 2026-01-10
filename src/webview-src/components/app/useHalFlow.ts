@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
-import { getHalDialogueLinesForMode, type HalScriptLine, type HalVoice } from '../../../shared/halScript';
+import { getHalDialogueLinesForMode, type HalScriptLine } from '../../../shared/halScript';
 import { DEFAULT_HAL_STATE } from '../../../shared/halDefaults';
 import { isHalDecision, isHalMode, type HalDecision, type HalEye, type HalMode, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
@@ -25,7 +25,6 @@ const DEFAULT_HAL_UI_STATE: HalUiState = {
   lastError: null,
 };
 
-const DEFAULT_BUNDLED_DIALOGUE_DELAY_MS = 650;
 const DEFAULT_BUNDLED_AUDIO_EXTENSION = 'wav';
 
 function getOpenHandsMediaBaseUri(): string | null {
@@ -44,8 +43,8 @@ function buildMediaUrl(relativePath: string): string | null {
   return `${normalizedBase}${rel}`;
 }
 
-function getBundledHalClipUrl(voice: HalVoice, stepIndex: number): string | null {
-  return buildMediaUrl(`hal/bundled/${voice}/${stepIndex}.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
+function getBundledHalSceneUrl(): string | null {
+  return buildMediaUrl(`hal/bundled/scene.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
 }
 
 function getBundledHalMusicStingUrl(): string | null {
@@ -298,38 +297,21 @@ export function useHalFlow(deps: {
     setHalStepIndex(currentIndex + 1);
   }, []);
 
-  const advanceBundledDialogueAfterDelay = useCallback(
-    (currentIndex: number) => {
-      clearHalTimer();
-      halTimerRef.current = setTimeout(() => {
-        const lastIndex = halDialogueRef.current.length - 1;
-        if (currentIndex >= lastIndex) {
-          setHalPhase('awaiting_user');
-          setHalStepIndex(null);
-          return;
-        }
-        setHalStepIndex(currentIndex + 1);
-      }, DEFAULT_BUNDLED_DIALOGUE_DELAY_MS);
-    },
-    [clearHalTimer]
-  );
-
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
     if (halStepIndex === null) return;
     if (halSettingsRef.current.mode !== 'bundled') return;
 
     const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    const playKey = `${sessionKey}:${halStepIndex}`;
-    if (halBundledAudioKeyRef.current === playKey) return;
-    halBundledAudioKeyRef.current = playKey;
+    if (halBundledAudioKeyRef.current === sessionKey) return;
+    halBundledAudioKeyRef.current = sessionKey;
 
     clearHalTimer();
 
-    const line = halDialogueLines[halStepIndex];
-    const clipUrl = line ? getBundledHalClipUrl(line.voice, halStepIndex) : null;
+    const clipUrl = getBundledHalSceneUrl();
     if (!clipUrl || typeof Audio !== 'function') {
-      advanceBundledDialogueAfterDelay(halStepIndex);
+      setHalPhase('awaiting_user');
+      setHalStepIndex(null);
       return;
     }
 
@@ -342,30 +324,23 @@ export function useHalFlow(deps: {
     audio.onended = () => {
       if (halAudioPlayTokenRef.current !== token) return;
       stopHalAudio();
-      handleHalAudioFinished();
+      setHalPhase('awaiting_user');
+      setHalStepIndex(null);
     };
-    const fallBackToTimer = () => {
+    const fallBackToAwaiting = () => {
       if (halAudioPlayTokenRef.current !== token) return;
       stopHalAudio();
-      const currentIndex = halStepIndexRef.current;
-      advanceBundledDialogueAfterDelay(currentIndex ?? halStepIndex);
+      setHalPhase('awaiting_user');
+      setHalStepIndex(null);
     };
-    audio.onerror = fallBackToTimer;
-    void audio.play().catch(fallBackToTimer);
+    audio.onerror = fallBackToAwaiting;
+    void audio.play().catch(fallBackToAwaiting);
 
     return () => {
       clearHalTimer();
       stopHalAudio();
     };
-  }, [
-    advanceBundledDialogueAfterDelay,
-    clearHalTimer,
-    halDialogueLines,
-    halPhase,
-    halStepIndex,
-    handleHalAudioFinished,
-    stopHalAudio,
-  ]);
+  }, [clearHalTimer, halPhase, halStepIndex, stopHalAudio]);
 
   useEffect(() => {
     if (halPhase !== 'waiting_remote') {
