@@ -31,6 +31,7 @@ import {
   Conversation,
   type ConversationInstance,
   SecretRegistry,
+  listProfiles,
   type BashEvent,
   type Event,
   isBashCommand,
@@ -498,13 +499,23 @@ export function activate(context: vscode.ExtensionContext) {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
     }
 
-    if (chatView && chatWebviewReady && chatView.visible) {
+    if (chatView && chatWebviewReady) {
       void chatView.webview.postMessage({
         type: 'status',
         status: conversation?.getStatus() ?? 'offline',
         mode: conversationMode,
         llmProfileLabel: lastKnownLlmLabel,
       } satisfies HostToWebviewMessage);
+
+      try {
+        void chatView.webview.postMessage({
+          type: 'llmProfilesUpdated',
+          profiles: listProfiles(),
+          activeProfileId: settings.llm.profileId ?? null,
+        } satisfies HostToWebviewMessage);
+      } catch (err) {
+        outputChannel?.appendLine(`[llm] Failed to list profiles for webview sync: ${renderError(err)}`);
+      }
     }
   }
 
