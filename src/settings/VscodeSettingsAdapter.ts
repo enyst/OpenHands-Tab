@@ -4,6 +4,10 @@ import type { SettingsAdapter } from './SettingsAdapter';
 export class VscodeSettingsAdapter implements SettingsAdapter {
   constructor(private context: vscode.ExtensionContext) {}
 
+  private isProfileIdKey(key: string): boolean {
+    return key === 'openhands.llm.profileId';
+  }
+
   private isGlobalOnlyKey(key: string): boolean {
     return key === 'openhands.serverUrl' || key === 'openhands.servers' || key === 'openhands.llm.profileId';
   }
@@ -16,6 +20,11 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   get<T = unknown>(key: string, defaultValue?: T): T | undefined {
+    if (this.isProfileIdKey(key)) {
+      const inspected = this.getWorkspaceConfiguration().inspect<T>(key);
+      const value = inspected?.workspaceFolderValue ?? inspected?.workspaceValue ?? inspected?.globalValue;
+      return value !== undefined ? value : defaultValue;
+    }
     if (this.isGlobalOnlyKey(key)) {
       const inspected = vscode.workspace.getConfiguration().inspect<T>(key);
       const globalValue = inspected?.globalValue;
@@ -28,6 +37,11 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   getExplicit<T = unknown>(key: string): T | undefined {
+    if (this.isProfileIdKey(key)) {
+      const inspected = this.getWorkspaceConfiguration().inspect<T>(key);
+      if (!inspected) return undefined;
+      return inspected.workspaceFolderValue ?? inspected.workspaceValue ?? inspected.globalValue ?? undefined;
+    }
     if (this.isGlobalOnlyKey(key)) {
       const inspected = vscode.workspace.getConfiguration().inspect<T>(key);
       return inspected?.globalValue ?? undefined;
@@ -39,6 +53,23 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   async update<T = unknown>(key: string, value: T, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
+    if (this.isProfileIdKey(key)) {
+      const globalConfig = vscode.workspace.getConfiguration();
+      const workspaceConfig = this.getWorkspaceConfiguration();
+      const inspected = workspaceConfig.inspect<T>(key);
+
+      // If the user configured a workspace/workspace-folder override for profile selection, clear it
+      // so the explicit selection we persist here takes effect immediately and avoids "snap back".
+      if (inspected?.workspaceFolderValue !== undefined) {
+        await workspaceConfig.update(key, undefined as unknown as T, vscode.ConfigurationTarget.WorkspaceFolder);
+      }
+      if (inspected?.workspaceValue !== undefined) {
+        await globalConfig.update(key, undefined as unknown as T, vscode.ConfigurationTarget.Workspace);
+      }
+
+      await globalConfig.update(key, value, vscode.ConfigurationTarget.Global);
+      return;
+    }
     if (this.isGlobalOnlyKey(key)) {
       await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Global);
       return;

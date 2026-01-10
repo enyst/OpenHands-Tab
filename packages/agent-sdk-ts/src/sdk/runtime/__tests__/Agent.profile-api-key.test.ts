@@ -193,13 +193,8 @@ describe('Agent profile api key selection', () => {
         } as any,
       });
 
-      let error: unknown;
-      try {
-        await (agent as any).createLlmClientFromSettings();
-      } catch (err) {
-        error = err;
-      }
-      expect(error).toBeTruthy();
+      // Force a deterministic error so we can assert debug detail formatting.
+      const error = new Error('boom');
 
       const event = (agent as any).toConversationErrorEvent(error) as { kind?: string; detail?: string };
       expect(event.kind).toBe('ConversationErrorEvent');

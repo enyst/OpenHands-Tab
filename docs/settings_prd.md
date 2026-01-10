@@ -89,6 +89,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
   - openhands.servers: array of { url: string; label?: string } (saved servers for quick selection)
   - openhands.terminal.renderProgress: boolean (default: true) — coalesce carriage-return progress in terminal output
   - openhands.llm.profileId: string | null (default: null) — selects a profile from `~/.openhands/llm-profiles` (local alias; expanded into `agent.llm` for remote mode)
+    - Effective behavior: if unset/blank/invalid, the extension will auto-select a deterministic default profileId and persist it to global settings on startup (see docs/llm_profiles.md).
   - openhands.conversation.maxIterations: number (default: 50, max: 500)
   - openhands.confirmation.policy: enum ('never' | 'always' | 'risky') (default: 'never')
   - openhands.confirmation.risky.threshold: enum ('LOW' | 'MEDIUM' | 'HIGH') (default: 'MEDIUM')
@@ -97,11 +98,28 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - Store secrets in VS Code SecretStorage (never in settings.json)
   - Implemented keys:
     - openhands.sessionApiKey (used for X-Session-API-Key / WS query param)
-    - openhands.llmApiKey (LLM API key)
-    - (AWS credentials deferred; not implemented yet)
+    - openhands.llmApiKey (legacy/fallback LLM API key; remote mode sends this as `agent.llm.api_key`)
+    - Provider-global keys (used by local mode, and may be referenced by profile configs):
+      - OPENAI_API_KEY
+      - ANTHROPIC_API_KEY
+      - OPENROUTER_API_KEY
+      - LITELLM_API_KEY
+      - GEMINI_API_KEY
+    - Per-profile override keys:
+      - openhands.llmProfileApiKey.<profileId>
+    - openhands.githubToken
+    - openhands.hal.ttsApiKey
+    - openhands.customSecret1
+    - openhands.customSecret2
+    - openhands.customSecret3
+    - AWS credentials are plumbed in the SettingsManager + SDK payload, but not currently exposed via a “Set AWS Credentials” command/UI:
+      - openhands.awsAccessKeyId
+      - openhands.awsSecretAccessKey
   - Retrieval pattern in extension code
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
     - const llmApiKey = await context.secrets.get('openhands.llmApiKey')
+    - const openaiKey = await context.secrets.get('OPENAI_API_KEY')
+    - const profileOverrideKey = await context.secrets.get('openhands.llmProfileApiKey.sonnet-45')
 - Configuration UI
   - Multi-step wizard (optional) via "OpenHands: Configure" command
   - All settings accessible via VS Code Settings UI

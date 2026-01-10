@@ -75,6 +75,15 @@ Core fields:
   - The selected item (checkmark + optional gear icon while open) updates to the newly selected `profileId`.
   - The next LLM request uses the newly selected profile’s resolved configuration.
 
+### Default profile selection (startup)
+
+On startup (and when reading settings), if `openhands.llm.profileId` is unset/blank/invalid, the extension should auto-select a deterministic default profile id and persist it to global settings.
+
+Current selection heuristic (best-effort):
+1. If any per-profile override key exists in SecretStorage (`openhands.llmProfileApiKey.<profileId>`), prefer that profile (so users who set a profile key in the UI land on that profile next time).
+2. Else, if a provider-global key exists (e.g. `OPENAI_API_KEY`), pick a sensible default profile for that provider.
+3. Else fall back to a deterministic baseline (currently `sonnet-45`).
+
 ### Runtime switching semantics
 
 - Switching profiles mid-conversation:

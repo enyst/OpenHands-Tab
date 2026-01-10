@@ -4,7 +4,8 @@ import * as vscode from 'vscode';
 
 describe('VscodeSettingsAdapter', () => {
   let adapter: VscodeSettingsAdapter;
-  let mockConfiguration: Pick<vscode.WorkspaceConfiguration, 'get' | 'inspect' | 'update'>;
+  let mockWorkspaceConfiguration: Pick<vscode.WorkspaceConfiguration, 'get' | 'inspect' | 'update'>;
+  let mockGlobalConfiguration: Pick<vscode.WorkspaceConfiguration, 'get' | 'inspect' | 'update'>;
   let mockSecrets: Pick<vscode.SecretStorage, 'get' | 'store' | 'delete'>;
   let mockContext: Pick<vscode.ExtensionContext, 'secrets'>;
 
@@ -18,7 +19,12 @@ describe('VscodeSettingsAdapter', () => {
     });
 
     // Create mock objects
-    mockConfiguration = {
+    mockWorkspaceConfiguration = {
+      get: vi.fn(),
+      inspect: vi.fn(),
+      update: vi.fn(),
+    };
+    mockGlobalConfiguration = {
       get: vi.fn(),
       inspect: vi.fn(),
       update: vi.fn(),
@@ -34,8 +40,12 @@ describe('VscodeSettingsAdapter', () => {
       secrets: mockSecrets as vscode.SecretStorage,
     };
 
-    // Mock workspace.getConfiguration to return our mock configuration
-    vi.mocked(vscode.workspace.getConfiguration).mockReturnValue(mockConfiguration as vscode.WorkspaceConfiguration);
+    // Mock workspace.getConfiguration to return our mock configuration (scoped calls use the workspace config).
+    vi.mocked(vscode.workspace.getConfiguration).mockImplementation((_: any, scope?: any) => {
+      return scope
+        ? (mockWorkspaceConfiguration as vscode.WorkspaceConfiguration)
+        : (mockGlobalConfiguration as vscode.WorkspaceConfiguration);
+    });
 
     // Create adapter with mocked context
     adapter = new VscodeSettingsAdapter(mockContext as vscode.ExtensionContext);
@@ -45,46 +55,46 @@ describe('VscodeSettingsAdapter', () => {
     it('should retrieve value with default when provided', () => {
       const defaultValue = 'default-value';
       const expectedValue = 'test-value';
-      mockConfiguration.get.mockReturnValue(expectedValue);
+      mockWorkspaceConfiguration.get.mockReturnValue(expectedValue);
 
       const result = adapter.get('test.key', defaultValue);
 
       expect(vscode.workspace.getConfiguration).toHaveBeenCalled();
-      expect(mockConfiguration.get).toHaveBeenCalledWith('test.key', defaultValue);
+      expect(mockWorkspaceConfiguration.get).toHaveBeenCalledWith('test.key', defaultValue);
       expect(result).toBe(expectedValue);
     });
 
     it('should retrieve value without default when not provided', () => {
       const expectedValue = 'test-value';
-      mockConfiguration.get.mockReturnValue(expectedValue);
+      mockWorkspaceConfiguration.get.mockReturnValue(expectedValue);
 
       const result = adapter.get('test.key');
 
       expect(vscode.workspace.getConfiguration).toHaveBeenCalled();
-      expect(mockConfiguration.get).toHaveBeenCalledWith('test.key');
+      expect(mockWorkspaceConfiguration.get).toHaveBeenCalledWith('test.key');
       expect(result).toBe(expectedValue);
     });
 
     it('should handle nested keys correctly', () => {
       const nestedKey = 'parent.child.grandchild';
       const expectedValue = { nested: 'value' };
-      mockConfiguration.get.mockReturnValue(expectedValue);
+      mockWorkspaceConfiguration.get.mockReturnValue(expectedValue);
 
       const result = adapter.get(nestedKey, {});
 
       expect(vscode.workspace.getConfiguration).toHaveBeenCalled();
-      expect(mockConfiguration.get).toHaveBeenCalledWith(nestedKey, {});
+      expect(mockWorkspaceConfiguration.get).toHaveBeenCalledWith(nestedKey, {});
       expect(result).toEqual(expectedValue);
     });
   });
 
   describe('getExplicit()', () => {
     it('should return undefined when no explicit value is set', () => {
-      mockConfiguration.inspect.mockReturnValue(undefined);
+      mockWorkspaceConfiguration.inspect.mockReturnValue(undefined);
 
       const result = adapter.getExplicit('test.key');
 
-      expect(mockConfiguration.inspect).toHaveBeenCalledWith('test.key');
+      expect(mockWorkspaceConfiguration.inspect).toHaveBeenCalledWith('test.key');
       expect(result).toBeUndefined();
     });
 
@@ -93,7 +103,7 @@ describe('VscodeSettingsAdapter', () => {
       const workspaceValue = 'workspace-value';
       const globalValue = 'global-value';
 
-      mockConfiguration.inspect.mockReturnValue({
+      mockWorkspaceConfiguration.inspect.mockReturnValue({
         workspaceFolderValue,
         workspaceValue,
         globalValue,
@@ -108,7 +118,7 @@ describe('VscodeSettingsAdapter', () => {
       const workspaceValue = 'workspace-value';
       const globalValue = 'global-value';
 
-      mockConfiguration.inspect.mockReturnValue({
+      mockWorkspaceConfiguration.inspect.mockReturnValue({
         workspaceValue,
         globalValue,
       });
@@ -121,7 +131,7 @@ describe('VscodeSettingsAdapter', () => {
     it('should return global value when only global is set', () => {
       const globalValue = 'global-value';
 
-      mockConfiguration.inspect.mockReturnValue({
+      mockWorkspaceConfiguration.inspect.mockReturnValue({
         globalValue,
       });
 
@@ -131,7 +141,7 @@ describe('VscodeSettingsAdapter', () => {
     });
 
     it('should return undefined when inspect returns object with all undefined values', () => {
-      mockConfiguration.inspect.mockReturnValue({
+      mockWorkspaceConfiguration.inspect.mockReturnValue({
         workspaceFolderValue: undefined,
         workspaceValue: undefined,
         globalValue: undefined,
@@ -142,17 +152,28 @@ describe('VscodeSettingsAdapter', () => {
       expect(result).toBeUndefined();
     });
 
+    it('should return workspace value for openhands.llm.profileId (even though it is persisted globally)', () => {
+      mockWorkspaceConfiguration.inspect.mockReturnValue({
+        workspaceFolderValue: 'workspace-folder-profile',
+        workspaceValue: 'workspace-profile',
+        globalValue: 'global-profile',
+      });
+
+      const result = adapter.getExplicit('openhands.llm.profileId');
+
+      expect(result).toBe('workspace-folder-profile');
+    });
   });
 
   describe('update()', () => {
     it('should update configuration for workspace target', async () => {
       const key = 'test.key';
       const value = 'test-value';
-      mockConfiguration.update.mockResolvedValue(undefined);
+      mockWorkspaceConfiguration.update.mockResolvedValue(undefined);
 
       await adapter.update(key, value, 'workspace');
 
-      expect(mockConfiguration.update).toHaveBeenCalledWith(
+      expect(mockWorkspaceConfiguration.update).toHaveBeenCalledWith(
         key,
         value,
         vscode.ConfigurationTarget.WorkspaceFolder
@@ -162,7 +183,7 @@ describe('VscodeSettingsAdapter', () => {
     it('should fall back to global when no workspace is open', async () => {
       const key = 'test.key';
       const value = 'test-value';
-      mockConfiguration.update.mockResolvedValue(undefined);
+      mockWorkspaceConfiguration.update.mockResolvedValue(undefined);
 
       Object.defineProperty(vscode.workspace, 'workspaceFolders', {
         value: [],
@@ -171,7 +192,7 @@ describe('VscodeSettingsAdapter', () => {
 
       await adapter.update(key, value, 'workspace');
 
-      expect(mockConfiguration.update).toHaveBeenCalledWith(
+      expect(mockGlobalConfiguration.update).toHaveBeenCalledWith(
         key,
         value,
         vscode.ConfigurationTarget.Global
@@ -181,11 +202,11 @@ describe('VscodeSettingsAdapter', () => {
     it('should update configuration for global target', async () => {
       const key = 'test.key';
       const value = 'test-value';
-      mockConfiguration.update.mockResolvedValue(undefined);
+      mockGlobalConfiguration.update.mockResolvedValue(undefined);
 
       await adapter.update(key, value, 'global');
 
-      expect(mockConfiguration.update).toHaveBeenCalledWith(
+      expect(mockGlobalConfiguration.update).toHaveBeenCalledWith(
         key,
         value,
         vscode.ConfigurationTarget.Global
@@ -195,14 +216,42 @@ describe('VscodeSettingsAdapter', () => {
     it('should default to workspace target when target not specified', async () => {
       const key = 'test.key';
       const value = 'test-value';
-      mockConfiguration.update.mockResolvedValue(undefined);
+      mockWorkspaceConfiguration.update.mockResolvedValue(undefined);
 
       await adapter.update(key, value);
 
-      expect(mockConfiguration.update).toHaveBeenCalledWith(
+      expect(mockWorkspaceConfiguration.update).toHaveBeenCalledWith(
         key,
         value,
         vscode.ConfigurationTarget.WorkspaceFolder
+      );
+    });
+
+    it('should clear workspace overrides and persist openhands.llm.profileId globally', async () => {
+      mockWorkspaceConfiguration.inspect.mockReturnValue({
+        workspaceFolderValue: 'workspace-folder-profile',
+        workspaceValue: 'workspace-profile',
+        globalValue: 'global-profile',
+      });
+      mockWorkspaceConfiguration.update.mockResolvedValue(undefined);
+      mockGlobalConfiguration.update.mockResolvedValue(undefined);
+
+      await adapter.update('openhands.llm.profileId', 'new-profile', 'global');
+
+      expect(mockWorkspaceConfiguration.update).toHaveBeenCalledWith(
+        'openhands.llm.profileId',
+        undefined,
+        vscode.ConfigurationTarget.WorkspaceFolder
+      );
+      expect(mockGlobalConfiguration.update).toHaveBeenCalledWith(
+        'openhands.llm.profileId',
+        undefined,
+        vscode.ConfigurationTarget.Workspace
+      );
+      expect(mockGlobalConfiguration.update).toHaveBeenCalledWith(
+        'openhands.llm.profileId',
+        'new-profile',
+        vscode.ConfigurationTarget.Global
       );
     });
   });

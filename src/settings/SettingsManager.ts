@@ -3,7 +3,7 @@ import type { HalMode } from '../shared/halTypes';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
 import { normalizeServerUrl } from '../shared/serverUrls';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
-import { detectProviderFromBaseUrl, ensureDefaultProfiles, loadProfile } from '@openhands/agent-sdk-ts';
+import { detectProviderFromBaseUrl, ensureDefaultProfiles, listProfiles, loadProfile } from '@openhands/agent-sdk-ts';
 
 export interface SavedServer {
   url: string;
@@ -172,6 +172,23 @@ export class SettingsManager {
       const envValue = process.env[key];
       return typeof envValue === 'string' && envValue.trim().length > 0;
     };
+
+    const profileOptions = this.llmProfileStoreRoot ? { rootDir: this.llmProfileStoreRoot } : {};
+
+    // Ensure seeded defaults exist when using a non-default root (tests/custom dirs).
+    if (this.llmProfileStoreRoot) {
+      try {
+        ensureDefaultProfiles(profileOptions);
+      } catch {
+        // Best-effort seeding; not all environments can write to the profile store.
+      }
+    }
+
+    // If a user set a per-profile API key (via the Profiles UI) before explicitly selecting a profile,
+    // prefer that profile as the default on startup.
+    for (const profileId of listProfiles(profileOptions)) {
+      if (await hasSecret(`openhands.llmProfileApiKey.${profileId}`)) return profileId;
+    }
 
     for (const entry of DEFAULT_LLM_PROFILE_ID_BY_API_KEY) {
       if (await hasSecret(entry.secretKey)) return entry.profileId;
