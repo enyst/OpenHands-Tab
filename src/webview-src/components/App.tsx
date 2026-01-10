@@ -655,7 +655,9 @@ export function App() {
   const halUiStepIndex = halUiPhase === 'dialogue'
     ? Math.max(0, Math.min(halStepIndex ?? 0, halDialogueLines.length - 1))
     : null;
-  const halUiLine = halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0]?.text ?? null : null;
+  const allowHalDebugText = Boolean((window as Window & { __OPENHANDS_HAL_DEBUG__?: unknown }).__OPENHANDS_HAL_DEBUG__);
+  const halUiLine =
+    allowHalDebugText && halUiPhase === 'dialogue' ? halDialogueLines[halUiStepIndex ?? 0]?.text ?? null : null;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">

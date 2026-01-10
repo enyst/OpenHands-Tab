@@ -401,32 +401,36 @@ export function useHalFlow(deps: {
     };
   }, [halPhase, stopHalAudio]);
 
-  const playHalAudioBytes = useCallback((bytes: Uint8Array, volume: number) => {
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/mpeg' });
-    const url = URL.createObjectURL(blob);
-    halAudioUrlRef.current = url;
+  const playHalAudioBytes = useCallback(
+    (bytes: Uint8Array, volume: number, opts: { mimeType?: string } = {}) => {
+      stopHalAudio();
+      const token = halAudioPlayTokenRef.current;
+      const mimeType = typeof opts.mimeType === 'string' && opts.mimeType.trim() ? opts.mimeType.trim() : 'audio/mpeg';
+      const blob = new Blob([bytes], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      halAudioUrlRef.current = url;
 
-    const audio = new Audio(url);
-    halAudioRef.current = audio;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onended = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    audio.onerror = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    void audio.play().catch(() => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    });
-  }, [handleHalAudioFinished, stopHalAudio]);
+      const audio = new Audio(url);
+      halAudioRef.current = audio;
+      audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
+      audio.onended = () => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        handleHalAudioFinished();
+      };
+      audio.onerror = () => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        handleHalAudioFinished();
+      };
+      void audio.play().catch(() => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        handleHalAudioFinished();
+      });
+    },
+    [handleHalAudioFinished, stopHalAudio]
+  );
 
   const requestHalTts = useCallback((params: { conversationId: string; stepIndex: number }) => {
     const requestId = `halTts:${Date.now().toString(36)}:${(halTtsRequestSeqRef.current++).toString(36)}`;
@@ -701,13 +705,16 @@ export function useHalFlow(deps: {
         return;
       }
       const volume = (payload as { volume?: unknown } | undefined)?.volume;
+      const mimeType = (payload as { mimeType?: unknown } | undefined)?.mimeType;
       try {
         const rawAudio = atob(base64);
         const bytes = new Uint8Array(rawAudio.length);
         for (let i = 0; i < rawAudio.length; i += 1) {
           bytes[i] = rawAudio.charCodeAt(i);
         }
-        playHalAudioBytes(bytes, typeof volume === 'number' ? volume : halSettingsRef.current.volume);
+        playHalAudioBytes(bytes, typeof volume === 'number' ? volume : halSettingsRef.current.volume, {
+          mimeType: typeof mimeType === 'string' ? mimeType : undefined,
+        });
       } catch {
         handleHalAudioFinished();
       }
