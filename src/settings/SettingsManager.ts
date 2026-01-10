@@ -186,10 +186,7 @@ export class SettingsManager {
 
     // If a user set a per-profile API key (via the Profiles UI) before explicitly selecting a profile,
     // prefer that profile as the default on startup.
-    //
-    // Note: skip seeded non-agent profiles to avoid surprising main-agent defaults.
     for (const profileId of listProfiles(profileOptions)) {
-      if (profileId === 'gemini-flash-hal' || profileId === 'gemini-flash-summarizer') continue;
       if (await hasSecret(`openhands.llmProfileApiKey.${profileId}`)) return profileId;
     }
 
