@@ -98,7 +98,7 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
 - Store secrets in VS Code SecretStorage (never in settings.json)
   - Implemented keys:
     - openhands.sessionApiKey (used for X-Session-API-Key / WS query param)
-    - openhands.llmApiKey (generic agent-server LLM API key; used when connecting to a remote agent-server that does not already have provider keys configured)
+    - openhands.llmApiKey (legacy/fallback LLM API key; remote mode sends this as `agent.llm.api_key`)
     - Provider-global keys (used by local mode, and may be referenced by profile configs):
       - OPENAI_API_KEY
       - ANTHROPIC_API_KEY
@@ -107,13 +107,14 @@ Purpose: consolidate the real settings an OpenHands-Tab VS Code extension needs,
       - GEMINI_API_KEY
     - Per-profile override keys:
       - openhands.llmProfileApiKey.<profileId>
-    - openhands.awsAccessKeyId
-    - openhands.awsSecretAccessKey
     - openhands.githubToken
     - openhands.hal.ttsApiKey
     - openhands.customSecret1
     - openhands.customSecret2
     - openhands.customSecret3
+    - AWS credentials are plumbed in the SettingsManager + SDK payload, but not currently exposed via a “Set AWS Credentials” command/UI:
+      - openhands.awsAccessKeyId
+      - openhands.awsSecretAccessKey
   - Retrieval pattern in extension code
     - const sessionApiKey = await context.secrets.get('openhands.sessionApiKey')
     - const llmApiKey = await context.secrets.get('openhands.llmApiKey')
