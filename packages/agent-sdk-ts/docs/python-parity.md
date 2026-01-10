@@ -124,7 +124,7 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 - ActionEvent summary + reasoning metadata
   - Python: ActionEvent includes `summary`, `thinking_blocks`, and `responses_reasoning_item` (for Responses API), and uses these in UI/visualization. See openhands/sdk/event/llm_convertible/action.py.
   - TypeScript: ActionEvent only includes `thought`, `reasoning_content`, and tool call metadata; no `summary` or thinking block support. See packages/agent-sdk-ts/src/sdk/types/index.ts ActionEvent.
-  - Status: Divergence. If VS Code surfaces action summaries or responses-reasoning metadata, TS needs to add fields + handling.
+  - Status: Not a TS parity gap for OpenHands-Tab: we don’t rely on server-provided action summaries because Gemini Flash produces summaries on the fly. We can keep the TS event shape as-is unless we later decide to surface these Python fields.
 
 - ConversationErrorEvent visualization
   - Python: ConversationErrorEvent now defines `visualize()` for UI output. See openhands/sdk/event/conversation_error.py.
