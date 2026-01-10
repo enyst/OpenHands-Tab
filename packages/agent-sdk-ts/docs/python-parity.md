@@ -22,6 +22,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 | critic/ | ✓ | ✗ | Evaluation framework, Python only (not planned) |
 | event/ | ✓ | ✓ types/ | Different patterns (class vs interface) |
 | git/ | ✓ | ✗ | Full git utilities, Python only (not planned) |
+| hooks/ | ✓ | ✗ | Hook execution pipeline (pre/post tool use, stop hook) |
 | io/ | ✓ `FileStore` | ✗ | Abstracted file storage, Python only (not planned) |
 | llm/ | ✓ | ✓ | Different approaches (LiteLLM vs native) |
 | logger/ | ✓ Rich/JSON | ✗ | Comprehensive logging, Python only (not planned) |
@@ -58,9 +59,23 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 8. **LLM Features** - Registry with resolver pattern, Router LLM, provider-specific exception mapping, `Metrics`/`Telemetry` classes
 
-9. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
+9. **Hooks System** - `HookManager`, `HookExecutor`, event interception (pre/post tool use, post event, stop hook)
 
-10. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
+10. **AgentSkills (SKILL.md) + progressive disclosure**
+    - SKILL.md directory convention (case-insensitive) and strict name validation
+    - `<available_skills>` XML prompt via `to_prompt()` and progressive disclosure
+    - Skill resources discovery (`scripts/`, `references/`, `assets/`)
+    - `.mcp.json` loading with variable expansion for AgentSkills
+    - Public skills repo loading (`load_public_skills`)
+    - Third-party skill files include `CLAUDE.md`/`GEMINI.md` with truncation limits
+
+11. **Agent tool selection** - `include_default_tools` option to include/disable built-in tools
+
+12. **Plugins + custom tool loading** - plugin data model, directory loading, and remote custom tools support
+
+13. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
+
+14. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
 
 ### Features in TypeScript but NOT in Python
 
@@ -87,7 +102,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 | Async handling | Sync-first with optional async | Async-first (Promise-based) |
 | Execution status | `ConversationExecutionStatus` enum | String literals |
 
-## Current parity snapshot (2025-12-25)
+## Current parity snapshot (2026-01-10)
 
 This section summarizes concrete behavior alignment between Python agent-sdk and TypeScript @openhands/agent-sdk-ts observed today, with pointers to code/tests and gaps to close.
 
@@ -105,6 +120,34 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
   - Python: ActionEvent always has security_risk (defaults to UNKNOWN if omitted). See tests/cross/test_remote_conversation_live_server.py and tests/sdk/agent/test_extract_security_risk.py.
   - TypeScript: security_risk is optional; parseToolArgs pops security_risk from arguments and returns undefined when missing/invalid. See src/sdk/runtime/Agent.ts parseToolArgs/parseSecurityRisk and tests: `Agent.security-risk.test.ts`.
   - Status: Divergence. Consider adding defaulting to UNKNOWN in TS when integrating with agent-server.
+
+- ActionEvent summary + reasoning metadata
+  - Python: ActionEvent includes `summary`, `thinking_blocks`, and `responses_reasoning_item` (for Responses API), and uses these in UI/visualization. See openhands/sdk/event/llm_convertible/action.py.
+  - TypeScript: ActionEvent only includes `thought`, `reasoning_content`, and tool call metadata; no `summary` / `thinking_blocks` / Responses-API reasoning metadata fields. See packages/agent-sdk-ts/src/sdk/types/index.ts ActionEvent.
+  - Status:
+    - **Summary** (`summary`): not a TS parity gap for OpenHands-Tab, because we don’t rely on server-provided action summaries (Gemini Flash generates summaries on the fly).
+    - **Anthropic thinking blocks** (`thinking_blocks`): structured “thinking” content emitted by Anthropic models (often multiple segments), useful for richer reasoning trace/debugging and UI rendering.
+    - **OpenAI Responses reasoning item** (`responses_reasoning_item`): structured reasoning metadata returned by the OpenAI Responses API, useful for parity/debuggability and (optionally) exposing reasoning traces.
+
+- ConversationErrorEvent visualization
+  - Python: ConversationErrorEvent now defines `visualize()` for UI output. See openhands/sdk/event/conversation_error.py.
+  - TypeScript: no visualization helpers for ConversationErrorEvent (type only).
+  - Status: Divergence in UI/event rendering.
+
+- Default LLM timeout
+  - Python: LLM default timeout raised to 300s (`timeout` default in LLM config). See openhands/sdk/llm config defaults.
+  - TypeScript: DEFAULT_TIMEOUT_MS is 60s unless overridden. See packages/agent-sdk-ts/src/sdk/llm/types.ts.
+  - Status: Divergence in long-running tool/LLM calls.
+
+- include_default_tools option
+  - Python: Agent supports `include_default_tools` to selectively include built-in tools or disable all defaults. See openhands/sdk/agent/base.py and tests/sdk/agent/test_agent_tool_init.py.
+  - TypeScript: no equivalent option; default tool set is fixed in runtime initialization.
+  - Status: Missing feature.
+
+- AgentSkills (SKILL.md) + public skills
+  - Python: SKILL.md directories with strict naming, progressive disclosure (`to_prompt()` XML), resources, `.mcp.json` support, and optional public skills loading. See openhands/sdk/context/skills/*.py and openhands/sdk/context/agent_context.py.
+  - TypeScript: legacy .md skills only; no SKILL.md handling, no resources, no public skills, no MCP config ingestion, no `<available_skills>` prompt block.
+  - Status: Large gap in skills parity.
 
 - tool_call_id propagation
   - Python: tool_call_id is preserved across ActionEvent, ObservationEvent, AgentErrorEvent, and tool MessageEvent. See tests/sdk/event/test_events_to_messages.py and cross tests.
@@ -187,10 +230,12 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
   - Git change/diff helpers
   - Upload/download/copy operations
   - Strict path validation
+  - `pause()`/`resume()` hooks (no-ops locally, implemented for remote)
 - `RemoteWorkspace`
   - Wraps HTTP endpoints for commands, file transfer, and git metadata
   - Mirrors `CommandResult`/`FileOperationResult` schemas
   - Queue-based locking
+  - `alive` property for readiness checks
 
 ### TypeScript shape
 
@@ -207,6 +252,7 @@ These Python tests are the most directly relevant “spec” for VS Code local-m
 - Add workspace factory + base abstraction with `working_dir`, context manager/cleanup semantics, and discriminated typing for local vs remote
 - Port upload/download/copy helpers, git change/diff models, and richer `CommandResult` fields (timeout, stderr segmentation)
 - Implement remote workspace with HTTP-backed command lifecycle and path validation parity
+- Add `pause()`/`resume()` plumbing and `alive` readiness surface for remote workspaces
 
 ```mermaid
 classDiagram
@@ -421,6 +467,8 @@ Python's RemoteConversation has significantly more features than TypeScript's im
 - Note: we do not want observability in TS.
 - Support persisted `ConversationState` restoration and pending-action replay (implemented in PR #246 / `oh-tab-wc7`).
 - Implement responses-API parity and richer confirmation policies akin to Python analyzers
+- Add hook execution pipeline (pre/post tool use, post event, stop hook)
+- Add `include_default_tools` option for default tool selection parity
 
 ```mermaid
 classDiagram
@@ -463,11 +511,14 @@ classDiagram
   - Uses `system_message_suffix.j2` templates
   - Triggered knowledge rendering
   - Duplicate detection
-  - Auto-loading of user skills with warnings
+  - Auto-loading of user skills with warnings (skills). Note: “microagents” is the old name of “skills” and we don’t need it
+  - Optional public skills loading from OpenHands/skills
   - Structured metadata
 - Produces both system and user suffixes
   - Templated variables
   - Activation tracking
+  - `<available_skills>` XML via `to_prompt()` for progressive disclosure
+  - Model-family gating for vendor-specific repo skills (CLAUDE.md/GEMINI.md)
 
 ### TypeScript AgentContext
 
@@ -477,6 +528,9 @@ classDiagram
   - Logs warnings for duplicates
 - Skill activation tracking is minimal
 - Formatting is plain strings (no templating)
+  - No `<available_skills>` progressive disclosure
+  - No public skills loading or microagents compatibility
+  - No model-family gating for vendor-specific repo instructions
 
 ### Skill models
 
@@ -484,11 +538,68 @@ classDiagram
   - Pydantic validation
   - Keyword/task triggers
   - Auto `/name` trigger for task skills
-  - MCP tool metadata
+  - Input validation helpers (`requires_user_input`)
+  - Third-party aliasing
+  - AgentSkills standard fields (name/description/metadata)
+  - SKILL.md directory convention with strict name validation
+  - Progressive disclosure metadata + `<available_skills>` prompt format
+  - Resource discovery (`scripts/`, `references/`, `assets/`)
+  - MCP tool metadata + `.mcp.json` loading with variable expansion
+  - Third-party files: `.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (truncates oversized files)
 
-### Gaps to close:
-- everything that goes to the LLM must be the same.
-- MUST FIX.
+- **TypeScript `Skill`**
+  - Mirrors keyword/task/always-on triggers
+  - Aliasing and missing-variable prompts
+  - Lacks MCP tool metadata
+  - No schema validation
+  - No regex triggers
+  - No SKILL.md or resource discovery support
+  - Third-party files limited to `.cursorrules` and `agents.md`
+
+### Gaps to close
+- Add SKILL.md directory support, name validation, and AgentSkills fields
+- Add resource discovery and `.mcp.json` parsing + validation
+- Add `<available_skills>` prompt generation (progressive disclosure)
+- Align third-party files and truncation behavior (AGENTS, CLAUDE, GEMINI)
+- Expand trigger matching (regex/weighted keywords) and template-driven prompt rendering
+
+```mermaid
+classDiagram
+    class AgentContextPython {
+      +system_suffix(skills)
+      +user_suffix(activated_skills)
+      +render_templates()
+      +validate_duplicates()
+      +auto_load_user_skills()
+    }
+    class SkillPython {
+      +name
+      +description
+      +keywords/tasks
+      +aliases
+      +mcp_tool
+      +requires_user_input()
+    }
+    AgentContextPython --> SkillPython
+    class AgentContextTS {
+      +systemSuffix()
+      +userSuffix()
+      +loadUserSkills()
+      -string concatenation
+    }
+    class SkillTS {
+      +name
+      +description
+      +keywords/tasks/alwaysOn
+      +aliases
+      +validateInput()
+    }
+    AgentContextTS --> SkillTS
+```
+
+### Source references
+- Python: openhands/sdk/context/agent_context.py AgentContext; openhands/sdk/context/skills/skill.py Skill; openhands/sdk/context/skills/types.py SkillKnowledge, SkillResponse, SkillContentResponse.
+- TypeScript: packages/agent-sdk-ts/src/sdk/context/agent-context.ts AgentContext; packages/agent-sdk-ts/src/sdk/context/skills/skill.ts Skill, SkillValidationError.
 
 ## Tool and event parity
 
@@ -546,59 +657,6 @@ Rather than fully re-implementing Pydantic-style action/observation classes in T
 
 `TerminalTool` is the first place where we validate this end-to-end behavior for a “real” environment-interacting tool.
 
-  - Input validation helpers (`requires_user_input`)
-  - Third-party aliasing
-- **TypeScript `Skill`**
-  - Mirrors keyword/task/always-on triggers
-  - Aliasing and missing-variable prompts
-  - Lacks MCP tool metadata
-  - No schema validation
-  - No regex triggers
-
-### Gaps to close
-
-- Introduce template-driven rendering for system/user suffixes and richer trigger matching (regex, keyword weighting)
-- Map schema validation, and structured activation logs to TypeScript skills
-- NOT PLANNED: MCP
-
-```mermaid
-classDiagram
-    class AgentContextPython {
-      +system_suffix(skills)
-      +user_suffix(activated_skills)
-      +render_templates()
-      +validate_duplicates()
-      +auto_load_user_skills()
-    }
-    class SkillPython {
-      +name
-      +description
-      +keywords/tasks
-      +aliases
-      +mcp_tool
-      +requires_user_input()
-    }
-    AgentContextPython --> SkillPython
-    class AgentContextTS {
-      +systemSuffix()
-      +userSuffix()
-      +loadUserSkills()
-      -string concatenation
-    }
-    class SkillTS {
-      +name
-      +description
-      +keywords/tasks/alwaysOn
-      +aliases
-      +validateInput()
-    }
-    AgentContextTS --> SkillTS
-```
-
-### Source references
-- Python: openhands/sdk/context/agent_context.py AgentContext; openhands/sdk/context/skills/skill.py Skill; openhands/sdk/context/skills/types.py SkillKnowledge, SkillResponse, SkillContentResponse.
-- TypeScript: packages/agent-sdk-ts/src/sdk/context/agent-context.ts AgentContext; packages/agent-sdk-ts/src/sdk/context/skills/skill.ts Skill, SkillValidationError.
-
 ## Event logging, persistence, and events
 
 ### EventLog/persistence
@@ -652,7 +710,7 @@ classDiagram
     - `CondensationSummaryEvent`
     - `ConversationStateUpdateEvent`
   - All events extend `Event`/`LLMConvertibleEvent`
-  - Include fields: `id`, `timestamp`, `source`, and type-specific data (tool call IDs, reasoning, summaries)
+  - Include fields: `id`, `timestamp`, `source`, and type-specific data (tool call IDs, reasoning; optional summaries in Python)
 - **TypeScript event interfaces** (`src/sdk/types`):
   - Mirrors most Python events using discriminated `kind` property:
     - `SystemPromptEvent`
@@ -669,6 +727,10 @@ classDiagram
     - `TokenEvent`
     - Condensation request/summary variants
   - Metadata fields are narrower (e.g., no stuck-detection or condenser fields)
+  - Missing ActionEvent additions from Python:
+    - `summary`: **not required for OpenHands-Tab**, since Gemini Flash generates summaries on the fly
+    - `thinking_blocks`: Anthropic “thinking” blocks (structured reasoning trace content) — important if we want richer reasoning/debuggability parity
+    - `responses_reasoning_item`: OpenAI Responses API reasoning metadata item — important for Responses-API parity/debuggability
 
 ```mermaid
 classDiagram
