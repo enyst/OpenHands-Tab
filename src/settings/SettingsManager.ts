@@ -55,6 +55,15 @@ const DEFAULTS: OpenHandsSettings = {
 
 const DEFAULT_LLM_PROFILE_ID = 'sonnet-45';
 
+const DEFAULT_LLM_PROFILE_ID_BY_PROFILE_API_KEY: Array<{ secretKey: string; profileId: string }> = [
+  // If a user set a per-profile API key (via the Profiles UI) before explicitly selecting a profile,
+  // prefer that profile as the default on startup.
+  { secretKey: 'openhands.llmProfileApiKey.gpt-5', profileId: 'gpt-5' },
+  { secretKey: 'openhands.llmProfileApiKey.gpt-5-mini', profileId: 'gpt-5-mini' },
+  { secretKey: 'openhands.llmProfileApiKey.sonnet-45', profileId: 'sonnet-45' },
+  { secretKey: 'openhands.llmProfileApiKey.gemini-flash', profileId: 'gemini-flash' },
+];
+
 const DEFAULT_LLM_PROFILE_ID_BY_API_KEY: Array<{ secretKey: string; profileId: string }> = [
   { secretKey: 'OPENAI_API_KEY', profileId: 'gpt-5-mini' },
   { secretKey: 'ANTHROPIC_API_KEY', profileId: 'sonnet-45' },
@@ -172,6 +181,10 @@ export class SettingsManager {
       const envValue = process.env[key];
       return typeof envValue === 'string' && envValue.trim().length > 0;
     };
+
+    for (const entry of DEFAULT_LLM_PROFILE_ID_BY_PROFILE_API_KEY) {
+      if (await hasSecret(entry.secretKey)) return entry.profileId;
+    }
 
     for (const entry of DEFAULT_LLM_PROFILE_ID_BY_API_KEY) {
       if (await hasSecret(entry.secretKey)) return entry.profileId;
