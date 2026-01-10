@@ -508,7 +508,7 @@ classDiagram
   - Uses `system_message_suffix.j2` templates
   - Triggered knowledge rendering
   - Duplicate detection
-  - Auto-loading of user skills with warnings (skills + microagents)
+  - Auto-loading of user skills with warnings (skills). Note: “microagents” is the old name of “skills” and we don’t need it
   - Optional public skills loading from OpenHands/skills
   - Structured metadata
 - Produces both system and user suffixes
