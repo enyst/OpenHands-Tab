@@ -557,7 +557,7 @@ classDiagram
 - Add SKILL.md directory support, name validation, and AgentSkills fields
 - Add resource discovery and `.mcp.json` parsing + validation
 - Add `<available_skills>` prompt generation (progressive disclosure)
-- Align third-party files and truncation behavior (AGENTS/CLAUDE/GEMINI)
+- Align third-party files and truncation behavior (AGENTS, CLAUDE, GEMINI)
 - Expand trigger matching (regex/weighted keywords) and template-driven prompt rendering
 
 ```mermaid
