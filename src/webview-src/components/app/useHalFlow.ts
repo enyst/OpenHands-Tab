@@ -406,7 +406,8 @@ export function useHalFlow(deps: {
       stopHalAudio();
       const token = halAudioPlayTokenRef.current;
       const mimeType = opts.mimeType?.trim() || 'audio/mpeg';
-      const blob = new Blob([bytes], { type: mimeType });
+      const viewBytes = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+      const blob = new Blob([viewBytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       halAudioUrlRef.current = url;
 
