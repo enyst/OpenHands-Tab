@@ -123,10 +123,11 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - ActionEvent summary + reasoning metadata
   - Python: ActionEvent includes `summary`, `thinking_blocks`, and `responses_reasoning_item` (for Responses API), and uses these in UI/visualization. See openhands/sdk/event/llm_convertible/action.py.
-  - TypeScript: ActionEvent only includes `thought`, `reasoning_content`, and tool call metadata; no `summary` or thinking block support. See packages/agent-sdk-ts/src/sdk/types/index.ts ActionEvent.
+  - TypeScript: ActionEvent only includes `thought`, `reasoning_content`, and tool call metadata; no `summary` / `thinking_blocks` / Responses-API reasoning metadata fields. See packages/agent-sdk-ts/src/sdk/types/index.ts ActionEvent.
   - Status:
-    - **Summaries**: not a TS parity gap for OpenHands-Tab, because we don’t rely on server-provided action summaries (Gemini Flash produces summaries on the fly).
-    - **Responses reasoning item** (`responses_reasoning_item`): still a meaningful divergence to track, because it affects Responses-API reasoning metadata/debuggability (even if we don’t surface server summaries).
+    - **Summary** (`summary`): not a TS parity gap for OpenHands-Tab, because we don’t rely on server-provided action summaries (Gemini Flash generates summaries on the fly).
+    - **Anthropic thinking blocks** (`thinking_blocks`): structured “thinking” content emitted by Anthropic models (often multiple segments), useful for richer reasoning trace/debugging and UI rendering.
+    - **OpenAI Responses reasoning item** (`responses_reasoning_item`): structured reasoning metadata returned by the OpenAI Responses API, useful for parity/debuggability and (optionally) exposing reasoning traces.
 
 - ConversationErrorEvent visualization
   - Python: ConversationErrorEvent now defines `visualize()` for UI output. See openhands/sdk/event/conversation_error.py.
@@ -727,8 +728,9 @@ Rather than fully re-implementing Pydantic-style action/observation classes in T
     - Condensation request/summary variants
   - Metadata fields are narrower (e.g., no stuck-detection or condenser fields)
   - Missing ActionEvent additions from Python:
-    - `summary` / `thinking_blocks`: **not required for OpenHands-Tab**, since Gemini Flash generates summaries on the fly
-    - `responses_reasoning_item`: still relevant for Responses-API reasoning metadata parity/debuggability
+    - `summary`: **not required for OpenHands-Tab**, since Gemini Flash generates summaries on the fly
+    - `thinking_blocks`: Anthropic “thinking” blocks (structured reasoning trace content) — important if we want richer reasoning/debuggability parity
+    - `responses_reasoning_item`: OpenAI Responses API reasoning metadata item — important for Responses-API parity/debuggability
 
 ```mermaid
 classDiagram
