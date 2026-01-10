@@ -3,7 +3,7 @@ import type { HalMode } from '../shared/halTypes';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
 import { normalizeServerUrl } from '../shared/serverUrls';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
-import { detectProviderFromBaseUrl, ensureDefaultProfiles, loadProfile } from '@openhands/agent-sdk-ts';
+import { detectProviderFromBaseUrl, ensureDefaultProfiles, listProfiles, loadProfile } from '@openhands/agent-sdk-ts';
 
 export interface SavedServer {
   url: string;
@@ -54,15 +54,6 @@ const DEFAULTS: OpenHandsSettings = {
 };
 
 const DEFAULT_LLM_PROFILE_ID = 'sonnet-45';
-
-const DEFAULT_LLM_PROFILE_ID_BY_PROFILE_API_KEY: Array<{ secretKey: string; profileId: string }> = [
-  // If a user set a per-profile API key (via the Profiles UI) before explicitly selecting a profile,
-  // prefer that profile as the default on startup.
-  { secretKey: 'openhands.llmProfileApiKey.gpt-5', profileId: 'gpt-5' },
-  { secretKey: 'openhands.llmProfileApiKey.gpt-5-mini', profileId: 'gpt-5-mini' },
-  { secretKey: 'openhands.llmProfileApiKey.sonnet-45', profileId: 'sonnet-45' },
-  { secretKey: 'openhands.llmProfileApiKey.gemini-flash', profileId: 'gemini-flash' },
-];
 
 const DEFAULT_LLM_PROFILE_ID_BY_API_KEY: Array<{ secretKey: string; profileId: string }> = [
   { secretKey: 'OPENAI_API_KEY', profileId: 'gpt-5-mini' },
@@ -182,8 +173,24 @@ export class SettingsManager {
       return typeof envValue === 'string' && envValue.trim().length > 0;
     };
 
-    for (const entry of DEFAULT_LLM_PROFILE_ID_BY_PROFILE_API_KEY) {
-      if (await hasSecret(entry.secretKey)) return entry.profileId;
+    const profileOptions = this.llmProfileStoreRoot ? { rootDir: this.llmProfileStoreRoot } : {};
+
+    // Ensure seeded defaults exist when using a non-default root (tests/custom dirs).
+    if (this.llmProfileStoreRoot) {
+      try {
+        ensureDefaultProfiles(profileOptions);
+      } catch {
+        // Best-effort seeding; not all environments can write to the profile store.
+      }
+    }
+
+    // If a user set a per-profile API key (via the Profiles UI) before explicitly selecting a profile,
+    // prefer that profile as the default on startup.
+    //
+    // Note: skip seeded non-agent profiles to avoid surprising main-agent defaults.
+    for (const profileId of listProfiles(profileOptions)) {
+      if (profileId === 'gemini-flash-hal' || profileId === 'gemini-flash-summarizer') continue;
+      if (await hasSecret(`openhands.llmProfileApiKey.${profileId}`)) return profileId;
     }
 
     for (const entry of DEFAULT_LLM_PROFILE_ID_BY_API_KEY) {

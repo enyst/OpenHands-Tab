@@ -96,6 +96,14 @@ describe('SettingsManager', () => {
     expect(a.cfg.get('openhands.llm.profileId')).toBe('sonnet-45');
   });
 
+  it('selects a custom profile when its per-profile api key is present', async () => {
+    saveProfile('my-custom-profile', { provider: 'openai', model: 'gpt-custom' }, { rootDir: tmpDir, includeSecrets: false });
+    a.secrets.set('openhands.llmProfileApiKey.my-custom-profile', 'sk-custom');
+    const s = await mgr.get();
+    expect(s.llm.profileId).toBe('my-custom-profile');
+    expect(a.cfg.get('openhands.llm.profileId')).toBe('my-custom-profile');
+  });
+
   it('does not overwrite an explicitly configured profileId', async () => {
     a.cfg.set('openhands.llm.profileId', 'gpt-5');
     const s = await mgr.get();
