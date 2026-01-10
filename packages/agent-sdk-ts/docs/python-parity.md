@@ -178,7 +178,7 @@ Other gaps to consider
 - security_risk defaulting: consider default UNKNOWN in TS when interoperating with an agent-server (remote conversation) to match Python expectations.
 - Remote workspace behaviors: not planned in TS today (remote mode is handled via agent-server + RemoteConversation).
 
-## Candidate test cases to mirror (from `/workspace/agent-sdk`)
+## Candidate test cases to mirror (from `~/repos/agent-sdk`)
 
 These Python tests are the most directly relevant “spec” for VS Code local-mode parity work. Use them to drive new Vitest coverage in `packages/agent-sdk-ts` (tests first, then implementation).
 
