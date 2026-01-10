@@ -290,12 +290,11 @@ export function useHalFlow(deps: {
     if (currentIndex === null) return;
     const lastIndex = halDialogueRef.current.length - 1;
     if (currentIndex >= lastIndex) {
-      setHalPhase('awaiting_user');
-      setHalStepIndex(null);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: null });
       return;
     }
     setHalStepIndex(currentIndex + 1);
-  }, []);
+  }, [resetHalUiState]);
 
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
@@ -310,8 +309,7 @@ export function useHalFlow(deps: {
 
     const clipUrl = getBundledHalSceneUrl();
     if (!clipUrl || typeof Audio !== 'function') {
-      setHalPhase('awaiting_user');
-      setHalStepIndex(null);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: null });
       return;
     }
 
@@ -324,14 +322,12 @@ export function useHalFlow(deps: {
     audio.onended = () => {
       if (halAudioPlayTokenRef.current !== token) return;
       stopHalAudio();
-      setHalPhase('awaiting_user');
-      setHalStepIndex(null);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
     };
     const fallBackToAwaiting = () => {
       if (halAudioPlayTokenRef.current !== token) return;
       stopHalAudio();
-      setHalPhase('awaiting_user');
-      setHalStepIndex(null);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
     };
     audio.onerror = fallBackToAwaiting;
     void audio.play().catch(fallBackToAwaiting);
@@ -814,7 +810,7 @@ export function useHalFlow(deps: {
       mode: halSettings.mode,
       phase: halPhase,
       eye: halEye,
-      stepIndex: halPhase === 'dialogue' ? halStepIndex : null,
+      stepIndex: halStepIndex,
       decision: halDecision,
       lastError: halLastError,
     };
