@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SecretStorage } from 'vscode';
+import type { Event, SecretStorage, SecretStorageChangeEvent } from 'vscode';
 import type { ChatCompletionRequest, LLMClient } from '../llm';
 import type { OpenHandsSettings } from '../types/settings';
 
@@ -46,7 +46,14 @@ const baseSettings: OpenHandsSettings = {
 describe('LocalConversation SecretStorage wiring', () => {
   it('passes secretStorage into the default SecretRegistry when secrets is omitted', async () => {
     const getSpy = vi.fn((key: string) => Promise.resolve(key === 'OPENAI_API_KEY' ? 'sk-storage' : undefined));
-    const secretStorage = { get: getSpy } as unknown as SecretStorage;
+
+    const onDidChange: Event<SecretStorageChangeEvent> = () => ({ dispose: () => {} });
+    const secretStorage: SecretStorage = {
+      get: getSpy,
+      store: vi.fn(() => Promise.resolve()),
+      delete: vi.fn(() => Promise.resolve()),
+      onDidChange,
+    };
 
     const conversation = new LocalConversation({
       settings: baseSettings,
