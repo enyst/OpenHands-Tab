@@ -29,7 +29,8 @@ import {
 } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
-import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import type { BaseWorkspace } from '../../workspace';
+import { Workspace } from '../../workspace';
 import { FinishTool } from '../../tools/FinishTool';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
@@ -61,6 +62,11 @@ export interface ConfirmationPolicy {
 
 export interface AgentOptions {
   settings: OpenHandsSettings;
+  /**
+   * Optional workspace instance. When omitted, the agent constructs a local workspace
+   * rooted at workspaceRoot (or process.cwd()).
+   */
+  workspace?: BaseWorkspace;
   workspaceRoot?: string;
   llmClient?: LLMClient;
   toolSummarizerClient?: LLMClient;
@@ -101,7 +107,7 @@ function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
 
 
 export class Agent extends EventEmitter {
-  private readonly workspace: LocalWorkspace;
+  private readonly workspace: BaseWorkspace;
   private readonly events: EventLog;
   readonly state: ConversationState;
   private readonly secrets: SecretRegistry;
@@ -125,7 +131,7 @@ export class Agent extends EventEmitter {
 
   constructor(private readonly options: AgentOptions) {
     super();
-    this.workspace = new LocalWorkspace(options.workspaceRoot);
+    this.workspace = options.workspace ?? Workspace({ kind: 'local', root: options.workspaceRoot });
     this.events = options.events ?? new EventLog();
     this.state = options.state ?? new ConversationState({ eventLog: this.events });
     this.state.attachEventLog(this.events);

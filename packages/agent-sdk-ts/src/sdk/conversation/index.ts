@@ -2,6 +2,7 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import type { AgentContext } from '../context';
 import type { SecretRegistry } from '../runtime';
+import type { BaseWorkspace } from '../../workspace';
 import { LocalConversation } from './LocalConversation';
 import { RemoteConversation } from './RemoteConversation';
 
@@ -12,6 +13,7 @@ export type ConversationInstance = (LocalConversation | RemoteConversation) & { 
 export interface ConversationFactoryOptions {
   serverUrl?: string | null;
   settings: OpenHandsSettings;
+  workspace?: BaseWorkspace;
   workspaceRoot?: string;
   conversationId?: string;
   tools?: ToolDefinition<unknown, unknown>[];
@@ -32,6 +34,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
   return new LocalConversation({
     settings: options.settings,
     conversationId: options.conversationId,
+    workspace: options.workspace,
     workspaceRoot: options.workspaceRoot,
     tools: options.tools,
     secrets: options.secrets,

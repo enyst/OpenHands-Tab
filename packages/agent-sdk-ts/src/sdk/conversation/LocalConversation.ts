@@ -14,7 +14,8 @@ import type { BashEvent, Event } from '../types';
 import { clearRawLlmFieldsWhenProfileSelected } from '../types/settings';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
-import { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import type { BaseWorkspace } from '../../workspace';
+import { Workspace } from '../../workspace';
 import { LLMRegistry } from '../llm';
 import type { RegistryEvent } from '../llm/registry';
 import path from 'path';
@@ -31,6 +32,7 @@ export type ConversationStatus = 'online' | 'offline' | 'connecting';
 export interface LocalConversationOptions {
   settings: OpenHandsSettings;
   conversationId?: string;
+  workspace?: BaseWorkspace;
   workspaceRoot?: string;
   llmClient?: LLMClient;
   tools?: ToolDefinition<unknown, unknown>[];
@@ -44,7 +46,7 @@ export class LocalConversation extends EventEmitter {
   private status: ConversationStatus = 'offline';
   private conversationId?: string;
   private settings: OpenHandsSettings;
-  private readonly workspace: LocalWorkspace;
+  private readonly workspace: BaseWorkspace;
   private events: EventLog;
   private state: ConversationState;
   private readonly secrets: SecretRegistry;
@@ -63,7 +65,7 @@ export class LocalConversation extends EventEmitter {
     super();
     this.settings = options.settings;
     this.conversationId = options.conversationId;
-    this.workspace = new LocalWorkspace(options.workspaceRoot);
+    this.workspace = options.workspace ?? Workspace({ kind: 'local', root: options.workspaceRoot });
     this.persistenceDir = options.persistenceDir;
     this.persistence = options.persistence;
     this.events = new EventLog({ persistence: this.persistence });
@@ -261,7 +263,7 @@ export class LocalConversation extends EventEmitter {
   private createAgent(): Agent {
     return new Agent({
       settings: this.settings,
-      workspaceRoot: this.workspace.root,
+      workspace: this.workspace,
       llmClient: this.customLlmClient,
       tools: this.tools,
       events: this.events,
