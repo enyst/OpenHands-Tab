@@ -172,7 +172,7 @@ const peekNextSection = (lines: string[], index: number): { old: string[]; chunk
 
     index += 1;
 
-    const lastMode = mode;
+    const lastMode: 'keep' | 'add' | 'delete' = mode;
     if (s === '') s = ' ';
     const sigil = s[0];
     if (sigil === '+') mode = 'add';
@@ -506,4 +506,3 @@ export class ApplyPatchTool extends ZodTool<ApplyPatchArgs, ApplyPatchResult> {
     return result;
   }
 }
-
