@@ -64,6 +64,11 @@ export async function run(): Promise<void> {
     return runLlmProfilesTest();
   }
 
+  if (testName === 'defaultProfileSelection') {
+    const { run: runDefaultProfileSelectionTest } = await import('./defaultProfileSelection');
+    return runDefaultProfileSelectionTest();
+  }
+
   if (testName === 'terminalProgress') {
     const { run: runTerminalProgressTest } = await import('./terminalProgress');
     return runTerminalProgressTest();
