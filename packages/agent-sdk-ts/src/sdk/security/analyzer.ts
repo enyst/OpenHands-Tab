@@ -2,7 +2,7 @@ import type { ActionEvent, Event, SecurityRisk } from '../types';
 import { isActionEvent } from '../types';
 
 export interface SecurityAnalyzer {
-  kind: 'LLMSecurityAnalyzer';
+  kind: string;
   securityRisk(action: ActionEvent): SecurityRisk;
   analyzeEvent(event: Event): SecurityRisk | null;
   analyzePendingActions(pendingActions: ActionEvent[]): Array<{ action: ActionEvent; risk: SecurityRisk }>;
@@ -30,4 +30,3 @@ export class LLMSecurityAnalyzer implements SecurityAnalyzer {
     });
   }
 }
-

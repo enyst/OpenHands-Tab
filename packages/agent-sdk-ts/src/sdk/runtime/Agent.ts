@@ -111,7 +111,9 @@ export class Agent extends EventEmitter {
   private readonly secrets: SecretRegistry;
   private readonly secretMasker: SecretMasker;
   private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
+  private confirmationPolicyOverride?: ConfirmationPolicy;
   private confirmationPolicy: ConfirmationPolicy;
+  private securityAnalyzerOverride?: SecurityAnalyzer | null;
   private securityAnalyzer: SecurityAnalyzer | null;
   private readonly lock = new AsyncLock();
   private llmClientPromise?: Promise<LLMClient>;
@@ -151,25 +153,30 @@ export class Agent extends EventEmitter {
     this.tools = new Map(toolsWithFinish.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;
-    this.confirmationPolicy = createConfirmationPolicyFromSettings(options.settings?.confirmation);
-    this.securityAnalyzer = options.settings?.agent?.enableSecurityAnalyzer ? new LLMSecurityAnalyzer() : null;
     this.agentContext = options.agentContext;
     this.debug = false;
-    this.updateDerivedSettings(options.settings);
 
     if (options.confirmationPolicy) {
-      this.confirmationPolicy = options.confirmationPolicy;
+      this.confirmationPolicyOverride = options.confirmationPolicy;
     }
     if (options.securityAnalyzer !== undefined) {
-      this.securityAnalyzer = options.securityAnalyzer;
+      this.securityAnalyzerOverride = options.securityAnalyzer;
     }
+
+    this.confirmationPolicy = createConfirmationPolicyFromSettings(options.settings?.confirmation);
+    this.securityAnalyzer = options.settings?.agent?.enableSecurityAnalyzer ? new LLMSecurityAnalyzer() : null;
+    this.updateDerivedSettings(options.settings);
 
     this.events.on((event) => this.emit('event', event));
   }
 
   private updateDerivedSettings(settings: OpenHandsSettings): void {
-    this.confirmationPolicy = createConfirmationPolicyFromSettings(settings?.confirmation);
-    this.securityAnalyzer = settings?.agent?.enableSecurityAnalyzer ? new LLMSecurityAnalyzer() : null;
+    const derivedConfirmationPolicy = createConfirmationPolicyFromSettings(settings?.confirmation);
+    const derivedSecurityAnalyzer = settings?.agent?.enableSecurityAnalyzer ? new LLMSecurityAnalyzer() : null;
+
+    this.confirmationPolicy = this.confirmationPolicyOverride ?? derivedConfirmationPolicy;
+    this.securityAnalyzer =
+      this.securityAnalyzerOverride !== undefined ? this.securityAnalyzerOverride : derivedSecurityAnalyzer;
     this.debug = settings?.agent?.debug ?? false;
     this.toolSummarizer.updateSettings(settings, { debug: this.debug });
     this.syncToolSecrets(settings);
@@ -212,6 +219,7 @@ export class Agent extends EventEmitter {
 
   setConfirmationPolicy(policy: ConfirmationPolicy): void {
     void this.lock.acquire(() => {
+      this.confirmationPolicyOverride = policy;
       this.confirmationPolicy = policy;
       return Promise.resolve();
     });
@@ -219,6 +227,7 @@ export class Agent extends EventEmitter {
 
   setSecurityAnalyzer(analyzer: SecurityAnalyzer | null): void {
     void this.lock.acquire(() => {
+      this.securityAnalyzerOverride = analyzer;
       this.securityAnalyzer = analyzer;
       return Promise.resolve();
     });
@@ -1100,7 +1109,14 @@ export class Agent extends EventEmitter {
 
   private requiresConfirmation(action: ActionEvent): boolean {
     if (action.tool_name === 'finish') return false;
-    const risk = this.securityAnalyzer?.securityRisk(action) ?? 'UNKNOWN';
+    let risk: SecurityRisk = 'UNKNOWN';
+    if (this.securityAnalyzer) {
+      try {
+        risk = this.securityAnalyzer.securityRisk(action);
+      } catch {
+        risk = 'HIGH';
+      }
+    }
     return this.confirmationPolicy.shouldConfirm(risk);
   }
 
