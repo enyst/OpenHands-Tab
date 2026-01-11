@@ -125,10 +125,10 @@ export class RemoteConversation extends EventEmitter {
 
   getWorkspace(): BaseWorkspace {
     if (!this.workspaceClient) {
-      const maybeWorkingDir = typeof (this.workspace as { working_dir?: unknown } | undefined)?.working_dir === 'string'
-        ? (this.workspace as { working_dir: string }).working_dir
-        : undefined;
-      const workingDir = maybeWorkingDir ?? this.workspaceRoot;
+      const workspace = this.workspace as unknown as { working_dir?: unknown } | undefined;
+      const workingDir = typeof workspace?.working_dir === 'string'
+        ? workspace.working_dir
+        : this.workspaceRoot;
       const apiKey = this.settings?.secrets.sessionApiKey;
       this.workspaceClient = new RemoteWorkspace({ host: this.serverUrl, apiKey, workingDir });
     }
