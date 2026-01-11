@@ -416,6 +416,24 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
+  async updateSecrets(secrets: Record<string, string>): Promise<void> {
+    if (!this.conversationId) {
+      throw new Error('Cannot updateSecrets: no active conversation. Start or restore a conversation first.');
+    }
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/secrets`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ secrets }),
+    }, RemoteConversation.httpTimeoutMs);
+
+    if (!res.ok) {
+      const info = await res.text().catch(() => '');
+      throw new Error(`Failed to update secrets (HTTP ${res.status})${info ? `: ${info}` : ''}`);
+    }
+  }
 
   async askAgent(question: string): Promise<string> {
     if (!this.conversationId) {
