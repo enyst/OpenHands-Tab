@@ -7,6 +7,9 @@ import type { LLMProfileStoreOptions } from '../llm/profiles';
 import { loadProfile } from '../llm/profiles';
 import type { LLMConfiguration } from '../llm/types';
 import { RemoteState } from './RemoteState';
+import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
+import type { BaseWorkspace } from '../../workspace/BaseWorkspace';
+import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from '../../workspace/types';
 
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -88,6 +91,7 @@ export class RemoteConversation extends EventEmitter {
   private hasEverConnected = false;
 
   readonly state: RemoteState;
+  private workspaceClient?: RemoteWorkspace;
 
 
   constructor(options: RemoteConversationOptions) {
@@ -117,6 +121,54 @@ export class RemoteConversation extends EventEmitter {
         this.emit('error', err instanceof Error ? err : new Error(String(err)));
       });
     }
+  }
+
+  getWorkspace(): BaseWorkspace {
+    if (!this.workspaceClient) {
+      const maybeWorkingDir = typeof (this.workspace as { working_dir?: unknown } | undefined)?.working_dir === 'string'
+        ? (this.workspace as { working_dir: string }).working_dir
+        : undefined;
+      const workingDir = maybeWorkingDir ?? this.workspaceRoot;
+      const apiKey = this.settings?.secrets.sessionApiKey;
+      this.workspaceClient = new RemoteWorkspace({ host: this.serverUrl, apiKey, workingDir });
+    }
+    return this.workspaceClient;
+  }
+
+  runCommand(command: string, options: CommandOptions = {}): Promise<CommandResult> {
+    return this.getWorkspace().runCommand(command, options);
+  }
+
+  readFile(targetPath: string, encoding?: WorkspaceEncoding): Promise<string> {
+    return this.getWorkspace().readFile(targetPath, encoding);
+  }
+
+  readFileBytes(targetPath: string, options?: { maxBytes?: number }): Promise<Buffer> {
+    return this.getWorkspace().readFileBytes(targetPath, options);
+  }
+
+  writeFile(targetPath: string, content: string | Buffer): Promise<void> {
+    return this.getWorkspace().writeFile(targetPath, content);
+  }
+
+  remove(targetPath: string): Promise<void> {
+    return this.getWorkspace().remove(targetPath);
+  }
+
+  list(targetPath?: string): Promise<DirectoryEntry[]> {
+    return this.getWorkspace().list(targetPath);
+  }
+
+  ensureDirectory(targetPath: string): Promise<string> {
+    return this.getWorkspace().ensureDirectory(targetPath);
+  }
+
+  gitStatus(): Promise<CommandResult> {
+    return this.getWorkspace().gitStatus();
+  }
+
+  gitDiff(paths?: string[]): Promise<CommandResult> {
+    return this.getWorkspace().gitDiff(paths);
   }
 
   get mode(): 'remote' { return 'remote'; }
