@@ -52,15 +52,11 @@ import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
 import { buildLlmRequestParametersForDebug } from '../llm/debug';
 import { StuckDetector } from '../conversation/stuckDetector';
+import type { ConfirmationPolicy, SecurityAnalyzer } from '../security';
+import { createConfirmationPolicyFromSettings, LLMSecurityAnalyzer } from '../security';
 
 
 export type AgentRunInput = string | Message;
-
-export interface ConfirmationPolicy {
-  policy?: 'never' | 'always' | 'risky';
-  riskyThreshold?: SecurityRisk;
-  confirmUnknown?: boolean;
-}
 
 export interface AgentOptions {
   settings: OpenHandsSettings;
@@ -80,9 +76,9 @@ export interface AgentOptions {
   onTerminalEvent?: (event: BashEvent) => void;
   registry?: import('../llm').LLMRegistry;
   conversationStats?: import('./ConversationStats').ConversationStats;
+  confirmationPolicy?: ConfirmationPolicy;
+  securityAnalyzer?: SecurityAnalyzer | null;
 }
-
-const SECURITY_RISK_ORDER: SecurityRisk[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 // Condensation is token-budget based (maxInputTokens). When the next request would exceed that
 // budget (or the provider returns a context-limit error), we emit a `Condensation` event
@@ -115,7 +111,10 @@ export class Agent extends EventEmitter {
   private readonly secrets: SecretRegistry;
   private readonly secretMasker: SecretMasker;
   private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
-  private readonly confirmation: ConfirmationPolicy;
+  private confirmationPolicyOverride?: ConfirmationPolicy;
+  private confirmationPolicy: ConfirmationPolicy = createConfirmationPolicyFromSettings({ policy: 'never' });
+  private securityAnalyzerOverride?: SecurityAnalyzer | null;
+  private securityAnalyzer: SecurityAnalyzer | null = null;
   private readonly lock = new AsyncLock();
   private llmClientPromise?: Promise<LLMClient>;
   private streamerPromise?: Promise<LLMStreamer>;
@@ -154,18 +153,28 @@ export class Agent extends EventEmitter {
     this.tools = new Map(toolsWithFinish.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;
-    this.confirmation = { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true };
     this.agentContext = options.agentContext;
     this.debug = false;
+
+    if (options.confirmationPolicy) {
+      this.confirmationPolicyOverride = options.confirmationPolicy;
+    }
+    if (options.securityAnalyzer !== undefined) {
+      this.securityAnalyzerOverride = options.securityAnalyzer;
+    }
+
     this.updateDerivedSettings(options.settings);
 
     this.events.on((event) => this.emit('event', event));
   }
 
   private updateDerivedSettings(settings: OpenHandsSettings): void {
-    this.confirmation.policy = settings?.confirmation?.policy ?? 'never';
-    this.confirmation.riskyThreshold = settings?.confirmation?.riskyThreshold ?? 'MEDIUM';
-    this.confirmation.confirmUnknown = settings?.confirmation?.confirmUnknown ?? true;
+    const derivedConfirmationPolicy = createConfirmationPolicyFromSettings(settings?.confirmation);
+    const derivedSecurityAnalyzer = settings?.agent?.enableSecurityAnalyzer ? new LLMSecurityAnalyzer() : null;
+
+    this.confirmationPolicy = this.confirmationPolicyOverride ?? derivedConfirmationPolicy;
+    this.securityAnalyzer =
+      this.securityAnalyzerOverride !== undefined ? this.securityAnalyzerOverride : derivedSecurityAnalyzer;
     this.debug = settings?.agent?.debug ?? false;
     this.toolSummarizer.updateSettings(settings, { debug: this.debug });
     this.syncToolSecrets(settings);
@@ -202,6 +211,22 @@ export class Agent extends EventEmitter {
       const newProfileId = settings?.llm?.profileId;
       console.log(`[Agent.setSettings] Settings updated. Profile: ${prevProfileId} -> ${newProfileId}, Model: ${prevModel} -> ${newModel}. Cleared streamerPromise.`);
 
+      return Promise.resolve();
+    });
+  }
+
+  setConfirmationPolicy(policy: ConfirmationPolicy): void {
+    void this.lock.acquire(() => {
+      this.confirmationPolicyOverride = policy;
+      this.confirmationPolicy = policy;
+      return Promise.resolve();
+    });
+  }
+
+  setSecurityAnalyzer(analyzer: SecurityAnalyzer | null): void {
+    void this.lock.acquire(() => {
+      this.securityAnalyzerOverride = analyzer;
+      this.securityAnalyzer = analyzer;
       return Promise.resolve();
     });
   }
@@ -836,7 +861,7 @@ export class Agent extends EventEmitter {
       if (!properties.security_risk) {
         properties.security_risk = {
           type: 'string',
-          enum: ['LOW', 'MEDIUM', 'HIGH'],
+          enum: ['UNKNOWN', 'LOW', 'MEDIUM', 'HIGH'],
           description: 'Assessed safety risk of this tool call.',
         };
       }
@@ -895,8 +920,7 @@ export class Agent extends EventEmitter {
   }
 
   private shouldIncludeSecurityRiskAssessment(): boolean {
-    const policy = this.confirmation.policy ?? 'never';
-    return policy === 'always' || policy === 'risky';
+    return this.confirmationPolicy.kind !== 'NeverConfirm' || this.securityAnalyzer?.kind === 'LLMSecurityAnalyzer';
   }
 
   private async getPrimaryLlmClient(): Promise<LLMClient> {
@@ -1038,8 +1062,30 @@ export class Agent extends EventEmitter {
     try {
       const parsed: unknown = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const { security_risk, ...rest } = parsed as Record<string, unknown>;
-        return { args: rest, securityRisk: this.parseSecurityRisk(security_risk) };
+        const parsedObj = parsed as Record<string, unknown>;
+        const { security_risk, ...rest } = parsedObj;
+        const securityRisk = this.parseSecurityRisk(security_risk);
+
+        if (this.securityAnalyzer?.kind === 'LLMSecurityAnalyzer' && toolCall.function.name !== 'finish') {
+          if (security_risk === undefined) {
+            throw new Error(`Missing required security_risk for tool '${toolCall.function.name}'.`);
+          }
+          if (!securityRisk) {
+            const rawRisk =
+              typeof security_risk === 'string'
+                ? security_risk
+                : (() => {
+                    try {
+                      return JSON.stringify(security_risk);
+                    } catch {
+                      return '[unserializable]';
+                    }
+                  })();
+            throw new Error(`Invalid security_risk for tool '${toolCall.function.name}': ${rawRisk}`);
+          }
+        }
+
+        return { args: rest, securityRisk };
       }
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
@@ -1051,19 +1097,28 @@ export class Agent extends EventEmitter {
 
   private parseSecurityRisk(value: unknown): SecurityRisk | undefined {
     if (typeof value !== 'string') return undefined;
-    const normalized = value.toUpperCase() as SecurityRisk;
-    return SECURITY_RISK_ORDER.includes(normalized) ? normalized : undefined;
+    const normalized = value.toUpperCase();
+    if (normalized === 'UNKNOWN') return 'UNKNOWN';
+    if (normalized === 'LOW') return 'LOW';
+    if (normalized === 'MEDIUM') return 'MEDIUM';
+    if (normalized === 'HIGH') return 'HIGH';
+    return undefined;
   }
 
   private requiresConfirmation(action: ActionEvent): boolean {
     if (action.tool_name === 'finish') return false;
-    const policy = this.confirmation.policy ?? 'never';
-    if (policy === 'never') return false;
-    if (policy === 'always') return true;
-    const risk = action.security_risk;
-    if (!risk || risk === 'UNKNOWN') return this.confirmation.confirmUnknown ?? true;
-    const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
-    return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
+    let risk: SecurityRisk = 'UNKNOWN';
+    if (this.securityAnalyzer) {
+      try {
+        risk = this.securityAnalyzer.securityRisk(action);
+      } catch {
+        risk = 'HIGH';
+      }
+    }
+    if (risk === 'UNKNOWN') {
+      risk = action.security_risk ?? 'UNKNOWN';
+    }
+    return this.confirmationPolicy.shouldConfirm(risk);
   }
 
   private emitSkippedToolCall(toolCall: ToolCall, actionEvent: ActionEvent, reason: string): void {

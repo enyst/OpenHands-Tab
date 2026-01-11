@@ -1,4 +1,5 @@
 import * as childProcess from 'child_process';
+import * as fs from 'node:fs/promises';
 import * as path from 'path';
 
 function execFileText(command: string, args: string[], cwd?: string): Promise<string> {
@@ -23,7 +24,9 @@ export async function getGitHeadDiffSummaryForFile(filePath: string): Promise<st
     return '(no HEAD available)';
   }
 
-  const relative = path.relative(root, filePath);
+  const normalizedRoot = await fs.realpath(root).catch(() => root);
+  const normalizedFilePath = await fs.realpath(filePath).catch(() => filePath);
+  const relative = path.relative(normalizedRoot, normalizedFilePath);
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     return '(no HEAD available)';
   }
