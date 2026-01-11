@@ -552,4 +552,54 @@ describe('Agent loop control', () => {
     const allErrors = log.list().filter(isConversationErrorEvent).filter((e) => e.code === 'max_iterations_exceeded');
     expect(allErrors.length).toBe(1); // Still just the first one
   });
+
+
+  it('emits a ConversationErrorEvent when stuck detection triggers', async () => {
+    const log = new EventLog();
+    const tool: ToolDefinition<{ value: string }, { echoed: string }> = {
+      name: 'echo',
+      validate: (input) => ({ value: (input as { value: string }).value }),
+      execute: async (args) => ({ echoed: args.value }),
+    };
+
+    const seq = (id: string) => ([
+      { type: 'text', text: 'Using tool' },
+      { type: 'tool_call_delta', id, name: 'echo', arguments: '{"value":"hi"}' },
+      { type: 'finish' },
+    ] as const);
+
+    const llm = new SequencedLLM([
+      [...seq('call_1')],
+      [...seq('call_2')],
+      // The third response should never be needed if stuck detection triggers.
+      [...seq('call_3')],
+    ]);
+
+    const agent = new Agent({
+      settings: {
+        ...baseSettings,
+        conversation: {
+          maxIterations: 50,
+          stuckDetection: true,
+          stuckThresholds: {
+            actionObservation: 2,
+            actionError: 2,
+            monologue: 2,
+            alternatingPattern: 4,
+          },
+        },
+      },
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      tools: [tool],
+    });
+
+    await agent.run('start');
+
+    const stuckErrors = log.list().filter(isConversationErrorEvent).filter((e) => e.code === 'stuck_detected');
+    expect(stuckErrors.length).toBe(1);
+    expect(agent.state.snapshot.status).toBe('IDLE');
+  });
+
 });
