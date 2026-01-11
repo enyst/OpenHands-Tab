@@ -25,6 +25,7 @@ export interface CommandResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  timeoutOccurred: boolean;
 }
 
 export interface DirectoryEntry {
@@ -32,3 +33,18 @@ export interface DirectoryEntry {
   path: string;
   isDirectory: boolean;
 }
+
+export interface FileOperationResult {
+  success: boolean;
+  path: string;
+  error?: string;
+}
+
+export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked' | 'unknown';
+
+export interface GitChange {
+  path: string;
+  status: GitChangeStatus;
+  previousPath?: string;
+}
+

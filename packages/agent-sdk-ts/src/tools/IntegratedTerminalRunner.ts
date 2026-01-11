@@ -131,6 +131,7 @@ export class IntegratedTerminalRunner {
           stdout,
           stderr,
           exitCode,
+          timeoutOccurred: timedOut,
         });
       });
     });
@@ -188,6 +189,7 @@ export class IntegratedTerminalRunner {
           stdout,
           stderr,
           exitCode: timedOut || aborted ? code ?? -1 : code ?? 0,
+          timeoutOccurred: timedOut,
         });
       });
     });

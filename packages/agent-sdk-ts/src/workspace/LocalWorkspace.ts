@@ -5,7 +5,14 @@ import { readFile as readFileAsync, mkdir, rm, readdir } from 'node:fs/promises'
 import path from 'path';
 import os from 'os';
 import type { BaseWorkspace } from './BaseWorkspace';
-import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from './types';
+import type {
+  CommandOptions,
+  CommandResult,
+  DirectoryEntry,
+  FileOperationResult,
+  GitChange,
+  WorkspaceEncoding,
+} from './types';
 
 type EnvVars = Record<string, string | undefined>;
 
@@ -625,6 +632,92 @@ export class LocalWorkspace implements BaseWorkspace {
     return resolved;
   }
 
+  async copyToWorkspace(sourcePath: string, destinationPath: string): Promise<FileOperationResult> {
+    try {
+      const stat = await fs.promises.stat(sourcePath);
+      if (!stat.isFile()) {
+        return { success: false, path: destinationPath, error: `Source is not a file: ${sourcePath}` };
+      }
+      const buf = await fs.promises.readFile(sourcePath);
+      await this.writeFile(destinationPath, buf);
+      return { success: true, path: destinationPath };
+    } catch (error) {
+      return {
+        success: false,
+        path: destinationPath,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async fileUpload(localPath: string, workspacePath: string): Promise<FileOperationResult> {
+    return this.copyToWorkspace(localPath, workspacePath);
+  }
+
+  async fileDownload(workspacePath: string, localPath: string): Promise<FileOperationResult> {
+    try {
+      const buf = await this.readFileBytes(workspacePath);
+      await fs.promises.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.promises.writeFile(localPath, buf);
+      return { success: true, path: localPath };
+    } catch (error) {
+      return {
+        success: false,
+        path: localPath,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async gitChanges(paths?: string[]): Promise<GitChange[]> {
+    const sanitizedPaths = paths?.map((p) => this.resolvePath(p));
+    const relativePaths = sanitizedPaths?.map((p) => path.relative(this.root, p));
+    const command = relativePaths?.length
+      ? `git status --porcelain -- ${relativePaths.map((p) => JSON.stringify(p)).join(' ')}`
+      : 'git status --porcelain';
+
+    const result = await this.runCommand(command, { cwd: this.root });
+    if (result.exitCode !== 0) {
+      const detail = result.stderr.trim() || result.stdout.trim();
+      throw new Error(`gitChanges failed (exit code ${result.exitCode})${detail ? `: ${detail}` : ''}`);
+    }
+
+    const lines = result.stdout.split('\n').map((line) => line.trimEnd()).filter((line) => line.trim().length > 0);
+    const changes: GitChange[] = [];
+
+    for (const line of lines) {
+      const prefix = line.slice(0, 2);
+      const rest = line.slice(2).trim();
+
+      if (prefix === '??') {
+        changes.push({ path: rest, status: 'untracked' });
+        continue;
+      }
+
+      const statusChars = prefix.replaceAll(' ', '');
+      const status = (() => {
+        if (statusChars.includes('R')) return 'renamed' as const;
+        if (statusChars.includes('A')) return 'added' as const;
+        if (statusChars.includes('D')) return 'deleted' as const;
+        if (statusChars.includes('M')) return 'modified' as const;
+        return 'unknown' as const;
+      })();
+
+      if (status === 'renamed' && rest.includes('->')) {
+        const [prevRaw, nextRaw] = rest.split('->').map((part) => part.trim());
+        if (nextRaw) {
+          changes.push({ path: nextRaw, previousPath: prevRaw || undefined, status });
+          continue;
+        }
+      }
+
+      changes.push({ path: rest, status });
+    }
+
+    return changes;
+  }
+
+
   async runCommand(command: string, options: CommandOptions = {}): Promise<CommandResult> {
     const cwd = options.cwd ? this.resolvePath(options.cwd) : this.root;
     return new Promise<CommandResult>((resolve) => {
@@ -645,8 +738,10 @@ export class LocalWorkspace implements BaseWorkspace {
 
       let stdout = '';
       let stderr = '';
+      let timeoutOccurred = false;
       const timeout = options.timeoutMs
         ? setTimeout(() => {
+            timeoutOccurred = true;
             if (os.platform() === 'win32') {
               // On Windows, best-effort kill the entire process tree.
               // `child.kill()` may only terminate the parent process, leaving payloads running.
@@ -681,6 +776,7 @@ export class LocalWorkspace implements BaseWorkspace {
           stdout,
           stderr,
           exitCode: code ?? -1,
+          timeoutOccurred,
         });
       });
     });

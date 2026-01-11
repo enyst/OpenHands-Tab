@@ -422,5 +422,50 @@ describe('LocalWorkspace', () => {
         expect(printedDir).toBe(realDir);
       }
     });
+
+
+    it('reports timeoutOccurred when a command exceeds timeoutMs', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace } = await makeWorkspace((value) => created.push(value));
+      const result = await workspace.runCommand('sleep 1', { timeoutMs: 10 });
+      expect(result.timeoutOccurred).toBe(true);
+      expect(result.exitCode).toBe(-1);
+    });
+
   });
+
+
+  describe('workspace helpers', () => {
+    it('uploads and downloads files', async () => {
+      const { workspace } = await makeWorkspace((value) => created.push(value));
+      const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-transfer-'));
+      created.push(externalDir);
+
+      const sourcePath = path.join(externalDir, 'source.txt');
+      await fs.promises.writeFile(sourcePath, 'hello', 'utf8');
+
+      const upload = await workspace.fileUpload(sourcePath, 'uploaded.txt');
+      expect(upload.success).toBe(true);
+      await expect(workspace.readFile('uploaded.txt')).resolves.toBe('hello');
+
+      const downloadPath = path.join(externalDir, 'downloaded.txt');
+      const download = await workspace.fileDownload('uploaded.txt', downloadPath);
+      expect(download.success).toBe(true);
+      await expect(fs.promises.readFile(downloadPath, 'utf8')).resolves.toBe('hello');
+    });
+
+    it('reports git changes for untracked files', async () => {
+      if (process.platform === 'win32') return;
+
+      const { workspace } = await makeWorkspace((value) => created.push(value));
+      const init = await workspace.runCommand('git init');
+      expect(init.exitCode).toBe(0);
+
+      await workspace.writeFile('untracked.txt', 'hello');
+      const changes = await workspace.gitChanges();
+      expect(changes).toContainEqual({ path: 'untracked.txt', status: 'untracked' });
+    });
+  });
+
 });
