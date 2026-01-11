@@ -861,7 +861,7 @@ export class Agent extends EventEmitter {
       if (!properties.security_risk) {
         properties.security_risk = {
           type: 'string',
-          enum: ['LOW', 'MEDIUM', 'HIGH'],
+          enum: ['UNKNOWN', 'LOW', 'MEDIUM', 'HIGH'],
           description: 'Assessed safety risk of this tool call.',
         };
       }
@@ -1114,6 +1114,9 @@ export class Agent extends EventEmitter {
       } catch {
         risk = 'HIGH';
       }
+    }
+    if (risk === 'UNKNOWN') {
+      risk = action.security_risk ?? 'UNKNOWN';
     }
     return this.confirmationPolicy.shouldConfirm(risk);
   }
