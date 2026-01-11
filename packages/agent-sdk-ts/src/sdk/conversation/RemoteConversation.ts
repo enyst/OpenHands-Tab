@@ -446,6 +446,25 @@ export class RemoteConversation extends EventEmitter {
     return title;
   }
 
+  async condense(): Promise<void> {
+    if (!this.conversationId) {
+      throw new Error('Cannot condense: no active conversation. Start or restore a conversation first.');
+    }
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    const res = await this.fetchWithTimeout(
+      `${base}/api/conversations/${this.conversationId}/condense`,
+      { method: 'POST', headers },
+      RemoteConversation.httpTimeoutMs,
+    );
+
+    if (!res.ok) {
+      const info = await res.text().catch(() => '');
+      throw new Error(`Failed to condense conversation (HTTP ${res.status})${info ? `: ${info}` : ''}`);
+    }
+  }
+
 
 
   async approveAction(): Promise<void> {

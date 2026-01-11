@@ -751,6 +751,72 @@ describe('RemoteConversation', () => {
     await expect(conversation.generateTitle()).rejects.toThrow('generateTitle: server response missing "title"');
   });
 
+  it('condense posts /condense', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/condense')) {
+        expect(init?.method).toBe('POST');
+        expect(init?.body).toBeUndefined();
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.condense()).resolves.toBeUndefined();
+  });
+
+  it('condense throws on non-2xx response', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/condense')) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({}),
+          text: async () => 'no condenser configured',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.condense()).rejects.toThrow('Failed to condense conversation (HTTP 400): no condenser configured');
+  });
+
   it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toMatch(/^http:\/\/localhost:3000\//);
