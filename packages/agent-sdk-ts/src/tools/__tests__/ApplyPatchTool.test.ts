@@ -54,7 +54,10 @@ describe('ApplyPatchTool', () => {
       '*** End Patch',
     ].join('\n');
 
-    await expect(tool.execute(tool.validate({ patch }), { workspace })).resolves.toBeTruthy();
+    const result = await tool.execute(tool.validate({ patch }), { workspace });
+    expect(result.message).toBe('Done!');
+    expect(result.fuzz).toBe(0);
+    expect(result.commit.changes['note.txt']?.type).toBe('update');
     expect(await workspace.readFile('note.txt')).toBe('a\nB\nc');
   });
 
@@ -71,7 +74,10 @@ describe('ApplyPatchTool', () => {
       '*** End Patch',
     ].join('\n');
 
-    await tool.execute(tool.validate({ patch }), { workspace });
+    const result = await tool.execute(tool.validate({ patch }), { workspace });
+    expect(result.message).toBe('Done!');
+    expect(result.fuzz).toBe(0);
+    expect(result.commit.changes['gone.txt']?.type).toBe('delete');
     await expect(workspace.readFile('gone.txt')).rejects.toThrow();
   });
 
@@ -92,7 +98,11 @@ describe('ApplyPatchTool', () => {
       '*** End Patch',
     ].join('\n');
 
-    await tool.execute(tool.validate({ patch }), { workspace });
+    const result = await tool.execute(tool.validate({ patch }), { workspace });
+    expect(result.message).toBe('Done!');
+    expect(result.fuzz).toBe(0);
+    expect(result.commit.changes['old.txt']?.type).toBe('update');
+    expect(result.commit.changes['old.txt']?.move_path).toBe('new.txt');
     await expect(workspace.readFile('old.txt')).rejects.toThrow();
     expect(await workspace.readFile('new.txt')).toBe('one\nTWO');
   });
@@ -122,4 +132,3 @@ describe('ApplyPatchTool', () => {
     );
   });
 });
-
