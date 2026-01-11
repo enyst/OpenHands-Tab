@@ -104,17 +104,24 @@ export class RemoteConversation extends EventEmitter {
   private workspaceClient?: RemoteWorkspace;
 
 
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
   private serializeConfirmationPolicy(policy: ConfirmationPolicy | RemoteConfirmationPolicyPayload): RemoteConfirmationPolicyPayload {
     if (policy.kind === 'AlwaysConfirm') return { kind: 'AlwaysConfirm' };
     if (policy.kind === 'NeverConfirm') return { kind: 'NeverConfirm' };
 
     if (policy.kind !== 'ConfirmRisky') {
-      throw new Error(`setConfirmationPolicy: unsupported policy kind '${String((policy as { kind: unknown }).kind)}'`);
+      const kind = this.asRecord(policy)?.kind;
+      throw new Error(`setConfirmationPolicy: unsupported policy kind '${typeof kind === 'string' ? kind : String(kind)}'`);
     }
 
-    const threshold = (policy as { threshold?: unknown }).threshold;
-    const confirmUnknown = (policy as { confirmUnknown?: unknown }).confirmUnknown;
-    const confirm_unknown = (policy as { confirm_unknown?: unknown }).confirm_unknown;
+    const record = this.asRecord(policy);
+    const threshold = record?.threshold;
+    const confirmUnknown = record?.confirmUnknown;
+    const confirm_unknown = record?.confirm_unknown;
 
     const normalizedThreshold = typeof threshold === 'string' ? threshold.toUpperCase() : undefined;
     if (normalizedThreshold !== 'LOW' && normalizedThreshold !== 'MEDIUM' && normalizedThreshold !== 'HIGH') {
@@ -133,7 +140,8 @@ export class RemoteConversation extends EventEmitter {
   private serializeSecurityAnalyzer(analyzer: SecurityAnalyzer | RemoteSecurityAnalyzerPayload | null | undefined): RemoteSecurityAnalyzerPayload | null {
     if (analyzer === null || analyzer === undefined) return null;
     if (analyzer.kind === 'LLMSecurityAnalyzer') return { kind: 'LLMSecurityAnalyzer' };
-    throw new Error(`setSecurityAnalyzer: unsupported analyzer kind '${String((analyzer as { kind: unknown }).kind)}'`);
+    const kind = this.asRecord(analyzer)?.kind;
+    throw new Error(`setSecurityAnalyzer: unsupported analyzer kind '${typeof kind === 'string' ? kind : String(kind)}'`);
   }
 
   constructor(options: RemoteConversationOptions) {
