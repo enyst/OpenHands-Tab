@@ -817,6 +817,46 @@ describe('RemoteConversation', () => {
     await expect(conversation.condense()).rejects.toThrow('Failed to condense conversation (HTTP 400): no condenser configured');
   });
 
+  it('getWorkspace exposes a RemoteWorkspace using sessionApiKey and invalidates on key change', async () => {
+    let uploadCalls = 0;
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/file/upload')) {
+        expect(init?.method).toBe('POST');
+        uploadCalls += 1;
+        expect(init?.headers?.['X-Session-API-Key']).toBe(uploadCalls === 1 ? 'session-key-1' : 'session-key-2');
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      workspaceRoot: '/workspace',
+      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key-1' } },
+    });
+
+    const w1 = conversation.getWorkspace();
+    const w2 = conversation.getWorkspace();
+    expect(w1).toBe(w2);
+    expect(w1.kind).toBe('remote');
+    expect(w1.root).toBe('/workspace');
+
+    await w1.writeFile('notes.txt', 'hello');
+
+    conversation.setSettings({ ...baseSettings, secrets: { sessionApiKey: 'session-key-2' } });
+    const w3 = conversation.getWorkspace();
+    expect(w3).not.toBe(w1);
+
+    await w3.writeFile('notes.txt', 'hello');
+  });
+
   it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toMatch(/^http:\/\/localhost:3000\//);
