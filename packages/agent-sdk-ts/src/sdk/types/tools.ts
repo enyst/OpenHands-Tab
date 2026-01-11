@@ -1,10 +1,10 @@
 import type { EventLog } from '../runtime/EventLog';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
 import type { LLMToolDefinition } from '../llm';
-import type { LocalWorkspace } from '../../workspace/LocalWorkspace';
+import type { BaseWorkspace } from '../../workspace';
 
 export interface ToolContext {
-  workspace: LocalWorkspace;
+  workspace: BaseWorkspace;
   events?: EventLog;
   secrets?: SecretRegistry;
 }

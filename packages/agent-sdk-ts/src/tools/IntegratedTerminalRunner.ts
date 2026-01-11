@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import os from 'os';
 import type { Pseudoterminal } from 'vscode';
-import type { CommandResult } from '../workspace/LocalWorkspace';
+import type { CommandResult } from '../workspace/types';
 import type { LocalWorkspace } from '../workspace/LocalWorkspace';
 
 const loadVscode = (): typeof import('vscode') | null => {

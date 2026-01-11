@@ -4,45 +4,15 @@ import * as fs from 'fs';
 import { readFile as readFileAsync, mkdir, rm, readdir } from 'node:fs/promises';
 import path from 'path';
 import os from 'os';
+import type { BaseWorkspace } from './BaseWorkspace';
+import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from './types';
 
-type WorkspaceEncoding =
-  | 'ascii'
-  | 'utf8'
-  | 'utf-8'
-  | 'utf16le'
-  | 'ucs2'
-  | 'ucs-2'
-  | 'base64'
-  | 'base64url'
-  | 'latin1'
-  | 'binary'
-  | 'hex';
 type EnvVars = Record<string, string | undefined>;
-
-export interface CommandOptions {
-  cwd?: string;
-  env?: EnvVars;
-  timeoutMs?: number;
-  shell?: string | boolean;
-}
-
-export interface CommandResult {
-  command: string;
-  cwd: string;
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
-export interface DirectoryEntry {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-}
 
 type AllowedRootKind = 'dir' | 'file';
 
-export class LocalWorkspace {
+export class LocalWorkspace implements BaseWorkspace {
+  readonly kind = 'local' as const;
   readonly root: string;
   private readonly allowedRoots = new Map<string, AllowedRootKind>();
 
