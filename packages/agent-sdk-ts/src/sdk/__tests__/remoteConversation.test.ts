@@ -467,6 +467,142 @@ describe('RemoteConversation', () => {
     expect(conversation.state.executionStatus).toBe('paused');
   });
 
+  it('askAgent posts /ask_agent and returns response without emitting events', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/ask_agent')) {
+        expect(init?.method).toBe('POST');
+        const body = JSON.parse(init?.body ?? '{}');
+        expect(body).toEqual({ question: 'What is 2+2?' });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ response: '4' }),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    const received: Event[] = [];
+    conversation.on('event', (e) => received.push(e));
+
+    await conversation.restoreConversation('abc');
+    received.length = 0;
+
+    await expect(conversation.askAgent('What is 2+2?')).resolves.toBe('4');
+    expect(received).toEqual([]);
+  });
+
+  it('askAgent throws when server returns null JSON', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/ask_agent')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => null,
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('askAgent: server response missing "response"');
+  });
+
+  it('askAgent throws when server response is missing "response"', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/ask_agent')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('askAgent: server response missing "response"');
+  });
+
+  it('askAgent throws on non-2xx response', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/ask_agent')) {
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ response: 'ignored' }),
+          text: async () => 'unavailable',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('Failed to ask agent (HTTP 503): unavailable');
+  });
+
   it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toMatch(/^http:\/\/localhost:3000\//);
