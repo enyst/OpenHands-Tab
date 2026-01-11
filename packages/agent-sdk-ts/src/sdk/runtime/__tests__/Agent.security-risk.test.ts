@@ -98,7 +98,7 @@ describe('Agent security risk handling', () => {
     }
   });
 
-  it('treats unknown tool-provided security_risk as undefined', async () => {
+  it('defaults unknown tool-provided security_risk to UNKNOWN', async () => {
     const log = new EventLog();
     const tool: ToolDefinition<Record<string, unknown>, { echoed: boolean }> = {
       name: 'echo',
@@ -129,7 +129,7 @@ describe('Agent security risk handling', () => {
 
     const events = log.list();
     const action = events.find(isActionEvent);
-    expect(action?.security_risk).toBeUndefined();
+    expect(action?.security_risk).toBe('UNKNOWN');
     expect(agent.state.snapshot.status).toBe('WAITING_FOR_CONFIRMATION');
     expect(agent.pendingActionId).toBeDefined();
   });

@@ -1061,7 +1061,7 @@ export class Agent extends EventEmitter {
     if (policy === 'never') return false;
     if (policy === 'always') return true;
     const risk = action.security_risk;
-    if (!risk) return this.confirmation.confirmUnknown ?? true;
+    if (!risk || risk === 'UNKNOWN') return this.confirmation.confirmUnknown ?? true;
     const threshold = this.confirmation.riskyThreshold ?? 'MEDIUM';
     return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(threshold);
   }
@@ -1123,7 +1123,7 @@ export class Agent extends EventEmitter {
       tool_call_id: toolCall.id,
       tool_call: toolCall,
       llm_response_id: message.id ?? randomUUID(),
-      security_risk: securityRisk,
+      security_risk: securityRisk ?? 'UNKNOWN',
     };
   }
 
