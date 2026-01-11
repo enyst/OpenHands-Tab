@@ -1013,6 +1013,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             ok: true,
             audioBase64: Buffer.from(result.bytes).toString('base64'),
             volume: settings.hal.volume,
+            mimeType: 'audio/mpeg',
           });
           break;
         }

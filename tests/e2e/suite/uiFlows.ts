@@ -97,6 +97,11 @@ export async function run(): Promise<void> {
   await cfg.update('openhands.hal.enabled', true, vscode.ConfigurationTarget.Global);
   await cfg.update('openhands.hal.mode', 'bundled', vscode.ConfigurationTarget.Global);
 
+
+  // Ensure HIGH risk actions require confirmation so HAL will trigger.
+  await cfg.update('openhands.confirmation.policy', 'risky', vscode.ConfigurationTarget.Global);
+  await cfg.update('openhands.confirmation.risky.threshold', 'HIGH', vscode.ConfigurationTarget.Global);
+
   await pollUntil(async () => {
     const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
     return hal?.enabled === true && hal?.mode === 'bundled';
@@ -126,13 +131,11 @@ export async function run(): Promise<void> {
 
   await pollUntil(async () => {
     const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
-    return hal?.phase === 'dialogue';
+    return hal?.phase !== 'idle';
   }, 15000);
 
-  await pollUntil(async () => {
-    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
-    return hal?.phase === 'awaiting_user';
-  }, 15000);
+  // Bundled mode plays a single long scene WAV, so we should not wait for audio to finish.
+  // The intended UX is that the user can approve while the scene is playing.
 
   // Ensure the HAL overlay doesn't restart on repeated state updates.
   await vscode.commands.executeCommand('openhands._sendTestEvent', {
@@ -142,8 +145,8 @@ export async function run(): Promise<void> {
   });
   await new Promise((r) => setTimeout(r, 200));
   const halAfterRepeat: any = await vscode.commands.executeCommand('openhands._queryHalState');
-  if (halAfterRepeat?.phase !== 'awaiting_user') {
-    throw new Error(`Expected HAL to remain awaiting_user; got ${JSON.stringify(halAfterRepeat)}`);
+  if (halAfterRepeat?.phase === 'idle') {
+    throw new Error(`Expected HAL to remain active; got ${JSON.stringify(halAfterRepeat)}`);
   }
 
   // Choose approve deterministically and simulate completion.

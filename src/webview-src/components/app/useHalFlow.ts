@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
-import { getHalDialogueLinesForMode, type HalScriptLine, type HalVoice } from '../../../shared/halScript';
+import { getHalDialogueLinesForMode, type HalScriptLine } from '../../../shared/halScript';
 import { DEFAULT_HAL_STATE } from '../../../shared/halDefaults';
 import { isHalDecision, isHalMode, type HalDecision, type HalEye, type HalMode, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
@@ -25,7 +25,6 @@ const DEFAULT_HAL_UI_STATE: HalUiState = {
   lastError: null,
 };
 
-const DEFAULT_BUNDLED_DIALOGUE_DELAY_MS = 650;
 const DEFAULT_BUNDLED_AUDIO_EXTENSION = 'wav';
 
 function getOpenHandsMediaBaseUri(): string | null {
@@ -44,8 +43,8 @@ function buildMediaUrl(relativePath: string): string | null {
   return `${normalizedBase}${rel}`;
 }
 
-function getBundledHalClipUrl(voice: HalVoice, stepIndex: number): string | null {
-  return buildMediaUrl(`hal/bundled/${voice}/${stepIndex}.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
+function getBundledHalSceneUrl(): string | null {
+  return buildMediaUrl(`hal/bundled/scene.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
 }
 
 function getBundledHalMusicStingUrl(): string | null {
@@ -291,28 +290,11 @@ export function useHalFlow(deps: {
     if (currentIndex === null) return;
     const lastIndex = halDialogueRef.current.length - 1;
     if (currentIndex >= lastIndex) {
-      setHalPhase('awaiting_user');
-      setHalStepIndex(null);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: null });
       return;
     }
     setHalStepIndex(currentIndex + 1);
-  }, []);
-
-  const advanceBundledDialogueAfterDelay = useCallback(
-    (currentIndex: number) => {
-      clearHalTimer();
-      halTimerRef.current = setTimeout(() => {
-        const lastIndex = halDialogueRef.current.length - 1;
-        if (currentIndex >= lastIndex) {
-          setHalPhase('awaiting_user');
-          setHalStepIndex(null);
-          return;
-        }
-        setHalStepIndex(currentIndex + 1);
-      }, DEFAULT_BUNDLED_DIALOGUE_DELAY_MS);
-    },
-    [clearHalTimer]
-  );
+  }, [resetHalUiState]);
 
   useEffect(() => {
     if (halPhase !== 'dialogue') return;
@@ -320,16 +302,14 @@ export function useHalFlow(deps: {
     if (halSettingsRef.current.mode !== 'bundled') return;
 
     const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    const playKey = `${sessionKey}:${halStepIndex}`;
-    if (halBundledAudioKeyRef.current === playKey) return;
-    halBundledAudioKeyRef.current = playKey;
+    if (halBundledAudioKeyRef.current === sessionKey) return;
+    halBundledAudioKeyRef.current = sessionKey;
 
     clearHalTimer();
 
-    const line = halDialogueLines[halStepIndex];
-    const clipUrl = line ? getBundledHalClipUrl(line.voice, halStepIndex) : null;
+    const clipUrl = getBundledHalSceneUrl();
     if (!clipUrl || typeof Audio !== 'function') {
-      advanceBundledDialogueAfterDelay(halStepIndex);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: null });
       return;
     }
 
@@ -342,30 +322,21 @@ export function useHalFlow(deps: {
     audio.onended = () => {
       if (halAudioPlayTokenRef.current !== token) return;
       stopHalAudio();
-      handleHalAudioFinished();
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
     };
-    const fallBackToTimer = () => {
+    const fallBackToAwaiting = () => {
       if (halAudioPlayTokenRef.current !== token) return;
       stopHalAudio();
-      const currentIndex = halStepIndexRef.current;
-      advanceBundledDialogueAfterDelay(currentIndex ?? halStepIndex);
+      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
     };
-    audio.onerror = fallBackToTimer;
-    void audio.play().catch(fallBackToTimer);
+    audio.onerror = fallBackToAwaiting;
+    void audio.play().catch(fallBackToAwaiting);
 
     return () => {
       clearHalTimer();
       stopHalAudio();
     };
-  }, [
-    advanceBundledDialogueAfterDelay,
-    clearHalTimer,
-    halDialogueLines,
-    halPhase,
-    halStepIndex,
-    handleHalAudioFinished,
-    stopHalAudio,
-  ]);
+  }, [clearHalTimer, halPhase, halStepIndex, stopHalAudio]);
 
   useEffect(() => {
     if (halPhase !== 'waiting_remote') {
@@ -401,32 +372,37 @@ export function useHalFlow(deps: {
     };
   }, [halPhase, stopHalAudio]);
 
-  const playHalAudioBytes = useCallback((bytes: Uint8Array, volume: number) => {
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/mpeg' });
-    const url = URL.createObjectURL(blob);
-    halAudioUrlRef.current = url;
+  const playHalAudioBytes = useCallback(
+    (bytes: Uint8Array, volume: number, opts: { mimeType?: string } = {}) => {
+      stopHalAudio();
+      const token = halAudioPlayTokenRef.current;
+      const mimeType = opts.mimeType?.trim() || 'audio/mpeg';
+      const viewBytes = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+      const blob = new Blob([viewBytes], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      halAudioUrlRef.current = url;
 
-    const audio = new Audio(url);
-    halAudioRef.current = audio;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onended = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    audio.onerror = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    };
-    void audio.play().catch(() => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      handleHalAudioFinished();
-    });
-  }, [handleHalAudioFinished, stopHalAudio]);
+      const audio = new Audio(url);
+      halAudioRef.current = audio;
+      audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
+      audio.onended = () => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        handleHalAudioFinished();
+      };
+      audio.onerror = () => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        handleHalAudioFinished();
+      };
+      void audio.play().catch(() => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        handleHalAudioFinished();
+      });
+    },
+    [handleHalAudioFinished, stopHalAudio]
+  );
 
   const requestHalTts = useCallback((params: { conversationId: string; stepIndex: number }) => {
     const requestId = `halTts:${Date.now().toString(36)}:${(halTtsRequestSeqRef.current++).toString(36)}`;
@@ -701,13 +677,16 @@ export function useHalFlow(deps: {
         return;
       }
       const volume = (payload as { volume?: unknown } | undefined)?.volume;
+      const mimeType = (payload as { mimeType?: unknown } | undefined)?.mimeType;
       try {
         const rawAudio = atob(base64);
         const bytes = new Uint8Array(rawAudio.length);
         for (let i = 0; i < rawAudio.length; i += 1) {
           bytes[i] = rawAudio.charCodeAt(i);
         }
-        playHalAudioBytes(bytes, typeof volume === 'number' ? volume : halSettingsRef.current.volume);
+        playHalAudioBytes(bytes, typeof volume === 'number' ? volume : halSettingsRef.current.volume, {
+          mimeType: typeof mimeType === 'string' ? mimeType : undefined,
+        });
       } catch {
         handleHalAudioFinished();
       }
@@ -831,7 +810,7 @@ export function useHalFlow(deps: {
       mode: halSettings.mode,
       phase: halPhase,
       eye: halEye,
-      stepIndex: halPhase === 'dialogue' ? halStepIndex : null,
+      stepIndex: halStepIndex,
       decision: halDecision,
       lastError: halLastError,
     };
