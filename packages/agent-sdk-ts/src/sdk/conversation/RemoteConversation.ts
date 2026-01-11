@@ -396,6 +396,58 @@ export class RemoteConversation extends EventEmitter {
   }
 
 
+  async generateTitle(options?: { maxLength?: number; llm?: LLMConfiguration | null }): Promise<string> {
+    if (!this.conversationId) {
+      throw new Error('Cannot generateTitle: no active conversation. Start or restore a conversation first.');
+    }
+
+    const maxLength = typeof options?.maxLength === 'number' && Number.isFinite(options.maxLength)
+      ? Math.max(1, Math.trunc(options.maxLength))
+      : 50;
+
+    const llm = options?.llm;
+    const llmPayload = llm ? {
+      usage_id: llm.usageId ?? 'agent',
+      model: llm.model,
+      ...(llm.baseUrl ? { base_url: llm.baseUrl } : {}),
+      ...(llm.apiVersion ? { api_version: llm.apiVersion } : {}),
+      ...(llm.apiKey ? { api_key: llm.apiKey } : {}),
+      ...(typeof llm.timeoutSeconds === 'number' ? { timeout: llm.timeoutSeconds } : {}),
+      ...(typeof llm.temperature === 'number' ? { temperature: llm.temperature } : {}),
+      ...(typeof llm.topP === 'number' ? { top_p: llm.topP } : {}),
+      ...(typeof llm.topK === 'number' ? { top_k: llm.topK } : {}),
+      ...(typeof llm.maxInputTokens === 'number' ? { max_input_tokens: llm.maxInputTokens } : {}),
+      ...(typeof llm.maxOutputTokens === 'number' ? { max_output_tokens: llm.maxOutputTokens } : {}),
+      ...(typeof llm.reasoningEffort === 'string' ? { reasoning_effort: llm.reasoningEffort } : {}),
+      ...(typeof llm.reasoningSummary === 'string' ? { reasoning_summary: llm.reasoningSummary } : {}),
+    } : null;
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/generate_title`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ max_length: maxLength, llm: llmPayload }),
+    }, RemoteConversation.httpTimeoutMs);
+
+    if (!res.ok) {
+      const info = await res.text().catch(() => '');
+      throw new Error(`Failed to generate title (HTTP ${res.status})${info ? `: ${info}` : ''}`);
+    }
+
+    const json = await res.json().catch(() => null) as unknown;
+    const title = typeof (json as { title?: unknown } | null)?.title === 'string'
+      ? (json as { title: string }).title
+      : undefined;
+    if (!title) {
+      throw new Error('generateTitle: server response missing "title"');
+    }
+
+    return title;
+  }
+
+
+
   async approveAction(): Promise<void> {
     await this.respondToConfirmation(true);
   }

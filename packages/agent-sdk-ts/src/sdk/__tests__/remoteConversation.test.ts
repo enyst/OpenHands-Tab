@@ -603,6 +603,154 @@ describe('RemoteConversation', () => {
     await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('Failed to ask agent (HTTP 503): unavailable');
   });
 
+  it('generateTitle posts /generate_title and returns the title', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/generate_title')) {
+        expect(init?.method).toBe('POST');
+        const body = JSON.parse(init?.body ?? '{}');
+        expect(body.max_length).toBe(12);
+        expect(body.llm).toEqual({
+          usage_id: 'agent',
+          model: 'custom-model',
+          base_url: 'https://llm.example',
+          api_version: '2025-01-01',
+          api_key: 'llm-key',
+          timeout: 10,
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ title: 'My title' }),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.generateTitle({
+      maxLength: 12,
+      llm: {
+        model: 'custom-model',
+        apiKey: 'llm-key',
+        baseUrl: 'https://llm.example',
+        apiVersion: '2025-01-01',
+        timeoutSeconds: 10,
+      },
+    })).resolves.toBe('My title');
+  });
+
+  it('generateTitle throws when server returns null JSON', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/generate_title')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => null,
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.generateTitle()).rejects.toThrow('generateTitle: server response missing "title"');
+  });
+
+  it('generateTitle throws when server response is missing "title"', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/generate_title')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.generateTitle()).rejects.toThrow('generateTitle: server response missing "title"');
+  });
+
+  it('generateTitle throws when server response has a non-string title', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/generate_title')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ title: 123 }),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.generateTitle()).rejects.toThrow('generateTitle: server response missing "title"');
+  });
+
   it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toMatch(/^http:\/\/localhost:3000\//);
