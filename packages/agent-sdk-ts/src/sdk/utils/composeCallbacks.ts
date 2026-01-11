@@ -1,9 +1,11 @@
-export type Callback<T> = ((arg: T) => void) | null | undefined;
+export type Callback<TArgs extends unknown[]> = ((...args: TArgs) => void) | null | undefined;
 
-export function composeCallbacks<T>(callbacks: Array<Callback<T>>): (arg: T) => void {
-  return (arg: T) => {
+export function composeCallbacks<TArgs extends unknown[]>(
+  callbacks: ReadonlyArray<Callback<TArgs>>,
+): (...args: TArgs) => void {
+  return (...args: TArgs) => {
     for (const cb of callbacks) {
-      if (cb) cb(arg);
+      cb?.(...args);
     }
   };
 }

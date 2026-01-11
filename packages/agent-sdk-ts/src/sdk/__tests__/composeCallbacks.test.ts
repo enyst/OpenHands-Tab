@@ -7,7 +7,7 @@ describe('composeCallbacks', () => {
     const a = vi.fn((value: string) => calls.push(`a:${value}`));
     const b = vi.fn((value: string) => calls.push(`b:${value}`));
 
-    const composed = composeCallbacks<string>([a, null, undefined, b]);
+    const composed = composeCallbacks<[string]>([a, null, undefined, b]);
     composed('x');
 
     expect(a).toHaveBeenCalledTimes(1);
@@ -16,7 +16,7 @@ describe('composeCallbacks', () => {
   });
 
   it('works with an empty callback list', () => {
-    const composed = composeCallbacks<number>([]);
+    const composed = composeCallbacks<[number]>([]);
     expect(() => composed(123)).not.toThrow();
   });
 });
