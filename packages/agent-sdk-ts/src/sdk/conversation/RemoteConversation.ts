@@ -360,6 +360,40 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
+
+  async askAgent(question: string): Promise<string> {
+    if (!this.conversationId) {
+      throw new Error('Cannot askAgent: no active conversation. Start or restore a conversation first.');
+    }
+
+    const trimmed = question.trim();
+    if (!trimmed) {
+      throw new Error('askAgent: question must be a non-empty string');
+    }
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = { ...this.getAuthHeaders({ 'Content-Type': 'application/json' }) };
+    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/ask_agent`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ question: trimmed }),
+    }, RemoteConversation.httpTimeoutMs);
+
+    if (!res.ok) {
+      const info = await res.text().catch(() => '');
+      throw new Error(`Failed to ask agent (HTTP ${res.status})${info ? `: ${info}` : ''}`);
+    }
+
+    const json = await res.json().catch(() => ({})) as { response?: unknown };
+    const response = typeof json.response === 'string' ? json.response : undefined;
+    if (!response) {
+      throw new Error('askAgent: server response missing "response"');
+    }
+
+    return response;
+  }
+
+
   async approveAction(): Promise<void> {
     await this.respondToConfirmation(true);
   }
