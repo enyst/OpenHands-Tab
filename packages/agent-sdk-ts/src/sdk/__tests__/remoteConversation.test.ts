@@ -420,6 +420,53 @@ describe('RemoteConversation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('maintains RemoteState from ConversationStateUpdateEvent history + stream', async () => {
+    const history: Event[] = [
+      {
+        id: 's-1',
+        kind: 'ConversationStateUpdateEvent',
+        source: 'environment',
+        key: 'full_state',
+        value: {
+          execution_status: 'running',
+          confirmation_policy: { kind: 'NeverConfirm' },
+          stats: { llm: { total_cost: 0 } },
+        },
+      } as Event,
+    ];
+
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toContain('/events/search');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: history, next_page_id: null }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    expect(conversation.state.executionStatus).toBe('running');
+    expect(conversation.state.confirmationPolicy).toEqual({ kind: 'NeverConfirm' });
+
+    const ws = getEventWS();
+    ws.open();
+    ws.message({
+      id: 's-2',
+      kind: 'ConversationStateUpdateEvent',
+      source: 'environment',
+      key: 'execution_status',
+      value: 'paused',
+    });
+
+    expect(conversation.state.executionStatus).toBe('paused');
+  });
+
   it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toMatch(/^http:\/\/localhost:3000\//);

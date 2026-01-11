@@ -44,7 +44,6 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
 }
 
 export { LocalConversation, RemoteConversation };
-
+export * from './RemoteState';
 export * from './ConversationVisualizer';
 export * from './stuckDetector';
-
