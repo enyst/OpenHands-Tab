@@ -6,6 +6,8 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { LLMProfileStoreOptions } from '../llm/profiles';
 import { loadProfile } from '../llm/profiles';
 import type { LLMConfiguration } from '../llm/types';
+import { RemoteState } from './RemoteState';
+
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
@@ -85,8 +87,13 @@ export class RemoteConversation extends EventEmitter {
   private static readonly httpTimeoutMs = 15_000;
   private hasEverConnected = false;
 
+  readonly state: RemoteState;
+
+
   constructor(options: RemoteConversationOptions) {
     super();
+    this.state = new RemoteState();
+
     this.serverUrl = normalizeRemoteServerUrl(options.serverUrl);
     this.settings = options.settings;
     this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
@@ -96,6 +103,7 @@ export class RemoteConversation extends EventEmitter {
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
+      this.state.reset();
       this.emit('conversationStarted', this.conversationId);
       void this.replayHistory().then((ok) => {
         if (!ok) {
@@ -134,6 +142,7 @@ export class RemoteConversation extends EventEmitter {
       }
       this.clearWsHandshakeTimer();
       this.seenEventIds.clear();
+      this.state.reset();
       this.setStatus('connecting');
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
@@ -302,6 +311,7 @@ export class RemoteConversation extends EventEmitter {
   async restoreConversation(id: string) {
     this.conversationId = id;
     this.seenEventIds.clear();
+    this.state.reset();
     this.setStatus('connecting');
     this.emit('conversationStarted', id);
     const ok = await this.replayHistory();
@@ -557,6 +567,7 @@ export class RemoteConversation extends EventEmitter {
       if (this.seenEventIds.has(event.id)) return;
       this.seenEventIds.add(event.id);
     }
+    this.state.applyEvent(event);
     this.emit('event', event);
   }
 
