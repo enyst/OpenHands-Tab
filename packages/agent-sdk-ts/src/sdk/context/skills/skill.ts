@@ -4,10 +4,17 @@
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
-import { basename, join, relative } from 'path';
+import { basename, dirname, join, relative } from 'path';
 import { homedir } from 'os';
 import frontmatter from 'front-matter';
 import type { InputMetadata, TriggerType } from './types';
+
+// Regex pattern for valid AgentSkills names (strict):
+// - 1-64 characters
+// - lowercase alphanumeric + single hyphens only (a-z, 0-9, -)
+// - must not start or end with hyphen
+// - must not contain consecutive hyphens (--)
+const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * Error thrown when skill validation fails.
@@ -33,6 +40,8 @@ export class Skill {
   trigger: TriggerType;
   source: string | null;
   inputs: InputMetadata[];
+  isAgentSkillsFormat: boolean;
+  description: string | null;
 
   // Map third-party files to skill names
   public static readonly PATH_TO_THIRD_PARTY_SKILL_NAME: Record<string, string> = {
@@ -47,12 +56,16 @@ export class Skill {
     trigger: TriggerType;
     source?: string | null;
     inputs?: InputMetadata[];
+    isAgentSkillsFormat?: boolean;
+    description?: string | null;
   }) {
     this.name = params.name;
     this.content = params.content;
     this.trigger = params.trigger;
     this.source = params.source ?? null;
     this.inputs = params.inputs ?? [];
+    this.isAgentSkillsFormat = params.isAgentSkillsFormat ?? false;
+    this.description = params.description ?? null;
 
     // Append missing variables prompt for task skills
     if (this.trigger?.type === 'task' && this.requiresUserInput()) {
@@ -90,9 +103,13 @@ export class Skill {
   static load(params: { path: string; skillDir?: string | null; fileContent?: string | null }): Skill {
     const { path: filePath, skillDir, fileContent: providedContent } = params;
 
+    const isSkillMd = basename(filePath).toLowerCase() === 'skill.md';
+
     // Calculate derived name from relative path if skillDir is provided
     let skillName: string;
-    if (skillDir) {
+    if (isSkillMd) {
+      skillName = basename(dirname(filePath));
+    } else if (skillDir) {
       const baseName = basename(filePath).toLowerCase();
       skillName =
         this.PATH_TO_THIRD_PARTY_SKILL_NAME[baseName] ??
@@ -115,8 +132,22 @@ export class Skill {
     const content = parsed.body;
     const metadata = parsed.attributes || {};
 
-    // Use name from frontmatter if provided, otherwise use derived name
-    const name = (metadata.name as string) ?? skillName;
+    // Use name from frontmatter if provided, otherwise use derived name.
+    // For AgentSkills-format SKILL.md, the derived name is the parent directory name.
+    const name = (typeof metadata.name === 'string' && metadata.name.trim())
+      ? metadata.name.trim()
+      : skillName;
+
+    // AgentSkills-format strict name validation (Python parity).
+    if (isSkillMd) {
+      const directoryName = skillName;
+      const errors = validateAgentSkillName(name, directoryName);
+      if (errors.length) {
+        throw new SkillValidationError(`Invalid skill name '${name}': ${errors.join('; ')}`);
+      }
+    }
+
+    const description = typeof metadata.description === 'string' ? metadata.description : null;
 
     // Validate and parse trigger keywords from metadata
     const triggerMetadata = metadata.triggers;
@@ -154,6 +185,8 @@ export class Skill {
         name,
         content,
         source: filePath,
+        isAgentSkillsFormat: isSkillMd,
+        description,
         trigger: { type: 'task', triggers: keywords },
         inputs,
       });
@@ -162,6 +195,8 @@ export class Skill {
         name,
         content,
         source: filePath,
+        isAgentSkillsFormat: isSkillMd,
+        description,
         trigger: { type: 'keyword', keywords },
       });
     } else {
@@ -170,6 +205,8 @@ export class Skill {
         name,
         content,
         source: filePath,
+        isAgentSkillsFormat: isSkillMd,
+        description,
         trigger: null,
       });
     }
@@ -236,9 +273,11 @@ export class Skill {
 export function loadSkillsFromDir(skillDir: string): {
   repoSkills: Map<string, Skill>;
   knowledgeSkills: Map<string, Skill>;
+  agentSkills: Map<string, Skill>;
 } {
   const repoSkills = new Map<string, Skill>();
   const knowledgeSkills = new Map<string, Skill>();
+  const agentSkills = new Map<string, Skill>();
 
   // Get repo root (two levels up from skillDir)
   const repoRoot = join(skillDir, '..', '..');
@@ -255,8 +294,11 @@ export function loadSkillsFromDir(skillDir: string): {
     }
   }
 
-  // Collect .md files from skills directory if it exists
-  const mdFiles: string[] = [];
+  const agentSkillMdFiles = findSkillMdDirectories(skillDir);
+  const excludedDirs = new Set(agentSkillMdFiles.map((p) => dirname(p)));
+
+  // Collect legacy .md files from skills directory if it exists
+  const mdFiles: string[] = [...agentSkillMdFiles];
   if (existsSync(skillDir)) {
     const collectMarkdownFiles = (dir: string): void => {
       const entries = readdirSync(dir);
@@ -264,8 +306,9 @@ export function loadSkillsFromDir(skillDir: string): {
         const fullPath = join(dir, entry);
         const stat = statSync(fullPath);
         if (stat.isDirectory()) {
+          if (excludedDirs.has(fullPath)) continue;
           collectMarkdownFiles(fullPath);
-        } else if (entry.endsWith('.md') && entry !== 'README.md') {
+        } else if (entry.endsWith('.md') && entry !== 'README.md' && entry.toLowerCase() !== 'skill.md') {
           mdFiles.push(fullPath);
         }
       }
@@ -277,7 +320,10 @@ export function loadSkillsFromDir(skillDir: string): {
   for (const file of [...specialFiles, ...mdFiles]) {
     try {
       const skill = Skill.load({ path: file, skillDir });
-      if (skill.trigger === null) {
+      const isSkillMd = basename(file).toLowerCase() === 'skill.md';
+      if (isSkillMd) {
+        agentSkills.set(skill.name, skill);
+      } else if (skill.trigger === null) {
         repoSkills.set(skill.name, skill);
       } else {
         // KeywordTrigger and TaskTrigger skills
@@ -292,7 +338,7 @@ export function loadSkillsFromDir(skillDir: string): {
     }
   }
 
-  return { repoSkills, knowledgeSkills };
+  return { repoSkills, knowledgeSkills, agentSkills };
 }
 
 /**
@@ -320,10 +366,10 @@ export function loadUserSkills(): Skill[] {
     }
 
     try {
-      const { repoSkills, knowledgeSkills } = loadSkillsFromDir(skillsDir);
+      const { repoSkills, knowledgeSkills, agentSkills } = loadSkillsFromDir(skillsDir);
 
-      // Merge repo and knowledge skills
-      for (const skillsMap of [repoSkills, knowledgeSkills]) {
+      // Merge repo, knowledge, and agent skills (AgentSkills format)
+      for (const skillsMap of [repoSkills, knowledgeSkills, agentSkills]) {
         for (const [name, skill] of skillsMap.entries()) {
           if (!seenNames.has(name)) {
             allSkills.push(skill);
@@ -338,4 +384,51 @@ export function loadUserSkills(): Skill[] {
   }
 
   return allSkills;
+}
+
+function validateAgentSkillName(name: string, directoryName?: string): string[] {
+  const errors: string[] = [];
+
+  if (!name) {
+    errors.push('Name cannot be empty');
+    return errors;
+  }
+
+  if (name.length > 64) {
+    errors.push(`Name exceeds 64 characters: ${name.length}`);
+  }
+
+  if (!SKILL_NAME_PATTERN.test(name)) {
+    errors.push('Name must be lowercase alphanumeric with single hyphens (e.g., \'my-skill\', \'pdf-tools\')');
+  }
+
+  if (directoryName && name !== directoryName) {
+    errors.push(`Name '${name}' does not match directory '${directoryName}'`);
+  }
+
+  return errors;
+}
+
+function findSkillMd(skillDir: string): string | null {
+  if (!existsSync(skillDir) || !statSync(skillDir).isDirectory()) return null;
+  const entries = readdirSync(skillDir);
+  for (const entry of entries) {
+    const fullPath = join(skillDir, entry);
+    if (statSync(fullPath).isFile() && entry.toLowerCase() === 'skill.md') {
+      return fullPath;
+    }
+  }
+  return null;
+}
+
+function findSkillMdDirectories(skillsDir: string): string[] {
+  const results: string[] = [];
+  if (!existsSync(skillsDir) || !statSync(skillsDir).isDirectory()) return results;
+  for (const entry of readdirSync(skillsDir)) {
+    const fullPath = join(skillsDir, entry);
+    if (!statSync(fullPath).isDirectory()) continue;
+    const skillMd = findSkillMd(fullPath);
+    if (skillMd) results.push(skillMd);
+  }
+  return results;
 }
