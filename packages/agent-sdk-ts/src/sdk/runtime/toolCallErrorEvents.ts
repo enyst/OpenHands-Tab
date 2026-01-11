@@ -1,9 +1,8 @@
 import type { AgentErrorEvent, MessageEvent, ToolCall } from '../types';
 import { TOOL_MESSAGE_CLIP_MARKER, TOOL_MESSAGE_MAX_CHARS, truncateToolMessage } from './toolResultTruncation';
 
-const normalizeErrorMessage = (input: unknown): string => {
-  const raw = typeof input === 'string' ? input : '';
-  return raw.trim().length ? raw : 'Unknown tool error';
+const normalizeErrorMessage = (input: string): string => {
+  return input.trim().length ? input : 'Unknown tool error';
 };
 
 export const truncateError = (input: string, maxChars: number = TOOL_MESSAGE_MAX_CHARS): string => {
