@@ -6,6 +6,8 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { LLMProfileStoreOptions } from '../llm/profiles';
 import { loadProfile } from '../llm/profiles';
 import type { LLMConfiguration } from '../llm/types';
+import type { ConfirmationPolicy } from '../security/confirmationPolicy';
+import type { SecurityAnalyzer } from '../security/analyzer';
 import { RemoteState } from './RemoteState';
 import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
 import type { BaseWorkspace } from '../../workspace/BaseWorkspace';
@@ -30,6 +32,14 @@ export type RemoteConversationWorkspace = {
   kind: string;
   [key: string]: unknown;
 };
+
+export type RemoteConfirmationPolicyPayload =
+  | { kind: 'AlwaysConfirm' }
+  | { kind: 'NeverConfirm' }
+  | { kind: 'ConfirmRisky'; threshold: 'LOW' | 'MEDIUM' | 'HIGH'; confirm_unknown: boolean };
+
+export type RemoteSecurityAnalyzerPayload =
+  | { kind: 'LLMSecurityAnalyzer' };
 
 const toStaticSecret = (value: unknown): StaticSecret | undefined => {
   if (typeof value !== 'string') return undefined;
@@ -93,6 +103,46 @@ export class RemoteConversation extends EventEmitter {
   readonly state: RemoteState;
   private workspaceClient?: RemoteWorkspace;
 
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    return value as Record<string, unknown>;
+  }
+
+  private serializeConfirmationPolicy(policy: ConfirmationPolicy): RemoteConfirmationPolicyPayload {
+    if (policy.kind === 'AlwaysConfirm') return { kind: 'AlwaysConfirm' };
+    if (policy.kind === 'NeverConfirm') return { kind: 'NeverConfirm' };
+
+    if (policy.kind !== 'ConfirmRisky') {
+      const kind = this.asRecord(policy)?.kind;
+      throw new Error(`setConfirmationPolicy: unsupported policy kind '${typeof kind === 'string' ? kind : String(kind)}'`);
+    }
+
+    const record = this.asRecord(policy);
+    const threshold = record?.threshold;
+    const confirmUnknown = record?.confirmUnknown;
+    const confirm_unknown = record?.confirm_unknown;
+
+    const normalizedThreshold = typeof threshold === 'string' ? threshold.toUpperCase() : undefined;
+    if (normalizedThreshold !== 'LOW' && normalizedThreshold !== 'MEDIUM' && normalizedThreshold !== 'HIGH') {
+      throw new Error('setConfirmationPolicy: ConfirmRisky.threshold must be one of LOW, MEDIUM, HIGH');
+    }
+
+    const normalizedConfirmUnknown = typeof confirmUnknown === 'boolean'
+      ? confirmUnknown
+      : typeof confirm_unknown === 'boolean'
+        ? confirm_unknown
+        : true;
+
+    return { kind: 'ConfirmRisky', threshold: normalizedThreshold, confirm_unknown: normalizedConfirmUnknown };
+  }
+
+  private serializeSecurityAnalyzer(analyzer: SecurityAnalyzer | null | undefined): RemoteSecurityAnalyzerPayload | null {
+    if (analyzer === null || analyzer === undefined) return null;
+    if (analyzer.kind === 'LLMSecurityAnalyzer') return { kind: 'LLMSecurityAnalyzer' };
+    const kind = this.asRecord(analyzer)?.kind;
+    throw new Error(`setSecurityAnalyzer: unsupported analyzer kind '${typeof kind === 'string' ? kind : String(kind)}'`);
+  }
 
   constructor(options: RemoteConversationOptions) {
     super();
@@ -288,7 +338,7 @@ export class RemoteConversation extends EventEmitter {
       maybeSetSecret('CUSTOM_SECRET_2', s?.secrets.customSecret2);
       maybeSetSecret('CUSTOM_SECRET_3', s?.secrets.customSecret3);
 
-      const confirmation_policy: Record<string, unknown> = (() => {
+      const confirmation_policy: RemoteConfirmationPolicyPayload = (() => {
         const p = s?.confirmation.policy || 'never';
         if (p === 'always') return { kind: 'AlwaysConfirm' };
         if (p === 'risky') {
@@ -318,7 +368,7 @@ export class RemoteConversation extends EventEmitter {
         agent: {
           llm,
           tools,
-          security_analyzer: s?.agent.enableSecurityAnalyzer ? { kind: 'LLMSecurityAnalyzer' } : undefined,
+          security_analyzer: s?.agent.enableSecurityAnalyzer ? ({ kind: 'LLMSecurityAnalyzer' } satisfies RemoteSecurityAnalyzerPayload) : undefined,
         },
         workspace,
         secrets: typedSecrets,
@@ -413,6 +463,44 @@ export class RemoteConversation extends EventEmitter {
       }
     } catch (e) {
       this.emit('error', e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+
+  async setConfirmationPolicy(policy: ConfirmationPolicy): Promise<void> {
+    if (!this.conversationId) {
+      throw new Error('Cannot setConfirmationPolicy: no active conversation. Start or restore a conversation first.');
+    }
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/confirmation_policy`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ policy: this.serializeConfirmationPolicy(policy) }),
+    }, RemoteConversation.httpTimeoutMs);
+
+    if (!res.ok) {
+      const info = await res.text().catch(() => '');
+      throw new Error(`Failed to set confirmation policy (HTTP ${res.status})${info ? `: ${info}` : ''}`);
+    }
+  }
+
+  async setSecurityAnalyzer(analyzer: SecurityAnalyzer | null): Promise<void> {
+    if (!this.conversationId) {
+      throw new Error('Cannot setSecurityAnalyzer: no active conversation. Start or restore a conversation first.');
+    }
+
+    const base = this.serverUrl.replace(/\/$/, '');
+    const headers = this.getAuthHeaders();
+    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/security_analyzer`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ security_analyzer: this.serializeSecurityAnalyzer(analyzer) }),
+    }, RemoteConversation.httpTimeoutMs);
+
+    if (!res.ok) {
+      const info = await res.text().catch(() => '');
+      throw new Error(`Failed to set security analyzer (HTTP ${res.status})${info ? `: ${info}` : ''}`);
     }
   }
 

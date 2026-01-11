@@ -4,6 +4,8 @@ import os from 'os';
 import path from 'path';
 import type { Event } from '../types';
 import { saveProfile } from '../llm';
+import { ConfirmRisky } from '../security/confirmationPolicy';
+import { LLMSecurityAnalyzer } from '../security/analyzer';
 
 let wsInstances: MockWS[] = [];
 
@@ -891,6 +893,113 @@ describe('RemoteConversation', () => {
     await conversation.restoreConversation('abc');
 
     await expect(conversation.updateSecrets({ GITHUB_TOKEN: 'ghp_abc123' })).rejects.toThrow('Failed to update secrets (HTTP 403): forbidden');
+  });
+
+  it('setConfirmationPolicy posts /confirmation_policy', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/confirmation_policy')) {
+        expect(init?.method).toBe('POST');
+        expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
+        const body = JSON.parse(init?.body ?? '{}');
+        expect(body).toEqual({
+          policy: { kind: 'ConfirmRisky', threshold: 'HIGH', confirm_unknown: false },
+        });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+    });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.setConfirmationPolicy(new ConfirmRisky({ threshold: 'HIGH', confirmUnknown: false }))).resolves.toBeUndefined();
+    conversation.disconnect();
+  });
+
+  it('setConfirmationPolicy throws when no active conversation', async () => {
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await expect(conversation.setConfirmationPolicy({ kind: 'NeverConfirm' })).rejects.toThrow(
+      'Cannot setConfirmationPolicy: no active conversation. Start or restore a conversation first.',
+    );
+  });
+
+  it('setSecurityAnalyzer posts /security_analyzer and supports null', async () => {
+    let call = 0;
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/security_analyzer')) {
+        call += 1;
+        expect(init?.method).toBe('POST');
+        expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
+        const body = JSON.parse(init?.body ?? '{}');
+        if (call === 1) {
+          expect(body).toEqual({ security_analyzer: { kind: 'LLMSecurityAnalyzer' } });
+        } else {
+          expect(body).toEqual({ security_analyzer: null });
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+    });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.setSecurityAnalyzer(new LLMSecurityAnalyzer())).resolves.toBeUndefined();
+    await expect(conversation.setSecurityAnalyzer(null)).resolves.toBeUndefined();
+    conversation.disconnect();
+  });
+
+  it('setSecurityAnalyzer throws when no active conversation', async () => {
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await expect(conversation.setSecurityAnalyzer(null)).rejects.toThrow(
+      'Cannot setSecurityAnalyzer: no active conversation. Start or restore a conversation first.',
+    );
   });
 
   it('getWorkspace exposes a RemoteWorkspace using sessionApiKey and invalidates on key change', async () => {
