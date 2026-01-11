@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { visualizeConversationErrorEvent, type ConversationErrorEvent } from '../index';
+import { DEFAULT_CONVERSATION_ERROR_MESSAGE, visualizeConversationErrorEvent, type ConversationErrorEvent } from '../index';
 
 describe('visualizeConversationErrorEvent', () => {
   it('renders code + detail when present', () => {
@@ -30,7 +30,6 @@ describe('visualizeConversationErrorEvent', () => {
       source: 'agent',
     };
 
-    expect(visualizeConversationErrorEvent(event)).toBe('Conversation error');
+    expect(visualizeConversationErrorEvent(event)).toBe(DEFAULT_CONVERSATION_ERROR_MESSAGE);
   });
 });
-
