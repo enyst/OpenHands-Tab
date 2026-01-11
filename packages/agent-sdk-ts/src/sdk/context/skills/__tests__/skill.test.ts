@@ -274,8 +274,15 @@ Agent skill content.`);
       const skillPath = join(skillRoot, 'skill.md');
       writeFileSync(skillPath, 'Content');
 
-      expect(() => Skill.load({ path: skillPath })).toThrow(SkillValidationError);
-      expect(() => Skill.load({ path: skillPath })).toThrow("Invalid skill name 'BadSkill'");
+      let error: unknown;
+      try {
+        Skill.load({ path: skillPath });
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeInstanceOf(SkillValidationError);
+      expect((error as Error | undefined)?.message).toContain("Invalid skill name 'BadSkill'");
     });
 
     it('adds skill name trigger for task skills', () => {
@@ -450,8 +457,15 @@ name: other-skill
 
 Content`);
 
-      expect(() => loadSkillsFromDir(skillDir)).toThrow(SkillValidationError);
-      expect(() => loadSkillsFromDir(skillDir)).toThrow("does not match directory 'good-skill'");
+      let error: unknown;
+      try {
+        loadSkillsFromDir(skillDir);
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeInstanceOf(SkillValidationError);
+      expect((error as Error | undefined)?.message).toContain("does not match directory 'good-skill'");
     });
 
     it('skips README.md files', () => {
