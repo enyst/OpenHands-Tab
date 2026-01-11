@@ -50,6 +50,8 @@ import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
 import { buildLlmRequestParametersForDebug } from '../llm/debug';
+import { StuckDetector } from '../conversation/stuckDetector';
+
 
 export type AgentRunInput = string | Message;
 
@@ -416,8 +418,29 @@ export class Agent extends EventEmitter {
     }
     let lastAssistantMessage: Message | undefined;
 
+    const stuckDetector = this.options.settings?.conversation?.stuckDetection
+      ? new StuckDetector(this.options.settings?.conversation?.stuckThresholds ?? {})
+      : undefined;
+
+
     while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
+
+
+      if (stuckDetector) {
+        const stuck = stuckDetector.detect(this.events.list());
+        if (stuck.stuck) {
+          this.events.push({
+            kind: 'ConversationErrorEvent',
+            source: 'agent',
+            code: 'stuck_detected',
+            detail: stuck.reason ?? 'Agent appears to be stuck in a loop.',
+          } as Event);
+          this.state.setStatus('IDLE');
+          break;
+        }
+      }
+
       const llmConfig = this.getEffectiveLlmConfigForCondensation();
 
       // Debug logging for mid-run settings tracking (oh-tab-rw1k)

@@ -84,8 +84,17 @@ export type AgentSettings = {
   summarizeToolCalls?: boolean;
 };
 
+export type StuckDetectionThresholds = {
+  actionObservation?: number;
+  actionError?: number;
+  monologue?: number;
+  alternatingPattern?: number;
+};
+
 export type ConversationSettings = {
   maxIterations?: number;
+  stuckDetection?: boolean;
+  stuckThresholds?: StuckDetectionThresholds;
 };
 
 export type ConfirmationSettings = {
