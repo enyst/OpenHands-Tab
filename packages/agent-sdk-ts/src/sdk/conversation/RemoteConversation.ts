@@ -176,11 +176,17 @@ export class RemoteConversation extends EventEmitter {
   getStatus(): ConversationStatus { return this.status; }
 
   setSettings(settings: OpenHandsSettings) {
+    const oldApiKey = this.settings?.secrets.sessionApiKey;
+    const newApiKey = settings?.secrets.sessionApiKey;
     this.settings = settings;
+    if (this.workspaceClient && oldApiKey !== newApiKey) {
+      this.workspaceClient = undefined;
+    }
   }
 
   setServerUrl(url: string) {
     this.serverUrl = normalizeRemoteServerUrl(url);
+    this.workspaceClient = undefined;
   }
 
   async startNewConversation(): Promise<string | undefined> {
