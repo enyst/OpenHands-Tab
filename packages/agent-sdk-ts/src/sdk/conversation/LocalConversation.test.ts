@@ -44,6 +44,24 @@ const baseSettings: OpenHandsSettings = {
 const createDefaultTools = () => [new TerminalTool(), new FileEditorTool(), new TaskTrackerTool(), new BrowserTool()];
 
 describe('LocalConversation', () => {
+  it('uses default tools when tools are omitted', () => {
+    const llm = new RecordingLLM();
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm });
+    expect(conversation.getToolNames()).toEqual(['terminal', 'file_editor', 'task_tracker']);
+  });
+
+  it('supports includeDefaultTools=false to disable defaults when tools are omitted', () => {
+    const llm = new RecordingLLM();
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, includeDefaultTools: false });
+    expect(conversation.getToolNames()).toEqual([]);
+  });
+
+  it('supports includeDefaultTools subset selection when tools are omitted', () => {
+    const llm = new RecordingLLM();
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, includeDefaultTools: ['terminal'] });
+    expect(conversation.getToolNames()).toEqual(['terminal']);
+  });
+
   it('emits assistant messages when LLM responds without tools', async () => {
     const llm = new FakeLLM([[{ type: 'text', text: 'Hello world' }, { type: 'finish' }]]);
     const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });

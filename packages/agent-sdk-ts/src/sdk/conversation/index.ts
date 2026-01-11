@@ -17,6 +17,7 @@ export interface ConversationFactoryOptions {
   workspaceRoot?: string;
   conversationId?: string;
   tools?: ToolDefinition<unknown, unknown>[];
+  includeDefaultTools?: boolean | string[];
   secrets?: SecretRegistry;
   persistenceDir?: string;
   agentContext?: AgentContext;
@@ -29,6 +30,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
       settings: options.settings,
       workspaceRoot: options.workspaceRoot,
       conversationId: options.conversationId,
+      includeDefaultTools: options.includeDefaultTools,
     }) as ConversationInstance;
   }
   return new LocalConversation({
@@ -37,6 +39,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     workspace: options.workspace,
     workspaceRoot: options.workspaceRoot,
     tools: options.tools,
+    includeDefaultTools: options.includeDefaultTools,
     secrets: options.secrets,
     persistenceDir: options.persistenceDir,
     agentContext: options.agentContext,
