@@ -377,17 +377,15 @@ export class RemoteConversation extends EventEmitter {
         const included = new Set<string>();
 
         for (const tool of defaults) {
-          const chosen = byName.get(tool.name);
-          if (!chosen) continue;
-          if (included.has(tool.name)) continue;
-          result.push(chosen);
+          result.push(byName.get(tool.name)!);
           included.add(tool.name);
         }
 
         for (const tool of provided) {
-          if (included.has(tool.name)) continue;
-          result.push(tool);
-          included.add(tool.name);
+          if (!included.has(tool.name)) {
+            result.push(tool);
+            included.add(tool.name);
+          }
         }
 
         return result;
@@ -395,16 +393,16 @@ export class RemoteConversation extends EventEmitter {
 
       const resolveDefaultToolSubset = (selection: readonly string[]): RemoteConversationTool[] => {
         const allowed = new Set(defaultTools.map((tool) => tool.name));
-        const unique: string[] = [];
+        const uniqueNames = new Set<string>();
         for (const raw of selection) {
           const name = typeof raw === 'string' ? raw.trim() : '';
           if (!name) continue;
           if (!allowed.has(name)) {
             throw new Error(`includeDefaultTools: unknown default tool '${name}'. Allowed: ${Array.from(allowed).sort().join(', ')}`);
           }
-          if (!unique.includes(name)) unique.push(name);
+          uniqueNames.add(name);
         }
-        return defaultTools.filter((tool) => unique.includes(tool.name));
+        return defaultTools.filter((tool) => uniqueNames.has(tool.name));
       };
 
       const tools = (() => {

@@ -297,16 +297,16 @@ export class LocalConversation extends EventEmitter {
 
     const selectedDefaults = Array.isArray(includeDefaultTools)
       ? (() => {
-        const unique: string[] = [];
+        const uniqueNames = new Set<string>();
         for (const raw of includeDefaultTools) {
           const name = typeof raw === 'string' ? raw.trim() : '';
           if (!name) continue;
           if (!defaultNames.has(name)) {
             throw new Error(`includeDefaultTools: unknown default tool '${name}'. Allowed: ${Array.from(defaultNames).sort().join(', ')}`);
           }
-          if (!unique.includes(name)) unique.push(name);
+          uniqueNames.add(name);
         }
-        return defaultTools.filter((tool) => unique.includes(tool.name));
+        return defaultTools.filter((tool) => uniqueNames.has(tool.name));
       })()
       : defaultTools;
 
@@ -317,10 +317,7 @@ export class LocalConversation extends EventEmitter {
     const included = new Set<string>();
 
     for (const tool of selectedDefaults) {
-      const chosen = mergedByName.get(tool.name);
-      if (!chosen) continue;
-      if (included.has(tool.name)) continue;
-      result.push(chosen);
+      result.push(mergedByName.get(tool.name)!);
       included.add(tool.name);
     }
 
