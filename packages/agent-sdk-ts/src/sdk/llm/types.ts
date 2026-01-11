@@ -86,7 +86,7 @@ export const DEFAULT_RETRY_OPTIONS: RetryOptions = {
   retryOn: (status: number): boolean => [408, 409, 425, 429, 500, 502, 503, 504].includes(status),
 };
 
-export const DEFAULT_TIMEOUT_MS = 60_000;
+export const DEFAULT_TIMEOUT_MS = 300_000;
 
 /**
  * Result from applying a tool call delta to the accumulator.
