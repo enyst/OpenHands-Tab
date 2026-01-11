@@ -72,8 +72,8 @@ export class SecretRegistry {
   maskSecretsInText(text: string | undefined | null): string {
     if (!text) return text ?? '';
     let masked = text;
-    for (const value of this.exportedValues.values()) {
-      if (!value) continue;
+    const sortedValues = Array.from(this.exportedValues.values()).filter(Boolean).sort((a, b) => b.length - a.length);
+    for (const value of sortedValues) {
       masked = masked.split(value).join('<secret-hidden>');
     }
     return masked;
