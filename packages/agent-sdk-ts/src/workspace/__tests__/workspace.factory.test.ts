@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LocalWorkspace, Workspace } from '..';
+import { LocalWorkspace, RemoteWorkspace, Workspace } from '..';
 
 describe('Workspace() factory', () => {
   it('creates a local workspace by default', () => {
@@ -8,7 +8,9 @@ describe('Workspace() factory', () => {
     expect(ws).toBeInstanceOf(LocalWorkspace);
   });
 
-  it('rejects remote workspaces until RemoteWorkspace is implemented', () => {
-    expect(() => Workspace({ kind: 'remote', serverUrl: 'http://example.com' })).toThrowError(/not implemented/i);
+  it('creates a remote workspace when kind=remote', () => {
+    const ws = Workspace({ kind: 'remote', serverUrl: 'http://example.com', workingDir: '/workspace/project' });
+    expect(ws.kind).toBe('remote');
+    expect(ws).toBeInstanceOf(RemoteWorkspace);
   });
 });

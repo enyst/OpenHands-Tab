@@ -1,19 +1,31 @@
-import { LocalWorkspace } from './LocalWorkspace';
 import type { BaseWorkspace } from './BaseWorkspace';
+import { LocalWorkspace } from './LocalWorkspace';
+import { RemoteWorkspace } from './RemoteWorkspace';
 
 export * from './BaseWorkspace';
 export * from './types';
 export * from './LocalWorkspace';
+export * from './RemoteWorkspace';
 
 export type WorkspaceFactoryOptions =
   | { kind?: 'local'; root?: string }
-  | { kind: 'remote'; serverUrl: string; workspaceRoot?: string };
+  | {
+    kind: 'remote';
+    serverUrl: string;
+    apiKey?: string;
+    workingDir?: string;
+    workspaceRoot?: string;
+  };
 
 export function Workspace(options?: WorkspaceFactoryOptions): BaseWorkspace {
-  if (!options || options.kind === 'local' || options.kind === undefined) {
+  if (!options || options.kind !== 'remote') {
     return new LocalWorkspace(options?.root);
   }
 
-  // Placeholder for #635 (RemoteWorkspace parity)
-  throw new Error('RemoteWorkspace is not implemented yet');
+  const workingDir = options.workingDir ?? options.workspaceRoot;
+  return new RemoteWorkspace({
+    host: options.serverUrl,
+    apiKey: options.apiKey,
+    workingDir,
+  });
 }
