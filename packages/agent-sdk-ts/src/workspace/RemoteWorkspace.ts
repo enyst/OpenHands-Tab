@@ -341,7 +341,8 @@ export class RemoteWorkspace implements BaseWorkspace {
     const url = `${this.host}/api/file/upload/${encodedPath}`;
 
     const form = new FormData();
-    form.append('file', new Blob([bytes]), path.posix.basename(absoluteDestinationPath));
+    const blobBytes = Uint8Array.from(bytes);
+    form.append('file', new Blob([blobBytes]), path.posix.basename(absoluteDestinationPath));
 
     const res = await this.fetchWithTimeout(url, {
       method: 'POST',
