@@ -441,6 +441,224 @@ export function TerminalObservationSummary({
   );
 }
 
+/** Renders human-readable summary for glob action */
+export function GlobActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const pattern = getString(action.pattern);
+  const searchPath = getString(action.path);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The agent wants to search for files matching a pattern.</p>
+      {pattern && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">Pattern:</span>
+          <code className="px-2 py-0.5 rounded bg-black/30 border border-white/[0.06] font-mono text-xs text-stone-300">{pattern}</code>
+        </div>
+      )}
+      {searchPath && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">In:</span>
+          <code className="px-2 py-0.5 rounded bg-black/30 border border-white/[0.06] font-mono text-xs text-stone-300">{searchPath}</code>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders human-readable summary for glob observation */
+export function GlobObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+  const files = Array.isArray(observation.files) ? observation.files.filter((f): f is string => typeof f === 'string') : [];
+  const pattern = getString(observation.pattern);
+  const searchPath = getString(observation.searchPath);
+  const truncated = observation.truncated === true;
+  const count = files.length;
+
+  return (
+    <div className="text-sm leading-relaxed space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-stone-300">
+          Found <span className="font-semibold text-brand-300">{count}</span> file{count === 1 ? '' : 's'}
+          {truncated && <span className="text-stone-500"> (results truncated)</span>}
+        </span>
+      </div>
+      {pattern && (
+        <div className="flex items-center gap-2 text-xs text-stone-400">
+          <span className="codicon codicon-search text-brand-400/60" />
+          <code className="font-mono">{pattern}</code>
+          {searchPath && <span className="text-stone-500">in {searchPath}</span>}
+        </div>
+      )}
+      {count > 0 && count <= 10 && (
+        <div className="space-y-0.5">
+          {files.slice(0, 10).map((file, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <InlineFileReference path={file} />
+            </div>
+          ))}
+        </div>
+      )}
+      {count > 10 && (
+        <div className="text-xs text-stone-500">
+          Showing first 10 results. Expand to see the full raw data.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders human-readable summary for grep action */
+export function GrepActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const pattern = getString(action.pattern);
+  const searchPath = getString(action.path);
+  const include = getString(action.include);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The agent wants to search file contents for a pattern.</p>
+      {pattern && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">Regex:</span>
+          <code className="px-2 py-0.5 rounded bg-black/30 border border-white/[0.06] font-mono text-xs text-stone-300">{pattern}</code>
+        </div>
+      )}
+      {include && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">Files:</span>
+          <code className="px-2 py-0.5 rounded bg-black/30 border border-white/[0.06] font-mono text-xs text-stone-300">{include}</code>
+        </div>
+      )}
+      {searchPath && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-stone-500">In:</span>
+          <code className="px-2 py-0.5 rounded bg-black/30 border border-white/[0.06] font-mono text-xs text-stone-300">{searchPath}</code>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders human-readable summary for grep observation */
+export function GrepObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+  const matches = Array.isArray(observation.matches) ? observation.matches.filter((f): f is string => typeof f === 'string') : [];
+  const pattern = getString(observation.pattern);
+  const searchPath = getString(observation.searchPath);
+  const includePattern = getString(observation.includePattern);
+  const truncated = observation.truncated === true;
+  const count = matches.length;
+
+  return (
+    <div className="text-sm leading-relaxed space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-stone-300">
+          Found <span className="font-semibold text-brand-300">{count}</span> matching file{count === 1 ? '' : 's'}
+          {truncated && <span className="text-stone-500"> (results truncated)</span>}
+        </span>
+      </div>
+      {pattern && (
+        <div className="flex items-center gap-2 text-xs text-stone-400">
+          <span className="codicon codicon-regex text-brand-400/60" />
+          <code className="font-mono">{pattern}</code>
+          {includePattern && <span className="text-stone-500">in {includePattern} files</span>}
+          {searchPath && <span className="text-stone-500">under {searchPath}</span>}
+        </div>
+      )}
+      {count > 0 && count <= 10 && (
+        <div className="space-y-0.5">
+          {matches.slice(0, 10).map((file, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <InlineFileReference path={file} />
+            </div>
+          ))}
+        </div>
+      )}
+      {count > 10 && (
+        <div className="text-xs text-stone-500">
+          Showing first 10 results. Expand to see the full raw data.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders human-readable summary for browser (web fetch) action */
+export function BrowserActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const url = getString(action.url);
+  const method = getString(action.method) ?? 'GET';
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The agent wants to fetch a web resource.</p>
+      <div className="flex items-center gap-2">
+        <span className="px-1.5 py-0.5 rounded bg-blue-500/20 border border-blue-400/20 text-xs font-mono text-blue-300">{method}</span>
+        {url && (
+          <code className="px-2 py-0.5 rounded bg-black/30 border border-white/[0.06] font-mono text-xs text-stone-300 truncate max-w-md">{url}</code>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Renders human-readable summary for browser (web fetch) observation */
+export function BrowserObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+  const url = getString(observation.url);
+  const status = getNumber(observation.status);
+  const content = getString(observation.content);
+  const contentLength = content?.length ?? 0;
+
+  const isSuccess = status !== undefined && status >= 200 && status < 300;
+  const statusColor = isSuccess ? 'text-green-400' : status !== undefined && status >= 400 ? 'text-red-400' : 'text-stone-400';
+
+  return (
+    <div className="text-sm leading-relaxed space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        {status !== undefined && (
+          <span className={`px-1.5 py-0.5 rounded bg-black/30 border border-white/[0.06] text-xs font-mono ${statusColor}`}>
+            {status}
+          </span>
+        )}
+        {url && (
+          <code className="font-mono text-xs text-stone-400 truncate max-w-md">{url}</code>
+        )}
+      </div>
+      {contentLength > 0 && (
+        <div className="text-xs text-stone-500">
+          Received {contentLength.toLocaleString()} characters
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Renders human-readable summary for finish action */
+export function FinishActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const message = getString(action.message);
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p className="text-stone-300">The agent wants to finish the current task.</p>
+      {message && (
+        <div className="italic text-stone-400">{message}</div>
+      )}
+    </div>
+  );
+}
+
+/** Renders human-readable summary for finish observation */
+export function FinishObservationSummary({ observation }: { observation: JsonRecord }): React.ReactElement | null {
+  const message = getString(observation.message);
+  return (
+    <div className="text-sm leading-relaxed">
+      <div className="flex items-center gap-2">
+        <span className="codicon codicon-check-all text-green-400" />
+        <span className="text-stone-300">Task completed</span>
+      </div>
+      {message && (
+        <div className="mt-1 italic text-stone-400">{message}</div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Event color tokens - CSS custom properties defined in tailwind.css
  * Design Philosophy: "Simplified Warm Palette"

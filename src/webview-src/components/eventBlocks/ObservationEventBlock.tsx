@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import type { ObservationEvent } from '@openhands/agent-sdk-ts';
-import { EventContainer, FileEditorObservationSummary, OBSERVATION_ACCENT_COLOR, TerminalObservationSummary, withAlpha, MarkdownMessage } from './shared';
+import {
+  BrowserObservationSummary,
+  EventContainer,
+  FileEditorObservationSummary,
+  GlobObservationSummary,
+  GrepObservationSummary,
+  MarkdownMessage,
+  OBSERVATION_ACCENT_COLOR,
+  TerminalObservationSummary,
+  withAlpha,
+} from './shared';
 import { Tooltip } from '../Tooltip';
 
 /**
@@ -48,11 +58,22 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
     const command = typeof candidate.command === 'string' ? candidate.command : '';
     return command === 'insert' || command === 'str_replace';
   })();
-  const observationSummary = event.tool_name === 'file_editor'
-    ? <FileEditorObservationSummary observation={event.observation} />
-    : event.tool_name === 'terminal'
-      ? <TerminalObservationSummary observation={event.observation} isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />
-      : null;
+  const observationSummary = (() => {
+    switch (event.tool_name) {
+      case 'file_editor':
+        return <FileEditorObservationSummary observation={event.observation} />;
+      case 'terminal':
+        return <TerminalObservationSummary observation={event.observation} isExpanded={isExpanded} onToggle={() => setIsExpanded(!isExpanded)} />;
+      case 'glob':
+        return <GlobObservationSummary observation={event.observation} />;
+      case 'grep':
+        return <GrepObservationSummary observation={event.observation} />;
+      case 'browser':
+        return <BrowserObservationSummary observation={event.observation} />;
+      default:
+        return null;
+    }
+  })();
   const hasSummary = observationSummary !== null;
   const shouldShowRaw = isFileEditObservation ? false : !hasSummary || isExpanded;
   const observationString = shouldShowRaw ? JSON.stringify(event.observation, null, 2) : '';

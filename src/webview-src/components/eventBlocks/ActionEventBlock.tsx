@@ -1,7 +1,17 @@
 import { useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
 import { SecurityRiskBadge } from '../SecurityRiskBadge';
-import { ACTION_ACCENT_COLOR, EventContainer, FileEditorActionSummary, TerminalActionSummary, withAlpha } from './shared';
+import {
+  ACTION_ACCENT_COLOR,
+  BrowserActionSummary,
+  EventContainer,
+  FileEditorActionSummary,
+  FinishActionSummary,
+  GlobActionSummary,
+  GrepActionSummary,
+  TerminalActionSummary,
+  withAlpha,
+} from './shared';
 
 /**
  * Renders agent action - shows thought process, tool invocation, and security risk.
@@ -10,13 +20,25 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
   const thought = event.thought.map((t) => t.text).join('\n');
   const isExecuted = event.action !== null;
   const [isExpanded, setIsExpanded] = useState(false);
-  const actionSummary = isExecuted
-    ? event.tool_name === 'file_editor'
-      ? <FileEditorActionSummary action={event.action} />
-      : event.tool_name === 'terminal'
-        ? <TerminalActionSummary action={event.action} />
-        : null
-    : null;
+  const actionSummary = (() => {
+    if (!isExecuted) return null;
+    switch (event.tool_name) {
+      case 'file_editor':
+        return <FileEditorActionSummary action={event.action} />;
+      case 'terminal':
+        return <TerminalActionSummary action={event.action} />;
+      case 'glob':
+        return <GlobActionSummary action={event.action} />;
+      case 'grep':
+        return <GrepActionSummary action={event.action} />;
+      case 'browser':
+        return <BrowserActionSummary action={event.action} />;
+      case 'finish':
+        return <FinishActionSummary action={event.action} />;
+      default:
+        return null;
+    }
+  })();
 
   return (
     <EventContainer accentColor={ACTION_ACCENT_COLOR} bgOpacity={0.05} index={index}>
