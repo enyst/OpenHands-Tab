@@ -21,4 +21,9 @@ export interface BaseWorkspace {
 
   gitStatus(): Promise<CommandResult>;
   gitDiff(paths?: string[]): Promise<CommandResult>;
+
+  isAlive(): Promise<boolean>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+
 }

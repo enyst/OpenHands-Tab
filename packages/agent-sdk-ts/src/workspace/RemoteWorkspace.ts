@@ -44,6 +44,15 @@ export interface RemoteWorkspaceOptions {
   workingDir?: string;
   pollIntervalMs?: number;
   httpTimeoutMs?: number;
+
+  /**
+   * Optional runtime API control surface (pause/resume).
+   *
+   * This matches Python's APIRemoteWorkspace behavior.
+   */
+  runtimeApiUrl?: string;
+  runtimeApiKey?: string;
+  runtimeId?: string;
 }
 
 interface StartBashCommandResponse {
@@ -97,6 +106,11 @@ export class RemoteWorkspace implements BaseWorkspace {
   private readonly pollIntervalMs: number;
   private readonly httpTimeoutMs: number;
 
+  private readonly runtimeApiUrl?: string;
+  private readonly runtimeApiKey?: string;
+  private readonly runtimeId?: string;
+
+
   private readonly allowedRoots = new Set<string>();
 
   constructor(options: RemoteWorkspaceOptions) {
@@ -105,6 +119,11 @@ export class RemoteWorkspace implements BaseWorkspace {
     this.root = normalizePosixRoot(options.workingDir ?? '/workspace');
     this.pollIntervalMs = typeof options.pollIntervalMs === 'number' ? Math.max(0, options.pollIntervalMs) : 100;
     this.httpTimeoutMs = typeof options.httpTimeoutMs === 'number' ? Math.max(0, options.httpTimeoutMs) : 60_000;
+
+    this.runtimeApiUrl = options.runtimeApiUrl ? normalizeRemoteHostUrl(options.runtimeApiUrl) : undefined;
+    this.runtimeApiKey = typeof options.runtimeApiKey === 'string' && options.runtimeApiKey.trim() ? options.runtimeApiKey.trim() : undefined;
+    this.runtimeId = typeof options.runtimeId === 'string' && options.runtimeId.trim() ? options.runtimeId.trim() : undefined;
+
     this.allowedRoots.add(this.root);
   }
 
@@ -335,6 +354,57 @@ export class RemoteWorkspace implements BaseWorkspace {
       : 'git diff HEAD';
     return this.runCommand(cmd, { cwd: this.root });
   }
+
+
+  async isAlive(): Promise<boolean> {
+    try {
+      const res = await this.fetchWithTimeout(`${this.host}/health`, { method: 'GET' }, 5_000);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async pause(): Promise<void> {
+    if (!this.runtimeApiUrl || !this.runtimeId) {
+      throw new Error('RemoteWorkspace.pause requires runtimeApiUrl + runtimeId');
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.runtimeApiKey) headers['X-API-Key'] = this.runtimeApiKey;
+
+    const res = await this.fetchWithTimeout(`${this.runtimeApiUrl}/pause`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ runtime_id: this.runtimeId }),
+    }, 30_000);
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`RemoteWorkspace.pause failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
+    }
+  }
+
+  async resume(): Promise<void> {
+    if (!this.runtimeApiUrl || !this.runtimeId) {
+      throw new Error('RemoteWorkspace.resume requires runtimeApiUrl + runtimeId');
+    }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.runtimeApiKey) headers['X-API-Key'] = this.runtimeApiKey;
+
+    const res = await this.fetchWithTimeout(`${this.runtimeApiUrl}/resume`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ runtime_id: this.runtimeId }),
+    }, 30_000);
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`RemoteWorkspace.resume failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
+    }
+  }
+
 
   private async uploadBytes(absoluteDestinationPath: string, bytes: Buffer): Promise<void> {
     const encodedPath = encodePathForUrl(absoluteDestinationPath);

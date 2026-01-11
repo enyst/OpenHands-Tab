@@ -698,6 +698,20 @@ export class LocalWorkspace implements BaseWorkspace {
       : 'git diff HEAD';
     return this.runCommand(command, { cwd: this.root });
   }
+
+
+  isAlive(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
+
+  pause(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  resume(): Promise<void> {
+    return Promise.resolve();
+  }
+
 }
 
 export default LocalWorkspace;
