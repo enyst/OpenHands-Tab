@@ -908,6 +908,7 @@ describe('RemoteConversation', () => {
 
       if (url.includes('/confirmation_policy')) {
         expect(init?.method).toBe('POST');
+        expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
         const body = JSON.parse(init?.body ?? '{}');
         expect(body).toEqual({
           policy: { kind: 'ConfirmRisky', threshold: 'HIGH', confirm_unknown: false },
@@ -925,7 +926,10 @@ describe('RemoteConversation', () => {
     (globalThis as any).fetch = fetchMock;
 
     const { RemoteConversation } = await import('../conversation/RemoteConversation');
-    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+    });
 
     await conversation.restoreConversation('abc');
 
@@ -957,6 +961,7 @@ describe('RemoteConversation', () => {
       if (url.includes('/security_analyzer')) {
         call += 1;
         expect(init?.method).toBe('POST');
+        expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
         const body = JSON.parse(init?.body ?? '{}');
         if (call === 1) {
           expect(body).toEqual({ security_analyzer: { kind: 'LLMSecurityAnalyzer' } });
@@ -976,7 +981,10 @@ describe('RemoteConversation', () => {
     (globalThis as any).fetch = fetchMock;
 
     const { RemoteConversation } = await import('../conversation/RemoteConversation');
-    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+    });
 
     await conversation.restoreConversation('abc');
 

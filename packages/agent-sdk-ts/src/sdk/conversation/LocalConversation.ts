@@ -18,6 +18,8 @@ import type { BaseWorkspace } from '../../workspace';
 import { Workspace } from '../../workspace';
 import { LLMRegistry } from '../llm';
 import type { RegistryEvent } from '../llm/registry';
+import type { ConfirmationPolicy } from '../security/confirmationPolicy';
+import type { SecurityAnalyzer } from '../security/analyzer';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
@@ -236,6 +238,16 @@ export class LocalConversation extends EventEmitter {
 
   async resume(): Promise<void> {
     await this.agent.resume();
+  }
+
+  setConfirmationPolicy(policy: ConfirmationPolicy): Promise<void> {
+    this.agent.setConfirmationPolicy(policy);
+    return Promise.resolve();
+  }
+
+  setSecurityAnalyzer(analyzer: SecurityAnalyzer | null): Promise<void> {
+    this.agent.setSecurityAnalyzer(analyzer);
+    return Promise.resolve();
   }
 
   approveAction(): Promise<void> {

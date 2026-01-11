@@ -109,7 +109,7 @@ export class RemoteConversation extends EventEmitter {
     return value as Record<string, unknown>;
   }
 
-  private serializeConfirmationPolicy(policy: ConfirmationPolicy | RemoteConfirmationPolicyPayload): RemoteConfirmationPolicyPayload {
+  private serializeConfirmationPolicy(policy: ConfirmationPolicy): RemoteConfirmationPolicyPayload {
     if (policy.kind === 'AlwaysConfirm') return { kind: 'AlwaysConfirm' };
     if (policy.kind === 'NeverConfirm') return { kind: 'NeverConfirm' };
 
@@ -137,7 +137,7 @@ export class RemoteConversation extends EventEmitter {
     return { kind: 'ConfirmRisky', threshold: normalizedThreshold, confirm_unknown: normalizedConfirmUnknown };
   }
 
-  private serializeSecurityAnalyzer(analyzer: SecurityAnalyzer | RemoteSecurityAnalyzerPayload | null | undefined): RemoteSecurityAnalyzerPayload | null {
+  private serializeSecurityAnalyzer(analyzer: SecurityAnalyzer | null | undefined): RemoteSecurityAnalyzerPayload | null {
     if (analyzer === null || analyzer === undefined) return null;
     if (analyzer.kind === 'LLMSecurityAnalyzer') return { kind: 'LLMSecurityAnalyzer' };
     const kind = this.asRecord(analyzer)?.kind;
@@ -466,7 +466,7 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  async setConfirmationPolicy(policy: ConfirmationPolicy | RemoteConfirmationPolicyPayload): Promise<void> {
+  async setConfirmationPolicy(policy: ConfirmationPolicy): Promise<void> {
     if (!this.conversationId) {
       throw new Error('Cannot setConfirmationPolicy: no active conversation. Start or restore a conversation first.');
     }
@@ -485,7 +485,7 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  async setSecurityAnalyzer(analyzer: SecurityAnalyzer | RemoteSecurityAnalyzerPayload | null): Promise<void> {
+  async setSecurityAnalyzer(analyzer: SecurityAnalyzer | null): Promise<void> {
     if (!this.conversationId) {
       throw new Error('Cannot setSecurityAnalyzer: no active conversation. Start or restore a conversation first.');
     }
