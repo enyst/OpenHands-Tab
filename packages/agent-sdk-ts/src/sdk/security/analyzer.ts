@@ -21,6 +21,7 @@ export class LLMSecurityAnalyzer implements SecurityAnalyzer {
   }
 
   analyzePendingActions(pendingActions: ActionEvent[]): Array<{ action: ActionEvent; risk: SecurityRisk }> {
+    // Defensive: keep parity with Python analyzers; subclasses may override `securityRisk()` and throw.
     return pendingActions.map((action) => {
       try {
         return { action, risk: this.securityRisk(action) };

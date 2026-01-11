@@ -112,9 +112,9 @@ export class Agent extends EventEmitter {
   private readonly secretMasker: SecretMasker;
   private readonly tools: Map<string, ToolDefinition<unknown, unknown>>;
   private confirmationPolicyOverride?: ConfirmationPolicy;
-  private confirmationPolicy: ConfirmationPolicy;
+  private confirmationPolicy: ConfirmationPolicy = createConfirmationPolicyFromSettings({ policy: 'never' });
   private securityAnalyzerOverride?: SecurityAnalyzer | null;
-  private securityAnalyzer: SecurityAnalyzer | null;
+  private securityAnalyzer: SecurityAnalyzer | null = null;
   private readonly lock = new AsyncLock();
   private llmClientPromise?: Promise<LLMClient>;
   private streamerPromise?: Promise<LLMStreamer>;
@@ -163,8 +163,6 @@ export class Agent extends EventEmitter {
       this.securityAnalyzerOverride = options.securityAnalyzer;
     }
 
-    this.confirmationPolicy = createConfirmationPolicyFromSettings(options.settings?.confirmation);
-    this.securityAnalyzer = options.settings?.agent?.enableSecurityAnalyzer ? new LLMSecurityAnalyzer() : null;
     this.updateDerivedSettings(options.settings);
 
     this.events.on((event) => this.emit('event', event));
