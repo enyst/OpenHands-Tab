@@ -817,6 +817,73 @@ describe('RemoteConversation', () => {
     await expect(conversation.condense()).rejects.toThrow('Failed to condense conversation (HTTP 400): no condenser configured');
   });
 
+  it('updateSecrets posts /secrets', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/secrets')) {
+        expect(init?.method).toBe('POST');
+        const body = JSON.parse(init?.body ?? '{}');
+        expect(body).toEqual({ secrets: { GITHUB_TOKEN: 'ghp_abc123' } });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.updateSecrets({ GITHUB_TOKEN: 'ghp_abc123' })).resolves.toBeUndefined();
+  });
+
+  it('updateSecrets throws on non-2xx response', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/secrets')) {
+        return {
+          ok: false,
+          status: 403,
+          json: async () => ({}),
+          text: async () => 'forbidden',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await expect(conversation.updateSecrets({ GITHUB_TOKEN: 'ghp_abc123' })).rejects.toThrow('Failed to update secrets (HTTP 403): forbidden');
+  });
+
   it('getWorkspace exposes a RemoteWorkspace using sessionApiKey and invalidates on key change', async () => {
     let uploadCalls = 0;
     const fetchMock = vi.fn(async (url: string, init?: any) => {
