@@ -143,4 +143,42 @@ describe('RemoteWorkspace', () => {
     await ws.writeFile('hello.txt', 'hello');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('reports liveness via /health', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toBe('http://localhost:3000/health');
+      return { ok: true, status: 200, text: async () => 'OK' } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const ws = new RemoteWorkspace({ host: 'http://localhost:3000', workingDir: '/workspace/project' });
+    await expect(ws.isAlive()).resolves.toBe(true);
+  });
+
+  it('calls runtime API pause/resume when configured', async () => {
+    const calls: Array<{ url: string; init: any }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      calls.push({ url, init });
+      return { ok: true, status: 200, text: async () => '' } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const ws = new RemoteWorkspace({
+      host: 'http://localhost:3000',
+      workingDir: '/workspace/project',
+      runtimeApiUrl: 'http://runtime-api',
+      runtimeApiKey: 'runtime-key',
+      runtimeId: 'runtime-123',
+    });
+
+    await ws.pause();
+    await ws.resume();
+
+    expect(calls.map((c) => c.url)).toEqual(['http://runtime-api/pause', 'http://runtime-api/resume']);
+    for (const c of calls) {
+      expect(c.init?.method).toBe('POST');
+      expect(c.init?.headers?.['X-API-Key']).toBe('runtime-key');
+      expect(JSON.parse(c.init?.body ?? '{}')).toEqual({ runtime_id: 'runtime-123' });
+    }
+  });
 });

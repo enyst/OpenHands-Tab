@@ -15,6 +15,9 @@ export type WorkspaceFactoryOptions =
     apiKey?: string;
     workingDir?: string;
     workspaceRoot?: string;
+    runtimeApiUrl?: string;
+    runtimeApiKey?: string;
+    runtimeId?: string;
   };
 
 export function Workspace(options?: WorkspaceFactoryOptions): BaseWorkspace {
@@ -27,5 +30,8 @@ export function Workspace(options?: WorkspaceFactoryOptions): BaseWorkspace {
     host: options.serverUrl,
     apiKey: options.apiKey,
     workingDir,
+    runtimeApiUrl: options.runtimeApiUrl,
+    runtimeApiKey: options.runtimeApiKey,
+    runtimeId: options.runtimeId,
   });
 }
