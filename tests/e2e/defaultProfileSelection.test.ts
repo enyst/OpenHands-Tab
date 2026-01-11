@@ -10,6 +10,10 @@ const userDataDir = path.join(os.tmpdir(), `oh-tab-default-profile-${Date.now().
 describe('OpenHands-Tab default profile selection E2E', function () {
   this.timeout(180000);
 
+  after(async () => {
+    await fs.rm(userDataDir, { recursive: true, force: true });
+  });
+
   it('defaults profileId on fresh install and uses profile config', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
@@ -47,4 +51,3 @@ describe('OpenHands-Tab default profile selection E2E', function () {
     assert.ok(true);
   });
 });
-
