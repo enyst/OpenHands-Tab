@@ -1,13 +1,9 @@
-import fs from 'fs';
-import { mkdir as mkdirAsync, writeFile as writeFileAsync } from 'node:fs/promises';
 import path from 'node:path';
 import type { BaseWorkspace } from './BaseWorkspace';
 import type {
   CommandOptions,
   CommandResult,
   DirectoryEntry,
-  FileOperationResult,
-  GitChange,
   WorkspaceEncoding,
 } from './types';
 
@@ -61,6 +57,9 @@ interface BashEventsPage {
 
 type BashOutputItem = {
   kind: 'BashOutput';
+  id: string;
+  timestamp: string;
+  command_id: string;
   stdout?: string | null;
   stderr?: string | null;
   exit_code?: number | null;
@@ -72,6 +71,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isBashOutputItem = (value: unknown): value is BashOutputItem => {
   if (!isRecord(value)) return false;
   if (value.kind !== 'BashOutput') return false;
+
+  if (typeof value.id !== 'string') return false;
+  if (typeof value.timestamp !== 'string') return false;
+  if (typeof value.command_id !== 'string') return false;
 
   const stdout = value.stdout;
   if (stdout !== undefined && stdout !== null && typeof stdout !== 'string') return false;
@@ -211,84 +214,6 @@ export class RemoteWorkspace implements BaseWorkspace {
     return absolutePath;
   }
 
-  async copyToWorkspace(sourcePath: string, destinationPath: string): Promise<FileOperationResult> {
-    return this.fileUpload(sourcePath, destinationPath);
-  }
-
-  async fileUpload(localPath: string, workspacePath: string): Promise<FileOperationResult> {
-    try {
-      const stat = await fs.promises.stat(localPath);
-      if (!stat.isFile()) {
-        return { success: false, path: workspacePath, error: `Source is not a file: ${localPath}` };
-      }
-      const bytes = await fs.promises.readFile(localPath);
-      const absolutePath = this.resolvePath(workspacePath);
-      await this.uploadBytes(absolutePath, bytes);
-      return { success: true, path: workspacePath };
-    } catch (error) {
-      return { success: false, path: workspacePath, error: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  async fileDownload(workspacePath: string, localPath: string): Promise<FileOperationResult> {
-    try {
-      const buf = await this.readFileBytes(workspacePath);
-      await mkdirAsync(path.dirname(localPath), { recursive: true });
-      await writeFileAsync(localPath, buf);
-      return { success: true, path: localPath };
-    } catch (error) {
-      return { success: false, path: localPath, error: error instanceof Error ? error.message : String(error) };
-    }
-  }
-
-  async gitChanges(paths?: string[]): Promise<GitChange[]> {
-    const sanitizedPaths = paths?.map((p) => this.resolvePath(p));
-    const relativePaths = sanitizedPaths?.map((p) => path.posix.relative(this.root, p));
-    const command = relativePaths?.length
-      ? `git status --porcelain -- ${relativePaths.map((p) => JSON.stringify(p)).join(' ')}`
-      : 'git status --porcelain';
-
-    const result = await this.runCommand(command, { cwd: this.root });
-    if (result.exitCode !== 0) {
-      const detail = result.stderr.trim() || result.stdout.trim();
-      throw new Error(`gitChanges failed (exit code ${result.exitCode})${detail ? `: ${detail}` : ''}`);
-    }
-
-    const lines = result.stdout.split('\n').map((line) => line.trimEnd()).filter((line) => line.trim().length > 0);
-    const changes: GitChange[] = [];
-
-    for (const line of lines) {
-      const prefix = line.slice(0, 2);
-      const rest = line.slice(2).trim();
-
-      if (prefix === '??') {
-        changes.push({ path: rest, status: 'untracked' });
-        continue;
-      }
-
-      const statusChars = prefix.replaceAll(' ', '');
-      const status = (() => {
-        if (statusChars.includes('R')) return 'renamed' as const;
-        if (statusChars.includes('A')) return 'added' as const;
-        if (statusChars.includes('D')) return 'deleted' as const;
-        if (statusChars.includes('M')) return 'modified' as const;
-        return 'unknown' as const;
-      })();
-
-      if (status === 'renamed' && rest.includes('->')) {
-        const [prevRaw, nextRaw] = rest.split('->').map((part) => part.trim());
-        if (nextRaw) {
-          changes.push({ path: nextRaw, previousPath: prevRaw || undefined, status });
-          continue;
-        }
-      }
-
-      changes.push({ path: rest, status });
-    }
-
-    return changes;
-  }
-
   async runCommand(command: string, options: CommandOptions = {}): Promise<CommandResult> {
     const cwd = options.cwd ? this.resolvePath(options.cwd) : this.root;
     const timeoutMs = typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs)
@@ -317,14 +242,18 @@ export class RemoteWorkspace implements BaseWorkspace {
       const stdoutParts: string[] = [];
       const stderrParts: string[] = [];
       let exitCode: number | null = null;
+      let pageId: string | undefined;
+      const seenEventIds = new Set<string>();
 
       const start = Date.now();
       while (Date.now() - start < timeoutMs) {
         const params = new URLSearchParams({
+          kind__eq: 'BashOutput',
           command_id__eq: commandId,
           sort_order: 'TIMESTAMP',
           limit: '100',
         });
+        if (pageId) params.set('page_id', pageId);
 
         const eventsRes = await this.fetchWithTimeout(
           `${this.host}/api/bash/bash_events/search?${params.toString()}`,
@@ -341,9 +270,28 @@ export class RemoteWorkspace implements BaseWorkspace {
         const items = Array.isArray(page.items) ? page.items : [];
         for (const item of items) {
           if (!isBashOutputItem(item)) continue;
+          pageId = [
+            normalizeTimestampForPageId(item.timestamp),
+            item.kind,
+            normalizeUuidToHex(item.command_id),
+            normalizeUuidToHex(item.id),
+          ].join('_');
+
+          if (seenEventIds.has(item.id)) continue;
+          seenEventIds.add(item.id);
+
           if (typeof item.stdout === 'string') stdoutParts.push(item.stdout);
           if (typeof item.stderr === 'string') stderrParts.push(item.stderr);
           if (typeof item.exit_code === 'number') exitCode = item.exit_code;
+        }
+
+        const nextPageId = typeof page.next_page_id === 'string' && page.next_page_id.length > 0
+          ? page.next_page_id
+          : null;
+
+        if (nextPageId) {
+          pageId = nextPageId;
+          continue;
         }
 
         if (exitCode !== null) break;
@@ -363,7 +311,6 @@ export class RemoteWorkspace implements BaseWorkspace {
         stdout: stdoutParts.join(''),
         stderr: stderrParts.join(''),
         exitCode,
-        timeoutOccurred: exitCode === -1,
       };
     } catch (error) {
       return {
@@ -372,7 +319,6 @@ export class RemoteWorkspace implements BaseWorkspace {
         stdout: '',
         stderr: error instanceof Error ? error.message : String(error),
         exitCode: -1,
-        timeoutOccurred: false,
       };
     }
   }
@@ -425,5 +371,24 @@ export class RemoteWorkspace implements BaseWorkspace {
     }
   }
 }
+
+const normalizeUuidToHex = (value: string): string => value.replaceAll('-', '');
+
+const normalizeTimestampForPageId = (value: string): string => {
+  const date = new Date(value);
+  if (!Number.isFinite(date.valueOf())) {
+    throw new Error(`Invalid bash event timestamp: ${value}`);
+  }
+
+  const pad = (num: number) => String(num).padStart(2, '0');
+  return [
+    String(date.getUTCFullYear()),
+    pad(date.getUTCMonth() + 1),
+    pad(date.getUTCDate()),
+    pad(date.getUTCHours()),
+    pad(date.getUTCMinutes()),
+    pad(date.getUTCSeconds()),
+  ].join('');
+};
 
 export default RemoteWorkspace;

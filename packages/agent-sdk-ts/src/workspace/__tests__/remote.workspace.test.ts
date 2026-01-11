@@ -29,6 +29,13 @@ describe('RemoteWorkspace', () => {
   });
 
   it('executes commands via bash endpoints and returns a CommandResult', async () => {
+    const commandId = '00000000-0000-0000-0000-000000000001';
+    const event1Id = '00000000-0000-0000-0000-000000000002';
+    const event2Id = '00000000-0000-0000-0000-000000000003';
+    const ts1 = '2026-01-01T00:00:00Z';
+    const ts2 = '2026-01-01T00:00:01Z';
+    const pageId = '20260101000000_BashOutput_00000000000000000000000000000001_00000000000000000000000000000002';
+
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       if (url.endsWith('/api/bash/start_bash_command')) {
         expect(init?.method).toBe('POST');
@@ -36,16 +43,48 @@ describe('RemoteWorkspace', () => {
         expect(body.command).toBe('echo hello');
         expect(body.cwd).toBe('/workspace/project');
         expect(body.timeout).toBe(1);
-        return okJson({ id: 'cmd-1' }) as any;
+        return okJson({ id: commandId }) as any;
       }
 
       if (url.includes('/api/bash/bash_events/search')) {
-        expect(url).toContain('command_id__eq=cmd-1');
+        expect(url).toContain(`command_id__eq=${encodeURIComponent(commandId)}`);
+        expect(url).toContain('kind__eq=BashOutput');
+
+        if (!url.includes('page_id=')) {
+          return okJson({
+            items: [
+              {
+                kind: 'BashOutput',
+                id: event1Id,
+                timestamp: ts1,
+                command_id: commandId,
+                stdout: 'hello\n',
+                stderr: '',
+                exit_code: null,
+              },
+            ],
+            next_page_id: null,
+          }) as any;
+        }
+
+        expect(url).toContain(`page_id=${encodeURIComponent(pageId)}`);
         return okJson({
           items: [
             {
               kind: 'BashOutput',
+              id: event1Id,
+              timestamp: ts1,
+              command_id: commandId,
               stdout: 'hello\n',
+              stderr: '',
+              exit_code: null,
+            },
+            {
+              kind: 'BashOutput',
+              id: event2Id,
+              timestamp: ts2,
+              command_id: commandId,
+              stdout: 'done\n',
               stderr: '',
               exit_code: 0,
             },
@@ -67,10 +106,9 @@ describe('RemoteWorkspace', () => {
 
     const result = await ws.runCommand('echo hello', { timeoutMs: 1000 });
     expect(result.exitCode).toBe(0);
-    expect(result.timeoutOccurred).toBe(false);
-    expect(result.stdout).toBe('hello\n');
+    expect(result.stdout).toBe('hello\ndone\n');
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('downloads file bytes via /api/file/download', async () => {
@@ -83,5 +121,26 @@ describe('RemoteWorkspace', () => {
     const ws = new RemoteWorkspace({ host: 'http://localhost:3000', workingDir: '/workspace/project' });
     const buf = await ws.readFileBytes('hello.txt');
     expect(buf.toString('utf8')).toBe('hi');
+  });
+
+  it('uploads file bytes via /api/file/upload on writeFile', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      expect(url).toContain('/api/file/upload/');
+      expect(url).toContain('/workspace/project/hello.txt');
+      expect(init?.method).toBe('POST');
+      expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
+      expect(init?.body).toBeInstanceOf(FormData);
+      return okJson({ ok: true }) as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const ws = new RemoteWorkspace({
+      host: 'http://localhost:3000',
+      workingDir: '/workspace/project',
+      apiKey: 'session-key',
+    });
+
+    await ws.writeFile('hello.txt', 'hello');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
