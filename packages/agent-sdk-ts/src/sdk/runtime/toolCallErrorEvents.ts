@@ -1,31 +1,35 @@
 import type { AgentErrorEvent, MessageEvent, ToolCall } from '../types';
+import { TOOL_MESSAGE_CLIP_MARKER, TOOL_MESSAGE_MAX_CHARS, truncateToolMessage } from './toolResultTruncation';
 
-export const truncateError = (input: string, max: number = 4096): string => {
-  const suffix = ' (truncated)';
-  const normalizedRaw = (input ?? '').replace(/\s+/g, ' ').trim();
-  const normalized = normalizedRaw.length === 0 ? 'Unknown tool error' : normalizedRaw;
-  if (max <= 0) return '';
-  if (normalized.length <= max) return normalized;
-  const headLen = max - suffix.length;
-  if (headLen <= 0) {
-    // Not enough room for suffix; hard cap to max without suffix
-    return normalized.slice(0, max);
+const normalizeErrorMessage = (input: unknown): string => {
+  const raw = typeof input === 'string' ? input : '';
+  return raw.trim().length ? raw : 'Unknown tool error';
+};
+
+export const truncateError = (input: string, maxChars: number = TOOL_MESSAGE_MAX_CHARS): string => {
+  const message = normalizeErrorMessage(input);
+  if (maxChars <= 0) return '';
+  if (message.length <= maxChars) return message;
+
+  if (maxChars < TOOL_MESSAGE_CLIP_MARKER.length + 2) {
+    return message.slice(0, maxChars);
   }
-  return normalized.slice(0, headLen) + suffix;
+  return truncateToolMessage(message, maxChars);
 };
 
 export const createToolCallErrorEvents = (
   toolCall: ToolCall,
   error: string,
 ): { agentErrorEvent: AgentErrorEvent; toolMessageEvent: MessageEvent } => {
-  const message = truncateError(error);
+  const rawMessage = normalizeErrorMessage(error);
+  const message = truncateToolMessage(rawMessage);
   const toolName = toolCall.function.name;
   const toolCallId = toolCall.id;
 
   const agentErrorEvent: AgentErrorEvent = {
     kind: 'AgentErrorEvent',
     source: 'agent',
-    error: message,
+    error: rawMessage,
     tool_name: toolName,
     tool_call_id: toolCallId,
   };

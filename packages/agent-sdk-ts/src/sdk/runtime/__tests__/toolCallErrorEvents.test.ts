@@ -8,28 +8,27 @@ const makeToolCall = (id: string, name: string, args = '{}') => ({
 });
 
 describe('toolCallErrorEvents truncation and normalization', () => {
-  it('normalizes whitespace in error messages', () => {
+  it('preserves raw whitespace in error messages (python parity)', () => {
     const toolCall = makeToolCall('t1', 'echo');
     const messy = 'line1\n\n\tline2    with   spaces\nline3';
     const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, messy);
 
-    expect(agentErrorEvent.error).toBe('line1 line2 with spaces line3');
+    expect(agentErrorEvent.error).toBe(messy);
 
     const text = (toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text;
-    expect(text).toBe('line1 line2 with spaces line3');
+    expect(text).toBe(messy);
   });
 
-  it('caps long error messages at exactly 4096 chars and appends suffix', () => {
+  it('clips long tool error messages for LLM using the shared tool-message clip marker', () => {
     const toolCall = makeToolCall('t2', 'echo');
     const longBase = 'A'.repeat(10_000);
     const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, longBase);
 
     const err = agentErrorEvent.error;
-    expect(err.length).toBe(4096);
-    expect(err.endsWith('(truncated)')).toBe(true);
+    expect(err).toBe(longBase);
 
     const toolErr = (toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text;
-    expect(toolErr.length).toBe(4096);
-    expect(toolErr.endsWith('(truncated)')).toBe(true);
+    expect(toolErr.length).toBeLessThanOrEqual(8000);
+    expect(toolErr).toContain('<response clipped>');
   });
 });
