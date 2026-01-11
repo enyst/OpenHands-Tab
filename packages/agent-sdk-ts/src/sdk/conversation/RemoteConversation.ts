@@ -372,7 +372,7 @@ export class RemoteConversation extends EventEmitter {
     }
 
     const base = this.serverUrl.replace(/\/$/, '');
-    const headers = { ...this.getAuthHeaders({ 'Content-Type': 'application/json' }) };
+    const headers = this.getAuthHeaders();
     const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/ask_agent`, {
       method: 'POST',
       headers,
@@ -384,8 +384,10 @@ export class RemoteConversation extends EventEmitter {
       throw new Error(`Failed to ask agent (HTTP ${res.status})${info ? `: ${info}` : ''}`);
     }
 
-    const json = await res.json().catch(() => ({})) as { response?: unknown };
-    const response = typeof json.response === 'string' ? json.response : undefined;
+    const json = await res.json().catch(() => null) as unknown;
+    const response = typeof (json as { response?: unknown } | null)?.response === 'string'
+      ? (json as { response: string }).response
+      : undefined;
     if (!response) {
       throw new Error('askAgent: server response missing "response"');
     }
