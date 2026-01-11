@@ -10,8 +10,8 @@ import { getGitHeadDiffSummaryForFile, resolveGitContext } from '../gitDiffSumma
 const execFileAsync = promisify(execFile);
 
 async function runGit(args: string[], cwd: string): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, { cwd });
-  return String(stdout);
+  const { stdout } = await execFileAsync('git', args, { cwd, encoding: 'utf8' });
+  return stdout;
 }
 
 async function makeTempDir(prefix: string): Promise<string> {
