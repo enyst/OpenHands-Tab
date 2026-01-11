@@ -852,6 +852,15 @@ describe('RemoteConversation', () => {
     await expect(conversation.updateSecrets({ GITHUB_TOKEN: 'ghp_abc123' })).resolves.toBeUndefined();
   });
 
+  it('updateSecrets throws when no active conversation', async () => {
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await expect(conversation.updateSecrets({ GITHUB_TOKEN: 'ghp_abc123' })).rejects.toThrow(
+      'Cannot updateSecrets: no active conversation. Start or restore a conversation first.',
+    );
+  });
+
   it('updateSecrets throws on non-2xx response', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.includes('/events/search')) {
