@@ -13,3 +13,5 @@ export * from './contextLimit';
 export * from './condensationLlmConfig';
 export * from './debug';
 export * from './providerQuirks';
+export * from './errorMapping';
+export * from './router';
