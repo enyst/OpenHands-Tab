@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Skill, SkillValidationError, loadSkillsFromDir, loadUserSkills, USER_SKILLS_DIRS } from '../skill';
@@ -327,6 +327,24 @@ Some content`,
           process.env.MCP_TEST_URL = previousEnv;
         }
       }
+    });
+
+    it('does not traverse symlinked resource directories', () => {
+      const skillRoot = join(tempDir, 'my-skill');
+      const scriptsDir = join(skillRoot, 'scripts');
+      const outsideDir = join(tempDir, 'outside');
+      mkdirSync(scriptsDir, { recursive: true });
+      mkdirSync(outsideDir, { recursive: true });
+
+      writeFileSync(join(outsideDir, 'secret.txt'), 'should not be included');
+      symlinkSync(outsideDir, join(scriptsDir, 'linked'));
+      writeFileSync(join(scriptsDir, 'run.sh'), '#!/bin/sh\necho ok');
+
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(skillPath, `---\ndescription: Demo\n---\n\ncontent`);
+
+      const skill = Skill.load({ path: skillPath });
+      expect(skill.resources?.scripts).toEqual(['run.sh']);
     });
 
     it('expands variables safely when values contain backslashes/quotes', () => {

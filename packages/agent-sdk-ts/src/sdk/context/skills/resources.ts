@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from 'fs';
+import { existsSync, lstatSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import type { SkillResources } from './types';
 
@@ -8,7 +8,13 @@ const listFilesRecursively = (dir: string): string[] => {
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
     const fullPath = join(dir, entry);
-    const stat = statSync(fullPath);
+    const stat = lstatSync(fullPath);
+
+    // Never follow symlinks; they can escape the skill root or form loops.
+    if (stat.isSymbolicLink()) {
+      continue;
+    }
+
     if (stat.isDirectory()) {
       for (const nested of listFilesRecursively(fullPath)) {
         files.push(join(entry, nested));
@@ -32,11 +38,11 @@ export function discoverSkillResources(skillRoot: string): SkillResources {
 
   for (const kind of RESOURCE_DIRECTORIES) {
     const resourceDir = join(resolvedRoot, kind);
-    if (!existsSync(resourceDir) || !statSync(resourceDir).isDirectory()) {
-      continue;
-    }
+    if (!existsSync(resourceDir)) continue;
 
     try {
+      const stat = lstatSync(resourceDir);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) continue;
       resources[kind] = listFilesRecursively(resourceDir).sort();
     } catch {
       resources[kind] = [];
