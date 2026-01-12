@@ -65,13 +65,11 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
     - TypeScript: not implemented.
     - Note (2026-01-12): TypeScript now supports AgentSkills (SKILL.md directories) with strict naming, `<available_skills>` progressive disclosure, resource discovery, `.mcp.json` loading with variable expansion, and third-party repo skill files (`.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) with truncation + vendor-family gating.
 
-11. **Agent tool selection** - `include_default_tools` option to include/disable built-in tools
+11. **Plugins + custom tool loading** - plugin data model, directory loading, and remote custom tools support
 
-12. **Plugins + custom tool loading** - plugin data model, directory loading, and remote custom tools support
+12. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
 
-13. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
-
-14. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
+13. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
 
 ### Features in TypeScript but NOT in Python
 
@@ -119,11 +117,10 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - ActionEvent summary + reasoning metadata
   - Python: ActionEvent includes `summary`, `thinking_blocks`, and `responses_reasoning_item` (for Responses API), and uses these in UI/visualization. See openhands/sdk/event/llm_convertible/action.py.
-  - TypeScript: ActionEvent only includes `thought`, `reasoning_content`, and tool call metadata; no `summary` / `thinking_blocks` / Responses-API reasoning metadata fields. See packages/agent-sdk-ts/src/sdk/types/index.ts ActionEvent.
+  - TypeScript: ActionEvent includes `thought`, `reasoning_content`, `thinking_blocks`, and `responses_reasoning_item`; `summary` is not represented in the TypeScript ActionEvent model. See packages/agent-sdk-ts/src/sdk/types/index.ts ActionEvent.
   - Status:
-    - **Summary** (`summary`): not a TS parity gap for OpenHands-Tab, because we don’t rely on server-provided action summaries (Gemini Flash generates summaries on the fly).
-    - **Anthropic thinking blocks** (`thinking_blocks`): structured “thinking” content emitted by Anthropic models (often multiple segments), useful for richer reasoning trace/debugging and UI rendering.
-    - **OpenAI Responses reasoning item** (`responses_reasoning_item`): structured reasoning metadata returned by the OpenAI Responses API, useful for parity/debuggability and (optionally) exposing reasoning traces.
+    - `summary`: not a TS parity gap for OpenHands-Tab, because we don’t rely on server-provided action summaries (Gemini Flash generates summaries on the fly).
+    - `thinking_blocks` and `responses_reasoning_item`: aligned for parity/debuggability.
 
 - ConversationErrorEvent visualization
   - Python: ConversationErrorEvent now defines `visualize()` for UI output. See openhands/sdk/event/conversation_error.py.
@@ -137,8 +134,8 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - include_default_tools option
   - Python: Agent supports `include_default_tools` to selectively include built-in tools or disable all defaults. See openhands/sdk/agent/base.py and tests/sdk/agent/test_agent_tool_init.py.
-  - TypeScript: no equivalent option; default tool set is fixed in runtime initialization.
-  - Status: Missing feature.
+  - TypeScript: supports `includeDefaultTools?: boolean | string[]` to disable defaults or select a subset when tools are omitted. See packages/agent-sdk-ts/src/sdk/conversation/index.ts and tests: packages/agent-sdk-ts/src/sdk/conversation/LocalConversation.test.ts.
+  - Status: Aligned (API naming differs).
 
 - AgentSkills (SKILL.md) + repo skill files
   - Python: SKILL.md directories with strict naming, progressive disclosure (`to_prompt()` XML), resources, `.mcp.json` support, and optional public skills loading. See openhands/sdk/context/skills/*.py and openhands/sdk/context/agent_context.py.
@@ -464,7 +461,6 @@ Python's RemoteConversation has significantly more features than TypeScript's im
 - Support persisted `ConversationState` restoration and pending-action replay (implemented in PR #246 / `oh-tab-wc7`).
 - Implement responses-API parity and richer confirmation policies akin to Python analyzers
 - Add hook execution pipeline (pre/post tool use, post event, stop hook)
-- Add `include_default_tools` option for default tool selection parity
 
 ```mermaid
 classDiagram
@@ -545,11 +541,11 @@ classDiagram
   - AgentSkills (SKILL.md directories) with strict naming validation
   - Resource discovery (`scripts/`, `references/`, `assets/`) and optional `.mcp.json` parsing/validation with variable expansion
   - Third-party files: `.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (truncates oversized files; vendor-gated where applicable)
-  - No regex/weighted triggers and no template-driven prompt rendering (tracked separately)
+  - Trigger matching is substring-based (same as Python); template-driven prompt rendering and richer trigger semantics are optional enhancements (not parity)
 
 ### Gaps to close
 - Add public skills repo loading (`load_public_skills`)
-- Expand trigger matching (regex/weighted keywords) and template-driven prompt rendering
+- Optional enhancements (not python parity): template-driven prompt rendering and richer trigger semantics (regex/weights, scoring)
 
 ```mermaid
 classDiagram
@@ -717,8 +713,9 @@ Rather than fully re-implementing Pydantic-style action/observation classes in T
   - Metadata fields are narrower (e.g., no stuck-detection or condenser fields)
   - Missing ActionEvent additions from Python:
     - `summary`: **not required for OpenHands-Tab**, since Gemini Flash generates summaries on the fly
-    - `thinking_blocks`: Anthropic “thinking” blocks (structured reasoning trace content) — important if we want richer reasoning/debuggability parity
-    - `responses_reasoning_item`: OpenAI Responses API reasoning metadata item — important for Responses-API parity/debuggability
+  - Implemented ActionEvent reasoning metadata:
+    - `thinking_blocks`: Anthropic “thinking” blocks (structured reasoning trace content)
+    - `responses_reasoning_item`: OpenAI Responses API reasoning metadata item
 
 ```mermaid
 classDiagram
