@@ -21,7 +21,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
     }
   });
 
-  const createHandler = (options?: { conversation?: any }) => {
+  const createHandler = (options?: { conversation?: any; mode?: 'local' | 'remote' }) => {
     const postMessage = vi.fn(async () => true);
     const secretValues = new Map<string, string>();
     const secrets = {
@@ -39,7 +39,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       host: { postMessage },
       secretRegistry,
       getConversation: () => options?.conversation,
-      getConversationMode: () => 'local',
+      getConversationMode: () => options?.mode ?? 'local',
       getConversationStoreRoot: () => undefined,
       resolveConversationStoreRoot: async () => tmpDir,
       getLlmProfilesStoreRoot: () => tmpDir,
@@ -172,5 +172,20 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
 
     expect(conversation.setSettings).toHaveBeenCalledTimes(1);
     expect(conversation.setSettings.mock.calls[0]?.[0]?.llm?.profileId).toBe('test-gpt-4');
+  });
+
+  it('warns that remote mode profile switching applies on the next new conversation', async () => {
+    const conversation = { getStatus: () => 'online', setSettings: vi.fn() };
+    const { handler, postMessage } = createHandler({ conversation, mode: 'remote' });
+
+    await handler({ type: 'setLlmProfileId', profileId: 'test-gpt-4' });
+
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'statusMessage',
+      level: 'warn',
+      message: expect.stringContaining('Remote mode'),
+      autoDismiss: true,
+      autoDismissDelay: 8000,
+    });
   });
 });

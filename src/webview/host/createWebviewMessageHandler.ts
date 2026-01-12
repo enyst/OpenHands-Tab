@@ -619,6 +619,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           activeProfileId,
         });
 
+        if (finalMode === 'remote' && finalStatus === 'online') {
+          void host.postMessage({
+            type: 'statusMessage',
+            level: 'warn',
+            message: 'Remote mode: LLM profile changes apply when you start a new conversation. The current remote conversation will continue using its existing model.',
+            autoDismiss: true,
+            autoDismissDelay: 8000,
+          });
+        }
+
         outputChannel?.appendLine(
           `[LLM Profile] Switched: ${previousProfileId} -> ${activeProfileId || '(none)'} (mode=${finalMode}, status=${finalStatus}, label=${finalLabel || '(null)'})`,
         );
