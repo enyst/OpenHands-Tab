@@ -87,7 +87,7 @@ export class AgentContext {
    * - Repository-specific instructions (collected from repo skills)
    */
   getSystemMessageSuffix(options?: { secretNames?: string[] }): string | null {
-    const repoSkills = this.skills.filter((s) => s.trigger === null);
+    const repoSkills = this.skills.filter((s) => s.trigger === null && !s.isAgentSkillsFormat);
 
     const parts: string[] = [];
 

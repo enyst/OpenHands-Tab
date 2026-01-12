@@ -250,6 +250,41 @@ Refactor \${target_file} using \${pattern}.`;
       expect(skill.inputs[1].name).toBe('pattern');
     });
 
+    it('loads AgentSkills-format SKILL.md using parent directory name', () => {
+      const skillRoot = join(tempDir, 'my-skill');
+      mkdirSync(skillRoot, { recursive: true });
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(skillPath, `---
+description: Example skill
+---
+
+Agent skill content.`);
+
+      const skill = Skill.load({ path: skillPath });
+
+      expect(skill.name).toBe('my-skill');
+      expect(skill.isAgentSkillsFormat).toBe(true);
+      expect(skill.description).toBe('Example skill');
+      expect(skill.source).toBe(skillPath);
+    });
+
+    it('validates AgentSkills-format skill name strictly', () => {
+      const skillRoot = join(tempDir, 'BadSkill');
+      mkdirSync(skillRoot, { recursive: true });
+      const skillPath = join(skillRoot, 'skill.md');
+      writeFileSync(skillPath, 'Content');
+
+      let error: unknown;
+      try {
+        Skill.load({ path: skillPath });
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeInstanceOf(SkillValidationError);
+      expect((error as Error | undefined)?.message).toContain("Invalid skill name 'BadSkill'");
+    });
+
     it('adds skill name trigger for task skills', () => {
       const skillPath = join(tempDir, 'mytask.md');
       const content = `---
@@ -394,6 +429,43 @@ Knowledge content`);
       const { repoSkills } = loadSkillsFromDir(skillDir);
 
       expect(repoSkills.has('subdir/nested-skill')).toBe(true);
+    });
+
+    it('loads AgentSkills-format skills from SKILL.md directories and excludes those dirs from legacy scanning', () => {
+      const agentSkillDir = join(skillDir, 'my-skill');
+      mkdirSync(agentSkillDir, { recursive: true });
+      writeFileSync(join(agentSkillDir, 'SKILL.md'), 'Agent skill content');
+
+      // This should NOT be treated as a legacy skill file.
+      writeFileSync(join(agentSkillDir, 'nested-skill.md'), 'Legacy nested content');
+
+      const { repoSkills, agentSkills } = loadSkillsFromDir(skillDir);
+
+      expect(agentSkills.has('my-skill')).toBe(true);
+      expect(agentSkills.get('my-skill')?.isAgentSkillsFormat).toBe(true);
+
+      expect(repoSkills.has('my-skill/nested-skill')).toBe(false);
+      expect(repoSkills.has('my-skill/SKILL')).toBe(false);
+    });
+
+    it('throws SkillValidationError when AgentSkills SKILL.md name does not match directory', () => {
+      const agentSkillDir = join(skillDir, 'good-skill');
+      mkdirSync(agentSkillDir, { recursive: true });
+      writeFileSync(join(agentSkillDir, 'SKILL.md'), `---
+name: other-skill
+---
+
+Content`);
+
+      let error: unknown;
+      try {
+        loadSkillsFromDir(skillDir);
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeInstanceOf(SkillValidationError);
+      expect((error as Error | undefined)?.message).toContain("does not match directory 'good-skill'");
     });
 
     it('skips README.md files', () => {

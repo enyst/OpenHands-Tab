@@ -193,6 +193,18 @@ describe('AgentContext', () => {
       expect(suffix).not.toContain('Knowledge');
     });
 
+    it('excludes AgentSkills-format skills from system suffix even when trigger is null', () => {
+      const agentSkill = new Skill({
+        name: 'my-skill',
+        content: 'AgentSkills content (should not be injected)',
+        trigger: null,
+        isAgentSkillsFormat: true,
+      });
+
+      const context = new AgentContext({ skills: [agentSkill] });
+      expect(context.getSystemMessageSuffix()).toBeNull();
+    });
+
     it('appends custom system message suffix', () => {
       const repoSkill = new Skill({ name: 'repo', content: 'Repo', trigger: null });
 
