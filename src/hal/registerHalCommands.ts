@@ -121,7 +121,6 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     try {
       activeTeleport.abort.abort();
     } catch {}
-    activeTeleport = null;
   });
 
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
@@ -130,6 +129,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     let connectionEstablished = false;
     let didUpdateServerUrl = false;
     let previousServerUrl: string | undefined;
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
 
     try {
       if (activeTeleport) {
@@ -139,7 +139,6 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       const abort = new AbortController();
       activeTeleport = { abort };
 
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
       const settings = await settingsMgr.get();
       previousServerUrl = typeof settings.serverUrl === 'string' && settings.serverUrl.trim() ? settings.serverUrl.trim() : undefined;
 
@@ -248,9 +247,13 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         // User canceled from the webview. Avoid re-opening the HAL overlay with an error toast.
         if (didUpdateServerUrl && !connectionEstablished) {
           try {
-            await new SettingsManager(new VscodeSettingsAdapter(deps.context)).update({ serverUrl: previousServerUrl });
+            await settingsMgr.update({ serverUrl: previousServerUrl });
             await deps.ensureConversationAndConnection();
-          } catch {}
+          } catch (revertErr) {
+            deps.getOutputChannel()?.appendLine(
+              `[hal.teleport] Failed to revert server settings after cancellation: ${deps.renderError(revertErr)}`
+            );
+          }
         }
         return;
       }
