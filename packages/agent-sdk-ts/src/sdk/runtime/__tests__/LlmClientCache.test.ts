@@ -64,4 +64,42 @@ describe('LlmClientCache', () => {
     expect(createStreamer).toHaveBeenCalledTimes(2);
     expect(createClient).toHaveBeenCalledTimes(2);
   });
+
+  it('clears cached client promise when createClient rejects', async () => {
+    const createClient = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValueOnce(new MockClient());
+    const createStreamer = vi.fn(() => ({ kind: 'streamer' }));
+
+    const cache = new LlmClientCache({
+      createClient,
+      createStreamer,
+    });
+
+    await expect(cache.getPrimaryClient()).rejects.toThrowError(/boom/);
+    await expect(cache.getPrimaryClient()).resolves.toBeInstanceOf(MockClient);
+    expect(createClient).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears cached streamer promise when createStreamer rejects', async () => {
+    const createClient = vi.fn(async () => new MockClient());
+    const createStreamer = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('streamer boom');
+      })
+      .mockImplementationOnce(() => ({ kind: 'streamer' }));
+
+    const cache = new LlmClientCache({
+      createClient,
+      createStreamer,
+    });
+
+    await expect(cache.getStreamer()).rejects.toThrowError(/streamer boom/);
+    await expect(cache.getStreamer()).resolves.toEqual({ kind: 'streamer' });
+    expect(createStreamer).toHaveBeenCalledTimes(2);
+    // Client is cached; streamer retries should reuse it.
+    expect(createClient).toHaveBeenCalledTimes(1);
+  });
 });

@@ -30,7 +30,15 @@ export class LlmClientCache<TStreamer> {
     if (injected) return injected;
 
     if (!this.llmClientPromise) {
-      this.llmClientPromise = this.deps.createClient();
+      const pending = Promise.resolve(this.deps.createClient());
+      const wrapped = pending.catch((error) => {
+        // Only clear if this is still the cached promise (avoid clobbering a newer one).
+        if (this.llmClientPromise === wrapped) {
+          this.llmClientPromise = undefined;
+        }
+        throw error;
+      });
+      this.llmClientPromise = wrapped;
     }
     return this.llmClientPromise;
   }
@@ -44,10 +52,16 @@ export class LlmClientCache<TStreamer> {
         model: ctx.model,
       });
 
-      this.streamerPromise = (async () => {
+      const wrapped = (async () => {
         const client = await this.getPrimaryClient();
         return this.deps.createStreamer(client);
-      })();
+      })().catch((error) => {
+        if (this.streamerPromise === wrapped) {
+          this.streamerPromise = undefined;
+        }
+        throw error;
+      });
+      this.streamerPromise = wrapped;
     } else {
       this.deps.emitDebugStateUpdate?.('agent_streamer_cache', { action: 'reuse' });
     }
@@ -55,4 +69,3 @@ export class LlmClientCache<TStreamer> {
     return this.streamerPromise;
   }
 }
-
