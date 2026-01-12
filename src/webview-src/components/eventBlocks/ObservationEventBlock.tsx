@@ -95,7 +95,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
         <div className="font-semibold text-sm text-stone-200">Tool Result</div>
         <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
         {showHeaderToggle && (
-          <Tooltip content={headerToggleLabel} position="left">
+          <Tooltip content={headerToggleLabel} position="right">
             <button
               onClick={() => setIsExpanded(!isExpanded)}
               className="ml-auto text-xs text-stone-400 hover:text-stone-300 transition-colors flex items-center gap-1 px-2 py-1 rounded-md hover:bg-white/[0.05]"
