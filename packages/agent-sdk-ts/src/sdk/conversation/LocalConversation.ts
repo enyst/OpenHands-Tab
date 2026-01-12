@@ -20,6 +20,7 @@ import { LLMRegistry } from '../llm';
 import type { RegistryEvent } from '../llm/registry';
 import type { ConfirmationPolicy } from '../security/confirmationPolicy';
 import type { SecurityAnalyzer } from '../security/analyzer';
+import { FileEditorTool, TaskTrackerTool, TerminalTool } from '../../tools';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
@@ -38,6 +39,7 @@ export interface LocalConversationOptions {
   workspaceRoot?: string;
   llmClient?: LLMClient;
   tools?: ToolDefinition<unknown, unknown>[];
+  includeDefaultTools?: boolean | string[];
   secrets?: SecretRegistry;
   persistenceDir?: string;
   persistence?: ConversationPersistence;
@@ -55,6 +57,8 @@ export class LocalConversation extends EventEmitter {
   private readonly lock = new AsyncLock();
   private readonly customLlmClient?: LLMClient;
   private tools: ToolDefinition<unknown, unknown>[];
+  private readonly includeDefaultTools?: boolean | string[];
+  private readonly hasToolsOption: boolean;
   private readonly persistenceDir?: string;
   private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;
@@ -73,7 +77,9 @@ export class LocalConversation extends EventEmitter {
     this.events = new EventLog({ persistence: this.persistence });
     this.state = new ConversationState({ eventLog: this.events, persistence: this.persistence });
     this.customLlmClient = options.llmClient;
-    this.tools = options.tools ?? [];
+    this.includeDefaultTools = options.includeDefaultTools;
+    this.hasToolsOption = Object.prototype.hasOwnProperty.call(options, 'tools');
+    this.tools = this.resolveTools(this.hasToolsOption ? (options.tools ?? []) : undefined);
     this.secrets = options.secrets ?? new SecretRegistry();
     this.agentContext = options.agentContext;
     this.llmRegistry = new LLMRegistry();
@@ -107,7 +113,7 @@ export class LocalConversation extends EventEmitter {
     if (this.hasUserMessage) {
       throw new Error('Cannot change tools after the conversation has started');
     }
-    this.tools = tools;
+    this.tools = this.resolveTools(tools);
     this.agent = this.createAgent();
   }
 
@@ -272,12 +278,65 @@ export class LocalConversation extends EventEmitter {
     this.emit('status', status);
   }
 
+  private resolveTools(provided?: ToolDefinition<unknown, unknown>[]): ToolDefinition<unknown, unknown>[] {
+    const defaultTools: ToolDefinition<unknown, unknown>[] = [
+      new TerminalTool(),
+      new FileEditorTool(),
+      new TaskTrackerTool(),
+    ];
+    const defaultNames = new Set(defaultTools.map((tool) => tool.name));
+
+    const includeDefaultTools = this.includeDefaultTools;
+    if (includeDefaultTools === false) {
+      return provided ?? [];
+    }
+
+    if (includeDefaultTools === undefined) {
+      return provided ?? defaultTools;
+    }
+
+    const selectedDefaults = Array.isArray(includeDefaultTools)
+      ? (() => {
+        const uniqueNames = new Set<string>();
+        for (const raw of includeDefaultTools) {
+          const name = typeof raw === 'string' ? raw.trim() : '';
+          if (!name) continue;
+          if (!defaultNames.has(name)) {
+            throw new Error(`includeDefaultTools: unknown default tool '${name}'. Allowed: ${Array.from(defaultNames).sort().join(', ')}`);
+          }
+          uniqueNames.add(name);
+        }
+        return defaultTools.filter((tool) => uniqueNames.has(tool.name));
+      })()
+      : defaultTools;
+
+    const mergedByName = new Map<string, ToolDefinition<unknown, unknown>>(selectedDefaults.map((tool) => [tool.name, tool]));
+    for (const tool of provided ?? []) mergedByName.set(tool.name, tool);
+
+    const result: ToolDefinition<unknown, unknown>[] = [];
+    const included = new Set<string>();
+
+    for (const tool of selectedDefaults) {
+      result.push(mergedByName.get(tool.name)!);
+      included.add(tool.name);
+    }
+
+    for (const tool of provided ?? []) {
+      if (included.has(tool.name)) continue;
+      result.push(tool);
+      included.add(tool.name);
+    }
+
+    return result;
+  }
+
   private createAgent(): Agent {
     return new Agent({
       settings: this.settings,
       workspace: this.workspace,
       llmClient: this.customLlmClient,
       tools: this.tools,
+      includeDefaultTools: this.includeDefaultTools,
       events: this.events,
       state: this.state,
       secrets: this.secrets,

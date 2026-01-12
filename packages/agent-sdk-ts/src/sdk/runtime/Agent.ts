@@ -68,6 +68,13 @@ export interface AgentOptions {
   workspaceRoot?: string;
   llmClient?: LLMClient;
   toolSummarizerClient?: LLMClient;
+  /**
+   * Controls whether the agent auto-registers builtin tools (e.g. FinishTool).
+   *
+   * - `false`: do not add any builtin tools automatically
+   * - otherwise: preserve legacy behavior (auto-add FinishTool when missing)
+   */
+  includeDefaultTools?: boolean | string[];
   tools?: ToolDefinition<unknown, unknown>[];
   events?: EventLog;
   state?: ConversationState;
@@ -147,9 +154,11 @@ export class Agent extends EventEmitter {
       injectedClient: options.toolSummarizerClient,
     });
     const providedTools = options.tools ?? [];
-    const toolsWithFinish = providedTools.some((tool) => tool.name === 'finish')
-      ? providedTools
-      : [...providedTools, new FinishTool()];
+    const toolsWithFinish = (() => {
+      if (options.includeDefaultTools === false) return providedTools;
+      if (providedTools.some((tool) => tool.name === 'finish')) return providedTools;
+      return [...providedTools, new FinishTool()];
+    })();
     this.tools = new Map(toolsWithFinish.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;

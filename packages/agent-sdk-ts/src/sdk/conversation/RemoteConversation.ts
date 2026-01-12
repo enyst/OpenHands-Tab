@@ -64,6 +64,7 @@ export interface RemoteConversationOptions {
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   tools?: RemoteConversationTool[];
+  includeDefaultTools?: boolean | string[];
   workspace?: RemoteConversationWorkspace;
   conversationId?: string;
   profileStoreOptions?: LLMProfileStoreOptions;
@@ -93,6 +94,8 @@ export class RemoteConversation extends EventEmitter {
   private readonly maxReconnectRetries = 6;
   private readonly workspaceRoot: string;
   private readonly tools?: RemoteConversationTool[];
+  private readonly includeDefaultTools?: boolean | string[];
+  private readonly hasToolsOption: boolean;
   private readonly workspace?: RemoteConversationWorkspace;
   private readonly profileStoreOptions?: LLMProfileStoreOptions;
   private static readonly historyPageLimit = 100;
@@ -151,7 +154,9 @@ export class RemoteConversation extends EventEmitter {
     this.serverUrl = normalizeRemoteServerUrl(options.serverUrl);
     this.settings = options.settings;
     this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
+    this.hasToolsOption = Object.prototype.hasOwnProperty.call(options, 'tools');
     this.tools = options.tools;
+    this.includeDefaultTools = options.includeDefaultTools;
     this.workspace = options.workspace;
     this.profileStoreOptions = options.profileStoreOptions;
     if (options.conversationId) {
@@ -363,7 +368,62 @@ export class RemoteConversation extends EventEmitter {
         { name: 'task_tracker' },
       ];
       const workspace = this.workspace ?? { kind: 'LocalWorkspace', working_dir: this.workspaceRoot };
-      const tools = this.tools ?? defaultTools;
+
+      const mergeTools = (defaults: RemoteConversationTool[], provided: RemoteConversationTool[]): RemoteConversationTool[] => {
+        const byName = new Map<string, RemoteConversationTool>(defaults.map((tool) => [tool.name, tool]));
+        for (const tool of provided) byName.set(tool.name, tool);
+
+        const result: RemoteConversationTool[] = [];
+        const included = new Set<string>();
+
+        for (const tool of defaults) {
+          result.push(byName.get(tool.name)!);
+          included.add(tool.name);
+        }
+
+        for (const tool of provided) {
+          if (!included.has(tool.name)) {
+            result.push(tool);
+            included.add(tool.name);
+          }
+        }
+
+        return result;
+      };
+
+      const resolveDefaultToolSubset = (selection: readonly string[]): RemoteConversationTool[] => {
+        const allowed = new Set(defaultTools.map((tool) => tool.name));
+        const uniqueNames = new Set<string>();
+        for (const raw of selection) {
+          const name = typeof raw === 'string' ? raw.trim() : '';
+          if (!name) continue;
+          if (!allowed.has(name)) {
+            throw new Error(`includeDefaultTools: unknown default tool '${name}'. Allowed: ${Array.from(allowed).sort().join(', ')}`);
+          }
+          uniqueNames.add(name);
+        }
+        return defaultTools.filter((tool) => uniqueNames.has(tool.name));
+      };
+
+      const tools = (() => {
+        const provided = this.tools ?? [];
+        const includeDefaultTools = this.includeDefaultTools;
+
+        if (includeDefaultTools === undefined) {
+          if (this.hasToolsOption) return provided;
+          return defaultTools;
+        }
+
+        if (includeDefaultTools === false) {
+          return provided;
+        }
+
+        const selectedDefaults = Array.isArray(includeDefaultTools)
+          ? resolveDefaultToolSubset(includeDefaultTools)
+          : defaultTools;
+
+        return mergeTools(selectedDefaults, provided);
+      })();
       const req = {
         agent: {
           llm,

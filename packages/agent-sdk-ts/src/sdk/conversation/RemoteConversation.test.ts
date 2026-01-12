@@ -151,6 +151,96 @@ describe('RemoteConversation', () => {
     expect(parsed.workspace).toEqual({ kind: 'LocalWorkspace', working_dir: workspaceRoot });
   });
 
+  it('supports includeDefaultTools=false to disable default tools when tools are omitted', async () => {
+    vi.spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect').mockImplementation(() => {});
+    const fetchSpy = vi.fn((_url: string, init?: RequestInit) => {
+      void _url;
+      void init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'conv-no-default-tools' }),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      includeDefaultTools: false,
+    });
+
+    await conversation.startNewConversation();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
+    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    expect(parsed.agent.tools).toEqual([]);
+  });
+
+  it('supports includeDefaultTools subset selection when tools are omitted', async () => {
+    vi.spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect').mockImplementation(() => {});
+    const fetchSpy = vi.fn((_url: string, init?: RequestInit) => {
+      void _url;
+      void init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'conv-subset-default-tools' }),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      includeDefaultTools: ['terminal'],
+    });
+
+    await conversation.startNewConversation();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
+    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    expect(parsed.agent.tools).toEqual([{ name: 'terminal' }]);
+  });
+
+  it('supports includeDefaultTools=true to merge defaults with provided tools', async () => {
+    vi.spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect').mockImplementation(() => {});
+    const fetchSpy = vi.fn((_url: string, init?: RequestInit) => {
+      void _url;
+      void init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 'conv-merge-default-tools' }),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      includeDefaultTools: true,
+      tools: [{ name: 'glob', params: { pattern: '**/*.ts' } }],
+    });
+
+    await conversation.startNewConversation();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
+    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    expect(parsed.agent.tools).toEqual([
+      { name: 'terminal' },
+      { name: 'file_editor' },
+      { name: 'task_tracker' },
+      { name: 'glob', params: { pattern: '**/*.ts' } },
+    ]);
+  });
+
   it('sends messages with run=false via HTTP', async () => {
     const connectSpy = vi
       .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
