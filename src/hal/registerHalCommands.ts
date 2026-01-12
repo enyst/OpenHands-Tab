@@ -247,7 +247,14 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
     } catch (err) {
-      if (activeTeleport?.didCancel || activeTeleport?.abort.signal.aborted || isAbortError(err)) {
+      if (activeTeleport?.didCancel) {
+        // Cancellation is UX-only: the cancel command already notified the webview to return to the confirmation UI.
+        // Avoid double-posting halTeleportCanceled when the abort surfaces here.
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport canceled by user');
+        return;
+      }
+
+      if (activeTeleport?.abort.signal.aborted || isAbortError(err)) {
         // Cancellation is UX-only: we return to the confirmation UI and stop HAL waiting/music.
         // We intentionally avoid trying to revert settings or unwind any in-flight connection logic.
         deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport canceled by user');
