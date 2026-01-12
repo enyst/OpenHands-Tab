@@ -65,8 +65,8 @@ const LOCAL_TOOLS: LocalToolDescriptor[] = [
   {
     id: 'finish',
     label: 'Finish',
-    description: 'Signal that the agent has completed its task',
-    isDefault: false,
+    description: 'Signal that the agent has completed its task (always enabled)',
+    isDefault: true,
   },
 ];
 

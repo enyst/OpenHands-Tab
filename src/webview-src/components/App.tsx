@@ -590,6 +590,11 @@ export function App() {
       return;
     }
 
+    if (toolId === 'finish') {
+      showStatusMessage('info', 'Finish is always enabled.', { autoDismiss: true, autoDismissDelay: 2500 });
+      return;
+    }
+
     setEnabledToolIds((prev) => {
       const known = new Set(tools.map((tool) => tool.id));
       if (!known.has(toolId)) return prev;

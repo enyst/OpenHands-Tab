@@ -30,14 +30,15 @@ describe('Tools picker', () => {
             { id: 'terminal', label: 'Terminal' },
             { id: 'file_editor', label: 'File Editor' },
             { id: 'task_tracker', label: 'Task Tracker' },
+            { id: 'finish', label: 'Finish' },
           ],
-          enabledToolIds: ['terminal', 'file_editor', 'task_tracker'],
+          enabledToolIds: ['terminal', 'file_editor', 'task_tracker', 'finish'],
         }
       }));
     });
 
     const toolsButton = await screen.findByRole('button', { name: 'Tools' });
-    expect(toolsButton).toHaveTextContent('3');
+    expect(toolsButton).toHaveTextContent('4');
 
     mockApi.postMessage.mockClear();
     await act(async () => {
@@ -55,12 +56,12 @@ describe('Tools picker', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Tools' })).toHaveTextContent('2');
+      expect(screen.getByRole('button', { name: 'Tools' })).toHaveTextContent('3');
     });
 
     expect(mockApi.postMessage).toHaveBeenCalledWith({
       type: 'setEnabledTools',
-      toolIds: ['file_editor', 'task_tracker'],
+      toolIds: ['file_editor', 'task_tracker', 'finish'],
     });
     expect(screen.getByLabelText('Terminal')).toHaveAttribute('aria-selected', 'false');
   });
@@ -79,8 +80,9 @@ describe('Tools picker', () => {
             { id: 'terminal', label: 'Terminal' },
             { id: 'file_editor', label: 'File Editor' },
             { id: 'task_tracker', label: 'Task Tracker' },
+            { id: 'finish', label: 'Finish' },
           ],
-          enabledToolIds: ['terminal', 'file_editor', 'task_tracker'],
+          enabledToolIds: ['terminal', 'file_editor', 'task_tracker', 'finish'],
         }
       }));
     });

@@ -23,6 +23,7 @@ function ToolButton({
   onToggle,
   onMouseEnter,
   id,
+  disabled = false,
 }: {
   tool: ToolDescriptor;
   isEnabled: boolean;
@@ -30,22 +31,26 @@ function ToolButton({
   onToggle: () => void;
   onMouseEnter: () => void;
   id: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       onMouseEnter={onMouseEnter}
+      disabled={disabled}
       role="option"
       id={id}
       aria-label={tool.label}
       aria-selected={isEnabled ? 'true' : 'false'}
+      aria-disabled={disabled ? 'true' : 'false'}
       className={`
         w-full text-left px-3 py-2.5 rounded-lg
         text-sm
         transition-all duration-150
         flex items-start gap-2.5
         group
+        ${disabled ? 'opacity-70 cursor-not-allowed' : ''}
         ${isEnabled ? 'bg-brand-500/10 text-stone-200 oh-outline-soft' : 'text-stone-400 hover:bg-white/[0.04] hover:text-stone-300'}
         ${isActive && !isEnabled ? 'bg-white/[0.04] text-stone-200 oh-outline-soft' : ''}
         ${isActive && isEnabled ? 'bg-brand-500/15' : ''}
@@ -56,6 +61,7 @@ function ToolButton({
         <div className="flex items-center gap-2">
           <span className="font-medium">{tool.label}</span>
           {isEnabled && <span className="codicon codicon-check text-brand-400 text-xs" />}
+          {disabled && <span className="codicon codicon-lock text-stone-500 text-xs" />}
         </div>
         {tool.description && (
           <div className="text-xs text-stone-500 mt-0.5 leading-snug">
@@ -178,6 +184,7 @@ export function ToolsPopover({
                     const globalIndex = allToolsFlat.findIndex((t) => t.id === tool.id);
                     const isEnabled = enabledToolIds.includes(tool.id);
                     const isActive = globalIndex === safeActiveIndex;
+                    const isLocked = tool.id === 'finish';
                     return (
                       <ToolButton
                         key={tool.id}
@@ -187,6 +194,7 @@ export function ToolsPopover({
                         onToggle={() => onToggleTool(tool.id)}
                         onMouseEnter={() => setActiveIndex(globalIndex)}
                         id={`tools-picker-option-${globalIndex}`}
+                        disabled={isLocked}
                       />
                     );
                   })}
@@ -205,6 +213,7 @@ export function ToolsPopover({
                     const globalIndex = allToolsFlat.findIndex((t) => t.id === tool.id);
                     const isEnabled = enabledToolIds.includes(tool.id);
                     const isActive = globalIndex === safeActiveIndex;
+                    const isLocked = tool.id === 'finish';
                     return (
                       <ToolButton
                         key={tool.id}
@@ -214,6 +223,7 @@ export function ToolsPopover({
                         onToggle={() => onToggleTool(tool.id)}
                         onMouseEnter={() => setActiveIndex(globalIndex)}
                         id={`tools-picker-option-${globalIndex}`}
+                        disabled={isLocked}
                       />
                     );
                   })}
