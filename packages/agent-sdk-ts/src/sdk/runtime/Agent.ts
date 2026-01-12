@@ -14,7 +14,7 @@ import {
   loadProfile,
   wouldExceedMaxInputTokens,
 } from '../llm';
-import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ObservationEvent, ToolCall } from '../types';
+import type { ActionEvent, BashEvent, ConversationStateUpdateEvent, Event, Message, MessageEvent, ObservationEvent, ToolCall } from '../types';
 import {
   isActionEvent,
   isAgentErrorEvent,
@@ -322,22 +322,24 @@ export class Agent extends EventEmitter {
   }
 
   private emitRestorePendingConfirmationDiagnostic(reason: string, detail?: Record<string, unknown>): void {
-    void this.pushEventWithHooks({
+    const event: ConversationStateUpdateEvent = {
       kind: 'ConversationStateUpdateEvent',
       source: 'agent',
       key: 'restore_pending_confirmation',
       value: { restored: false, reason, ...detail },
-    } as Event);
+    };
+    void this.pushEventWithHooks(event);
   }
 
   private emitDebugStateUpdate(key: string, value: unknown): void {
     if (!this.debug) return;
-    void this.pushEventWithHooks({
+    const event: ConversationStateUpdateEvent = {
       kind: 'ConversationStateUpdateEvent',
       source: 'agent',
       key,
       value,
-    } as Event);
+    };
+    void this.pushEventWithHooks(event);
   }
 
   private clearWaitingForConfirmation(reason: string, detail?: Record<string, unknown>, emitError = false): void {
