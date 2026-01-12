@@ -119,6 +119,7 @@ describe('registerHalCommands', () => {
   let mockSecretRegistry: SecretRegistry;
   let mockDeps: RegisterHalCommandsDeps;
   let registeredCommands: Map<string, (...args: unknown[]) => unknown>;
+  let originalFetch: any;
 
   beforeEach(() => {
     mockSettings = structuredClone(defaultMockSettings);
@@ -132,6 +133,9 @@ describe('registerHalCommands', () => {
     mockContext = createMockContext();
 
     mockSecretRegistry = new SecretRegistry(mockContext.secrets);
+
+    originalFetch = (globalThis as any).fetch;
+    (globalThis as any).fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
 
     mockDeps = {
       context: mockContext,
@@ -153,19 +157,21 @@ describe('registerHalCommands', () => {
   afterEach(() => {
     vi.clearAllMocks();
     registeredCommands.clear();
+    (globalThis as any).fetch = originalFetch;
   });
 
   it('registers the teleportToRemoteRuntime command', () => {
     const disposables = registerHalCommands(mockDeps);
 
-    expect(disposables).toHaveLength(1);
+    expect(disposables).toHaveLength(2);
     expect(registeredCommands.has('openhands._teleportToRemoteRuntime')).toBe(true);
+    expect(registeredCommands.has('openhands._cancelTeleportToRemoteRuntime')).toBe(true);
   });
 
   it('returns disposables for all registered commands', () => {
     const disposables = registerHalCommands(mockDeps);
 
-    expect(disposables).toHaveLength(1);
+    expect(disposables).toHaveLength(2);
     disposables.forEach((d) => {
       expect(d).toHaveProperty('dispose');
     });

@@ -38,6 +38,11 @@ export type RegisterHalCommandsDeps = {
 export function formatTeleportError(rawError: string): string {
   const lower = rawError.toLowerCase();
 
+  // Node fetch failures (common for localhost when server isn't running)
+  if (lower.includes('fetch failed') || lower.includes('failed to fetch')) {
+    return 'Server unreachable. Check if it is running.';
+  }
+
   // Connection refused / unreachable
   if (lower.includes('econnrefused') || lower.includes('connection refused')) {
     return 'Server unreachable. Check if it is running.';
@@ -84,13 +89,62 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     return chatView.webview.postMessage(message);
   };
 
+  const isAbortError = (err: unknown): boolean => {
+    if (err instanceof DOMException && err.name === 'AbortError') return true;
+    if (err instanceof Error) {
+      return err.name === 'AbortError' || /\bAbortError\b/.test(err.message);
+    }
+    return /\bAbortError\b/i.test(String(err));
+  };
+
+  const HEALTHCHECK_TIMEOUT_MS = 2500;
+
+  const checkServerHealth = async (serverUrl: string, signal: AbortSignal): Promise<void> => {
+    const normalized = serverUrl.replace(/\/+$/, '');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), HEALTHCHECK_TIMEOUT_MS);
+    const onAbort = () => controller.abort();
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const res = await fetch(`${normalized}/health`, { method: 'GET', signal: controller.signal });
+      if (!res.ok) {
+        throw new Error(`Health check failed (${res.status})`);
+      }
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', onAbort);
+    }
+  };
+
+  let activeTeleport: { abort: AbortController; didCancel: boolean } | null = null;
+
+  const cancelTeleportToRemoteRuntime = vscode.commands.registerCommand('openhands._cancelTeleportToRemoteRuntime', () => {
+    if (!activeTeleport) return;
+    activeTeleport.didCancel = true;
+    try {
+      activeTeleport.abort.abort();
+    } catch {}
+
+    // Keep behavior simple: cancel only affects the HAL UI/UX.
+    // We do NOT try to unwind in-flight connection/retry loops here.
+    void postToWebview({ type: 'halTeleportCanceled' });
+  });
+
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
     let targetServerUrl: string | undefined;
     let targetServerLabel: string | undefined;
     let connectionEstablished = false;
+    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
 
     try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+      if (activeTeleport) {
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport already in progress');
+        return;
+      }
+      const abort = new AbortController();
+      activeTeleport = { abort, didCancel: false };
+
       const settings = await settingsMgr.get();
 
       const firstServer = settings.servers?.[0];
@@ -116,6 +170,15 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
 
+      // Fast liveness check to avoid long reconnect loops when the server is down.
+      // (RemoteConversation retries can keep the HAL waiting screen/music going for a long time.)
+      try {
+        await checkServerHealth(targetServerUrl, abort.signal);
+      } catch (err) {
+        if (isAbortError(err)) return;
+        throw err;
+      }
+
       // STEP 1: Try to connect to the remote server FIRST
       // This must succeed before we do anything else (reject local action, prepare summary, etc.)
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Attempting connection to ${serverDisplayName}...`);
@@ -123,7 +186,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       // Ensure we always start a new remote conversation instead of restoring a prior one.
       await deps.context.workspaceState.update('openhands.conversationId.remote', undefined);
 
-      await settingsMgr.update({ serverUrl: firstServerUrl });
+      await settingsMgr.update({ serverUrl: targetServerUrl });
       await deps.ensureConversationAndConnection({ uiJustCreated: true });
 
       // Connection succeeded - mark it so we know we can proceed
@@ -184,6 +247,21 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
     } catch (err) {
+      if (activeTeleport?.didCancel) {
+        // Cancellation is UX-only: the cancel command already notified the webview to return to the confirmation UI.
+        // Avoid double-posting halTeleportCanceled when the abort surfaces here.
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport canceled by user');
+        return;
+      }
+
+      if (activeTeleport?.abort.signal.aborted || isAbortError(err)) {
+        // Cancellation is UX-only: we return to the confirmation UI and stop HAL waiting/music.
+        // We intentionally avoid trying to revert settings or unwind any in-flight connection logic.
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport canceled by user');
+        void postToWebview({ type: 'halTeleportCanceled' });
+        return;
+      }
+
       const reason = formatTeleportError(deps.renderError(err));
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
 
@@ -197,10 +275,13 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       if (!posted) {
         void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
       }
+    } finally {
+      activeTeleport = null;
     }
   });
 
   return [
+    cancelTeleportToRemoteRuntime,
     teleportToRemoteRuntime,
   ];
 }

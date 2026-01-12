@@ -91,6 +91,7 @@ export function HalOverlay({
   };
 
   const isPulsating = eye === 'pulsating';
+  const exitDisabled = isSubmitting && phase === 'error';
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none">
@@ -124,7 +125,7 @@ export function HalOverlay({
             <button
               type="button"
               onClick={onExit}
-              disabled={isSubmitting}
+              disabled={exitDisabled}
               className="shrink-0 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-stone-300 hover:bg-white/[0.08] hover:text-stone-200 text-xs font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Exit
@@ -133,7 +134,7 @@ export function HalOverlay({
 
           <div className="px-5 py-4">
             {lastError && (
-              <div className="mb-3 text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded-lg p-3">
+              <div className="mb-3 text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded-lg p-3 whitespace-pre-wrap break-words">
                 {lastError}
               </div>
             )}

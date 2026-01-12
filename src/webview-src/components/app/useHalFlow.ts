@@ -51,6 +51,46 @@ function getBundledHalMusicStingUrl(): string | null {
   return buildMediaUrl(`hal/bundled/music_sting.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
 }
 
+function describeHalAudioPlaybackFailure(error: unknown): { message: string; debug: string } {
+  if (error instanceof DOMException) {
+    if (error.name === 'NotAllowedError') {
+      return {
+        message: 'HAL audio was blocked by autoplay policy. Click anywhere in this dialog (or any button) to play the audio.',
+        debug: `${error.name}: ${error.message || '(no message)'}`,
+      };
+    }
+    return {
+      message: `HAL audio failed to play (${error.name}).`,
+      debug: `${error.name}: ${error.message || '(no message)'}`,
+    };
+  }
+
+  if (error instanceof Error) {
+    const name = error.name || 'Error';
+    const message = error.message || '(no message)';
+    if (name === 'NotAllowedError' || /notallowederror/i.test(`${name}: ${message}`)) {
+      return {
+        message: 'HAL audio was blocked by autoplay policy. Click anywhere in this dialog (or any button) to play the audio.',
+        debug: `${name}: ${message}`,
+      };
+    }
+    return { message: 'HAL audio failed to play (bundled clip).', debug: `${name}: ${message}` };
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return { message: 'HAL audio failed to play (bundled clip).', debug: error.trim() };
+  }
+
+  return { message: 'HAL audio failed to play (bundled clip).', debug: String(error) };
+}
+
+function isAutoplayBlockedError(error: unknown): boolean {
+  if (error instanceof DOMException) return error.name === 'NotAllowedError';
+  if (error instanceof Error) return error.name === 'NotAllowedError' || /notallowederror/i.test(`${error.name}: ${error.message}`);
+  if (typeof error === 'string') return /notallowederror/i.test(error) || /autoplay/i.test(error);
+  return false;
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -105,6 +145,9 @@ export function useHalFlow(deps: {
   const halAudioPlayTokenRef = useRef(0);
   const halBundledAudioKeyRef = useRef<string | null>(null);
   const halBundledMusicKeyRef = useRef<string | null>(null);
+  const halBundledAudioErrorKeyRef = useRef<string | null>(null);
+  const halBundledMusicErrorKeyRef = useRef<string | null>(null);
+  const halBundledSceneAutoplayRetryKeyRef = useRef<string | null>(null);
   const halTtsRequestSeqRef = useRef(0);
   const halVoiceConfirmFallbackKeyRef = useRef<string | null>(null);
   const halVoiceConfirmRequestIdRef = useRef<string | null>(null);
@@ -324,19 +367,91 @@ export function useHalFlow(deps: {
       stopHalAudio();
       resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
     };
-    const fallBackToAwaiting = () => {
+    const fallBackToAwaiting = (error?: unknown) => {
       if (halAudioPlayTokenRef.current !== token) return;
+      const errorKey = `${sessionKey}:scene`;
+      if (error && isAutoplayBlockedError(error)) {
+        halBundledSceneAutoplayRetryKeyRef.current = errorKey;
+        const info = describeHalAudioPlaybackFailure(error);
+        console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
+        stopHalAudio();
+        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0, lastError: info.message });
+        return;
+      }
+      if (error && halBundledAudioErrorKeyRef.current !== errorKey) {
+        halBundledAudioErrorKeyRef.current = errorKey;
+        const info = describeHalAudioPlaybackFailure(error);
+        console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
+        stopHalAudio();
+        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0, lastError: info.message });
+        return;
+      }
       stopHalAudio();
       resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
     };
-    audio.onerror = fallBackToAwaiting;
+    audio.onerror = () => fallBackToAwaiting(audio.error ?? 'Bundled scene audio error');
     void audio.play().catch(fallBackToAwaiting);
 
     return () => {
       clearHalTimer();
       stopHalAudio();
     };
-  }, [clearHalTimer, halPhase, halStepIndex, stopHalAudio]);
+  }, [clearHalTimer, halPhase, halStepIndex, resetHalUiState, stopHalAudio]);
+
+  useEffect(() => {
+    const sessionKey = halActiveKeyRef.current ?? 'unknown';
+    const retryKey = `${sessionKey}:scene`;
+    if (halBundledSceneAutoplayRetryKeyRef.current !== retryKey) return;
+    if (halSettingsRef.current.mode !== 'bundled') return;
+    if (halPhase !== 'dialogue' && halPhase !== 'awaiting_user') return;
+
+    const clipUrl = getBundledHalSceneUrl();
+    if (!clipUrl || typeof Audio !== 'function') return;
+
+    const retry = () => {
+      if (halBundledSceneAutoplayRetryKeyRef.current !== retryKey) return;
+      halBundledSceneAutoplayRetryKeyRef.current = null;
+      setHalLastError(null);
+
+      const volume = halSettingsRef.current.volume;
+      stopHalAudio();
+      const token = halAudioPlayTokenRef.current;
+      const audio = new Audio(clipUrl);
+      halAudioRef.current = audio;
+      audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
+      audio.onended = () => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
+      };
+
+      const onFail = (error: unknown) => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        if (isAutoplayBlockedError(error)) {
+          halBundledSceneAutoplayRetryKeyRef.current = retryKey;
+          const info = describeHalAudioPlaybackFailure(error);
+          console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
+          stopHalAudio();
+          setHalLastError(info.message);
+          return;
+        }
+        stopHalAudio();
+      };
+
+      audio.onerror = () => onFail(audio.error ?? 'Bundled scene audio error');
+      void audio.play().catch(onFail);
+    };
+
+    const onPointerDown = () => retry();
+    const onKeyDown = () => retry();
+
+    window.addEventListener('pointerdown', onPointerDown, { capture: true, once: true });
+    window.addEventListener('keydown', onKeyDown, { capture: true, once: true });
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [halPhase, resetHalUiState, stopHalAudio]);
 
   useEffect(() => {
     if (halPhase !== 'waiting_remote') {
@@ -358,19 +473,24 @@ export function useHalFlow(deps: {
     halAudioRef.current = audio;
     audio.loop = true;
     audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onerror = () => {
+    const stopWithError = (error: unknown) => {
       if (halAudioPlayTokenRef.current !== token) return;
+      const errorKey = `${sessionKey}:music`;
+      if (halBundledMusicErrorKeyRef.current !== errorKey) {
+        halBundledMusicErrorKeyRef.current = errorKey;
+        const info = describeHalAudioPlaybackFailure(error);
+        console.warn(`[HAL] Bundled music audio failed: ${info.debug}`);
+        resetHalUiState({ phase: 'waiting_remote', eye: 'pulsating', decision: 'teleport_remote', lastError: info.message });
+      }
       stopHalAudio();
     };
-    void audio.play().catch(() => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-    });
+    audio.onerror = () => stopWithError(audio.error ?? 'Bundled music audio error');
+    void audio.play().catch(stopWithError);
 
     return () => {
       stopHalAudio();
     };
-  }, [halPhase, stopHalAudio]);
+  }, [halPhase, resetHalUiState, stopHalAudio]);
 
   const playHalAudioBytes = useCallback(
     (bytes: Uint8Array, volume: number, opts: { mimeType?: string } = {}) => {
@@ -615,6 +735,9 @@ export function useHalFlow(deps: {
   }, [cleanupHalVoiceConfirm, deps.showStatusMessage, getHalConversationKey, resetHalUiState]);
 
   const handleHalExit = useCallback(() => {
+    if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
+      deps.postMessage({ type: 'command', command: 'cancelTeleportAction' });
+    }
     cleanupHalFlow();
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
@@ -624,7 +747,7 @@ export function useHalFlow(deps: {
       setHalSuppressedKeySynced(key);
     }
     resetHalUiState();
-  }, [cleanupHalFlow, resetHalUiState, setHalSuppressedKeySynced]);
+  }, [cleanupHalFlow, deps.postMessage, resetHalUiState, setHalSuppressedKeySynced]);
 
   const handleHalApprove = useCallback(() => {
     setHalDecision('approve_local');
@@ -759,6 +882,9 @@ export function useHalFlow(deps: {
     }, [applyHalVoiceConfirmDecision, disableVoiceConfirmForConversation]);
 
   const handleHalTeleportUnavailable = useCallback((error: unknown) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const message = typeof error === 'string' && error.trim() ? error.trim() : 'No server available';
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
@@ -768,21 +894,41 @@ export function useHalFlow(deps: {
   }, [deps.showStatusMessage, resetHalUiState]);
 
   const handleHalTeleportFailed = useCallback((error: unknown, serverUrl?: string) => {
-    const message = typeof error === 'string' && error.trim() ? error.trim() : 'Teleport failed';
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
+    const rawMessage = typeof error === 'string' && error.trim() ? error.trim() : 'Teleport failed';
+    const message = serverUrl
+      ? `Remote server is not available at this time.\n${serverUrl}`
+      : 'Remote server is not available at this time.';
     const serverInfo = serverUrl ? ` (${serverUrl})` : '';
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
     setHalForceRejectInput(false);
     resetHalUiState({ phase: 'error', eye: 'dim', lastError: message });
-    deps.showStatusMessage('error', `${message}${serverInfo}`);
+    deps.showStatusMessage('error', `${rawMessage}${serverInfo}`);
   }, [deps.showStatusMessage, resetHalUiState]);
 
   const handleHalTeleportStarting = useCallback((serverUrl: string, serverLabel?: string) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const displayName = serverLabel || serverUrl;
     deps.showStatusMessage('info', `Connecting to ${displayName}…`);
   }, [deps.showStatusMessage]);
 
+  const handleHalTeleportCanceled = useCallback(() => {
+    halTeleportInProgressRef.current = false;
+    setHalTeleporting(false);
+    setHalForceRejectInput(false);
+    stopHalAudio();
+    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', decision: null });
+  }, [resetHalUiState, stopHalAudio]);
+
   const handleHalTeleportSuccess = useCallback((serverUrl: string, serverLabel?: string) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const displayName = serverLabel || serverUrl;
     deps.showStatusMessage('info', `Teleported to ${displayName}!`);
     // Note: The HAL UI state will be reset by handleConversationStarted when the new conversation starts
@@ -847,6 +993,7 @@ export function useHalFlow(deps: {
     handleHalTeleportUnavailable,
     handleHalTeleportFailed,
     handleHalTeleportStarting,
+    handleHalTeleportCanceled,
     handleHalTeleportSuccess,
     handleConversationStarted,
   };

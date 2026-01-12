@@ -1186,6 +1186,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
               outputChannel?.appendLine(`[teleportAction] ${reason}`);
             }
             break;
+          case 'cancelTeleportAction':
+            try {
+              await vscode.commands.executeCommand('openhands._cancelTeleportToRemoteRuntime');
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : String(err);
+              outputChannel?.appendLine(`[cancelTeleportAction] ${reason}`);
+            }
+            break;
           default:
             console.warn(`Unknown command received from webview: ${message.command}`);
             break;

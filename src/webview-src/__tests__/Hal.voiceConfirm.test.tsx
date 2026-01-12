@@ -7,6 +7,7 @@ import { postToWindow } from './testUtils';
 
 describe('HAL voice_confirm', () => {
   const mockApi = { postMessage: vi.fn() } as any;
+  let originalAudio: any;
 
   const mkHighRiskAction = (toolCallId: string): ActionEvent => ({
     kind: 'ActionEvent',
@@ -63,11 +64,128 @@ describe('HAL voice_confirm', () => {
     try {
       Object.defineProperty(window.navigator, 'mediaDevices', { value: undefined, configurable: true });
     } catch {}
+    originalAudio = (globalThis as any).Audio;
   });
 
   afterEach(() => {
     vi.useRealTimers();
     cleanup();
+    (globalThis as any).Audio = originalAudio;
+    document.querySelector('meta[name="openhands-media-base"]')?.remove();
+  });
+
+  it('allows exiting while teleport is in progress and sends cancel', async () => {
+    await renderAppAndWaitReady();
+
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-teleport-exit-1') });
+
+    await advanceBundledDialogueToAwaitingUser();
+
+    const teleportBtn = screen.getByRole('button', { name: /teleport to remote/i });
+    fireEvent.click(teleportBtn);
+
+    const exitBtn = screen.getByRole('button', { name: /exit/i });
+    expect(exitBtn).not.toBeDisabled();
+
+    fireEvent.click(exitBtn);
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'cancelTeleportAction' });
+  });
+
+  it('shows a friendly teleport failure message with server url', async () => {
+    await renderAppAndWaitReady();
+
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-teleport-fail-1') });
+
+    await advanceBundledDialogueToAwaitingUser();
+    fireEvent.click(screen.getByRole('button', { name: /teleport to remote/i }));
+
+    postToWindow({ type: 'halTeleportFailed', error: 'TypeError: fetch failed', serverUrl: 'http://localhost:3000' });
+
+    expect(screen.getByText(/Remote server is not available at this time\./)).toBeInTheDocument();
+    expect(screen.getAllByText(/http:\/\/localhost:3000/).length).toBeGreaterThan(0);
+  });
+
+  it('returns to confirmation UI when host cancels teleport', async () => {
+    await renderAppAndWaitReady();
+
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-teleport-cancel-1') });
+
+    await advanceBundledDialogueToAwaitingUser();
+    fireEvent.click(screen.getByRole('button', { name: /teleport to remote/i }));
+
+    // While waiting_remote, we get a cancel event from the host.
+    postToWindow({ type: 'halTeleportCanceled' });
+
+    expect(screen.getByText(/Please choose an action\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /teleport to remote/i })).toBeInTheDocument();
+  });
+
+
+  it('retries bundled HAL audio playback after a user click when autoplay blocks the first attempt', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const meta = document.createElement('meta');
+    meta.setAttribute('name', 'openhands-media-base');
+    meta.setAttribute('content', 'vscode-webview://test/media/');
+    document.head.appendChild(meta);
+
+    let playAttempts = 0;
+    class MockAudio {
+      public src = '';
+      public volume = 1;
+      public loop = false;
+      public onended: (() => void) | null = null;
+      public onerror: (() => void) | null = null;
+      public error: any = null;
+
+      constructor(url: string) {
+        this.src = url;
+      }
+
+      play() {
+        playAttempts += 1;
+        if (playAttempts === 1) {
+          return Promise.reject(new DOMException('Playback blocked', 'NotAllowedError'));
+        }
+        this.onended?.();
+        return Promise.resolve();
+      }
+
+      pause() {}
+    }
+
+    (globalThis as any).Audio = MockAudio;
+
+    await renderAppAndWaitReady();
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-audio-retry-1') });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText(/HAL audio was blocked by autoplay policy/i)).toBeInTheDocument();
+    expect(playAttempts).toBe(1);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    window.dispatchEvent(new Event('pointerdown'));
+    expect(playAttempts).toBe(2);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByText(/HAL audio was blocked by autoplay policy/i)).not.toBeInTheDocument();
+    warnSpy.mockRestore();
   });
 
   it('falls back to buttons when microphone is unavailable', async () => {
