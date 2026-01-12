@@ -32,9 +32,10 @@ describe('LLM router helpers', () => {
 
   it('falls back when shouldFallback returns true', async () => {
     const primary: LLMClient = {
-      async *streamChat() {
-        // Yield once to satisfy lint rules, then throw to test fallback behavior.
-        yield { type: 'finish' };
+      async *streamChat(request) {
+        if (request.messages.length < 0) {
+          yield { type: 'finish' };
+        }
         throw new Error('LLM request failed (503): overloaded');
       },
     };
@@ -63,6 +64,43 @@ describe('LLM router helpers', () => {
     }
 
     expect(out.join('')).toBe('ok');
+  });
+
+  it('does not fall back after yielding any chunks', async () => {
+    const primary: LLMClient = {
+      async *streamChat() {
+        yield { type: 'text', text: 'partial' };
+        throw new Error('LLM request failed (503): overloaded');
+      },
+    };
+    const fallback: LLMClient = {
+      async *streamChat() {
+        yield { type: 'text', text: 'ok' };
+        yield { type: 'finish' };
+      },
+    };
+
+    const client = createFallbackLlmClient({
+      primary,
+      fallback,
+      shouldFallback: shouldFallbackOnLlmErrorCodes({
+        provider: 'anthropic',
+        codes: ['llm_service_unavailable'],
+      }),
+    });
+
+    const out: string[] = [];
+    const iterate = async (): Promise<void> => {
+      for await (const chunk of client.streamChat({
+        systemPrompt: '',
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+      })) {
+        if (chunk.type === 'text') out.push(chunk.text);
+      }
+    };
+
+    await expect(iterate()).rejects.toThrow(/503/);
+    expect(out.join('')).toBe('partial');
   });
 
   it('rethrows when shouldFallback returns false', async () => {

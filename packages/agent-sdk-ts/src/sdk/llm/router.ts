@@ -50,9 +50,16 @@ export type FallbackLlmClientOptions = {
 export function createFallbackLlmClient(options: FallbackLlmClientOptions): LLMClient {
   return {
     async *streamChat(request: ChatCompletionRequest) {
+      let yielded = false;
       try {
-        yield* options.primary.streamChat(request);
+        for await (const chunk of options.primary.streamChat(request)) {
+          yielded = true;
+          yield chunk;
+        }
       } catch (error) {
+        if (yielded) {
+          throw error;
+        }
         if (!options.shouldFallback(error)) {
           throw error;
         }
@@ -72,4 +79,3 @@ export const shouldFallbackOnLlmErrorCodes = (params: {
     return typeof code === 'string' && allow.has(code);
   };
 };
-
