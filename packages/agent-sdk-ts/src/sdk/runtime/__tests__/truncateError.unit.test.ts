@@ -13,24 +13,23 @@ describe('truncateError', () => {
     expect(truncateError('\n\t')).toBe('Unknown tool error');
   });
 
-  it('does not append suffix when max < suffix length; caps hard at max', () => {
+  it('hard-caps to max when too small for clip marker', () => {
     const input = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    // suffix length is 12; choose max smaller than suffix length
     const out = truncateError(input, 5);
     expect(out).toHaveLength(5);
     expect(out).toBe('ABCDE');
   });
 
-  it('appends suffix when there is room (max >= suffix length + 1)', () => {
+  it('clips long messages using the shared tool-message clip marker', () => {
     const input = '0123456789'.repeat(1000);
-    const out = truncateError(input, 50);
-    expect(out.endsWith('(truncated)')).toBe(true);
-    expect(out.length).toBe(50);
+    const out = truncateError(input, 200);
+    expect(out.length).toBeLessThanOrEqual(200);
+    expect(out).toContain('<response clipped>');
   });
 
-  it('normalizes whitespace before truncation', () => {
+  it('preserves whitespace before truncation (python parity)', () => {
     const input = 'a\n\n\t b     c';
     const out = truncateError(input, 100);
-    expect(out).toBe('a b c');
+    expect(out).toBe(input);
   });
 });
