@@ -279,7 +279,13 @@ class AgentContext {
   });
 
   // Get system message suffix with repo skill content
-  getSystemMessageSuffix(): string | null;
+  getSystemMessageSuffix(options?: {
+    secretNames?: string[];
+    llmModel?: string | null;
+    llmModelCanonical?: string | null;
+    llmProvider?: string | null;
+    llmBaseUrl?: string | null;
+  }): string | null;
 
   // Augment user message with triggered skills
   getUserMessageSuffix(
@@ -307,7 +313,7 @@ const context = new AgentContext({
 });
 
 // Get system suffix (includes repo skills)
-const systemSuffix = context.getSystemMessageSuffix();
+const systemSuffix = context.getSystemMessageSuffix({ llmModel: 'gpt-4', llmProvider: 'openai' });
 // Returns: "## repo-guidelines\n\nUse TypeScript strict mode.\n\nCurrent date: 2025-01-15"
 
 // Augment user message
@@ -327,7 +333,7 @@ const augmented = context.getUserMessageSuffix(userMessage);
 
 **Key Responsibilities**:
 - Load skills from markdown files with frontmatter metadata
-- Support third-party files (.cursorrules, agents.md, AGENTS.md)
+- Support third-party files (.cursorrules, agents.md/AGENTS.md, CLAUDE.md, GEMINI.md) with truncation and vendor gating
 - Match triggers against user messages
 - Extract variables from skill content (${variable_name} format)
 - Load user skills from ~/.openhands/skills/
@@ -452,14 +458,20 @@ inputs:
 Refactor ${target_file} using ${pattern} pattern.
 ```
 
+**AgentSkills format (SKILL.md directories)**:
+
+In addition to legacy single-file markdown skills, skills can also be represented as directories containing a `SKILL.md` file (with strict naming). Skill directories may include resource folders (`scripts/`, `references/`, `assets/`) and an optional `.mcp.json` for MCP server configuration with variable expansion.
+
 **User Skills Loading**:
 
 Skills are automatically loaded from:
 1. `~/.openhands/skills/` - Primary skills directory
 
-Third-party files supported:
+Third-party files supported (loaded as repo skills; oversized files are truncated with a notice):
 - `.cursorrules` → skill name: "cursorrules"
 - `agents.md` or `AGENTS.md` → skill name: "agents"
+- `CLAUDE.md` → skill name: "claude" (vendor-gated)
+- `GEMINI.md` → skill name: "gemini" (vendor-gated)
 
 ## Layer 2: Runtime (Orchestration)
 
