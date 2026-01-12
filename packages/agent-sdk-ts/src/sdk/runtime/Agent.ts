@@ -1248,10 +1248,28 @@ export class Agent extends EventEmitter {
     securityRisk?: SecurityRisk,
   ): ActionEvent {
     const thought = message.content.filter(isTextContent);
+    const thinkingBlocks =
+      message.thinking_signature && typeof message.reasoning_content === 'string' && message.reasoning_content.trim().length
+        ? [
+            {
+              type: 'thinking' as const,
+              thinking: message.reasoning_content,
+              signature: message.thinking_signature,
+            },
+          ]
+        : [];
+    const responsesReasoningItem =
+      message.responses_reasoning_item
+        ? {
+            ...message.responses_reasoning_item,
+            encrypted_content: undefined,
+          }
+        : null;
     // Use reasoning_content if available (Anthropic/OpenAI Chat Completions),
     // otherwise fall back to responses_reasoning_item.summary (OpenAI Responses API / GPT-5)
-    const reasoningContent = message.reasoning_content
-      ?? (message.responses_reasoning_item?.summary?.length
+    const reasoningContent =
+      message.reasoning_content ??
+      (message.responses_reasoning_item?.summary?.length
         ? message.responses_reasoning_item.summary.join('\n\n')
         : undefined);
     return {
@@ -1259,6 +1277,8 @@ export class Agent extends EventEmitter {
       source: 'agent',
       thought,
       reasoning_content: reasoningContent,
+      thinking_blocks: thinkingBlocks,
+      responses_reasoning_item: responsesReasoningItem,
       action: args,
       tool_name: toolCall.function.name,
       tool_call_id: toolCall.id,
