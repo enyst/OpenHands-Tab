@@ -112,6 +112,13 @@ function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
   }
 }
 
+function requireToolArgsObject(value: unknown, context: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${context} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
 
 export class Agent extends EventEmitter {
   private readonly workspace: BaseWorkspace;
@@ -1271,9 +1278,9 @@ export class Agent extends EventEmitter {
       throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
     }
 
-    let validated;
+    let validated: Record<string, unknown>;
     try {
-      validated = tool.validate(args);
+      validated = requireToolArgsObject(tool.validate(args), `Validated args for tool '${tool.name}'`);
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_validation', toolName: tool.name, rawArgs: toolCall.function.arguments });
       await this.emitToolError(toolCall, classified.message);
@@ -1285,7 +1292,7 @@ export class Agent extends EventEmitter {
         const hookResult = await this.runBeforeToolCallHooks({ toolCall, actionEvent, args: validated });
         if (hookResult && hookResult.args) {
           try {
-            validated = tool.validate(hookResult.args);
+            validated = requireToolArgsObject(tool.validate(hookResult.args), `Validated args for tool '${tool.name}'`);
           } catch (e) {
             const classified = classifyError(e, { stage: 'tool_validation', toolName: tool.name, rawArgs: toolCall.function.arguments });
             await this.emitToolError(toolCall, classified.message);
