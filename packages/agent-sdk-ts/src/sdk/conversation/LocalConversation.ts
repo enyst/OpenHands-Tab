@@ -26,6 +26,7 @@ import path from 'path';
 import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
 import type { AgentHook } from '../runtime/hooks';
+import { resolveToolsWithDefaultTools } from './includeDefaultTools';
 
 const toOptionalNonEmptyString = (value: unknown): string | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -290,50 +291,13 @@ export class LocalConversation extends EventEmitter {
       new FileEditorTool(),
       new TaskTrackerTool(),
     ];
-    const defaultNames = new Set(defaultTools.map((tool) => tool.name));
 
-    const includeDefaultTools = this.includeDefaultTools;
-    if (includeDefaultTools === false) {
-      return provided ?? [];
-    }
-
-    if (includeDefaultTools === undefined) {
-      return provided ?? defaultTools;
-    }
-
-    const selectedDefaults = Array.isArray(includeDefaultTools)
-      ? (() => {
-        const uniqueNames = new Set<string>();
-        for (const raw of includeDefaultTools) {
-          const name = typeof raw === 'string' ? raw.trim() : '';
-          if (!name) continue;
-          if (!defaultNames.has(name)) {
-            throw new Error(`includeDefaultTools: unknown default tool '${name}'. Allowed: ${Array.from(defaultNames).sort().join(', ')}`);
-          }
-          uniqueNames.add(name);
-        }
-        return defaultTools.filter((tool) => uniqueNames.has(tool.name));
-      })()
-      : defaultTools;
-
-    const mergedByName = new Map<string, ToolDefinition<unknown, unknown>>(selectedDefaults.map((tool) => [tool.name, tool]));
-    for (const tool of provided ?? []) mergedByName.set(tool.name, tool);
-
-    const result: ToolDefinition<unknown, unknown>[] = [];
-    const included = new Set<string>();
-
-    for (const tool of selectedDefaults) {
-      result.push(mergedByName.get(tool.name)!);
-      included.add(tool.name);
-    }
-
-    for (const tool of provided ?? []) {
-      if (included.has(tool.name)) continue;
-      result.push(tool);
-      included.add(tool.name);
-    }
-
-    return result;
+    return resolveToolsWithDefaultTools({
+      includeDefaultTools: this.includeDefaultTools,
+      hasToolsOption: this.hasToolsOption,
+      defaultTools,
+      providedTools: provided,
+    });
   }
 
   private createAgent(): Agent {
