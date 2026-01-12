@@ -35,8 +35,8 @@ const parseTerminalCommandFromToolCall = (toolCall: ToolCall): string | undefine
   const rawArgs = toOptionalNonEmptyString(toolCall.function.arguments);
   if (!rawArgs) return undefined;
   try {
-    const parsed = JSON.parse(rawArgs) as Record<string, unknown>;
-    return toOptionalNonEmptyString(parsed.command) ?? rawArgs;
+    const parsed = asRecord(JSON.parse(rawArgs));
+    return toOptionalNonEmptyString(parsed?.command) ?? rawArgs;
   } catch {
     return rawArgs;
   }
