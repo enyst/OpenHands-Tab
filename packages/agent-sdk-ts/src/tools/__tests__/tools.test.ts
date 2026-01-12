@@ -516,7 +516,7 @@ startxref
 describe('TaskTrackerTool', () => {
   it('documents that plan overwrites TASKS.json', () => {
     const tool = new TaskTrackerTool();
-    expect(tool.description).toMatch(/plan: overwrite TASKS\.json/i);
+    expect(tool.description).toMatch(/^- plan: overwrite TASKS\.json with the provided task_list$/im);
   });
 
   it('plans and views tasks', async () => {
