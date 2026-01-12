@@ -291,7 +291,11 @@ export class Agent extends EventEmitter {
       // Debug logging for mid-run settings changes (oh-tab-rw1k)
       const newModel = settings?.llm?.model;
       const newProfileId = settings?.llm?.profileId;
-      console.log(`[Agent.setSettings] Settings updated. Profile: ${prevProfileId} -> ${newProfileId}, Model: ${prevModel} -> ${newModel}. Cleared streamerPromise.`);
+      this.emitDebugStateUpdate('agent_settings_updated', {
+        profile: { from: prevProfileId ?? null, to: newProfileId ?? null },
+        model: { from: prevModel ?? null, to: newModel ?? null },
+        cleared: { llmClientPromise: true, streamerPromise: true },
+      });
 
       return Promise.resolve();
     });
@@ -323,6 +327,16 @@ export class Agent extends EventEmitter {
       source: 'agent',
       key: 'restore_pending_confirmation',
       value: { restored: false, reason, ...detail },
+    } as Event);
+  }
+
+  private emitDebugStateUpdate(key: string, value: unknown): void {
+    if (!this.debug) return;
+    void this.pushEventWithHooks({
+      kind: 'ConversationStateUpdateEvent',
+      source: 'agent',
+      key,
+      value,
     } as Event);
   }
 
@@ -565,7 +579,14 @@ export class Agent extends EventEmitter {
       const currentModel = this.options.settings?.llm?.model;
       const currentProfileId = this.options.settings?.llm?.profileId;
       const hasStreamerPromise = !!this.streamerPromise;
-      console.log(`[Agent.runLoop] Iteration ${this.state.snapshot.iteration}. Settings: profile=${currentProfileId}, model=${currentModel}. streamerPromise cached=${hasStreamerPromise}`);
+      this.emitDebugStateUpdate('agent_run_loop_state', {
+        iteration: this.state.snapshot.iteration,
+        settings: {
+          profileId: currentProfileId ?? null,
+          model: currentModel ?? null,
+        },
+        cached: { streamerPromise: hasStreamerPromise },
+      });
 
       let response: Awaited<ReturnType<LLMStreamer['runChat']>> | undefined;
 
@@ -1048,13 +1069,17 @@ export class Agent extends EventEmitter {
     if (!this.streamerPromise) {
       const model = this.options.settings?.llm?.model;
       const profileId = this.options.settings?.llm?.profileId;
-      console.log(`[Agent.getStreamer] Creating new streamer. Profile: ${profileId}, Model: ${model}`);
+      this.emitDebugStateUpdate('agent_streamer_cache', {
+        action: 'create',
+        profileId: profileId ?? null,
+        model: model ?? null,
+      });
       this.streamerPromise = (async () => {
         const client = await this.getPrimaryLlmClient();
         return new LLMStreamer(client, { events: this.events, state: this.state });
       })();
     } else {
-      console.log(`[Agent.getStreamer] Reusing cached streamer.`);
+      this.emitDebugStateUpdate('agent_streamer_cache', { action: 'reuse' });
     }
 
     return this.streamerPromise;
