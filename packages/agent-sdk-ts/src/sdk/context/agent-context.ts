@@ -224,7 +224,6 @@ export class AgentContext {
     for (const skill of this.skills) {
       const trigger = skill.matchTrigger(query);
       if (trigger && !skipSkillNames.includes(skill.name)) {
-        console.log(`Skill '${skill.name}' triggered by keyword '${trigger}'`);
         recalledKnowledge.push({
           name: skill.name,
           trigger,
