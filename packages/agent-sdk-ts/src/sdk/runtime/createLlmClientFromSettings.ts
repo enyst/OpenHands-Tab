@@ -1,4 +1,4 @@
-import type { LLMClient } from '../llm';
+import type { LLMClient, LLMProfileStoreOptions } from '../llm';
 import { LLMFactory } from '../llm';
 import type { LLMRegistry } from '../llm/registry';
 import type { OpenHandsSettings } from '../types/settings';
@@ -10,6 +10,7 @@ import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 export function createLlmClientFromSettings(params: {
   settings: OpenHandsSettings;
   secrets: SecretRegistry;
+  profileStoreOptions?: LLMProfileStoreOptions;
   registry?: LLMRegistry;
   conversationStats?: ConversationStats;
   state: ConversationState;
@@ -63,6 +64,7 @@ export function createLlmClientFromSettings(params: {
   const factory = new LLMFactory(config, {
     secrets,
     preferredApiKeys,
+    profileStoreOptions: params.profileStoreOptions,
     registry,
     onMetricsUpdate: (usageId, metrics) => {
       if (!conversationStats) return;

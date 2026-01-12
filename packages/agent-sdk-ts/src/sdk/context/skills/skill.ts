@@ -3,7 +3,7 @@
  * Transpiled from Python SDK: openhands/sdk/context/skills/skill.py
  */
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, statSync } from 'fs';
 import { basename, dirname, join, relative } from 'path';
 import { homedir } from 'os';
 import frontmatter from 'front-matter';
@@ -53,7 +53,9 @@ function findThirdPartyFiles(repoRoot: string): string[] {
   for (const entry of readdirSync(repoRoot)) {
     const fullPath = join(repoRoot, entry);
     if (!existsSync(fullPath)) continue;
-    if (!statSync(fullPath).isFile()) continue;
+    const stat = lstatSync(fullPath);
+    if (stat.isSymbolicLink()) continue;
+    if (!stat.isFile()) continue;
 
     const nameLower = entry.toLowerCase();
     if (!targetNames.has(nameLower)) continue;

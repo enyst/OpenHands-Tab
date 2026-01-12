@@ -2,9 +2,9 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ChatCompletionRequest, LLMClient, LLMStreamChunk } from '../../llm';
+import { saveProfile, type ChatCompletionRequest, type LLMClient, type LLMStreamChunk } from '../../llm';
 import { Agent, EventLog } from '..';
-import { AgentContext } from '../..';
+import { AgentContext, Skill } from '../..';
 import { isSystemPromptEvent } from '../../types';
 import type { OpenHandsSettings } from '../../types/settings';
 
@@ -19,6 +19,7 @@ class RecordingLLM implements LLMClient {
 }
 
 const workspaceRoots: string[] = [];
+const profileRoots: string[] = [];
 const createWorkspaceRoot = (): string => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-system-prompt-'));
   workspaceRoots.push(root);
@@ -27,6 +28,9 @@ const createWorkspaceRoot = (): string => {
 
 afterEach(() => {
   for (const root of workspaceRoots.splice(0)) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+  for (const root of profileRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
@@ -96,5 +100,46 @@ describe('Agent system prompt', () => {
     agentContext.systemMessageSuffix = undefined;
     await agent.run('hi again (cleared)');
     expect(llm.requests[2]?.systemPrompt).not.toContain('Currently opened in the editor:');
+  });
+
+  it('gates vendor-specific repo skills using LLM profile config', async () => {
+    const profilesRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-system-prompt-profiles-'));
+    profileRoots.push(profilesRoot);
+    saveProfile('p1', { provider: 'openai', model: 'gpt-4' }, { rootDir: profilesRoot });
+
+    const settings: OpenHandsSettings = {
+      llm: { profileId: 'p1' },
+      agent: {},
+      conversation: { maxIterations: 1 },
+      confirmation: { policy: 'never' },
+      secrets: {},
+    };
+
+    const log = new EventLog();
+    const llm = new RecordingLLM();
+    const agentContext = new AgentContext({
+      skills: [
+        new Skill({ name: 'style', content: 'Style guide', trigger: null }),
+        new Skill({ name: 'claude', content: 'Claude-only rules', trigger: null }),
+        new Skill({ name: 'gemini', content: 'Gemini-only rules', trigger: null }),
+      ],
+    });
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      agentContext,
+      profileStoreOptions: { rootDir: profilesRoot },
+    });
+
+    await agent.run('hi');
+    expect(llm.requests).toHaveLength(1);
+    const { systemPrompt } = llm.requests[0];
+
+    expect(systemPrompt).toContain('Style guide');
+    expect(systemPrompt).not.toContain('Claude-only rules');
+    expect(systemPrompt).not.toContain('Gemini-only rules');
   });
 });

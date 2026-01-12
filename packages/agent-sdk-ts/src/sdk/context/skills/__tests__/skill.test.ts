@@ -576,6 +576,20 @@ Knowledge content`);
       expect(repoSkills.has('gemini')).toBe(true);
     });
 
+    it('skips symlinked third-party files in repo root', () => {
+      const repoRoot = join(tempDir, 'repo');
+      const external = join(tempDir, 'external.md');
+      writeFileSync(external, 'External rules');
+
+      writeFileSync(join(repoRoot, 'AGENTS.md'), 'Agent guidelines');
+      symlinkSync(external, join(repoRoot, 'CLAUDE.md'));
+
+      const { repoSkills } = loadSkillsFromDir(skillDir);
+
+      expect(repoSkills.has('agents')).toBe(true);
+      expect(repoSkills.has('claude')).toBe(false);
+    });
+
     it('truncates oversized third-party files', () => {
       const repoRoot = join(tempDir, 'repo');
       const head = 'HEAD\n';
