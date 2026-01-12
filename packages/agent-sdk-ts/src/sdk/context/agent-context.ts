@@ -4,7 +4,7 @@
  */
 
 import type { Message, TextContent } from '../types';
-import { Skill, SkillKnowledge, loadUserSkills } from './skills';
+import { Skill, SkillKnowledge, loadUserSkills, toPrompt } from './skills';
 
 /**
  * AgentContext unifies all the contextual inputs that shape how the system
@@ -88,6 +88,7 @@ export class AgentContext {
    */
   getSystemMessageSuffix(options?: { secretNames?: string[] }): string | null {
     const repoSkills = this.skills.filter((s) => s.trigger === null && !s.isAgentSkillsFormat);
+    const availableSkills = this.skills.filter((s) => s.isAgentSkillsFormat || s.trigger !== null);
 
     const parts: string[] = [];
 
@@ -103,6 +104,21 @@ export class AgentContext {
           '',
           repoSkillContent,
           '</REPO_CONTEXT>',
+        ].join('\n'),
+      );
+    }
+
+    if (availableSkills.length) {
+      const availableSkillsPrompt = toPrompt(availableSkills);
+      parts.push(
+        [
+          '<SKILLS>',
+          'The following skills are available and may be triggered by keywords or task types in your messages.',
+          'When a skill is triggered, you will receive additional context and instructions.',
+          "You can also directly look up a skill's full content by reading its location path, and use the skill's guidance proactively when relevant to your task.",
+          '',
+          availableSkillsPrompt,
+          '</SKILLS>',
         ].join('\n'),
       );
     }

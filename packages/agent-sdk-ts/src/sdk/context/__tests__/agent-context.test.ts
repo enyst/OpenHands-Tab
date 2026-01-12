@@ -176,12 +176,14 @@ describe('AgentContext', () => {
       );
     });
 
-    it('excludes knowledge skills from system suffix', () => {
+    it('lists triggered skills in <available_skills> without injecting full content', () => {
       const repoSkill = new Skill({ name: 'repo', content: 'Repo', trigger: null });
       const knowledgeSkill = new Skill({
         name: 'knowledge',
-        content: 'Knowledge',
+        content: 'FULL KNOWLEDGE CONTENT',
         trigger: { type: 'keyword', keywords: ['test'] },
+        description: 'Short knowledge description',
+        source: '/skills/knowledge.md',
       });
 
       const context = new AgentContext({ skills: [repoSkill, knowledgeSkill] });
@@ -190,19 +192,33 @@ describe('AgentContext', () => {
       expect(suffix).toContain('[BEGIN context from [repo]]');
       expect(suffix).toContain('Repo');
       expect(suffix).not.toContain('[BEGIN context from [knowledge]]');
-      expect(suffix).not.toContain('Knowledge');
+      expect(suffix).not.toContain('FULL KNOWLEDGE CONTENT');
+      expect(suffix).toContain('<SKILLS>');
+      expect(suffix).toContain('<available_skills>');
+      expect(suffix).toContain('<name>knowledge</name>');
+      expect(suffix).toContain('<description>Short knowledge description</description>');
+      expect(suffix).toContain('<location>/skills/knowledge.md</location>');
     });
 
-    it('excludes AgentSkills-format skills from system suffix even when trigger is null', () => {
+    it('lists AgentSkills-format skills in <available_skills> even when trigger is null', () => {
       const agentSkill = new Skill({
         name: 'my-skill',
         content: 'AgentSkills content (should not be injected)',
         trigger: null,
         isAgentSkillsFormat: true,
+        description: 'My description',
+        source: '/skills/my-skill/SKILL.md',
       });
 
       const context = new AgentContext({ skills: [agentSkill] });
-      expect(context.getSystemMessageSuffix()).toBeNull();
+      const suffix = context.getSystemMessageSuffix();
+
+      expect(suffix).toContain('<SKILLS>');
+      expect(suffix).toContain('<available_skills>');
+      expect(suffix).toContain('<name>my-skill</name>');
+      expect(suffix).toContain('<description>My description</description>');
+      expect(suffix).toContain('<location>/skills/my-skill/SKILL.md</location>');
+      expect(suffix).not.toContain('AgentSkills content (should not be injected)');
     });
 
     it('appends custom system message suffix', () => {
