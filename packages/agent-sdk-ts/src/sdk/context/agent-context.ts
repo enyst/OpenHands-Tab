@@ -86,11 +86,39 @@ export class AgentContext {
    * - Conversation instructions (e.g., user preferences, task details)
    * - Repository-specific instructions (collected from repo skills)
    */
-  getSystemMessageSuffix(options?: { secretNames?: string[] }): string | null {
-    const repoSkills = this.skills.filter((s) => s.trigger === null && !s.isAgentSkillsFormat);
+  getSystemMessageSuffix(options?: {
+    secretNames?: string[];
+    llmModel?: string | null;
+    llmModelCanonical?: string | null;
+    llmProvider?: string | null;
+    llmBaseUrl?: string | null;
+  }): string | null {
+    const llmModel = typeof options?.llmModel === 'string' ? options.llmModel : null;
+    const llmModelCanonical = typeof options?.llmModelCanonical === 'string' ? options.llmModelCanonical : null;
+    const llmProvider = typeof options?.llmProvider === 'string' ? options.llmProvider : null;
+    const llmBaseUrl = typeof options?.llmBaseUrl === 'string' ? options.llmBaseUrl : null;
+
+    let repoSkills = this.skills.filter((s) => s.trigger === null && !s.isAgentSkillsFormat);
     const availableSkills = this.skills.filter((s) => s.isAgentSkillsFormat || s.trigger !== null);
 
     const parts: string[] = [];
+
+    // Gate vendor-specific repo skills based on model family (Python parity).
+    if (llmModel || llmModelCanonical) {
+      const family = [llmProvider, llmModel, llmModelCanonical, llmBaseUrl].filter(Boolean).join(' ').toLowerCase();
+      if (family) {
+        repoSkills = repoSkills.filter((s) => {
+          const n = (s.name ?? '').toLowerCase();
+          if (n === 'claude' && !(family.includes('anthropic') || family.includes('claude'))) {
+            return false;
+          }
+          if (n === 'gemini' && !(family.includes('gemini') || family.includes('google_gemini'))) {
+            return false;
+          }
+          return true;
+        });
+      }
+    }
 
     if (repoSkills.length) {
       const repoSkillContent = repoSkills

@@ -176,6 +176,34 @@ describe('AgentContext', () => {
       );
     });
 
+    it('gates vendor-specific repo skills (claude/gemini) based on model family', () => {
+      const style = new Skill({ name: 'style', content: 'Style guide', trigger: null });
+      const claude = new Skill({ name: 'claude', content: 'Claude-only rules', trigger: null });
+      const gemini = new Skill({ name: 'gemini', content: 'Gemini-only rules', trigger: null });
+
+      const context = new AgentContext({ skills: [style, claude, gemini] });
+
+      const unknown = context.getSystemMessageSuffix();
+      expect(unknown).toContain('[BEGIN context from [style]]');
+      expect(unknown).toContain('[BEGIN context from [claude]]');
+      expect(unknown).toContain('[BEGIN context from [gemini]]');
+
+      const openAi = context.getSystemMessageSuffix({ llmModel: 'gpt-4', llmProvider: 'openai' });
+      expect(openAi).toContain('[BEGIN context from [style]]');
+      expect(openAi).not.toContain('[BEGIN context from [claude]]');
+      expect(openAi).not.toContain('[BEGIN context from [gemini]]');
+
+      const anthropic = context.getSystemMessageSuffix({ llmModel: 'claude-3-5-sonnet', llmProvider: 'anthropic' });
+      expect(anthropic).toContain('[BEGIN context from [style]]');
+      expect(anthropic).toContain('[BEGIN context from [claude]]');
+      expect(anthropic).not.toContain('[BEGIN context from [gemini]]');
+
+      const google = context.getSystemMessageSuffix({ llmModel: 'gemini-2.0-flash', llmProvider: 'gemini' });
+      expect(google).toContain('[BEGIN context from [style]]');
+      expect(google).toContain('[BEGIN context from [gemini]]');
+      expect(google).not.toContain('[BEGIN context from [claude]]');
+    });
+
     it('lists triggered skills in <available_skills> without injecting full content', () => {
       const repoSkill = new Skill({ name: 'repo', content: 'Repo', trigger: null });
       const knowledgeSkill = new Skill({

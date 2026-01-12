@@ -5,7 +5,7 @@ import { LLMStreamer } from './LLMStreamer';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
-import type { LLMClient, LLMProvider, LLMToolDefinition } from '../llm';
+import type { LLMClient, LLMProfileStoreOptions, LLMProvider, LLMToolDefinition } from '../llm';
 import {
   DEFAULT_PROVIDER_BASE_URLS,
   detectProviderFromBaseUrl,
@@ -81,6 +81,7 @@ export interface AgentOptions {
   state?: ConversationState;
   secrets?: SecretRegistry;
   agentContext?: AgentContext;
+  profileStoreOptions?: LLMProfileStoreOptions;
   onTerminalEvent?: (event: BashEvent) => void;
   registry?: import('../llm').LLMRegistry;
   conversationStats?: import('./ConversationStats').ConversationStats;
@@ -984,7 +985,32 @@ export class Agent extends EventEmitter {
       systemPrompt = systemPrompt.replace(SECURITY_RISK_ASSESSMENT_SECTION, '');
     }
     if (this.agentContext) {
-      const suffix = this.agentContext.getSystemMessageSuffix({ secretNames: this.secrets.getRegisteredNames() });
+      const settings = this.options.settings?.llm;
+      const profileId = toOptionalNonEmptyString(settings?.profileId);
+      let llmModel = toOptionalNonEmptyString(settings?.model) ?? null;
+      let llmProvider = toOptionalNonEmptyString(settings?.provider) ?? null;
+      let llmBaseUrl = toOptionalNonEmptyString(settings?.baseUrl) ?? null;
+
+      // When profileId is set, raw model/provider/baseUrl can be intentionally cleared (profiles-first).
+      // Load the profile config (when safe) so vendor-specific repo skills are gated correctly.
+      if (profileId && isSafeProfileId(profileId)) {
+        try {
+          const profile = loadProfile(profileId, this.options.profileStoreOptions);
+          llmModel = toOptionalNonEmptyString(profile.config.model) ?? llmModel;
+          llmProvider = toOptionalNonEmptyString(profile.config.provider) ?? llmProvider;
+          llmBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl) ?? llmBaseUrl;
+        } catch {
+          // Best-effort: profile loading failures will surface elsewhere when creating the LLM client.
+        }
+      }
+
+      llmProvider = llmProvider ?? detectProviderFromBaseUrl(llmBaseUrl ?? undefined);
+      const suffix = this.agentContext.getSystemMessageSuffix({
+        secretNames: this.secrets.getRegisteredNames(),
+        llmModel,
+        llmProvider,
+        llmBaseUrl,
+      });
       if (suffix) {
         systemPrompt += '\n\n' + suffix;
       }
@@ -1037,6 +1063,7 @@ export class Agent extends EventEmitter {
     return createLlmClientFromSettingsFromConfig({
       settings: this.options.settings,
       secrets: this.secrets,
+      profileStoreOptions: this.options.profileStoreOptions,
       registry: this.registry,
       conversationStats: this.conversationStats,
       state: this.state,
