@@ -61,13 +61,9 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 9. **Hooks System** - `HookManager`, `HookExecutor`, event interception (pre/post tool use, post event, stop hook)
 
-10. **AgentSkills (SKILL.md) + progressive disclosure**
-    - SKILL.md directory convention (case-insensitive) and strict name validation
-    - `<available_skills>` XML prompt via `to_prompt()` and progressive disclosure
-    - Skill resources discovery (`scripts/`, `references/`, `assets/`)
-    - `.mcp.json` loading with variable expansion for AgentSkills
-    - Public skills repo loading (`load_public_skills`)
-    - Third-party skill files include `CLAUDE.md`/`GEMINI.md` with truncation limits
+10. **Public skills repo loading** (`load_public_skills`)
+    - TypeScript: not implemented.
+    - Parity note (2026-01-12): TypeScript now supports AgentSkills (SKILL.md directories) with strict naming, `<available_skills>` progressive disclosure, resource discovery, `.mcp.json` loading with variable expansion, and third-party repo skill files (`.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) with truncation + vendor-family gating.
 
 11. **Agent tool selection** - `include_default_tools` option to include/disable built-in tools
 
