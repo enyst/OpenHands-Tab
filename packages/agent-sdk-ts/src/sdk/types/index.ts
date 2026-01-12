@@ -114,6 +114,17 @@ export interface ConversationErrorEvent extends EventBase {
   detail?: string;
 }
 
+export const DEFAULT_CONVERSATION_ERROR_MESSAGE = 'Conversation error';
+
+export const visualizeConversationErrorEvent = (event: ConversationErrorEvent): string => {
+  const lines: string[] = [];
+  const code = event.code?.trim() ?? '';
+  const detail = event.detail?.trim() ?? '';
+  if (code) lines.push(`code: ${code}`);
+  if (detail) lines.push(`detail: ${detail}`);
+  return lines.length ? lines.join('\n') : DEFAULT_CONVERSATION_ERROR_MESSAGE;
+};
+
 // PauseEvent - shown in visualizer
 export interface PauseEvent extends EventBase {
   kind: 'PauseEvent';
