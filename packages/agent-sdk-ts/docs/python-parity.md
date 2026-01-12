@@ -69,7 +69,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 11. **Plugins + custom tool loading** - plugin data model, directory loading, and remote custom tools support
 
-12. **Tools** - `TomConsultTool`, `ApplyPatchTool`, extended `BrowserUseTool` with Windows impl
+12. **Tools** - `TomConsultTool`, extended `BrowserUseTool` with Windows impl
 
 13. **Conversation Features** - `ConversationVisualizer`, `ConversationStats`, `StuckDetector`, `TitleUtils`
 
@@ -86,6 +86,8 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 5. **Tool Validation** - `ZodTool` wrapper for zod schema-based validation
 
 6. **IntegratedTerminalRunner** - Direct VS Code terminal integration
+
+7. **ApplyPatchTool** - TypeScript-only builtin tool (not present in the Python fork at `~/repos/agent-sdk`)
 
 ### Cross-cutting differences
 
