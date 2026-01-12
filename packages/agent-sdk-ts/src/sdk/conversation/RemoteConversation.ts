@@ -12,6 +12,7 @@ import { RemoteState } from './RemoteState';
 import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
 import type { BaseWorkspace } from '../../workspace/BaseWorkspace';
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from '../../workspace/types';
+import { resolveToolsWithDefaultTools } from './includeDefaultTools';
 
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -369,61 +370,12 @@ export class RemoteConversation extends EventEmitter {
       ];
       const workspace = this.workspace ?? { kind: 'LocalWorkspace', working_dir: this.workspaceRoot };
 
-      const mergeTools = (defaults: RemoteConversationTool[], provided: RemoteConversationTool[]): RemoteConversationTool[] => {
-        const byName = new Map<string, RemoteConversationTool>(defaults.map((tool) => [tool.name, tool]));
-        for (const tool of provided) byName.set(tool.name, tool);
-
-        const result: RemoteConversationTool[] = [];
-        const included = new Set<string>();
-
-        for (const tool of defaults) {
-          result.push(byName.get(tool.name)!);
-          included.add(tool.name);
-        }
-
-        for (const tool of provided) {
-          if (!included.has(tool.name)) {
-            result.push(tool);
-            included.add(tool.name);
-          }
-        }
-
-        return result;
-      };
-
-      const resolveDefaultToolSubset = (selection: readonly string[]): RemoteConversationTool[] => {
-        const allowed = new Set(defaultTools.map((tool) => tool.name));
-        const uniqueNames = new Set<string>();
-        for (const raw of selection) {
-          const name = typeof raw === 'string' ? raw.trim() : '';
-          if (!name) continue;
-          if (!allowed.has(name)) {
-            throw new Error(`includeDefaultTools: unknown default tool '${name}'. Allowed: ${Array.from(allowed).sort().join(', ')}`);
-          }
-          uniqueNames.add(name);
-        }
-        return defaultTools.filter((tool) => uniqueNames.has(tool.name));
-      };
-
-      const tools = (() => {
-        const provided = this.tools ?? [];
-        const includeDefaultTools = this.includeDefaultTools;
-
-        if (includeDefaultTools === undefined) {
-          if (this.hasToolsOption) return provided;
-          return defaultTools;
-        }
-
-        if (includeDefaultTools === false) {
-          return provided;
-        }
-
-        const selectedDefaults = Array.isArray(includeDefaultTools)
-          ? resolveDefaultToolSubset(includeDefaultTools)
-          : defaultTools;
-
-        return mergeTools(selectedDefaults, provided);
-      })();
+      const tools = resolveToolsWithDefaultTools({
+        includeDefaultTools: this.includeDefaultTools,
+        hasToolsOption: this.hasToolsOption,
+        defaultTools,
+        providedTools: this.tools,
+      });
       const req = {
         agent: {
           llm,
