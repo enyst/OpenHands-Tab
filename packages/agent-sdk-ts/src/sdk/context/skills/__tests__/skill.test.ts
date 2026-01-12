@@ -564,12 +564,32 @@ Knowledge content`);
     it('loads third-party files from repo root', () => {
       const repoRoot = join(tempDir, 'repo');
       writeFileSync(join(repoRoot, '.cursorrules'), 'Cursor rules');
-      writeFileSync(join(repoRoot, 'agents.md'), 'Agent guidelines');
+      writeFileSync(join(repoRoot, 'AGENTS.md'), 'Agent guidelines');
+      writeFileSync(join(repoRoot, 'CLAUDE.md'), 'Claude guidelines');
+      writeFileSync(join(repoRoot, 'GEMINI.md'), 'Gemini guidelines');
 
       const { repoSkills } = loadSkillsFromDir(skillDir);
 
       expect(repoSkills.has('cursorrules')).toBe(true);
       expect(repoSkills.has('agents')).toBe(true);
+      expect(repoSkills.has('claude')).toBe(true);
+      expect(repoSkills.has('gemini')).toBe(true);
+    });
+
+    it('truncates oversized third-party files', () => {
+      const repoRoot = join(tempDir, 'repo');
+      const head = 'HEAD\n';
+      const tail = '\nTAIL';
+      const huge = head + 'x'.repeat(20_000) + tail;
+      writeFileSync(join(repoRoot, 'AGENTS.md'), huge);
+
+      const { repoSkills } = loadSkillsFromDir(skillDir);
+      const agents = repoSkills.get('agents');
+      expect(agents).toBeDefined();
+      expect(agents?.content).toContain('<TRUNCATED><NOTE>');
+      expect(agents?.content.startsWith('HEAD')).toBe(true);
+      expect(agents?.content.endsWith('TAIL')).toBe(true);
+      expect((agents?.content ?? '').length).toBeLessThanOrEqual(10_000);
     });
 
     it('recursively loads skills from subdirectories', () => {

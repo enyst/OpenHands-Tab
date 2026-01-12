@@ -984,7 +984,15 @@ export class Agent extends EventEmitter {
       systemPrompt = systemPrompt.replace(SECURITY_RISK_ASSESSMENT_SECTION, '');
     }
     if (this.agentContext) {
-      const suffix = this.agentContext.getSystemMessageSuffix({ secretNames: this.secrets.getRegisteredNames() });
+      const llmModel = this.options.settings?.llm?.model;
+      const llmProvider = this.options.settings?.llm?.provider ?? detectProviderFromBaseUrl(this.options.settings?.llm?.baseUrl);
+      const llmBaseUrl = this.options.settings?.llm?.baseUrl;
+      const suffix = this.agentContext.getSystemMessageSuffix({
+        secretNames: this.secrets.getRegisteredNames(),
+        llmModel,
+        llmProvider,
+        llmBaseUrl,
+      });
       if (suffix) {
         systemPrompt += '\n\n' + suffix;
       }

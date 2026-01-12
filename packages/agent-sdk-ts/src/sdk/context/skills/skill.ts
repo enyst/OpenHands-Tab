@@ -20,7 +20,55 @@ import { findMcpConfig, loadMcpConfig, validateMcpConfigObject } from './mcp';
 // - must not contain consecutive hyphens (--)
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+// Maximum characters for third-party skill files (e.g., AGENTS.md, CLAUDE.md, GEMINI.md).
+// These files are always active, so we want to keep them reasonably sized.
+const THIRD_PARTY_SKILL_MAX_CHARS = 10_000;
+
 export { SkillValidationError } from './exceptions';
+
+function maybeTruncate(content: string, truncateAfter: number, truncateNotice: string): string {
+  if (!truncateAfter || truncateAfter < 0 || content.length <= truncateAfter) return content;
+
+  if (truncateNotice.length >= truncateAfter) {
+    return truncateNotice.slice(0, truncateAfter);
+  }
+
+  const availableChars = truncateAfter - truncateNotice.length;
+  const proposedHead = Math.floor(availableChars / 2) + (availableChars % 2);
+
+  const remaining = truncateAfter - truncateNotice.length;
+  const headChars = Math.min(proposedHead, remaining);
+  const tailChars = remaining - headChars;
+
+  return content.slice(0, headChars) + truncateNotice + (tailChars > 0 ? content.slice(-tailChars) : '');
+}
+
+function findThirdPartyFiles(repoRoot: string): string[] {
+  if (!existsSync(repoRoot)) return [];
+
+  const targetNames = new Set(Object.keys(Skill.PATH_TO_THIRD_PARTY_SKILL_NAME).map((name) => name.toLowerCase()));
+  const files: string[] = [];
+  const seenNames = new Set<string>();
+
+  for (const entry of readdirSync(repoRoot)) {
+    const fullPath = join(repoRoot, entry);
+    if (!existsSync(fullPath)) continue;
+    if (!statSync(fullPath).isFile()) continue;
+
+    const nameLower = entry.toLowerCase();
+    if (!targetNames.has(nameLower)) continue;
+
+    if (seenNames.has(nameLower)) {
+      console.warn(`Duplicate third-party skill file ignored: ${fullPath} (already found a file with name '${nameLower}')`);
+      continue;
+    }
+
+    files.push(fullPath);
+    seenNames.add(nameLower);
+  }
+
+  return files;
+}
 
 /**
  * A skill provides specialized knowledge or functionality.
@@ -46,6 +94,8 @@ export class Skill {
     '.cursorrules': 'cursorrules',
     'agents.md': 'agents',
     'agent.md': 'agents',
+    'claude.md': 'claude',
+    'gemini.md': 'gemini',
   };
 
   constructor(params: {
@@ -88,9 +138,20 @@ export class Skill {
     const skillName = this.PATH_TO_THIRD_PARTY_SKILL_NAME[baseName];
 
     if (skillName) {
+      const truncateNotice =
+        `\n\n<TRUNCATED><NOTE>The file ${path} exceeded the maximum length (${THIRD_PARTY_SKILL_MAX_CHARS} characters) and has been truncated. ` +
+        'Only the beginning and end are shown. You can read the full file if needed.</NOTE>\n\n';
+      const truncatedContent = maybeTruncate(fileContent, THIRD_PARTY_SKILL_MAX_CHARS, truncateNotice);
+
+      if (fileContent.length > THIRD_PARTY_SKILL_MAX_CHARS) {
+        console.warn(
+          `Third-party skill file ${path} (${fileContent.length} chars) exceeded limit (${THIRD_PARTY_SKILL_MAX_CHARS} chars), truncating`,
+        );
+      }
+
       return new Skill({
         name: skillName,
-        content: fileContent,
+        content: truncatedContent,
         source: path,
         trigger: null,
       });
@@ -315,17 +376,8 @@ export function loadSkillsFromDir(skillDir: string): {
   // Get repo root (two levels up from skillDir)
   const repoRoot = join(skillDir, '..', '..');
 
-  // Check for third-party rules: .cursorrules, AGENTS.md, etc
-  const specialFiles: string[] = [];
-  for (const filename of Object.keys(Skill.PATH_TO_THIRD_PARTY_SKILL_NAME)) {
-    for (const variant of [filename, filename.toLowerCase(), filename.toUpperCase()]) {
-      const filePath = join(repoRoot, variant);
-      if (existsSync(filePath)) {
-        specialFiles.push(filePath);
-        break; // Only add the first one found to avoid duplicates
-      }
-    }
-  }
+  // Check for third-party rules: .cursorrules, AGENTS.md, CLAUDE.md, GEMINI.md, etc.
+  const specialFiles = findThirdPartyFiles(repoRoot);
 
   const agentSkillMdFiles = findSkillMdDirectories(skillDir);
   const excludedDirs = new Set(agentSkillMdFiles.map((p) => dirname(p)));
