@@ -55,7 +55,7 @@ function describeHalAudioPlaybackFailure(error: unknown): { message: string; deb
   if (error instanceof DOMException) {
     if (error.name === 'NotAllowedError') {
       return {
-        message: 'HAL audio was blocked by autoplay policy. Click inside the chat webview to enable audio playback, then trigger HAL again.',
+        message: 'HAL audio was blocked by autoplay policy. Click anywhere in this dialog (or any button) to play the audio.',
         debug: `${error.name}: ${error.message || '(no message)'}`,
       };
     }
@@ -70,7 +70,7 @@ function describeHalAudioPlaybackFailure(error: unknown): { message: string; deb
     const message = error.message || '(no message)';
     if (name === 'NotAllowedError' || /notallowederror/i.test(`${name}: ${message}`)) {
       return {
-        message: 'HAL audio was blocked by autoplay policy. Click inside the chat webview to enable audio playback, then trigger HAL again.',
+        message: 'HAL audio was blocked by autoplay policy. Click anywhere in this dialog (or any button) to play the audio.',
         debug: `${name}: ${message}`,
       };
     }
@@ -82,6 +82,13 @@ function describeHalAudioPlaybackFailure(error: unknown): { message: string; deb
   }
 
   return { message: 'HAL audio failed to play (bundled clip).', debug: String(error) };
+}
+
+function isAutoplayBlockedError(error: unknown): boolean {
+  if (error instanceof DOMException) return error.name === 'NotAllowedError';
+  if (error instanceof Error) return error.name === 'NotAllowedError' || /notallowederror/i.test(`${error.name}: ${error.message}`);
+  if (typeof error === 'string') return /notallowederror/i.test(error) || /autoplay/i.test(error);
+  return false;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -140,6 +147,7 @@ export function useHalFlow(deps: {
   const halBundledMusicKeyRef = useRef<string | null>(null);
   const halBundledAudioErrorKeyRef = useRef<string | null>(null);
   const halBundledMusicErrorKeyRef = useRef<string | null>(null);
+  const halBundledSceneAutoplayRetryKeyRef = useRef<string | null>(null);
   const halTtsRequestSeqRef = useRef(0);
   const halVoiceConfirmFallbackKeyRef = useRef<string | null>(null);
   const halVoiceConfirmRequestIdRef = useRef<string | null>(null);
@@ -362,6 +370,14 @@ export function useHalFlow(deps: {
     const fallBackToAwaiting = (error?: unknown) => {
       if (halAudioPlayTokenRef.current !== token) return;
       const errorKey = `${sessionKey}:scene`;
+      if (error && isAutoplayBlockedError(error)) {
+        halBundledSceneAutoplayRetryKeyRef.current = errorKey;
+        const info = describeHalAudioPlaybackFailure(error);
+        console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
+        stopHalAudio();
+        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0, lastError: info.message });
+        return;
+      }
       if (error && halBundledAudioErrorKeyRef.current !== errorKey) {
         halBundledAudioErrorKeyRef.current = errorKey;
         const info = describeHalAudioPlaybackFailure(error);
@@ -381,6 +397,61 @@ export function useHalFlow(deps: {
       stopHalAudio();
     };
   }, [clearHalTimer, halPhase, halStepIndex, resetHalUiState, stopHalAudio]);
+
+  useEffect(() => {
+    const sessionKey = halActiveKeyRef.current ?? 'unknown';
+    const retryKey = `${sessionKey}:scene`;
+    if (halBundledSceneAutoplayRetryKeyRef.current !== retryKey) return;
+    if (halSettingsRef.current.mode !== 'bundled') return;
+    if (halPhase !== 'dialogue' && halPhase !== 'awaiting_user') return;
+
+    const clipUrl = getBundledHalSceneUrl();
+    if (!clipUrl || typeof Audio !== 'function') return;
+
+    const retry = () => {
+      if (halBundledSceneAutoplayRetryKeyRef.current !== retryKey) return;
+      halBundledSceneAutoplayRetryKeyRef.current = null;
+      setHalLastError(null);
+
+      const volume = halSettingsRef.current.volume;
+      stopHalAudio();
+      const token = halAudioPlayTokenRef.current;
+      const audio = new Audio(clipUrl);
+      halAudioRef.current = audio;
+      audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
+      audio.onended = () => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        stopHalAudio();
+        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
+      };
+
+      const onFail = (error: unknown) => {
+        if (halAudioPlayTokenRef.current !== token) return;
+        if (isAutoplayBlockedError(error)) {
+          halBundledSceneAutoplayRetryKeyRef.current = retryKey;
+          const info = describeHalAudioPlaybackFailure(error);
+          console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
+          stopHalAudio();
+          setHalLastError(info.message);
+          return;
+        }
+        stopHalAudio();
+      };
+
+      audio.onerror = () => onFail(audio.error ?? 'Bundled scene audio error');
+      void audio.play().catch(onFail);
+    };
+
+    const onPointerDown = () => retry();
+    const onKeyDown = () => retry();
+
+    window.addEventListener('pointerdown', onPointerDown, { capture: true, once: true });
+    window.addEventListener('keydown', onKeyDown, { capture: true, once: true });
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [halPhase, resetHalUiState, stopHalAudio]);
 
   useEffect(() => {
     if (halPhase !== 'waiting_remote') {
