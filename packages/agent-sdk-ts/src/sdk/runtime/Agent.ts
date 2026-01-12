@@ -5,7 +5,7 @@ import { LLMStreamer } from './LLMStreamer';
 import { AsyncLock } from './AsyncLock';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
-import type { LLMClient, LLMProfileStoreOptions, LLMProvider, LLMToolDefinition } from '../llm';
+import type { LLMClient, LLMProfileStoreOptions, LLMToolDefinition } from '../llm';
 import {
   DEFAULT_PROVIDER_BASE_URLS,
   detectProviderFromBaseUrl,
@@ -18,8 +18,6 @@ import type { ActionEvent, BashEvent, ConversationStateUpdateEvent, Event, Messa
 import {
   isActionEvent,
   isAgentErrorEvent,
-  isCondensation,
-  isMessageEvent,
   isObservationEvent,
   isPauseEvent,
   isSystemPromptEvent,
@@ -34,11 +32,9 @@ import { Workspace } from '../../workspace';
 import { FinishTool } from '../../tools/FinishTool';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
-import { LLMSummarizingCondenser } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
 import { SYSTEM_PROMPT } from './systemPrompt';
-import { sanitizeChatMessages } from './sanitizeChatMessages';
 import {
   redactAndTruncateArgs,
   sanitizeChatRequestForDebug,
@@ -50,6 +46,7 @@ import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } 
 import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
+import { buildChatRequestWithCondensation, tryCondenseConversation as tryCondenseConversationWithDeps } from './condensation';
 import { buildLlmRequestParametersForDebug } from '../llm/debug';
 import { StuckDetector } from '../conversation/stuckDetector';
 import type { ConfirmationPolicy, SecurityAnalyzer } from '../security';
@@ -575,7 +572,7 @@ export class Agent extends EventEmitter {
         }
       }
 
-      const llmConfig = this.getEffectiveLlmConfigForCondensation();
+      const llmConfig = resolveCondensationLlmConfig(this.options.settings);
 
       // Debug logging for mid-run settings tracking (oh-tab-rw1k)
       const currentModel = this.options.settings?.llm?.model;
@@ -595,7 +592,11 @@ export class Agent extends EventEmitter {
       // Condensation is token-budget based: before calling the LLM (and again if we hit a context-limit
       // error), we may summarize the conversation to shrink the next request.
       for (let condensationAttempt = 0; condensationAttempt <= MAX_CONDENSATIONS_PER_STEP; condensationAttempt += 1) {
-        const request = this.buildChatRequest();
+        const request = buildChatRequestWithCondensation({
+          events: this.events.list(),
+          systemPrompt: this.buildSystemPrompt(),
+          tools: this.getToolDefinitions(),
+        });
 
         // Emit a lightweight debug/state event so hosts can log what tools are actually sent
         try {
@@ -650,7 +651,12 @@ export class Agent extends EventEmitter {
           typeof configuredMaxInputTokens === 'number' &&
           wouldExceedMaxInputTokens({ request, maxInputTokens: configuredMaxInputTokens })
         ) {
-          const condensed = await this.tryCondenseConversation({ maxInputTokens: configuredMaxInputTokens });
+          const condensed = await tryCondenseConversationWithDeps({
+            maxInputTokens: configuredMaxInputTokens,
+            listEvents: () => this.events.list(),
+            getPrimaryLlmClient: () => this.getPrimaryLlmClient(),
+            pushEvent: (event) => this.pushEventWithHooks(event),
+          });
           if (condensed) continue;
         }
 
@@ -686,7 +692,12 @@ export class Agent extends EventEmitter {
         } catch (error) {
           if (condensationAttempt < MAX_CONDENSATIONS_PER_STEP && isContextLimitError(llmConfig.provider, error)) {
             const budget = configuredMaxInputTokens ?? FALLBACK_CONDENSATION_MAX_INPUT_TOKENS;
-            const condensed = await this.tryCondenseConversation({ maxInputTokens: budget });
+            const condensed = await tryCondenseConversationWithDeps({
+              maxInputTokens: budget,
+              listEvents: () => this.events.list(),
+              getPrimaryLlmClient: () => this.getPrimaryLlmClient(),
+              pushEvent: (event) => this.pushEventWithHooks(event),
+            });
             if (condensed) continue;
           }
 
@@ -826,118 +837,6 @@ export class Agent extends EventEmitter {
     const raw = this.options.settings?.conversation?.maxIterations;
     const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.trunc(raw) : 50;
     return Math.min(500, Math.max(1, n));
-  }
-
-  /**
-   * Build the next LLM request from the event log.
-   *
-   * Condensation is token-budget based: we inject the latest summary into the system prompt and
-   * omit message events whose ids were marked forgotten by `Condensation` events.
-   */
-  private buildChatRequest() {
-    const events = this.events.list();
-    const condensationState = this.getCondensationState(events);
-
-    let systemPrompt = this.buildSystemPrompt();
-    if (condensationState.summary) {
-      systemPrompt += `\n\n<CONVERSATION SUMMARY>\n${condensationState.summary}\n</CONVERSATION SUMMARY>`;
-    }
-
-    const rawMessages = events
-      .filter(isMessageEvent)
-      .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''))
-      .map((event) => {
-        if (event.source === 'user' && event.extended_content?.length) {
-          return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
-        }
-        return event.llm_message;
-      });
-    const messages = sanitizeChatMessages(rawMessages);
-    const tools = this.getToolDefinitions();
-    return { systemPrompt, messages, tools };
-  }
-
-  /**
-   * Computes the current condensation state from the event log.
-   *
-   * Multiple condensations may occur over time; we keep the union of forgotten ids and the latest
-   * non-empty summary.
-   */
-  private getCondensationState(events: Event[]): { summary: string | null; forgottenEventIds: Set<string>; summaryOffset: number | null } {
-    const forgottenEventIds = new Set<string>();
-    let summary: string | null = null;
-    let summaryOffset: number | null = null;
-
-    for (const event of events) {
-      if (!isCondensation(event)) continue;
-      for (const id of event.forgotten_event_ids ?? []) {
-        if (typeof id === 'string' && id.trim()) forgottenEventIds.add(id);
-      }
-      if (typeof event.summary === 'string' && event.summary.trim()) {
-        summary = event.summary.trim();
-        const rawOffset = event.summary_offset;
-        summaryOffset =
-          typeof rawOffset === 'number' && Number.isFinite(rawOffset) ? Math.max(0, Math.trunc(rawOffset)) : null;
-      }
-    }
-
-    return { summary, forgottenEventIds, summaryOffset };
-  }
-
-  private getEffectiveLlmConfigForCondensation(): {
-    provider: LLMProvider | undefined;
-    baseUrl: string | undefined;
-    model: string;
-    openaiApiMode: unknown;
-    maxInputTokens: number | undefined;
-  } {
-    return resolveCondensationLlmConfig(this.options.settings);
-  }
-
-  /**
-   * Attempts to summarize the conversation so the next prompt fits within `maxInputTokens`.
-   *
-   * On success, emits a `Condensation` event containing a summary and the message event ids that
-   * should be omitted from future requests.
-   */
-  private async tryCondenseConversation(params: { maxInputTokens: number }): Promise<boolean> {
-    const maxInputTokens = Math.max(0, Math.trunc(params.maxInputTokens));
-    if (maxInputTokens <= 0) return false;
-
-    const events = this.events.list();
-    const condensationState = this.getCondensationState(events);
-    const condensableEvents = events
-      .filter(isMessageEvent)
-      .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''));
-    const previousSummary = condensationState.summary ?? '';
-
-    let llm: LLMClient;
-    try {
-      llm = await this.getPrimaryLlmClient();
-    } catch {
-      return false;
-    }
-
-    const condenser = new LLMSummarizingCondenser(llm, { maxInputTokens });
-    let result;
-    try {
-      result = await condenser.condense({ events: condensableEvents, previousSummary });
-    } catch {
-      return false;
-    }
-
-    if (!result?.summary) return false;
-    if (!result.forgottenEventIds.length) return false;
-
-    await this.pushEventWithHooks({
-      kind: 'Condensation',
-      source: 'environment',
-      forgotten_event_ids: result.forgottenEventIds,
-      summary: result.summary,
-      summary_offset: result.summaryOffset,
-    } as Event);
-
-    return true;
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {

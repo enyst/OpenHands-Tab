@@ -21,24 +21,15 @@ describe('Agent condensation config', () => {
       },
     });
 
-    const { Agent, ConversationState, EventLog } = await import('../runtime');
-    const events = new EventLog();
-    const state = new ConversationState({ eventLog: events });
+    const { getEffectiveLlmConfigForCondensation } = await import('../llm');
 
-    const agent = new Agent({
-      settings: {
-        llm: { profileId: 'p1', maxInputTokens: 500, model: 'raw-model' },
-        agent: {},
-        conversation: {},
-        confirmation: { policy: 'never' },
-        secrets: {},
-      },
-      events,
-      state,
-      tools: [],
+    const config = getEffectiveLlmConfigForCondensation({
+      llm: { profileId: 'p1', maxInputTokens: 500, model: 'raw-model' },
+      agent: {},
+      conversation: {},
+      confirmation: { policy: 'never' },
+      secrets: {},
     });
-
-    const config = (agent as any).getEffectiveLlmConfigForCondensation();
     expect(config.maxInputTokens).toBe(100);
   });
 });
