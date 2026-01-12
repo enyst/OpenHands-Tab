@@ -38,6 +38,11 @@ export type RegisterHalCommandsDeps = {
 export function formatTeleportError(rawError: string): string {
   const lower = rawError.toLowerCase();
 
+  // Node fetch failures (common for localhost when server isn't running)
+  if (lower.includes('fetch failed') || lower.includes('failed to fetch')) {
+    return 'Server unreachable. Check if it is running.';
+  }
+
   // Connection refused / unreachable
   if (lower.includes('econnrefused') || lower.includes('connection refused')) {
     return 'Server unreachable. Check if it is running.';

@@ -90,6 +90,23 @@ describe('HAL voice_confirm', () => {
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'cancelTeleportAction' });
   });
 
+  it('shows a friendly teleport failure message with server url', async () => {
+    await renderAppAndWaitReady();
+
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-teleport-fail-1') });
+
+    await advanceBundledDialogueToAwaitingUser();
+    fireEvent.click(screen.getByRole('button', { name: /teleport to remote/i }));
+
+    postToWindow({ type: 'halTeleportFailed', error: 'TypeError: fetch failed', serverUrl: 'http://localhost:3000' });
+
+    expect(screen.getByText(/Remote server is not available at this time\./)).toBeInTheDocument();
+    expect(screen.getAllByText(/http:\/\/localhost:3000/).length).toBeGreaterThan(0);
+  });
+
   it('falls back to buttons when microphone is unavailable', async () => {
     await renderAppAndWaitReady();
 

@@ -134,7 +134,7 @@ export function HalOverlay({
 
           <div className="px-5 py-4">
             {lastError && (
-              <div className="mb-3 text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded-lg p-3">
+              <div className="mb-3 text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded-lg p-3 whitespace-pre-wrap break-words">
                 {lastError}
               </div>
             )}

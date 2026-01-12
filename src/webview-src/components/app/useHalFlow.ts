@@ -777,13 +777,16 @@ export function useHalFlow(deps: {
     if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
       return;
     }
-    const message = typeof error === 'string' && error.trim() ? error.trim() : 'Teleport failed';
+    const rawMessage = typeof error === 'string' && error.trim() ? error.trim() : 'Teleport failed';
+    const message = serverUrl
+      ? `Remote server is not available at this time.\n${serverUrl}`
+      : 'Remote server is not available at this time.';
     const serverInfo = serverUrl ? ` (${serverUrl})` : '';
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
     setHalForceRejectInput(false);
     resetHalUiState({ phase: 'error', eye: 'dim', lastError: message });
-    deps.showStatusMessage('error', `${message}${serverInfo}`);
+    deps.showStatusMessage('error', `${rawMessage}${serverInfo}`);
   }, [deps.showStatusMessage, resetHalUiState]);
 
   const handleHalTeleportStarting = useCallback((serverUrl: string, serverLabel?: string) => {
