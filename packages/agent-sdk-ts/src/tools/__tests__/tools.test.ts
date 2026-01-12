@@ -514,6 +514,11 @@ startxref
 });
 
 describe('TaskTrackerTool', () => {
+  it('documents that plan overwrites TASKS.json', () => {
+    const tool = new TaskTrackerTool();
+    expect(tool.description).toMatch(/plan: overwrite TASKS\.json/i);
+  });
+
   it('plans and views tasks', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);

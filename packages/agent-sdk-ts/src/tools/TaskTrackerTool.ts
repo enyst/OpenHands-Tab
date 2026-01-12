@@ -20,7 +20,7 @@ const TASK_TRACKER_DESCRIPTION = `Manage a structured task list for the current 
 Use this tool to create or update a lightweight plan when work has multiple steps.
 
 Commands:
-- plan: write the provided task_list to TASKS.json
+- plan: overwrite TASKS.json with the provided task_list
 - view: read TASKS.json and return the current task_list
 
 Task items:
