@@ -63,7 +63,7 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 10. **Public skills repo loading** (`load_public_skills`)
     - TypeScript: not implemented.
-    - Parity note (2026-01-12): TypeScript now supports AgentSkills (SKILL.md directories) with strict naming, `<available_skills>` progressive disclosure, resource discovery, `.mcp.json` loading with variable expansion, and third-party repo skill files (`.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) with truncation + vendor-family gating.
+    - Note (2026-01-12): TypeScript now supports AgentSkills (SKILL.md directories) with strict naming, `<available_skills>` progressive disclosure, resource discovery, `.mcp.json` loading with variable expansion, and third-party repo skill files (`.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) with truncation + vendor-family gating.
 
 11. **Agent tool selection** - `include_default_tools` option to include/disable built-in tools
 
@@ -140,10 +140,10 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
   - TypeScript: no equivalent option; default tool set is fixed in runtime initialization.
   - Status: Missing feature.
 
-- AgentSkills (SKILL.md) + public skills
+- AgentSkills (SKILL.md) + repo skill files
   - Python: SKILL.md directories with strict naming, progressive disclosure (`to_prompt()` XML), resources, `.mcp.json` support, and optional public skills loading. See openhands/sdk/context/skills/*.py and openhands/sdk/context/agent_context.py.
-  - TypeScript: legacy .md skills only; no SKILL.md handling, no resources, no public skills, no MCP config ingestion, no `<available_skills>` prompt block.
-  - Status: Large gap in skills parity.
+  - TypeScript: supports SKILL.md directories with strict naming, `<available_skills>` progressive disclosure, resource discovery, `.mcp.json` parsing/validation with variable expansion, and third-party repo skill files (`.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`) with truncation + vendor-family gating.
+  - Status: Parity largely aligned; remaining gap is public skills repo loading.
 
 - tool_call_id propagation
   - Python: tool_call_id is preserved across ActionEvent, ObservationEvent, AgentErrorEvent, and tool MessageEvent. See tests/sdk/event/test_events_to_messages.py and cross tests.
@@ -518,15 +518,11 @@ classDiagram
 
 ### TypeScript AgentContext
 
-- Lightweight class that concatenates always-on skills into Markdown
-  - Appends optional suffix
-  - Matches triggers via substring search
-  - Logs warnings for duplicates
-- Skill activation tracking is minimal
-- Formatting is plain strings (no templating)
-  - No `<available_skills>` progressive disclosure
-  - No public skills loading or microagents compatibility
-  - No model-family gating for vendor-specific repo instructions
+- Lightweight class that concatenates repo skills into a system suffix and triggered skills into a user suffix
+  - Matches triggers (keyword/task) and logs warnings for duplicates
+- Supports AgentSkills progressive disclosure via `<available_skills>` (lists triggered skills without injecting full content)
+- Supports model-family gating for vendor-specific repo instructions (`CLAUDE.md`/`GEMINI.md`) and handles profiles-first settings (when `llm.profileId` is selected)
+- No public skills repo loading
 
 ### Skill models
 
@@ -546,17 +542,13 @@ classDiagram
 - **TypeScript `Skill`**
   - Mirrors keyword/task/always-on triggers
   - Aliasing and missing-variable prompts
-  - Lacks MCP tool metadata
-  - No schema validation
-  - No regex triggers
-  - No SKILL.md or resource discovery support
-  - Third-party files limited to `.cursorrules` and `agents.md`
+  - AgentSkills (SKILL.md directories) with strict naming validation
+  - Resource discovery (`scripts/`, `references/`, `assets/`) and optional `.mcp.json` parsing/validation with variable expansion
+  - Third-party files: `.cursorrules`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (truncates oversized files; vendor-gated where applicable)
+  - No regex/weighted triggers and no template-driven prompt rendering (tracked separately)
 
 ### Gaps to close
-- Add SKILL.md directory support, name validation, and AgentSkills fields
-- Add resource discovery and `.mcp.json` parsing + validation
-- Add `<available_skills>` prompt generation (progressive disclosure)
-- Align third-party files and truncation behavior (AGENTS, CLAUDE, GEMINI)
+- Add public skills repo loading (`load_public_skills`)
 - Expand trigger matching (regex/weighted keywords) and template-driven prompt rendering
 
 ```mermaid
