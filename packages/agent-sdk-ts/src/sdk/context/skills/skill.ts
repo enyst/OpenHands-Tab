@@ -140,9 +140,7 @@ export class Skill {
     const skillName = this.PATH_TO_THIRD_PARTY_SKILL_NAME[baseName];
 
     if (skillName) {
-      const truncateNotice =
-        `\n\n<TRUNCATED><NOTE>The file ${path} exceeded the maximum length (${THIRD_PARTY_SKILL_MAX_CHARS} characters) and has been truncated. ` +
-        'Only the beginning and end are shown. You can read the full file if needed.</NOTE>\n\n';
+      const truncateNotice = `\n\n<TRUNCATED><NOTE>The file ${path} exceeded the maximum length (${THIRD_PARTY_SKILL_MAX_CHARS} characters) and has been truncated. Only the beginning and end are shown. You can read the full file if needed.</NOTE>\n\n`;
       const truncatedContent = maybeTruncate(fileContent, THIRD_PARTY_SKILL_MAX_CHARS, truncateNotice);
 
       if (fileContent.length > THIRD_PARTY_SKILL_MAX_CHARS) {
