@@ -21,6 +21,7 @@ import type { RegistryEvent } from '../llm/registry';
 import type { ConfirmationPolicy } from '../security/confirmationPolicy';
 import type { SecurityAnalyzer } from '../security/analyzer';
 import { FileEditorTool, TaskTrackerTool, TerminalTool } from '../../tools';
+import type { SecretStorage } from 'vscode';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
@@ -41,6 +42,7 @@ export interface LocalConversationOptions {
   tools?: ToolDefinition<unknown, unknown>[];
   includeDefaultTools?: boolean | string[];
   secrets?: SecretRegistry;
+  secretStorage?: SecretStorage;
   persistenceDir?: string;
   persistence?: ConversationPersistence;
   agentContext?: AgentContext;
@@ -80,7 +82,7 @@ export class LocalConversation extends EventEmitter {
     this.includeDefaultTools = options.includeDefaultTools;
     this.hasToolsOption = Object.prototype.hasOwnProperty.call(options, 'tools');
     this.tools = this.resolveTools(this.hasToolsOption ? (options.tools ?? []) : undefined);
-    this.secrets = options.secrets ?? new SecretRegistry();
+    this.secrets = options.secrets ?? new SecretRegistry(options.secretStorage);
     this.agentContext = options.agentContext;
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();

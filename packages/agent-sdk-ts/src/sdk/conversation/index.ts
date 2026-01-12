@@ -2,6 +2,7 @@ import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
 import type { AgentContext } from '../context';
 import type { SecretRegistry } from '../runtime';
+import type { SecretStorage } from 'vscode';
 import type { BaseWorkspace } from '../../workspace';
 import { LocalConversation } from './LocalConversation';
 import { RemoteConversation } from './RemoteConversation';
@@ -19,6 +20,7 @@ export interface ConversationFactoryOptions {
   tools?: ToolDefinition<unknown, unknown>[];
   includeDefaultTools?: boolean | string[];
   secrets?: SecretRegistry;
+  secretStorage?: SecretStorage;
   persistenceDir?: string;
   agentContext?: AgentContext;
 }
@@ -41,6 +43,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     tools: options.tools,
     includeDefaultTools: options.includeDefaultTools,
     secrets: options.secrets,
+    secretStorage: options.secretStorage,
     persistenceDir: options.persistenceDir,
     agentContext: options.agentContext,
   }) as ConversationInstance;

@@ -79,5 +79,5 @@ describe('SecretRegistry', () => {
 
     await expect(registry.get(secretName)).resolves.toBe('from-env');
   });
-});
 
+});
