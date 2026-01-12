@@ -1,7 +1,46 @@
 import type { Skill } from './skill';
 
+const stripInvalidXmlChars = (value: string): string => {
+  let result = '';
+  for (const char of value) {
+    const codePoint = char.codePointAt(0);
+    if (codePoint === undefined) {
+      continue;
+    }
+
+    // XML 1.0 valid chars:
+    // - \t (0x9), \n (0xA), \r (0xD)
+    // - 0x20..0xD7FF
+    // - 0xE000..0xFFFD
+    // - 0x10000..0x10FFFF
+    if (codePoint === 0x9 || codePoint === 0xA || codePoint === 0xD) {
+      result += char;
+      continue;
+    }
+
+    if (codePoint < 0x20) {
+      continue;
+    }
+
+    if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+      continue;
+    }
+
+    if (codePoint === 0x7f || codePoint === 0xfffe || codePoint === 0xffff) {
+      continue;
+    }
+
+    if (codePoint > 0x10ffff) {
+      continue;
+    }
+
+    result += char;
+  }
+  return result;
+};
+
 const xmlEscape = (value: string): string =>
-  value
+  stripInvalidXmlChars(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -70,4 +109,3 @@ export function toPrompt(skills: Skill[], options?: { maxDescriptionLength?: num
   lines.push('</available_skills>');
   return lines.join('\n');
 }
-
