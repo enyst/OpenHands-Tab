@@ -1,9 +1,13 @@
+import type { LLMProvider } from '../llm/types';
+import { classifyLlmErrorCode } from '../llm/errorMapping';
+
 export type ErrorClassification = 'agent' | 'conversation';
 
 export type ErrorContext = {
   stage: 'tool_args' | 'tool_lookup' | 'tool_validation' | 'tool_execute' | 'llm_init' | 'llm_request';
   toolName?: string;
   rawArgs?: string;
+  llmProvider?: LLMProvider | null;
 };
 
 export type ClassifiedError = {
@@ -48,7 +52,10 @@ export const classifyError = (error: unknown, context: ErrorContext): Classified
   let message = baseMessage;
 
   if (context.stage === 'llm_init' || context.stage === 'llm_request') {
-    return { classification: 'conversation', message, code: classifyConversationErrorCode(message) };
+    const llmCode = context.stage === 'llm_request'
+      ? classifyLlmErrorCode({ provider: context.llmProvider, error })
+      : undefined;
+    return { classification: 'conversation', message, code: llmCode ?? classifyConversationErrorCode(message) };
   }
 
   // Default tool behavior: treat as agent-visible so the LLM can self-correct.

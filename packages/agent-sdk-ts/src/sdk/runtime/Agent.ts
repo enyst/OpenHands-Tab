@@ -667,7 +667,8 @@ export class Agent extends EventEmitter {
             if (condensed) continue;
           }
 
-          const classified = classifyError(error, { stage: 'llm_request' });
+          const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
+          const classified = classifyError(error, { stage: 'llm_request', llmProvider: provider });
           await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
           this.state.setStatus('IDLE');
           response = undefined;
