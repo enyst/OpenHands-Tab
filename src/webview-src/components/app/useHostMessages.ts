@@ -59,6 +59,7 @@ export type HostMessageHandlerOptions = {
   handleHalTeleportFailed: (error: unknown, serverUrl?: string) => void;
   handleHalTeleportUnavailable: (error: unknown) => void;
   handleHalTeleportStarting: (serverUrl: string, serverLabel?: string) => void;
+  handleHalTeleportCanceled: () => void;
   handleHalTeleportSuccess: (serverUrl: string, serverLabel?: string) => void;
   handleHalTtsResponse: (payload: Record<string, unknown>) => void;
   handleHalVoiceConfirmResponse: (payload: Record<string, unknown>) => void;
@@ -119,6 +120,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
     handleHalTeleportStarting,
+    handleHalTeleportCanceled,
     handleHalTeleportSuccess,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,
@@ -479,6 +481,10 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
           }
           break;
         }
+        case 'halTeleportCanceled': {
+          handleHalTeleportCanceled();
+          break;
+        }
         case 'halTeleportSuccess': {
           if (typeof payload.serverUrl === 'string') {
             handleHalTeleportSuccess(payload.serverUrl, payload.serverLabel);
@@ -717,6 +723,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     handleHalTeleportFailed,
     handleHalTeleportUnavailable,
     handleHalTeleportStarting,
+    handleHalTeleportCanceled,
     handleHalTeleportSuccess,
     handleHalTtsResponse,
     handleHalVoiceConfirmResponse,

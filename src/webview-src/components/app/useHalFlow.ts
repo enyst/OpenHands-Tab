@@ -917,6 +917,14 @@ export function useHalFlow(deps: {
     deps.showStatusMessage('info', `Connecting to ${displayName}…`);
   }, [deps.showStatusMessage]);
 
+  const handleHalTeleportCanceled = useCallback(() => {
+    halTeleportInProgressRef.current = false;
+    setHalTeleporting(false);
+    setHalForceRejectInput(false);
+    stopHalAudio();
+    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', decision: null });
+  }, [resetHalUiState, stopHalAudio]);
+
   const handleHalTeleportSuccess = useCallback((serverUrl: string, serverLabel?: string) => {
     if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
       return;
@@ -985,6 +993,7 @@ export function useHalFlow(deps: {
     handleHalTeleportUnavailable,
     handleHalTeleportFailed,
     handleHalTeleportStarting,
+    handleHalTeleportCanceled,
     handleHalTeleportSuccess,
     handleConversationStarted,
   };

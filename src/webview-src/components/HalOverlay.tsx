@@ -91,7 +91,7 @@ export function HalOverlay({
   };
 
   const isPulsating = eye === 'pulsating';
-  const exitDisabled = isSubmitting && phase !== 'waiting_remote';
+  const exitDisabled = isSubmitting && phase === 'error';
 
   return (
     <div className="fixed inset-0 z-50 pointer-events-none">

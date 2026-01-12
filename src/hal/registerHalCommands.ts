@@ -96,10 +96,12 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     return /aborterror/i.test(text) || /aborted/i.test(text);
   };
 
+  const HEALTHCHECK_TIMEOUT_MS = 2500;
+
   const checkServerHealth = async (serverUrl: string, signal: AbortSignal): Promise<void> => {
     const normalized = serverUrl.replace(/\/+$/, '');
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), HEALTHCHECK_TIMEOUT_MS);
     const onAbort = () => controller.abort();
     signal.addEventListener('abort', onAbort, { once: true });
 
@@ -114,21 +116,24 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     }
   };
 
-  let activeTeleport: { abort: AbortController } | null = null;
+  let activeTeleport: { abort: AbortController; didCancel: boolean } | null = null;
 
   const cancelTeleportToRemoteRuntime = vscode.commands.registerCommand('openhands._cancelTeleportToRemoteRuntime', () => {
     if (!activeTeleport) return;
+    activeTeleport.didCancel = true;
     try {
       activeTeleport.abort.abort();
     } catch {}
+
+    // Keep behavior simple: cancel only affects the HAL UI/UX.
+    // We do NOT try to unwind in-flight connection/retry loops here.
+    void postToWebview({ type: 'halTeleportCanceled' });
   });
 
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
     let targetServerUrl: string | undefined;
     let targetServerLabel: string | undefined;
     let connectionEstablished = false;
-    let didUpdateServerUrl = false;
-    let previousServerUrl: string | undefined;
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
 
     try {
@@ -137,10 +142,9 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         return;
       }
       const abort = new AbortController();
-      activeTeleport = { abort };
+      activeTeleport = { abort, didCancel: false };
 
       const settings = await settingsMgr.get();
-      previousServerUrl = typeof settings.serverUrl === 'string' && settings.serverUrl.trim() ? settings.serverUrl.trim() : undefined;
 
       const firstServer = settings.servers?.[0];
       const firstServerUrl = typeof firstServer?.url === 'string' ? firstServer.url.trim() : '';
@@ -181,8 +185,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       // Ensure we always start a new remote conversation instead of restoring a prior one.
       await deps.context.workspaceState.update('openhands.conversationId.remote', undefined);
 
-      await settingsMgr.update({ serverUrl: firstServerUrl });
-      didUpdateServerUrl = true;
+      await settingsMgr.update({ serverUrl: targetServerUrl });
       await deps.ensureConversationAndConnection({ uiJustCreated: true });
 
       // Connection succeeded - mark it so we know we can proceed
@@ -243,18 +246,11 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
     } catch (err) {
-      if (activeTeleport?.abort.signal.aborted || isAbortError(err)) {
-        // User canceled from the webview. Avoid re-opening the HAL overlay with an error toast.
-        if (didUpdateServerUrl && !connectionEstablished) {
-          try {
-            await settingsMgr.update({ serverUrl: previousServerUrl });
-            await deps.ensureConversationAndConnection();
-          } catch (revertErr) {
-            deps.getOutputChannel()?.appendLine(
-              `[hal.teleport] Failed to revert server settings after cancellation: ${deps.renderError(revertErr)}`
-            );
-          }
-        }
+      if (activeTeleport?.didCancel || activeTeleport?.abort.signal.aborted || isAbortError(err)) {
+        // Cancellation is UX-only: we return to the confirmation UI and stop HAL waiting/music.
+        // We intentionally avoid trying to revert settings or unwind any in-flight connection logic.
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport canceled by user');
+        void postToWebview({ type: 'halTeleportCanceled' });
         return;
       }
 

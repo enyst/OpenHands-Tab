@@ -111,6 +111,25 @@ describe('HAL voice_confirm', () => {
     expect(screen.getAllByText(/http:\/\/localhost:3000/).length).toBeGreaterThan(0);
   });
 
+  it('returns to confirmation UI when host cancels teleport', async () => {
+    await renderAppAndWaitReady();
+
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-teleport-cancel-1') });
+
+    await advanceBundledDialogueToAwaitingUser();
+    fireEvent.click(screen.getByRole('button', { name: /teleport to remote/i }));
+
+    // While waiting_remote, we get a cancel event from the host.
+    postToWindow({ type: 'halTeleportCanceled' });
+
+    expect(screen.getByText(/Please choose an action\./)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /teleport to remote/i })).toBeInTheDocument();
+  });
+
+
   it('retries bundled HAL audio playback after a user click when autoplay blocks the first attempt', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const meta = document.createElement('meta');
