@@ -14,7 +14,7 @@ import {
   loadProfile,
   wouldExceedMaxInputTokens,
 } from '../llm';
-import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ToolCall } from '../types';
+import type { ActionEvent, BashEvent, Event, Message, MessageEvent, ObservationEvent, ToolCall } from '../types';
 import {
   isActionEvent,
   isAgentErrorEvent,
@@ -54,6 +54,7 @@ import { buildLlmRequestParametersForDebug } from '../llm/debug';
 import { StuckDetector } from '../conversation/stuckDetector';
 import type { ConfirmationPolicy, SecurityAnalyzer } from '../security';
 import { createConfirmationPolicyFromSettings, LLMSecurityAnalyzer } from '../security';
+import type { AgentHook, AfterToolCallHookParams, BeforeToolCallHookParams, BeforeToolCallHookResult, ShouldStopHookParams } from './hooks';
 
 
 export type AgentRunInput = string | Message;
@@ -85,6 +86,7 @@ export interface AgentOptions {
   conversationStats?: import('./ConversationStats').ConversationStats;
   confirmationPolicy?: ConfirmationPolicy;
   securityAnalyzer?: SecurityAnalyzer | null;
+  hooks?: AgentHook | AgentHook[];
 }
 
 // Condensation is token-budget based (maxInputTokens). When the next request would exceed that
@@ -108,6 +110,13 @@ function stringifyErrorWithCause(error: unknown, maxDepth = 4): string {
   } catch {
     return String(error);
   }
+}
+
+function requireToolArgsObject(value: unknown, context: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${context} must be an object`);
+  }
+  return value as Record<string, unknown>;
 }
 
 
@@ -136,6 +145,7 @@ export class Agent extends EventEmitter {
   private readonly conversationStats?: import('./ConversationStats').ConversationStats;
   private debug: boolean;
   private readonly toolSummarizer: ToolSummarizer;
+  private readonly hooks: AgentHook[];
 
   constructor(private readonly options: AgentOptions) {
     super();
@@ -164,6 +174,7 @@ export class Agent extends EventEmitter {
     this.conversationStats = options.conversationStats;
     this.agentContext = options.agentContext;
     this.debug = false;
+    this.hooks = Array.isArray(options.hooks) ? options.hooks : options.hooks ? [options.hooks] : [];
 
     if (options.confirmationPolicy) {
       this.confirmationPolicyOverride = options.confirmationPolicy;
@@ -175,6 +186,67 @@ export class Agent extends EventEmitter {
     this.updateDerivedSettings(options.settings);
 
     this.events.on((event) => this.emit('event', event));
+  }
+
+  private async shouldStopByHooks(params: ShouldStopHookParams): Promise<boolean> {
+    for (const hook of this.hooks) {
+      if (!hook.shouldStop) continue;
+      try {
+        if (await hook.shouldStop(params)) {
+          return true;
+        }
+      } catch {
+        // Ignore hook failures to match Python SDK "hook results" semantics.
+      }
+    }
+    return false;
+  }
+
+  private async runAfterEventHooks(event: Event): Promise<void> {
+    for (const hook of this.hooks) {
+      if (!hook.afterEvent) continue;
+      try {
+        await hook.afterEvent({ event });
+      } catch {
+        // Ignore hook failures to match Python SDK "hook results" semantics.
+      }
+    }
+  }
+
+  private async pushEventWithHooks<T extends Event>(event: T): Promise<T> {
+    const recorded = this.events.push(event) as T;
+    await this.runAfterEventHooks(recorded);
+    return recorded;
+  }
+
+  private async runBeforeToolCallHooks(params: BeforeToolCallHookParams): Promise<BeforeToolCallHookResult> {
+    let currentArgs = params.args;
+    for (const hook of this.hooks) {
+      if (!hook.beforeToolCall) continue;
+      try {
+        const result = await hook.beforeToolCall({ ...params, args: currentArgs });
+        if (result && result.args) {
+          currentArgs = result.args;
+        }
+      } catch {
+        // Ignore hook failures to match Python SDK "hook results" semantics.
+      }
+    }
+    if (currentArgs !== params.args) {
+      return { args: currentArgs };
+    }
+    return undefined;
+  }
+
+  private async runAfterToolCallHooks(params: AfterToolCallHookParams): Promise<void> {
+    for (const hook of this.hooks) {
+      if (!hook.afterToolCall) continue;
+      try {
+        await hook.afterToolCall(params);
+      } catch {
+        // Ignore hook failures to match Python SDK "hook results" semantics.
+      }
+    }
   }
 
   private updateDerivedSettings(settings: OpenHandsSettings): void {
@@ -245,7 +317,7 @@ export class Agent extends EventEmitter {
   }
 
   private emitRestorePendingConfirmationDiagnostic(reason: string, detail?: Record<string, unknown>): void {
-    this.events.push({
+    void this.pushEventWithHooks({
       kind: 'ConversationStateUpdateEvent',
       source: 'agent',
       key: 'restore_pending_confirmation',
@@ -261,7 +333,7 @@ export class Agent extends EventEmitter {
         `Reason: ${reason}`,
         detail ? `Context: ${JSON.stringify(detail)}` : undefined,
       ].filter(Boolean) as string[];
-      this.events.push({
+      void this.pushEventWithHooks({
         kind: 'ConversationErrorEvent',
         source: 'agent',
         code: 'restore_pending_confirmation_failed',
@@ -339,7 +411,7 @@ export class Agent extends EventEmitter {
   pause(): void {
     if (this.paused) return;
     this.paused = true;
-    this.events.push({ kind: 'PauseEvent', source: 'user' });
+    void this.pushEventWithHooks({ kind: 'PauseEvent', source: 'user' } as Event);
     this.state.setStatus('PAUSED');
   }
 
@@ -374,7 +446,7 @@ export class Agent extends EventEmitter {
         await this.executeTool(pending.toolCall, pending.actionEvent, pending.args);
       } catch (error) {
         if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
-          this.events.push(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
+          await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
         }
         this.state.setStatus('IDLE');
         throw error;
@@ -389,7 +461,7 @@ export class Agent extends EventEmitter {
     const rejectionReason = reason ?? 'User rejected the action';
     this.pendingAction = undefined;
     this.pendingWorkspaceAccess = undefined;
-    this.events.push({
+    void this.pushEventWithHooks({
       kind: 'UserRejectObservation',
       source: 'environment',
       rejection_reason: rejectionReason,
@@ -401,7 +473,7 @@ export class Agent extends EventEmitter {
     // OpenAI-compatible providers require that assistant tool_calls are followed by tool messages for each tool_call_id.
     // If the user rejects a tool call, emit a synthetic tool response so subsequent LLM calls remain valid.
     const rejectionText = truncateToolMessage(this.secretMasker.maskText(`User rejected tool call: ${rejectionReason}`));
-    this.events.push({
+    void this.pushEventWithHooks({
       kind: 'MessageEvent',
       source: 'environment',
       llm_message: {
@@ -422,7 +494,7 @@ export class Agent extends EventEmitter {
     this.pendingAction = pendingAction;
     this.pendingWorkspaceAccess = pendingWorkspaceAccess;
     this.state.setStatus('WAITING_FOR_CONFIRMATION');
-    this.events.push({ kind: 'PauseEvent', source: 'agent' });
+    void this.pushEventWithHooks({ kind: 'PauseEvent', source: 'agent' } as Event);
   }
 
   private async runLoop(): Promise<Message | undefined> {
@@ -434,7 +506,7 @@ export class Agent extends EventEmitter {
 
     // Check if we've already reached maxIterations
     if (this.state.snapshot.iteration >= maxIterations) {
-      this.events.push({
+      await this.pushEventWithHooks({
         kind: 'ConversationErrorEvent',
         source: 'agent',
         code: 'max_iterations_exceeded',
@@ -449,7 +521,7 @@ export class Agent extends EventEmitter {
       streamer = await this.getStreamer();
     } catch (error) {
       const classified = classifyError(error, { stage: 'llm_init' });
-      this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
+      await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
       this.state.setStatus('IDLE');
       // Allow a future retry after settings/secrets are updated.
       this.llmClientPromise = undefined;
@@ -466,11 +538,16 @@ export class Agent extends EventEmitter {
     while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
       this.state.setStatus('RUNNING');
 
+      if (await this.shouldStopByHooks({ state: this.state, events: this.events })) {
+        this.state.setStatus('IDLE');
+        break;
+      }
+
 
       if (stuckDetector) {
         const stuck = stuckDetector.detect(this.events.list());
         if (stuck.stuck) {
-          this.events.push({
+          await this.pushEventWithHooks({
             kind: 'ConversationErrorEvent',
             source: 'agent',
             code: 'stuck_detected',
@@ -499,7 +576,7 @@ export class Agent extends EventEmitter {
         // Emit a lightweight debug/state event so hosts can log what tools are actually sent
         try {
           const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
-          this.events.push({
+          await this.pushEventWithHooks({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
             key: 'llm_request',
@@ -508,7 +585,7 @@ export class Agent extends EventEmitter {
         } catch (error) {
           if (this.debug) {
             console.warn('[Agent] Failed to emit llm_request debug event:', error);
-            this.events.push({
+            await this.pushEventWithHooks({
               kind: 'ConversationErrorEvent',
               source: 'agent',
               detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -524,7 +601,7 @@ export class Agent extends EventEmitter {
               llmSettings: this.options.settings.llm,
               model: llmConfig.model,
             });
-            this.events.push({
+            await this.pushEventWithHooks({
               kind: 'ConversationStateUpdateEvent',
               source: 'agent',
               key: 'llm_request_payload',
@@ -560,7 +637,7 @@ export class Agent extends EventEmitter {
             try {
               const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
               const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
-              this.events.push({
+              await this.pushEventWithHooks({
                 kind: 'ConversationStateUpdateEvent',
                 source: 'agent',
                 key: 'llm_response_payload',
@@ -590,7 +667,7 @@ export class Agent extends EventEmitter {
           }
 
           const classified = classifyError(error, { stage: 'llm_request' });
-          this.events.push(this.toConversationErrorEvent(error, { code: classified.code }));
+          await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
           this.state.setStatus('IDLE');
           response = undefined;
           break;
@@ -604,7 +681,7 @@ export class Agent extends EventEmitter {
         source: 'agent',
         llm_message: response.message,
       };
-      this.events.push(assistantEvent);
+      await this.pushEventWithHooks(assistantEvent);
       if (response.usage) {
         this.state.setValue('llm_usage', response.usage);
       }
@@ -629,7 +706,7 @@ export class Agent extends EventEmitter {
         try {
           const rawArgs = toolCall.function?.arguments ?? '';
           const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : rawArgs;
-          this.events.push({
+          await this.pushEventWithHooks({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
             key: 'llm_tool_call_raw',
@@ -642,7 +719,7 @@ export class Agent extends EventEmitter {
         } catch (error) {
           if (this.debug) {
             console.warn('[Agent] Failed to emit tool_call_raw debug event:', error);
-            this.events.push({
+            await this.pushEventWithHooks({
               kind: 'ConversationErrorEvent',
               source: 'agent',
               detail: `Debug event emission failed for tool call: ${error instanceof Error ? error.message : String(error)}`,
@@ -659,10 +736,10 @@ export class Agent extends EventEmitter {
         const actionArgs = args ?? {};
 
         const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
-        const recordedAction = this.events.push(actionEvent) as ActionEvent;
+        const recordedAction = await this.pushEventWithHooks(actionEvent);
 
         if (finishedThisTurn) {
-          this.emitSkippedToolCall(toolCall, recordedAction, 'Skipped: finish tool already called in this run.');
+          await this.emitSkippedToolCall(toolCall, recordedAction, 'Skipped: finish tool already called in this run.');
           continue;
         }
 
@@ -685,7 +762,7 @@ export class Agent extends EventEmitter {
           }
         } catch (error) {
           if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
-            this.events.push(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
+            await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
             this.state.setStatus('IDLE');
             return lastAssistantMessage;
           }
@@ -706,7 +783,7 @@ export class Agent extends EventEmitter {
 
       // Check if we've reached maxIterations
       if (this.state.snapshot.iteration >= maxIterations) {
-        this.events.push({
+        await this.pushEventWithHooks({
           kind: 'ConversationErrorEvent',
           source: 'agent',
           code: 'max_iterations_exceeded',
@@ -827,7 +904,7 @@ export class Agent extends EventEmitter {
     if (!result?.summary) return false;
     if (!result.forgottenEventIds.length) return false;
 
-    this.events.push({
+    await this.pushEventWithHooks({
       kind: 'Condensation',
       source: 'environment',
       forgotten_event_ids: result.forgottenEventIds,
@@ -1022,7 +1099,7 @@ export class Agent extends EventEmitter {
     if (existing) return;
 
     const systemPrompt = this.buildSystemPrompt();
-    this.events.push({
+    void this.pushEventWithHooks({
       kind: 'SystemPromptEvent',
       source: 'agent',
       system_prompt: { type: 'text', text: systemPrompt },
@@ -1056,13 +1133,13 @@ export class Agent extends EventEmitter {
       ...(activatedSkillNames.length > 0 && { activated_skills: activatedSkillNames }),
       ...(extendedContent.length > 0 && { extended_content: extendedContent }),
     };
-    this.events.push(event);
+    void this.pushEventWithHooks(event);
   }
 
-  private emitToolError(toolCall: ToolCall, error: string): void {
+  private async emitToolError(toolCall: ToolCall, error: string): Promise<void> {
     const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, error);
-    this.events.push(agentErrorEvent);
-    this.events.push(toolMessageEvent);
+    await this.pushEventWithHooks(agentErrorEvent);
+    await this.pushEventWithHooks(toolMessageEvent);
   }
 
   private parseToolArgs(toolCall: ToolCall): { args: Record<string, unknown>; securityRisk?: SecurityRisk } | undefined {
@@ -1099,7 +1176,7 @@ export class Agent extends EventEmitter {
       throw new Error('Tool arguments must be a JSON object.');
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_args', toolName: toolCall.function.name, rawArgs: raw });
-      this.emitToolError(toolCall, classified.message);
+      void this.emitToolError(toolCall, classified.message);
       return undefined;
     }
   }
@@ -1130,10 +1207,10 @@ export class Agent extends EventEmitter {
     return this.confirmationPolicy.shouldConfirm(risk);
   }
 
-  private emitSkippedToolCall(toolCall: ToolCall, actionEvent: ActionEvent, reason: string): void {
+  private async emitSkippedToolCall(toolCall: ToolCall, actionEvent: ActionEvent, reason: string): Promise<void> {
     const maskedReason = this.secretMasker.maskText(reason);
     const clipped = truncateToolMessage(maskedReason);
-    this.events.push({
+    await this.pushEventWithHooks({
       kind: 'ObservationEvent',
       source: 'environment',
       observation: { skipped: true, reason: maskedReason },
@@ -1141,7 +1218,7 @@ export class Agent extends EventEmitter {
       tool_call_id: toolCall.id,
       action_id: actionEvent.id ?? randomUUID(),
     } as Event);
-    this.events.push({
+    await this.pushEventWithHooks({
       kind: 'MessageEvent',
       source: 'environment',
       llm_message: {
@@ -1197,20 +1274,34 @@ export class Agent extends EventEmitter {
       const available = Array.from(this.tools.keys());
       const errText = `Tool '${toolCall.function.name}' not found. Available: ${JSON.stringify(available)}`;
       const classified = classifyError(errText, { stage: 'tool_lookup', toolName: toolCall.function.name });
-      this.emitToolError(toolCall, classified.message);
+      await this.emitToolError(toolCall, classified.message);
       throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
     }
 
-    let validated;
+    let validated: Record<string, unknown>;
     try {
-      validated = tool.validate(args);
+      validated = requireToolArgsObject(tool.validate(args), `Validated args for tool '${tool.name}'`);
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_validation', toolName: tool.name, rawArgs: toolCall.function.arguments });
-      this.emitToolError(toolCall, classified.message);
+      await this.emitToolError(toolCall, classified.message);
       throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
     }
 
     try {
+      if (this.hooks.length) {
+        const hookResult = await this.runBeforeToolCallHooks({ toolCall, actionEvent, args: validated });
+        if (hookResult && hookResult.args) {
+          try {
+            validated = requireToolArgsObject(tool.validate(hookResult.args), `Validated args for tool '${tool.name}'`);
+          } catch (e) {
+            const classified = classifyError(e, { stage: 'tool_validation', toolName: tool.name, rawArgs: toolCall.function.arguments });
+            await this.emitToolError(toolCall, classified.message);
+            await this.runAfterToolCallHooks({ toolCall, actionEvent, args: validated, error: classified.message });
+            throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
+          }
+        }
+      }
+
       const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
       const result = await tool.execute(validated, context);
       // Attach specialized summaries first (file diff, terminal), then general tool call summary as fallback
@@ -1222,15 +1313,15 @@ export class Agent extends EventEmitter {
         this.emitTerminalEvents(toolCall, enrichedResult);
       }
 
-      const observation = {
+      const observation: ObservationEvent = {
         kind: 'ObservationEvent',
         source: 'environment',
         observation: deepTruncate(this.secretMasker.maskUnknown(enrichedResult)) as Record<string, unknown>,
         tool_name: toolCall.function.name,
         tool_call_id: toolCall.id,
         action_id: actionEvent.id ?? randomUUID(),
-      } as Event;
-      this.events.push(observation);
+      } as ObservationEvent;
+      const recordedObservation = await this.pushEventWithHooks(observation);
 
       // Remove summary from result before formatting for LLM - summaries are for UI display only
       const resultForLlm = (() => {
@@ -1257,14 +1348,23 @@ export class Agent extends EventEmitter {
           content: [{ type: 'text', text: clipped }],
         },
       };
-      this.events.push(toolMessage);
+      await this.pushEventWithHooks(toolMessage);
+
+      await this.runAfterToolCallHooks({
+        toolCall,
+        actionEvent,
+        args: validated,
+        observationEvent: recordedObservation,
+      });
     } catch (e) {
       const classified = classifyError(e, { stage: 'tool_execute', toolName: tool.name });
       if (classified.classification === 'agent') {
         // Treat execution failures as agent-visible errors so the LLM can self-correct.
-        this.emitToolError(toolCall, classified.message);
+        await this.emitToolError(toolCall, classified.message);
+        await this.runAfterToolCallHooks({ toolCall, actionEvent, args: validated, error: classified.message });
         throw new ClassifiedToolExecutionError({ classification: 'agent', message: classified.message });
       }
+      await this.runAfterToolCallHooks({ toolCall, actionEvent, args: validated, error: classified.message });
       throw new ClassifiedToolExecutionError({
         classification: 'conversation',
         message: classified.message,

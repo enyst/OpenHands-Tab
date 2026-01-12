@@ -25,6 +25,7 @@ import type { SecretStorage } from 'vscode';
 import path from 'path';
 import type { ConversationPersistence } from '../runtime';
 import { AgentContext } from '../context';
+import type { AgentHook } from '../runtime/hooks';
 
 const toOptionalNonEmptyString = (value: unknown): string | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';
@@ -46,6 +47,7 @@ export interface LocalConversationOptions {
   persistenceDir?: string;
   persistence?: ConversationPersistence;
   agentContext?: AgentContext;
+  hooks?: AgentHook | AgentHook[];
 }
 
 export class LocalConversation extends EventEmitter {
@@ -64,6 +66,7 @@ export class LocalConversation extends EventEmitter {
   private readonly persistenceDir?: string;
   private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;
+  private readonly hooks?: AgentHook | AgentHook[];
   private agent: Agent;
   private readonly llmRegistry: LLMRegistry;
   private readonly stats: ConversationStats;
@@ -84,6 +87,7 @@ export class LocalConversation extends EventEmitter {
     this.tools = this.resolveTools(this.hasToolsOption ? (options.tools ?? []) : undefined);
     this.secrets = options.secrets ?? new SecretRegistry(options.secretStorage);
     this.agentContext = options.agentContext;
+    this.hooks = options.hooks;
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();
     // connect registry to stats
@@ -343,6 +347,7 @@ export class LocalConversation extends EventEmitter {
       state: this.state,
       secrets: this.secrets,
       agentContext: this.agentContext,
+      hooks: this.hooks,
       onTerminalEvent: (event) => this.emit('terminal', event),
       registry: this.llmRegistry,
       conversationStats: this.stats,
