@@ -57,7 +57,9 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 
 7. **MCP** - `MCPClient` for external tool integration (not planned)
 
-8. **LLM Features** - Registry with resolver pattern, Router LLM, provider-specific exception mapping, `Metrics`/`Telemetry` classes
+8. **LLM routing + provider error normalization**
+   - Python: LiteLLM-based routing strategies and provider exception mapping into typed SDK exceptions.
+   - TypeScript: native provider clients + LLM Profiles + an `LLMRegistry` + `Metrics` exist, but there is no router/fallback layer and provider-specific exception normalization is tracked as parity work (GH #661).
 
 9. **Hooks System** - `HookManager`, `HookExecutor`, event interception (pre/post tool use, post event, stop hook)
 
@@ -129,8 +131,8 @@ This section summarizes concrete behavior alignment between Python agent-sdk and
 
 - Default LLM timeout
   - Python: LLM default timeout raised to 300s (`timeout` default in LLM config). See openhands/sdk/llm config defaults.
-  - TypeScript: DEFAULT_TIMEOUT_MS is 60s unless overridden. See packages/agent-sdk-ts/src/sdk/llm/types.ts.
-  - Status: Divergence in long-running tool/LLM calls.
+  - TypeScript: DEFAULT_TIMEOUT_MS is 300s (300_000ms) unless overridden. See packages/agent-sdk-ts/src/sdk/llm/types.ts.
+  - Status: Aligned.
 
 - include_default_tools option
   - Python: Agent supports `include_default_tools` to selectively include built-in tools or disable all defaults. See openhands/sdk/agent/base.py and tests/sdk/agent/test_agent_tool_init.py.
@@ -503,7 +505,7 @@ classDiagram
   - Uses `system_message_suffix.j2` templates
   - Triggered knowledge rendering
   - Duplicate detection
-  - Auto-loading of user skills with warnings (skills). Note: “microagents” is the old name of “skills” and we don’t need it
+  - Auto-loading of user skills with warnings (skills). Note: Python also supports legacy “microagents”; TypeScript does not load legacy microagents today.
   - Optional public skills loading from OpenHands/skills
   - Structured metadata
 - Produces both system and user suffixes
@@ -516,7 +518,7 @@ classDiagram
 
 - Lightweight class that concatenates repo skills into a system suffix and triggered skills into a user suffix
   - Matches triggers (keyword/task) and logs warnings for duplicates
-- Supports AgentSkills progressive disclosure via `<available_skills>` (lists triggered skills without injecting full content)
+- Supports AgentSkills progressive disclosure via `<available_skills>` (lists available skills by name/description/location; full content is injected only when triggered)
 - Supports model-family gating for vendor-specific repo instructions (`CLAUDE.md`/`GEMINI.md`) and handles profiles-first settings (when `llm.profileId` is selected)
 - No public skills repo loading
 
