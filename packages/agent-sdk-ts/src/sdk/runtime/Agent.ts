@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import path from 'path';
 import { LLMStreamer } from './LLMStreamer';
 import { AsyncLock } from './AsyncLock';
+import { LlmClientCache } from './LlmClientCache';
 import { ConversationState } from './ConversationState';
 import { EventLog } from './EventLog';
 import type { LLMClient, LLMProfileStoreOptions, LLMToolDefinition } from '../llm';
@@ -130,8 +131,7 @@ export class Agent extends EventEmitter {
   private securityAnalyzerOverride?: SecurityAnalyzer | null;
   private securityAnalyzer: SecurityAnalyzer | null = null;
   private readonly lock = new AsyncLock();
-  private llmClientPromise?: Promise<LLMClient>;
-  private streamerPromise?: Promise<LLMStreamer>;
+  private readonly llmClientCache: LlmClientCache<LLMStreamer>;
   private paused = false;
   private cancelled = false;
   private finished = false;
@@ -173,6 +173,16 @@ export class Agent extends EventEmitter {
     this.agentContext = options.agentContext;
     this.debug = false;
     this.hooks = Array.isArray(options.hooks) ? options.hooks : options.hooks ? [options.hooks] : [];
+    this.llmClientCache = new LlmClientCache<LLMStreamer>({
+      getInjectedClient: () => this.options.llmClient,
+      createClient: () => this.createLlmClientFromSettings(),
+      createStreamer: (client) => new LLMStreamer(client, { events: this.events, state: this.state }),
+      emitDebugStateUpdate: (key, value) => this.emitDebugStateUpdate(key, value),
+      getDebugContext: () => ({
+        model: this.options.settings?.llm?.model ?? null,
+        profileId: this.options.settings?.llm?.profileId ?? null,
+      }),
+    });
 
     if (options.confirmationPolicy) {
       this.confirmationPolicyOverride = options.confirmationPolicy;
@@ -282,8 +292,7 @@ export class Agent extends EventEmitter {
       this.updateDerivedSettings(settings);
 
       // Force the next run to rebuild the LLM client from updated settings.
-      this.llmClientPromise = undefined;
-      this.streamerPromise = undefined;
+      this.llmClientCache.clear();
 
       // Debug logging for mid-run settings changes (oh-tab-rw1k)
       const newModel = settings?.llm?.model;
@@ -538,8 +547,7 @@ export class Agent extends EventEmitter {
       await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
       this.state.setStatus('IDLE');
       // Allow a future retry after settings/secrets are updated.
-      this.llmClientPromise = undefined;
-      this.streamerPromise = undefined;
+      this.llmClientCache.clear();
       return undefined;
     }
     let lastAssistantMessage: Message | undefined;
@@ -577,7 +585,7 @@ export class Agent extends EventEmitter {
       // Debug logging for mid-run settings tracking (oh-tab-rw1k)
       const currentModel = this.options.settings?.llm?.model;
       const currentProfileId = this.options.settings?.llm?.profileId;
-      const hasStreamerPromise = !!this.streamerPromise;
+      const hasStreamerPromise = this.llmClientCache.hasStreamerPromise();
       this.emitDebugStateUpdate('agent_run_loop_state', {
         iteration: this.state.snapshot.iteration,
         settings: {
@@ -959,31 +967,11 @@ export class Agent extends EventEmitter {
   }
 
   private async getPrimaryLlmClient(): Promise<LLMClient> {
-    if (this.options.llmClient) return this.options.llmClient;
-    if (!this.llmClientPromise) {
-      this.llmClientPromise = this.createLlmClientFromSettings();
-    }
-    return this.llmClientPromise;
+    return this.llmClientCache.getPrimaryClient();
   }
 
   private async getStreamer(): Promise<LLMStreamer> {
-    if (!this.streamerPromise) {
-      const model = this.options.settings?.llm?.model;
-      const profileId = this.options.settings?.llm?.profileId;
-      this.emitDebugStateUpdate('agent_streamer_cache', {
-        action: 'create',
-        profileId: profileId ?? null,
-        model: model ?? null,
-      });
-      this.streamerPromise = (async () => {
-        const client = await this.getPrimaryLlmClient();
-        return new LLMStreamer(client, { events: this.events, state: this.state });
-      })();
-    } else {
-      this.emitDebugStateUpdate('agent_streamer_cache', { action: 'reuse' });
-    }
-
-    return this.streamerPromise;
+    return this.llmClientCache.getStreamer();
   }
 
   private createLlmClientFromSettings(): Promise<LLMClient> {
