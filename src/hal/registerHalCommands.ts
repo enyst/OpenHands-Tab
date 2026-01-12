@@ -91,9 +91,10 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
 
   const isAbortError = (err: unknown): boolean => {
     if (err instanceof DOMException && err.name === 'AbortError') return true;
-    if (err instanceof Error && err.name === 'AbortError') return true;
-    const text = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
-    return /aborterror/i.test(text) || /aborted/i.test(text);
+    if (err instanceof Error) {
+      return err.name === 'AbortError' || /\bAbortError\b/.test(err.message);
+    }
+    return /\bAbortError\b/i.test(String(err));
   };
 
   const HEALTHCHECK_TIMEOUT_MS = 2500;
