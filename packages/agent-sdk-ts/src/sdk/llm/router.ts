@@ -73,7 +73,7 @@ export const shouldFallbackOnLlmErrorCodes = (params: {
   provider?: LLMProvider | null;
   codes: string[];
 }): ((error: unknown) => boolean) => {
-  const allow = new Set(params.codes.filter((c) => typeof c === 'string' && c.trim()));
+  const allow = new Set(params.codes.map((c) => c.trim()).filter(Boolean));
   return (error: unknown): boolean => {
     const code = classifyLlmErrorCode({ provider: params.provider ?? undefined, error });
     return typeof code === 'string' && allow.has(code);

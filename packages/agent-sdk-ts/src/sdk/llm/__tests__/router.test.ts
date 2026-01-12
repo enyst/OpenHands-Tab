@@ -66,6 +66,42 @@ describe('LLM router helpers', () => {
     expect(out.join('')).toBe('ok');
   });
 
+  it('treats configured fallback codes as trimmed tokens', async () => {
+    const primary: LLMClient = {
+      async *streamChat(request) {
+        if (request.messages.length < 0) {
+          yield { type: 'finish' };
+        }
+        throw new Error('LLM request failed (503): overloaded');
+      },
+    };
+    const fallback: LLMClient = {
+      async *streamChat() {
+        yield { type: 'text', text: 'ok' };
+        yield { type: 'finish' };
+      },
+    };
+
+    const client = createFallbackLlmClient({
+      primary,
+      fallback,
+      shouldFallback: shouldFallbackOnLlmErrorCodes({
+        provider: 'anthropic',
+        codes: [' llm_service_unavailable '],
+      }),
+    });
+
+    const out: string[] = [];
+    for await (const chunk of client.streamChat({
+      systemPrompt: '',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+    })) {
+      if (chunk.type === 'text') out.push(chunk.text);
+    }
+
+    expect(out.join('')).toBe('ok');
+  });
+
   it('does not fall back after yielding any chunks', async () => {
     const primary: LLMClient = {
       async *streamChat() {
@@ -105,9 +141,10 @@ describe('LLM router helpers', () => {
 
   it('rethrows when shouldFallback returns false', async () => {
     const primary: LLMClient = {
-      async *streamChat() {
-        // Yield once to satisfy lint rules, then throw to test rethrow behavior.
-        yield { type: 'finish' };
+      async *streamChat(request) {
+        if (request.messages.length < 0) {
+          yield { type: 'finish' };
+        }
         throw new Error('LLM request failed (401): invalid_api_key');
       },
     };
