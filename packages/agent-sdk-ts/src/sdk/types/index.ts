@@ -26,6 +26,19 @@ export interface ResponsesReasoningItem {
   status?: string;
 }
 
+export interface ThinkingBlock {
+  type: 'thinking';
+  thinking: string;
+  signature?: string | null;
+}
+
+export interface RedactedThinkingBlock {
+  type: 'redacted_thinking';
+  data: string;
+}
+
+export type ThinkingBlockEvent = ThinkingBlock | RedactedThinkingBlock;
+
 export interface Message {
   role: Role;
   content: Content[];
@@ -61,6 +74,8 @@ export interface ActionEvent extends EventBase {
   source: 'agent';
   thought: TextContent[];
   reasoning_content?: string | null;
+  thinking_blocks?: ThinkingBlockEvent[] | null;
+  responses_reasoning_item?: ResponsesReasoningItem | null;
   action: Record<string, unknown> | null; // Action schema serialized to JSON
   tool_name: string;
   tool_call_id: string;
