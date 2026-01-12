@@ -65,7 +65,7 @@ export type CondensationResult = {
 export type CondensationDeps = {
   maxInputTokens: number;
   listEvents: () => Event[];
-  pushEvent: (event: Event) => Promise<void>;
+  pushEvent: (event: Event) => Promise<unknown>;
   /**
    * Optional override used by unit tests. When provided, `getPrimaryLlmClient` is not called.
    */
