@@ -87,8 +87,8 @@ Current selection heuristic (best-effort):
 ### Runtime switching semantics
 
 - Switching profiles mid-conversation:
-  - Applies to the **next** LLM request (no interruption of in-flight streaming).
-  - Uses the newly selected profile for subsequent requests (until changed again).
+  - Local mode: applies to the **next** LLM request (no interruption of in-flight streaming).
+  - Remote mode: applies when you start a **new conversation** (the agent-server does not currently support mid-conversation LLM switching).
 
 ### Consistency requirement (critical)
 
@@ -145,4 +145,3 @@ User-facing errors should **not** include internal diagnostic fields like:
 
 Internal diagnostics (full request payload, effective resolution details) belong in:
 - Debug logs / Output channel gated behind a debug setting, not in normal UI error blocks.
-
