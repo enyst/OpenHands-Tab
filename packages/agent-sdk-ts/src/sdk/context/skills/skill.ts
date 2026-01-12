@@ -8,6 +8,10 @@ import { basename, dirname, join, relative } from 'path';
 import { homedir } from 'os';
 import frontmatter from 'front-matter';
 import type { InputMetadata, TriggerType } from './types';
+import type { McpConfig, SkillResources } from './types';
+import { SkillValidationError } from './exceptions';
+import { discoverSkillResources, hasSkillResources } from './resources';
+import { findMcpConfig, loadMcpConfig, validateMcpConfigObject } from './mcp';
 
 // Regex pattern for valid AgentSkills names (strict):
 // - 1-64 characters
@@ -16,15 +20,7 @@ import type { InputMetadata, TriggerType } from './types';
 // - must not contain consecutive hyphens (--)
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-/**
- * Error thrown when skill validation fails.
- */
-export class SkillValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'SkillValidationError';
-  }
-}
+export { SkillValidationError } from './exceptions';
 
 /**
  * A skill provides specialized knowledge or functionality.
@@ -42,6 +38,8 @@ export class Skill {
   inputs: InputMetadata[];
   isAgentSkillsFormat: boolean;
   description: string | null;
+  mcpTools: McpConfig | null;
+  resources: SkillResources | null;
 
   // Map third-party files to skill names
   public static readonly PATH_TO_THIRD_PARTY_SKILL_NAME: Record<string, string> = {
@@ -58,6 +56,8 @@ export class Skill {
     inputs?: InputMetadata[];
     isAgentSkillsFormat?: boolean;
     description?: string | null;
+    mcpTools?: McpConfig | null;
+    resources?: SkillResources | null;
   }) {
     this.name = params.name;
     this.content = params.content;
@@ -66,6 +66,8 @@ export class Skill {
     this.inputs = params.inputs ?? [];
     this.isAgentSkillsFormat = params.isAgentSkillsFormat ?? false;
     this.description = params.description ?? null;
+    this.mcpTools = params.mcpTools ?? null;
+    this.resources = params.resources ?? null;
 
     // Append missing variables prompt for task skills
     if (this.trigger?.type === 'task' && this.requiresUserInput()) {
@@ -149,6 +151,31 @@ export class Skill {
 
     const description = typeof metadata.description === 'string' ? metadata.description : null;
 
+    // For AgentSkills-format SKILL.md, load .mcp.json + discover resources (Python parity).
+    let mcpTools: McpConfig | null = null;
+    let resources: SkillResources | null = null;
+    if (isSkillMd) {
+      const skillRoot = dirname(filePath);
+      const mcpJsonPath = findMcpConfig(skillRoot);
+      if (mcpJsonPath) {
+        mcpTools = loadMcpConfig(mcpJsonPath, { skillRoot });
+      }
+
+      const discovered = discoverSkillResources(skillRoot);
+      if (hasSkillResources(discovered)) {
+        resources = discovered;
+      }
+    } else {
+      // Legacy skills only use mcp_tools from frontmatter (not .mcp.json) (Python parity).
+      const maybeMcpTools = metadata.mcp_tools;
+      if (maybeMcpTools !== undefined) {
+        if (typeof maybeMcpTools !== 'object' || maybeMcpTools === null || Array.isArray(maybeMcpTools)) {
+          throw new SkillValidationError('mcp_tools must be a dictionary or None');
+        }
+        mcpTools = validateMcpConfigObject(maybeMcpTools);
+      }
+    }
+
     // Validate and parse trigger keywords from metadata
     const triggerMetadata = metadata.triggers;
     if (triggerMetadata && !Array.isArray(triggerMetadata)) {
@@ -187,6 +214,8 @@ export class Skill {
         source: filePath,
         isAgentSkillsFormat: isSkillMd,
         description,
+        mcpTools,
+        resources,
         trigger: { type: 'task', triggers: keywords },
         inputs,
       });
@@ -197,6 +226,8 @@ export class Skill {
         source: filePath,
         isAgentSkillsFormat: isSkillMd,
         description,
+        mcpTools,
+        resources,
         trigger: { type: 'keyword', keywords },
       });
     } else {
@@ -207,6 +238,8 @@ export class Skill {
         source: filePath,
         isAgentSkillsFormat: isSkillMd,
         description,
+        mcpTools,
+        resources,
         trigger: null,
       });
     }

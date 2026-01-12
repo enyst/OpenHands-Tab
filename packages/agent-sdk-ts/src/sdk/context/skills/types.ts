@@ -49,6 +49,27 @@ export interface TaskTrigger extends BaseTrigger {
   triggers: string[];
 }
 
+export interface McpServerConfig {
+  type?: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+export interface McpConfig {
+  mcpServers: Record<string, McpServerConfig>;
+}
+
+export interface SkillResources {
+  skillRoot: string;
+  scripts: string[];
+  references: string[];
+  assets: string[];
+}
+
 /**
  * Union type for all trigger types.
  */

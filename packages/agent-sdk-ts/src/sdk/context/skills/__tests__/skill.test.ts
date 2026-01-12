@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, existsSync, symlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { Skill, SkillValidationError, loadSkillsFromDir, loadUserSkills, USER_SKILLS_DIRS } from '../skill';
@@ -266,6 +266,157 @@ Agent skill content.`);
       expect(skill.isAgentSkillsFormat).toBe(true);
       expect(skill.description).toBe('Example skill');
       expect(skill.source).toBe(skillPath);
+    });
+
+    it('loads AgentSkills resources and .mcp.json from the SKILL.md directory', () => {
+      const skillRoot = join(tempDir, 'my-skill');
+      mkdirSync(join(skillRoot, 'scripts', 'nested'), { recursive: true });
+      mkdirSync(join(skillRoot, 'references'), { recursive: true });
+      mkdirSync(join(skillRoot, 'assets'), { recursive: true });
+
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(
+        skillPath,
+        `---
+description: Demo skill
+---
+
+# Header
+
+Some content`,
+      );
+
+      writeFileSync(join(skillRoot, 'scripts', 'run.sh'), '#!/bin/sh\necho hi');
+      writeFileSync(join(skillRoot, 'scripts', 'nested', 'inner.sh'), '#!/bin/sh\necho inner');
+      writeFileSync(join(skillRoot, 'references', 'README.md'), 'ref');
+      writeFileSync(join(skillRoot, 'assets', 'data.json'), '{"ok":true}');
+
+      const previousEnv = process.env.MCP_TEST_URL;
+      process.env.MCP_TEST_URL = 'http://example.test/mcp';
+      try {
+        writeFileSync(
+          join(skillRoot, '.mcp.json'),
+          JSON.stringify(
+            {
+              mcpServers: {
+                demo: {
+                  type: 'http',
+                  url: '${MCP_TEST_URL:-http://default.invalid/mcp}',
+                  headers: { 'X-Skill-Root': '${SKILL_ROOT}' },
+                },
+              },
+            },
+            null,
+            2,
+          ),
+        );
+
+        const skill = Skill.load({ path: skillPath });
+
+        expect(skill.resources?.skillRoot).toBe(skillRoot);
+        expect(skill.resources?.scripts).toEqual(['nested/inner.sh', 'run.sh']);
+        expect(skill.resources?.references).toEqual(['README.md']);
+        expect(skill.resources?.assets).toEqual(['data.json']);
+
+        expect(skill.mcpTools?.mcpServers.demo.url).toBe('http://example.test/mcp');
+        expect(skill.mcpTools?.mcpServers.demo.headers?.['X-Skill-Root']).toBe(skillRoot);
+      } finally {
+        if (previousEnv === undefined) {
+          delete process.env.MCP_TEST_URL;
+        } else {
+          process.env.MCP_TEST_URL = previousEnv;
+        }
+      }
+    });
+
+    it('does not traverse symlinked resource directories', () => {
+      const skillRoot = join(tempDir, 'my-skill');
+      const scriptsDir = join(skillRoot, 'scripts');
+      const outsideDir = join(tempDir, 'outside');
+      mkdirSync(scriptsDir, { recursive: true });
+      mkdirSync(outsideDir, { recursive: true });
+
+      writeFileSync(join(outsideDir, 'secret.txt'), 'should not be included');
+      symlinkSync(outsideDir, join(scriptsDir, 'linked'));
+      writeFileSync(join(scriptsDir, 'run.sh'), '#!/bin/sh\necho ok');
+
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(skillPath, `---\ndescription: Demo\n---\n\ncontent`);
+
+      const skill = Skill.load({ path: skillPath });
+      expect(skill.resources?.scripts).toEqual(['run.sh']);
+    });
+
+    it('expands variables safely when values contain backslashes/quotes', () => {
+      const skillRoot = join(tempDir, 'my-skill');
+      mkdirSync(skillRoot, { recursive: true });
+
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(skillPath, `---\ndescription: Demo\n---\n\ncontent`);
+
+      const envValue = String.raw`C:\Users\test\path\"quotes\"`;
+      const previousEnv = process.env.MCP_TEST_VALUE;
+      process.env.MCP_TEST_VALUE = envValue;
+      try {
+        writeFileSync(
+          join(skillRoot, '.mcp.json'),
+          JSON.stringify(
+            {
+              mcpServers: {
+                demo: {
+                  type: 'http',
+                  url: '${MCP_TEST_VALUE}',
+                },
+              },
+            },
+            null,
+            2,
+          ),
+        );
+
+        const skill = Skill.load({ path: skillPath });
+        expect(skill.mcpTools?.mcpServers.demo.url).toBe(envValue);
+      } finally {
+        if (previousEnv === undefined) {
+          delete process.env.MCP_TEST_VALUE;
+        } else {
+          process.env.MCP_TEST_VALUE = previousEnv;
+        }
+      }
+    });
+
+    it('fails fast on invalid .mcp.json in SKILL.md directories', () => {
+      const skillRoot = join(tempDir, 'bad-skill');
+      mkdirSync(skillRoot, { recursive: true });
+
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(skillPath, `---\nname: bad-skill\ndescription: Bad\n---\n\ncontent`);
+      writeFileSync(join(skillRoot, '.mcp.json'), JSON.stringify({ mcpServers: [] }));
+
+      expect(() => Skill.load({ path: skillPath })).toThrow(SkillValidationError);
+    });
+
+    it('loads legacy mcp_tools from frontmatter and ignores .mcp.json', () => {
+      // If legacy attempted to parse .mcp.json, this would fail the load.
+      writeFileSync(join(tempDir, '.mcp.json'), 'not-json');
+
+      const legacyPath = join(tempDir, 'legacy-skill.md');
+      writeFileSync(
+        legacyPath,
+        `---
+name: legacy-skill
+mcp_tools:
+  mcpServers:
+    demo:
+      type: http
+      url: http://example.test/mcp
+---
+
+Legacy content`,
+      );
+
+      const skill = Skill.load({ path: legacyPath });
+      expect(skill.mcpTools?.mcpServers.demo.url).toBe('http://example.test/mcp');
     });
 
     it('validates AgentSkills-format skill name strictly', () => {
