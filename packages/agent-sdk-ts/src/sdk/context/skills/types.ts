@@ -49,7 +49,7 @@ export interface TaskTrigger extends BaseTrigger {
   triggers: string[];
 }
 
-export type McpServerConfig = {
+export interface McpServerConfig {
   type?: string;
   command?: string;
   args?: string[];
@@ -57,7 +57,7 @@ export type McpServerConfig = {
   cwd?: string;
   url?: string;
   headers?: Record<string, string>;
-};
+}
 
 export interface McpConfig {
   mcpServers: Record<string, McpServerConfig>;

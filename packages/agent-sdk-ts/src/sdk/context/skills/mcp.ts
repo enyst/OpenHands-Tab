@@ -36,16 +36,19 @@ function expandMcpVariables(
 ): unknown {
   const configStr = JSON.stringify(config);
 
+  const escapeForJsonString = (value: string): string => JSON.stringify(value).slice(1, -1);
+
   const varPattern = /\$\{([a-zA-Z_][a-zA-Z0-9_]*)(?::-([^}]*))?\}/g;
   const expanded = configStr.replace(varPattern, (_match, name: string, defaultValue?: string) => {
     if (Object.prototype.hasOwnProperty.call(variables, name)) {
-      return variables[name];
+      return escapeForJsonString(variables[name]);
     }
     const envValue = env[name];
     if (typeof envValue === 'string') {
-      return envValue;
+      return escapeForJsonString(envValue);
     }
     if (typeof defaultValue === 'string') {
+      // Default is captured from JSON.stringify output, so it is already JSON-escaped.
       return defaultValue;
     }
     return _match;

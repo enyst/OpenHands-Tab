@@ -329,6 +329,44 @@ Some content`,
       }
     });
 
+    it('expands variables safely when values contain backslashes/quotes', () => {
+      const skillRoot = join(tempDir, 'my-skill');
+      mkdirSync(skillRoot, { recursive: true });
+
+      const skillPath = join(skillRoot, 'SKILL.md');
+      writeFileSync(skillPath, `---\ndescription: Demo\n---\n\ncontent`);
+
+      const envValue = String.raw`C:\Users\test\path\"quotes\"`;
+      const previousEnv = process.env.MCP_TEST_VALUE;
+      process.env.MCP_TEST_VALUE = envValue;
+      try {
+        writeFileSync(
+          join(skillRoot, '.mcp.json'),
+          JSON.stringify(
+            {
+              mcpServers: {
+                demo: {
+                  type: 'http',
+                  url: '${MCP_TEST_VALUE}',
+                },
+              },
+            },
+            null,
+            2,
+          ),
+        );
+
+        const skill = Skill.load({ path: skillPath });
+        expect(skill.mcpTools?.mcpServers.demo.url).toBe(envValue);
+      } finally {
+        if (previousEnv === undefined) {
+          delete process.env.MCP_TEST_VALUE;
+        } else {
+          process.env.MCP_TEST_VALUE = previousEnv;
+        }
+      }
+    });
+
     it('fails fast on invalid .mcp.json in SKILL.md directories', () => {
       const skillRoot = join(tempDir, 'bad-skill');
       mkdirSync(skillRoot, { recursive: true });
