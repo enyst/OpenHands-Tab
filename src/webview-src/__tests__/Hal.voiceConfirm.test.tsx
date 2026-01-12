@@ -70,6 +70,26 @@ describe('HAL voice_confirm', () => {
     cleanup();
   });
 
+  it('allows exiting while teleport is in progress and sends cancel', async () => {
+    await renderAppAndWaitReady();
+
+    vi.useFakeTimers();
+    postToWindow({ type: 'halSettings', hal: { enabled: true, mode: 'bundled', userName: 'Engel', volume: 1 } });
+    setWaitingForConfirmation();
+    postToWindow({ type: 'event', event: mkHighRiskAction('call-hal-teleport-exit-1') });
+
+    await advanceBundledDialogueToAwaitingUser();
+
+    const teleportBtn = screen.getByRole('button', { name: /teleport to remote/i });
+    fireEvent.click(teleportBtn);
+
+    const exitBtn = screen.getByRole('button', { name: /exit/i });
+    expect(exitBtn).not.toBeDisabled();
+
+    fireEvent.click(exitBtn);
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'command', command: 'cancelTeleportAction' });
+  });
+
   it('falls back to buttons when microphone is unavailable', async () => {
     await renderAppAndWaitReady();
 

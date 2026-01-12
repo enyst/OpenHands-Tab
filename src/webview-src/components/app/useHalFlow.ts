@@ -615,6 +615,9 @@ export function useHalFlow(deps: {
   }, [cleanupHalVoiceConfirm, deps.showStatusMessage, getHalConversationKey, resetHalUiState]);
 
   const handleHalExit = useCallback(() => {
+    if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
+      deps.postMessage({ type: 'command', command: 'cancelTeleportAction' });
+    }
     cleanupHalFlow();
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
@@ -624,7 +627,7 @@ export function useHalFlow(deps: {
       setHalSuppressedKeySynced(key);
     }
     resetHalUiState();
-  }, [cleanupHalFlow, resetHalUiState, setHalSuppressedKeySynced]);
+  }, [cleanupHalFlow, deps.postMessage, resetHalUiState, setHalSuppressedKeySynced]);
 
   const handleHalApprove = useCallback(() => {
     setHalDecision('approve_local');
@@ -759,6 +762,9 @@ export function useHalFlow(deps: {
     }, [applyHalVoiceConfirmDecision, disableVoiceConfirmForConversation]);
 
   const handleHalTeleportUnavailable = useCallback((error: unknown) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const message = typeof error === 'string' && error.trim() ? error.trim() : 'No server available';
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
@@ -768,6 +774,9 @@ export function useHalFlow(deps: {
   }, [deps.showStatusMessage, resetHalUiState]);
 
   const handleHalTeleportFailed = useCallback((error: unknown, serverUrl?: string) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const message = typeof error === 'string' && error.trim() ? error.trim() : 'Teleport failed';
     const serverInfo = serverUrl ? ` (${serverUrl})` : '';
     halTeleportInProgressRef.current = false;
@@ -778,11 +787,17 @@ export function useHalFlow(deps: {
   }, [deps.showStatusMessage, resetHalUiState]);
 
   const handleHalTeleportStarting = useCallback((serverUrl: string, serverLabel?: string) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const displayName = serverLabel || serverUrl;
     deps.showStatusMessage('info', `Connecting to ${displayName}…`);
   }, [deps.showStatusMessage]);
 
   const handleHalTeleportSuccess = useCallback((serverUrl: string, serverLabel?: string) => {
+    if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
+      return;
+    }
     const displayName = serverLabel || serverUrl;
     deps.showStatusMessage('info', `Teleported to ${displayName}!`);
     // Note: The HAL UI state will be reset by handleConversationStarted when the new conversation starts

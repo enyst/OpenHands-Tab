@@ -84,14 +84,59 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     return chatView.webview.postMessage(message);
   };
 
+  const isAbortError = (err: unknown): boolean => {
+    if (err instanceof DOMException && err.name === 'AbortError') return true;
+    if (err instanceof Error && err.name === 'AbortError') return true;
+    const text = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+    return /aborterror/i.test(text) || /aborted/i.test(text);
+  };
+
+  const checkServerHealth = async (serverUrl: string, signal: AbortSignal): Promise<void> => {
+    const normalized = serverUrl.replace(/\/+$/, '');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const onAbort = () => controller.abort();
+    signal.addEventListener('abort', onAbort, { once: true });
+
+    try {
+      const res = await fetch(`${normalized}/health`, { method: 'GET', signal: controller.signal });
+      if (!res.ok) {
+        throw new Error(`Health check failed (${res.status})`);
+      }
+    } finally {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', onAbort);
+    }
+  };
+
+  let activeTeleport: { abort: AbortController } | null = null;
+
+  const cancelTeleportToRemoteRuntime = vscode.commands.registerCommand('openhands._cancelTeleportToRemoteRuntime', () => {
+    if (!activeTeleport) return;
+    try {
+      activeTeleport.abort.abort();
+    } catch {}
+    activeTeleport = null;
+  });
+
   const teleportToRemoteRuntime = vscode.commands.registerCommand('openhands._teleportToRemoteRuntime', async () => {
     let targetServerUrl: string | undefined;
     let targetServerLabel: string | undefined;
     let connectionEstablished = false;
+    let didUpdateServerUrl = false;
+    let previousServerUrl: string | undefined;
 
     try {
+      if (activeTeleport) {
+        deps.getOutputChannel()?.appendLine('[hal.teleport] Teleport already in progress');
+        return;
+      }
+      const abort = new AbortController();
+      activeTeleport = { abort };
+
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
       const settings = await settingsMgr.get();
+      previousServerUrl = typeof settings.serverUrl === 'string' && settings.serverUrl.trim() ? settings.serverUrl.trim() : undefined;
 
       const firstServer = settings.servers?.[0];
       const firstServerUrl = typeof firstServer?.url === 'string' ? firstServer.url.trim() : '';
@@ -116,6 +161,15 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
 
+      // Fast liveness check to avoid long reconnect loops when the server is down.
+      // (RemoteConversation retries can keep the HAL waiting screen/music going for a long time.)
+      try {
+        await checkServerHealth(targetServerUrl, abort.signal);
+      } catch (err) {
+        if (isAbortError(err)) return;
+        throw err;
+      }
+
       // STEP 1: Try to connect to the remote server FIRST
       // This must succeed before we do anything else (reject local action, prepare summary, etc.)
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Attempting connection to ${serverDisplayName}...`);
@@ -124,6 +178,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       await deps.context.workspaceState.update('openhands.conversationId.remote', undefined);
 
       await settingsMgr.update({ serverUrl: firstServerUrl });
+      didUpdateServerUrl = true;
       await deps.ensureConversationAndConnection({ uiJustCreated: true });
 
       // Connection succeeded - mark it so we know we can proceed
@@ -184,6 +239,17 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
         serverLabel: targetServerLabel,
       });
     } catch (err) {
+      if (activeTeleport?.abort.signal.aborted || isAbortError(err)) {
+        // User canceled from the webview. Avoid re-opening the HAL overlay with an error toast.
+        if (didUpdateServerUrl && !connectionEstablished) {
+          try {
+            await new SettingsManager(new VscodeSettingsAdapter(deps.context)).update({ serverUrl: previousServerUrl });
+            await deps.ensureConversationAndConnection();
+          } catch {}
+        }
+        return;
+      }
+
       const reason = formatTeleportError(deps.renderError(err));
       deps.getOutputChannel()?.appendLine(`[hal.teleport] Teleport failed: ${reason}`);
 
@@ -197,10 +263,13 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       if (!posted) {
         void vscode.window.showErrorMessage(`Teleport failed: ${reason}`);
       }
+    } finally {
+      activeTeleport = null;
     }
   });
 
   return [
+    cancelTeleportToRemoteRuntime,
     teleportToRemoteRuntime,
   ];
 }
