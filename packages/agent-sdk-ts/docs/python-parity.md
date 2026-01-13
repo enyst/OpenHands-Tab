@@ -630,7 +630,7 @@ In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (se
 
 For `think`, **the TypeScript SDK MUST keep the tool description text identical to the Python SDK** (i.e., copy the Python `THINK_DESCRIPTION` verbatim). Even though the TS implementation is simpler, the tool description is part of the LLM-facing contract and directly affects agent behavior. We prioritize **cross-SDK behavioral parity** over minimizing prompt size for all common tools.
 
-If any future optimization is desired (e.g., shorter descriptions to reduce prompt tokens), it must be treated as an explicit product decision and applied consistently across Python and TS (not a TS-only divergence).
+If any future optimization is desired (e.g., shorter descriptions to reduce prompt tokens), it must be treated as an explicit product decision, applied consistently across Python and TS (not a TS-only divergence) and approved by Mail by the Human Overseer.
 
 ### Gaps and intended direction
 
