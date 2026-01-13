@@ -212,8 +212,81 @@ src/
 ## 11. Packaging & Distribution
 - Engine: VS Code >= 1.104.0
 - Node: >= 22
-- Publish as VSIX; Marketplace later
 - Extension ID: openhands.openhands-tab
+
+### 11.1 What ships in the VSIX (and what doesn’t)
+- The extension vendors the SDK code under `src/sdk`, `src/tools`, `src/workspace` and compiles it into `dist/`.
+- There is no runtime dependency on `@openhands/agent-sdk-ts` via npm in the extension. Users do not need the npm package to use the VS Code extension.
+- The separate `@openhands/agent-sdk-ts` publish is only for developers who want to import the SDK in their own projects.
+
+Implication: You can publish a GitHub release with just the `.vsix` and it will work for users, even if the npm package has not been published.
+
+### 11.2 Build and package the extension
+```bash
+# From repo root
+npm ci
+npm run compile                # build extension + webview
+npm run package                # produces a .vsix under the repo root
+```
+Notes:
+- `npm run package` wraps `vsce package` via `scripts/run-vsce-package.cjs` (adds a small CPU patch and follows symlinks).
+- If you want a clean build: `git clean -fdx && npm ci && npm run compile`.
+
+### 11.3 Validate the VSIX locally
+```bash
+# Install the built VSIX in your VS Code
+code --install-extension openhands.openhands-tab-*.vsix
+# Or via UI: Extensions panel → … menu → Install from VSIX…
+```
+
+### 11.4 GitHub Release (recommended)
+1) Bump version in `package.json` and commit
+```bash
+npm version patch    # or minor/major
+```
+2) Build and package
+```bash
+npm run compile && npm run package
+```
+3) Create a Git tag and GitHub release, attach the `.vsix` file
+- Tag suggestion: `v<version>` (e.g., `v0.5.1`)
+- Release notes: include highlights and compatibility notes
+
+Users can download the `.vsix` from the release and install directly (no Marketplace required).
+
+### 11.5 VS Code Marketplace (optional)
+Requirements:
+- Publisher set to `openhands` (already in `package.json`).
+- Logged in with `vsce` (PAT):
+```bash
+npx vsce login openhands
+```
+Publish:
+```bash
+npx vsce publish               # publishes the current version
+# or
+npx vsce publish patch         # bump + publish (minor/major also supported)
+```
+
+### 11.6 Releasing the SDK package (optional)
+Only needed if you want others to `npm i @openhands/agent-sdk-ts` in their projects. It is NOT required for the VSIX to work.
+```bash
+# Preflight
+npm ci
+npm test -w @openhands/agent-sdk-ts
+npm run lint -w @openhands/agent-sdk-ts
+npm run build -w @openhands/agent-sdk-ts
+# Optional: see tarball contents
+npm pack -w @openhands/agent-sdk-ts --dry-run
+# Version bump and publish
+npm version patch -w @openhands/agent-sdk-ts
+npm publish -w @openhands/agent-sdk-ts --access public
+```
+
+### 11.7 Troubleshooting
+- If users install from GitHub release and see missing module errors for `@openhands/agent-sdk-ts`, it means the extension started depending on the npm package. Revert to vendoring under `src/sdk` or publish the package and add it to `dependencies`.
+- Engine mismatch: ensure VS Code version >= `engines.vscode` and Node >= `engines.node`.
+- To exclude source maps from the VSIX, add an `.npmignore` entry like `*.map` or adjust bundler settings.
 
 ## 12. Implementation Phases
 
