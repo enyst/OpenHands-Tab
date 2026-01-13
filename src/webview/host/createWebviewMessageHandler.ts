@@ -100,8 +100,12 @@ async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[
   const fetchFn = globalThis.fetch;
   if (typeof fetchFn !== 'function') return null;
 
+  const abortController = new AbortController();
+  const timeoutMs = 4000;
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs);
+
   try {
-    const res = await fetchFn(url, { method: 'GET', headers });
+    const res = await fetchFn(url, { method: 'GET', headers, signal: abortController.signal });
     if (!res.ok) return null;
     const payload = await res.json();
     if (!Array.isArray(payload)) return null;
@@ -116,6 +120,8 @@ async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[
     return out;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -354,7 +360,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           activeProfileId: initSettings.llm.profileId ?? null,
         });
 
-        await postToolsList();
+        void postToolsList();
 
         void host.postMessage({
           type: 'serverListUpdated',
