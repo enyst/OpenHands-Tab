@@ -173,18 +173,21 @@ Settings:
     1. Show "Connecting to (server name)…" status message.
     2. Attempt to connect to the remote server **first**.
     3. **Only if connection succeeds**:
-       - Cancel the local confirmation (reject the risky local action with reason "Teleported to remote runtime").
-       - Run a one-shot **local** LLM summarization.
-       - Start a new remote conversation and send the summary as the first user message.
-       - Show "Teleported to (server name)!" success message.
+      - Cancel the local confirmation (reject the risky local action with reason "Teleported to remote runtime").
+      - Run a one-shot **local** LLM summarization over recent local events (Action/Observation/Message only; capture events before switching to the remote conversation).
+      - Start a new remote conversation and send the summary as the first user message.
+      - Show "Teleported to (server name)!" success message.
     4. **If connection fails**:
-       - Do **NOT** cancel/reject the local confirmation (the local agent remains active with the pending action).
-       - Do **NOT** prepare or send any summary.
-       - Show a short, user-friendly error message (e.g., "Server unreachable. Check if it is running.").
-       - Return to the local conversation state (HAL flow resets to error phase).
+      - Do **NOT** cancel/reject the local confirmation (the local agent remains active with the pending action).
+      - Do **NOT** prepare or send any summary.
+      - Show a short, user-friendly error message (e.g., "Server unreachable. Check if it is running.").
+      - Return to the local conversation state (HAL flow resets to error phase).
   - Summary message content (only prepared after successful connection):
     - If summarization succeeds: intro + summary.
-    - If summarization fails: intro + note that summarization failed + last 10 events (Action/Observation/Message only; exclude system prompt/tools/skills).
+    - Summarization profile selection:
+      - Prefer `gemini-flash-summarizer` (same as tool summaries).
+      - If Gemini credentials are not configured, fall back to the main agent LLM profile so teleport still produces a summary.
+    - If summarization fails **or returns empty text** (or if there are no teleportable events to summarize): intro + note + last 10 events (Action/Observation/Message only; exclude system prompt/tools/skills).
     - Intro includes: repo name, branch name, remote URL (if configured), and a note that uncommitted local changes may not be present in remote.
     - Do **not** send the system prompt, tool list, or skills list (the remote agent/runtime has its own).
     - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn't emit them today).

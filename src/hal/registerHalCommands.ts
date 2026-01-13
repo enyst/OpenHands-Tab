@@ -139,6 +139,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     let connectionEstablished = false;
     const localConversation = deps.getConversation();
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+    const localBacklogEvents = Array.from(deps.iterConversationEventBacklog(), (item) => item.event);
 
     try {
       if (activeTeleport) {
@@ -218,22 +219,28 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       introLines.push('Note: uncommitted local changes may not be present remotely.');
       const intro = introLines.join('\n');
 
-      const backlogEvents = Array.from(deps.iterConversationEventBacklog(), (item) => item.event);
-      const summaryEvents = takeLastTeleportableEvents(backlogEvents, TELEPORT_SUMMARY_EVENT_LIMIT);
-      const prompt = renderCondensationSummarizingPrompt({
-        previousSummary: '',
-        eventStrings: summaryEvents.map((e) => safeStringify(e)),
-      });
-
       let firstRemoteMessage: string;
-      try {
-        const summary = await deps.summarizeWithLocalLlm(settings, prompt, deps.secretRegistry);
-        firstRemoteMessage = `${intro}\n\n---\n\n${summary}`;
-      } catch (err) {
-        const last10 = takeLastTeleportableEvents(backlogEvents, TELEPORT_FALLBACK_EVENT_LIMIT).map((e) => safeStringify(e));
-        const reason = deps.renderError(err);
-        const block = last10.map((e) => `<EVENT>\n${e}\n</EVENT>`).join('\n\n');
-        firstRemoteMessage = `${intro}\n\n---\n\nTeleport summary failed: ${reason}\n\nLast 10 events (Action/Observation/Message only):\n\n${block}`;
+      const summaryEvents = takeLastTeleportableEvents(localBacklogEvents, TELEPORT_SUMMARY_EVENT_LIMIT);
+      const fallbackEvents = takeLastTeleportableEvents(localBacklogEvents, TELEPORT_FALLBACK_EVENT_LIMIT).map((e) => safeStringify(e));
+      const fallbackBlock = fallbackEvents.length
+        ? fallbackEvents.map((e) => `<EVENT>\n${e}\n</EVENT>`).join('\n\n')
+        : '(none)';
+
+      if (!summaryEvents.length) {
+        firstRemoteMessage = `${intro}\n\n---\n\nTeleport summary unavailable: no recent events to summarize.\n\nLast 10 events (Action/Observation/Message only):\n\n${fallbackBlock}`;
+      } else {
+        const prompt = renderCondensationSummarizingPrompt({
+          previousSummary: '',
+          eventStrings: summaryEvents.map((e) => safeStringify(e)),
+        });
+
+        try {
+          const summary = await deps.summarizeWithLocalLlm(settings, prompt, deps.secretRegistry);
+          firstRemoteMessage = `${intro}\n\n---\n\n${summary}`;
+        } catch (err) {
+          const reason = deps.renderError(err);
+          firstRemoteMessage = `${intro}\n\n---\n\nTeleport summary failed: ${reason}\n\nLast 10 events (Action/Observation/Message only):\n\n${fallbackBlock}`;
+        }
       }
 
       // STEP 4: Start new conversation and send the summary
