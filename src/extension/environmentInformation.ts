@@ -30,6 +30,7 @@ export function formatEnvironmentInformation(params: {
 }): string {
   const workspaceRoot = params.workspaceRoot;
   const openEditorPaths = Array.from(new Set(params.openEditorPaths.filter((p) => typeof p === 'string' && p.trim().length > 0)));
+  const resolvedOpenEditorPaths = openEditorPaths.map((p) => path.resolve(p));
 
   const allWorkspaceRelPaths: string[] = [];
   if (workspaceRoot) {
@@ -39,7 +40,9 @@ export function formatEnvironmentInformation(params: {
       }
     }
     const active = params.activeEditorPath ?? undefined;
-    if (active && isWithinWorkspace(active, workspaceRoot)) {
+    const resolvedActive = active ? path.resolve(active) : undefined;
+    const isActiveAlreadyCounted = resolvedActive ? resolvedOpenEditorPaths.includes(resolvedActive) : false;
+    if (active && !isActiveAlreadyCounted && isWithinWorkspace(active, workspaceRoot)) {
       allWorkspaceRelPaths.push(getWorkspaceRelativePath(active, workspaceRoot));
     }
   }
@@ -77,4 +80,3 @@ export function formatEnvironmentInformation(params: {
     '</environment information>',
   ].join('\n');
 }
-
