@@ -1,4 +1,6 @@
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * Downloads VS Code with retry logic to handle transient network errors
@@ -36,4 +38,10 @@ export async function downloadVSCodeWithRetry(
   throw new Error(
     `Failed to download VS Code after ${maxRetries} attempts. Last error: ${lastError?.message}`
   );
+}
+
+export async function ensureVsCodeArgvJson(userDataDir: string): Promise<void> {
+  const vscodeDir = path.join(userDataDir, '.vscode');
+  await fs.mkdir(vscodeDir, { recursive: true });
+  await fs.writeFile(path.join(vscodeDir, 'argv.json'), '{}\n', 'utf8');
 }

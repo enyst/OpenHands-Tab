@@ -1,9 +1,8 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
-import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { downloadVSCodeWithRetry } from './testHelpers';
+import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
 const userDataDir = path.join(os.tmpdir(), `oh-tab-llm-${Date.now().toString(36)}`);
 
@@ -18,8 +17,7 @@ describe('OpenHands-Tab LLM Switching E2E', function () {
 
     // We override HOME/USERPROFILE for this suite to keep ~/.openhands/llm-profiles isolated.
     // VS Code also looks for runtime args in $HOME/.vscode/argv.json, and will show an error dialog if missing/invalid.
-    await fs.mkdir(path.join(userDataDir, '.vscode'), { recursive: true });
-    await fs.writeFile(path.join(userDataDir, '.vscode', 'argv.json'), '{}\n', 'utf8');
+    await ensureVsCodeArgvJson(userDataDir);
 
     await runTests({
       vscodeExecutablePath,
