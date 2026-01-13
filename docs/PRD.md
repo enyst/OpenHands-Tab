@@ -4,19 +4,23 @@
 A VS Code extension that provides a sidebar chat view to interact with OpenHands agents, supporting both local execution (in VS Code) and remote execution (via agent-server). The extension streams events in real time, supports action confirmation, and reflects file changes in the workspace.
 
 ## 2. Scope
-- In scope
-  - VS Code extension with a dedicated sidebar view (`WebviewView`) for chat and agent interaction
-  - Local mode: run agent directly in VS Code using the SDK
-  - Remote mode: connect to OpenHands agent-server via WebSocket/HTTP
-  - Real-time streaming of agent events (messages, tool runs, logs)
-  - Display live agent activity and workspace file changes
-  - Conversation management: start/restore/history
-  - Configuration UI for server URL, LLM settings, API keys
-  - Action confirmation with security risk indicators
-  - Skills system for extending agent capabilities
-- Out of scope (v1)
-  - Reproducing the full OpenHands web UI
-  - Server lifecycle management (installing/running Docker, etc.)
+
+### In scope
+- VS Code extension with a dedicated sidebar view (`WebviewView`) for chat and agent interaction
+- Local mode: run agent directly in VS Code using the SDK
+- Remote mode: connect to OpenHands agent-server via WebSocket/HTTP
+- Real-time streaming of agent events (messages, tool runs, logs)
+- Display live agent activity and workspace file changes
+- Conversation management: start/restore/history (local persistence)
+- Configuration via VS Code Settings + SecretStorage + LLM Profiles view
+- Action confirmation with security risk indicators (LOW/MEDIUM/HIGH)
+- Skills file picker (local `~/.openhands/skills`)
+- Terminal integration for local tool execution
+- HAL high-risk confirmation flow (optional)
+
+### Out of scope (v1)
+- Reproducing the full OpenHands web UI
+- Server lifecycle management (installing/running Docker, etc.)
 
 ## 3. Target
 - Developers who want to use OpenHands agents directly within VS Code
@@ -29,23 +33,24 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Local mode: full agent execution via SDK (Conversation API)
 - Remote mode: WebSocket connection to agent-server with auto-reconnect
 - Settings management via VS Code configuration + SecretStorage
-- LLM configuration (model, temperature, API keys, etc.)
+- LLM configuration via profiles (model, base URL, parameters, per-profile keys)
 - Action confirmation with Approve/Reject UI
 - Security risk indicators (LOW/MEDIUM/HIGH)
-- Conversation persistence to disk
-- Conversation history view (search + pagination)
-- Attach files UI (inline text attachments)
+- Conversation persistence to disk (local mode)
+- Conversation history view (local history scan)
+- Attachments UI (text attachments + inline image paste)
 - Workspace file context (@mentions)
-- Skills support (~/.openhands/skills/)
+- Skills browser (local `~/.openhands/skills`)
+- Tools picker (local mode only)
 - Terminal integration (local mode)
 - Status banner for status and errors
-- Event rendering for all event types
+- Event rendering for all event types (including condensation summaries)
 
 ### Not Yet Implemented
 - **Mid-conversation LLM switching (remote mode)** - must start a new conversation to change model; local mode applies settings updates live
 
 **Deferred (requires human approval)**
-- **MCP integration / MCP server selection** - UI placeholders exist but are intentionally deferred; not a priority; do not work on this without explicit approval from a human maintainer
+- **MCP integration / MCP server selection** - not implemented; requires explicit approval from a human maintainer
 
 ## 5. Architecture Overview
 
@@ -62,6 +67,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - **InputArea** - chat input with context picker
 - **HistoryView** - conversation history
 - **ConfirmationPrompt** - action approval UI
+- **LlmProfilesView** - profile management slide-over panel
 
 ### SDK (@openhands/agent-sdk-ts)
 - **Conversation Layer** - primary API (`Conversation()` factory)
@@ -80,7 +86,6 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 ## 6. External Dependencies & Protocol
 
 ### Agent-Server (Remote Mode)
-- Default URL: `http://localhost:3000`
 - WebSocket: `/sockets/events/{conversation_id}`
 - HTTP endpoints:
   - POST `/api/conversations` - create
@@ -88,7 +93,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
   - POST `/api/conversations/{id}/run` - resume
   - POST `/api/conversations/{id}/events/respond_to_confirmation` - approve/reject
   - GET `/api/conversations/{id}/events/` - list events
-- Auth: X-Session-API-Key header (HTTP), ?session_api_key query param (WebSocket)
+- Auth: X-Session-API-Key header (HTTP), `?session_api_key` query param (WebSocket)
 
 ### Message Format
 ```json
@@ -102,31 +107,49 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 
 ### Commands
 - **OpenHands: Open** - reveals/focuses the chat sidebar view
+- **OpenHands: Explain Selection** - opens the sidebar and starts a new conversation from the editor selection
 - **OpenHands: Start New Conversation** - starts fresh conversation
-- **OpenHands: Configure** - multi-step configuration wizard
-- **OpenHands: Set API Key** - quick LLM API key setup
-- **OpenHands: Set Session API Key** - set session API key for agent-server authentication
-- **OpenHands: Set GitHub Token** - set GitHub token for repository access
-- **OpenHands: Set Custom Secret 1/2/3** - set custom secrets for additional integrations
+- **OpenHands: Configure** - opens the VS Code Settings page for the extension
+- **OpenHands: Set API Key** - set global fallback LLM API key
+- **OpenHands: Set OpenAI API Key**
+- **OpenHands: Set Anthropic API Key**
+- **OpenHands: Set OpenRouter API Key**
+- **OpenHands: Set LiteLLM Proxy API Key**
+- **OpenHands: Set Gemini API Key**
+- **OpenHands: Set Session API Key** - set agent-server auth key
+- **OpenHands: Set GitHub Token**
+- **OpenHands: Set HAL TTS API Key**
+- **OpenHands: Set Custom Secret 1/2/3**
 - **OpenHands: Reconnect** - restart WebSocket (rarely needed)
 - **OpenHands: Pause Current Run** - pause agent
 - **OpenHands: Resume Current Run** - resume agent
 
 ### Settings (package.json)
 - `openhands.serverUrl` - agent-server URL (blank for local mode)
-- `openhands.servers` - saved server list [{ url, label? }] for quick selection
-- `openhands.terminal.renderProgress` - coalesce carriage-return progress in terminal output
+- `openhands.servers` - saved server list [{ url, label? }]
 - `openhands.llm.profileId` - selected LLM profile id from `~/.openhands/llm-profiles` (local alias; remote mode expands into `agent.llm` fields, no `profile_id` sent)
-- `openhands.confirmation.policy` - never/always/risky; `risky.threshold` default MEDIUM; `risky.confirmUnknown`
-- `openhands.conversation.maxIterations` - iteration limit
 
 For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup.md.
+- `openhands.agent.enableSecurityAnalyzer`
+- `openhands.agent.debug` (local debug events)
+- `openhands.agent.summarizeToolCalls` (local-only, Gemini)
+- `openhands.devBridge.enabled` (debug logging bridge)
+- `openhands.confirmation.policy` - never/always/risky
+- `openhands.confirmation.risky.threshold` default MEDIUM
+- `openhands.confirmation.risky.confirmUnknown`
+- `openhands.hal.*` (HAL high-risk confirmation settings)
+- `openhands.conversation.maxIterations`
+- `openhands.conversation.storeRoot` (local persistence path override)
+- `openhands.terminal.renderProgress`
+- `openhands.secrets.*` (status-only indicators, not actual secret storage)
+
+For detailed settings behavior, see `docs/settings_prd.md`.
 
 ### Connection & Conversation Lifecycle
 - Local mode: SDK runs agent in-process
 - Remote mode: WebSocket to agent-server
 - LLM Profiles (remote): agent-server schema is strict and rejects unknown fields (e.g. `llm.profile_id`), so the extension/SDK resolves `openhands.llm.profileId` locally and expands it into the existing `agent.llm` payload (model/baseUrl/etc).
-- Conversation ID stored in workspaceState
+- Conversation IDs stored in workspaceState (`openhands.conversationId.local` / `openhands.conversationId.remote`)
 - Auto-reconnect with exponential backoff
 
 ### Chat & Streaming
@@ -145,10 +168,11 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 ### Action Confirmation
 - When agent status = WAITING_FOR_CONFIRMATION, show pending actions
 - Approve/Reject buttons with optional reason
+- Optional HAL flow for high-risk confirmations
 
 ### Persistence
-- Conversation history in `~/.openhands/conversations-vscode/` (default ON; override with VS Code setting `openhands.conversation.storeRoot`)
-- Server/SDK JSON persisted as-is
+- Local history is stored under `~/.openhands/conversations-vscode/` by default (override with `openhands.conversation.storeRoot`).
+- Remote mode relies on the agent-server for persistence; the local history view only surfaces locally stored conversations.
 
 ## 8. Non-Functional Requirements
 - **Security**: Secrets in VS Code SecretStorage, no API keys in logs
@@ -164,12 +188,12 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 ### Chat View Layout
 - **Header**: connection status, server selector, settings button, history button
 - **Main**: message list with streaming events
-- **Bottom**: input area with context picker (@), skills button
+- **Bottom**: input area with context picker (@), skills button, tools button (local)
 
 ### Flows
-- First run: prompt to configure API key
+- First run: prompt to configure API key via commands or Settings
 - Send message: stream events, show tool execution
-- Confirmation: display pending action with Approve/Reject
+- Confirmation: display pending action with Approve/Reject (or HAL overlay)
 
 ## 10. Extension Structure
 
@@ -295,9 +319,9 @@ npm publish -w @openhands/agent-sdk-ts --access public
 - Minimal chat UI, basic status, reconnect handling
 
 ### Settings ✓ Complete
-- Server URL, LLM configuration, API key storage
-- Multi-step configuration wizard
+- Server URL, LLM profiles, API key storage
 - VS Code SecretStorage integration
+- LLM Profiles view for profile management
 
 ### Confirmation Mode ✓ Complete
 - WAITING_FOR_CONFIRMATION state, Approve/Reject flow
@@ -313,14 +337,14 @@ npm publish -w @openhands/agent-sdk-ts --access public
 ### Chat Toolbar ✓ Complete
 - New Conversation, Settings, Connection status
 - Context picker (@mentions)
-- Skills button
+- Skills and tools buttons
 
 ### Conversation History ✓ Complete
 - History view with conversation list
 - Title and prompt preview
 
 ### TODO: Future Enhancements
-- **Attach Files (images/binary)** - richer attachment support beyond text
+- **Attach Files (images/binary)** - richer attachment support beyond text + inline images
 - **MCP Integration** - DEFERRED until further notice; requires explicit human approval to work on
 - **Mid-Conversation Model Switch** - change LLM without new conversation
 - **Advanced History** - export + richer metadata (and server-backed history if needed)
