@@ -10,6 +10,13 @@ interface TooltipProps {
   className?: string;
 }
 
+const TOOLTIP_FALLBACK_ORDER: Record<TooltipPosition, TooltipPosition[]> = {
+  top: ['top', 'bottom', 'right', 'left'],
+  bottom: ['bottom', 'top', 'right', 'left'],
+  left: ['left', 'top', 'bottom', 'right'],
+  right: ['right', 'top', 'bottom', 'left'],
+};
+
 /**
  * Styled tooltip component matching OpenHands "Warm Technical Refinement" design.
  * Features glass morphism, warm amber accents, and smooth animations.
@@ -41,17 +48,14 @@ export function Tooltip({
     const trigger = triggerRef.current.getBoundingClientRect();
     const padding = 8;
 
-    let nextPosition = position;
+    const fits: Record<TooltipPosition, boolean> = {
+      top: trigger.top - tooltip.height - padding >= 0,
+      bottom: trigger.bottom + tooltip.height + padding <= window.innerHeight,
+      left: trigger.left - tooltip.width - padding >= 0,
+      right: trigger.right + tooltip.width + padding <= window.innerWidth,
+    };
 
-    if (position === 'top' && trigger.top - tooltip.height - padding < 0) {
-      nextPosition = 'bottom';
-    } else if (position === 'bottom' && trigger.bottom + tooltip.height + padding > window.innerHeight) {
-      nextPosition = 'top';
-    } else if (position === 'left' && trigger.left - tooltip.width - padding < 0) {
-      nextPosition = 'right';
-    } else if (position === 'right' && trigger.right + tooltip.width + padding > window.innerWidth) {
-      nextPosition = 'left';
-    }
+    const nextPosition = TOOLTIP_FALLBACK_ORDER[position].find((candidate) => fits[candidate]) ?? position;
 
     setActualPosition((prev) => (prev === nextPosition ? prev : nextPosition));
     setIsVisible(true);
