@@ -216,12 +216,16 @@ const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest)
   store: false,
   temperature: config.temperature ?? undefined,
   max_output_tokens: config.maxOutputTokens ?? undefined,
-  reasoning: config.reasoningEffort && config.reasoningEffort !== 'none'
-    ? {
-      effort: config.reasoningEffort,
-      ...(config.reasoningSummary ? { summary: config.reasoningSummary } : {}),
-    }
-    : undefined,
+  reasoning: (() => {
+    const effort = config.reasoningEffort && config.reasoningEffort !== 'none' ? config.reasoningEffort : undefined;
+    const summary = config.reasoningSummary ?? undefined;
+    if (config.reasoningEffort === 'none') return undefined;
+    if (!effort && !summary) return undefined;
+    return {
+      ...(effort ? { effort } : {}),
+      ...(summary ? { summary } : {}),
+    };
+  })(),
 });
 
 const parseResponsesOutput = (output: unknown): { text?: string; toolCalls: ToolCall[]; responsesReasoningItem?: ResponsesReasoningItem } => {

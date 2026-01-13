@@ -376,6 +376,29 @@ describe('OpenAIResponsesClient (non-stream)', () => {
     expect(body?.reasoning).toEqual({ effort: 'medium', summary: 'detailed' });
   });
 
+  it('includes reasoning summary in Responses request body when effort is unset', async () => {
+    const payload = {
+      output: [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Hello' }],
+        },
+      ],
+      usage: { input_tokens: 5, output_tokens: 2 },
+    };
+
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response(JSON.stringify(payload), { status: 200 }));
+    const client = new OpenAIResponsesClient({ ...baseConfig, reasoningSummary: 'detailed' }, 'test-key');
+    const streamer = new LLMStreamer(client);
+
+    await streamer.runChat(buildRequest());
+
+    const init = fetchMock.mock.calls[0]?.[1] as { body?: unknown } | undefined;
+    const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+    expect(body?.reasoning).toEqual({ summary: 'detailed' });
+  });
+
   it('ignores reasoningSummary when reasoningEffort is none', async () => {
     const payload = {
       output: [
