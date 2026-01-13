@@ -624,6 +624,13 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
               postMessage({ type: 'setLlmProfileId', profileId });
               break;
             }
+            case 'setEnabledTools': {
+              const toolIdsRaw = (rawPayload as { toolIds?: unknown } | undefined)?.toolIds;
+              if (!Array.isArray(toolIdsRaw)) break;
+              const toolIds = toolIdsRaw.filter((id): id is string => typeof id === 'string');
+              postMessage({ type: 'setEnabledTools', toolIds });
+              break;
+            }
             case 'openLlmProfilesView': {
               const mode = (rawPayload as { mode?: unknown } | undefined)?.mode;
               const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;

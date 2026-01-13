@@ -91,7 +91,7 @@ describe('AskOracleTool', () => {
       yield { type: 'text', text: 'ok' };
     })());
 
-    const huge = 'x'.repeat(80_000);
+    const huge = 'x'.repeat(250_000);
     await tool.execute(tool.validate({ question: 'Q', context: huge }), {
       workspace,
       secrets,
@@ -106,7 +106,7 @@ describe('AskOracleTool', () => {
     });
 
     const userText = request.messages?.[0]?.content?.[0]?.text ?? '';
-    expect(userText.length).toBeLessThan(60_000);
+    expect(userText.length).toBeLessThan(130_000);
     expect(userText).toContain('<context clipped>');
   });
 

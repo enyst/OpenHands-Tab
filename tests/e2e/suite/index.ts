@@ -69,6 +69,11 @@ export async function run(): Promise<void> {
     return runDefaultProfileSelectionTest();
   }
 
+  if (testName === 'oracleUnset') {
+    const { run: runOracleUnsetTest } = await import('./oracleUnset');
+    return runOracleUnsetTest();
+  }
+
   if (testName === 'terminalProgress') {
     const { run: runTerminalProgressTest } = await import('./terminalProgress');
     return runTerminalProgressTest();

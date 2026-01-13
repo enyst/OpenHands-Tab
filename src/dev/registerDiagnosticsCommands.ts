@@ -229,6 +229,48 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return payload;
   });
 
+  // Internal: return the last observation event from the buffered backlog (for E2E + debugging).
+  const queryLastObservation = vscode.commands.registerCommand('openhands._queryLastObservation', (raw?: unknown) => {
+    const toolNameFilter =
+      typeof (raw as { tool_name?: unknown } | undefined)?.tool_name === 'string'
+        ? ((raw as { tool_name: string }).tool_name).trim()
+        : '';
+
+    let last: { seq: number; event: Event } | undefined;
+    for (const item of deps.iterConversationEventBacklog()) {
+      if (item.event.kind !== 'ObservationEvent') continue;
+      if (toolNameFilter) {
+        const toolName = (item.event as unknown as { tool_name?: unknown }).tool_name;
+        if (toolName !== toolNameFilter) continue;
+      }
+      last = { seq: item.seq, event: item.event };
+    }
+
+    if (!last) return null;
+
+    const e = last.event as unknown as Record<string, unknown>;
+    const observation = e.observation;
+    const observationText = (() => {
+      if (typeof observation === 'string') return observation;
+      try {
+        return JSON.stringify(observation);
+      } catch {
+        return String(observation);
+      }
+    })();
+
+    const payload: Record<string, unknown> = {
+      seq: last.seq,
+      kind: e.kind,
+      source: e.source,
+      tool_name: e.tool_name,
+      tool_call_id: e.tool_call_id,
+      observationText: observationText.length > 4000 ? `${observationText.slice(0, 4000)}…(truncated)` : observationText,
+    };
+
+    return payload;
+  });
+
   // Internal: summarize the in-memory event backlog for deterministic E2E checks.
   const queryBacklogSummary = vscode.commands.registerCommand('openhands._queryBacklogSummary', () => {
     let lastEventKind: string | undefined;
@@ -544,6 +586,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     serversSet,
     serversReset,
     queryLastError,
+    queryLastObservation,
     queryBacklogSummary,
     sendTestEvent,
     queryRenderedEvents,
