@@ -205,7 +205,7 @@ src/
 │       └── ConversationManager.ts # Conversation state management
 ├── dev/                         # Development utilities
 ├── extension/                   # Extension utilities
-├── hal/                         # HAL 9000 high-risk confirmation flow
+├── hal/                         # HAL 9000 easter egg (high-risk confirmation flow)
 │   ├── elevenlabs/              # ElevenLabs TTS integration
 │   └── gemini/                  # Gemini audio understanding
 ├── settings/                    # Settings management
