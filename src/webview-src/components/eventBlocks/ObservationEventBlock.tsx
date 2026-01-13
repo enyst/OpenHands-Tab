@@ -14,7 +14,7 @@ import {
 import { Tooltip } from '../Tooltip';
 
 /**
- * Renders tool result - shows observation with summary and expandable raw data.
+ * Renders environment result - shows observation with summary and expandable raw data.
  */
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -33,7 +33,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
           >
             <span className="codicon codicon-eye text-sm" style={{ color: OBSERVATION_ACCENT_COLOR }} />
           </div>
-          <div className="font-semibold text-sm text-stone-200">Tool Result</div>
+          <div className="font-semibold text-sm text-stone-200">Environment Result</div>
           <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
           <div className="ml-auto flex items-center gap-1.5">
             <span className="codicon codicon-check text-green-700" />
@@ -80,7 +80,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const isTruncated = shouldShowRaw && observationString.length > 2000;
   const showHeaderToggle = hasSummary && event.tool_name !== 'terminal' && !isFileEditObservation;
   const showFooterToggle = !hasSummary && isTruncated;
-  const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
+  const headerToggleLabel = isExpanded ? 'Hide environment result' : 'Show environment result';
   const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
 
   return (
@@ -92,7 +92,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
         >
           <span className="codicon codicon-eye text-sm" style={{ color: OBSERVATION_ACCENT_COLOR }} />
         </div>
-        <div className="font-semibold text-sm text-stone-200">Tool Result</div>
+        <div className="font-semibold text-sm text-stone-200">Environment Result</div>
         <span className="font-mono text-xs text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded">{event.tool_name}</span>
         {showHeaderToggle && (
           <Tooltip content={headerToggleLabel} position="right">
