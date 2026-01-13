@@ -734,7 +734,7 @@ export function useHalFlow(deps: {
     deps.showStatusMessage('info', 'Switched to button decision for this conversation.');
   }, [cleanupHalVoiceConfirm, deps.showStatusMessage, getHalConversationKey, resetHalUiState]);
 
-  const handleHalExit = useCallback(() => {
+  const handleHalExit = useCallback((opts?: { sessionKey?: string | null }) => {
     if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
       deps.postMessage({ type: 'command', command: 'cancelTeleportAction' });
     }
@@ -742,7 +742,9 @@ export function useHalFlow(deps: {
     halTeleportInProgressRef.current = false;
     setHalTeleporting(false);
     setHalForceRejectInput(false);
-    const key = halActiveKeyRef.current;
+    const key = typeof opts?.sessionKey === 'string' && opts.sessionKey.length > 0
+      ? opts.sessionKey
+      : halActiveKeyRef.current;
     if (key) {
       setHalSuppressedKeySynced(key);
     }
