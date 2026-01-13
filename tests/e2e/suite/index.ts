@@ -79,6 +79,11 @@ export async function run(): Promise<void> {
     return runOracleConfiguredTest();
   }
 
+  if (testName === 'halNegative') {
+    const { run: runHalNegativeTest } = await import('./halNegative');
+    return runHalNegativeTest();
+  }
+
   if (testName === 'terminalProgress') {
     const { run: runTerminalProgressTest } = await import('./terminalProgress');
     return runTerminalProgressTest();
