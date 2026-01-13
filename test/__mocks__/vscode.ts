@@ -55,6 +55,12 @@ export const ConfigurationTarget = {
   WorkspaceFolder: 3,
 } as const;
 
+export const ExtensionMode = {
+  Production: 1,
+  Development: 2,
+  Test: 3,
+} as const;
+
 // Window mock
 const outputChannels: any[] = [];
 
