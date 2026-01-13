@@ -150,6 +150,20 @@ describe('SettingsManager', () => {
     expect(s.llm.model).toBe(defaults.llm.model);
   });
 
+
+  it('surfaces invalid oracle profile ids as warnings', async () => {
+    a.cfg.set('openhands.oracle.profileId', 'bad/id');
+    await mgr.get();
+    expect(mgr.drainServerNormalizationWarnings()).toContain('Invalid oracle LLM profile id: bad/id');
+  });
+
+  it('treats oracle profileId set to null as a warning (cannot be stored via VS Code settings UI)', async () => {
+    a.cfg.set('openhands.oracle.profileId', null);
+    await mgr.get();
+    expect(mgr.drainServerNormalizationWarnings()).toContain('Oracle profile id is null. Clear the setting or set a valid string.');
+  });
+
+
   it('normalizes saved servers', async () => {
     a.cfg.set('openhands.servers', [
       { url: ' http://localhost:3000 ', label: '   ' },

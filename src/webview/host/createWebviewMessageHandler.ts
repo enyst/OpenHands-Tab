@@ -406,6 +406,8 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         for (const warning of serverWarnings) {
           postStatusError(warning);
         }
+
+
         deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(initSettings));
 
         void host.postMessage({

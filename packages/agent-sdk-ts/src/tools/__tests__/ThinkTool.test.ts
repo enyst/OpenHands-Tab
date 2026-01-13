@@ -11,5 +11,11 @@ describe('ThinkTool', () => {
     const result = await tool.execute(args, { workspace: new LocalWorkspace(process.cwd()) });
     expect(result.message).toBe('Your thought has been logged.');
   });
+
+  it('rejects invalid thought edge cases', () => {
+    const tool = new ThinkTool();
+    expect(() => tool.validate({ thought: '' })).toThrow();
+    expect(() => tool.validate({ thought: 123 } as any)).toThrow();
+  });
 });
 
