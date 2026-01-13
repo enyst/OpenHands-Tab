@@ -74,6 +74,11 @@ export async function run(): Promise<void> {
     return runOracleUnsetTest();
   }
 
+  if (testName === 'oracleConfigured') {
+    const { run: runOracleConfiguredTest } = await import('./oracleConfigured');
+    return runOracleConfiguredTest();
+  }
+
   if (testName === 'terminalProgress') {
     const { run: runTerminalProgressTest } = await import('./terminalProgress');
     return runTerminalProgressTest();
