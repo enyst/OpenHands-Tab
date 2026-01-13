@@ -686,97 +686,99 @@ export function App() {
         onSwitchToLocal={handleSwitchToLocal}
       />
 
-      <ConversationPane
-        events={events}
-        streamingContent={streamingContent}
-        skills={skills}
-        endRef={endRef}
-      />
-
-      {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
-      {shouldShowHalOverlay && (
-        <HalOverlay
-          key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
-          userName={normalizeHalUserName(halSettings.userName)}
-          mode={halSettings.mode}
-          phase={halUiPhase}
-          eye={halEye}
-          line={halUiLine}
-          decision={halDecision}
-          lastError={halLastError}
-          isSubmitting={isSubmitting || halTeleporting}
-          startWithRejectInput={halForceRejectInput}
-          voiceConfirmFallbackToButtons={voiceConfirmFallbackToButtons}
-          onStartVoiceConfirm={handleStartVoiceConfirm}
-          onStopVoiceConfirm={handleStopVoiceConfirm}
-          onCancelVoiceConfirm={handleCancelVoiceConfirm}
-          onUseButtonsInstead={handleUseButtonsInstead}
-          onApprove={handleHalApprove}
-          onTeleport={handleHalTeleport}
-          onReject={handleHalReject}
-          onExit={handleHalExit}
+      <div className="relative flex flex-col flex-1 min-h-0">
+        <ConversationPane
+          events={events}
+          streamingContent={streamingContent}
+          skills={skills}
+          endRef={endRef}
         />
-      )}
 
-      {/* Confirmation prompt (modal overlay) */}
-      {hasPendingConfirmation && !shouldShowHalOverlay && (
-        <ConfirmationPrompt
-          pendingActions={pendingActions}
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onOpenPath={handleOpenPath}
-          isSubmitting={isSubmitting}
+        {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}
+        {shouldShowHalOverlay && (
+          <HalOverlay
+            key={`hal:${halSessionKey ?? 'none'}:${halForceRejectInput ? 'reject' : 'normal'}`}
+            userName={normalizeHalUserName(halSettings.userName)}
+            mode={halSettings.mode}
+            phase={halUiPhase}
+            eye={halEye}
+            line={halUiLine}
+            decision={halDecision}
+            lastError={halLastError}
+            isSubmitting={isSubmitting || halTeleporting}
+            startWithRejectInput={halForceRejectInput}
+            voiceConfirmFallbackToButtons={voiceConfirmFallbackToButtons}
+            onStartVoiceConfirm={handleStartVoiceConfirm}
+            onStopVoiceConfirm={handleStopVoiceConfirm}
+            onCancelVoiceConfirm={handleCancelVoiceConfirm}
+            onUseButtonsInstead={handleUseButtonsInstead}
+            onApprove={handleHalApprove}
+            onTeleport={handleHalTeleport}
+            onReject={handleHalReject}
+            onExit={() => handleHalExit({ sessionKey: halSessionKey })}
+          />
+        )}
+
+        {/* Confirmation prompt (modal overlay) */}
+        {hasPendingConfirmation && !shouldShowHalOverlay && (
+          <ConfirmationPrompt
+            pendingActions={pendingActions}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onOpenPath={handleOpenPath}
+            isSubmitting={isSubmitting}
+          />
+        )}
+
+        {/* Input area */}
+        <ConversationInputDock
+          inputAreaProps={{
+            value: input,
+            onChange: handleInputChange,
+            onSubmit: handleSendMessage,
+            disabled: status === 'offline',
+            llmProfileId,
+            llmProfiles,
+            onSelectLlmProfileId: handleSelectLlmProfileId,
+            onOpenLlmProfilesCreate: handleOpenLlmProfilesCreate,
+            onOpenLlmProfilesEdit: handleOpenLlmProfilesEdit,
+            onOpenContext: handleOpenContext,
+            contextCount: selectedContextFiles.length,
+            showContextPicker,
+            contextPickerFiles: workspaceFiles,
+            contextPickerSelectedFiles: selectedContextFiles,
+            onToggleContextFile: handleToggleContextFile,
+            contextQuery,
+            onContextQueryChange: setContextQuery,
+            onCloseContextPicker: handleCloseContextPicker,
+            onOpenSkills: handleOpenSkills,
+            skillsCount: skills.length,
+            showSkillsPopover,
+            skillsPopoverSkills: skills,
+            onOpenSkill: handleOpenSkill,
+            onCloseSkillsPopover: () => setShowSkillsPopover(false),
+            onOpenTools: mode === 'local' ? handleOpenTools : undefined,
+            toolsCount: enabledToolIds.length,
+            showToolsPopover,
+            toolsPopoverTools: tools,
+            enabledToolIds,
+            onToggleTool: handleToggleTool,
+            onCloseToolsPopover: () => setShowToolsPopover(false),
+            onOpenAttachments: handleOpenAttachments,
+            attachments,
+            onOpenAttachment: handleOpenAttachment,
+            onRemoveAttachment: handleRemoveAttachment,
+            inlineImages,
+            onPasteImageFiles: (files) => { void handlePasteImageFiles(files); },
+            onRemoveInlineImage: handleRemoveInlineImage,
+            onSelectionChange: handleSelectionChange,
+          }}
+          statusBanner={statusBanner}
+          onDismissStatusBanner={() => setStatusBanner(null)}
+          agentStatus={agentStatus}
+          onStopAgent={handleStopAgent}
         />
-      )}
-
-      {/* Input area */}
-      <ConversationInputDock
-        inputAreaProps={{
-          value: input,
-          onChange: handleInputChange,
-          onSubmit: handleSendMessage,
-          disabled: status === 'offline',
-          llmProfileId,
-          llmProfiles,
-          onSelectLlmProfileId: handleSelectLlmProfileId,
-          onOpenLlmProfilesCreate: handleOpenLlmProfilesCreate,
-          onOpenLlmProfilesEdit: handleOpenLlmProfilesEdit,
-          onOpenContext: handleOpenContext,
-          contextCount: selectedContextFiles.length,
-          showContextPicker,
-          contextPickerFiles: workspaceFiles,
-          contextPickerSelectedFiles: selectedContextFiles,
-          onToggleContextFile: handleToggleContextFile,
-          contextQuery,
-          onContextQueryChange: setContextQuery,
-          onCloseContextPicker: handleCloseContextPicker,
-          onOpenSkills: handleOpenSkills,
-          skillsCount: skills.length,
-          showSkillsPopover,
-          skillsPopoverSkills: skills,
-          onOpenSkill: handleOpenSkill,
-          onCloseSkillsPopover: () => setShowSkillsPopover(false),
-          onOpenTools: mode === 'local' ? handleOpenTools : undefined,
-          toolsCount: enabledToolIds.length,
-          showToolsPopover,
-          toolsPopoverTools: tools,
-          enabledToolIds,
-          onToggleTool: handleToggleTool,
-          onCloseToolsPopover: () => setShowToolsPopover(false),
-          onOpenAttachments: handleOpenAttachments,
-          attachments,
-          onOpenAttachment: handleOpenAttachment,
-          onRemoveAttachment: handleRemoveAttachment,
-          inlineImages,
-          onPasteImageFiles: (files) => { void handlePasteImageFiles(files); },
-          onRemoveInlineImage: handleRemoveInlineImage,
-          onSelectionChange: handleSelectionChange,
-        }}
-        statusBanner={statusBanner}
-        onDismissStatusBanner={() => setStatusBanner(null)}
-        agentStatus={agentStatus}
-        onStopAgent={handleStopAgent}
-      />
+      </div>
 
       {/* LLM Profiles view (slide-over panel) */}
       <LlmProfilesView

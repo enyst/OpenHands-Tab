@@ -94,7 +94,7 @@ export function HalOverlay({
   const exitDisabled = isSubmitting && phase === 'error';
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
+    <div className="absolute inset-0 z-50 pointer-events-none">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-xs" aria-hidden="true" />
 
       <div className="absolute left-1/2 -translate-x-1/2 bottom-[124px] flex flex-col items-center gap-4 pointer-events-auto">
