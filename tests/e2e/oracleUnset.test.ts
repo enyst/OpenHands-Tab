@@ -1,9 +1,8 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
-import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
-import { downloadVSCodeWithRetry } from './testHelpers';
+import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
 const userDataDir = path.join(os.tmpdir(), `oh-tab-oracle-unset-${Date.now().toString(36)}`);
 
@@ -16,8 +15,7 @@ describe('OpenHands-Tab ask_oracle unset profileId E2E', function () {
     const extensionTestsPath = path.resolve(__dirname, './suite');
 
     // Isolate ~/.openhands + VS Code argv settings for this suite.
-    await fs.mkdir(path.join(userDataDir, '.vscode'), { recursive: true });
-    await fs.writeFile(path.join(userDataDir, '.vscode', 'argv.json'), '{}\n', 'utf8');
+    await ensureVsCodeArgvJson(userDataDir);
 
     await runTests({
       vscodeExecutablePath,
@@ -44,4 +42,3 @@ describe('OpenHands-Tab ask_oracle unset profileId E2E', function () {
     assert.ok(true);
   });
 });
-
