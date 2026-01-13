@@ -41,6 +41,7 @@ export async function downloadVSCodeWithRetry(
 }
 
 export async function ensureVsCodeArgvJson(userDataDir: string): Promise<void> {
-  await fs.mkdir(path.join(userDataDir, '.vscode'), { recursive: true });
-  await fs.writeFile(path.join(userDataDir, '.vscode', 'argv.json'), '{}\n', 'utf8');
+  const vscodeDir = path.join(userDataDir, '.vscode');
+  await fs.mkdir(vscodeDir, { recursive: true });
+  await fs.writeFile(path.join(vscodeDir, 'argv.json'), '{}\n', 'utf8');
 }
