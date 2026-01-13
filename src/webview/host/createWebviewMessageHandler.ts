@@ -71,6 +71,54 @@ const ensureRequiredLocalToolIds = (toolIds: LocalToolId[]): LocalToolId[] => {
   return [...toolIds, 'finish'];
 };
 
+type RemoteToolListDeps = {
+  serverUrl: string;
+  sessionApiKey?: string;
+};
+
+const getRemoteToolListDeps = (conversation: unknown): RemoteToolListDeps | null => {
+  if (!conversation || typeof conversation !== 'object') return null;
+  const candidate = conversation as { [k: string]: unknown };
+  const serverUrl = candidate.serverUrl;
+  if (typeof serverUrl !== 'string' || serverUrl.trim().length === 0) return null;
+
+  const rawSessionKey =
+    (candidate.settings as { secrets?: { sessionApiKey?: unknown } } | undefined)?.secrets?.sessionApiKey;
+  const sessionApiKey = typeof rawSessionKey === 'string' && rawSessionKey.trim().length > 0 ? rawSessionKey : undefined;
+  return { serverUrl: serverUrl.trim(), sessionApiKey };
+};
+
+async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[] | null> {
+  const normalized = normalizeServerUrl(params.serverUrl);
+  if (!normalized.ok) return null;
+  const url = `${normalized.url}/api/tools/`;
+  const headers: Record<string, string> = {};
+  if (params.sessionApiKey) {
+    headers['X-Session-API-Key'] = params.sessionApiKey;
+  }
+
+  const fetchFn = globalThis.fetch;
+  if (typeof fetchFn !== 'function') return null;
+
+  try {
+    const res = await fetchFn(url, { method: 'GET', headers });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    if (!Array.isArray(payload)) return null;
+
+    const out: string[] = [];
+    for (const tool of payload) {
+      if (typeof tool !== 'string') continue;
+      const trimmed = tool.trim();
+      if (!trimmed) continue;
+      out.push(trimmed);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 export type CreateWebviewMessageHandlerDeps = {
   context: vscode.ExtensionContext;
   host: WebviewHost;
@@ -142,10 +190,14 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const elevenlabsCacheMaxBytes = 50 * 1024 * 1024;
   let elevenlabsTtsGate: TtsConversationGate | null = null;
 
-  const postToolsList = (): void => {
+  const postToolsList = async (): Promise<void> => {
     const mode = deps.getConversationMode();
     if (mode !== 'local') {
-      void host.postMessage({ type: 'toolsList', tools: [], enabledToolIds: [] });
+      const conversation = deps.getConversation();
+      const remoteDeps = getRemoteToolListDeps(conversation);
+      const toolNames = remoteDeps ? await fetchRemoteToolNames(remoteDeps) : null;
+      const tools = (toolNames ?? []).map((name) => ({ id: name, label: name }));
+      void host.postMessage({ type: 'toolsList', tools, enabledToolIds: toolNames ?? [] });
       return;
     }
 
@@ -302,7 +354,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           activeProfileId: initSettings.llm.profileId ?? null,
         });
 
-        postToolsList();
+        await postToolsList();
 
         void host.postMessage({
           type: 'serverListUpdated',
@@ -339,7 +391,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         break;
       }
       case 'requestTools': {
-        postToolsList();
+        await postToolsList();
         break;
       }
       case 'setEnabledTools': {
@@ -367,7 +419,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           void host.postMessage({ type: 'statusMessage', level: 'info', message: reason, autoDismiss: true, autoDismissDelay: 4000 });
         }
 
-        postToolsList();
+        await postToolsList();
         break;
       }
       case 'openSkill': {
@@ -1189,7 +1241,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
                 const reason = err instanceof Error ? err.message : String(err);
                 outputChannel?.appendLine(`[tools] Failed to reset tools: ${reason}`);
               }
-              postToolsList();
+              await postToolsList();
             }
             break;
           }
