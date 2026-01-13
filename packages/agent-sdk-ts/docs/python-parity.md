@@ -628,6 +628,13 @@ In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (se
 
 **Built-in tools parity note:** Python includes built-in `finish` and `think` tools by default. TypeScript now includes both as built-ins in `src/sdk/runtime/Agent.ts` (unless `includeDefaultTools === false`), matching the Python tool surface for “log a thought without side effects” workflows.
 
+#### ThinkTool details
+
+- **Tool name:** Python `think`; TypeScript `think`.
+- **Input schema:** Python `{ thought: string }`; TypeScript `{ thought: string }` (required).
+- **Behavior:** no side effects; returns a simple confirmation message which is emitted as a tool message and included in subsequent LLM requests.
+- **Description text:** Python’s built-in tool description is long and includes usage examples. TypeScript intentionally keeps this description short to avoid inflating every tool-list/system-prompt payload; the guidance is deliberately equivalent (“log a thought without side effects”).
+
 ### Gaps and intended direction
 
 - The TS runtime currently has **ActionEvent/ObservationEvent types but no first-class Action/Observation classes**. The Python stack uses Pydantic models for validation, kind resolution, and serialization; TS simply forwards validated args/results as plain JSON.
