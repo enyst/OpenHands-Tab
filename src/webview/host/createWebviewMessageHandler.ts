@@ -18,7 +18,7 @@ import { normalizeServerUrl } from '../../shared/serverUrls';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 import { formatEnvironmentInformation } from '../../shared/environmentInformation';
-import { getConversationHistoryList } from './conversationHistory';
+import { getConversationHistoryList, persistConversationTitle } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
 import { resolveGitHeadDiffContents } from './gitHeadDiff';
 import * as llmProfilesStore from './llmProfilesStore';
@@ -26,6 +26,7 @@ import { listSkillFiles } from './skills';
 import { listWorkspaceFiles } from './workspaceFiles';
 import { resolveWorkspaceFilePath } from './workspacePaths';
 import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds, resolveLocalTools, type LocalToolId } from '../../shared/localTools';
+import { summarizeWithLocalLlm } from '../../extension/summarizeWithLocalLlm';
 
 export type WebviewHost = {
   postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
@@ -56,6 +57,24 @@ function execFileText(command: string, args: string[], cwd?: string): Promise<st
       resolve(typeof stdout === 'string' ? stdout : String(stdout));
     });
   });
+}
+
+function normalizeGeneratedConversationTitle(raw: string): string | undefined {
+  const firstLine = raw
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  if (!firstLine) return undefined;
+
+  const unquoted = firstLine.replace(/^["'`]+/, '').replace(/["'`]+$/, '').trim();
+  if (!unquoted) return undefined;
+
+  const strippedPrefix = unquoted.replace(/^title\\s*:\\s*/i, '').trim();
+  if (!strippedPrefix) return undefined;
+
+  const words = strippedPrefix.split(/\\s+/).filter(Boolean);
+  if (words.length === 0) return undefined;
+  return words.slice(0, 7).join(' ');
 }
 
 async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
@@ -195,6 +214,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
   const elevenlabsCacheMaxBytes = 50 * 1024 * 1024;
   let elevenlabsTtsGate: TtsConversationGate | null = null;
+  const historyTitleGenerationInFlight = new Set<string>();
 
   const postToolsList = async (): Promise<void> => {
     const mode = deps.getConversationMode();
@@ -329,6 +349,47 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
         const convRoot = deps.getConversationStoreRoot() ?? (await deps.resolveConversationStoreRoot());
         const conversations = await getConversationHistoryList(convRoot, outputChannel);
         void host.postMessage({ type: 'historyList', conversations });
+
+        // Best-effort: generate short titles for items that don't have one persisted yet.
+        // Non-blocking: HistoryView should render immediately and then update as titles become available.
+        void (async () => {
+          const secrets = deps.secretRegistry;
+          if (!secrets) return;
+
+          const missing = conversations
+            .filter((c) => !c.title && typeof c.firstMessage === 'string' && c.firstMessage.trim().length > 0)
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 30);
+          if (missing.length === 0) return;
+
+          const settings = await settingsMgr.get();
+
+          for (const convo of missing) {
+            if (historyTitleGenerationInFlight.has(convo.id)) continue;
+            historyTitleGenerationInFlight.add(convo.id);
+            try {
+              const prompt =
+                `Generate a short conversation title (max 7 words).\\n` +
+                `Return ONLY the title text (no quotes, no punctuation at the end).\\n\\n` +
+                `First user message:\\n${convo.firstMessage}`;
+
+              const raw = await summarizeWithLocalLlm(settings, prompt, secrets);
+              const title = normalizeGeneratedConversationTitle(raw);
+              if (!title) continue;
+
+              await persistConversationTitle(convRoot, convo.id, title, outputChannel);
+              convo.title = title;
+              void host.postMessage({ type: 'historyList', conversations });
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : String(err);
+              outputChannel?.appendLine(`[history] Failed to generate title for ${convo.id}: ${reason}`);
+              // If this fails once (missing key/profile/etc.), avoid spamming more calls this round.
+              break;
+            } finally {
+              historyTitleGenerationInFlight.delete(convo.id);
+            }
+          }
+        })();
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
         outputChannel?.appendLine(`[history] ${reason}`);
