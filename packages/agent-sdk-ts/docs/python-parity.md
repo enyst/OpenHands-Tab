@@ -637,7 +637,7 @@ If any future optimization is desired (e.g., shorter descriptions to reduce prom
 - **Tool name:** Python `think`; TypeScript `think`.
 - **Input schema:** Python `{ thought: string }`; TypeScript `{ thought: string }` (required).
 - **Behavior:** no side effects; returns a simple confirmation message which is emitted as a tool message and included in subsequent LLM requests.
-- **Description text:** Python’s built-in tool description is long and includes usage examples. TypeScript intentionally keeps this description short to avoid inflating every tool-list/system-prompt payload; the guidance is deliberately equivalent (“log a thought without side effects”).
+- **Description text:** TypeScript matches Python’s built-in tool description verbatim (including usage examples) for parity, per HUMAN OVERSEER guidance. This is longer but ensures identical tool guidance across SDKs.
 
 ### Gaps and intended direction
 
