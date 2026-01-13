@@ -40,7 +40,7 @@ export async function run(): Promise<void> {
   await cfg.update('openhands.hal.mode', 'bundled', vscode.ConfigurationTarget.Global);
 
   await pollUntil(async () => {
-    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    const hal: HalStateSnapshot = await vscode.commands.executeCommand('openhands._queryHalState');
     return hal?.enabled === true && hal?.mode === 'bundled' && hal?.phase === 'idle';
   }, 15000);
 
