@@ -46,6 +46,44 @@ function sanitizeHeaders(headers: http.IncomingHttpHeaders): Record<string, stri
   return sanitized;
 }
 
+function sendOpenAiToolCallsSse(
+  res: http.ServerResponse,
+  toolCalls: Array<{ id: string; name: string; args: string }>,
+): void {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+
+  res.write(
+    `data: ${JSON.stringify({
+      choices: [
+        {
+          delta: {
+            tool_calls: toolCalls.map((call, index) => ({
+              index,
+              id: call.id,
+              type: 'function',
+              function: { name: call.name, arguments: call.args },
+            })),
+          },
+        },
+      ],
+    })}\n`,
+  );
+
+  res.write(
+    `data: ${JSON.stringify({
+      choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } },
+    })}\n`,
+  );
+
+  res.write('data: [DONE]\n');
+  res.end();
+}
+
 function sendOpenAiChatCompletionsSse(res: http.ServerResponse, text: string): void {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -107,6 +145,106 @@ function sendGeminiStreamGenerateContentSse(res: http.ServerResponse, text: stri
   );
   res.write('data: [DONE]\n');
   res.end();
+}
+
+export async function startMockOpenAiToolCallsServer(options: {
+  toolCalls: Array<{ id: string; name: string; args: unknown }>;
+}): Promise<MockLlmServer> {
+  const requests: MockLlmRequest[] = [];
+  let port = 0;
+
+  const toolCalls = options.toolCalls.map((call) => ({
+    id: call.id,
+    name: call.name,
+    args: typeof call.args === 'string' ? call.args : JSON.stringify(call.args),
+  }));
+
+  const server = http.createServer((req, res) => {
+    void (async () => {
+      const method = req.method ?? 'GET';
+      const rawUrl = req.url ?? '/';
+      const url = new URL(rawUrl, `http://${req.headers.host ?? `127.0.0.1:${port}`}`);
+      const path = url.pathname;
+
+      if (path === '/__log' && method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ requests }));
+        return;
+      }
+
+      if (path === '/__reset' && method === 'POST') {
+        requests.splice(0, requests.length);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      const bodyChunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => bodyChunks.push(chunk));
+      await new Promise<void>((resolve) => req.on('end', resolve));
+      const bodyText = Buffer.concat(bodyChunks).toString('utf8');
+      let json: unknown;
+      try {
+        json = bodyText ? (JSON.parse(bodyText) as unknown) : undefined;
+      } catch {
+        json = undefined;
+      }
+
+      requests.push({
+        method,
+        path,
+        headers: sanitizeHeaders(req.headers),
+        bodyText: bodyText.length > 20_000 ? `${bodyText.slice(0, 20_000)}…(truncated)` : bodyText,
+        ...(json !== undefined ? { json } : {}),
+      });
+
+      if (method !== 'POST') {
+        res.writeHead(405, { 'Content-Type': 'text/plain' });
+        res.end('Method not allowed');
+        return;
+      }
+
+      const prefix = PATH_PREFIXES.find((p) => path.startsWith(p + '/'));
+      const normalizedPath = prefix ? path.slice(prefix.length) : path;
+
+      if (normalizedPath === '/chat/completions') {
+        sendOpenAiToolCallsSse(res, toolCalls);
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end(`Not found: ${path}`);
+    })().catch((err) => {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end(`Mock server error: ${err instanceof Error ? err.message : String(err)}`);
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address();
+      if (!addr || typeof addr === 'string') {
+        reject(new Error('Failed to bind mock server to a port'));
+        return;
+      }
+      port = (addr as AddressInfo).port;
+      resolve();
+    });
+    server.once('error', reject);
+  });
+
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    requests,
+    reset: () => {
+      requests.splice(0, requests.length);
+    },
+    close: async () => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      });
+    },
+  };
 }
 
 export async function startMockLlmServer(): Promise<MockLlmServer> {
