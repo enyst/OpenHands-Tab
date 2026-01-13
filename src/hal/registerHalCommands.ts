@@ -89,6 +89,8 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     return chatView.webview.postMessage(message);
   };
 
+  const TELEPORT_AUTO_REJECT_REASON = 'rejected because the user sent the conversation to the remote runtime';
+
   const isAbortError = (err: unknown): boolean => {
     if (err instanceof DOMException && err.name === 'AbortError') return true;
     if (err instanceof Error) {
@@ -135,6 +137,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
     let targetServerUrl: string | undefined;
     let targetServerLabel: string | undefined;
     let connectionEstablished = false;
+    const localConversation = deps.getConversation();
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
 
     try {
@@ -196,7 +199,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       // STEP 2: Now that connection is established, reject the local action
       // This is safe because we know the remote server is available
       try {
-        await deps.getConversation()?.rejectAction('Teleported to remote runtime');
+        await localConversation?.rejectAction(TELEPORT_AUTO_REJECT_REASON);
       } catch (err) {
         deps.getOutputChannel()?.appendLine(`[hal.teleport] Failed to reject local confirmation: ${deps.renderError(err)}`);
       }
