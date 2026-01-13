@@ -407,7 +407,6 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           postStatusError(warning);
         }
 
-
         deps.setLastKnownLlmLabel(resolveConfiguredLlmLabel(initSettings));
 
         void host.postMessage({
