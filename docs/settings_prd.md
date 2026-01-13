@@ -46,6 +46,12 @@ Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extens
     2) A profile suggested by provider-specific API keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
     3) The fallback profile ID `sonnet-45`.
 
+### Oracle profile (ask_oracle)
+- `openhands.oracle.profileId` (string, machine scope)
+  - Selects the LLM profile used by the `ask_oracle` tool.
+  - Must refer to `~/.openhands/llm-profiles/<profileId>.json`.
+  - If unset/invalid, `ask_oracle` returns an instructive error prompting the user to configure this setting.
+
 ### Profile expansion (remote compatibility)
 - The agent-server schema is strict; it does **not** accept `profile_id` fields.
 - The extension loads the profile locally and expands it into `agent.llm` fields before sending remote requests.

@@ -128,6 +128,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - `openhands.serverUrl` - agent-server URL (blank for local mode)
 - `openhands.servers` - saved server list [{ url, label? }]
 - `openhands.llm.profileId` - selected LLM profile id from `~/.openhands/llm-profiles` (local alias; remote mode expands into `agent.llm` fields, no `profile_id` sent)
+- `openhands.oracle.profileId` - selected oracle LLM profile id used by the `ask_oracle` tool (local mode only)
 
 For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup.md.
 - `openhands.agent.enableSecurityAnalyzer`
