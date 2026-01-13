@@ -10,6 +10,13 @@ interface TooltipProps {
   className?: string;
 }
 
+const TOOLTIP_FALLBACK_ORDER: Record<TooltipPosition, TooltipPosition[]> = {
+  top: ['top', 'bottom', 'right', 'left'],
+  bottom: ['bottom', 'top', 'right', 'left'],
+  left: ['left', 'top', 'bottom', 'right'],
+  right: ['right', 'top', 'bottom', 'left'],
+};
+
 /**
  * Styled tooltip component matching OpenHands "Warm Technical Refinement" design.
  * Features glass morphism, warm amber accents, and smooth animations.
@@ -48,14 +55,7 @@ export function Tooltip({
       right: trigger.right + tooltip.width + padding <= window.innerWidth,
     };
 
-    const fallbackOrder: Record<TooltipPosition, TooltipPosition[]> = {
-      top: ['top', 'bottom', 'right', 'left'],
-      bottom: ['bottom', 'top', 'right', 'left'],
-      left: ['left', 'top', 'bottom', 'right'],
-      right: ['right', 'top', 'bottom', 'left'],
-    };
-
-    const nextPosition = fallbackOrder[position].find((candidate) => fits[candidate]) ?? position;
+    const nextPosition = TOOLTIP_FALLBACK_ORDER[position].find((candidate) => fits[candidate]) ?? position;
 
     setActualPosition((prev) => (prev === nextPosition ? prev : nextPosition));
     setIsVisible(true);
