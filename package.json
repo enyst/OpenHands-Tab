@@ -517,8 +517,6 @@
     "dev:vscode": "bash scripts/dev-vscode.sh",
     "prepare": "husky"
   },
-  // Use .vscodeignore to control VSIX contents
-
   "bundledDependencies": [
     "ws"
   ],
