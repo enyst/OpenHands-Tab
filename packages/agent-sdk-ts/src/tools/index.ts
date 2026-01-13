@@ -11,6 +11,7 @@ export * from './GlobTool';
 export * from './GrepTool';
 export * from './PlanningFileEditorTool';
 export * from './ApplyPatchTool';
+export * from './AskOracleTool';
 export * from './zod-tool';
 export * from './types';
 export * from './validation';

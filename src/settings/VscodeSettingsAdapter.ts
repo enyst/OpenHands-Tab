@@ -9,7 +9,10 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
   }
 
   private isGlobalOnlyKey(key: string): boolean {
-    return key === 'openhands.serverUrl' || key === 'openhands.servers' || key === 'openhands.llm.profileId';
+    return key === 'openhands.serverUrl'
+      || key === 'openhands.servers'
+      || key === 'openhands.llm.profileId'
+      || key === 'openhands.oracle.profileId';
   }
 
   private getWorkspaceConfiguration(): vscode.WorkspaceConfiguration {

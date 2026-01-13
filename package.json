@@ -170,6 +170,20 @@
       },
       {
         "type": "object",
+        "title": "OpenHands: Oracle",
+        "order": 1.5,
+        "properties": {
+          "openhands.oracle.profileId": {
+            "type": "string",
+            "default": "",
+            "scope": "machine",
+            "order": 0,
+            "markdownDescription": "LLM profile identifier (filename stem) used by the `ask_oracle` tool.\n\nWhen unset, `ask_oracle` returns an instructive error and suggests configuring this setting."
+          }
+        }
+      },
+      {
+        "type": "object",
         "title": "OpenHands: Agent",
         "order": 2,
         "properties": {

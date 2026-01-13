@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '@openhands/agent-sdk-ts';
 import {
+  AskOracleTool,
   BrowserTool,
   FileEditorTool,
   FinishTool,
@@ -16,6 +17,7 @@ export type LocalToolId =
   | 'glob'
   | 'grep'
   | 'browser'
+  | 'ask_oracle'
   | 'finish';
 
 export type LocalToolDescriptor = {
@@ -60,6 +62,12 @@ const LOCAL_TOOLS: LocalToolDescriptor[] = [
     id: 'browser',
     label: 'Web Fetch',
     description: 'Make HTTP GET/POST requests to fetch web content',
+    isDefault: false,
+  },
+  {
+    id: 'ask_oracle',
+    label: 'Ask Oracle',
+    description: 'Ask a dedicated oracle LLM for a second opinion (requires openhands.oracle.profileId)',
     isDefault: false,
   },
   {
@@ -114,6 +122,7 @@ function getOrCreateLocalToolInstances(): LocalToolInstances {
     glob: new GlobTool(),
     grep: new GrepTool(),
     browser: new BrowserTool(),
+    ask_oracle: new AskOracleTool(),
     finish: new FinishTool(),
   };
   return instances;
