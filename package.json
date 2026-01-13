@@ -3,7 +3,7 @@
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
   "icon": "media/icons/openhands-icon.png",
-  "version": "0.0.4",
+  "version": "0.5.0",
   "description": "A VS Code extension to interact with OpenHands agents in a dedicated sidebar chat view",
   "license": "MIT",
   "workspaces": [
@@ -35,7 +35,6 @@
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setHalTtsApiKey",
-
     "onCommand:openhands.setCustomSecret1",
     "onCommand:openhands.setCustomSecret2",
     "onCommand:openhands.setCustomSecret3",
@@ -98,7 +97,6 @@
         "command": "openhands.setHalTtsApiKey",
         "title": "OpenHands: Set HAL TTS API Key"
       },
-
       {
         "command": "openhands.setCustomSecret1",
         "title": "OpenHands: Set Custom Secret 1"
