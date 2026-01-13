@@ -80,3 +80,4 @@ export function formatEnvironmentInformation(params: {
     '</environment information>',
   ].join('\n');
 }
+

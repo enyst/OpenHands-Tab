@@ -17,7 +17,7 @@ import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
 import { normalizeServerUrl } from '../../shared/serverUrls';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
-import { formatEnvironmentInformation } from '../../extension/environmentInformation';
+import { formatEnvironmentInformation } from '../../shared/environmentInformation';
 import { getConversationHistoryList } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
 import { resolveGitHeadDiffContents } from './gitHeadDiff';

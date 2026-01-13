@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
-import { formatEnvironmentInformation } from './environmentInformation';
+import { formatEnvironmentInformation } from '../shared/environmentInformation';
 
 export function registerExplainSelectionCommand(options: {
   getConversation: () => ConversationInstance | undefined;

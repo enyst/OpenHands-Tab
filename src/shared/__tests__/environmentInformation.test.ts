@@ -36,4 +36,3 @@ describe('formatEnvironmentInformation', () => {
     expect(text).toContain('- none');
   });
 });
-
