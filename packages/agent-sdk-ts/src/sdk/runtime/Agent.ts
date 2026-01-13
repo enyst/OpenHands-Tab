@@ -1268,7 +1268,7 @@ export class Agent extends EventEmitter {
         }
       }
 
-      const context = { workspace: this.workspace, events: this.events, secrets: this.secrets };
+      const context = { workspace: this.workspace, events: this.events, secrets: this.secrets, settings: this.options.settings };
       const result = await tool.execute(validated, context);
       // Attach specialized summaries first (file diff, terminal), then general tool call summary as fallback
       let enrichedResult = await this.toolSummarizer.maybeAttachFileDiffSummary(toolCall, result);

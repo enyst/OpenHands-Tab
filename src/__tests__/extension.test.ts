@@ -128,6 +128,7 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     GlobTool: vi.fn(() => new StubTool('glob')),
     GrepTool: vi.fn(() => new StubTool('grep')),
     BrowserTool: vi.fn(() => new StubTool('browser')),
+    AskOracleTool: vi.fn(() => new StubTool('ask_oracle')),
     FinishTool: vi.fn(() => new StubTool('finish')),
   };
 });

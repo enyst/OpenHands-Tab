@@ -24,6 +24,7 @@ export type HalSettings = {
 
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
+  oracle?: { profileId?: string };
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
@@ -46,6 +47,7 @@ const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
   servers: [],
   llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
+  oracle: { profileId: '' },
   agent: { enableSecurityAnalyzer: true, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
@@ -297,6 +299,15 @@ export class SettingsManager {
       inputCostPerToken: profileConfig?.inputCostPerToken ?? undefined,
       outputCostPerToken: profileConfig?.outputCostPerToken ?? undefined,
     };
+
+    const oracleProfileIdRaw = normalizeNonEmptyString(
+      this.adapter.get<string | null>('openhands.oracle.profileId', DEFAULTS.oracle?.profileId ?? '') ?? DEFAULTS.oracle?.profileId ?? ''
+    );
+    const oracleProfileId = oracleProfileIdRaw && isSafeProfileId(oracleProfileIdRaw) ? oracleProfileIdRaw : undefined;
+    if (oracleProfileIdRaw && !oracleProfileId) {
+      warnings.push(`Invalid oracle LLM profile id: ${oracleProfileIdRaw}`);
+    }
+    const oracle = { profileId: oracleProfileId };
     const agent: AgentSettings = {
       enableSecurityAnalyzer: this.adapter.get<boolean>('openhands.agent.enableSecurityAnalyzer', DEFAULTS.agent.enableSecurityAnalyzer) ?? DEFAULTS.agent.enableSecurityAnalyzer,
       debug: this.adapter.get<boolean>('openhands.agent.debug', DEFAULTS.agent.debug) ?? DEFAULTS.agent.debug,
@@ -343,7 +354,7 @@ export class SettingsManager {
       customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
       customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
     };
-    return { serverUrl, servers, llm, agent, conversation, confirmation, hal, secrets };
+    return { serverUrl, servers, llm, oracle, agent, conversation, confirmation, hal, secrets };
   }
 
   async update(partial: Partial<OpenHandsSettings>, target: 'workspace' | 'global' = 'workspace'): Promise<void> {
@@ -359,6 +370,12 @@ export class SettingsManager {
 
     if (partial.llm) {
       if (partial.llm.profileId !== undefined) ops.push(this.adapter.update('openhands.llm.profileId', partial.llm.profileId, target));
+    }
+
+    if (partial.oracle) {
+      if (partial.oracle.profileId !== undefined) {
+        ops.push(this.adapter.update('openhands.oracle.profileId', partial.oracle.profileId ?? '', 'global'));
+      }
     }
 
     if (partial.agent) {

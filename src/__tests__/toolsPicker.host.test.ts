@@ -79,6 +79,7 @@ describe('Tools picker host messages', () => {
       { id: 'glob', label: 'File Search (Glob)', description: 'Find files by name patterns (e.g., **/*.ts)', isDefault: false },
       { id: 'grep', label: 'Content Search (Grep)', description: 'Search file contents using regex patterns', isDefault: false },
       { id: 'browser', label: 'Web Fetch', description: 'Make HTTP GET/POST requests to fetch web content', isDefault: false },
+      { id: 'ask_oracle', label: 'Ask Oracle', description: 'Ask a dedicated oracle LLM for a second opinion (requires openhands.oracle.profileId)', isDefault: false },
       { id: 'finish', label: 'Finish', description: 'Signal that the agent has completed its task (always enabled)', isDefault: true },
     ]);
   });

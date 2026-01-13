@@ -103,8 +103,17 @@ export type ConfirmationSettings = {
   confirmUnknown?: boolean;
 };
 
+export type OracleSettings = {
+  /**
+   * LLM profile identifier (filename stem) used for the ask_oracle tool.
+   * When unset, ask_oracle returns an instructive error prompting configuration.
+   */
+  profileId?: string | null;
+};
+
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
+  oracle?: OracleSettings;
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
