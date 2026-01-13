@@ -4,24 +4,35 @@
 .env
 .env.*
 
-# Tests and docs (compiled code is shipped under dist/ and media/)
-src/**/__tests__/**
-tests/**
+# Exclude sources, tests, docs (ship compiled dist/ and media/ only)
+src/**
+packages/**
+ tests/**
 docs/**
 logs/**
 *.log
 
-# Source maps (keep if you need them for marketplace debugging)
+# Exclude TypeScript sources and source maps
+**/*.ts
 **/*.map
 
-# Webview sources (only ship compiled assets under media/)
+# Webview sources (compiled bundle lives in media/)
 src/webview-src/**
 
 # Screenshots and heavy media not needed at runtime
 media/screenshots/**
 
-# Beads and local tooling
+# Dot-directories not needed in VSIX
+.vscode/**
+.vscode-dev/**
+.github/**
+.husky/**
+.claude/**
+.codex/**
 .beads/**
+
+# Scripts and misc tooling
+scripts/**
 
 # Audio assets safeguard (we do not currently ship any)
 **/*.wav
