@@ -314,15 +314,21 @@ describe('registerHalCommands', () => {
     mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
     mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
 
-    const mockConversation = {
+    const localConversation = {
       rejectAction: vi.fn().mockResolvedValue(undefined),
+    };
+    const remoteConversation = {
       startNewConversation: vi.fn().mockResolvedValue(undefined),
       sendUserMessage: vi.fn().mockResolvedValue(undefined),
+      rejectAction: vi.fn().mockResolvedValue(undefined),
     };
-    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+    let connected = false;
+    mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation) as any);
 
     // Connection succeeds
-    mockDeps.ensureConversationAndConnection = vi.fn().mockResolvedValue(undefined);
+    mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(async () => {
+      connected = true;
+    });
 
     registerHalCommands(mockDeps);
 
@@ -337,7 +343,8 @@ describe('registerHalCommands', () => {
     });
 
     // The local action SHOULD be rejected because connection succeeded
-    expect(mockConversation.rejectAction).toHaveBeenCalledWith('Teleported to remote runtime');
+    expect(localConversation.rejectAction).toHaveBeenCalledWith('rejected because the user sent the conversation to the remote runtime');
+    expect(remoteConversation.rejectAction).not.toHaveBeenCalled();
   });
 
   it('rejects local action only after successful connection', async () => {
@@ -358,11 +365,13 @@ describe('registerHalCommands', () => {
 
     const callOrder: string[] = [];
 
-    const mockConversation = {
+    const localConversation = {
       rejectAction: vi.fn().mockImplementation(() => {
         callOrder.push('rejectAction');
         return Promise.resolve(undefined);
       }),
+    };
+    const remoteConversation = {
       startNewConversation: vi.fn().mockImplementation(() => {
         callOrder.push('startNewConversation');
         return Promise.resolve(undefined);
@@ -372,10 +381,12 @@ describe('registerHalCommands', () => {
         return Promise.resolve(undefined);
       }),
     };
-    mockDeps.getConversation = vi.fn().mockReturnValue(mockConversation);
+    let connected = false;
+    mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation) as any);
 
     mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(() => {
       callOrder.push('ensureConversationAndConnection');
+      connected = true;
       return Promise.resolve(undefined);
     });
 
