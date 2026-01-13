@@ -20,7 +20,7 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag: UiStateSnapshot = await vscode.commands.executeCommand('openhands._diagnostics');
     return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
