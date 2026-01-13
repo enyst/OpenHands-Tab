@@ -91,7 +91,7 @@ describe('AskOracleTool', () => {
       yield { type: 'text', text: 'ok' };
     })());
 
-    const huge = 'x'.repeat(50_000);
+    const huge = 'x'.repeat(80_000);
     await tool.execute(tool.validate({ question: 'Q', context: huge }), {
       workspace,
       secrets,
