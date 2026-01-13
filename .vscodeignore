@@ -21,6 +21,8 @@ src/webview-src/**
 
 # Screenshots and heavy media not needed at runtime
 media/screenshots/**
+# Exclude transpiled, unbundled webview sources — we ship media/webview.js instead
+media/webview-src/**
 
 # Dot-directories not needed in VSIX
 .vscode/**
