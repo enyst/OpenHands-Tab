@@ -8,7 +8,7 @@ async function sleep(ms: number): Promise<void> {
 async function assertHalStaysIdle(durationMs: number): Promise<void> {
   const deadline = Date.now() + durationMs;
   while (Date.now() < deadline) {
-    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
+    const hal: HalStateSnapshot = await vscode.commands.executeCommand('openhands._queryHalState');
     if (hal?.phase && hal.phase !== 'idle') {
       throw new Error(`Expected HAL phase to remain idle; got ${JSON.stringify(hal)}`);
     }
