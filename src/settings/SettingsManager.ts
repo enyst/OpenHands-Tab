@@ -24,7 +24,7 @@ export type HalSettings = {
 
 export type OpenHandsSettings = ServerSettings & {
   llm: LLMSettings;
-  oracle?: { profileId?: string };
+  oracle?: { profileId?: string | null };
   agent: AgentSettings;
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
@@ -47,7 +47,7 @@ const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
   servers: [],
   llm: { provider: 'anthropic', model: 'claude-sonnet-4-20250514' },
-  oracle: { profileId: '' },
+  oracle: { profileId: null },
   agent: { enableSecurityAnalyzer: true, debug: false, summarizeToolCalls: false },
   conversation: { maxIterations: 50 },
   confirmation: { policy: 'never', riskyThreshold: 'MEDIUM', confirmUnknown: true },
@@ -157,6 +157,7 @@ const normalizeSavedServers = (value: unknown, defaultValue: SavedServer[]): { s
 
 export class SettingsManager {
   private serverNormalizationWarnings: string[] = [];
+  private validationWarnings: string[] = [];
 
   constructor(
     private adapter: SettingsAdapter,
@@ -200,8 +201,9 @@ export class SettingsManager {
   }
 
   drainServerNormalizationWarnings(): string[] {
-    const warnings = this.serverNormalizationWarnings;
+    const warnings = [...this.serverNormalizationWarnings, ...this.validationWarnings];
     this.serverNormalizationWarnings = [];
+    this.validationWarnings = [];
     return warnings;
   }
 
@@ -246,6 +248,8 @@ export class SettingsManager {
       } catch {
         // Best effort: still return normalized values even if persistence fails.
       }
+    } else {
+      this.serverNormalizationWarnings = [];
     }
 
     const configuredProfileId = normalizeNonEmptyString(this.adapter.getExplicit<string>('openhands.llm.profileId'));
@@ -300,13 +304,18 @@ export class SettingsManager {
       outputCostPerToken: profileConfig?.outputCostPerToken ?? undefined,
     };
 
-    const oracleProfileIdRaw = normalizeNonEmptyString(
-      this.adapter.get<string | null>('openhands.oracle.profileId', DEFAULTS.oracle?.profileId ?? '') ?? DEFAULTS.oracle?.profileId ?? ''
-    );
+    const oracleWarnings: string[] = [];
+    const rawOracleProfileId = this.adapter.get<unknown>('openhands.oracle.profileId', DEFAULTS.oracle?.profileId ?? null);
+    if (rawOracleProfileId === null) {
+      oracleWarnings.push('Oracle profile id is null. Clear the setting or set a valid string.');
+    }
+
+    const oracleProfileIdRaw = normalizeNonEmptyString(typeof rawOracleProfileId === 'string' ? rawOracleProfileId : undefined);
     const oracleProfileId = oracleProfileIdRaw && isSafeProfileId(oracleProfileIdRaw) ? oracleProfileIdRaw : undefined;
     if (oracleProfileIdRaw && !oracleProfileId) {
-      warnings.push(`Invalid oracle LLM profile id: ${oracleProfileIdRaw}`);
+      oracleWarnings.push(`Invalid oracle LLM profile id: ${oracleProfileIdRaw}`);
     }
+    this.validationWarnings = oracleWarnings;
     const oracle = { profileId: oracleProfileId };
     const agent: AgentSettings = {
       enableSecurityAnalyzer: this.adapter.get<boolean>('openhands.agent.enableSecurityAnalyzer', DEFAULTS.agent.enableSecurityAnalyzer) ?? DEFAULTS.agent.enableSecurityAnalyzer,
