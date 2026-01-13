@@ -382,7 +382,7 @@ describe('registerHalCommands', () => {
       }),
     };
     let connected = false;
-    mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation) as any);
+mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation));
 
     mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(() => {
       callOrder.push('ensureConversationAndConnection');
