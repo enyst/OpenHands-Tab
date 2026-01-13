@@ -423,7 +423,7 @@ export function TerminalObservationSummary({
   const geminiSummary = getString(observation.summary) ?? metadataSummary;
   const trimmedGeminiSummary = geminiSummary?.trim() ? geminiSummary.trim() : undefined;
   const summaryText = trimmedGeminiSummary ?? (exitCodeText === '0' ? 'Done.' : `Done (exit code ${exitCodeText}).`);
-  const toggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
+  const toggleLabel = isExpanded ? 'Hide environment result' : 'Show environment result';
   return (
     <div className="text-sm leading-relaxed">
       <Tooltip content={toggleLabel} position="top">

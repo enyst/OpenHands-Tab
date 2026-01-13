@@ -14,7 +14,7 @@ import {
 import { Tooltip } from '../Tooltip';
 
 /**
- * Renders tool result - shows observation with summary and expandable raw data.
+ * Renders environment result - shows observation with summary and expandable raw data.
  */
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -80,7 +80,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   const isTruncated = shouldShowRaw && observationString.length > 2000;
   const showHeaderToggle = hasSummary && event.tool_name !== 'terminal' && !isFileEditObservation;
   const showFooterToggle = !hasSummary && isTruncated;
-  const headerToggleLabel = isExpanded ? 'Hide tool result' : 'Show tool result';
+  const headerToggleLabel = isExpanded ? 'Hide environment result' : 'Show environment result';
   const footerToggleLabel = isExpanded ? 'Show less' : 'Show more';
 
   return (

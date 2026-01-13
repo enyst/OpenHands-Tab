@@ -215,7 +215,7 @@ describe('Agent-SDK event rendering', () => {
       action_id: 'action_obs_1'
     } as any;
     postToWindow({ type: 'event', event: ev });
-    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    const toggle = await screen.findByRole('button', { name: /Show environment result/i });
     fireEvent.click(toggle);
     expect(await screen.findByText(/Directory listing output from bash execution/)).toBeInTheDocument();
   });
@@ -344,7 +344,7 @@ describe('Agent-SDK event rendering', () => {
     } as any;
     postToWindow({ type: 'event', event: observationEvent });
     await screen.findByText(/Agent read/);
-    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    const toggle = await screen.findByRole('button', { name: /Show environment result/i });
     expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
     fireEvent.click(toggle);
     expect(await screen.findByText(/SECRET FILE CONTENT/)).toBeInTheDocument();
@@ -371,7 +371,7 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: observationEvent });
     expect(await screen.findByText(/Replaced the greeting line/i)).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: 'View diff for /tmp/README.md' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Show tool result/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Show environment result/i })).toBeNull();
     expect(screen.queryByText(/SECRET FILE CONTENT/)).toBeNull();
   });
 
@@ -409,7 +409,7 @@ describe('Agent-SDK event rendering', () => {
     expect(screen.queryByText(/Done\./i)).toBeNull();
     expect(screen.getAllByText(/ls -la/)).toHaveLength(1);
 
-    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    const toggle = await screen.findByRole('button', { name: /Show environment result/i });
     fireEvent.click(toggle);
     expect(await screen.findByText(/"stdout": "README\.md"/)).toBeInTheDocument();
   });
@@ -432,7 +432,7 @@ describe('Agent-SDK event rendering', () => {
     postToWindow({ type: 'event', event: observationEvent });
     expect(await screen.findByText(/Done\./i)).toBeInTheDocument();
 
-    const toggle = await screen.findByRole('button', { name: /Show tool result/i });
+    const toggle = await screen.findByRole('button', { name: /Show environment result/i });
     fireEvent.click(toggle);
     expect(await screen.findByText(/hello/)).toBeInTheDocument();
   });
