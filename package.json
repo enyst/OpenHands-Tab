@@ -41,6 +41,7 @@
     "onCommand:openhands.reconnect",
     "onCommand:openhands.pauseCurrentRun",
     "onCommand:openhands.resumeCurrentRun",
+    "onCommand:openhands.toggleVerboseOutput",
     "onView:openhands.agent"
   ],
   "contributes": {
@@ -60,6 +61,10 @@
       {
         "command": "openhands.configure",
         "title": "OpenHands: Configure"
+      },
+      {
+        "command": "openhands.toggleVerboseOutput",
+        "title": "OpenHands: Toggle Verbose Output"
       },
       {
         "command": "openhands.setApiKey",
@@ -191,6 +196,24 @@
             "default": false,
             "order": 4,
             "markdownDescription": "Enable webview→extension debug logging bridge (Output channel + file in extension log path)."
+          }
+        }
+      },
+      {
+        "type": "object",
+        "title": "OpenHands: Logging",
+        "order": 2.5,
+        "properties": {
+          "openhands.logging.verbosity": {
+            "type": "string",
+            "enum": [
+              "minimal",
+              "verbose"
+            ],
+            "default": "minimal",
+            "scope": "machine",
+            "order": 0,
+            "markdownDescription": "Controls OpenHands Output channel verbosity.\n\n- `minimal` (default): suppress routine informational lines in Production.\n- `verbose`: print more logs and auto-show the Output channel.\n\nNote: enabling `openhands.agent.debug` or `openhands.devBridge.enabled` also turns on verbose-style logging."
           }
         }
       },

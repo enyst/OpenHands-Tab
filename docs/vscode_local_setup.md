@@ -95,6 +95,7 @@ Note on Webview DevTools from CLI
 - Open Output panel (to view logs)
   - Visual: View → Output, then pick the "OpenHands" channel
   - CLI: code --command workbench.action.output.toggleOutput (opens/toggles Output; channel selection is manual)
+  - Note: in Production mode, OpenHands is quiet by default; use “OpenHands: Toggle Verbose Output” (or `openhands.logging.verbosity`) to see routine logs.
 
 - Open Logs Folder
   - Visual: Command Palette → Developer: Open Logs Folder

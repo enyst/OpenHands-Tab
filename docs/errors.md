@@ -165,4 +165,4 @@ For the bead **oh-tab-odqs** (P4: Status bar errors), we should replace raw/trun
 - Status bar shows **short, actionable summary** (max ~60 chars)
 - Full error details remain in:
   - Chat timeline (EventBlocks)
-  - Output channel logs
+  - Output channel logs (warnings/errors always; enable verbose output for extra diagnostics via `openhands.logging.verbosity` or the “OpenHands: Toggle Verbose Output” command)
