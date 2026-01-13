@@ -305,10 +305,15 @@ export class SettingsManager {
     };
 
     const oracleWarnings: string[] = [];
-    const rawOracleProfileId = this.adapter.get<unknown>('openhands.oracle.profileId', DEFAULTS.oracle?.profileId ?? null);
-    if (rawOracleProfileId === null) {
+
+    const explicitOracleProfileId = this.adapter.getExplicit<unknown>('openhands.oracle.profileId');
+    if (explicitOracleProfileId === null) {
       oracleWarnings.push('Oracle profile id is null. Clear the setting or set a valid string.');
     }
+
+    const rawOracleProfileId = explicitOracleProfileId === undefined
+      ? this.adapter.get<unknown>('openhands.oracle.profileId', DEFAULTS.oracle?.profileId ?? null)
+      : explicitOracleProfileId;
 
     const oracleProfileIdRaw = normalizeNonEmptyString(typeof rawOracleProfileId === 'string' ? rawOracleProfileId : undefined);
     const oracleProfileId = oracleProfileIdRaw && isSafeProfileId(oracleProfileIdRaw) ? oracleProfileIdRaw : undefined;

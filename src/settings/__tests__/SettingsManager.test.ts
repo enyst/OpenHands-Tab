@@ -163,6 +163,11 @@ describe('SettingsManager', () => {
     expect(mgr.drainServerNormalizationWarnings()).toContain('Oracle profile id is null. Clear the setting or set a valid string.');
   });
 
+  it('does not warn when oracle profileId is unset (default null)', async () => {
+    await mgr.get();
+    expect(mgr.drainServerNormalizationWarnings()).not.toContain('Oracle profile id is null. Clear the setting or set a valid string.');
+  });
+
 
   it('normalizes saved servers', async () => {
     a.cfg.set('openhands.servers', [
