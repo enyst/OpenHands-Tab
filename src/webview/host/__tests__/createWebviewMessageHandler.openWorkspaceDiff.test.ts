@@ -66,5 +66,41 @@ describe('createWebviewMessageHandler(openWorkspaceDiff)', () => {
       }),
     );
   });
-});
 
+  it('uses provided content when preferGitHead is not enabled', async () => {
+    const handler = createWebviewMessageHandler({
+      context: { subscriptions: [] } as any,
+      host: { postMessage: vi.fn(async () => true) },
+      getConversation: () => undefined,
+      getConversationMode: () => 'local',
+      getConversationStoreRoot: () => undefined,
+      resolveConversationStoreRoot: async () => '/tmp',
+      setWebviewReadyState: () => {},
+      setLastKnownLlmLabel: () => {},
+      getLastKnownLlmLabel: () => null,
+      flushConversationEventBacklog: () => {},
+      onRenderedEventsResponse: () => {},
+      onUiStateResponse: () => {},
+      onHalStateResponse: () => {},
+      isDevBridgeEnabled: () => false,
+      getOutputChannel: () => undefined,
+      fileLog: () => {},
+    });
+
+    await handler({
+      type: 'openWorkspaceDiff',
+      path: 'README.md',
+      oldContent: 'OLD CONTENT',
+      newContent: 'NEW CONTENT',
+    });
+
+    expect(resolveGitHeadDiffContents).not.toHaveBeenCalled();
+    expect(showWorkspaceDiff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: 'README.md',
+        oldContent: 'OLD CONTENT',
+        newContent: 'NEW CONTENT',
+      }),
+    );
+  });
+});
