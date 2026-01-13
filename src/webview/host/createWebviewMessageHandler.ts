@@ -24,7 +24,7 @@ import * as llmProfilesStore from './llmProfilesStore';
 import { listSkillFiles } from './skills';
 import { listWorkspaceFiles } from './workspaceFiles';
 import { resolveWorkspaceFilePath } from './workspacePaths';
-import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds, resolveLocalTools } from '../../shared/localTools';
+import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds, resolveLocalTools, type LocalToolId } from '../../shared/localTools';
 
 export type WebviewHost = {
   postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
@@ -62,6 +62,13 @@ async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, bytes);
 }
+
+const ensureRequiredLocalToolIds = (toolIds: LocalToolId[]): LocalToolId[] => {
+  // `finish` is always enabled by the runtime agent (for safe termination).
+  // Keep the UI/tool-selection source of truth consistent with what is actually sent to the LLM.
+  if (toolIds.includes('finish')) return toolIds;
+  return [...toolIds, 'finish'];
+};
 
 export type CreateWebviewMessageHandlerDeps = {
   context: vscode.ExtensionContext;
@@ -151,7 +158,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       return getDefaultLocalToolIds();
     })();
 
-    void host.postMessage({ type: 'toolsList', tools, enabledToolIds });
+    void host.postMessage({ type: 'toolsList', tools, enabledToolIds: ensureRequiredLocalToolIds(enabledToolIds) });
   };
 
   const postStatusError = (message: string): void => {
@@ -350,8 +357,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           break;
         }
 
+        const toolIds = ensureRequiredLocalToolIds(normalized);
         try {
-          conversation.setTools(resolveLocalTools(normalized));
+          conversation.setTools(resolveLocalTools(toolIds));
         } catch (err) {
           const reason = err instanceof Error ? err.message : String(err);
           outputChannel?.appendLine(`[tools] Failed to update tools: ${reason}`);

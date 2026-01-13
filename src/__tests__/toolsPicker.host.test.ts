@@ -39,7 +39,7 @@ describe('Tools picker host messages', () => {
 
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: 'toolsList',
-      enabledToolIds: ['terminal', 'task_tracker'],
+      enabledToolIds: ['terminal', 'task_tracker', 'finish'],
     }));
 
     const payload = postMessage.mock.calls[0][0] as any;
@@ -50,7 +50,7 @@ describe('Tools picker host messages', () => {
       { id: 'glob', label: 'File Search (Glob)', description: 'Find files by name patterns (e.g., **/*.ts)', isDefault: false },
       { id: 'grep', label: 'Content Search (Grep)', description: 'Search file contents using regex patterns', isDefault: false },
       { id: 'browser', label: 'Web Fetch', description: 'Make HTTP GET/POST requests to fetch web content', isDefault: false },
-      { id: 'finish', label: 'Finish', description: 'Signal that the agent has completed its task', isDefault: false },
+      { id: 'finish', label: 'Finish', description: 'Signal that the agent has completed its task (always enabled)', isDefault: true },
     ]);
   });
 
@@ -69,13 +69,35 @@ describe('Tools picker host messages', () => {
 
     expect(conversation.setTools).toHaveBeenCalledTimes(1);
     const arg = (conversation.setTools as any).mock.calls[0][0] as Array<{ name: string }>;
-    expect(arg.map((t) => t.name)).toEqual(['file_editor']);
+    expect(arg.map((t) => t.name)).toEqual(['file_editor', 'finish']);
 
     const toolsListPayload = postMessage.mock.calls
       .map((call) => call[0])
       .find((msg) => msg?.type === 'toolsList') as any;
 
-    expect(toolsListPayload.enabledToolIds).toEqual(['file_editor']);
+    expect(toolsListPayload.enabledToolIds).toEqual(['file_editor', 'finish']);
+  });
+
+  it('does not duplicate finish when provided by the webview', async () => {
+    const state = { toolNames: ['terminal', 'file_editor', 'task_tracker'] as string[] };
+    const conversation = {
+      mode: 'local',
+      getToolNames: vi.fn(() => state.toolNames),
+      setTools: vi.fn((tools: Array<{ name: string }>) => {
+        state.toolNames = tools.map((t) => t.name);
+      }),
+    };
+
+    const { handler, postMessage } = createHandler(conversation);
+    await handler({ type: 'setEnabledTools', toolIds: ['finish', 'file_editor', 'finish'] } as any);
+
+    const arg = (conversation.setTools as any).mock.calls[0][0] as Array<{ name: string }>;
+    expect(arg.map((t) => t.name)).toEqual(['finish', 'file_editor']);
+
+    const toolsListPayload = postMessage.mock.calls
+      .map((call) => call[0])
+      .find((msg) => msg?.type === 'toolsList') as any;
+
+    expect(toolsListPayload.enabledToolIds).toEqual(['finish', 'file_editor']);
   });
 });
-
