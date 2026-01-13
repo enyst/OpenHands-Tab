@@ -3,7 +3,7 @@ import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
 import { LLMFactory } from '../sdk/llm';
 
-const MAX_CONTEXT_CHARS = 20_000;
+const MAX_CONTEXT_CHARS = 100_000;
 
 const askOracleSchema = z.object({
   question: z
