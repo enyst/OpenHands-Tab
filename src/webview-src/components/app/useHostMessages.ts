@@ -487,6 +487,8 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
         }
         case 'halTeleportSuccess': {
           if (typeof payload.serverUrl === 'string') {
+            currentServerUrlRef.current = payload.serverUrl;
+            setCurrentServerUrl(payload.serverUrl);
             handleHalTeleportSuccess(payload.serverUrl, payload.serverLabel);
           }
           break;
