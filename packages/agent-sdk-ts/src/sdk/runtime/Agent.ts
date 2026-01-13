@@ -165,10 +165,11 @@ export class Agent extends EventEmitter {
     const providedTools = options.tools ?? [];
     const toolsWithBuiltins = (() => {
       if (options.includeDefaultTools === false) return providedTools;
-      const byName = new Map<string, ToolDefinition<unknown, unknown>>(providedTools.map((tool) => [tool.name, tool]));
-      if (!byName.has('finish')) byName.set('finish', new FinishTool());
-      if (!byName.has('think')) byName.set('think', new ThinkTool());
-      return Array.from(byName.values());
+      const names = new Set(providedTools.map((tool) => tool.name));
+      const result = [...providedTools];
+      if (!names.has('finish')) result.push(new FinishTool());
+      if (!names.has('think')) result.push(new ThinkTool());
+      return result;
     })();
     this.tools = new Map(toolsWithBuiltins.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
