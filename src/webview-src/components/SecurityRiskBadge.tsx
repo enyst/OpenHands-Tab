@@ -17,7 +17,7 @@ const RISK_ICONS: Record<SecurityRiskLevel, string> = {
 };
 
 export function SecurityRiskBadge({ risk, labelSuffix = '' }: { risk: SecurityRiskLevel; labelSuffix?: string }) {
-  const tooltip = `The model assessed ${risk.toLowerCase()} risk for this action.`;
+  const tooltip = `The agent assessed ${risk.toLowerCase()} risk.`;
   const label = `${risk.toLowerCase()}${labelSuffix}`;
 
   return (
@@ -31,4 +31,3 @@ export function SecurityRiskBadge({ risk, labelSuffix = '' }: { risk: SecurityRi
     </Tooltip>
   );
 }
-
