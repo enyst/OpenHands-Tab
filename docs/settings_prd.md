@@ -83,7 +83,7 @@ The extension reads these fields from the profile and passes them to the SDK:
 
 These values map directly to the SDK confirmation policy and drive the confirmation UI.
 
-## 6) HAL (high-risk confirmation flow)
+## 6) HAL 9000 easter egg (high-risk confirmation flow)
 
 - `openhands.hal.enabled` (bool, default: false)
 - `openhands.hal.mode` = `bundled | tts_only | voice_confirm`

@@ -16,7 +16,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - Action confirmation with security risk indicators (LOW/MEDIUM/HIGH)
 - Skills file picker (local `~/.openhands/skills`)
 - Terminal integration for local tool execution
-- HAL high-risk confirmation flow (optional)
+- HAL 9000 easter egg (high-risk confirmation flow) (optional)
 
 ### Out of scope (v1)
 - Reproducing the full OpenHands web UI
@@ -138,7 +138,7 @@ For internal diagnostics and the dev logging bridge, see docs/vscode_local_setup
 - `openhands.confirmation.policy` - never/always/risky
 - `openhands.confirmation.risky.threshold` default MEDIUM
 - `openhands.confirmation.risky.confirmUnknown`
-- `openhands.hal.*` (HAL high-risk confirmation settings)
+- `openhands.hal.*` (HAL 9000 easter egg settings)
 - `openhands.conversation.maxIterations`
 - `openhands.conversation.storeRoot` (local persistence path override)
 - `openhands.terminal.renderProgress`
