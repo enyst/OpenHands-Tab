@@ -536,6 +536,27 @@ describe('App - Advanced Test Coverage', () => {
       });
       expect(screen.queryByText('No Server')).not.toBeInTheDocument();
     });
+
+    it('handles HAL teleport success before serverListUpdated', async () => {
+      render(<App />);
+
+      postToWindow({ type: 'status', status: 'online', mode: 'remote' });
+      postToWindow({ type: 'halTeleportSuccess', serverUrl: 'http://localhost:3000', serverLabel: 'local-remote' });
+
+      await waitFor(() => {
+        expect(screen.getByText('localhost:3000')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('No Server')).not.toBeInTheDocument();
+
+      postToWindow({
+        type: 'serverListUpdated',
+        servers: [{ url: 'http://localhost:3000', label: 'local-remote' }],
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('local-remote')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('Conversation lifecycle', () => {
