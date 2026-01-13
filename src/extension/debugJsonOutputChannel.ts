@@ -2,6 +2,12 @@ import * as vscode from 'vscode';
 import { maskSecretsInText } from '../shared/maskSecrets';
 import type { SecretRegistry } from '@openhands/agent-sdk-ts';
 
+function truncateEncryptedContentForDisplay(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 12) return value;
+  return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
+}
+
 export interface DebugJsonOutputChannel {
   /** Log JSON data with a category badge and pretty formatting */
   logJson(category: string, data: unknown): void;
@@ -77,7 +83,12 @@ export function createDebugJsonOutputChannel(
 
   const formatJsonPretty = (data: unknown): string => {
     try {
-      const jsonString = JSON.stringify(data, null, 2);
+      const jsonString = JSON.stringify(data, (key: string, value: unknown) => {
+        if (key === 'encrypted_content' && typeof value === 'string') {
+          return truncateEncryptedContentForDisplay(value);
+        }
+        return value;
+      }, 2);
       return maskSecrets(jsonString);
     } catch (e) {
       return `<failed to stringify: ${String(e)}>`;
