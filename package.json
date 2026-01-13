@@ -517,31 +517,8 @@
     "dev:vscode": "bash scripts/dev-vscode.sh",
     "prepare": "husky"
   },
-  "files": [
-    "dist/**",
-    "media/**/*.js",
-    "media/**/*.css",
-    "media/**/*.ttf",
-    "media/**/*.png",
-    "media/**/*.svg",
-    "media/**/*.wav",
-    "node_modules/@openhands/agent-sdk-ts/dist/**",
-    "node_modules/@openhands/agent-sdk-ts/package.json",
-    "node_modules/argparse/**",
-    "node_modules/esprima/**",
-    "node_modules/front-matter/**",
-    "node_modules/js-yaml/**",
-    "node_modules/picomatch/**",
-    "node_modules/sprintf-js/**",
-    "node_modules/ws/**",
-    "node_modules/zod/**",
-    "node_modules/zod-to-json-schema/dist/cjs/**",
-    "node_modules/zod-to-json-schema/dist/types/**",
-    "node_modules/zod-to-json-schema/package.json",
-    "package.json",
-    "README.md",
-    "LICENSE"
-  ],
+  // Use .vscodeignore to control VSIX contents
+
   "bundledDependencies": [
     "ws"
   ],
