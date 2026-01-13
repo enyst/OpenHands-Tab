@@ -153,6 +153,54 @@ describe('HistoryView', () => {
     expect(screen.getByText('31 conversations')).toBeInTheDocument();
   });
 
+  it('shows context token usage under the time-ago row', () => {
+    const onClose = vi.fn();
+    const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
+
+    render(
+      <HistoryView
+        isOpen
+        onClose={onClose}
+        conversations={[
+          { id: 'abc123', title: 'Fix sidebar issue', firstMessage: 'hey', timestamp: 1000, contextTokens: 42 },
+        ]}
+        onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
+      />
+    );
+
+    act(() => { vi.advanceTimersByTime(150); });
+
+    const contextLabel = screen.getByText('Context:');
+    expect(contextLabel.closest('div')).toHaveTextContent('Context: 42 tokens');
+  });
+
+  it('uses a 5-line clamp for the prompt preview', () => {
+    const onClose = vi.fn();
+    const onSelectConversation = vi.fn();
+    const onDeleteConversation = vi.fn();
+    const longPrompt = 'This is a long prompt. '.repeat(200);
+
+    render(
+      <HistoryView
+        isOpen
+        onClose={onClose}
+        conversations={[
+          { id: 'abc123', title: 'Fix sidebar issue', firstMessage: longPrompt, timestamp: 1000 },
+        ]}
+        onSelectConversation={onSelectConversation}
+        onDeleteConversation={onDeleteConversation}
+      />
+    );
+
+    act(() => { vi.advanceTimersByTime(150); });
+
+    const snippet = longPrompt.slice(0, 20);
+    const previewText = screen.getByText((content) => content.includes(snippet));
+    expect(previewText.closest('div')?.className).toContain('line-clamp-5');
+  });
+
   it('calls onDeleteConversation when trash icon is clicked', () => {
     const onClose = vi.fn();
     const onSelectConversation = vi.fn();

@@ -82,7 +82,7 @@ export function App() {
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
 
   // History state
-  const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number }>>([]);
+  const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number; contextTokens?: number }>>([]);
 
   // Server selection state
   const [servers, setServers] = useState<{ url: string; label?: string }[]>([]);

@@ -4,7 +4,7 @@ import { Tooltip } from './Tooltip';
 
 // --- Constants ---
 
-const PROMPT_PREVIEW_MAX_LENGTH = 100;
+const PROMPT_PREVIEW_MAX_LENGTH = 500;
 const HISTORY_PAGE_SIZE = 30;
 
 // --- Types ---
@@ -15,6 +15,7 @@ interface Conversation {
   firstMessage?: string;
   timestamp: number;
   messageCount?: number;
+  contextTokens?: number;
 }
 
 interface HistoryViewProps {
@@ -97,6 +98,7 @@ function ConversationItem({
   const displayTitle = getDisplayTitle(conversation);
   const promptPreview = getPromptPreview(conversation.firstMessage);
   const timeAgo = formatTimeAgo(conversation.timestamp);
+  const contextTokens = typeof conversation.contextTokens === 'number' ? conversation.contextTokens : 0;
 
   return (
     <div
@@ -128,7 +130,7 @@ function ConversationItem({
 
         {/* Prompt Preview */}
         {promptPreview && (
-          <div className="text-xs text-stone-500 line-clamp-2 mb-2">
+          <div className="text-xs text-stone-500 line-clamp-5 mb-2">
             {promptPreview}
           </div>
         )}
@@ -145,6 +147,12 @@ function ConversationItem({
               {conversation.messageCount}
             </span>
           )}
+        </div>
+
+        <div className="mt-1 text-xs text-stone-500 flex items-center gap-1.5">
+          <span>Context:</span>{' '}
+          <span className="font-mono text-stone-300">{contextTokens}</span>{' '}
+          <span>tokens</span>
         </div>
       </button>
 

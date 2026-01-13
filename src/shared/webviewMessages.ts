@@ -49,6 +49,7 @@ export type HostToWebviewMessage =
       firstMessage?: string;
       timestamp: number;
       messageCount?: number;
+      contextTokens?: number;
     }>;
   }
   | { type: 'workspaceFiles'; files: string[] }
