@@ -31,6 +31,7 @@ import type { ToolDefinition } from '../types/tools';
 import type { BaseWorkspace } from '../../workspace';
 import { Workspace } from '../../workspace';
 import { FinishTool } from '../../tools/FinishTool';
+import { ThinkTool } from '../../tools/ThinkTool';
 import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
@@ -162,12 +163,15 @@ export class Agent extends EventEmitter {
       injectedClient: options.toolSummarizerClient,
     });
     const providedTools = options.tools ?? [];
-    const toolsWithFinish = (() => {
+    const toolsWithBuiltins = (() => {
       if (options.includeDefaultTools === false) return providedTools;
-      if (providedTools.some((tool) => tool.name === 'finish')) return providedTools;
-      return [...providedTools, new FinishTool()];
+      const names = new Set(providedTools.map((tool) => tool.name));
+      const result = [...providedTools];
+      if (!names.has('finish')) result.push(new FinishTool());
+      if (!names.has('think')) result.push(new ThinkTool());
+      return result;
     })();
-    this.tools = new Map(toolsWithFinish.map((tool) => [tool.name, tool]));
+    this.tools = new Map(toolsWithBuiltins.map((tool) => [tool.name, tool]));
     this.registry = options.registry;
     this.conversationStats = options.conversationStats;
     this.agentContext = options.agentContext;

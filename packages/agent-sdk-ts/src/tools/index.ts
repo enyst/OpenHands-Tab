@@ -3,6 +3,7 @@ export * from './TerminalTool';
 export * from './FileEditorTool';
 export * from './TaskTrackerTool';
 export * from './FinishTool';
+export * from './ThinkTool';
 export * from './BrowserTool';
 export * from './BrowserUseTool';
 export * from './DelegateTool';
