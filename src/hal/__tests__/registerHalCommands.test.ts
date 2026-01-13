@@ -403,4 +403,94 @@ mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteC
       'sendUserMessage',
     ]);
   });
+
+  it('uses local backlog events captured before switching to remote', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com', label: 'My Server' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const localConversation = {
+      rejectAction: vi.fn().mockResolvedValue(undefined),
+    };
+    const remoteConversation = {
+      startNewConversation: vi.fn().mockResolvedValue(undefined),
+      sendUserMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    let connected = false;
+    mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation));
+
+    let backlog: any[] = [{ event: { kind: 'ActionEvent', id: 'local-evt-1', action: 'terminal' } }];
+    mockDeps.iterConversationEventBacklog = vi.fn().mockImplementation(() => backlog as any);
+
+    mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(async () => {
+      connected = true;
+      backlog = [];
+    });
+
+    const seenPrompts: string[] = [];
+    mockDeps.summarizeWithLocalLlm = vi.fn().mockImplementation(async (_settings: any, prompt: string) => {
+      seenPrompts.push(prompt);
+      return 'Test summary';
+    });
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    expect(seenPrompts).toHaveLength(1);
+    expect(seenPrompts[0]).toContain('local-evt-1');
+  });
+
+  it('skips summarization and falls back when there are no teleportable events', async () => {
+    mockSettings = {
+      serverUrl: '',
+      servers: [{ url: 'https://example.com' }],
+      llm: {},
+    };
+
+    const mockWebview = {
+      postMessage: vi.fn().mockResolvedValue(true),
+    };
+    const mockChatView = {
+      webview: mockWebview,
+    };
+    mockDeps.getChatView = vi.fn().mockReturnValue(mockChatView);
+    mockDeps.getChatWebviewReady = vi.fn().mockReturnValue(true);
+
+    const localConversation = {
+      rejectAction: vi.fn().mockResolvedValue(undefined),
+    };
+    const remoteConversation = {
+      startNewConversation: vi.fn().mockResolvedValue(undefined),
+      sendUserMessage: vi.fn().mockResolvedValue(undefined),
+    };
+    let connected = false;
+    mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation));
+    mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(async () => {
+      connected = true;
+    });
+
+    mockDeps.iterConversationEventBacklog = vi.fn().mockReturnValue([{ event: { kind: 'ConversationStateUpdateEvent', state: {} } }] as any);
+
+    registerHalCommands(mockDeps);
+
+    const teleportCommand = registeredCommands.get('openhands._teleportToRemoteRuntime');
+    await teleportCommand!();
+
+    expect(mockDeps.summarizeWithLocalLlm).not.toHaveBeenCalled();
+    expect(remoteConversation.sendUserMessage).toHaveBeenCalledWith(expect.stringContaining('Teleport summary unavailable'));
+    expect(remoteConversation.sendUserMessage).toHaveBeenCalledWith(expect.stringContaining('Last 10 events'));
+  });
 });
