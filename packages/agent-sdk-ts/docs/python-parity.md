@@ -626,6 +626,8 @@ In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (se
   5. Wrapping the returned result in an `ObservationEvent` where `observation` is a plain JSON object.
 - Event interfaces in `src/sdk/types/index.ts` mirror the Python wire format: `ActionEvent` and `ObservationEvent` are present, but they carry raw records (`Record<string, unknown>`) instead of strongly-typed `Action`/`Observation` models.
 
+**Built-in tools parity note:** Python includes built-in `finish` and `think` tools by default. TypeScript now includes both as built-ins in `src/sdk/runtime/Agent.ts` (unless `includeDefaultTools === false`), matching the Python tool surface for “log a thought without side effects” workflows.
+
 ### Gaps and intended direction
 
 - The TS runtime currently has **ActionEvent/ObservationEvent types but no first-class Action/Observation classes**. The Python stack uses Pydantic models for validation, kind resolution, and serialization; TS simply forwards validated args/results as plain JSON.
