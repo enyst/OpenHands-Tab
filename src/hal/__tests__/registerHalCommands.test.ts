@@ -323,7 +323,7 @@ describe('registerHalCommands', () => {
       rejectAction: vi.fn().mockResolvedValue(undefined),
     };
     let connected = false;
-    mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation) as any);
+mockDeps.getConversation = vi.fn().mockImplementation(() => (connected ? remoteConversation : localConversation));
 
     // Connection succeeds
     mockDeps.ensureConversationAndConnection = vi.fn().mockImplementation(async () => {
