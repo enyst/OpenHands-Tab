@@ -628,7 +628,7 @@ In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (se
 
 **Built-in tools parity note (product decision / source of truth):** Python includes built-in `finish` and `think` tools by default. TypeScript includes both as built-ins in `src/sdk/runtime/Agent.ts` (unless `includeDefaultTools === false`).
 
-For `think`, **the TypeScript SDK MUST keep the tool description text identical to the Python SDK** (i.e., copy the Python `THINK_DESCRIPTION` verbatim). Even though the TS implementation is simpler, the tool description is part of the LLM-facing contract and directly affects agent behavior. We prioritize **cross-SDK behavioral parity** over minimizing prompt size for this specific tool.
+For `think`, **the TypeScript SDK MUST keep the tool description text identical to the Python SDK** (i.e., copy the Python `THINK_DESCRIPTION` verbatim). Even though the TS implementation is simpler, the tool description is part of the LLM-facing contract and directly affects agent behavior. We prioritize **cross-SDK behavioral parity** over minimizing prompt size for all common tools.
 
 If any future optimization is desired (e.g., shorter descriptions to reduce prompt tokens), it must be treated as an explicit product decision and applied consistently across Python and TS (not a TS-only divergence).
 
