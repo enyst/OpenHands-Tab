@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import type { AgentState } from './ConversationState';
 import type { Event } from '../types';
@@ -122,7 +123,7 @@ export class FileStore implements ConversationPersistence {
   private readonly llmFile: string;
 
   constructor(options: FileStoreOptions) {
-    this.rootDir = options.rootDir ?? path.join(process.cwd(), '.openhands', 'conversations');
+    this.rootDir = options.rootDir ?? path.join(os.homedir(), '.openhands', 'conversations');
     this.conversationId = options.conversationId;
     this.conversationDir = path.join(this.rootDir, this.conversationId);
     this.eventsFile = path.join(this.conversationDir, 'events.jsonl');
@@ -188,7 +189,7 @@ export class FileStore implements ConversationPersistence {
   }
 
   static listConversations(rootDir?: string): string[] {
-    const dir = rootDir ?? path.join(process.cwd(), '.openhands', 'conversations');
+    const dir = rootDir ?? path.join(os.homedir(), '.openhands', 'conversations');
     if (!fs.existsSync(dir)) return [];
     return fs
       .readdirSync(dir, { withFileTypes: true })

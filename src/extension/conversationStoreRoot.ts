@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
+import { migrateWorkspaceConversationStore } from './conversationStoreMigration';
 
 function resolveConfiguredPath(p: string): string {
   const raw = p.trim();
@@ -54,6 +55,28 @@ export async function resolveConversationStoreRoot(params: {
   for (const candidate of candidates) {
     try {
       await ensureWritableDirectory(candidate.dir);
+
+      // One-time best-effort migration away from legacy workspace persistence.
+      // This keeps restore working for users who previously wrote to `./.openhands/conversations`.
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (workspaceRoot) {
+        const resolvedCandidate = path.resolve(candidate.dir);
+        const resolvedWorkspace = path.resolve(workspaceRoot);
+        const candidateIsWithinWorkspace =
+          resolvedCandidate === resolvedWorkspace || resolvedCandidate.startsWith(`${resolvedWorkspace}${path.sep}`);
+        if (!candidateIsWithinWorkspace) {
+          try {
+            await migrateWorkspaceConversationStore({
+              workspaceRoot,
+              targetRoot: candidate.dir,
+              log: (line) => params.getOutputChannel()?.appendLine(line),
+            });
+          } catch (err) {
+            params.getOutputChannel()?.appendLine(`[storage] Failed to migrate legacy workspace conversations: ${params.renderError(err)}`);
+          }
+        }
+      }
+
       if (candidate.dir !== candidates[0]?.dir) {
         params.getOutputChannel()?.appendLine(`[storage] Using conversation store root: ${candidate.dir} (${candidate.label})`);
       }
