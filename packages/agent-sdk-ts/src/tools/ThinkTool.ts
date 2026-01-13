@@ -12,7 +12,7 @@ export type ThinkToolResult = {
   message: string;
 };
 
-const THINK_DESCRIPTION = 'Log a thought without making changes. Use for planning, brainstorming, or organizing hypotheses.';
+const THINK_DESCRIPTION = 'Log a thought without side effects. This tool does not execute code or modify the workspace.';
 
 export class ThinkTool extends ZodTool<ThinkToolArgs, ThinkToolResult> {
   readonly name = 'think';
