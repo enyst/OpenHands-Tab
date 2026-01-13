@@ -27,6 +27,12 @@ import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import {
+  createOutputLogger,
+  normalizeOutputVerbosity,
+  type OutputLogger,
+  type OutputVerbosity,
+} from './extension/outputLogger';
+import {
   AgentContext,
   Conversation,
   type ConversationInstance,
@@ -56,6 +62,8 @@ let chatWebviewReady = false; // Track if chat WebviewView is ready
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
+let outputLogger: OutputLogger | undefined;
+let outputVerbosity: OutputVerbosity = 'minimal';
 let debugJsonChannel: DebugJsonOutputChannel | undefined;
 let secretRegistry: SecretRegistry | undefined;
 let conversationStoreRoot: string | undefined;
@@ -75,7 +83,7 @@ const pastedImagesCleanupScheduler = createPastedImagesCleanupScheduler({
   getBaseDir: () => pastedImagesBaseDir,
   maxFiles: MAX_PASTED_IMAGES_STORAGE_FILES,
   maxBytes: MAX_PASTED_IMAGES_STORAGE_BYTES,
-  log: (line) => outputChannel?.appendLine(line),
+  log: (line) => outputLogger?.info(line),
   renderError,
 });
 // Buffer of test events sent via _sendTestEvent (used as fallback in E2E query)
@@ -164,13 +172,36 @@ export function activate(context: vscode.ExtensionContext) {
   secretRegistry = secrets;
 
   const devBridgeLogger = createDevBridgeLogger({ secretRegistry: secrets });
+  const cfg = vscode.workspace.getConfiguration();
+  outputVerbosity = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
+  verboseEventLogging =
+    outputVerbosity === 'verbose' ||
+    Boolean(cfg.get<boolean>('openhands.agent.debug')) ||
+    Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+  outputLogger = createOutputLogger({
+    getOutputChannel: () => outputChannel,
+    getExtensionMode: () => context.extensionMode,
+    getVerbosity: () => (verboseEventLogging ? 'verbose' : 'minimal'),
+  });
 
   try {
     const channel = vscode.window.createOutputChannel('OpenHands', { log: true });
     outputChannel = createMaskedOutputChannel(channel, secrets);
     context.subscriptions.push(channel);
-    outputChannel.show(true);
-    outputChannel.appendLine('[OpenHands] Logging channel initialized');
+
+    const extensionMode = vscode.ExtensionMode;
+    const isProduction =
+      extensionMode?.Production !== undefined ? context.extensionMode === extensionMode.Production : true;
+    const shouldShowOnActivation =
+      !isProduction ||
+      outputVerbosity === 'verbose' ||
+      Boolean(cfg.get<boolean>('openhands.agent.debug')) ||
+      Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+
+    if (shouldShowOnActivation) {
+      outputLogger?.show(true);
+    }
+    outputLogger?.info('[OpenHands] Logging channel initialized');
   } catch (err) {
     console.warn('[OpenHands] Failed to create output channel:', err);
     outputChannel = undefined;
@@ -179,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
   // Create debug JSON output channel (only in dev/test modes or with devBridge enabled)
   debugJsonChannel = createDebugJsonOutputChannel({ context, secretRegistry: secrets });
   if (debugJsonChannel.isEnabled()) {
-    outputChannel?.appendLine('[OpenHands-DEBUG] Debug JSON channel initialized');
+    outputLogger?.info('[OpenHands-DEBUG] Debug JSON channel initialized');
   }
 
   pastedImagesBaseDir = getGlobalStorageBaseDir(context.globalStorageUri?.fsPath);
@@ -346,7 +377,11 @@ export function activate(context: vscode.ExtensionContext) {
     lastKnownLlmLabel = resolveConfiguredLlmLabel(settings);
 
     const cfg = vscode.workspace.getConfiguration();
-    verboseEventLogging = Boolean(settings.agent?.debug) || Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+    outputVerbosity = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
+    verboseEventLogging =
+      outputVerbosity === 'verbose' ||
+      Boolean(settings.agent?.debug) ||
+      Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
 
     if (!settings.serverUrl && settings.agent?.summarizeToolCalls === true) {
       const hasGeminiKey = await (async (): Promise<boolean> => {
@@ -466,7 +501,11 @@ export function activate(context: vscode.ExtensionContext) {
       attachConversationListeners({
         context,
         conversation,
-        getOutputChannel: () => outputChannel,
+        log: {
+          info: (line) => outputLogger?.info(line),
+          warn: (line) => outputLogger?.warn(line),
+          error: (line) => outputLogger?.error(line),
+        },
         getDebugJsonChannel: () => debugJsonChannel,
         getChatView: () => chatView,
         isChatWebviewReady: () => chatWebviewReady,
@@ -591,6 +630,23 @@ export function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
   });
 
+  const toggleVerboseOutput = vscode.commands.registerCommand('openhands.toggleVerboseOutput', async () => {
+    const cfg = vscode.workspace.getConfiguration();
+    const current = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
+    const next: OutputVerbosity = current === 'verbose' ? 'minimal' : 'verbose';
+    await cfg.update('openhands.logging.verbosity', next, vscode.ConfigurationTarget.Global);
+    outputVerbosity = next;
+    verboseEventLogging =
+      outputVerbosity === 'verbose' ||
+      Boolean(cfg.get<boolean>('openhands.agent.debug')) ||
+      Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
+    outputLogger?.info(`[settings] Output verbosity set to ${next}`);
+    if (next === 'verbose') {
+      outputLogger?.show(true);
+    }
+    void vscode.window.showInformationMessage(`OpenHands output verbosity: ${next}`);
+  });
+
   const secretCommands = registerSecretCommands({
     context,
     secrets,
@@ -641,10 +697,17 @@ export function activate(context: vscode.ExtensionContext) {
     setConversationStoreRoot: (root) => {
       conversationStoreRoot = root;
     },
+    setOutputVerbosity: (value) => {
+      outputVerbosity = value;
+    },
     setVerboseEventLogging: (value) => {
       verboseEventLogging = value;
     },
-    getOutputChannel: () => outputChannel,
+    log: {
+      info: (line) => outputLogger?.info(line),
+      warn: (line) => outputLogger?.warn(line),
+      error: (line) => outputLogger?.error(line),
+    },
     renderError,
   });
   const onHalConfigurationChange = createHalConfigurationChangeHandler({
@@ -667,6 +730,7 @@ export function activate(context: vscode.ExtensionContext) {
     ...halCommands,
     startNew,
     configure,
+    toggleVerboseOutput,
     ...secretCommands,
     reconnect,
     pause,
@@ -678,14 +742,21 @@ export function deactivate() {
   try { conversation?.disconnect(); } catch { }
   try { terminal?.dispose(); } catch { }
   try { debugJsonChannel?.dispose(); } catch { }
+  try { outputChannel?.dispose(); } catch { }
   // Reset module state to ensure clean slate for tests and re-activation
   chatView = undefined;
   conversation = undefined;
   terminal = undefined;
   terminalLogPty = undefined;
   debugJsonChannel = undefined;
+  outputChannel = undefined;
+  outputLogger = undefined;
+  outputVerbosity = 'minimal';
+  verboseEventLogging = false;
   localAgentContext = undefined;
   activeEditorFilePath = undefined;
+  secretRegistry = undefined;
+  lastKnownLlmLabel = null;
   pendingRenderedEventsRequests.clear();
   pendingUiStateRequests.clear();
   pendingHalStateRequests.clear();

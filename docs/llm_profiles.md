@@ -144,4 +144,4 @@ User-facing errors should **not** include internal diagnostic fields like:
 - mode=local / profileId echoing unless it helps the user (prefer a simple “Selected profile: <id>” if needed)
 
 Internal diagnostics (full request payload, effective resolution details) belong in:
-- Debug logs / Output channel gated behind a debug setting, not in normal UI error blocks.
+- Debug logs / Output channel gated behind debug/verbosity settings (e.g. `openhands.agent.debug`, `openhands.devBridge.enabled`, `openhands.logging.verbosity`), not in normal UI error blocks.

@@ -5,11 +5,17 @@ import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/
 import type { HostToWebviewMessage } from '../../shared/webviewMessages';
 import type { DebugJsonOutputChannel } from '../../extension/debugJsonOutputChannel';
 
+type OutputLog = {
+  info: (line: string) => void;
+  warn: (line: string) => void;
+  error: (line: string) => void;
+};
+
 export type AttachConversationListenersDeps = {
   context: vscode.ExtensionContext;
   conversation: ConversationInstance;
 
-  getOutputChannel: () => vscode.OutputChannel | undefined;
+  log: OutputLog;
   getDebugJsonChannel?: () => DebugJsonOutputChannel | undefined;
   getChatView: () => vscode.WebviewView | undefined;
   isChatWebviewReady: () => boolean;
@@ -27,6 +33,17 @@ export type AttachConversationListenersDeps = {
   handleTerminalEvent: (event: BashEvent) => void;
 };
 
+function isStatusIssueLike(status: string): boolean {
+  const s = status.toLowerCase();
+  return (
+    s.includes('offline') ||
+    s.includes('error') ||
+    s.includes('failed') ||
+    s.includes('fail') ||
+    s.includes('disconnect')
+  );
+}
+
 function postToChatIfVisible(
   deps: Pick<AttachConversationListenersDeps, 'getChatView' | 'isChatWebviewReady'>,
   message: HostToWebviewMessage
@@ -40,8 +57,12 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
   const { conversation } = deps;
 
   conversation.on('status', (s: string) => {
-    const outputChannel = deps.getOutputChannel();
-    outputChannel?.appendLine(`[status] ${s}`);
+    const line = `[status] ${s}`;
+    if (isStatusIssueLike(s)) {
+      deps.log.warn(line);
+    } else {
+      deps.log.info(line);
+    }
     postToChatIfVisible(deps, {
       type: 'status',
       status: s,
@@ -52,20 +73,20 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
 
   let streamingState = initialLlmStreamingState;
   conversation.on('event', (ev: Event) => {
-    const outputChannel = deps.getOutputChannel();
-
     const streamingUpdate = reduceLlmStreamingState(streamingState, ev);
     streamingState = streamingUpdate.state;
     const isStateUpdate = ev.kind === 'ConversationStateUpdateEvent';
     const isLlmStreamUpdate = isStateUpdate && (ev.key === 'llm_stream' || ev.key === 'llm_tool_call');
 
     if (streamingUpdate.started) {
-      outputChannel?.appendLine('[llm] Streaming started...');
+      deps.log.info('[llm] Streaming started...');
     }
 
     if (ev.kind === 'ConversationStateUpdateEvent' && (ev.key === 'llm_request_payload' || ev.key === 'llm_response_payload')) {
       const key = ev.key ?? 'llm_payload';
-      const shouldLogToDebugConsole = deps.context.extensionMode !== vscode.ExtensionMode.Production;
+      const extensionMode = vscode.ExtensionMode;
+      const shouldLogToDebugConsole =
+        extensionMode?.Production !== undefined ? deps.context.extensionMode !== extensionMode.Production : false;
       const shouldLogToOutputChannel = shouldLogToDebugConsole || deps.isVerboseEventLogging();
 
       // Log pretty-printed JSON to the debug channel (dev/test only)
@@ -77,10 +98,10 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
 
       if (shouldLogToOutputChannel) {
         try {
-          outputChannel?.appendLine(`[llm][${key}]`);
-          outputChannel?.appendLine(deps.safeStringify(ev.value));
+          deps.log.info(`[llm][${key}]`);
+          deps.log.info(deps.safeStringify(ev.value));
         } catch (e) {
-          outputChannel?.appendLine(`[llm][${key}] <failed to stringify: ${String(e)}>`);
+          deps.log.warn(`[llm][${key}] <failed to stringify: ${String(e)}>`);
         }
       }
 
@@ -104,15 +125,15 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
         }
       }
     } catch (e) {
-      outputChannel?.appendLine(`[error] Failed to track agent-edited files: ${String(e)}`);
+      deps.log.error(`[error] Failed to track agent-edited files: ${String(e)}`);
     }
 
     if (!isLlmStreamUpdate) {
       const isErrorLike = ev.kind === 'ConversationErrorEvent' || ev.kind === 'AgentErrorEvent';
-      if (deps.isVerboseEventLogging() || isErrorLike) {
-        outputChannel?.appendLine(`[event] ${deps.safeStringify(ev)}`);
-      } else {
-        outputChannel?.appendLine(`[event] ${ev.kind}`);
+      if (deps.isVerboseEventLogging()) {
+        deps.log.info(`[event] ${deps.safeStringify(ev)}`);
+      } else if (isErrorLike) {
+        deps.log.error(`[event] ${deps.safeStringify(ev)}`);
       }
 
       // Log events to debug JSON channel (dev/test only)
@@ -123,7 +144,7 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
     }
 
     if (streamingUpdate.completed) {
-      outputChannel?.appendLine('[llm] Streaming complete');
+      deps.log.info('[llm] Streaming complete');
     }
 
     try {
@@ -139,10 +160,10 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
           : [];
         const count = typeof raw?.tool_count === 'number' ? raw.tool_count : names.length;
         const summary = `[llm] Sending request${model ? ` to ${model}` : ''} with tools (${count}): ${names.join(', ')}`;
-        outputChannel?.appendLine(summary);
+        deps.log.info(summary);
       }
     } catch (e) {
-      outputChannel?.appendLine(`[error] Failed to create LLM request summary: ${String(e)}`);
+      deps.log.error(`[error] Failed to create LLM request summary: ${String(e)}`);
     }
 
     const shouldBufferForReplay = !isLlmStreamUpdate;
@@ -157,19 +178,16 @@ export function attachConversationListeners(deps: AttachConversationListenersDep
   });
 
   conversation.on('error', (err: unknown) => {
-    const outputChannel = deps.getOutputChannel();
-
     const rendered = deps.renderError(err);
-    outputChannel?.appendLine(`[error] ${rendered}`);
+    deps.log.error(`[error] ${rendered}`);
     if (err instanceof Error && err.stack) {
-      outputChannel?.appendLine(err.stack);
+      deps.log.error(err.stack);
     }
     postToChatIfVisible(deps, { type: 'error', error: rendered });
   });
 
   conversation.on('conversationStarted', (id: string | undefined) => {
-    const outputChannel = deps.getOutputChannel();
-    outputChannel?.appendLine(`[conversation] active=${id ?? 'undefined'}`);
+    deps.log.info(`[conversation] active=${id ?? 'undefined'}`);
     streamingState = initialLlmStreamingState;
 
     deps.resetConversationEventBacklog(id);

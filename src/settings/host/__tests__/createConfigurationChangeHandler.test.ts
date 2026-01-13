@@ -25,8 +25,13 @@ describe('createConfigurationChangeHandler', () => {
       getTerminalLogPty: vi.fn().mockReturnValue(undefined),
       setTerminalLogPty: vi.fn(),
       setConversationStoreRoot: vi.fn(),
+      setOutputVerbosity: vi.fn(),
       setVerboseEventLogging: vi.fn(),
-      getOutputChannel: vi.fn().mockReturnValue({ appendLine: vi.fn() }),
+      log: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      },
       renderError: vi.fn((err) => String(err)),
     };
     handler = createConfigurationChangeHandler(deps);
@@ -44,8 +49,6 @@ describe('createConfigurationChangeHandler', () => {
     });
 
     it('logs appropriate message for local mode', async () => {
-      const appendLine = vi.fn();
-      deps.getOutputChannel = vi.fn().mockReturnValue({ appendLine });
       deps.getConversationMode = vi.fn().mockReturnValue('local');
       handler = createConfigurationChangeHandler(deps);
 
@@ -55,13 +58,11 @@ describe('createConfigurationChangeHandler', () => {
 
       await handler(event as any);
 
-      expect(appendLine).toHaveBeenCalledWith(expect.stringContaining('Max iterations setting updated'));
-      expect(appendLine).toHaveBeenCalledWith(expect.stringContaining('local mode'));
+      expect(deps.log.info).toHaveBeenCalledWith(expect.stringContaining('Max iterations setting updated'));
+      expect(deps.log.info).toHaveBeenCalledWith(expect.stringContaining('local mode'));
     });
 
     it('logs appropriate message for remote mode', async () => {
-      const appendLine = vi.fn();
-      deps.getOutputChannel = vi.fn().mockReturnValue({ appendLine });
       deps.getConversationMode = vi.fn().mockReturnValue('remote');
       handler = createConfigurationChangeHandler(deps);
 
@@ -71,13 +72,11 @@ describe('createConfigurationChangeHandler', () => {
 
       await handler(event as any);
 
-      expect(appendLine).toHaveBeenCalledWith(expect.stringContaining('Max iterations setting updated'));
-      expect(appendLine).toHaveBeenCalledWith(expect.stringContaining('remote mode'));
+      expect(deps.log.info).toHaveBeenCalledWith(expect.stringContaining('Max iterations setting updated'));
+      expect(deps.log.info).toHaveBeenCalledWith(expect.stringContaining('remote mode'));
     });
 
     it('logs error when ensureConversationAndConnection fails', async () => {
-      const appendLine = vi.fn();
-      deps.getOutputChannel = vi.fn().mockReturnValue({ appendLine });
       deps.ensureConversationAndConnection = vi.fn().mockRejectedValue(new Error('test error'));
       handler = createConfigurationChangeHandler(deps);
 
@@ -87,7 +86,7 @@ describe('createConfigurationChangeHandler', () => {
 
       await handler(event as any);
 
-      expect(appendLine).toHaveBeenCalledWith(expect.stringContaining('Failed to apply max iterations update'));
+      expect(deps.log.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to apply max iterations update'));
     });
   });
 });

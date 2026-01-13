@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import { normalizeOutputVerbosity, type OutputVerbosity } from '../../extension/outputLogger';
 
 type TerminalLogPtyLike = { ensureNewline?: () => void };
 
@@ -23,9 +24,14 @@ export type CreateConfigurationChangeHandlerDeps = {
   setTerminalLogPty: (pty: TerminalLogPtyLike | undefined) => void;
 
   setConversationStoreRoot: (root: string | undefined) => void;
+  setOutputVerbosity: (value: OutputVerbosity) => void;
   setVerboseEventLogging: (value: boolean) => void;
 
-  getOutputChannel: () => vscode.OutputChannel | undefined;
+  log: {
+    info: (line: string) => void;
+    warn: (line: string) => void;
+    error: (line: string) => void;
+  };
   renderError: (err: unknown) => string;
 };
 
@@ -64,19 +70,25 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
       return;
     }
 
-    if (e.affectsConfiguration('openhands.agent.debug') || e.affectsConfiguration('openhands.devBridge.enabled')) {
+    if (
+      e.affectsConfiguration('openhands.agent.debug') ||
+      e.affectsConfiguration('openhands.devBridge.enabled') ||
+      e.affectsConfiguration('openhands.logging.verbosity')
+    ) {
       const cfg = vscode.workspace.getConfiguration();
       const debug = cfg.get<boolean>('openhands.agent.debug') ?? false;
       const devBridgeEnabled = cfg.get<boolean>('openhands.devBridge.enabled') ?? false;
-      deps.setVerboseEventLogging(debug || devBridgeEnabled);
+      const verbosity = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
+      deps.setOutputVerbosity(verbosity);
+      deps.setVerboseEventLogging(debug || devBridgeEnabled || verbosity === 'verbose');
     }
 
     if (e.affectsConfiguration('openhands.agent.summarizeToolCalls')) {
       try {
         await deps.ensureConversationAndConnection();
-        deps.getOutputChannel()?.appendLine('[settings] Tool-call summarization setting updated');
+        deps.log.info('[settings] Tool-call summarization setting updated');
       } catch (err: unknown) {
-        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply tool-call summarization update: ${deps.renderError(err)}`);
+        deps.log.warn(`[settings] Failed to apply tool-call summarization update: ${deps.renderError(err)}`);
       }
     }
 
@@ -84,12 +96,12 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
       try {
         await deps.ensureConversationAndConnection();
         if (deps.getConversationMode() === 'remote') {
-          deps.getOutputChannel()?.appendLine('[settings] LLM settings updated (remote mode: applies on next conversation)');
+          deps.log.info('[settings] LLM settings updated (remote mode: applies on next conversation)');
         } else {
-          deps.getOutputChannel()?.appendLine('[settings] LLM settings updated (local mode: applies immediately)');
+          deps.log.info('[settings] LLM settings updated (local mode: applies immediately)');
         }
       } catch (err: unknown) {
-        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply LLM settings update: ${deps.renderError(err)}`);
+        deps.log.warn(`[settings] Failed to apply LLM settings update: ${deps.renderError(err)}`);
       }
     }
 
@@ -97,12 +109,12 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
       try {
         await deps.ensureConversationAndConnection();
         if (deps.getConversationMode() === 'remote') {
-          deps.getOutputChannel()?.appendLine('[settings] Confirmation settings updated (remote mode: applies on next conversation)');
+          deps.log.info('[settings] Confirmation settings updated (remote mode: applies on next conversation)');
         } else {
-          deps.getOutputChannel()?.appendLine('[settings] Confirmation settings updated (local mode: applies immediately)');
+          deps.log.info('[settings] Confirmation settings updated (local mode: applies immediately)');
         }
       } catch (err: unknown) {
-        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply confirmation settings update: ${deps.renderError(err)}`);
+        deps.log.warn(`[settings] Failed to apply confirmation settings update: ${deps.renderError(err)}`);
       }
     }
 
@@ -110,12 +122,12 @@ export function createConfigurationChangeHandler(deps: CreateConfigurationChange
       try {
         await deps.ensureConversationAndConnection();
         if (deps.getConversationMode() === 'remote') {
-          deps.getOutputChannel()?.appendLine('[settings] Max iterations setting updated (remote mode: applies on next conversation)');
+          deps.log.info('[settings] Max iterations setting updated (remote mode: applies on next conversation)');
         } else {
-          deps.getOutputChannel()?.appendLine('[settings] Max iterations setting updated (local mode: applies on next run)');
+          deps.log.info('[settings] Max iterations setting updated (local mode: applies on next run)');
         }
       } catch (err: unknown) {
-        deps.getOutputChannel()?.appendLine(`[settings] Failed to apply max iterations update: ${deps.renderError(err)}`);
+        deps.log.warn(`[settings] Failed to apply max iterations update: ${deps.renderError(err)}`);
       }
     }
   };

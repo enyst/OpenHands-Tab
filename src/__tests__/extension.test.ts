@@ -181,6 +181,7 @@ describe('Extension Activation', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
+    delete (vscode as any).ExtensionMode;
     mockSettings = structuredClone(defaultMockSettings);
     mockContext = createMockContext();
     extension = await import('../extension');
@@ -200,6 +201,61 @@ describe('Extension Activation', () => {
     await extension.activate(mockContext);
     expect(__getLastConversation()).toBeNull();
   });
+
+  it('does not auto-show the Output channel in production with minimal verbosity', async () => {
+    (vscode as any).ExtensionMode = { Production: 1, Development: 2, Test: 3 };
+    mockContext.extensionMode = (vscode as any).ExtensionMode.Production;
+
+    const cfgValues = (vscode as any).__getMockConfigValues();
+    cfgValues.set('openhands.logging.verbosity', 'minimal');
+    cfgValues.set('openhands.agent.debug', false);
+    cfgValues.set('openhands.devBridge.enabled', false);
+
+    await extension.activate(mockContext);
+
+    const created = (vscode.window.createOutputChannel as Mock).mock.results[0]?.value;
+    expect(created?.show).not.toHaveBeenCalled();
+  });
+
+  it('auto-shows the Output channel in production when verbose output is enabled', async () => {
+    (vscode as any).ExtensionMode = { Production: 1, Development: 2, Test: 3 };
+    mockContext.extensionMode = (vscode as any).ExtensionMode.Production;
+
+    const cfgValues = (vscode as any).__getMockConfigValues();
+    cfgValues.set('openhands.logging.verbosity', 'verbose');
+    cfgValues.set('openhands.agent.debug', false);
+    cfgValues.set('openhands.devBridge.enabled', false);
+
+    await extension.activate(mockContext);
+
+    const created = (vscode.window.createOutputChannel as Mock).mock.results[0]?.value;
+    expect(created?.show).toHaveBeenCalled();
+    expect(created?.appendLine).toHaveBeenCalledWith('[OpenHands] Logging channel initialized');
+  });
+
+  it('toggles verbose output via command', async () => {
+    (vscode as any).ExtensionMode = { Production: 1, Development: 2, Test: 3 };
+    mockContext.extensionMode = (vscode as any).ExtensionMode.Production;
+
+    const cfgValues = (vscode as any).__getMockConfigValues();
+    cfgValues.set('openhands.logging.verbosity', 'minimal');
+    cfgValues.set('openhands.agent.debug', false);
+    cfgValues.set('openhands.devBridge.enabled', false);
+
+    await extension.activate(mockContext);
+    const created = (vscode.window.createOutputChannel as Mock).mock.results[0]?.value;
+    expect(cfgValues.get('openhands.logging.verbosity')).toBe('minimal');
+    expect(created?.show).not.toHaveBeenCalled();
+
+    await vscode.commands.executeCommand('openhands.toggleVerboseOutput');
+    expect(cfgValues.get('openhands.logging.verbosity')).toBe('verbose');
+    expect(created?.show).toHaveBeenCalled();
+
+    const showCalls = (created?.show as Mock).mock.calls.length;
+    await vscode.commands.executeCommand('openhands.toggleVerboseOutput');
+    expect(cfgValues.get('openhands.logging.verbosity')).toBe('minimal');
+    expect((created?.show as Mock).mock.calls.length).toBe(showCalls);
+  });
 });
 
 describe('Secret indicator sync', () => {
@@ -209,6 +265,7 @@ describe('Secret indicator sync', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
+    delete (vscode as any).ExtensionMode;
     mockSettings = structuredClone(defaultMockSettings);
     mockContext = createMockContext();
     extension = await import('../extension');
@@ -369,6 +426,7 @@ describe('Chat view behavior', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
+    delete (vscode as any).ExtensionMode;
     mockSettings = structuredClone(defaultMockSettings);
 
     mockContext = createMockContext();
@@ -570,6 +628,7 @@ describe('Command handlers', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
+    delete (vscode as any).ExtensionMode;
     mockSettings = structuredClone(defaultMockSettings);
 
     mockContext = createMockContext();
@@ -744,6 +803,7 @@ describe('Settings and modes', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     (vscode as any).__resetMocks();
+    delete (vscode as any).ExtensionMode;
     mockSettings = structuredClone(defaultMockSettings);
     mockContext = createMockContext();
   });
