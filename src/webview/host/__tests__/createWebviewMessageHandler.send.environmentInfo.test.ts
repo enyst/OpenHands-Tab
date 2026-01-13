@@ -55,7 +55,8 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(sent).toContain('Open editors:');
     expect(sent).toContain('- a.ts');
     expect(sent).toContain('- b.ts');
+    expect(sent).not.toContain('a.ts —');
+    expect(sent).not.toContain('b.ts —');
     expect(sent).toContain('</environment information>');
   });
 });
-

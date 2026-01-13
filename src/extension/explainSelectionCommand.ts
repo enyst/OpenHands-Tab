@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import { formatEnvironmentInformation } from './environmentInformation';
 
 export function registerExplainSelectionCommand(options: {
   getConversation: () => ConversationInstance | undefined;
+  getConversationMode: () => 'local' | 'remote';
 }): vscode.Disposable {
-  const { getConversation } = options;
+  const { getConversation, getConversationMode } = options;
 
   return vscode.commands.registerCommand('openhands.explainSelection', async () => {
     const editor = vscode.window.activeTextEditor;
@@ -57,7 +59,20 @@ export function registerExplainSelectionCommand(options: {
       void vscode.window.showErrorMessage('OpenHands: Conversation is not available.');
       return;
     }
-    await conversation.sendUserMessage(prompt);
+
+    let finalPrompt = prompt;
+    if (getConversationMode() === 'local') {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const activeEditorPath =
+        vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
+          ? vscode.window.activeTextEditor.document.uri.fsPath
+          : null;
+      const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
+        .map((e) => (e?.document?.uri?.scheme === 'file' ? e.document.uri.fsPath : null))
+        .filter((p): p is string => typeof p === 'string' && p.length > 0);
+      finalPrompt += `\n\n${formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths })}`;
+    }
+
+    await conversation.sendUserMessage(finalPrompt);
   });
 }
-
