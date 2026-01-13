@@ -46,9 +46,7 @@ export class AskOracleTool extends ZodTool<AskOracleToolArgs, AskOracleToolResul
       return 'ask_oracle: question must be a non-empty string';
     }
 
-    const oracleProfileId =
-      normalizeNonEmptyString(context.settings?.oracle?.profileId) ??
-      undefined;
+    const oracleProfileId = normalizeNonEmptyString(context.settings?.oracle?.profileId);
     if (!oracleProfileId) {
       return 'ask_oracle is not configured. Set the oracle LLM profile id via openhands.oracle.profileId.';
     }
