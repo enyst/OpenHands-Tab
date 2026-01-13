@@ -3,7 +3,9 @@ import type { ToolContext } from './types';
 import { ZodTool } from './zod-tool';
 import { LLMFactory } from '../sdk/llm';
 
-const MAX_CONTEXT_CHARS = 100_000;
+// Keep the full user message (question + wrappers + clipped context) within a reasonable size.
+// This is a char-based heuristic, not a token-based limit.
+const MAX_CONTEXT_CHARS = 50_000;
 
 const askOracleSchema = z.object({
   question: z
