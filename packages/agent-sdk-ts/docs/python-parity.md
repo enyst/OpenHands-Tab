@@ -626,7 +626,11 @@ In TypeScript, the core tool abstraction is `ToolDefinition<TArgs, TResult>` (se
   5. Wrapping the returned result in an `ObservationEvent` where `observation` is a plain JSON object.
 - Event interfaces in `src/sdk/types/index.ts` mirror the Python wire format: `ActionEvent` and `ObservationEvent` are present, but they carry raw records (`Record<string, unknown>`) instead of strongly-typed `Action`/`Observation` models.
 
-**Built-in tools parity note:** Python includes built-in `finish` and `think` tools by default. TypeScript now includes both as built-ins in `src/sdk/runtime/Agent.ts` (unless `includeDefaultTools === false`), matching the Python tool surface for “log a thought without side effects” workflows.
+**Built-in tools parity note (product decision / source of truth):** Python includes built-in `finish` and `think` tools by default. TypeScript includes both as built-ins in `src/sdk/runtime/Agent.ts` (unless `includeDefaultTools === false`).
+
+For `think`, **the TypeScript SDK MUST keep the tool description text identical to the Python SDK** (i.e., copy the Python `THINK_DESCRIPTION` verbatim). Even though the TS implementation is simpler, the tool description is part of the LLM-facing contract and directly affects agent behavior. We prioritize **cross-SDK behavioral parity** over minimizing prompt size for all common tools.
+
+If any future optimization is desired (e.g., shorter descriptions to reduce prompt tokens), it must be treated as an explicit product decision, applied consistently across Python and TS (not a TS-only divergence) and approved by Mail by the Human Overseer.
 
 #### ThinkTool details
 
