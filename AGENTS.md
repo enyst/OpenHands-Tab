@@ -156,6 +156,7 @@ Before opening or updating a PR:
 - If you changed extension/webview/runtime behavior: `npm run e2e`
 - If you changed build tooling or packaging: `npm run build`
 - Ensure GitHub CI checks are green on the PR
+- For Beads-tracked work: include a PR description section `### Bead` containing the **full contents** of the Beads issue the PR fixes (copy/paste for traceability).
 
 Reviews (do not merge without review):
 - Do **not** request OpenHands review via GitHub comments anymore (e.g. `@openhands /codereview-roasted`).
@@ -171,6 +172,7 @@ Reviews (do not merge without review):
   - "Conversation" tab: scan top-level comments (including bots).
   - "Files changed" tab: scan/resolve inline review threads.
   - Checks: confirm OpenHands/Gemini/CodeRabbit aren't still pending (or explicitly waived per the policy above).
+- When merging: edit the PR description to append a `### Review` section summarizing **OrangeCastle**'s roasted review(s) and any back-and-forth/resolution notes, then merge.
 - If OpenHands feedback is "truly minor" (e.g., wording/typos/formatting only), you can address it without re-requesting review.
 - Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
 
