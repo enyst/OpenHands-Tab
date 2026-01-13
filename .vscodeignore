@@ -1,10 +1,10 @@
 # Exclude development-only and large assets from the VSIX
 
-# Node and build caches
-node_modules/**
-!node_modules/.bin/**
+# Do not include env files
+.env
+.env.*
 
-# Tests and docs
+# Tests and docs (compiled code is shipped under dist/ and media/)
 src/**/__tests__/**
 tests/**
 docs/**
@@ -20,16 +20,10 @@ src/webview-src/**
 # Screenshots and heavy media not needed at runtime
 media/screenshots/**
 
-# Unused top-level artifacts
-.eslintrc*
-*.config.*
-.esbuild*
-*.tsbuildinfo
-
 # Beads and local tooling
 .beads/**
 
-# Also exclude any audio by extension just to be safe
+# Audio assets safeguard (we do not currently ship any)
 **/*.wav
 **/*.mp3
 **/*.ogg
