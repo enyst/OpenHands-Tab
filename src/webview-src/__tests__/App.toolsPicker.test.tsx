@@ -114,4 +114,40 @@ describe('Tools picker', () => {
     expect(screen.getByTestId('status-row')).toHaveTextContent('To change Tools, please start a new conversation.');
     expect(screen.getByLabelText('Terminal')).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('shows tools in remote mode as read-only', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'remote' }
+      }));
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'toolsList',
+          tools: [
+            { id: 'execute_bash', label: 'execute_bash' },
+            { id: 'file_edit', label: 'file_edit' },
+            { id: 'finish', label: 'finish' },
+          ],
+          enabledToolIds: ['execute_bash', 'file_edit', 'finish'],
+        }
+      }));
+    });
+
+    const toolsButton = await screen.findByRole('button', { name: 'Tools' });
+    expect(toolsButton).toHaveTextContent('3');
+
+    mockApi.postMessage.mockClear();
+    await act(async () => {
+      fireEvent.click(toolsButton);
+    });
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestTools' });
+
+    expect(await screen.findByText(/controlled by the agent-server/i)).toBeInTheDocument();
+
+    const bashRow = await screen.findByLabelText('execute_bash');
+    expect(bashRow).toBeDisabled();
+    expect(bashRow).toHaveAttribute('aria-selected', 'true');
+  });
 });
