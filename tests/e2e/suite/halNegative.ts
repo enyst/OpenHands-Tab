@@ -8,7 +8,7 @@ async function sleep(ms: number): Promise<void> {
 async function assertHalStaysIdle(durationMs: number): Promise<void> {
   const deadline = Date.now() + durationMs;
   while (Date.now() < deadline) {
-    const hal: HalStateSnapshot = await vscode.commands.executeCommand('openhands._queryHalState');
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
     if (hal?.phase && hal.phase !== 'idle') {
       throw new Error(`Expected HAL phase to remain idle; got ${JSON.stringify(hal)}`);
     }
@@ -20,7 +20,7 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
-    const diag: UiStateSnapshot = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
     return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
@@ -40,7 +40,7 @@ export async function run(): Promise<void> {
   await cfg.update('openhands.hal.mode', 'bundled', vscode.ConfigurationTarget.Global);
 
   await pollUntil(async () => {
-    const hal: HalStateSnapshot = await vscode.commands.executeCommand('openhands._queryHalState');
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
     return hal?.enabled === true && hal?.mode === 'bundled' && hal?.phase === 'idle';
   }, 15000);
 
@@ -72,7 +72,7 @@ export async function run(): Promise<void> {
   await cfg.update('openhands.hal.enabled', false, vscode.ConfigurationTarget.Global);
 
   await pollUntil(async () => {
-    const hal: HalStateSnapshot = await vscode.commands.executeCommand('openhands._queryHalState');
+    const hal: any = await vscode.commands.executeCommand('openhands._queryHalState');
     return hal?.enabled === false && hal?.phase === 'idle';
   }, 15000);
 
