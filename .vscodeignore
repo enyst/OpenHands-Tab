@@ -30,6 +30,7 @@ media/screenshots/**
 .claude/**
 .codex/**
 .beads/**
+.openhands/**
 
 # Scripts and misc tooling
 scripts/**
