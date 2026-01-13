@@ -1,7 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createWebviewMessageHandler } from '../webview/host/createWebviewMessageHandler';
 
 describe('Tools picker host messages', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   const createHandler = (conversation?: any) => {
     const postMessage = vi.fn(async () => true);
     const handler = createWebviewMessageHandler({
@@ -9,6 +14,30 @@ describe('Tools picker host messages', () => {
       host: { postMessage },
       getConversation: () => conversation,
       getConversationMode: () => 'local',
+      getConversationStoreRoot: () => undefined,
+      resolveConversationStoreRoot: async () => '/tmp',
+      setWebviewReadyState: () => {},
+      setLastKnownLlmLabel: () => {},
+      getLastKnownLlmLabel: () => null,
+      flushConversationEventBacklog: () => {},
+      onRenderedEventsResponse: () => {},
+      onUiStateResponse: () => {},
+      onHalStateResponse: () => {},
+      isDevBridgeEnabled: () => false,
+      getOutputChannel: () => undefined,
+      fileLog: () => {},
+    });
+
+    return { handler, postMessage };
+  };
+
+  const createRemoteHandler = (conversation?: any) => {
+    const postMessage = vi.fn(async () => true);
+    const handler = createWebviewMessageHandler({
+      context: {} as any,
+      host: { postMessage },
+      getConversation: () => conversation,
+      getConversationMode: () => 'remote',
       getConversationStoreRoot: () => undefined,
       resolveConversationStoreRoot: async () => '/tmp',
       setWebviewReadyState: () => {},
@@ -52,6 +81,43 @@ describe('Tools picker host messages', () => {
       { id: 'browser', label: 'Web Fetch', description: 'Make HTTP GET/POST requests to fetch web content', isDefault: false },
       { id: 'finish', label: 'Finish', description: 'Signal that the agent has completed its task (always enabled)', isDefault: true },
     ]);
+  });
+
+  it('responds to requestTools in remote mode with the agent-server tools list when available', async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(['execute_bash', 'finish', 'file_edit']),
+      text: () => Promise.resolve(''),
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = {
+      serverUrl: 'http://localhost:3000',
+      settings: { secrets: { sessionApiKey: 'test-key-123' } },
+    };
+
+    const { handler, postMessage } = createRemoteHandler(conversation);
+    await handler({ type: 'requestTools' } as any);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/api\/tools\/$/);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: 'GET',
+      headers: expect.objectContaining({
+        'X-Session-API-Key': 'test-key-123',
+      }),
+    }));
+
+    expect(postMessage).toHaveBeenCalledWith({
+      type: 'toolsList',
+      tools: [
+        { id: 'execute_bash', label: 'execute_bash' },
+        { id: 'finish', label: 'finish' },
+        { id: 'file_edit', label: 'file_edit' },
+      ],
+      enabledToolIds: ['execute_bash', 'finish', 'file_edit'],
+    });
   });
 
   it('applies setEnabledTools by calling conversation.setTools', async () => {

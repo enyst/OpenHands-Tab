@@ -76,7 +76,7 @@ export function App() {
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
   const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
 
-  // Tools state (local mode only)
+  // Tools state
   const [showToolsPopover, setShowToolsPopover] = useState(false);
   const [tools, setTools] = useState<{ id: string; label: string; description?: string; isDefault?: boolean }[]>([]);
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
@@ -585,6 +585,11 @@ export function App() {
   }, [postMessage]);
 
   const handleToggleTool = useCallback((toolId: string) => {
+    if (mode !== 'local') {
+      showStatusMessage('info', 'Tools are controlled by the agent-server in remote mode.', { autoDismiss: true, autoDismissDelay: 4000 });
+      return;
+    }
+
     if (isToolSelectionLocked) {
       showStatusMessage('info', 'To change Tools, please start a new conversation.', { autoDismiss: true, autoDismissDelay: 4000 });
       return;
@@ -607,7 +612,7 @@ export function App() {
       postMessage({ type: 'setEnabledTools', toolIds: ordered });
       return ordered;
     });
-  }, [isToolSelectionLocked, postMessage, showStatusMessage, tools]);
+  }, [isToolSelectionLocked, mode, postMessage, showStatusMessage, tools]);
 
   // History handlers
   const handleSelectConversation = useCallback((id: string) => {
@@ -757,12 +762,13 @@ export function App() {
             skillsPopoverSkills: skills,
             onOpenSkill: handleOpenSkill,
             onCloseSkillsPopover: () => setShowSkillsPopover(false),
-            onOpenTools: mode === 'local' ? handleOpenTools : undefined,
-            toolsCount: enabledToolIds.length,
+            onOpenTools: handleOpenTools,
+            toolsCount: mode === 'local' ? enabledToolIds.length : tools.length,
             showToolsPopover,
             toolsPopoverTools: tools,
             enabledToolIds,
             onToggleTool: handleToggleTool,
+            toolsReadOnly: mode !== 'local',
             onCloseToolsPopover: () => setShowToolsPopover(false),
             onOpenAttachments: handleOpenAttachments,
             attachments,

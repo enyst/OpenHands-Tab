@@ -35,13 +35,14 @@ interface InputAreaProps {
   skillsPopoverSkills?: Array<{ label: string; path: string }>;
   onOpenSkill?: (path: string) => void;
   onCloseSkillsPopover?: (reason: CloseReason) => void;
-  // Tools (local mode only)
+  // Tools
   onOpenTools?: () => void;
   toolsCount?: number;
   showToolsPopover?: boolean;
   toolsPopoverTools?: Array<{ id: string; label: string }>;
   enabledToolIds?: string[];
   onToggleTool?: (toolId: string) => void;
+  toolsReadOnly?: boolean;
   onCloseToolsPopover?: (reason: CloseReason) => void;
   // Attachments
   onOpenAttachments?: () => void;
@@ -93,6 +94,7 @@ export function InputArea({
   toolsPopoverTools = [],
   enabledToolIds = [],
   onToggleTool,
+  toolsReadOnly = false,
   onCloseToolsPopover,
   onOpenAttachments,
   attachments = [],
@@ -334,6 +336,7 @@ export function InputArea({
                   tools={toolsPopoverTools}
                   enabledToolIds={enabledToolIds}
                   onToggleTool={onToggleTool}
+                  readOnly={toolsReadOnly}
                 />
               )}
             </div>

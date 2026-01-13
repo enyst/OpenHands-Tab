@@ -15,12 +15,25 @@ const getToolDisplayName = (tool: Record<string, unknown>, index: number): strin
   const direct = getNonEmptyString(tool.name);
   if (direct) return direct;
 
+  const type = getNonEmptyString(tool.type);
+
   const functionField = tool.function;
   if (functionField && typeof functionField === 'object') {
-    const name = getNonEmptyString((functionField as Record<string, unknown>).name);
+    const functionRecord = functionField as Record<string, unknown>;
+    const name = getNonEmptyString(functionRecord.name);
     if (name) return name;
+
+    const nestedFunction = functionRecord.function;
+    if (nestedFunction && typeof nestedFunction === 'object') {
+      const nestedName = getNonEmptyString((nestedFunction as Record<string, unknown>).name);
+      if (nestedName) return nestedName;
+    }
   }
 
+  const fallback = getNonEmptyString(tool.id) ?? getNonEmptyString(tool.tool_name);
+  if (fallback) return fallback;
+
+  if (type) return type;
   return `tool_${index + 1}`;
 };
 

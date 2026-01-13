@@ -14,6 +14,7 @@ interface ToolsPopoverProps {
   tools: ToolDescriptor[];
   enabledToolIds: string[];
   onToggleTool: (toolId: string) => void;
+  readOnly?: boolean;
 }
 
 function ToolButton({
@@ -79,6 +80,7 @@ export function ToolsPopover({
   tools,
   enabledToolIds,
   onToggleTool,
+  readOnly = false,
 }: ToolsPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
@@ -131,6 +133,7 @@ export function ToolsPopover({
       const tool = tools[safeActiveIndex < 0 ? 0 : safeActiveIndex];
       if (!tool) return;
       e.preventDefault();
+      if (readOnly) return;
       onToggleTool(tool.id);
     }
   };
@@ -157,7 +160,9 @@ export function ToolsPopover({
           <span className="codicon codicon-tools text-brand-400" />
           <h3 className="font-semibold text-sm text-stone-200">Tools</h3>
         </div>
-        <div className="mt-1 text-xs text-stone-500">Select which tools the agent can use</div>
+        <div className="mt-1 text-xs text-stone-500">
+          {readOnly ? 'Tools are controlled by the agent-server in remote mode' : 'Select which tools the agent can use'}
+        </div>
       </div>
 
       <div
@@ -184,14 +189,17 @@ export function ToolsPopover({
                     const globalIndex = allToolsFlat.findIndex((t) => t.id === tool.id);
                     const isEnabled = enabledToolIds.includes(tool.id);
                     const isActive = globalIndex === safeActiveIndex;
-                    const isLocked = tool.id === 'finish';
+                    const isLocked = tool.id === 'finish' || readOnly;
                     return (
                       <ToolButton
                         key={tool.id}
                         tool={tool}
                         isEnabled={isEnabled}
                         isActive={isActive}
-                        onToggle={() => onToggleTool(tool.id)}
+                        onToggle={() => {
+                          if (readOnly) return;
+                          onToggleTool(tool.id);
+                        }}
                         onMouseEnter={() => setActiveIndex(globalIndex)}
                         id={`tools-picker-option-${globalIndex}`}
                         disabled={isLocked}
@@ -213,14 +221,17 @@ export function ToolsPopover({
                     const globalIndex = allToolsFlat.findIndex((t) => t.id === tool.id);
                     const isEnabled = enabledToolIds.includes(tool.id);
                     const isActive = globalIndex === safeActiveIndex;
-                    const isLocked = tool.id === 'finish';
+                    const isLocked = tool.id === 'finish' || readOnly;
                     return (
                       <ToolButton
                         key={tool.id}
                         tool={tool}
                         isEnabled={isEnabled}
                         isActive={isActive}
-                        onToggle={() => onToggleTool(tool.id)}
+                        onToggle={() => {
+                          if (readOnly) return;
+                          onToggleTool(tool.id);
+                        }}
                         onMouseEnter={() => setActiveIndex(globalIndex)}
                         id={`tools-picker-option-${globalIndex}`}
                         disabled={isLocked}
