@@ -174,6 +174,42 @@ For detailed settings behavior, see `docs/settings_prd.md`.
 - Local history is stored under `~/.openhands/conversations-vscode/` by default (override with `openhands.conversation.storeRoot`).
 - Remote mode relies on the agent-server for persistence; the local history view only surfaces locally stored conversations.
 
+### Workspace Folder Selection (multi-root workspaces)
+
+**Problem:** The extension currently assumes a single workspace root and frequently uses `vscode.workspace.workspaceFolders?.[0]` as "the" `workspaceRoot`. This works for single-folder workspaces, but breaks/limits multi-root workspaces and prevents switching the agent's working folder mid-stream.
+
+**Current behavior audit (examples):**
+- Conversation `workspaceRoot` is derived from `workspaceFolders?.[0]?.uri.fsPath` in the extension host and passed into the SDK `Conversation(...)` creation.
+- Remote mode also uses that same `workspaceRoot` as `workspace.working_dir` when creating a remote conversation; the SDK’s remote workspace client uses `working_dir` as the default directory for tool calls.
+- Host-side path helpers (e.g., resolving relative file paths) and settings reads/writes are often scoped to the first workspace folder.
+
+**Recommended approach (v1): "Conversation is bound to one workspaceFolder"**
+- Each conversation is created with a selected `workspaceFolder` (identified by `workspaceFolder.uri.toString()`; `fsPath` used as the `workspaceRoot`).
+- If the user wants to "switch folders", we **start a new conversation** bound to the newly selected folder (rather than mutating the workspace root of an existing in-flight conversation).
+  - Rationale: avoids mixing tool sandbox roots, keeps persistence semantics simple, and matches remote-mode constraints (agent-server conversations are created with a single `working_dir`).
+
+**UX touchpoints:**
+- At start (multi-root only): prompt for a workspace folder (QuickPick) or allow choosing from a header dropdown; default to "last used folder" for that VS Code workspace if available, else `workspaceFolders?.[0]`.
+- Mid-stream: add a command like **"OpenHands: Switch Conversation Workspace Folder..."**.
+  - Behavior: confirm with the user, then start a new conversation in the selected folder (optionally carrying a short summary forward as a system message in a future enhancement).
+- In the chat header, show the active folder name (and optionally the relative path) so it’s always visible.
+
+**Persistence and restore:**
+- Persist the selected workspace folder identifier alongside the conversation metadata (local mode) so restoring a conversation can re-bind to the same folder.
+- If the workspace folder no longer exists (removed/renamed), prompt the user to choose a new folder and clearly indicate the rebinding in the UI.
+
+**Remote-mode considerations:**
+- The selected folder should populate `workspace.working_dir` when creating remote conversations.
+- If the server enforces its own workspace root or rejects the provided `working_dir`, surface a clear status error and fall back to server-defined behavior.
+
+**Key technical changes (to be implemented later, not in this PRD bead):**
+- Centralize "workspace root resolution" so host helpers accept an explicit `workspaceRoot` (derived from the selected folder) rather than reading `workspaceFolders?.[0]` directly.
+- Update all places that assume "folder 0" (conversation creation, file path resolution, git/diff root resolution, settings scope, context picker, history metadata) to use the selected folder.
+
+**Testing strategy (to implement later):**
+- Unit tests: workspace folder selection persistence, path resolution under different roots, behavior when folder is missing.
+- E2E test: open a multi-root workspace with two folders; start a conversation in folder A, create a file via tool; switch to folder B, create a different file; verify files land in the correct folders and the UI indicates the active folder correctly.
+
 ## 8. Non-Functional Requirements
 - **Security**: Secrets in VS Code SecretStorage, no API keys in logs
 - **Performance**: Stream updates without blocking UI
