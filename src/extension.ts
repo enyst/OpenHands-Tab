@@ -531,7 +531,10 @@ export function activate(context: vscode.ExtensionContext) {
     await ensureConversationAndConnection();
   });
 
-  const explainSelection = registerExplainSelectionCommand({ getConversation: () => conversation });
+  const explainSelection = registerExplainSelectionCommand({
+    getConversation: () => conversation,
+    getConversationMode: () => conversationMode,
+  });
 
   const diagnosticsCommands = registerDiagnosticsCommands({
     context,

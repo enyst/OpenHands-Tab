@@ -591,6 +591,9 @@ describe('Command handlers', () => {
   });
 
   it('starts a new conversation to explain the editor selection', async () => {
+    mockSettings.serverUrl = undefined as any;
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', '');
+
     (vscode.window as any).activeTextEditor = {
       selection: {
         isEmpty: false,
@@ -607,15 +610,25 @@ describe('Command handlers', () => {
         getText: vi.fn(() => 'const x = 1;'),
       },
     };
+    (vscode.window as any).visibleTextEditors = [(vscode.window as any).activeTextEditor];
+    (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/test/workspace' } }];
 
     await vscode.commands.executeCommand('openhands.explainSelection');
 
-    expect(conversationInstance.startNewConversation).toHaveBeenCalled();
-    expect(conversationInstance.sendUserMessage).toHaveBeenCalled();
-    const message = (conversationInstance.sendUserMessage as unknown as Mock).mock.calls[0]?.[0] as string;
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const latestConversation = __getLastConversation();
+
+    expect(latestConversation.startNewConversation).toHaveBeenCalled();
+    expect(latestConversation.sendUserMessage).toHaveBeenCalled();
+    const message = (latestConversation.sendUserMessage as unknown as Mock).mock.calls[0]?.[0] as string;
     expect(message).toContain('Please explain this code:');
     expect(message).toContain('/test/workspace/src/example.ts:4:3-6:11');
     expect(message).toContain('const x = 1;');
+    expect(message).toContain('<environment information>');
+    expect(message).toContain('Active editor: example.ts');
+    expect(message).toContain('Open editors:');
+    expect(message).toContain('- example.ts');
+    expect(message).toContain('</environment information>');
   });
 
   it('sends reconnect/pause/resume commands', async () => {
