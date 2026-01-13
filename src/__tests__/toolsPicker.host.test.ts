@@ -77,4 +77,27 @@ describe('Tools picker host messages', () => {
 
     expect(toolsListPayload.enabledToolIds).toEqual(['file_editor', 'finish']);
   });
+
+  it('does not duplicate finish when provided by the webview', async () => {
+    const state = { toolNames: ['terminal', 'file_editor', 'task_tracker'] as string[] };
+    const conversation = {
+      mode: 'local',
+      getToolNames: vi.fn(() => state.toolNames),
+      setTools: vi.fn((tools: Array<{ name: string }>) => {
+        state.toolNames = tools.map((t) => t.name);
+      }),
+    };
+
+    const { handler, postMessage } = createHandler(conversation);
+    await handler({ type: 'setEnabledTools', toolIds: ['finish', 'file_editor', 'finish'] } as any);
+
+    const arg = (conversation.setTools as any).mock.calls[0][0] as Array<{ name: string }>;
+    expect(arg.map((t) => t.name)).toEqual(['finish', 'file_editor']);
+
+    const toolsListPayload = postMessage.mock.calls
+      .map((call) => call[0])
+      .find((msg) => msg?.type === 'toolsList') as any;
+
+    expect(toolsListPayload.enabledToolIds).toEqual(['finish', 'file_editor']);
+  });
 });
