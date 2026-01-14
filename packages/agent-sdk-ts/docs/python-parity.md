@@ -10,6 +10,31 @@ This document is the living output for Beads issue `oh-tab-0rq`.
 - Python reference SDK: `~/repos/agent-sdk` ([OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)).
 - Focus: VS Code local-mode parity and remote conversation working correctly (no agent-server implementation in TS).
 
+## How to re-run this audit
+
+1. Clone both repos:
+
+   - This repo: `enyst/OpenHands-Tab` (folder: `packages/agent-sdk-ts`)
+   - Upstream: `OpenHands/software-agent-sdk`
+
+2. Record the upstream ref/commit you audited against in this doc.
+
+   - Last audited against upstream commit: `6a004a1d53d30fe09d9812753a57c69ec0a32036` (2026-01-14)
+
+3. Compare the wire-format and runtime behavior (not just types):
+
+   - Events → LLM messages: Python `openhands-sdk/openhands/sdk/event/llm_convertible/*` vs TS `packages/agent-sdk-ts/src/sdk/runtime/*`
+   - Tool schemas + validation: Python `openhands-sdk/openhands/sdk/tool/*` vs TS `packages/agent-sdk-ts/src/sdk/tools/*`
+   - Conversation persistence + resume: Python `openhands-sdk/openhands/sdk/conversation/*` vs TS `packages/agent-sdk-ts/src/sdk/conversation/*`
+
+4. Run TS SDK unit tests before/after changes:
+
+   ```bash
+   npm install
+   npm test -w @openhands/agent-sdk-ts
+   ```
+
+
 ## Module structure overview
 
 Quick reference for module-level parity between Python and TypeScript SDKs.
@@ -118,13 +143,15 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 | **ask_oracle** | ✗ Not in Python | Delegates to oracle LLM | TS only |
 | **browser (HTTP)** | ✗ Not in Python | Simple HTTP fetch | TS only |
 
-## Current parity snapshot (2026-01-13)
+## Current parity snapshot (2026-01-14)
 
 ### Tool error messages (MessageEvent with role="tool")
-- Python: `events_to_messages` converts `AgentErrorEvent` to a tool Message with plain text error content. No JSON encoding.
-- TypeScript: `createToolCallErrorEvents` emits a tool MessageEvent with plain text error content (not JSON).
-- Truncation: TS caps error text at 4096 chars and appends " (truncated)"; Python does not enforce a 4096 cap in conversion.
-- **Status**: Content format aligned (plain text); truncation policy diverges.
+- Python: `AgentErrorEvent.to_llm_message()` emits a `role="tool"` message with plain text `error` content (no JSON encoding, no truncation).
+  - Source: `openhands-sdk/openhands/sdk/event/llm_convertible/observation.py`
+- TypeScript: `createToolCallErrorEvents()` emits a `MessageEvent` with `role="tool"` and plain text `error` content (no JSON encoding, no truncation).
+  - Source: `packages/agent-sdk-ts/src/sdk/runtime/toolCallErrorEvents.ts`
+- Note: non-error tool outputs are still truncated for LLM safety (shared `<response clipped>` marker) via `packages/agent-sdk-ts/src/sdk/runtime/toolResultTruncation.ts`.
+- **Status**: Aligned.
 
 ### Tool-call argument redaction
 - Python: Secrets masking via `SecretRegistry.mask_secrets_in_output` for tool observations.

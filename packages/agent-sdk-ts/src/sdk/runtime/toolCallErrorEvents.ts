@@ -21,7 +21,11 @@ export const createToolCallErrorEvents = (
   error: string,
 ): { agentErrorEvent: AgentErrorEvent; toolMessageEvent: MessageEvent } => {
   const rawMessage = normalizeErrorMessage(error);
-  const message = truncateToolMessage(rawMessage);
+
+  // IMPORTANT (python parity): AgentErrorEvent -> tool MessageEvent content must be the
+  // raw error string (no JSON encoding, no truncation).
+  const message = rawMessage;
+
   const toolName = toolCall.function.name;
   const toolCallId = toolCall.id;
 
