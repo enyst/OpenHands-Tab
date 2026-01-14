@@ -50,17 +50,14 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(conversation.sendUserMessage).toHaveBeenCalledTimes(1);
     const sent = (conversation.sendUserMessage as any).mock.calls[0][0] as string;
     expect(sent).toContain('hello');
-    // As of routing via AgentContext, webview handler no longer appends env info inline.
-    // Kept compatibility: extended content will include env info; inline text may or may not include legacy blocks.
-    // For local mode, we still allow env suffix present for backward compatibility.
-    expect(sent).toContain('<environment information>');
-    expect(sent).toContain('Active editor: a.ts');
-    expect(sent).toContain('Open editors:');
-    expect(sent).toContain('- a.ts');
-    expect(sent).toContain('- b.ts');
-    expect(sent).not.toContain('a.ts —');
-    expect(sent).not.toContain('b.ts —');
-    expect(sent).toContain('</environment information>');
+    // As of routing via AgentContext, the webview handler no longer appends env info inline.
+    // The LLM still receives env info via extended_content, but the inline text should not include it.
+    expect(sent).not.toContain('<environment information>');
+    expect(sent).not.toContain('Active editor:');
+    expect(sent).not.toContain('Open editors:');
+    expect(sent).not.toContain('- a.ts');
+    expect(sent).not.toContain('- b.ts');
+    expect(sent).not.toContain('</environment information>');
   });
 
   it('does not append <environment information> to user messages in remote mode', async () => {
