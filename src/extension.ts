@@ -39,6 +39,7 @@ import {
   SecretRegistry,
   listProfiles,
   loadSkillsFromDir,
+  type Skill,
   type BashEvent,
   type Event,
   isBashCommand,
@@ -467,7 +468,7 @@ export function activate(context: vscode.ExtensionContext) {
         if (desiredMode !== 'local' || !workspaceRoot) return undefined;
 
         const skillsDir = path.join(workspaceRoot, '.openhands', 'skills');
-        let skills: unknown[] = [];
+        let skills: Skill[] = [];
         try {
           const { repoSkills, knowledgeSkills, agentSkills } = loadSkillsFromDir(skillsDir);
           skills = [...repoSkills.values(), ...knowledgeSkills.values(), ...agentSkills.values()];
