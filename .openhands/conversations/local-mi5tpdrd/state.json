@@ -1,1 +1,0 @@
-{"status":"RUNNING","iteration":2,"values":{"llm_stream":"Hi! How can I help you today?","llm_usage":{"inputTokens":4977,"outputTokens":97,"cacheReadTokens":4864},"llm_tool_call":"0"}}

@@ -192,3 +192,8 @@ e2e_logs*.zip
 .vscode/mcp.json
 /opencode.json
 /summary.md
+
+# Ignore local OpenHands conversation data (do not track)
+.openhands/conversations/
+# Ignore agent task tracker files in vendored skills dirs
+**/.openhands/TASKS.json
