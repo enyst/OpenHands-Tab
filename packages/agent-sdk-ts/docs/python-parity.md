@@ -641,7 +641,7 @@ export function observationToLLMText(observation: Observation): string {
   if (observation.kind === 'terminal') { /* terminal-specific formatting */ }
   if (observation.kind === 'file_editor') { /* file editor-specific */ }
   // Generic fallback
-  return JSON.stringify(result, null, 2);
+  return JSON.stringify(observation, null, 2);
 }
 ```
 
