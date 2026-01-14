@@ -567,6 +567,10 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return { ok: true, provider, key, hasKey: true };
   });
 
+  const listProfiles = vscode.commands.registerCommand('openhands._listProfiles', () => {
+    return { profiles: llmProfilesStore.listProfiles() };
+  });
+
   const injectTerminalEvent = vscode.commands.registerCommand('openhands._injectTerminalEvent', (raw: unknown) => {
     if (!isBashEvent(raw)) {
       return { injected: false, error: 'Invalid BashEvent structure' };
@@ -600,6 +604,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     selectProfile,
     setProfileApiKey,
     setProviderApiKey,
+    listProfiles,
     injectTerminalEvent,
   ];
 }

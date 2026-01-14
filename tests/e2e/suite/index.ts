@@ -69,6 +69,11 @@ export async function run(): Promise<void> {
     return runDefaultProfileSelectionTest();
   }
 
+  if (testName === 'defaultProfilesSeeding') {
+    const { run: runDefaultProfilesSeedingTest } = await import('./defaultProfilesSeeding');
+    return runDefaultProfilesSeedingTest();
+  }
+
   if (testName === 'oracleUnset') {
     const { run: runOracleUnsetTest } = await import('./oracleUnset');
     return runOracleUnsetTest();
