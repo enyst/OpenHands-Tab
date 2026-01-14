@@ -116,6 +116,10 @@ export class GlobTool extends ZodTool<z.infer<typeof globArgsSchema>, GlobResult
   readonly description = TOOL_DESCRIPTION;
   readonly schema = globArgsSchema;
 
+  override getEnhancedDescription(workspaceRoot: string): string {
+    return `${TOOL_DESCRIPTION}\n\nYour current working directory is: ${workspaceRoot}\nWhen searching for files, patterns are relative to this directory.`;
+  }
+
   async execute(args: z.infer<typeof globArgsSchema>, context: ToolContext): Promise<GlobResult> {
     const resolved = await resolveSearchRootAndPattern(args, context);
 

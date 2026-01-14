@@ -18,4 +18,9 @@ export interface ToolDefinition<TArgs, TResult> {
   validate(input: unknown): TArgs;
   execute(args: TArgs, context: ToolContext): Promise<TResult>;
   getToolDefinition?: () => LLMToolDefinition;
+  /**
+   * Returns an enhanced description with context-specific information (e.g., working directory).
+   * If not implemented, the static description is used.
+   */
+  getEnhancedDescription?: (workspaceRoot: string) => string;
 }
