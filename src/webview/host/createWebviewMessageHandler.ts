@@ -17,7 +17,7 @@ import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
 import { normalizeServerUrl } from '../../shared/serverUrls';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
-import { formatEnvironmentInformation } from '../../shared/environmentInformation';
+// import removed: environment info is provided via AgentContext.userMessageSuffix
 import { getConversationHistoryList, persistConversationTitle } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
 import { resolveGitHeadDiffContents } from './gitHeadDiff';
@@ -1147,17 +1147,6 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
         }
 
-        if (deps.getConversationMode() === 'local') {
-          const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-          const activeEditorPath =
-            vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
-              ? vscode.window.activeTextEditor.document.uri.fsPath
-              : null;
-          const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
-            .map((e) => (e?.document?.uri?.scheme === 'file' ? e.document.uri.fsPath : null))
-            .filter((p): p is string => typeof p === 'string' && p.length > 0);
-          finalText += `\n\n${formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths })}`;
-        }
         await conversation.sendUserMessage(finalText);
         break;
       }
