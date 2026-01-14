@@ -561,7 +561,7 @@ classDiagram
 | Event Type | Python | TypeScript | Notes |
 |------------|--------|-----------|-------|
 | SystemPromptEvent | ✓ | ✓ | Aligned |
-| ActionEvent | ✓ | ✓ | TS lacks `summary` |
+| ActionEvent | ✓ | ✓ | TS lacks `summary` field; OpenHands-Tab compensates via runtime summarization |
 | ObservationEvent | ✓ | ✓ | Aligned |
 | UserRejectObservation | ✓ | ✓ | Aligned |
 | MessageEvent | ✓ | ✓ | Aligned |
