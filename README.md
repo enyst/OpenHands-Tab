@@ -18,8 +18,7 @@ A VS Code extension for interacting with OpenHands AI agents directly in your ID
 - VS Code 1.104.0+
 - Node.js >= 22
 
-### Installation
-
+### Installation for AI agents:
 ```bash
 git clone https://github.com/enyst/OpenHands-Tab.git
 cd OpenHands-Tab
@@ -27,10 +26,18 @@ npm install
 npm run build
 ```
 
+### Installation for humans:
+
+Open VSCode `Extensions` tab > `Install from .vsix` > point to the downloaded .vsix
+
+Alternatively, for humans in development mode:
+  - Run OpenHands-CLI, or another agent of your choice, including itself
+  - Tell it to clone, build, install, or to tell you a story about this repo if you'd like
+
 ### Development (recommended)
 
 1. Run OpenHands-CLI in the extension directory
-2. Tell it to build and run VSCode in dev/debug on `cwd`
+2. Tell it to build, install, and run VSCode in dev/debug on `cwd`
 3. Have fun!
 
 ### Development (old style)
