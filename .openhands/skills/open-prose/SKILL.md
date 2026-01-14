@@ -6,7 +6,6 @@ description: |
 
   OpenHands-Tab integration:
   - This repo vendors the OpenProse VM docs as an AgentSkills-format skill.
-  - Project skills are loaded from `<workspaceRoot>/.openhands/skills/` in local mode.
   - When you see a `.prose` program, use `prose.md` for execution semantics and `docs.md` for syntax/validation.
 
   Activate when: running `.prose` files, mentioning OpenProse, or when a task is best expressed as an orchestrated multi-agent workflow.
