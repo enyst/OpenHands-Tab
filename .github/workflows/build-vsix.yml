@@ -134,7 +134,7 @@ jobs:
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
 
 
-      - name: Guard: ensure VSIX excludes heavy/debug assets
+      - name: Guard – ensure VSIX excludes heavy/debug assets
         run: |
           VSIX_FILE="${{ steps.package.outputs.vsix_file }}"
           unzip -l "$VSIX_FILE" > vsix.list
