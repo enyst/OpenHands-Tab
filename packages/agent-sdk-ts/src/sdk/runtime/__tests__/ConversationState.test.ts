@@ -5,6 +5,7 @@ import type { ConversationPersistence } from '../persistence';
 import type { ConversationStateUpdateEvent, Event } from '../../types';
 
 const createMockPersistence = (): ConversationPersistence => ({
+  conversationId: 'test-conversation-id',
   appendEvent: vi.fn(),
   readEvents: vi.fn().mockReturnValue([]),
   readLlmConfig: vi.fn().mockReturnValue(null),

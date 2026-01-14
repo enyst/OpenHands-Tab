@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -240,13 +240,16 @@ describe('MCP config', () => {
       fs.writeFileSync(mcpPath, JSON.stringify(config));
 
       const result = loadMcpConfig(mcpPath, { skillRoot: tempDir });
-      expect(result.mcpServers.testServer.cwd).toBe(`${tempDir}/scripts`);
+      // The implementation replaces ${SKILL_ROOT} with the skillRoot path and keeps /scripts
+      // On Windows tempDir uses backslashes, but the /scripts portion stays as forward slash
+      const expected = tempDir + '/scripts';
+      expect(result.mcpServers.testServer.cwd).toBe(expected);
     });
 
     it('expands environment variables', () => {
       const mcpPath = path.join(tempDir, '.mcp.json');
-      const testValue = 'test-value-' + Date.now();
-      process.env.MCP_TEST_VAR = testValue;
+      const testValue = 'test-value-deterministic';
+      vi.stubEnv('MCP_TEST_VAR', testValue);
 
       const config = {
         mcpServers: {
@@ -260,7 +263,7 @@ describe('MCP config', () => {
       const result = loadMcpConfig(mcpPath);
       expect(result.mcpServers.testServer.command).toBe(testValue);
 
-      delete process.env.MCP_TEST_VAR;
+      vi.unstubAllEnvs();
     });
 
     it('uses default value when variable is undefined', () => {
