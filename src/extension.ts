@@ -94,6 +94,7 @@ const MAX_TEST_EVENTS = MAX_EVENT_BACKLOG;
 const sentTestEvents: Event[] = [];
 // Track which command_ids have already printed an exit summary to avoid duplicates
 const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
+
 const printedExitFor = new Map<string, true>();
 
 function markPrintedExitFor(commandId: string): void {
@@ -466,13 +467,6 @@ export function activate(context: vscode.ExtensionContext) {
     const needsNewConversation = !conversation || conversationMode !== desiredMode;
 
     if (needsNewConversation) {
-    // Populate AgentContext userMessageSuffix for environment info in local mode
-    if (desiredMode === 'local') {
-      if (!localAgentContext) localAgentContext = new AgentContext({ loadUserSkills: true });
-      const env = buildEnvironmentInfoSuffix();
-      localAgentContext.userMessageSuffix = env ?? undefined;
-    }
-
       try {
         conversation?.removeAllListeners();
         conversation?.disconnect();
@@ -481,8 +475,8 @@ export function activate(context: vscode.ExtensionContext) {
 
       const persistenceDir =
         desiredMode === 'local'
-          ? await resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }).catch(() => {
-              outputChannel?.appendLine(`[storage] Failed to resolve conversation store root`);
+          ? await resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }).catch((err: unknown) => {
+              outputChannel?.appendLine(`[storage] Failed to resolve conversation store root: ${renderError(err)}`);
               return path.join(os.tmpdir(), 'openhands-conversations-vscode');
             })
           : undefined;
@@ -519,6 +513,12 @@ export function activate(context: vscode.ExtensionContext) {
         persistenceDir,
         agentContext,
       };
+
+      // Populate user environment info suffix for local mode (after agentContext is created & system message synced)
+      if (desiredMode === 'local' && localAgentContext) {
+        const env = buildEnvironmentInfoSuffix();
+        localAgentContext.userMessageSuffix = env ?? undefined;
+      }
 
       try {
         conversation = Conversation(conversationOptions);
