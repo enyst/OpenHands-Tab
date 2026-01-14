@@ -1,9 +1,4 @@
 # OpenHands-Tab for AI Agents
-# Agent Notes / Conventions
-
-- Always use real newlines in commit messages, PR/issue descriptions, and comments. Never paste literal \n sequences. Keep messages readable as rendered Markdown.
-
-
 
 Essential information for working with this codebase.
 
@@ -300,3 +295,8 @@ Pitfalls to avoid
 - Opening PRs via the OpenHands `create_pr` tool expects:
   - `repo_name`, `source_branch`, `target_branch`, `title`, `body`
 
+
+
+## Notes & Conventions
+
+- Use real newlines in commit messages, PR/issue descriptions, and comments. Avoid literal `\n` sequences; write readable Markdown.
