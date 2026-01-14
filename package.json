@@ -171,7 +171,7 @@
       {
         "type": "object",
         "title": "OpenHands: Oracle",
-        "order": 1.5,
+        "order": 2,
         "properties": {
           "openhands.oracle.profileId": {
             "type": "string",
@@ -185,7 +185,7 @@
       {
         "type": "object",
         "title": "OpenHands: Agent",
-        "order": 2,
+        "order": 3,
         "properties": {
           "openhands.agent.enableSecurityAnalyzer": {
             "type": "boolean",
@@ -216,7 +216,7 @@
       {
         "type": "object",
         "title": "OpenHands: Logging",
-        "order": 2.5,
+        "order": 3,
         "properties": {
           "openhands.logging.verbosity": {
             "type": "string",
@@ -234,7 +234,7 @@
       {
         "type": "object",
         "title": "OpenHands: Confirmation",
-        "order": 3,
+        "order": 4,
         "properties": {
           "openhands.confirmation.policy": {
             "type": "string",
@@ -269,7 +269,7 @@
       {
         "type": "object",
         "title": "OpenHands: HAL",
-        "order": 4,
+        "order": 5,
         "properties": {
           "openhands.hal.enabled": {
             "type": "boolean",
@@ -344,7 +344,7 @@
       {
         "type": "object",
         "title": "OpenHands: Servers",
-        "order": 5,
+        "order": 6,
         "properties": {
           "openhands.serverUrl": {
             "type": "string",
@@ -377,7 +377,7 @@
       {
         "type": "object",
         "title": "OpenHands: Conversation",
-        "order": 6,
+        "order": 8,
         "properties": {
           "openhands.conversation.maxIterations": {
             "type": "number",
@@ -402,7 +402,7 @@
       {
         "type": "object",
         "title": "OpenHands: Secrets",
-        "order": 7,
+        "order": 9,
         "properties": {
           "openhands.secrets.sessionApiKey": {
             "type": "string",
