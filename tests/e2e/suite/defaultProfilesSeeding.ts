@@ -71,9 +71,8 @@ export async function run(): Promise<void> {
 
   // 2) Source of truth for dropdown: host-side profile list.
   const listed = await vscode.commands.executeCommand<LlmProfilesResult>('openhands._listProfiles');
-  const profilesRaw = listed?.profiles;
-  if (!Array.isArray(profilesRaw)) throw new Error(`Expected profiles array, got: ${JSON.stringify(listed)}`);
-  const profiles = profilesRaw.filter((id): id is string => typeof id === 'string');
+  const profiles = listed?.profiles;
+  if (!Array.isArray(profiles)) throw new Error(`Expected profiles array, got: ${JSON.stringify(listed)}`);
   for (const id of DEFAULT_PROFILE_IDS) {
     assert.ok(profiles.includes(id), `Expected _listProfiles to include '${id}'`);
   }
