@@ -234,7 +234,7 @@
       {
         "type": "object",
         "title": "OpenHands: Confirmation",
-        "order": 4,
+        "order": 7,
         "properties": {
           "openhands.confirmation.policy": {
             "type": "string",
