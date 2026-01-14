@@ -852,18 +852,36 @@ export class Agent extends EventEmitter {
   }
 
   private getToolDefinitions(): LLMToolDefinition[] {
+    const workspaceRoot = this.workspace.root;
     const definitions: LLMToolDefinition[] = Array.from(this.tools.values()).map((tool): LLMToolDefinition => {
+      // Get base definition
+      let baseDef: LLMToolDefinition;
       if (typeof tool.getToolDefinition === 'function') {
-        return tool.getToolDefinition();
+        baseDef = tool.getToolDefinition();
+      } else {
+        const definition: LLMToolDefinition['function'] = { name: tool.name };
+        if (tool.description) {
+          definition.description = tool.description;
+        }
+        if (tool.parameters) {
+          definition.parameters = tool.parameters;
+        }
+        baseDef = { type: 'function', function: definition };
       }
-      const definition: LLMToolDefinition['function'] = { name: tool.name };
-      if (tool.description) {
-        definition.description = tool.description;
+
+      // Enhance description with workspace context if tool supports it
+      if (typeof tool.getEnhancedDescription === 'function') {
+        const enhancedDescription = tool.getEnhancedDescription(workspaceRoot);
+        return {
+          ...baseDef,
+          function: {
+            ...baseDef.function,
+            description: enhancedDescription,
+          },
+        };
       }
-      if (tool.parameters) {
-        definition.parameters = tool.parameters;
-      }
-      return { type: 'function', function: definition };
+
+      return baseDef;
     });
 
     if (!this.shouldIncludeSecurityRiskAssessment()) return definitions;

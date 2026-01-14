@@ -52,6 +52,15 @@ export abstract class ZodTool<TArgs, TResult> implements ToolDefinition<TArgs, T
       },
     };
   }
+
+  /**
+   * Returns an enhanced description with context-specific information.
+   * Override in subclasses to add workspace-specific context (e.g., working directory).
+   * Default implementation returns the static description.
+   */
+  getEnhancedDescription(_workspaceRoot: string): string {
+    return this.description;
+  }
 }
 
 export const booleanWithDefault = (defaultValue: boolean) => z.boolean().optional().default(defaultValue);

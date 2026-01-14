@@ -167,6 +167,14 @@ export class FileEditorTool extends ZodTool<z.infer<typeof fileEditorSchema>, Fi
   private undoBytesTotal = 0;
   private readonly maxOutputChars: number;
 
+  override getEnhancedDescription(workspaceRoot: string): string {
+    return (
+      `${TOOL_DESCRIPTION}\n\n` +
+      `Your current working directory is: ${workspaceRoot}\n` +
+      `When exploring project structure, start with this directory instead of the root filesystem.`
+    );
+  }
+
   constructor(options: { maxOutputChars?: number } = {}) {
     super();
     const configured = options.maxOutputChars;
