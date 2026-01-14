@@ -14,7 +14,7 @@ const DEFAULT_PROFILE_IDS = [
   'sonnet-45',
 ] as const;
 
-type LlmProfilesResult = { profiles?: unknown } | undefined;
+type LlmProfilesResult = { profiles?: string[] } | undefined;
 
 const getProfilesDir = (): string => path.join(os.homedir(), '.openhands', 'llm-profiles');
 
@@ -71,7 +71,7 @@ export async function run(): Promise<void> {
 
   // 2) Source of truth for dropdown: host-side profile list.
   const listed = await vscode.commands.executeCommand<LlmProfilesResult>('openhands._listProfiles');
-  const profilesRaw = listed && typeof listed === 'object' ? (listed as { profiles?: unknown }).profiles : undefined;
+  const profilesRaw = listed?.profiles;
   if (!Array.isArray(profilesRaw)) throw new Error(`Expected profiles array, got: ${JSON.stringify(listed)}`);
   const profiles = profilesRaw.filter((id): id is string => typeof id === 'string');
   for (const id of DEFAULT_PROFILE_IDS) {
@@ -95,7 +95,7 @@ export async function run(): Promise<void> {
   const missingId = 'gpt-5-mini';
   const missingPath = path.join(profilesDir, `${missingId}.json`);
   await fs.rm(missingPath, { force: true });
-  assert.rejects(() => fs.access(missingPath));
+  await assert.rejects(() => fs.access(missingPath));
 
   await vscode.commands.executeCommand('openhands._listProfiles');
 
@@ -108,4 +108,3 @@ export async function run(): Promise<void> {
     }
   }, 15000);
 }
-
