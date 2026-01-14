@@ -132,3 +132,21 @@ jobs:
             }
 
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+
+      - name: Guard: ensure VSIX excludes heavy/debug assets
+        run: |
+          VSIX_FILE="${{ steps.package.outputs.vsix_file }}"
+          unzip -l "$VSIX_FILE" > vsix.list
+          echo "Inspecting VSIX contents..."
+          # Fail if screenshots, audio, or source maps are present
+          if grep -E "extension/media/screenshots/|\.wav$|\.mp3$|\.ogg$|\.map$" vsix.list; then
+            echo "Found disallowed assets in VSIX (screenshots/audio/maps)." >&2
+            exit 1
+          fi
+          # Optional: ensure only dist/ and media/ exist under extension/
+          if ! grep -E "^\s+extension/(dist/|media/|package\.json|readme\.md|LICENSE\.txt|extension\.vsixmanifest|\[Content_Types\]\.xml)" -q vsix.list; then
+            echo "VSIX contains unexpected top-level paths under extension/. Review .vscodeignore." >&2
+            # Not fatal yet; comment next line to enforce strictly
+            # exit 1
+          fi
