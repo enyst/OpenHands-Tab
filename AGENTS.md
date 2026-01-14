@@ -1,4 +1,9 @@
 # OpenHands-Tab for AI Agents
+# Agent Notes / Conventions
+
+- Always use real newlines in commit messages, PR/issue descriptions, and comments. Never paste literal \n sequences. Keep messages readable as rendered Markdown.
+
+
 
 Essential information for working with this codebase.
 
