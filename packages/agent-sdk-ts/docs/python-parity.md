@@ -631,9 +631,9 @@ class Observation(Schema, ABC):
         """Rich Text representation for UI display."""
 ```
 
-### TypeScript design
+### TypeScript design (intentional difference)
 
-Tool execution produces observation events; formatting is external:
+TypeScript uses centralized function-based formatting rather than method-on-class:
 
 ```typescript
 // observations/index.ts
@@ -643,12 +643,23 @@ export function observationToLLMText(observation: Observation): string {
   // Generic fallback
   return JSON.stringify(observation, null, 2);
 }
+
+// toolMessageFormatting.ts - thin wrapper that delegates
+export function formatToolMessageText(toolCall: ToolCall, result: unknown): string {
+  return toolResultToLLMText(toolCall, result);
+}
 ```
 
+This is an **intentional design choice**, not a parity gap:
+- Centralized formatting is simpler to maintain
+- Tool-specific formatting exists for terminal and file_editor
+- Generic JSON fallback is acceptable for most tools
+- Summarizer handles large outputs separately
+
 ### Formatting status
-- Terminal: Both format with command, output, exit code
-- File editor: Both format with command, path, content
-- Generic: TS falls back to JSON stringify (may leak internal fields)
+- Terminal: Both format with command, output, exit code - **Aligned**
+- File editor: Both format with command, path, content - **Aligned**
+- Generic: TS falls back to JSON stringify (acceptable for most tools)
 
 ## Quick checklist for remaining parity work
 
@@ -659,7 +670,6 @@ export function observationToLLMText(observation: Observation): string {
 - [ ] **Public skills**: Add public skills repo loading (`load_public_skills`)
 - [ ] **RemoteConversation**: Add `set_confirmation_policy`, `ask_agent`, `generate_title`, `condense`
 - [ ] **security_risk defaulting**: Consider defaulting to UNKNOWN in TS for remote mode
-- [ ] **Observation formatting**: Add `formatForLLM()` to tools so observations own their LLM representation
 
 ## Not planned for TypeScript
 
