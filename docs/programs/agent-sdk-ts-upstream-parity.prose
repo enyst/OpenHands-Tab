@@ -1,7 +1,8 @@
 # Program: Keep agent-sdk-ts aligned with upstream python Software Agent SDK
 # Repo: enyst/OpenHands-Tab
 # Upstream: OpenHands/software-agent-sdk
-# Issue: #1 Update agent-sdk-ts from upstream python agent-sdk behavior
+# Tracking: link PRs to the relevant open parity issue(s) in enyst/OpenHands-Tab.
+# (The parity work is typically tracked across multiple issues; examples at time of writing include #634, #658, #662, #663, #667, #570.)
 
 # Inputs
 input oh_tab_repo: "https://github.com/enyst/OpenHands-Tab.git"
@@ -105,11 +106,11 @@ loop until **all planned parity gaps are implemented or explicitly marked Not Pl
     prompt: "Pick the next highest-priority, unblocked PR slice. Return a PR plan object with: title, scope, acceptance_criteria, files_to_change, tests_to_add, risk_notes, and rollout_notes."
 
   session: implementor
-    prompt: "Implement the selected PR slice end-to-end: create a branch, implement changes, run tests/lint/typecheck, open a PR against enyst/OpenHands-Tab, and link it to issue #1. Keep the PR small and reviewable (one gap/cluster)."
+    prompt: "Implement the selected PR slice end-to-end: create a branch, implement changes, run tests/lint/typecheck, open a PR against enyst/OpenHands-Tab, and link it to the relevant parity tracking issue. Keep the PR small and reviewable (one gap/cluster)."
     context: next_pr
 
 # Completion
 session "Summarize parity status, open PR links, and remaining work"
   context: { ts_map, py_map }
 
-output results = "A set of PRs updating docs and implementing TS parity improvements, each linked to issue #1." 
+output results = "A set of PRs updating docs and implementing TS parity improvements, each linked to the relevant issue number." 
