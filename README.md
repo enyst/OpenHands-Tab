@@ -9,7 +9,7 @@ A VS Code extension for interacting with OpenHands AI agents directly in your ID
 - UX first: switching LLM at runtime
 - Streaming event display and most other OpenHands features
 - Local mode (runs agent in VS Code) or remote mode (connects to agent-server)
-- might also have a lil' cheesy Easter Egg (because why not?)
+- Might also have a lil' cheesy Easter Egg (because why not?)
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ npm run build
 2. Press F5 to launch Extension Development Host
 3. Click the OpenHands icon in the Activity Bar (or run "OpenHands: Open") to reveal the chat sidebar view
 
-### Git Hooks (optional)
+### Git Hooks
 
 This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit (installed automatically by `npm install` via the `prepare` script).
 
@@ -62,7 +62,7 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 - **OpenHands: Set GitHub Token** - Set GitHub token for repository access
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
-**Using Gemini**: Gemini can be used in two ways:
+**Using Gemini**: Gemini can be used in three ways:
 - **As the main agent LLM**: set `openhands.llm.profileId` to a Gemini profile id (e.g., `gemini-flash`) and configure your API key via **OpenHands: Set Gemini API Key**
 - **As utility for summarization**: highly recommended, just set the key and it will be used for the built-in Gemini profiles
 - **For HAL voice confirmation** (optional): HAL uses its own Gemini profile specified by `openhands.hal.llmProfileId` (default: `gemini-flash-hal`) for audio understanding in voice_confirm mode
@@ -73,6 +73,7 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | Quick reference for AI agents |
 | [docs/PRD.md](docs/PRD.md) | Product requirements and architecture |
+| [docs/settings_prd.md](docs/settings_prd.md) | Product requirements and architecture |
 | [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) | SDK architecture details |
 | [docs/vscode_local_setup.md](docs/vscode_local_setup.md) | Local development setup |
 | [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) | Headless/remote setup |
