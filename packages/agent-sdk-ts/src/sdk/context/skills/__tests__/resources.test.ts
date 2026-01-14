@@ -4,21 +4,23 @@ import * as path from 'path';
 import * as os from 'os';
 import { discoverSkillResources, hasSkillResources } from '../resources';
 
-// Check if symlinks are supported (may fail on Windows without developer mode)
-function canCreateSymlinks(): boolean {
-  if (process.platform !== 'win32') return true;
+const supportsSymlinks = (): boolean => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-test-'));
+  const target = path.join(root, 'target.txt');
+  const link = path.join(root, 'link.txt');
+  fs.writeFileSync(target, 'test');
+
   try {
-    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-probe-'));
-    const target = path.join(tmp, 't');
-    const link = path.join(tmp, 'l');
-    fs.writeFileSync(target, 'x');
     fs.symlinkSync(target, link);
-    fs.rmSync(tmp, { recursive: true, force: true });
     return true;
   } catch {
     return false;
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
-}
+};
+
+const symlinksSupported = supportsSymlinks();
 
 describe('Skill resources', () => {
   let tempDir: string;
@@ -97,7 +99,7 @@ describe('Skill resources', () => {
       expect(resources.scripts).toEqual(['a-script.sh', 'm-script.sh', 'z-script.sh']);
     });
 
-    it.skipIf(!canCreateSymlinks())('ignores symlinks in resource directories', () => {
+    it.skipIf(!symlinksSupported)('ignores symlinks in resource directories', () => {
       const scriptsDir = path.join(tempDir, 'scripts');
       fs.mkdirSync(scriptsDir);
       fs.writeFileSync(path.join(scriptsDir, 'real.sh'), '#!/bin/bash');
@@ -108,7 +110,7 @@ describe('Skill resources', () => {
       expect(resources.scripts).not.toContain('link.sh');
     });
 
-    it.skipIf(!canCreateSymlinks())('ignores symlinked resource directories', () => {
+    it.skipIf(!symlinksSupported)('ignores symlinked resource directories', () => {
       const realDir = path.join(tempDir, 'real-scripts');
       fs.mkdirSync(realDir);
       fs.writeFileSync(path.join(realDir, 'test.sh'), '#!/bin/bash');

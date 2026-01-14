@@ -127,22 +127,35 @@ describe('SecretMasker', () => {
       expect(result).toBe('secret: ***');
     });
 
-    it('reuses cached computation when secrets are unchanged', () => {
-      // The masker caches the computed secret values based on a signature.
-      // When secrets don't change, it returns cached values instead of recomputing.
-      // We verify this by checking the same values are returned (via cache hit).
-      const secrets = ['cached_secret_1234'];
+    it('caches secret values for performance', () => {
+      process.env = {};
+      const getConfiguredSecrets = vi.fn(() => ['cached_secret_1234']);
       const masker = new SecretMasker({
-        getConfiguredSecrets: () => secrets,
+        getConfiguredSecrets,
         getRegisteredSecrets: () => [],
       });
 
-      // Both calls should return the same masked result
-      const result1 = masker.maskText('test cached_secret_1234');
-      const result2 = masker.maskText('test cached_secret_1234 again');
+      const addSpy = vi.spyOn(Set.prototype, 'add');
+      try {
+        const result1 = masker.maskText('test cached_secret_1234');
+        const addCallsAfterFirst = addSpy.mock.calls.length;
+        expect(addCallsAfterFirst).toBeGreaterThan(0);
+        expect(result1).toBe('test ***');
 
-      expect(result1).toBe('test ***');
-      expect(result2).toBe('test *** again');
+        const result2 = masker.maskText('test cached_secret_1234 again');
+        expect(addSpy.mock.calls.length).toBe(addCallsAfterFirst);
+        expect(result2).toBe('test *** again');
+
+        const result3 = masker.maskText('test cached_secret_1234 one more time');
+        expect(addSpy.mock.calls.length).toBe(addCallsAfterFirst);
+        expect(result3).toBe('test *** one more time');
+
+        // Secrets are fetched each time to compute the cache signature,
+        // but expensive masking list computation is cached for the same signature.
+        expect(getConfiguredSecrets).toHaveBeenCalledTimes(3);
+      } finally {
+        addSpy.mockRestore();
+      }
     });
 
     it('invalidates cache when secrets change', () => {

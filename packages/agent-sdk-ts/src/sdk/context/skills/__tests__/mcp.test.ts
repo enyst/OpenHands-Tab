@@ -13,6 +13,7 @@ describe('MCP config', () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -233,17 +234,14 @@ describe('MCP config', () => {
         mcpServers: {
           testServer: {
             command: 'node',
-            cwd: '${SKILL_ROOT}/scripts',
+            cwd: path.join('${SKILL_ROOT}', 'scripts'),
           },
         },
       };
       fs.writeFileSync(mcpPath, JSON.stringify(config));
 
       const result = loadMcpConfig(mcpPath, { skillRoot: tempDir });
-      // The implementation replaces ${SKILL_ROOT} with the skillRoot path and keeps /scripts
-      // On Windows tempDir uses backslashes, but the /scripts portion stays as forward slash
-      const expected = tempDir + '/scripts';
-      expect(result.mcpServers.testServer.cwd).toBe(expected);
+      expect(result.mcpServers.testServer.cwd).toBe(path.join(tempDir, 'scripts'));
     });
 
     it('expands environment variables', () => {
@@ -262,8 +260,6 @@ describe('MCP config', () => {
 
       const result = loadMcpConfig(mcpPath);
       expect(result.mcpServers.testServer.command).toBe(testValue);
-
-      vi.unstubAllEnvs();
     });
 
     it('uses default value when variable is undefined', () => {
