@@ -16,7 +16,7 @@ input ts_sdk_path: "packages/agent-sdk-ts"
 # - Implementation PRs: one PR per gap (or per cohesive cluster) with tests
 
 agent auditor:
-  model: sonnet
+  model: gpt-5.2
   prompt: """
     You audit two codebases (TS SDK and Python SDK) and produce an accurate parity report.
 
@@ -28,7 +28,7 @@ agent auditor:
   """
 
 agent architect:
-  model: sonnet
+  model: gpt-5.2
   prompt: """
     You design TS-idiomatic implementations that match Python behavior, while respecting OpenHands-Tab constraints:
     - VS Code extension runtime constraints
@@ -42,7 +42,7 @@ agent architect:
   """
 
 agent implementer:
-  model: sonnet
+  model: gpt-5.2
   prompt: """
     You implement a planned parity gap in TypeScript with:
     - smallest correct change
