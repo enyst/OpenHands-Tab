@@ -216,7 +216,7 @@
       {
         "type": "object",
         "title": "OpenHands: Logging",
-        "order": 3,
+        "order": 4,
         "properties": {
           "openhands.logging.verbosity": {
             "type": "string",
