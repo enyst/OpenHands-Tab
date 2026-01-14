@@ -8,7 +8,7 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     (vscode as any).__resetMocks?.();
   });
 
-  it('appends <environment information> to user messages in local mode', async () => {
+  it('does not append env block inline in local mode (env is routed via AgentContext extended_content)', async () => {
     const conversation = {
       sendUserMessage: vi.fn(async () => {}),
     };
@@ -50,14 +50,14 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(conversation.sendUserMessage).toHaveBeenCalledTimes(1);
     const sent = (conversation.sendUserMessage as any).mock.calls[0][0] as string;
     expect(sent).toContain('hello');
-    expect(sent).toContain('<environment information>');
-    expect(sent).toContain('Active editor: a.ts');
-    expect(sent).toContain('Open editors:');
-    expect(sent).toContain('- a.ts');
-    expect(sent).toContain('- b.ts');
-    expect(sent).not.toContain('a.ts —');
-    expect(sent).not.toContain('b.ts —');
-    expect(sent).toContain('</environment information>');
+    // As of routing via AgentContext, the webview handler no longer appends env info inline.
+    // The LLM still receives env info via extended_content, but the inline text should not include it.
+    expect(sent).not.toContain('<environment information>');
+    expect(sent).not.toContain('Active editor:');
+    expect(sent).not.toContain('Open editors:');
+    expect(sent).not.toContain('- a.ts');
+    expect(sent).not.toContain('- b.ts');
+    expect(sent).not.toContain('</environment information>');
   });
 
   it('does not append <environment information> to user messages in remote mode', async () => {

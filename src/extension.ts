@@ -26,6 +26,7 @@ import { createPastedImagesCleanupScheduler } from './extension/pastedImagesClea
 import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
+import { formatEnvironmentInformation } from './shared/environmentInformation';
 import {
   createOutputLogger,
   normalizeOutputVerbosity,
@@ -93,6 +94,7 @@ const MAX_TEST_EVENTS = MAX_EVENT_BACKLOG;
 const sentTestEvents: Event[] = [];
 // Track which command_ids have already printed an exit summary to avoid duplicates
 const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
+
 const printedExitFor = new Map<string, true>();
 
 function markPrintedExitFor(commandId: string): void {
@@ -157,6 +159,7 @@ function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): str
 function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefined): void {
   activeEditorFilePath = resolveActiveEditorFilePath(editor);
   if (!localAgentContext) return;
+  // Only populate systemMessageSuffix; environment context for user messages will be provided via userMessageSuffix when sending.
   localAgentContext.systemMessageSuffix = activeEditorFilePath
     ? `Currently opened in the editor: ${activeEditorFilePath}`
     : undefined;
@@ -166,9 +169,24 @@ function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefin
  * Initialize the OpenHands extension: create logging channel and chat webview, register commands and configuration handlers, and wire up terminal, conversation, and secret-management behavior.
  *
  * Performs extension startup work and registers disposables (commands, webview provider, event listeners, and configuration change handlers) on the provided VS Code extension context.
- *
- * @param context - The VS Code extension context used to register disposables, access workspace and global state, and resolve extension resources
  */
+
+function buildEnvironmentInfoSuffix(): string | null {
+  try {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const activeEditorPath =
+      vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
+        ? vscode.window.activeTextEditor.document.uri.fsPath
+        : null;
+    const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
+      .map((e) => (e?.document?.uri?.scheme === 'file' ? e.document.uri.fsPath : null))
+      .filter((p): p is string => typeof p === 'string' && p.length > 0);
+    return formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths });
+  } catch {
+    return null;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const secrets = new SecretRegistry(context.secrets);
   secretRegistry = secrets;
@@ -368,8 +386,8 @@ export function activate(context: vscode.ExtensionContext) {
           markPrintedExitFor(cid);
         }
       }
-    } catch (e) {
-      console.error('[Terminal] Failed to write terminal event:', e);
+    } catch (err) {
+      console.error(`[Terminal] Failed to write terminal event: ${renderError(err)}`);
     }
   };
 
@@ -495,6 +513,12 @@ export function activate(context: vscode.ExtensionContext) {
         persistenceDir,
         agentContext,
       };
+
+      // Populate user environment info suffix for local mode (after agentContext is created & system message synced)
+      if (desiredMode === 'local' && localAgentContext) {
+        const env = buildEnvironmentInfoSuffix();
+        localAgentContext.userMessageSuffix = env ?? undefined;
+      }
 
       try {
         conversation = Conversation(conversationOptions);

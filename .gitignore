@@ -181,7 +181,10 @@ src/webview-src/tailwind.gen.css
 e2e_logs*.zip
 
 # Local agent tooling (Codex/Claude/Cursor/etc.)
-.beads/
+# Beads: keep JSONL exports in version control for UX; ignore everything else
+.beads/*
+!.beads/issues.jsonl
+!.beads/deletions.jsonl
 .claude/
 .codex/
 .mcp.json
@@ -189,3 +192,8 @@ e2e_logs*.zip
 .vscode/mcp.json
 /opencode.json
 /summary.md
+
+# Ignore local OpenHands conversation data (do not track)
+.openhands/conversations/
+# Ignore agent task tracker files in vendored skills dirs
+**/.openhands/TASKS.json

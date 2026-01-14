@@ -10,6 +10,7 @@ import {
   withAlpha,
 } from './shared';
 
+
 /**
  * Renders chat messages - user and agent messages with context files,
  * images, skills, and extended thinking/content sections.
