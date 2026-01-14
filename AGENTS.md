@@ -286,3 +286,12 @@ Pitfalls to avoid
 - [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) - SDK architecture
 - [docs/vscode_local_setup.md](docs/vscode_local_setup.md) - Local development setup
 - [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) - SDK-specific guidelines
+
+
+## OpenProse notes
+
+- OpenProse skill docs are vendored at `OpenHands-Tab/.openhands/skills/open-prose/`.
+- The agent-sdk-ts parity program lives at `docs/programs/agent-sdk-ts-upstream-parity.prose`.
+- Opening PRs via the OpenHands `create_pr` tool expects:
+  - `repo_name`, `source_branch`, `target_branch`, `title`, `body`
+
