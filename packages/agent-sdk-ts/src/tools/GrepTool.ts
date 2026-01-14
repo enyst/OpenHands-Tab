@@ -58,11 +58,7 @@ export class GrepTool extends ZodTool<z.infer<typeof grepArgsSchema>, GrepResult
   readonly schema = grepArgsSchema;
 
   override getEnhancedDescription(workspaceRoot: string): string {
-    return (
-      `${TOOL_DESCRIPTION}\n\n` +
-      `Your current working directory is: ${workspaceRoot}\n` +
-      `When searching for content, searches are performed in this directory.`
-    );
+    return `${TOOL_DESCRIPTION}\n\nYour current working directory is: ${workspaceRoot}\nWhen searching for content, searches are performed in this directory.`;
   }
 
   async execute(args: z.infer<typeof grepArgsSchema>, context: ToolContext): Promise<GrepResult> {

@@ -872,13 +872,15 @@ export class Agent extends EventEmitter {
       // Enhance description with workspace context if tool supports it
       if (typeof tool.getEnhancedDescription === 'function') {
         const enhancedDescription = tool.getEnhancedDescription(workspaceRoot);
-        return {
-          ...baseDef,
-          function: {
-            ...baseDef.function,
-            description: enhancedDescription,
-          },
-        };
+        if (typeof enhancedDescription === 'string' && enhancedDescription.trim().length > 0) {
+          return {
+            ...baseDef,
+            function: {
+              ...baseDef.function,
+              description: enhancedDescription,
+            },
+          };
+        }
       }
 
       return baseDef;
