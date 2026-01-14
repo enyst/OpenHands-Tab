@@ -1085,6 +1085,19 @@ interface ToolExecutor {
 - Tool handlers now expose zod schemas to validate inputs and surface JSON schemas for LLM tool definitions (`src/tools/zod-tool.ts`).
 - `Agent` injects tool descriptions into the system prompt so models see name + description context alongside function metadata.
 
+
+### Tool output truncation and error messages
+
+The SDK keeps tool output readable for the model by truncating **tool result** text before it is sent back to the LLM:
+
+- Shared truncation utility: `src/sdk/runtime/toolResultTruncation.ts`
+- Marker: `<response clipped>`
+- Limit: 8,000 characters (head + tail)
+
+For **tool error** messages, the SDK aims to match Python behavior: `AgentErrorEvent` is converted into a `role="tool"` message whose text content is the raw error string (no JSON encoding, no truncation).
+
+- Source: `src/sdk/runtime/toolCallErrorEvents.ts`
+
 ### TerminalTool
 
 **File**: `src/tools/TerminalTool.ts`

@@ -19,7 +19,7 @@ describe('toolCallErrorEvents truncation and normalization', () => {
     expect(text).toBe(messy);
   });
 
-  it('clips long tool error messages for LLM using the shared tool-message clip marker', () => {
+  it('does not clip long tool error messages (python parity)', () => {
     const toolCall = makeToolCall('t2', 'echo');
     const longBase = 'A'.repeat(10_000);
     const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, longBase);
@@ -28,7 +28,6 @@ describe('toolCallErrorEvents truncation and normalization', () => {
     expect(err).toBe(longBase);
 
     const toolErr = (toolMessageEvent.llm_message.content[0] as { type: 'text'; text: string }).text;
-    expect(toolErr.length).toBeLessThanOrEqual(8000);
-    expect(toolErr).toContain('<response clipped>');
+    expect(toolErr).toBe(longBase);
   });
 });
