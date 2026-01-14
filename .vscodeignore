@@ -37,6 +37,27 @@ media/webview-src/**
 # Scripts and misc tooling
 scripts/**
 
+esbuild.webview.mjs
+esbuild.extension.mjs
+
+# Exclude installed packages — extension host is bundled
+node_modules/**
+
+# Dev-only config and metadata
+.gitignore
+.lintstagedrc.cjs
+.eslintignore
+eslint.config.js
+opencode.json
+*.mcp.json
+*.mjs.map
+AGENTS.md
+CLAUDE.md
+
+# TypeScript configs and tailwind config (not needed at runtime)
+tsconfig*.json
+tailwind.config.js
+
 # Audio assets safeguard (we do not currently ship any)
 **/*.wav
 **/*.mp3
