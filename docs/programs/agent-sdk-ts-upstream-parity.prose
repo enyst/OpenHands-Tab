@@ -41,7 +41,7 @@ agent architect:
     - Backward compatibility notes
   """
 
-agent implementer:
+agent implementor:
   model: opus
   prompt: """
     You implement a planned parity gap in TypeScript with:
@@ -104,7 +104,7 @@ loop until **all planned parity gaps are implemented or explicitly marked Not Pl
   next_pr = session: architect
     prompt: "Pick the next highest-priority, unblocked PR slice. Return a PR plan object with: title, scope, acceptance_criteria, files_to_change, tests_to_add, risk_notes, and rollout_notes."
 
-  session: implementer
+  session: implementor
     prompt: "Implement the selected PR slice end-to-end: create a branch, implement changes, run tests/lint/typecheck, open a PR against enyst/OpenHands-Tab, and link it to issue #1. Keep the PR small and reviewable (one gap/cluster)."
     context: next_pr
 
