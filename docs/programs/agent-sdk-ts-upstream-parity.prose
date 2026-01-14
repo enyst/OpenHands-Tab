@@ -15,10 +15,10 @@ input ts_sdk_path: "packages/agent-sdk-ts"
 # - TS architecture docs: docs/agent-sdk-architecture.md (addendum) and/or docs/settings_prd.md additions, plus new docs files as needed
 # - Implementation PRs: one PR per gap (or per cohesive cluster) with tests
 
-agent auditor:
+agent reviewer:
   model: opus
   prompt: """
-    You audit two codebases (TS SDK and Python SDK) and produce an accurate parity report.
+    You review two codebases (TS SDK and Python SDK) and produce an accurate parity report.
 
     Requirements:
     - Be concrete: name file paths, class/function names, and observable behavior.
@@ -52,17 +52,6 @@ agent implementer:
     You should open a separate PR per gap/cluster.
   """
 
-agent release_manager:
-  model: opus
-  prompt: """
-    You coordinate:
-    - branch creation
-    - commits
-    - PR creation
-    - linking PRs to issue #1
-
-    You keep PRs small and reviewable.
-  """
 
 # Phase 0: Working agreements and definitions
 session "Define the contract for 'parity' and the update cadence"
@@ -75,21 +64,21 @@ session "Define the contract for 'parity' and the update cadence"
 
 # Phase 1: Codebase discovery
 parallel:
-  ts_map = session: auditor
+  ts_map = session: reviewer
     prompt: "Clone and map the TS SDK surface area. Summarize modules, public exports, and runtime entry points. Identify where python-parity.md is currently inaccurate or outdated."
     context: { oh_tab_repo, ts_sdk_path }
 
-  py_map = session: auditor
+  py_map = session: reviewer
     prompt: "Clone and map the Python SDK surface area. Summarize modules, public exports, and agent-server integration points. Identify features likely to affect TS parity."
     context: { upstream_repo, upstream_ref }
 
-session: auditor
+session: reviewer
   prompt: "Build a feature-by-feature parity matrix from the TS and Python maps, grouped by: Conversation API, tools, skills/context, hooks, MCP, workspace, persistence, security, event schema."
   context: { ts_map, py_map }
 
 # Phase 2: Update parity doc (part 1 goal)
 # Output: packages/agent-sdk-ts/docs/python-parity.md
-session: auditor
+session: reviewer
   prompt: "Update the parity doc with the real current status. Add: (a) methodology and how to re-run the audit, (b) per-feature status (Implemented / Divergent / Missing / Not planned), (c) explicit links to files/functions in both repos, (d) a prioritized gap list with estimated effort and risk."
   context: { ts_map, py_map }
 
@@ -112,15 +101,11 @@ session: architect
 # Repeat per PR slice.
 
 loop until **all planned parity gaps are implemented or explicitly marked Not Planned with rationale** (max: 50):
-  next_pr = session: release_manager
-    prompt: "Pick the next highest-priority, unblocked PR slice. Create a branch, implement the changes (delegate to implementer), run tests/lint/typecheck, and open a PR against enyst/OpenHands-Tab."
+  next_pr = session: architect
+    prompt: "Pick the next highest-priority, unblocked PR slice. Return a PR plan object with: title, scope, acceptance_criteria, files_to_change, tests_to_add, risk_notes, and rollout_notes."
 
   session: implementer
-    prompt: "Implement the selected PR slice. Ensure tests cover the new behavior and update docs if behavior changes."
-    context: next_pr
-
-  session: release_manager
-    prompt: "Open the PR, link to issue #1, summarize changes, and list follow-up work."
+    prompt: "Implement the selected PR slice end-to-end: create a branch, implement changes, run tests/lint/typecheck, open a PR against enyst/OpenHands-Tab, and link it to issue #1. Keep the PR small and reviewable (one gap/cluster)."
     context: next_pr
 
 # Completion
