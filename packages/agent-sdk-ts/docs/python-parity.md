@@ -631,38 +631,50 @@ class Observation(Schema, ABC):
         """Rich Text representation for UI display."""
 ```
 
-### TypeScript design (intentional difference)
+### TypeScript design (technical debt)
 
-TypeScript uses centralized function-based formatting rather than method-on-class:
+TypeScript uses centralized function-based formatting in `observations/index.ts`:
 
 ```typescript
-// observations/index.ts
 export function observationToLLMText(observation: Observation): string {
   if (observation.kind === 'terminal') { /* terminal-specific formatting */ }
   if (observation.kind === 'file_editor') { /* file editor-specific */ }
-  // Generic fallback
+  // Generic fallback - everything else gets JSON dumped
   return JSON.stringify(observation, null, 2);
-}
-
-// toolMessageFormatting.ts - thin wrapper that delegates
-export function formatToolMessageText(toolCall: ToolCall, result: unknown): string {
-  return toolResultToLLMText(toolCall, result);
 }
 ```
 
-This is an **intentional design choice**, not a parity gap:
-- Centralized formatting is simpler to maintain
-- Tool-specific formatting exists for terminal and file_editor
-- Generic JSON fallback is acceptable for most tools
-- Summarizer handles large outputs separately
+**Current reality**: Only 2 tools have proper LLM-facing formatting:
+
+| Tool | LLM sees | Status |
+|------|----------|--------|
+| **terminal** | `$ cmd\noutput\n[exit code 0]` | ✓ Formatted |
+| **file_editor** | `file_editor view /path\ncontent` | ✓ Formatted |
+| **ask_oracle** | String response | ✓ Pass-through |
+| **think** | `{"message": "Your thought has been logged."}` | ✗ JSON dump |
+| **glob** | `{"files": [...], "pattern": "...", "truncated": false}` | ✗ JSON dump with internal fields |
+| **grep** | `{"matches": [...], "pattern": "...", "truncated": false}` | ✗ JSON dump with internal fields |
+| **apply_patch** | `{"message": "Done!", "fuzz": 0, "commit": {...}}` | ✗ JSON dump (similar to file_editor but unformatted) |
+| **task_tracker** | `{"command": "view", "task_list": [...]}` | ✗ JSON dump |
+| **browser** | `{"url": "...", "status": 200, "content": "..."}` | ✗ JSON dump |
+| **finish** | `{"message": "..."}` | ✗ JSON dump |
+
+**Problems with current approach**:
+1. Most tools dump raw JSON including internal fields (`truncated`, `fuzz`, etc.) that are noise for the LLM
+2. Adding a new tool with proper formatting requires modifying `observations/index.ts` (violates Open/Closed)
+3. Easy to forget - new tools silently fall back to JSON
+4. `apply_patch` does file operations similar to `file_editor` but has no formatting
+
+**Potential fix**: Add optional `formatForLLM?(result: TResult): string` method to `ToolDefinition` interface, allowing tools to own their formatting while keeping backward compatibility via JSON fallback.
 
 ### Formatting status
-- Terminal: Both format with command, output, exit code - **Aligned**
-- File editor: Both format with command, path, content - **Aligned**
-- Generic: TS falls back to JSON stringify (acceptable for most tools)
+- Terminal: **Aligned** - both format with command, output, exit code
+- File editor: **Aligned** - both format with command, path, content
+- Other tools: **Gap** - TS dumps JSON; Python has tool-specific `to_llm_content` methods
 
 ## Quick checklist for remaining parity work
 
+- [ ] **Observation formatting**: Most tools dump raw JSON to LLM; add `formatForLLM()` to tools or extend centralized formatter
 - [ ] **Hooks system**: Add config file loading, subprocess executor, pattern matching
 - [ ] **MCP Client**: Add MCPClient for tool execution (not just config parsing)
 - [ ] **BrowserUseTool**: Implement actual browser automation (currently stubbed)
