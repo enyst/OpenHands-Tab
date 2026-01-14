@@ -278,7 +278,7 @@ class LLM(BaseModel, RetryMixin, NonNativeToolCallingMixin):
     def completion(messages, tools, ...) -> LLMResponse
 ```
 
-**Router (Python)**:
+#### Router (Python)
 ```python
 class RouterLLM(LLM):
     llms_for_routing: dict[str, LLM]
