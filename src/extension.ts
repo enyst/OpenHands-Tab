@@ -38,6 +38,8 @@ import {
   type ConversationInstance,
   SecretRegistry,
   listProfiles,
+  loadSkillsFromDir,
+  type Skill,
   type BashEvent,
   type Event,
   isBashCommand,
@@ -462,10 +464,23 @@ export function activate(context: vscode.ExtensionContext) {
           : undefined;
       conversationStoreRoot = persistenceDir;
 
-      const agentContext =
-        desiredMode === 'local'
-          ? new AgentContext({ loadUserSkills: true })
-          : undefined;
+      const agentContext = (() => {
+        if (desiredMode !== 'local' || !workspaceRoot) return undefined;
+
+        const skillsDir = path.join(workspaceRoot, '.openhands', 'skills');
+        let skills: Skill[] = [];
+        try {
+          const { repoSkills, knowledgeSkills, agentSkills } = loadSkillsFromDir(skillsDir);
+          skills = [...repoSkills.values(), ...knowledgeSkills.values(), ...agentSkills.values()];
+        } catch (err) {
+          outputChannel?.appendLine(`[skills] Failed to load project skills from ${skillsDir}: ${renderError(err)}`);
+        }
+
+        return new AgentContext({
+          skills,
+          loadUserSkills: true,
+        });
+      })();
       localAgentContext = desiredMode === 'local' ? agentContext : undefined;
       if (desiredMode === 'local') {
         syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);

@@ -1,0 +1,115 @@
+# Program: Keep agent-sdk-ts aligned with upstream python Software Agent SDK
+# Repo: enyst/OpenHands-Tab
+# Upstream: OpenHands/software-agent-sdk
+# Issue: #1 Update agent-sdk-ts from upstream python agent-sdk behavior
+
+# Inputs
+input oh_tab_repo: "https://github.com/enyst/OpenHands-Tab.git"
+input oh_tab_branch_prefix: "openhands/"
+input upstream_repo: "https://github.com/OpenHands/software-agent-sdk.git"
+input upstream_ref: "main"  # can be branch, tag, or commit
+input ts_sdk_path: "packages/agent-sdk-ts"
+
+# Output artifacts
+# - Updated parity doc: packages/agent-sdk-ts/docs/python-parity.md
+# - TS architecture docs: docs/agent-sdk-architecture.md (addendum) and/or docs/settings_prd.md additions, plus new docs files as needed
+# - Implementation PRs: one PR per gap (or per cohesive cluster) with tests
+
+agent reviewer:
+  model: opus
+  prompt: """
+    You review two codebases (TS SDK and Python SDK) and produce an accurate parity report.
+
+    Requirements:
+    - Be concrete: name file paths, class/function names, and observable behavior.
+    - Separate 'missing' vs 'implemented but different'.
+    - For each gap, write: user impact, API surface, runtime behavior, and testability.
+    - Prefer truth over aspiration.
+  """
+
+agent architect:
+  model: opus
+  prompt: """
+    You design TS-idiomatic implementations that match Python behavior, while respecting OpenHands-Tab constraints:
+    - VS Code extension runtime constraints
+    - existing TS architecture (Conversation/LLMStreamer/tools/workspace)
+    - preference for minimal, composable abstractions
+
+    Deliverables:
+    - Proposed TS design for each gap
+    - Migration plan if API changes are needed
+    - Backward compatibility notes
+  """
+
+agent implementor:
+  model: opus
+  prompt: """
+    You implement a planned parity gap in TypeScript with:
+    - smallest correct change
+    - unit tests for new behavior
+    - updated docs when needed
+
+    You should open a separate PR per gap/cluster.
+  """
+
+
+# Phase 0: Working agreements and definitions
+session "Define the contract for 'parity' and the update cadence"
+  context: { oh_tab_repo, upstream_repo, upstream_ref, ts_sdk_path }
+
+# Definition notes (VM guidance):
+# - Parity is defined at the level of public API + observable runtime behavior for OpenHands-Tab use.
+# - If a Python feature is 'not planned' for TS, document explicitly with rationale and decision owner.
+# - Prefer capturing parity as checklists with source links, not prose only.
+
+# Phase 1: Codebase discovery
+parallel:
+  ts_map = session: reviewer
+    prompt: "Clone and map the TS SDK surface area. Summarize modules, public exports, and runtime entry points. Identify where python-parity.md is currently inaccurate or outdated."
+    context: { oh_tab_repo, ts_sdk_path }
+
+  py_map = session: reviewer
+    prompt: "Clone and map the Python SDK surface area. Summarize modules, public exports, and agent-server integration points. Identify features likely to affect TS parity."
+    context: { upstream_repo, upstream_ref }
+
+session: reviewer
+  prompt: "Build a feature-by-feature parity matrix from the TS and Python maps, grouped by: Conversation API, tools, skills/context, hooks, MCP, workspace, persistence, security, event schema."
+  context: { ts_map, py_map }
+
+# Phase 2: Update parity doc (part 1 goal)
+# Output: packages/agent-sdk-ts/docs/python-parity.md
+session: reviewer
+  prompt: "Update the parity doc with the real current status. Add: (a) methodology and how to re-run the audit, (b) per-feature status (Implemented / Divergent / Missing / Not planned), (c) explicit links to files/functions in both repos, (d) a prioritized gap list with estimated effort and risk."
+  context: { ts_map, py_map }
+
+# Phase 3: Architecture design for TS variant (part 2 goal)
+# Output: docs/PRD.md addendum and new docs under docs/
+# Note: keep design TS-idiomatic; do not blindly mirror Python internal abstractions.
+
+session: architect
+  prompt: "For each prioritized parity gap, propose a TS-idiomatic design. For each design: public API changes (if any), internal modules, data flow, error handling, and how it will be tested. Produce a PRD-style doc and add/extend architecture docs in OpenHands-Tab." 
+  context: { ts_map, py_map }
+
+# Phase 4: Implementation plan + PR slicing (part 3 goal)
+# Output: Implementation PR plan as checklist and initial PRs
+
+session: architect
+  prompt: "Slice the gap list into small PRs. For each PR: scope, acceptance criteria, tests to add, and rollout notes. Identify any prerequisite refactors."
+  context: { ts_map, py_map }
+
+# Phase 5: Execute implementation PRs
+# Repeat per PR slice.
+
+loop until **all planned parity gaps are implemented or explicitly marked Not Planned with rationale** (max: 50):
+  next_pr = session: architect
+    prompt: "Pick the next highest-priority, unblocked PR slice. Return a PR plan object with: title, scope, acceptance_criteria, files_to_change, tests_to_add, risk_notes, and rollout_notes."
+
+  session: implementor
+    prompt: "Implement the selected PR slice end-to-end: create a branch, implement changes, run tests/lint/typecheck, open a PR against enyst/OpenHands-Tab, and link it to issue #1. Keep the PR small and reviewable (one gap/cluster)."
+    context: next_pr
+
+# Completion
+session "Summarize parity status, open PR links, and remaining work"
+  context: { ts_map, py_map }
+
+output results = "A set of PRs updating docs and implementing TS parity improvements, each linked to issue #1." 

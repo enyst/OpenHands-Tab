@@ -166,7 +166,8 @@ agent_logs/
 
 
 # Local OpenHands data (conversations, logs, etc.)
-.openhands/
+# NOTE: Do not ignore `.openhands/` — we vendor skills here.
+# (If you need to ignore local runtime data under this dir, add more specific patterns instead.)
 
 # Secrets and configuration
 config.json
