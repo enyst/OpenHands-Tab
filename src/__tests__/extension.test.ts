@@ -61,7 +61,15 @@ vi.mock('@openhands/agent-sdk-ts', () => {
   }
 
   class AgentContext {
-    constructor(_params?: unknown) {}
+    static lastParams: any = null;
+
+    constructor(params?: any) {
+      AgentContext.lastParams = params ?? null;
+    }
+
+    static __getLastParams() {
+      return AgentContext.lastParams;
+    }
   }
 
   class SecretRegistry {
@@ -114,6 +122,7 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     AgentContext,
     Conversation,
     SecretRegistry,
+    loadSkillsFromDir: vi.fn(() => ({ repoSkills: new Map(), knowledgeSkills: new Map(), agentSkills: new Map() })),
     isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),
     isBashExit: vi.fn((event: any) => event?.type === 'BashExit'),
@@ -123,6 +132,8 @@ vi.mock('@openhands/agent-sdk-ts', () => {
     isTextContent: vi.fn((content: any) => content?.type === 'text'),
     __getLastConversation: () => lastConversation,
     TerminalTool: vi.fn(() => new StubTool('terminal')),
+    __getLastAgentContextParams: () => AgentContext.__getLastParams(),
+
     FileEditorTool: vi.fn(() => new StubTool('file_editor')),
     TaskTrackerTool: vi.fn(() => new StubTool('task_tracker')),
     GlobTool: vi.fn(() => new StubTool('glob')),
@@ -900,8 +911,14 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const sdk = await import('@openhands/agent-sdk-ts');
+    const conv = sdk.__getLastConversation?.();
     expect(conv?.mode).toBe('local');
+
+    const agentContextParams = sdk.__getLastAgentContextParams?.();
+    expect(agentContextParams).toBeTruthy();
+    expect(agentContextParams?.loadUserSkills).toBe(true);
+    expect(sdk.loadSkillsFromDir).toHaveBeenCalledWith(path.join('/test/workspace', '.openhands', 'skills'));
   });
 
   it('streams BashEvents into the OpenHands terminal log in local mode', async () => {
