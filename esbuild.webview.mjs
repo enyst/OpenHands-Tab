@@ -5,6 +5,7 @@ await esbuild.build({
   outdir: 'media',
   bundle: true,
   sourcemap: true,
+  minify: true,
   format: 'esm',
   jsx: 'automatic',
   loader: { '.css': 'css', '.png': 'file' },

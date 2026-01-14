@@ -1,0 +1,43 @@
+# Exclude development-only and large assets from the VSIX
+
+# Do not include env files
+.env
+.env.*
+
+# Exclude sources, tests, docs (ship compiled dist/ and media/ only)
+src/**
+packages/**
+ tests/**
+docs/**
+logs/**
+*.log
+
+# Exclude TypeScript sources and source maps
+**/*.ts
+**/*.map
+
+# Webview sources (compiled bundle lives in media/)
+src/webview-src/**
+
+# Screenshots and heavy media not needed at runtime
+media/screenshots/**
+# Exclude transpiled, unbundled webview sources — we ship media/webview.js instead
+media/webview-src/**
+
+# Dot-directories not needed in VSIX
+.vscode/**
+.vscode-dev/**
+.github/**
+.husky/**
+.claude/**
+.codex/**
+.beads/**
+.openhands/**
+
+# Scripts and misc tooling
+scripts/**
+
+# Audio assets safeguard (we do not currently ship any)
+**/*.wav
+**/*.mp3
+**/*.ogg
