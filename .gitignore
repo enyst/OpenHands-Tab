@@ -188,3 +188,9 @@ e2e_logs*.zip
 .vscode/mcp.json
 /opencode.json
 /summary.md
+
+# Vendored OpenProse skill (committed)
+!.openhands/skills/
+!.openhands/skills/open-prose/
+!.openhands/skills/open-prose/**
+!.openhands/
