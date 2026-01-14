@@ -9,7 +9,7 @@ A VS Code extension for interacting with OpenHands AI agents directly in your ID
 - UX first: switching LLM at runtime
 - Streaming event display and most other OpenHands features
 - Local mode (runs agent in VS Code) or remote mode (connects to agent-server)
-- might have also an a lil' cheesy Easter Egg (because why not?)
+- might also have a lil' cheesy Easter Egg (because why not?)
 
 ## Quick Start
 
@@ -27,7 +27,13 @@ npm install
 npm run build
 ```
 
-### Development
+### Development (recommended)
+
+1. Run OpenHands-CLI in the extension directory
+2. Tell it to build and run VSCode in dev/debug on `cwd`
+3. Have fun!
+
+### Development (old style)
 
 1. Open the project in VS Code
 2. Press F5 to launch Extension Development Host
@@ -37,27 +43,28 @@ npm run build
 
 This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit (installed automatically by `npm install` via the `prepare` script).
 
-- Bypass hooks: `git commit --no-verify`
 - Run manually: `npm exec -- lint-staged`
+
+### Useful commands
+
+- **OpenHands: Explain Selection** - Explain selected code in the editor (context menu)
+- (maybe, outdated) **OpenHands: Configure** - Set up server URL, API keys
 
 ### Configuration
 
-- **OpenHands: Configure** - Set up server URL, LLM settings, API keys
-- **OpenHands: Explain Selection** - Explain selected code in the editor (context menu)
-- **OpenHands: Set API Key** - Quick LLM API key configuration (generic)
 - **OpenHands: Set OpenAI API Key** - Set OpenAI API key
 - **OpenHands: Set Anthropic API Key** - Set Anthropic API key
 - **OpenHands: Set OpenRouter API Key** - Set OpenRouter API key
 - **OpenHands: Set LiteLLM Proxy API Key** - Set LiteLLM Proxy API key
-- **OpenHands: Set Gemini API Key** - Set Gemini API key
+- **OpenHands: Set Gemini API Key** - Set Gemini API key (used for summarization, highly **recommended**)
 - **OpenHands: Set ElevenLabs API Key** - Set ElevenLabs API key
 - **OpenHands: Set Session API Key** - Set session API key for agent-server authentication
 - **OpenHands: Set GitHub Token** - Set GitHub token for repository access
-- **OpenHands: Set Custom Secret 1/2/3** - Set custom secrets for additional integrations
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
 **Using Gemini**: Gemini can be used in two ways:
 - **As the main agent LLM**: set `openhands.llm.profileId` to a Gemini profile id (e.g., `gemini-flash`) and configure your API key via **OpenHands: Set Gemini API Key**
+- **As utility for summarization**: highly recommended, just set the key and it will be used for the built-in Gemini profiles
 - **For HAL voice confirmation** (optional): HAL uses its own Gemini profile specified by `openhands.hal.llmProfileId` (default: `gemini-flash-hal`) for audio understanding in voice_confirm mode
 
 ## Documentation
@@ -82,6 +89,7 @@ The SDK provides:
 - `Conversation` API for local/remote agent execution
 - LLM clients (Anthropic, OpenAI-compatible, Gemini)
 - Tools (Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate, Finish)
+- `Workspace` factory for connecting to remote servers
 - Protocol types and event handling
 
 ## Commands
