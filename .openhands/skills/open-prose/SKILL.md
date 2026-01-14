@@ -5,7 +5,7 @@ description: |
   computer; OpenProse structures English into unambiguous control flow.
 
   OpenHands-Tab integration:
-  - This repo vendors the OpenProse VM docs as an AgentSkills-format skill.
+  - This repo vendors the OpenProse VM docs as your Skill.
   - When you see a `.prose` program, use `prose.md` for execution semantics and `docs.md` for syntax/validation.
 
   Activate when: running `.prose` files, mentioning OpenProse, or when a task is best expressed as an orchestrated multi-agent workflow.
