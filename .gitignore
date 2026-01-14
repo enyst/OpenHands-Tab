@@ -181,7 +181,10 @@ src/webview-src/tailwind.gen.css
 e2e_logs*.zip
 
 # Local agent tooling (Codex/Claude/Cursor/etc.)
-.beads/
+# Beads: keep JSONL exports in version control for UX; ignore everything else
+.beads/*
+!.beads/issues.jsonl
+!.beads/deletions.jsonl
 .claude/
 .codex/
 .mcp.json
