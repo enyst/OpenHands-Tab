@@ -75,6 +75,19 @@ export const openMarkdownLink = (href: string) => {
   postMessage({ type: 'openMarkdownLink', href });
 };
 
+export const stripEnvironmentInformationBlocks = (text: string): string => {
+  const raw = typeof text === 'string' ? text : '';
+  if (!raw) return raw;
+
+  const withoutBlocks = raw.replace(
+    /(?:\r?\n){0,2}<environment information>[\s\S]*?<\/environment information>(?:\r?\n){0,2}/gi,
+    '\n\n',
+  );
+
+  // Keep formatting stable after stripping.
+  return withoutBlocks.replace(/\n{3,}/g, '\n\n').trimEnd();
+};
+
 function MarkdownLink({
   href,
   children,

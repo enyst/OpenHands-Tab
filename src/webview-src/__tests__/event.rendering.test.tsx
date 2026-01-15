@@ -124,6 +124,38 @@ describe('Agent-SDK event rendering', () => {
     expect(screen.queryByText('User')).toBeNull();
   });
 
+  it('does not render <environment information> blocks in the message timeline', async () => {
+    render(<App />);
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: [
+              'do you see the opened file?',
+              '',
+              '<environment information>',
+              'Active editor: README.md',
+              'Open editors:',
+              '- README.md',
+              '</environment information>',
+            ].join('\n'),
+          },
+        ],
+      },
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+
+    expect(await screen.findByText('do you see the opened file?')).toBeInTheDocument();
+    expect(screen.queryByText(/<environment information>/i)).toBeNull();
+    expect(screen.queryByText(/active editor:/i)).toBeNull();
+    expect(screen.queryByText(/open editors:/i)).toBeNull();
+  });
+
   it('renders agent error events', async () => {
     render(<App />);
     const ev: AgentErrorEvent = {
