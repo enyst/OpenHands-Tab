@@ -3,6 +3,7 @@ import {
   DeviceFlowHttpError,
   DeviceFlowNetworkError,
   DeviceFlowProtocolError,
+  DeviceFlowTokenError,
   pollDeviceToken,
   startDeviceAuthorization,
   type HttpClientLike,
@@ -160,19 +161,27 @@ describe('device flow client', () => {
     const http = createSequenceHttp([
       () => jsonResponse(400, { error: 'something_else', error_description: 'nope' }),
     ]);
-    await expect(pollDeviceToken({
-      baseUrl: 'https://example.com',
-      deviceCode: 'dev',
-      pollIntervalMs: 1000,
-      http,
-      timeoutMs: 10_000,
-      clock: { now: () => 0, sleep: async () => {} },
-    })).rejects.toMatchObject({ error: 'something_else' });
+
+    try {
+      await pollDeviceToken({
+        baseUrl: 'https://example.com',
+        deviceCode: 'dev',
+        pollIntervalMs: 1000,
+        http,
+        timeoutMs: 10_000,
+        clock: { now: () => 0, sleep: async () => {} },
+      });
+      throw new Error('Expected pollDeviceToken to fail');
+    } catch (err) {
+      expect(err).toBeInstanceOf(DeviceFlowTokenError);
+      expect(err).toMatchObject({ error: 'something_else' });
+      expect(err instanceof Error ? err.message : String(err)).toMatch(/Authorization error:/);
+    }
   });
 
   it('pollDeviceToken throws on invalid JSON', async () => {
     const http = createSequenceHttp([
-      () => invalidJsonResponse(200, 'not json'),
+      () => invalidJsonResponse(500, 'Internal Server Error'),
     ]);
     await expect(pollDeviceToken({
       baseUrl: 'https://example.com',
@@ -181,7 +190,7 @@ describe('device flow client', () => {
       http,
       timeoutMs: 10_000,
       clock: { now: () => 0, sleep: async () => {} },
-    })).rejects.toBeInstanceOf(DeviceFlowProtocolError);
+    })).rejects.toThrow('Unexpected response from server: 500');
   });
 
   it('pollDeviceToken throws on non-2xx without error', async () => {

@@ -210,7 +210,10 @@ export async function pollDeviceToken(options: {
       json = await res.json();
     } catch {
       const text = await res.text().catch(() => '');
-      throw new DeviceFlowProtocolError(`Device token response was not valid JSON (status ${res.status}): ${text}`);
+      if (res.status !== 200) {
+        throw new DeviceFlowProtocolError(`Unexpected response from server: ${res.status}`);
+      }
+      throw new DeviceFlowProtocolError(`Device token response was not valid JSON: ${text}`);
     }
 
     const obj = parseJsonRecord(json, 'Device token response') as DeviceTokenResponse;
@@ -244,8 +247,8 @@ export async function pollDeviceToken(options: {
     }
 
     if (error) {
-      const message = errorDescription ? `${error}: ${errorDescription}` : error;
-      throw new DeviceFlowTokenError(message, { error, errorDescription });
+      const suffix = errorDescription ? ` - ${errorDescription}` : '';
+      throw new DeviceFlowTokenError(`Authorization error: ${error}${suffix}`, { error, errorDescription });
     }
 
     if (!res.ok) {
