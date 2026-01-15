@@ -23,6 +23,23 @@ describe('isContextLimitError', () => {
     ).toBe(true);
   });
 
+  it('detects LiteLLM proxy prompt-too-long errors (Anthropic-style payload)', () => {
+    expect(
+      isContextLimitError(
+        'litellm_proxy',
+        new Error(
+          'LLM request failed (400): litellm.ContextWindowExceededError: litellm.BadRequestError: AnthropicError - b\'{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 212624 tokens > 200000 maximum"},"request_id":"req_011CX7fivsByr5DdM7bEFA1K"}\'',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('detects prompt-too-long when nested in an error cause', () => {
+    const cause = new Error('prompt is too long: 212624 tokens > 200000 maximum');
+    const error = { message: 'LLM request failed (400): Bad Request', cause };
+    expect(isContextLimitError('litellm_proxy', error)).toBe(true);
+  });
+
   it('detects Gemini token-limit errors', () => {
     expect(
       isContextLimitError(
@@ -75,4 +92,3 @@ describe('estimateRequestTokens / wouldExceedMaxInputTokens', () => {
     expect(wouldExceedMaxInputTokens({ request, maxInputTokens: 200 })).toBe(true);
   });
 });
-

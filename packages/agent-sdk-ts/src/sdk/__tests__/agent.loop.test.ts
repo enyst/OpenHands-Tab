@@ -60,7 +60,9 @@ class CondensingLLM implements LLMClient {
     this.calls += 1;
 
     if (this.calls === 1) {
-      throw new Error('context_length_exceeded');
+      throw new Error(
+        'LLM request failed (400): litellm.ContextWindowExceededError: litellm.BadRequestError: AnthropicError - b\'{"type":"error","error":{"type":"invalid_request_error","message":"prompt is too long: 212624 tokens > 200000 maximum"},"request_id":"req_011CX7fivsByr5DdM7bEFA1K"}\'',
+      );
     }
 
     if (this.calls === 2) {
@@ -400,7 +402,7 @@ describe('Agent loop control', () => {
     }
 
     const agent = new Agent({
-      settings: baseSettings,
+      settings: { ...baseSettings, llm: { ...baseSettings.llm, provider: 'litellm_proxy' } },
       events: log,
       workspaceRoot: createWorkspaceRoot(),
       llmClient: llm,
@@ -412,7 +414,8 @@ describe('Agent loop control', () => {
     const condensation = log.list().find(isCondensation);
     expect(condensation).toBeTruthy();
     expect(condensation?.summary).toBe('SUMMARY');
-    expect(condensation?.forgotten_event_ids).toContain(seededMessageIds[4]);
+    expect(condensation?.forgotten_event_ids).not.toContain(seededMessageIds[0]);
+    expect(condensation?.forgotten_event_ids).toContain(seededMessageIds[1]);
 
     const retryRequest = [...llm.requests].reverse().find((req) => req.systemPrompt.includes('<CONVERSATION SUMMARY>'));
     expect(retryRequest).toBeTruthy();
