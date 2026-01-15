@@ -5,6 +5,16 @@ import { supportsThinkingBlocks } from './providerQuirks';
 
 const decoder = new TextDecoder();
 
+class NonRetryableHttpStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'NonRetryableHttpStatusError';
+    this.status = status;
+  }
+}
+
 const mergeHeaders = (base?: Record<string, string>, overrides?: Record<string, string>): Record<string, string> => ({
   ...(base ?? {}),
   ...(overrides ?? {}),
@@ -374,11 +384,14 @@ export class OpenAICompatibleClient implements LLMClient {
           }
 
           const message = await response.text();
-          throw new Error(`LLM request failed (${response.status}): ${message}`);
+          throw new NonRetryableHttpStatusError(response.status, `LLM request failed (${response.status}): ${message}`);
         }
 
         return response;
       } catch (error) {
+        if (error instanceof NonRetryableHttpStatusError) {
+          throw error;
+        }
         lastError = error as Error;
         if (attempt >= this.retry.maxRetries) break;
         await delay(delayMs);
