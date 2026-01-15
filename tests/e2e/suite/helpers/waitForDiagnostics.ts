@@ -23,7 +23,12 @@ export async function waitForDiagnostics(options: {
     await sleep(intervalMs);
   }
 
-  const lastError = await vscode.commands.executeCommand('openhands._queryLastError').catch(() => undefined);
+  let lastError: unknown;
+  try {
+    lastError = await vscode.commands.executeCommand('openhands._queryLastError');
+  } catch {
+    lastError = undefined;
+  }
   const labelSuffix = label ? ` (${label})` : '';
   throw new Error(
     `Timed out waiting for diagnostics${labelSuffix} after ${timeoutMs}ms.\n` +
@@ -31,4 +36,3 @@ export async function waitForDiagnostics(options: {
     `- lastError: ${JSON.stringify(lastError)}`
   );
 }
-
