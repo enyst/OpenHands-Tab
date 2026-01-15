@@ -18,7 +18,7 @@ Non-goals (for this bead):
 
 ## Reference implementation: OpenHands-CLI
 
-OpenHands-CLI repo: `~/repos/OpenHands-CLI`
+OpenHands-CLI repo: local checkout (paths vary by developer machine).
 
 ### Device Flow client
 
@@ -30,17 +30,18 @@ Endpoints and payloads:
     - `device_code: string`
     - `user_code: string`
     - `verification_uri: string`
+    - `verification_uri_complete?: string` (some servers provide a prebuilt URL)
     - `interval: number` (seconds)
-- `POST /oauth/device/token` with form data `device_code=<...>` (CLI sends `data=...`, i.e. form-urlencoded).
+- `POST /oauth/device/token` with form data (CLI sends `data=...`, i.e. form-urlencoded).
   - Success: `200` with JSON containing at least `access_token` and `token_type`.
   - Errors (non-200): CLI expects JSON `{ error, error_description? }` with common cases:
     - `authorization_pending` → keep polling
-    - `slow_down` → back off (CLI doubles interval up to 30s)
+    - `slow_down` → back off (spec typically implies “increase polling interval”; CLI doubles up to 30s)
     - `expired_token` → fail (restart login)
     - `access_denied` → fail (user rejected)
 
 UX:
-- CLI constructs `verification_url = verification_uri + "?user_code=" + user_code`
+- CLI constructs `verification_url = verification_uri + "?user_code=" + user_code` (or uses a server-provided `verification_uri_complete` if present)
 - Tries to open browser, otherwise prints the URL and waits.
 - Polling timeout default: 10 minutes.
 
@@ -93,7 +94,10 @@ Lookup rules:
 3. Fall back to `openhands.sessionApiKey` (so existing manual workflows keep working).
 
 Write rules:
-- Whenever a token is obtained for a server, store it in the per-server key and (optionally) also update `openhands.sessionApiKey` to the same value for “effective” compatibility.
+- Whenever a token is obtained for a server, always store it in the per-server key.
+- Do **not** silently clobber `openhands.sessionApiKey` (legacy) if it already contains a different value.
+  - If `openhands.sessionApiKey` is empty/unset, or already matches the per-server token for the currently-selected server, it is OK to write it for backwards compatibility.
+  - Otherwise leave it unchanged and rely on the per-server key as the authoritative source.
 
 ### CLI token reuse (optional)
 
@@ -127,8 +131,14 @@ New extension-host service (proposed):
 Transport details:
 - Use `fetch` from extension host.
 - `POST /oauth/device/authorize` JSON body `{}`.
-- `POST /oauth/device/token` with `application/x-www-form-urlencoded` body `device_code=<...>`.
+- `POST /oauth/device/token` with `application/x-www-form-urlencoded` body. For maximum interoperability, include:
+  - `grant_type=urn:ietf:params:oauth:grant-type:device_code`
+  - `device_code=<...>`
+  - (Optional, if required by the server) `client_id=<...>`
 - Error parsing should mirror CLI’s `error` values.
+
+Verification URL construction:
+- Build `verificationUrl` via `new URL(verification_uri)` and `url.searchParams.set('user_code', user_code)` so we don’t break servers that already include query params (avoid manual string concatenation).
 
 VS Code UX:
 - Use `vscode.env.openExternal(vscode.Uri.parse(verificationUrl))`.
@@ -210,12 +220,30 @@ sequenceDiagram
   Host->>SDK: startNewConversation()
   SDK->>Cloud: POST /api/conversations (auth headers)
   Cloud-->>SDK: 401/403
-  SDK-->>Host: error("Authentication failed...")
-  Host->>Host: prompt user to login
+  SDK-->>Host: emits an auth-shaped error/event (e.g. 401/403 from remote)
+  Host->>Host: prompt user to login (host-side UX)
   Host->>Cloud: OAuth device flow (as above)
   Host->>SDK: setSettings({ secrets: { sessionApiKey: token } })
   Host->>SDK: startNewConversation() retry
 ```
+
+## Threat model (extension-side)
+
+Primary risks and mitigations:
+- **Token leakage via logs/UI**: never print tokens to OutputChannel, toasts, or webview messages. Keep the token in extension host only and persist it only in VS Code SecretStorage.
+- **Accidental token overwrite**: avoid silently replacing `openhands.sessionApiKey` when it differs (per “Write rules”); prefer server-scoped secrets as authoritative.
+- **Phishing / malicious serverUrl**: show the canonical server URL being logged into and the exact verification URL opened; require explicit user action to start login. Avoid auto-login loops without user confirmation.
+- **Replay / long-lived tokens**: treat access tokens as sensitive long-lived secrets; if the server provides expiry metadata (`expires_in`) or refresh tokens, store metadata (not secrets) separately and plan for re-auth / refresh.
+- **Compromised machine / extension host**: SecretStorage reduces accidental exposure but cannot defend against a fully compromised host; keep scope minimal (no additional token replication beyond SecretStorage).
+
+## Test plan (follow-up beads `oh-tab-voc.2+`)
+
+Suggested coverage to unblock implementation:
+- **Unit (host)**: device-flow polling state machine (`authorization_pending`, `slow_down` backoff, `expired_token`, `access_denied`, timeout, cancel).
+- **Unit (storage)**: per-server secret key selection, and the “do not clobber legacy key” write rules.
+- **E2E (VS Code)**:
+  - Login command opens browser + persists per-server token.
+  - Remote connect with missing/invalid token shows a host-side prompt; after login, the connection retries and succeeds.
 
 ## Open questions / follow-ups
 
@@ -223,4 +251,3 @@ sequenceDiagram
 2. **Token expiry:** If the access token expires, what is the expected renewal mechanism (re-login vs refresh token)?
 3. **Multi-server tokens:** Should UI expose “Logged in as …” per server and allow per-server logout?
 4. **Header scheme:** Confirm whether cloud accepts `X-Session-API-Key` for all endpoints used by remote mode, or if Bearer is required.
-
