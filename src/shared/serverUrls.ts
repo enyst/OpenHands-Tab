@@ -11,10 +11,16 @@ export function normalizeServerUrl(raw: string): NormalizeServerUrlResult {
   }
 
   let candidate = trimmed;
-  if (/^https?:/i.test(candidate) && !/^https?:\/\//i.test(candidate)) {
-    candidate = candidate.replace(/^https?:/i, (match) => `${match}//`);
+  if (/^(https?|wss?):/i.test(candidate) && !/^(https?|wss?):\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^(https?|wss?):/i, (match) => `${match}//`);
   } else if (!HAS_EXPLICIT_SCHEME.test(candidate)) {
     candidate = `http://${candidate}`;
+  }
+
+  if (/^ws:\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^ws:/i, 'http:');
+  } else if (/^wss:\/\//i.test(candidate)) {
+    candidate = candidate.replace(/^wss:/i, 'https:');
   }
 
   let parsed: URL;
@@ -39,4 +45,3 @@ export function normalizeServerUrl(raw: string): NormalizeServerUrlResult {
     parsed.pathname === '/' ? parsed.origin : parsed.toString();
   return { ok: true, url: canonical };
 }
-
