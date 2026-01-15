@@ -84,7 +84,9 @@ const isCacheFresh = (meta: ModelsDevCacheMeta | null): boolean => {
   return Date.now() - meta.fetchedAtMs < MODELS_DEV_CACHE_TTL_MS;
 };
 
-let cachedApiPromise: Promise<ModelsDevApi> | null = null;
+// De-dupe concurrent refreshes, but do not permanently memoize results in memory.
+// We want disk TTL + ETag logic to remain effective even for long-running sessions.
+let inflightFetch: Promise<ModelsDevApi> | null = null;
 
 export const getModelsDevProviderId = (provider: LLMProvider): string | null => {
   switch (provider) {
@@ -139,14 +141,13 @@ export const extractModelsDevTokenPricing = (params: {
 };
 
 export const getModelsDevApi = async (): Promise<ModelsDevApi> => {
-  if (cachedApiPromise) return cachedApiPromise;
-
   const meta = loadCacheMeta();
   const cached = loadCachedApi();
   if (cached && isCacheFresh(meta)) return cached;
 
-  cachedApiPromise = (async () => {
+  if (inflightFetch) return inflightFetch;
 
+  inflightFetch = (async () => {
     const headers: Record<string, string> = {};
     if (meta?.etag) headers['If-None-Match'] = meta.etag;
 
@@ -177,15 +178,11 @@ export const getModelsDevApi = async (): Promise<ModelsDevApi> => {
       return cached ?? {};
     } finally {
       clearTimeout(timer);
+      inflightFetch = null;
     }
   })();
 
-  const api = await cachedApiPromise;
-  if (!cached && Object.keys(api).length === 0) {
-    // Avoid permanently memoizing an empty response when we had neither a network fetch nor a disk cache.
-    cachedApiPromise = null;
-  }
-  return api;
+  return inflightFetch;
 };
 
 export const lookupModelsDevTokenPricing = async (params: {
