@@ -33,6 +33,18 @@ export async function run(): Promise<void> {
     await cfg.update('openhands.confirmation.policy', 'never', vscode.ConfigurationTarget.Global);
     await cfg.update('openhands.agent.enableSecurityAnalyzer', false, vscode.ConfigurationTarget.Global);
 
+    const activeFile = (process.env.E2E_TPQ_ACTIVE_FILE ?? '').trim();
+    if (!activeFile) throw new Error('E2E_TPQ_ACTIVE_FILE is required');
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(activeFile));
+    await vscode.window.showTextDocument(doc, { preview: false });
+    const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
+    if (!folder) {
+      const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
+      const workspaceFile = (vscode.workspace as any).workspaceFile?.fsPath ?? null;
+      throw new Error(`Expected active file to be inside a workspace folder. workspaceFile=${String(workspaceFile)} folders=${JSON.stringify(folders)}`);
+    }
+
     // Create a profile that points at the mock server.
     const v1BaseUrl = `${mock.baseUrl}/v1`;
     const profileId = 'e2e-tpq-openai';
@@ -47,19 +59,9 @@ export async function run(): Promise<void> {
       },
     });
     await vscode.commands.executeCommand('openhands._selectProfile', { profileId });
+
+    // Reconnect after the target editor is active so env-info uses the correct workspace root.
     await vscode.commands.executeCommand('openhands.reconnect');
-
-    const activeFile = (process.env.E2E_TPQ_ACTIVE_FILE ?? '').trim();
-    if (!activeFile) throw new Error('E2E_TPQ_ACTIVE_FILE is required');
-
-    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(activeFile));
-    await vscode.window.showTextDocument(doc, { preview: false });
-    const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
-    if (!folder) {
-      const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
-      const workspaceFile = (vscode.workspace as any).workspaceFile?.fsPath ?? null;
-      throw new Error(`Expected active file to be inside a workspace folder. workspaceFile=${String(workspaceFile)} folders=${JSON.stringify(folders)}`);
-    }
 
     // Start the conversation after the active editor is set, so env-info is built with the correct workspaceRoot.
     await vscode.commands.executeCommand('openhands.startNewConversation');

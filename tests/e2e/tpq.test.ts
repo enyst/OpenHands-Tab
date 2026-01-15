@@ -24,13 +24,16 @@ describe('OpenHands-Tab multi-root env-info workspaceRoot E2E', function () {
     await fs.mkdir(folderA, { recursive: true });
     await fs.mkdir(folderB, { recursive: true });
 
-    const activeFile = path.join(folderB, 'foo.md');
+    const folderAReal = await fs.realpath(folderA);
+    const folderBReal = await fs.realpath(folderB);
+
+    const activeFile = path.join(folderBReal, 'foo.md');
     await fs.writeFile(activeFile, '# tpq\n', 'utf8');
 
     const workspaceFile = path.join(tmpRoot, 'tpq.code-workspace');
     await fs.writeFile(
       workspaceFile,
-      JSON.stringify({ folders: [{ path: folderA }, { path: folderB }] }, null, 2),
+      JSON.stringify({ folders: [{ path: folderAReal }, { path: folderBReal }] }, null, 2),
       'utf8',
     );
 
@@ -52,8 +55,8 @@ describe('OpenHands-Tab multi-root env-info workspaceRoot E2E', function () {
         HOME: userDataDir,
         USERPROFILE: userDataDir,
         OPENAI_API_KEY: 'e2e-openai-key',
-        E2E_TPQ_FOLDER_A: folderA,
-        E2E_TPQ_FOLDER_B: folderB,
+        E2E_TPQ_FOLDER_A: folderAReal,
+        E2E_TPQ_FOLDER_B: folderBReal,
         E2E_TPQ_ACTIVE_FILE: activeFile,
       },
     });
