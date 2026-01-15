@@ -714,6 +714,56 @@ describe('Chat view behavior', () => {
     expect(agentContext.systemMessageSuffix).toBeUndefined();
   });
 
+  it('updates the local AgentContext user message suffix with current environment info', async () => {
+    mockSettings = { ...mockSettings, serverUrl: '' as any };
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', '');
+
+    const initialEditor = {
+      document: {
+        uri: {
+          scheme: 'file',
+          fsPath: '/test/workspace/src/initial.ts',
+        },
+      },
+    };
+    (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/test/workspace' } }];
+    (vscode.window as any).activeTextEditor = initialEditor;
+    (vscode.window as any).visibleTextEditors = [initialEditor];
+
+    await resolveChatView(mockContext);
+
+    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
+    expect(options?.agentContext).toBeTruthy();
+    const agentContext = options.agentContext as any;
+
+    expect(agentContext.userMessageSuffix).toContain('<environment information>');
+    expect(agentContext.userMessageSuffix).toContain('Active editor: initial.ts');
+    expect(agentContext.userMessageSuffix).toContain('Open editors:');
+    expect(agentContext.userMessageSuffix).toContain('- initial.ts');
+    expect(agentContext.userMessageSuffix).toContain('</environment information>');
+
+    const nextEditor = {
+      document: {
+        uri: {
+          scheme: 'file',
+          fsPath: '/test/workspace/src/next.ts',
+        },
+      },
+    };
+    (vscode.window as any).activeTextEditor = nextEditor;
+    (vscode.window as any).visibleTextEditors = [nextEditor];
+    (vscode as any).__triggerActiveTextEditorChange(nextEditor);
+    expect(agentContext.userMessageSuffix).toContain('Active editor: next.ts');
+    expect(agentContext.userMessageSuffix).toContain('- next.ts');
+
+    (vscode.window as any).activeTextEditor = undefined;
+    (vscode.window as any).visibleTextEditors = [];
+    (vscode as any).__triggerActiveTextEditorChange(undefined);
+    expect(agentContext.userMessageSuffix).toContain('Active editor: none');
+    expect(agentContext.userMessageSuffix).toContain('- none');
+  });
+
   it('auto-disables tool-call summarization when Gemini key is missing (local mode)', async () => {
     const priorEnv = process.env.GEMINI_API_KEY;
     delete process.env.GEMINI_API_KEY;
