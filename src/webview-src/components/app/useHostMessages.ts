@@ -85,6 +85,7 @@ export type HostMessageHandlerOptions = {
   setLlmProfiles: Dispatch<SetStateAction<string[]>>;
   setMode: Dispatch<SetStateAction<'local' | 'remote'>>;
   setPendingActions: Dispatch<SetStateAction<ActionEvent[]>>;
+  setQueuedMessagesCount: Dispatch<SetStateAction<number>>;
   setSelectedContextFiles: Dispatch<SetStateAction<string[]>>;
   setServers: Dispatch<SetStateAction<{ url: string; label?: string }[]>>;
   setShowContextPicker: Dispatch<SetStateAction<boolean>>;
@@ -147,6 +148,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     setLlmProfiles,
     setMode,
     setPendingActions,
+    setQueuedMessagesCount,
     setSelectedContextFiles,
     setServers,
     setShowContextPicker,
@@ -518,6 +520,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
             setPendingActions([]);
             agentStatusRef.current = undefined;
             setAgentStatus(undefined);
+            setQueuedMessagesCount(0);
             setStreamingContent(null);
             eventId.current = 1;
             setShowToolsPopover(false);
