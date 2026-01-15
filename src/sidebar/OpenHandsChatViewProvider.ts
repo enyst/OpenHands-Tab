@@ -4,6 +4,7 @@ import { getWebviewHtml } from '../webview/getWebviewHtml';
 export type OpenHandsChatViewHandlers = {
   createMessageHandler: (view: vscode.WebviewView) => (msg: unknown) => void;
   onResolved: (view: vscode.WebviewView) => void;
+  onVisibilityChange?: (view: vscode.WebviewView, visible: boolean) => void;
   onDisposed: () => void;
 };
 
@@ -45,6 +46,14 @@ export class OpenHandsChatViewProvider implements vscode.WebviewViewProvider {
         this.handlers.onDisposed();
       })
     );
+
+    const onDidChangeVisibility = (webviewView as unknown as { onDidChangeVisibility?: (listener: () => void) => vscode.Disposable })
+      .onDidChangeVisibility;
+    if (typeof onDidChangeVisibility === 'function') {
+      this.viewDisposables.push(onDidChangeVisibility(() => {
+        this.handlers.onVisibilityChange?.(webviewView, Boolean(webviewView.visible));
+      }));
+    }
 
     this.handlers.onResolved(webviewView);
   }
