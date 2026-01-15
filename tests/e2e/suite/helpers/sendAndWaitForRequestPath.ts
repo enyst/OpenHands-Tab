@@ -1,13 +1,10 @@
 import * as vscode from 'vscode';
 import type { MockLlmRequest } from '../mockLlmServer';
 import { waitForRequestCount } from './waitForRequestCount';
+import type { DiagnosticsInfo } from './diagnosticsInfo';
 
 type WebviewActionResult = {
   sent?: boolean;
-};
-
-type DiagnosticsInfo = {
-  eventBacklog?: { latestSeq?: number };
 };
 
 type ErrorInfo = { seq?: number } | null;
@@ -47,7 +44,7 @@ export async function sendAndWaitForRequestPath(options: {
   const afterError = await vscode.commands.executeCommand<ErrorInfo>('openhands._queryLastError');
   const afterErrorSeq = typeof afterError?.seq === 'number' ? afterError.seq : -1;
   if (afterError && afterErrorSeq > beforeErrorSeq) {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     throw new Error(
       `Detected error event(s) after sending message.\n` +
       `- diag: ${JSON.stringify(diag)}\n` +

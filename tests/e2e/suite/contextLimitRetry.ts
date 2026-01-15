@@ -3,12 +3,7 @@ import { pollUntil } from './pollUntil';
 import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
 import { waitForRequestCount } from './helpers/waitForRequestCount';
-
-type DiagnosticsInfo = {
-  chat?: { hasView?: boolean; webviewReady?: boolean };
-  conversationId?: string | null;
-  mode?: 'local' | 'remote';
-};
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 type ErrorInfo = { seq?: number } | null;
 
@@ -164,7 +159,7 @@ export async function run(): Promise<void> {
         return !(afterError && afterErrorSeq > beforeErrorSeq);
       }, 60000, 250);
     } catch (err) {
-      const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+      const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
       const lastError: any = await vscode.commands.executeCommand('openhands._queryLastError');
       const rendered: any = await vscode.commands.executeCommand('openhands._queryRenderedEvents');
       const recent = mock.requests

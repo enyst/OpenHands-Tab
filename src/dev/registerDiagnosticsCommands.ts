@@ -9,15 +9,9 @@ import type { HalStateSnapshot } from '../shared/halTypes';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
 import { OpenHandsTerminalLogPseudoterminal } from '../terminal/OpenHandsTerminalLogPseudoterminal';
 import { isBashEvent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { DiagnosticsInfo, TerminalLogInfo } from './diagnosticsTypes';
 
-export type TerminalLogInfo = {
-  hasTerminal: boolean;
-  received: number;
-  ptyOpened?: boolean;
-  preopenBufferedChars?: number;
-  preopenDroppedChars?: number;
-  lastEvents?: Array<{ type?: string; timestamp: number }>;
-};
+export type { DiagnosticsInfo, TerminalLogInfo } from './diagnosticsTypes';
 
 
 export type RenderedEventsInfo = {
@@ -139,7 +133,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return inspected?.globalValue ?? [];
   };
 
-  const diag = vscode.commands.registerCommand('openhands._diagnostics', () => {
+  const diag = vscode.commands.registerCommand('openhands._diagnostics', (): DiagnosticsInfo => {
     const chatView = deps.getChatView();
     const terminal = deps.getTerminal();
     const terminalPty = deps.getTerminalLogPty();

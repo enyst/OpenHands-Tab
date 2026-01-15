@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Ensure chat view is created
@@ -7,7 +8,7 @@ export async function run(): Promise<void> {
   // Wait until view and webview are ready
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     if (diag?.chat?.hasView && diag?.chat?.webviewReady) break;
     await new Promise((r) => setTimeout(r, 200));
   }

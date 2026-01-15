@@ -4,12 +4,7 @@ import * as path from 'path';
 import { pollUntil } from './pollUntil';
 import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
-
-type DiagnosticsInfo = {
-  chat?: { hasView?: boolean; webviewReady?: boolean };
-  conversationId?: string | null;
-  mode?: 'local' | 'remote';
-};
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 function extractUserMessageTexts(json: unknown): string[] {
   if (!json || typeof json !== 'object' || Array.isArray(json)) return [];
