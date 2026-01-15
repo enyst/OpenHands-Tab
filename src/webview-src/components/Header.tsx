@@ -128,7 +128,12 @@ export function Header({
   const formatInt = (value: number) => Math.max(0, Math.trunc(value)).toLocaleString();
   const formatCost = (value: number) => {
     const clamped = Number.isFinite(value) ? Math.max(0, value) : 0;
-    return `$${clamped.toFixed(4)}`;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    }).format(clamped);
   };
 
   // Get display name using shared helper for consistency
