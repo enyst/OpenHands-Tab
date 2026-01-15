@@ -249,6 +249,8 @@ export function activate(context: vscode.ExtensionContext) {
         context,
         host: { postMessage: (message) => view.webview.postMessage(message) },
         secretRegistry: secrets,
+        getQueuedUserEditNotes: fileEditNoteTracker.getQueuedUserEditNotes,
+        clearQueuedUserEditNotes: fileEditNoteTracker.clearQueuedUserEditNotes,
         getConversation: () => conversation,
         getConversationMode: () => conversationMode,
         getConversationStoreRoot: () => conversationStoreRoot,

@@ -25,6 +25,8 @@ describe('Pasted images host handling', () => {
     const handler = createWebviewMessageHandler({
       context: { globalStorageUri: { fsPath: tmpDir } } as any,
       host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => conversation,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
@@ -62,4 +64,3 @@ describe('Pasted images host handling', () => {
     expect(vscode.window.showWarningMessage).not.toHaveBeenCalled();
   });
 });
-

@@ -149,6 +149,8 @@ export type CreateWebviewMessageHandlerDeps = {
   context: vscode.ExtensionContext;
   host: WebviewHost;
   secretRegistry?: SecretRegistry;
+  getQueuedUserEditNotes: () => string[];
+  clearQueuedUserEditNotes: () => void;
 
   getConversation: () => import('@openhands/agent-sdk-ts').ConversationInstance | undefined;
   getConversationMode: () => 'local' | 'remote';
@@ -1148,7 +1150,18 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
         }
 
-        await conversation.sendUserMessage(finalText);
+        const queuedNotes = deps.getQueuedUserEditNotes();
+        const queuedNotesText = queuedNotes
+          .filter((note) => typeof note === 'string' && note.trim().length > 0)
+          .map((note) => note.trimEnd())
+          .join('\n\n');
+
+        if (queuedNotesText) {
+          await conversation.sendUserMessage(finalText, { extendedContent: [{ type: 'text', text: queuedNotesText }] });
+          deps.clearQueuedUserEditNotes();
+        } else {
+          await conversation.sendUserMessage(finalText);
+        }
         break;
       }
       case 'halTtsRequest': {

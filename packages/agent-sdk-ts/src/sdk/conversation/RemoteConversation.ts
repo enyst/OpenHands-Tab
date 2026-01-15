@@ -1,6 +1,6 @@
 import EventEmitter from 'events';
 import WebSocket from 'ws';
-import type { BashEvent, Event, Message } from '../types';
+import type { BashEvent, Event, Message, TextContent } from '../types';
 import { isEvent as isAgentEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
 import type { LLMProfileStoreOptions } from '../llm/profiles';
@@ -678,13 +678,16 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  async sendUserMessage(text: string, options?: { run?: boolean }) {
+  async sendUserMessage(text: string, options?: { run?: boolean; extendedContent?: TextContent[] }) {
     const run = options?.run !== false;
     if (!this.conversationId) {
       const id = await this.startNewConversation();
       if (!id) return;
     }
-    const messagePayload: Message = { role: 'user', content: [{ type: 'text', text }] };
+    const messagePayload: Message & { extended_content?: TextContent[] } = { role: 'user', content: [{ type: 'text', text }] };
+    if (options?.extendedContent?.length) {
+      messagePayload.extended_content = options.extendedContent;
+    }
     if (run && this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(messagePayload));
       return;

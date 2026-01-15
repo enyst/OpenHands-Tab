@@ -10,7 +10,7 @@ import {
   type PersistedLlmConfig,
 } from '../runtime';
 import type { LLMClient } from '../llm';
-import type { BashEvent, Event } from '../types';
+import type { BashEvent, Event, TextContent } from '../types';
 import { clearRawLlmFieldsWhenProfileSelected } from '../types/settings';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
@@ -223,7 +223,7 @@ export class LocalConversation extends EventEmitter {
     }
   }
 
-  async sendUserMessage(text: string, options?: { run?: boolean }) {
+  async sendUserMessage(text: string, options?: { run?: boolean; extendedContent?: TextContent[] }) {
     const run = options?.run !== false;
     await this.lock.acquire(async () => {
       if (!this.conversationId) {
@@ -236,11 +236,12 @@ export class LocalConversation extends EventEmitter {
           kind: 'MessageEvent',
           source: 'user',
           llm_message: { role: 'user', content: [{ type: 'text', text }] },
+          ...(options?.extendedContent?.length ? { extended_content: options.extendedContent } : {}),
         } as Event);
         return;
       }
 
-      await this.agent.run(text);
+      await this.agent.run(text, { extraExtendedContent: options?.extendedContent });
     });
   }
 

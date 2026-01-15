@@ -12,6 +12,8 @@ describe('Tools picker host messages', () => {
     const handler = createWebviewMessageHandler({
       context: {} as any,
       host: { postMessage },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => conversation,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
@@ -36,6 +38,8 @@ describe('Tools picker host messages', () => {
     const handler = createWebviewMessageHandler({
       context: {} as any,
       host: { postMessage },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => conversation,
       getConversationMode: () => 'remote',
       getConversationStoreRoot: () => undefined,

@@ -57,6 +57,14 @@ import type { AgentHook, AfterToolCallHookParams, BeforeToolCallHookParams, Befo
 
 
 export type AgentRunInput = string | Message;
+export type AgentRunOptions = {
+  /**
+   * Extra per-message extended content to attach to the user MessageEvent.
+   * These are included in the LLM request (after the primary user text) and rendered
+   * in the webview under “Extended Context”.
+   */
+  extraExtendedContent?: Array<{ type: 'text'; text: string }>;
+};
 
 export interface AgentOptions {
   settings: OpenHandsSettings;
@@ -424,13 +432,13 @@ export class Agent extends EventEmitter {
     this.pendingWorkspaceAccess = workspaceAccess;
   }
 
-  async run(input: AgentRunInput): Promise<Message | undefined> {
+  async run(input: AgentRunInput, options?: AgentRunOptions): Promise<Message | undefined> {
     this.cancelled = false;
     this.finished = false;
     this.paused = false;
     return this.lock.acquire(async () => {
       this.ensureSystemPrompt();
-      this.pushUserMessage(input);
+      this.pushUserMessage(input, { extraExtendedContent: options?.extraExtendedContent });
       return this.runLoop();
     });
   }
@@ -1073,7 +1081,7 @@ export class Agent extends EventEmitter {
     } as Event);
   }
 
-  private pushUserMessage(input: AgentRunInput) {
+  private pushUserMessage(input: AgentRunInput, options?: { extraExtendedContent?: Array<{ type: 'text'; text: string }> }) {
     const message: Message =
       typeof input === 'string'
         ? { role: 'user', content: [{ type: 'text', text: input }] }
@@ -1082,6 +1090,13 @@ export class Agent extends EventEmitter {
     // Augment message with skills if agent context is available
     const activatedSkillNames: string[] = [];
     const extendedContent: { type: 'text'; text: string }[] = [];
+
+    const safeExtra = (options?.extraExtendedContent ?? [])
+      .filter((c): c is { type: 'text'; text: string } => !!c && c.type === 'text' && typeof c.text === 'string' && c.text.length > 0)
+      .map((c) => ({ type: 'text' as const, text: c.text }));
+    if (safeExtra.length > 0) {
+      extendedContent.push(...safeExtra);
+    }
 
     if (this.agentContext) {
       const suffix = this.agentContext.getUserMessageSuffix(message, this.activatedSkillNames);

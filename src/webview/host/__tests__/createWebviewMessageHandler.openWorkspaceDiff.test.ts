@@ -27,6 +27,8 @@ describe('createWebviewMessageHandler(openWorkspaceDiff)', () => {
     const handler = createWebviewMessageHandler({
       context: { subscriptions: [] } as any,
       host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => undefined,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
@@ -71,6 +73,8 @@ describe('createWebviewMessageHandler(openWorkspaceDiff)', () => {
     const handler = createWebviewMessageHandler({
       context: { subscriptions: [] } as any,
       host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => undefined,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,

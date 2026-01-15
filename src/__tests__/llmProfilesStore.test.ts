@@ -38,6 +38,8 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       context: { globalStorageUri: { fsPath: tmpDir }, secrets } as any,
       host: { postMessage },
       secretRegistry,
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => options?.conversation,
       getConversationMode: () => options?.mode ?? 'local',
       getConversationStoreRoot: () => undefined,
