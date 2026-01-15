@@ -70,6 +70,8 @@ function clampPollIntervalMs(value: number): number {
   return Math.max(1000, Math.trunc(value));
 }
 
+const MAX_SLOW_DOWN_INTERVAL_MS = 30_000;
+
 export class DeviceFlowProtocolError extends Error {
   override name = 'DeviceFlowProtocolError';
 }
@@ -184,13 +186,12 @@ export async function pollDeviceToken(options: {
   let pollIntervalMs = clampPollIntervalMs(options.pollIntervalMs);
 
   const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
     device_code: deviceCode,
   }).toString();
 
   while (true) {
     if (options.signal?.aborted) throw new DeviceFlowCancelledError('Device flow cancelled');
-    if (clock.now() - startedAt > timeoutMs) throw new DeviceFlowTimeoutError('Device flow timed out');
+    if (clock.now() - startedAt > timeoutMs) throw new DeviceFlowTimeoutError('Timeout waiting for user authorization (device flow)');
 
     let res: HttpResponseLike;
     try {
@@ -229,9 +230,17 @@ export async function pollDeviceToken(options: {
     }
 
     if (error === 'slow_down') {
-      pollIntervalMs = clampPollIntervalMs(pollIntervalMs + 5000);
+      pollIntervalMs = Math.min(clampPollIntervalMs(pollIntervalMs * 2), MAX_SLOW_DOWN_INTERVAL_MS);
       await clock.sleep(pollIntervalMs);
       continue;
+    }
+
+    if (error === 'expired_token') {
+      throw new DeviceFlowTokenError('Device code has expired. Please restart the device authorization flow.', { error, errorDescription });
+    }
+
+    if (error === 'access_denied') {
+      throw new DeviceFlowTokenError('User denied the authorization request.', { error, errorDescription });
     }
 
     if (error) {

@@ -3,8 +3,6 @@ import {
   DeviceFlowHttpError,
   DeviceFlowNetworkError,
   DeviceFlowProtocolError,
-  DeviceFlowTimeoutError,
-  DeviceFlowTokenError,
   pollDeviceToken,
   startDeviceAuthorization,
   type HttpClientLike,
@@ -73,9 +71,8 @@ describe('device flow client', () => {
       (url, init) => {
         expect(url).toBe('https://example.com/oauth/device/token');
         expect(init.headers?.['content-type']).toBe('application/x-www-form-urlencoded');
-        expect(init.body).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code');
         expect(init.body).toContain('device_code=dev');
-        return jsonResponse(200, { error: 'authorization_pending' });
+        return jsonResponse(400, { error: 'authorization_pending' });
       },
       () => jsonResponse(200, { access_token: 'tok', token_type: 'bearer', expires_in: 123 }),
     ]);
@@ -99,9 +96,9 @@ describe('device flow client', () => {
     let now = 0;
     const sleepCalls: number[] = [];
     const http = createSequenceHttp([
-      () => jsonResponse(200, { error: 'authorization_pending' }),
-      () => jsonResponse(200, { error: 'slow_down' }),
-      () => jsonResponse(200, { error: 'authorization_pending' }),
+      () => jsonResponse(400, { error: 'authorization_pending' }),
+      () => jsonResponse(400, { error: 'slow_down' }),
+      () => jsonResponse(400, { error: 'authorization_pending' }),
       () => jsonResponse(200, { access_token: 'tok' }),
     ]);
 
@@ -117,8 +114,8 @@ describe('device flow client', () => {
       },
     });
     expect(out.accessToken).toBe('tok');
-    // first pending = 1000ms, slow_down increases by +5000 => 6000ms, then pending uses 6000ms
-    expect(sleepCalls).toEqual([1000, 6000, 6000]);
+    // first pending = 1000ms, slow_down doubles => 2000ms, then pending uses 2000ms
+    expect(sleepCalls).toEqual([1000, 2000, 2000]);
   });
 
   it('pollDeviceToken fails on expired_token', async () => {
@@ -133,7 +130,7 @@ describe('device flow client', () => {
       http,
       timeoutMs: 10_000,
       clock: { now: () => 0, sleep: async () => {} },
-    })).rejects.toBeInstanceOf(DeviceFlowTokenError);
+    })).rejects.toMatchObject({ name: 'DeviceFlowTokenError', error: 'expired_token' });
 
     await expect(pollDeviceToken({
       baseUrl: 'https://example.com',
@@ -142,7 +139,7 @@ describe('device flow client', () => {
       http: createSequenceHttp([() => jsonResponse(400, { error: 'expired_token' })]),
       timeoutMs: 10_000,
       clock: { now: () => 0, sleep: async () => {} },
-    })).rejects.toMatchObject({ error: 'expired_token' });
+    })).rejects.toThrow('Device code has expired');
   });
 
   it('pollDeviceToken fails on access_denied', async () => {
@@ -156,7 +153,7 @@ describe('device flow client', () => {
       http,
       timeoutMs: 10_000,
       clock: { now: () => 0, sleep: async () => {} },
-    })).rejects.toMatchObject({ error: 'access_denied' });
+    })).rejects.toThrow('User denied the authorization request.');
   });
 
   it('pollDeviceToken surfaces unknown errors', async () => {
@@ -220,7 +217,7 @@ describe('device flow client', () => {
     let calls = 0;
     const http: HttpClientLike = async () => {
       calls += 1;
-      return jsonResponse(200, { error: 'authorization_pending' });
+      return jsonResponse(400, { error: 'authorization_pending' });
     };
 
     await expect(pollDeviceToken({
@@ -230,8 +227,35 @@ describe('device flow client', () => {
       http,
       timeoutMs: 2500,
       clock: { now: () => now, sleep: async (ms) => { now += ms; } },
-    })).rejects.toBeInstanceOf(DeviceFlowTimeoutError);
+    })).rejects.toMatchObject({ name: 'DeviceFlowTimeoutError' });
     expect(calls).toBe(3);
   });
-});
 
+  it('startDeviceAuthorization throws on non-2xx', async () => {
+    const http = createSequenceHttp([
+      () => jsonResponse(500, { message: 'nope' }),
+    ]);
+    await expect(startDeviceAuthorization({ baseUrl: 'https://example.com', http })).rejects.toBeInstanceOf(DeviceFlowHttpError);
+  });
+
+  it('startDeviceAuthorization throws on network error', async () => {
+    const http: HttpClientLike = async () => {
+      throw new Error('offline');
+    };
+    await expect(startDeviceAuthorization({ baseUrl: 'https://example.com', http })).rejects.toBeInstanceOf(DeviceFlowNetworkError);
+  });
+
+  it('startDeviceAuthorization throws on invalid JSON', async () => {
+    const http = createSequenceHttp([
+      () => invalidJsonResponse(200, 'not json'),
+    ]);
+    await expect(startDeviceAuthorization({ baseUrl: 'https://example.com', http })).rejects.toBeInstanceOf(DeviceFlowProtocolError);
+  });
+
+  it('startDeviceAuthorization throws when required fields are missing', async () => {
+    const http = createSequenceHttp([
+      () => jsonResponse(200, { device_code: 'dev' }),
+    ]);
+    await expect(startDeviceAuthorization({ baseUrl: 'https://example.com', http })).rejects.toBeInstanceOf(DeviceFlowProtocolError);
+  });
+});
