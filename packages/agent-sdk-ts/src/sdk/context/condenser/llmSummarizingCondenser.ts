@@ -32,7 +32,7 @@ export interface LLMSummarizingCondenserOptions {
   maxEventTokens?: number;
 }
 
-const DEFAULT_KEEP_FIRST = 4;
+const DEFAULT_KEEP_FIRST = 1;
 const DEFAULT_TARGET_FRACTION = 0.5;
 const DEFAULT_RESERVED_SUMMARY_TOKENS = 512;
 const DEFAULT_MAX_EVENT_TOKENS = 350;

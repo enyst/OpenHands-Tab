@@ -1,14 +1,65 @@
 import type { ChatCompletionRequest, LLMProvider } from './types';
 import { reduceTextContent } from './types';
 
-const normalizeErrorText = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
+const collectErrorTextParts = (params: {
+  error: unknown;
+  depth: number;
+  seen: Set<unknown>;
+}): string[] => {
+  if (params.depth <= 0) return [];
+
+  const error = params.error;
+  if (error === null || error === undefined) return [];
+  if (typeof error === 'string') return [error];
+
+  if (typeof error === 'object') {
+    if (params.seen.has(error)) return [];
+    params.seen.add(error);
+
+    if (error instanceof Error) {
+      const parts: string[] = [];
+      if (error.message) parts.push(error.message);
+      const cause = (error as Error & { cause?: unknown }).cause;
+      if (cause && !params.seen.has(cause)) {
+        parts.push(...collectErrorTextParts({ error: cause, depth: params.depth - 1, seen: params.seen }));
+      }
+      return parts;
+    }
+
+    const maybe = error as { message?: unknown; cause?: unknown };
+    const parts: string[] = [];
+    if (typeof maybe.message === 'string' && maybe.message.trim()) parts.push(maybe.message);
+
+    if (maybe.cause && !params.seen.has(maybe.cause)) {
+      parts.push(...collectErrorTextParts({ error: maybe.cause, depth: params.depth - 1, seen: params.seen }));
+    }
+
+    try {
+      parts.push(JSON.stringify(error));
+    } catch {
+      // ignore stringify failures
+    }
+
+    if (!parts.length) parts.push(Object.prototype.toString.call(error));
+    return parts;
   }
+
+  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
+    return [String(error)];
+  }
+  if (typeof error === 'symbol') {
+    return [error.description ? `Symbol(${error.description})` : 'Symbol()'];
+  }
+  if (typeof error === 'function') {
+    return [error.name ? `[function ${error.name}]` : '[function]'];
+  }
+
+  return [];
+};
+
+const normalizeErrorText = (error: unknown): string => {
+  const seen = new Set<unknown>();
+  return collectErrorTextParts({ error, depth: 6, seen }).join('\n');
 };
 
 const containsAny = (haystack: string, needles: string[]): boolean =>
@@ -24,30 +75,55 @@ export const isContextLimitError = (provider: LLMProvider | undefined, error: un
   const text = normalizeErrorText(error).toLowerCase();
   if (!text) return false;
 
+  const genericNeedles = [
+    'context_length_exceeded',
+    'maximum context length',
+    'prompt is too long',
+    'token limit',
+    'exceeds the maximum number of tokens',
+    'reduce the length',
+    'context window exceeded',
+    'contextwindowexceedederror',
+  ];
+
   // Provider-specific hints first (most reliable).
   switch (provider) {
     case 'openai':
     case 'openrouter':
     case 'litellm_proxy': {
-      return containsAny(text, [
+      if (
+        containsAny(text, [
         'context_length_exceeded',
         'maximum context length',
         "this model's maximum context length",
         'too many tokens',
         'reduce the length of the messages',
         'tokens in the prompt',
-      ]);
+        // LiteLLM proxy can wrap Anthropic-style errors (e.g. "prompt is too long: X tokens > Y maximum").
+        'prompt is too long',
+        'contextwindowexceedederror',
+      ])
+      ) {
+        return true;
+      }
+      break;
     }
     case 'anthropic': {
-      return containsAny(text, [
+      if (
+        containsAny(text, [
         'prompt is too long',
         'prompt too long',
         'context length exceeded',
         'tokens exceeded',
-      ]);
+      ])
+      ) {
+        return true;
+      }
+      break;
     }
     case 'gemini': {
-      return containsAny(text, [
+      if (
+        containsAny(text, [
         'prompttokencount',
         'candidatestokencount',
         'exceeds the maximum',
@@ -55,21 +131,18 @@ export const isContextLimitError = (provider: LLMProvider | undefined, error: un
         'input token',
         'token limit',
         'context length',
-      ]);
+      ])
+      ) {
+        return true;
+      }
+      break;
     }
     default:
       break;
   }
 
   // Generic fallback heuristics.
-  return containsAny(text, [
-    'context_length_exceeded',
-    'maximum context length',
-    'prompt is too long',
-    'token limit',
-    'exceeds the maximum number of tokens',
-    'reduce the length',
-  ]);
+  return containsAny(text, genericNeedles);
 };
 
 const estimateTokens = (text: string): number => {
