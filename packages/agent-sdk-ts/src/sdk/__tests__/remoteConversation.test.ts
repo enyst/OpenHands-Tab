@@ -143,6 +143,78 @@ describe('RemoteConversation', () => {
     expect(statuses).toContain('offline');
   });
 
+  it('sendUserMessage includes extended_content in the HTTP payload when WS is not open', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      if (url.includes('/api/conversations/abc/events')) {
+        expect(init?.method).toBe('POST');
+        const payload = JSON.parse(String(init?.body ?? 'null'));
+        expect(payload).toMatchObject({
+          role: 'user',
+          content: [{ type: 'text', text: 'hello' }],
+          run: true,
+          extended_content: [{ type: 'text', text: 'note: user edited file' }],
+        });
+        return { ok: true, status: 200, text: async () => '' } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    await conversation.sendUserMessage('hello', {
+      extendedContent: [{ type: 'text', text: 'note: user edited file' }],
+    });
+  });
+
+  it('sendUserMessage includes extended_content in the WS payload when WS is open', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/events/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items: [], next_page_id: null }),
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
+
+    await conversation.restoreConversation('abc');
+
+    const ws = getEventWS();
+    ws.open();
+
+    await conversation.sendUserMessage('hello', {
+      extendedContent: [{ type: 'text', text: 'note: user edited file' }],
+    });
+
+    expect(ws.sent).toHaveLength(1);
+    expect(JSON.parse(ws.sent[0] ?? '')).toMatchObject({
+      role: 'user',
+      content: [{ type: 'text', text: 'hello' }],
+      extended_content: [{ type: 'text', text: 'note: user edited file' }],
+    });
+  });
+
   it('includes non-LLM secrets when starting a new conversation', async () => {
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       expect(url).toContain('/api/conversations');
