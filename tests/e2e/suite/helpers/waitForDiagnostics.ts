@@ -4,7 +4,8 @@ import type { DiagnosticsInfo } from './diagnosticsInfo';
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function getDiagnostics(): Promise<DiagnosticsInfo> {
-  return await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  return diag ?? {};
 }
 
 export async function waitForDiagnostics(options: {
