@@ -47,6 +47,30 @@ describe('SecretRegistry', () => {
     expect(getSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('treats empty/whitespace SecretStorage values as unset (falls back to env)', async () => {
+    process.env[envKey] = 'from-env';
+    const { storage, getSpy } = makeStorage('   ');
+    const registry = new SecretRegistry(storage, null);
+
+    await expect(registry.get(secretName)).resolves.toBe('from-env');
+    expect(getSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('trims SecretStorage values when present', async () => {
+    const { storage } = makeStorage('  from-storage  ');
+    const registry = new SecretRegistry(storage, null);
+
+    await expect(registry.get(secretName)).resolves.toBe('from-storage');
+  });
+
+  it('trims env values when SecretStorage is empty', async () => {
+    process.env[envKey] = '  from-env  ';
+    const { storage } = makeStorage('');
+    const registry = new SecretRegistry(storage, null);
+
+    await expect(registry.get(secretName)).resolves.toBe('from-env');
+  });
+
   it('returns SecretStorage when env is absent', async () => {
     const { storage, getSpy } = makeStorage('from-storage');
     const registry = new SecretRegistry(storage, null);
