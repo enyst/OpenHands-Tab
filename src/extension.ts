@@ -27,6 +27,7 @@ import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
+import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import {
   createOutputLogger,
   normalizeOutputVerbosity,
@@ -443,8 +444,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
     }
 
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
+    const workspaceRoot = resolvePreferredWorkspaceRoot();
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
