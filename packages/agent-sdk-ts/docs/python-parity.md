@@ -705,7 +705,7 @@ export function observationToLLMText(observation: Observation): string {
 - [ ] **Hooks system**: Add config file loading, subprocess executor, pattern matching
 - [ ] **MCP Client**: Add MCPClient for tool execution (not just config parsing)
 - [ ] **BrowserUseTool**: Implement actual browser automation (currently stubbed)
-- [x] **DelegateTool**: Implement sub-agent orchestration (currently stubbed)
+- [x] **DelegateTool**: Implement sub-agent orchestration
 - [ ] **Public skills**: Add public skills repo loading (`load_public_skills`)
 - [ ] **RemoteConversation**: Add `set_confirmation_policy`, `ask_agent`, `generate_title`, `condense`
 - [ ] **security_risk defaulting**: Consider defaulting to UNKNOWN in TS for remote mode
