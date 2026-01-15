@@ -1,26 +1,15 @@
 import * as path from 'path';
-import * as fs from 'fs';
 
 const toPosixPath = (value: string): string => value.replaceAll('\\', '/');
 
-function normalizeFsPath(value: string): string {
-  const resolved = path.resolve(value);
-  try {
-    const realpathSyncNative = (fs.realpathSync as unknown as { native?: (p: string) => string }).native;
-    return typeof realpathSyncNative === 'function' ? realpathSyncNative(resolved) : fs.realpathSync(resolved);
-  } catch {
-    return resolved;
-  }
-}
-
 function isWithinWorkspace(filePath: string, workspaceRoot: string): boolean {
-  const normalizedRoot = normalizeFsPath(workspaceRoot);
-  const normalizedFile = normalizeFsPath(filePath);
+  const normalizedRoot = path.resolve(workspaceRoot);
+  const normalizedFile = path.resolve(filePath);
   return normalizedFile === normalizedRoot || normalizedFile.startsWith(`${normalizedRoot}${path.sep}`);
 }
 
 function getWorkspaceRelativePath(filePath: string, workspaceRoot: string): string {
-  const rel = path.relative(normalizeFsPath(workspaceRoot), normalizeFsPath(filePath));
+  const rel = path.relative(workspaceRoot, filePath);
   return toPosixPath(rel);
 }
 
@@ -91,3 +80,4 @@ export function formatEnvironmentInformation(params: {
     '</environment information>',
   ].join('\n');
 }
+

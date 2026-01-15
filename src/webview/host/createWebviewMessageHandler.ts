@@ -17,7 +17,7 @@ import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
 import { normalizeServerUrl } from '../../shared/serverUrls';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
-import { formatEnvironmentInformation } from '../../shared/environmentInformation';
+// Environment info is provided via AgentContext.userMessageSuffix (extension host).
 import { getEffectiveWorkspaceRoot } from '../../shared/workspaceRoot';
 import { getConversationHistoryList, persistConversationTitle } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
@@ -1209,38 +1209,17 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
         }
 
-        const envInfoText = (() => {
-          if (deps.getConversationMode() !== 'local') return null;
-          try {
-            const workspaceRoot = getEffectiveWorkspaceRoot();
-            const activeEditorPath =
-              (vscode.window.activeTextEditor?.document?.uri?.scheme === 'file' ||
-                vscode.window.activeTextEditor?.document?.uri?.scheme === 'vscode-remote')
-                ? vscode.window.activeTextEditor.document.uri.fsPath
-                : null;
-            const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
-              .map((e) => ((e?.document?.uri?.scheme === 'file' || e?.document?.uri?.scheme === 'vscode-remote') ? e.document.uri.fsPath : null))
-              .filter((p): p is string => typeof p === 'string' && p.length > 0);
-            return formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths });
-          } catch {
-            return null;
-          }
-        })();
-
         const queuedNotes = deps.getQueuedUserEditNotes();
         const queuedNotesText = queuedNotes
           .filter((note) => typeof note === 'string' && note.trim().length > 0)
           .map((note) => note.trimEnd())
           .join('\n\n');
 
-        const extendedContent = [
-          ...(envInfoText ? [{ type: 'text' as const, text: envInfoText }] : []),
-          ...(queuedNotesText ? [{ type: 'text' as const, text: queuedNotesText }] : []),
-        ];
-
-        await conversation.sendUserMessage(finalText, extendedContent.length ? { extendedContent } : undefined);
         if (queuedNotesText) {
+          await conversation.sendUserMessage(finalText, { extendedContent: [{ type: 'text', text: queuedNotesText }] });
           deps.clearQueuedUserEditNotes();
+        } else {
+          await conversation.sendUserMessage(finalText);
         }
         break;
       }
