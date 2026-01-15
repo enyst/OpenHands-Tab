@@ -99,6 +99,11 @@ export async function run(): Promise<void> {
     return runWelcomeTest();
   }
 
+  if (testName === 'gvc') {
+    const { run: runGvcTest } = await import('./gvc');
+    return runGvcTest();
+  }
+
   if (testName === 'tpq') {
     const { run: runTpqTest } = await import('./tpq');
     return runTpqTest();
