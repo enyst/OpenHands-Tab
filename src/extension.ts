@@ -243,6 +243,8 @@ export function activate(context: vscode.ExtensionContext) {
     getGitHeadDiffSummaryForFile,
   });
 
+  let lastChatViewVisibility: boolean | undefined;
+
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
     createMessageHandler: (view) =>
       createWebviewMessageHandler({
@@ -294,15 +296,42 @@ export function activate(context: vscode.ExtensionContext) {
     onResolved: (view) => {
       chatView = view;
       chatWebviewReady = false;
+      lastChatViewVisibility = Boolean(view.visible);
       void ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
         outputChannel?.appendLine(`[error] ensureConversationAndConnection failed: ${renderError(err)}`);
       });
     },
+    onVisibilityChange: (_view, visible) => {
+      const isVisible = Boolean(visible);
+      if (lastChatViewVisibility === isVisible) return;
+      lastChatViewVisibility = isVisible;
+
+      if (!isVisible) {
+        void (async () => {
+          try {
+            await conversation?.pause();
+          } catch (err) {
+            outputChannel?.appendLine(`[pause] Failed to auto-pause when chat view was hidden: ${renderError(err)}`);
+          }
+        })();
+      }
+    },
     onDisposed: () => {
+      const shouldPauseOnDispose = lastChatViewVisibility !== false;
+      if (shouldPauseOnDispose) {
+        void (async () => {
+          try {
+            await conversation?.pause();
+          } catch (err) {
+            outputChannel?.appendLine(`[pause] Failed to auto-pause when chat view was disposed: ${renderError(err)}`);
+          }
+        })();
+      }
       chatView = undefined;
       chatWebviewReady = false;
       chatLastConversationId = undefined;
       chatLastSeenSeq = undefined;
+      lastChatViewVisibility = undefined;
     },
   });
   context.subscriptions.push(

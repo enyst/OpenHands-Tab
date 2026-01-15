@@ -399,8 +399,13 @@ function createMockWebviewView() {
       view._disposeHandler = handler;
       return { dispose: vi.fn() };
     }),
+    onDidChangeVisibility: vi.fn((handler: Function) => {
+      view._visibilityHandler = handler;
+      return { dispose: vi.fn() };
+    }),
     _messageHandler: null as Function | null,
     _disposeHandler: null as Function | null,
+    _visibilityHandler: null as Function | null,
   };
 
   return view;
@@ -461,6 +466,54 @@ describe('Chat view behavior', () => {
 
     const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
     expect(conv?.restoreConversation).not.toHaveBeenCalled();
+  });
+
+  it('auto-pauses when the chat view becomes hidden (and avoids spamming)', async () => {
+    const view = await resolveChatView(mockContext);
+    expect(view).toBeTruthy();
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    (conv.pause as Mock).mockClear();
+
+    // Hide -> pause once
+    view.visible = false;
+    view._visibilityHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
+
+    // Still hidden -> do not pause again
+    view._visibilityHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
+
+    // Show -> no pause
+    view.visible = true;
+    view._visibilityHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
+
+    // Hide again -> pause again
+    view.visible = false;
+    view._visibilityHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not double-pause when the chat view is hidden then disposed', async () => {
+    const view = await resolveChatView(mockContext);
+    expect(view).toBeTruthy();
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    (conv.pause as Mock).mockClear();
+
+    view.visible = false;
+    view._visibilityHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
+
+    view._disposeHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes the active conversation when LLM settings change', async () => {
