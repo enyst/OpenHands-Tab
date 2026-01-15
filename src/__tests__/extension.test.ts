@@ -696,6 +696,43 @@ describe('Command handlers', () => {
     expect(message).toContain('</environment information>');
   });
 
+  it('includes vscode-remote editors in environment info suffix', async () => {
+    mockSettings.serverUrl = undefined as any;
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', '');
+
+    (vscode.window as any).activeTextEditor = {
+      selection: {
+        isEmpty: false,
+        start: { line: 3, character: 2 },
+        end: { line: 5, character: 10 },
+      },
+      document: {
+        languageId: 'markdown',
+        uri: {
+          scheme: 'vscode-remote',
+          fsPath: '/test/workspace/content/posts/ralph.md',
+          toString: () => 'vscode-remote://ssh-remote+devcontainer/test/workspace/content/posts/ralph.md',
+        },
+        getText: vi.fn(() => '# hello'),
+      },
+    };
+    (vscode.window as any).visibleTextEditors = [(vscode.window as any).activeTextEditor];
+    (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/test/workspace' } }];
+
+    await vscode.commands.executeCommand('openhands.explainSelection');
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const latestConversation = __getLastConversation();
+
+    expect(latestConversation.sendUserMessage).toHaveBeenCalled();
+    const message = (latestConversation.sendUserMessage as unknown as Mock).mock.calls[0]?.[0] as string;
+    expect(message).toContain('<environment information>');
+    expect(message).toContain('Active editor: ralph.md');
+    expect(message).toContain('Open editors:');
+    expect(message).toContain('- ralph.md');
+    expect(message).toContain('</environment information>');
+  });
+
   it('sends reconnect/pause/resume commands', async () => {
     await vscode.commands.executeCommand('openhands.reconnect');
     await vscode.commands.executeCommand('openhands.pauseCurrentRun');

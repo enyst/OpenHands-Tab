@@ -151,7 +151,7 @@ function renderError(err: unknown): string {
 function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
   if (!editor) return undefined;
   const uri = editor.document.uri;
-  if (uri.scheme !== 'file') return undefined;
+  if (uri.scheme !== 'file' && uri.scheme !== 'vscode-remote') return undefined;
   const fsPath = typeof uri.fsPath === 'string' ? uri.fsPath.trim() : '';
   return fsPath || undefined;
 }
@@ -175,11 +175,11 @@ function buildEnvironmentInfoSuffix(): string | null {
   try {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     const activeEditorPath =
-      vscode.window.activeTextEditor?.document?.uri?.scheme === 'file'
+      (vscode.window.activeTextEditor?.document?.uri?.scheme === 'file' || vscode.window.activeTextEditor?.document?.uri?.scheme === 'vscode-remote')
         ? vscode.window.activeTextEditor.document.uri.fsPath
         : null;
     const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
-      .map((e) => (e?.document?.uri?.scheme === 'file' ? e.document.uri.fsPath : null))
+      .map((e) => ((e?.document?.uri?.scheme === 'file' || e?.document?.uri?.scheme === 'vscode-remote') ? e.document.uri.fsPath : null))
       .filter((p): p is string => typeof p === 'string' && p.length > 0);
     return formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths });
   } catch {
