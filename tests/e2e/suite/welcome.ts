@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import { waitForDiagnostics } from './helpers/waitForDiagnostics';
 
 type UiStateSnapshot = {
   showWelcomeProviderKeyMessage?: boolean;
@@ -35,10 +36,11 @@ async function setProviderKey(provider: string, apiKey: string): Promise<void> {
 export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
-  await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
-  }, 15000);
+  await waitForDiagnostics({
+    label: 'chat view ready',
+    timeoutMs: 15000,
+    predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady),
+  });
 
   await vscode.commands.executeCommand('openhands.startNewConversation');
 
@@ -69,4 +71,3 @@ export async function run(): Promise<void> {
     throw new Error(`Expected provider-only keys but got: ${JSON.stringify(openaiOnly)}`);
   }
 }
-
