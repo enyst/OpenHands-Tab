@@ -3,6 +3,7 @@ import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsMan
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents, TELEPORT_FALLBACK_EVENT_LIMIT, TELEPORT_SUMMARY_EVENT_LIMIT } from '../shared/halTeleport';
 import { safeStringify } from '../shared/safeStringify';
+import { getEffectiveWorkspaceRoot } from '../shared/workspaceRoot';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { ConversationInstance, Event, SecretRegistry } from '@openhands/agent-sdk-ts';
@@ -206,7 +207,7 @@ export function registerHalCommands(deps: RegisterHalCommandsDeps): vscode.Dispo
       }
 
       // STEP 3: Prepare the summary message (only after connection is established)
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const workspaceRoot = getEffectiveWorkspaceRoot();
       const { repoName, branchName, remoteUrl } = await deps.resolveGitContext(workspaceRoot);
       const introLines = [
         'Teleported from the local VS Code runtime after a HIGH-risk confirmation.',

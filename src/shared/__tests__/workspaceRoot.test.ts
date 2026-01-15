@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import { getEffectiveWorkspaceRoot, resolvePreferredWorkspaceRoot } from '../workspaceRoot';
+import { getEffectiveWorkspaceRoot, resolvePreferredWorkspaceFolderUri, resolvePreferredWorkspaceRoot } from '../workspaceRoot';
 
 describe('workspaceRoot helpers', () => {
   beforeEach(() => {
@@ -13,6 +13,7 @@ describe('workspaceRoot helpers', () => {
 
     expect(resolvePreferredWorkspaceRoot()).toBe('/test/workspace-a');
     expect(getEffectiveWorkspaceRoot()).toBe('/test/workspace-a');
+    expect(resolvePreferredWorkspaceFolderUri()).toBeUndefined();
   });
 
   it('prefers the workspace folder containing the active editor', () => {
@@ -26,6 +27,7 @@ describe('workspaceRoot helpers', () => {
 
     expect(resolvePreferredWorkspaceRoot()).toBe('/test/workspace-b');
     expect(getEffectiveWorkspaceRoot()).toBe('/test/workspace-b');
+    expect(resolvePreferredWorkspaceFolderUri()).toEqual({ fsPath: '/test/workspace-b' });
   });
 
   it('falls back to workspaceFolders[0] when active editor is outside all workspace folders', () => {
@@ -35,5 +37,13 @@ describe('workspaceRoot helpers', () => {
 
     expect(resolvePreferredWorkspaceRoot()).toBe('/test/workspace-a');
     expect(getEffectiveWorkspaceRoot()).toBe('/test/workspace-a');
+    expect(resolvePreferredWorkspaceFolderUri()).toBeUndefined();
+  });
+
+  it('returns workspaceFolders[0].uri when there is exactly one workspace folder', () => {
+    (vscode.window as any).activeTextEditor = undefined;
+    (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/test/workspace-a' } }];
+
+    expect(resolvePreferredWorkspaceFolderUri()).toEqual({ fsPath: '/test/workspace-a' });
   });
 });

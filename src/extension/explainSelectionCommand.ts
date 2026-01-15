@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 import { formatEnvironmentInformation } from '../shared/environmentInformation';
+import { getEffectiveWorkspaceRoot } from '../shared/workspaceRoot';
 
 export function registerExplainSelectionCommand(options: {
   getConversation: () => ConversationInstance | undefined;
@@ -62,7 +63,7 @@ export function registerExplainSelectionCommand(options: {
 
     let finalPrompt = prompt;
     if (getConversationMode() === 'local') {
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const workspaceRoot = getEffectiveWorkspaceRoot();
       const activeEditorPath =
         (vscode.window.activeTextEditor?.document?.uri?.scheme === 'file' || vscode.window.activeTextEditor?.document?.uri?.scheme === 'vscode-remote')
           ? vscode.window.activeTextEditor.document.uri.fsPath
