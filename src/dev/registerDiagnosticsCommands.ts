@@ -3,16 +3,17 @@ import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsMan
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import { DEFAULT_HAL_STATE } from '../shared/halDefaults';
 import { resolveConfiguredLlmLabel } from '../shared/llmProfiles';
+import { maskSecretsInText } from '../shared/maskSecrets';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
 import { getServerSessionApiKeySecretKey, LEGACY_SESSION_API_KEY_SECRET_KEY } from '../auth/serverSessionApiKeys';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
 import { OpenHandsTerminalLogPseudoterminal } from '../terminal/OpenHandsTerminalLogPseudoterminal';
-import { isBashEvent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
-import type { DiagnosticsInfo, TerminalLogInfo } from './diagnosticsTypes';
+import { isBashEvent, isTextContent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { DiagnosticsInfo, LastUserMessageInfo, TerminalLogInfo } from './diagnosticsTypes';
 
-export type { DiagnosticsInfo, TerminalLogInfo } from './diagnosticsTypes';
+export type { DiagnosticsInfo, LastUserMessageInfo, TerminalLogInfo } from './diagnosticsTypes';
 
 
 export type RenderedEventsInfo = {
@@ -115,6 +116,11 @@ function createPendingResponse<T>(
     },
   };
 }
+
+const truncatePreview = (text: string, maxChars: number): string => {
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars)}…(truncated)`;
+};
 
 export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDeps): vscode.Disposable[] {
   const postToWebview = async (message: HostToWebviewMessage): Promise<boolean> => {
@@ -343,6 +349,28 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       lastEventKind,
       lastUserMessageSeq,
       lastAssistantMessageSeq,
+    };
+  });
+
+  const queryLastUserMessage = vscode.commands.registerCommand('openhands._queryLastUserMessage', (): LastUserMessageInfo => {
+    let last: { seq: number; event: Extract<Event, { kind: 'MessageEvent' }> } | undefined;
+    for (const item of deps.iterConversationEventBacklog()) {
+      if (item.event.kind !== 'MessageEvent') continue;
+      if (item.event.source !== 'user') continue;
+      last = { seq: item.seq, event: item.event };
+    }
+    if (!last) return null;
+
+    const contentText = last.event.llm_message.content.filter(isTextContent).map((c) => c.text).join('\n');
+    const extended = last.event.extended_content ?? [];
+    const extendedText = extended.map((c) => c.text).join('\n');
+    const maxChars = 400;
+
+    return {
+      seq: last.seq,
+      contentTextPreview: maskSecretsInText(truncatePreview(contentText, maxChars), deps.secretRegistry),
+      extendedContentTextPreview: maskSecretsInText(truncatePreview(extendedText, maxChars), deps.secretRegistry),
+      extendedContentCount: extended.length,
     };
   });
 
@@ -648,6 +676,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     queryLastError,
     queryLastObservation,
     queryBacklogSummary,
+    queryLastUserMessage,
     sendTestEvent,
     queryRenderedEvents,
     queryUiState,

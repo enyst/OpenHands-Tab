@@ -31,3 +31,9 @@ export type DiagnosticsInfo = {
   terminal?: TerminalLogInfo;
 };
 
+export type LastUserMessageInfo = {
+  seq: number;
+  contentTextPreview: string;
+  extendedContentTextPreview: string;
+  extendedContentCount: number;
+} | null;
