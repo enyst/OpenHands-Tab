@@ -2,114 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
 import { getHalDialogueLinesForMode, type HalScriptLine } from '../../../shared/halScript';
 import { DEFAULT_HAL_STATE } from '../../../shared/halDefaults';
-import { isHalDecision, isHalMode, type HalDecision, type HalEye, type HalMode, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
+import { isHalDecision, isHalMode, type HalDecision, type HalEye, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { ShowStatusMessage } from './useStatusMessages';
+import { blobToBase64 } from './halFlow/blobToBase64';
+import { DEFAULT_HAL_SETTINGS, DEFAULT_HAL_UI_STATE, type HalSettingsSnapshot, type HalUiState } from './halFlow/types';
+import { useHalBundledAudioEffects } from './halFlow/useHalBundledAudio';
 
-export type HalSettingsSnapshot = {
-  enabled: boolean;
-  mode: HalMode;
-  userName: string;
-  volume: number;
-};
-
-const DEFAULT_HAL_SETTINGS: HalSettingsSnapshot = { enabled: false, mode: 'tts_only', userName: 'Engel', volume: 1 };
-
-type HalUiState = Pick<HalStateSnapshot, 'phase' | 'eye' | 'stepIndex' | 'decision' | 'lastError'>;
-
-const DEFAULT_HAL_UI_STATE: HalUiState = {
-  phase: 'idle',
-  eye: 'off',
-  stepIndex: null,
-  decision: null,
-  lastError: null,
-};
-
-const DEFAULT_BUNDLED_AUDIO_EXTENSION = 'wav';
-
-function getOpenHandsMediaBaseUri(): string | null {
-  if (typeof document === 'undefined') return null;
-  const meta = document.querySelector('meta[name="openhands-media-base"]');
-  if (!meta) return null;
-  const content = (meta as HTMLMetaElement).content?.trim() ?? '';
-  return content || null;
-}
-
-function buildMediaUrl(relativePath: string): string | null {
-  const base = getOpenHandsMediaBaseUri();
-  if (!base) return null;
-  const normalizedBase = base.endsWith('/') ? base : `${base}/`;
-  const rel = relativePath.replace(/^\/+/, '');
-  return `${normalizedBase}${rel}`;
-}
-
-function getBundledHalSceneUrl(): string | null {
-  return buildMediaUrl(`hal/bundled/scene.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
-}
-
-function getBundledHalMusicStingUrl(): string | null {
-  return buildMediaUrl(`hal/bundled/music_sting.${DEFAULT_BUNDLED_AUDIO_EXTENSION}`);
-}
-
-function describeHalAudioPlaybackFailure(error: unknown): { message: string; debug: string } {
-  if (error instanceof DOMException) {
-    if (error.name === 'NotAllowedError') {
-      return {
-        message: 'HAL audio was blocked by autoplay policy. Click anywhere in this dialog (or any button) to play the audio.',
-        debug: `${error.name}: ${error.message || '(no message)'}`,
-      };
-    }
-    return {
-      message: `HAL audio failed to play (${error.name}).`,
-      debug: `${error.name}: ${error.message || '(no message)'}`,
-    };
-  }
-
-  if (error instanceof Error) {
-    const name = error.name || 'Error';
-    const message = error.message || '(no message)';
-    if (name === 'NotAllowedError' || /notallowederror/i.test(`${name}: ${message}`)) {
-      return {
-        message: 'HAL audio was blocked by autoplay policy. Click anywhere in this dialog (or any button) to play the audio.',
-        debug: `${name}: ${message}`,
-      };
-    }
-    return { message: 'HAL audio failed to play (bundled clip).', debug: `${name}: ${message}` };
-  }
-
-  if (typeof error === 'string' && error.trim()) {
-    return { message: 'HAL audio failed to play (bundled clip).', debug: error.trim() };
-  }
-
-  return { message: 'HAL audio failed to play (bundled clip).', debug: String(error) };
-}
-
-function isAutoplayBlockedError(error: unknown): boolean {
-  if (error instanceof DOMException) return error.name === 'NotAllowedError';
-  if (error instanceof Error) return error.name === 'NotAllowedError' || /notallowederror/i.test(`${error.name}: ${error.message}`);
-  if (typeof error === 'string') return /notallowederror/i.test(error) || /autoplay/i.test(error);
-  return false;
-}
-
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Failed to read recorded audio.'));
-        return;
-      }
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => {
-      const error = reader.error ?? new Error('Failed to read recorded audio.');
-      reject(error);
-    };
-    reader.readAsDataURL(blob);
-  });
-}
+export type { HalSettingsSnapshot };
 
 export function useHalFlow(deps: {
   conversationId: string | undefined;
@@ -143,11 +43,6 @@ export function useHalFlow(deps: {
   const halAudioRef = useRef<HTMLAudioElement | null>(null);
   const halAudioUrlRef = useRef<string | null>(null);
   const halAudioPlayTokenRef = useRef(0);
-  const halBundledAudioKeyRef = useRef<string | null>(null);
-  const halBundledMusicKeyRef = useRef<string | null>(null);
-  const halBundledAudioErrorKeyRef = useRef<string | null>(null);
-  const halBundledMusicErrorKeyRef = useRef<string | null>(null);
-  const halBundledSceneAutoplayRetryKeyRef = useRef<string | null>(null);
   const halTtsRequestSeqRef = useRef(0);
   const halVoiceConfirmFallbackKeyRef = useRef<string | null>(null);
   const halVoiceConfirmRequestIdRef = useRef<string | null>(null);
@@ -339,158 +234,18 @@ export function useHalFlow(deps: {
     setHalStepIndex(currentIndex + 1);
   }, [resetHalUiState]);
 
-  useEffect(() => {
-    if (halPhase !== 'dialogue') return;
-    if (halStepIndex === null) return;
-    if (halSettingsRef.current.mode !== 'bundled') return;
-
-    const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    if (halBundledAudioKeyRef.current === sessionKey) return;
-    halBundledAudioKeyRef.current = sessionKey;
-
-    clearHalTimer();
-
-    const clipUrl = getBundledHalSceneUrl();
-    if (!clipUrl || typeof Audio !== 'function') {
-      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: null });
-      return;
-    }
-
-    const volume = halSettingsRef.current.volume;
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const audio = new Audio(clipUrl);
-    halAudioRef.current = audio;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    audio.onended = () => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      stopHalAudio();
-      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
-    };
-    const fallBackToAwaiting = (error?: unknown) => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      const errorKey = `${sessionKey}:scene`;
-      if (error && isAutoplayBlockedError(error)) {
-        halBundledSceneAutoplayRetryKeyRef.current = errorKey;
-        const info = describeHalAudioPlaybackFailure(error);
-        console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
-        stopHalAudio();
-        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0, lastError: info.message });
-        return;
-      }
-      if (error && halBundledAudioErrorKeyRef.current !== errorKey) {
-        halBundledAudioErrorKeyRef.current = errorKey;
-        const info = describeHalAudioPlaybackFailure(error);
-        console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
-        stopHalAudio();
-        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0, lastError: info.message });
-        return;
-      }
-      stopHalAudio();
-      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
-    };
-    audio.onerror = () => fallBackToAwaiting(audio.error ?? 'Bundled scene audio error');
-    void audio.play().catch(fallBackToAwaiting);
-
-    return () => {
-      clearHalTimer();
-      stopHalAudio();
-    };
-  }, [clearHalTimer, halPhase, halStepIndex, resetHalUiState, stopHalAudio]);
-
-  useEffect(() => {
-    const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    const retryKey = `${sessionKey}:scene`;
-    if (halBundledSceneAutoplayRetryKeyRef.current !== retryKey) return;
-    if (halSettingsRef.current.mode !== 'bundled') return;
-    if (halPhase !== 'dialogue' && halPhase !== 'awaiting_user') return;
-
-    const clipUrl = getBundledHalSceneUrl();
-    if (!clipUrl || typeof Audio !== 'function') return;
-
-    const retry = () => {
-      if (halBundledSceneAutoplayRetryKeyRef.current !== retryKey) return;
-      halBundledSceneAutoplayRetryKeyRef.current = null;
-      setHalLastError(null);
-
-      const volume = halSettingsRef.current.volume;
-      stopHalAudio();
-      const token = halAudioPlayTokenRef.current;
-      const audio = new Audio(clipUrl);
-      halAudioRef.current = audio;
-      audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-      audio.onended = () => {
-        if (halAudioPlayTokenRef.current !== token) return;
-        stopHalAudio();
-        resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', stepIndex: 0 });
-      };
-
-      const onFail = (error: unknown) => {
-        if (halAudioPlayTokenRef.current !== token) return;
-        if (isAutoplayBlockedError(error)) {
-          halBundledSceneAutoplayRetryKeyRef.current = retryKey;
-          const info = describeHalAudioPlaybackFailure(error);
-          console.warn(`[HAL] Bundled scene audio failed: ${info.debug}`);
-          stopHalAudio();
-          setHalLastError(info.message);
-          return;
-        }
-        stopHalAudio();
-      };
-
-      audio.onerror = () => onFail(audio.error ?? 'Bundled scene audio error');
-      void audio.play().catch(onFail);
-    };
-
-    const onPointerDown = () => retry();
-    const onKeyDown = () => retry();
-
-    window.addEventListener('pointerdown', onPointerDown, { capture: true, once: true });
-    window.addEventListener('keydown', onKeyDown, { capture: true, once: true });
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('keydown', onKeyDown, true);
-    };
-  }, [halPhase, resetHalUiState, stopHalAudio]);
-
-  useEffect(() => {
-    if (halPhase !== 'waiting_remote') {
-      halBundledMusicKeyRef.current = null;
-      return;
-    }
-
-    const sessionKey = halActiveKeyRef.current ?? 'unknown';
-    if (halBundledMusicKeyRef.current === sessionKey) return;
-    halBundledMusicKeyRef.current = sessionKey;
-
-    const url = getBundledHalMusicStingUrl();
-    if (!url || typeof Audio !== 'function') return;
-
-    const volume = halSettingsRef.current.volume;
-    stopHalAudio();
-    const token = halAudioPlayTokenRef.current;
-    const audio = new Audio(url);
-    halAudioRef.current = audio;
-    audio.loop = true;
-    audio.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1));
-    const stopWithError = (error: unknown) => {
-      if (halAudioPlayTokenRef.current !== token) return;
-      const errorKey = `${sessionKey}:music`;
-      if (halBundledMusicErrorKeyRef.current !== errorKey) {
-        halBundledMusicErrorKeyRef.current = errorKey;
-        const info = describeHalAudioPlaybackFailure(error);
-        console.warn(`[HAL] Bundled music audio failed: ${info.debug}`);
-        resetHalUiState({ phase: 'waiting_remote', eye: 'pulsating', decision: 'teleport_remote', lastError: info.message });
-      }
-      stopHalAudio();
-    };
-    audio.onerror = () => stopWithError(audio.error ?? 'Bundled music audio error');
-    void audio.play().catch(stopWithError);
-
-    return () => {
-      stopHalAudio();
-    };
-  }, [halPhase, resetHalUiState, stopHalAudio]);
+  useHalBundledAudioEffects({
+    halPhase,
+    halStepIndex,
+    halActiveKeyRef,
+    halAudioRef,
+    halAudioPlayTokenRef,
+    halSettingsRef,
+    clearHalTimer,
+    stopHalAudio,
+    resetHalUiState,
+    setHalLastError,
+  });
 
   const playHalAudioBytes = useCallback(
     (bytes: Uint8Array, volume: number, opts: { mimeType?: string } = {}) => {
