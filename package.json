@@ -34,6 +34,7 @@
     "onCommand:openhands.setGeminiLlmApiKey",
     "onCommand:openhands.setSessionApiKey",
     "onCommand:openhands.cloudLogin",
+    "onCommand:openhands.cloudLogout",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setHalTtsApiKey",
     "onCommand:openhands.setCustomSecret1",
@@ -98,6 +99,10 @@
       {
         "command": "openhands.cloudLogin",
         "title": "OpenHands: Login to Remote Server (Device Flow)"
+      },
+      {
+        "command": "openhands.cloudLogout",
+        "title": "OpenHands: Logout of Remote Server"
       },
       {
         "command": "openhands.setGithubToken",
