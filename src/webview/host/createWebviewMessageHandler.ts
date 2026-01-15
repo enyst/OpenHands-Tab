@@ -300,6 +300,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'command': {
         switch (message.command) {
+          case 'cloudAuthLogin':
+            await vscode.commands.executeCommand('openhands.cloudLogin');
+            break;
           case 'reconnect':
             // Use the VS Code command so we re-evaluate settings (local ↔ remote) before reconnecting.
             await vscode.commands.executeCommand('openhands.reconnect');

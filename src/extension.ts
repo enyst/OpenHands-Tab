@@ -29,6 +29,8 @@ import { createHalConfigurationChangeHandler } from './extension/halConfiguratio
 import { formatEnvironmentInformation } from './shared/environmentInformation';
 import { getFileBackedFsPath } from './shared/uri';
 import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
+import { getServerSessionApiKeySecretKey } from './auth/serverSessionApiKeys';
+import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
 import {
   createOutputLogger,
   normalizeOutputVerbosity,
@@ -76,6 +78,7 @@ let lastKnownLlmLabel: string | null = null;
 let verboseEventLogging = false;
 let localAgentContext: AgentContext | undefined;
 let activeEditorFilePath: string | undefined;
+let lastRemoteAuthPromptAtMs = 0;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
@@ -515,6 +518,25 @@ export function activate(context: vscode.ExtensionContext) {
     let settings = await settingsMgr.get();
     lastKnownLlmLabel = resolveConfiguredLlmLabel(settings);
 
+    if (typeof settings.serverUrl === 'string' && settings.serverUrl.trim()) {
+      const serverKey = getServerSessionApiKeySecretKey(settings.serverUrl);
+      if (serverKey.ok) {
+        let stored: string | undefined;
+        try {
+          stored = await context.secrets.get(serverKey.secretKey);
+        } catch {
+          stored = undefined;
+        }
+        const token = typeof stored === 'string' ? stored.trim() : '';
+        if (token) {
+          settings = {
+            ...settings,
+            secrets: { ...settings.secrets, sessionApiKey: token },
+          };
+        }
+      }
+    }
+
     const cfg = vscode.workspace.getConfiguration();
     outputVerbosity = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
     verboseEventLogging =
@@ -679,6 +701,30 @@ export function activate(context: vscode.ExtensionContext) {
         handleTerminalEvent,
       });
 
+      conversation.on('error', (err: unknown) => {
+        void (async () => {
+          if (conversationMode !== 'remote') return;
+
+          const message = err instanceof Error ? err.message : String(err);
+          const isAuthFailure = /\(HTTP (401|403)\)/.test(message) && message.toLowerCase().includes('authentication failed');
+          if (!isAuthFailure) return;
+
+          const now = Date.now();
+          // Avoid spamming the user if the server keeps rejecting auth (e.g. wrong key or user cancels login).
+          if (now - lastRemoteAuthPromptAtMs < 60_000) return;
+          lastRemoteAuthPromptAtMs = now;
+
+          const action = await vscode.window.showWarningMessage(
+            'OpenHands: Authentication failed connecting to the selected server. Login now?',
+            'Login',
+            'Dismiss',
+          );
+          if (action !== 'Login') return;
+
+          await vscode.commands.executeCommand('openhands.cloudLogin');
+        })();
+      });
+
       if (savedId && conversation) {
         try {
           const maybe = conversation.restoreConversation(savedId);
@@ -730,6 +776,11 @@ export function activate(context: vscode.ExtensionContext) {
   const explainSelection = registerExplainSelectionCommand({
     getConversation: () => conversation,
     getConversationMode: () => conversationMode,
+  });
+
+  const cloudLogin = registerCloudLoginCommand({
+    context,
+    getOutputChannel: () => outputChannel,
   });
 
   const diagnosticsCommands = registerDiagnosticsCommands({
@@ -884,6 +935,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     open,
     explainSelection,
+    cloudLogin,
     ...diagnosticsCommands,
     ...halCommands,
     startNew,
@@ -922,6 +974,7 @@ export function deactivate() {
   chatLastConversationId = undefined;
   chatLastSeenSeq = undefined;
   conversationStoreRoot = undefined;
+  lastRemoteAuthPromptAtMs = 0;
   resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
   sentTestEvents.length = 0;

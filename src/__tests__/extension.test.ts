@@ -32,6 +32,14 @@ const defaultMockSettings = {
 
 let mockSettings = structuredClone(defaultMockSettings);
 
+const startDeviceAuthorizationMock = vi.fn();
+const pollDeviceTokenMock = vi.fn();
+
+vi.mock('../auth/deviceFlow', () => ({
+  startDeviceAuthorization: (...args: any[]) => startDeviceAuthorizationMock(...args),
+  pollDeviceToken: (...args: any[]) => pollDeviceTokenMock(...args),
+}));
+
 vi.mock('../settings/SettingsManager', () => ({
   SettingsManager: vi.fn(function (this: any) {
     this.get = vi.fn(async () => mockSettings);
@@ -206,6 +214,63 @@ describe('Extension Activation', () => {
   it('registers commands on activation', async () => {
     await extension.activate(mockContext);
     expect(vscode.commands.registerCommand).toHaveBeenCalled();
+  });
+
+  it('cloudLogin stores a per-server session key without clobbering legacy when different', async () => {
+    const secretStorage = new Map<string, string>();
+    secretStorage.set('openhands.sessionApiKey', 'legacy-key');
+
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
+      secretStorage.set(key, value);
+    });
+
+    startDeviceAuthorizationMock.mockResolvedValue({
+      deviceCode: 'dev',
+      userCode: 'ABC-123',
+      verificationUri: 'https://example.com/verify',
+      verificationUriComplete: 'https://example.com/verify?user_code=ABC-123',
+      intervalMs: 1000,
+    });
+    pollDeviceTokenMock.mockResolvedValue({ accessToken: 'server-token' });
+    (vscode.env.openExternal as Mock).mockResolvedValue(true);
+    (vscode.window.showInformationMessage as Mock).mockResolvedValue(undefined);
+
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.cloudLogin');
+
+    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
+    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+
+    expect(secretStorage.get(keyInfo.secretKey)).toBe('server-token');
+    expect(secretStorage.get('openhands.sessionApiKey')).toBe('legacy-key');
+  });
+
+  it('cloudLogin updates legacy openhands.sessionApiKey when unset', async () => {
+    const secretStorage = new Map<string, string>();
+
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
+      secretStorage.set(key, value);
+    });
+
+    startDeviceAuthorizationMock.mockResolvedValue({
+      deviceCode: 'dev',
+      userCode: 'ABC-123',
+      verificationUri: 'https://example.com/verify',
+      verificationUriComplete: 'https://example.com/verify?user_code=ABC-123',
+      intervalMs: 1000,
+    });
+    pollDeviceTokenMock.mockResolvedValue({ accessToken: 'server-token' });
+    (vscode.env.openExternal as Mock).mockResolvedValue(true);
+    (vscode.window.showInformationMessage as Mock).mockResolvedValue(undefined);
+
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.cloudLogin');
+
+    expect(secretStorage.get('openhands.sessionApiKey')).toBe('server-token');
   });
 
   it('does not create a conversation until the chat view resolves', async () => {

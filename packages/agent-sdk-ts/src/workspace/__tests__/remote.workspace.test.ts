@@ -129,6 +129,7 @@ describe('RemoteWorkspace', () => {
       expect(url).toContain('/workspace/project/hello.txt');
       expect(init?.method).toBe('POST');
       expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
+      expect(init?.headers?.Authorization).toBe('Bearer session-key');
       expect(init?.body).toBeInstanceOf(FormData);
       return okJson({ ok: true }) as any;
     });

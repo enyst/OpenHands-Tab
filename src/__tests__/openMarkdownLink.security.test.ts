@@ -18,7 +18,7 @@ describe('openMarkdownLink security rules', () => {
     (vscode.workspace as any).openTextDocument = vi.fn(async (uri: vscode.Uri) => ({ uri }));
     (vscode.window as any).showTextDocument = vi.fn(async () => ({}));
 
-    (vscode as any).env = { openExternal: vi.fn(async () => true) };
+    (vscode.env.openExternal as any).mockImplementation(async () => true);
 
     (vscode.Uri.parse as any).mockImplementation((raw: string) => {
       const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(raw);
@@ -61,8 +61,8 @@ describe('openMarkdownLink security rules', () => {
 
     await handler({ type: 'openMarkdownLink', href: 'https://example.com' } as any);
 
-    expect((vscode as any).env.openExternal).toHaveBeenCalledTimes(1);
-    const uriArg = ((vscode as any).env.openExternal as any).mock.calls[0][0] as vscode.Uri;
+    expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
+    const uriArg = (vscode.env.openExternal as any).mock.calls[0][0] as vscode.Uri;
     expect(uriArg.scheme).toBe('https');
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
   });
@@ -72,8 +72,8 @@ describe('openMarkdownLink security rules', () => {
 
     await handler({ type: 'openMarkdownLink', href: 'mailto:test@example.com' } as any);
 
-    expect((vscode as any).env.openExternal).toHaveBeenCalledTimes(1);
-    const uriArg = ((vscode as any).env.openExternal as any).mock.calls[0][0] as vscode.Uri;
+    expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
+    const uriArg = (vscode.env.openExternal as any).mock.calls[0][0] as vscode.Uri;
     expect(uriArg.scheme).toBe('mailto');
     expect((vscode.workspace as any).openTextDocument).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe('openMarkdownLink security rules', () => {
 
     await handler({ type: 'openMarkdownLink', href: 'javascript:alert(1)' } as any);
 
-    expect((vscode as any).env.openExternal).not.toHaveBeenCalled();
+    expect(vscode.env.openExternal).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalled();
   });
 
@@ -93,7 +93,7 @@ describe('openMarkdownLink security rules', () => {
 
     await handler({ type: 'openMarkdownLink', href: 'file:///etc/passwd' } as any);
 
-    expect((vscode as any).env.openExternal).not.toHaveBeenCalled();
+    expect(vscode.env.openExternal).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalled();
   });
 
@@ -113,7 +113,7 @@ describe('openMarkdownLink security rules', () => {
 
     await handler({ type: 'openMarkdownLink', href: '../secrets.txt' } as any);
 
-    expect((vscode as any).env.openExternal).not.toHaveBeenCalled();
+    expect(vscode.env.openExternal).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Blocked unsafe link.');
     expect((vscode.workspace as any).openTextDocument).not.toHaveBeenCalled();
   });

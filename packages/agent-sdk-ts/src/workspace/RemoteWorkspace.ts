@@ -428,7 +428,10 @@ export class RemoteWorkspace implements BaseWorkspace {
 
   private getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
-    if (this.apiKey) headers['X-Session-API-Key'] = this.apiKey;
+    if (this.apiKey) {
+      headers['X-Session-API-Key'] = this.apiKey;
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
     return headers;
   }
 

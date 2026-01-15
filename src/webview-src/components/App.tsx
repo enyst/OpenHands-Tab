@@ -663,6 +663,11 @@ export function App() {
     postMessage({ type: 'switchToLocal' });
   }, [postMessage]);
 
+  const handleLoginToServer = useCallback(() => {
+    postMessage({ type: 'command', command: 'cloudAuthLogin' });
+    showStatusMessage('info', 'Starting login…');
+  }, [postMessage, showStatusMessage]);
+
   const handleSelectLlmProfileId = useCallback((profileId: string) => {
     setLlmProfileId(profileId);
     postMessage({ type: 'setLlmProfileId', profileId });
@@ -704,6 +709,7 @@ export function App() {
         onNewConversation={handleStartNewConversation}
         onOpenHistory={handleOpenHistory}
         onOpenSettings={handleOpenSettings}
+        onLoginToServer={handleLoginToServer}
         onReconnect={handleReconnect}
         onSelectServer={handleSelectServer}
         onAddServer={handleAddServer}

@@ -73,6 +73,7 @@ describe('device flow client', () => {
         expect(url).toBe('https://example.com/oauth/device/token');
         expect(init.headers?.['content-type']).toBe('application/x-www-form-urlencoded');
         expect(init.body).toContain('device_code=dev');
+        expect(init.body).toContain('grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code');
         return jsonResponse(400, { error: 'authorization_pending' });
       },
       () => jsonResponse(200, { access_token: 'tok', token_type: 'bearer', expires_in: 123 }),
