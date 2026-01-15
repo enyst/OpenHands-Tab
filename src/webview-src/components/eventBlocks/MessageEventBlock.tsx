@@ -240,9 +240,9 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
               </summary>
               <div className="mt-2 space-y-1">
                 {event.extended_content.filter(isTextContent).map((content, idx) => (
-                  <div key={idx} className="bg-black/20 border border-white/[0.04] rounded-lg p-2 font-mono text-stone-400">
+                  <pre key={idx} className="bg-black/20 border border-white/[0.04] rounded-lg p-2 font-mono text-stone-400 whitespace-pre-wrap break-words">
                     {content.text}
-                  </div>
+                  </pre>
                 ))}
               </div>
             </details>
@@ -252,4 +252,3 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     </EventContainer>
   );
 }
-

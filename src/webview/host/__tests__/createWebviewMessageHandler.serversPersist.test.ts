@@ -58,6 +58,8 @@ describe('createWebviewMessageHandler (servers persistence)', () => {
     const handler = createWebviewMessageHandler({
       context,
       host: { postMessage: hostPostMessage },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => undefined,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
@@ -126,6 +128,8 @@ describe('createWebviewMessageHandler (servers persistence)', () => {
     const handler = createWebviewMessageHandler({
       context,
       host: { postMessage: hostPostMessage },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => undefined,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,

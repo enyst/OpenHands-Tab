@@ -24,6 +24,8 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     const handler = createWebviewMessageHandler({
       context: { subscriptions: [] } as any,
       host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => conversation as any,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,
@@ -76,6 +78,8 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     const handler = createWebviewMessageHandler({
       context: { subscriptions: [] } as any,
       host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => conversation as any,
       getConversationMode: () => 'remote',
       getConversationStoreRoot: () => undefined,
@@ -106,6 +110,57 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(sent).not.toContain('Active editor:');
     expect(sent).not.toContain('Open editors:');
     expect(sent).not.toContain('</environment information>');
+  });
+
+  it('drains queued user-edit notes into sendUserMessage extendedContent', async () => {
+    const conversation = {
+      sendUserMessage: vi.fn(async () => {}),
+    };
+
+    let queued = ['note one\nline 2', 'note two'];
+    const getQueued = vi.fn(() => queued.slice());
+    const clearQueued = vi.fn(() => { queued = []; });
+
+    const handler = createWebviewMessageHandler({
+      context: { subscriptions: [] } as any,
+      host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: getQueued,
+      clearQueuedUserEditNotes: clearQueued,
+      getConversation: () => conversation as any,
+      getConversationMode: () => 'local',
+      getConversationStoreRoot: () => undefined,
+      resolveConversationStoreRoot: async () => '/tmp',
+      setWebviewReadyState: () => {},
+      setLastKnownLlmLabel: () => {},
+      getLastKnownLlmLabel: () => null,
+      flushConversationEventBacklog: () => {},
+      onRenderedEventsResponse: () => {},
+      onUiStateResponse: () => {},
+      onHalStateResponse: () => {},
+      isDevBridgeEnabled: () => false,
+      getOutputChannel: () => undefined,
+      fileLog: () => {},
+    });
+
+    await handler({ type: 'send', text: 'hello', contextFiles: [], attachments: [] } as any);
+    await handler({ type: 'send', text: 'hello again', contextFiles: [], attachments: [] } as any);
+
+    expect(getQueued).toHaveBeenCalledTimes(2);
+    expect(clearQueued).toHaveBeenCalledTimes(1);
+
+    expect(conversation.sendUserMessage).toHaveBeenCalledTimes(2);
+    const firstCall = (conversation.sendUserMessage as any).mock.calls[0] as unknown[];
+    const secondCall = (conversation.sendUserMessage as any).mock.calls[1] as unknown[];
+
+    expect(firstCall[0]).toContain('hello');
+    expect(firstCall[0]).not.toContain('note one');
+    expect(firstCall[0]).not.toContain('note two');
+    expect(firstCall[1]).toEqual({
+      extendedContent: [{ type: 'text', text: 'note one\nline 2\n\nnote two' }],
+    });
+
+    expect(secondCall[0]).toContain('hello again');
+    expect(secondCall[1]).toBeUndefined();
   });
 
 });

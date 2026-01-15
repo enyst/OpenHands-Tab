@@ -269,6 +269,34 @@ describe('LocalConversation', () => {
     expect(events.some((e) => isMessageEvent(e) && e.source === 'agent')).toBe(false);
   });
 
+  it('attaches extendedContent to user messages and includes it in the LLM request', async () => {
+    const llm = new RecordingLLM();
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
+
+    const events: Event[] = [];
+    conversation.on('event', (e: Event) => events.push(e));
+
+    await conversation.sendUserMessage('hi', {
+      extendedContent: [{ type: 'text', text: 'Environment note: user edited file:\n/tmp/example.txt' }],
+    });
+
+    expect(llm.requests).toHaveLength(1);
+    const req = llm.requests[0];
+    const userMessages = req.messages.filter((m) => m.role === 'user');
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].content.map((c) => c.type)).toEqual(['text', 'text']);
+    const extra = userMessages[0].content[1];
+    expect(extra).toEqual(expect.objectContaining({ type: 'text' }));
+    if (extra.type === 'text') {
+      expect(extra.text).toContain('Environment note: user edited file:');
+      expect(extra.text).toContain('/tmp/example.txt');
+    }
+
+    const userEvent = events.find((e): e is MessageEvent => isMessageEvent(e) && e.source === 'user');
+    expect(userEvent?.extended_content?.length).toBe(1);
+    expect(userEvent?.extended_content?.[0]).toEqual({ type: 'text', text: 'Environment note: user edited file:\n/tmp/example.txt' });
+  });
+
   it('supports tool introspection and updates tools only before user messages', async () => {
     const llm = new RecordingLLM();
     const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });

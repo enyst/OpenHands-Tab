@@ -10,6 +10,7 @@ export function createFileEditNoteTracker(opts: {
   const agentEditedFiles = new Set<string>();
   const lastUserEditNoteAtMs = new Map<string, number>();
   const USER_EDIT_NOTE_DEBOUNCE_MS = 5000;
+  const queuedUserEditNotes: string[] = [];
 
   const trackAgentEditedFile = (filePath: string) => {
     agentEditedFiles.add(filePath);
@@ -18,32 +19,36 @@ export function createFileEditNoteTracker(opts: {
   const reset = () => {
     agentEditedFiles.clear();
     lastUserEditNoteAtMs.clear();
+    queuedUserEditNotes.length = 0;
   };
 
-  const onDidSaveTextDocument = (document: vscode.TextDocument) => {
-    void (async () => {
-      const activeConversation = opts.getConversation();
-      if (!activeConversation?.getConversationId()) return;
-      if (document.uri.scheme !== 'file') return;
+  const getQueuedUserEditNotes = (): string[] => queuedUserEditNotes.slice();
+  const clearQueuedUserEditNotes = (): void => { queuedUserEditNotes.length = 0; };
 
-      const filePath = document.uri.fsPath;
-      if (!agentEditedFiles.has(filePath)) return;
+  const onDidSaveTextDocument = async (document: vscode.TextDocument): Promise<void> => {
+    const activeConversation = opts.getConversation();
+    if (!activeConversation?.getConversationId()) return;
+    if (activeConversation.mode !== 'local') return;
 
-      const now = Date.now();
-      const last = lastUserEditNoteAtMs.get(filePath);
-      if (typeof last === 'number' && now - last < USER_EDIT_NOTE_DEBOUNCE_MS) return;
-      lastUserEditNoteAtMs.set(filePath, now);
+    const scheme = document.uri.scheme;
+    if (scheme !== 'file' && scheme !== 'vscode-remote') return;
 
+    const filePath = document.uri.fsPath;
+    if (!agentEditedFiles.has(filePath)) return;
+
+    const now = Date.now();
+    const last = lastUserEditNoteAtMs.get(filePath);
+    if (typeof last === 'number' && now - last < USER_EDIT_NOTE_DEBOUNCE_MS) return;
+    lastUserEditNoteAtMs.set(filePath, now);
+
+    try {
       const diffSummary = await opts.getGitHeadDiffSummaryForFile(filePath);
       const note = ['Environment note: user edited file:', filePath, diffSummary].join('\n');
-      try {
-        await activeConversation.sendUserMessage(note, { run: false });
-      } catch (err) {
-        opts.getOutputChannel()?.appendLine(`[error] Failed to record user edit note: ${opts.renderError(err)}`);
-      }
-    })();
+      queuedUserEditNotes.push(note);
+    } catch (err) {
+      opts.getOutputChannel()?.appendLine(`[error] Failed to record user edit note: ${opts.renderError(err)}`);
+    }
   };
 
-  return { trackAgentEditedFile, reset, onDidSaveTextDocument };
+  return { trackAgentEditedFile, reset, getQueuedUserEditNotes, clearQueuedUserEditNotes, onDidSaveTextDocument };
 }
-

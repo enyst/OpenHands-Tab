@@ -37,6 +37,8 @@ describe('openMarkdownLink security rules', () => {
     return createWebviewMessageHandler({
       context: { globalStorageUri: { fsPath: tmpDir } } as any,
       host: { postMessage: vi.fn(async () => true) },
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
       getConversation: () => undefined,
       getConversationMode: () => 'local',
       getConversationStoreRoot: () => undefined,

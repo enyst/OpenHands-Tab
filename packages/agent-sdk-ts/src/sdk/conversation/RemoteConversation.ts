@@ -678,7 +678,7 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  async sendUserMessage(text: string, options?: { run?: boolean }) {
+  async sendUserMessage(text: string, options?: { run?: boolean; extendedContent?: { type: 'text'; text: string }[] }) {
     const run = options?.run !== false;
     if (!this.conversationId) {
       const id = await this.startNewConversation();
