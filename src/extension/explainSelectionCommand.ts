@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 import { formatEnvironmentInformation } from '../shared/environmentInformation';
 import { getEffectiveWorkspaceRoot } from '../shared/workspaceRoot';
+import { getFileBackedFsPath } from '../shared/uri';
 
 export function registerExplainSelectionCommand(options: {
   getConversation: () => ConversationInstance | undefined;
@@ -35,7 +36,7 @@ export function registerExplainSelectionCommand(options: {
         : selectedText;
 
     const languageId = editor.document.languageId;
-    const filePath = editor.document.uri.scheme === 'file' ? editor.document.uri.fsPath : editor.document.uri.toString();
+    const filePath = getFileBackedFsPath(editor.document.uri) ?? editor.document.uri.toString();
     const start = selection.start;
     const end = selection.end;
     const range = `${filePath}:${start.line + 1}:${start.character + 1}-${end.line + 1}:${end.character + 1}`;
@@ -64,12 +65,9 @@ export function registerExplainSelectionCommand(options: {
     let finalPrompt = prompt;
     if (getConversationMode() === 'local') {
       const workspaceRoot = getEffectiveWorkspaceRoot();
-      const activeEditorPath =
-        (vscode.window.activeTextEditor?.document?.uri?.scheme === 'file' || vscode.window.activeTextEditor?.document?.uri?.scheme === 'vscode-remote')
-          ? vscode.window.activeTextEditor.document.uri.fsPath
-          : null;
+      const activeEditorPath = getFileBackedFsPath(vscode.window.activeTextEditor?.document?.uri) ?? null;
       const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
-        .map((e) => ((e?.document?.uri?.scheme === 'file' || e?.document?.uri?.scheme === 'vscode-remote') ? e.document.uri.fsPath : null))
+        .map((e) => getFileBackedFsPath(e?.document?.uri))
         .filter((p): p is string => typeof p === 'string' && p.length > 0);
       finalPrompt += `\n\n${formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths })}`;
     }

@@ -27,6 +27,7 @@ import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
+import { getFileBackedFsPath } from './shared/uri';
 import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import {
   createOutputLogger,
@@ -150,11 +151,7 @@ function renderError(err: unknown): string {
 }
 
 function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
-  if (!editor) return undefined;
-  const uri = editor.document.uri;
-  if (uri.scheme !== 'file' && uri.scheme !== 'vscode-remote') return undefined;
-  const fsPath = typeof uri.fsPath === 'string' ? uri.fsPath.trim() : '';
-  return fsPath || undefined;
+  return getFileBackedFsPath(editor?.document?.uri);
 }
 
 function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefined): void {
@@ -175,12 +172,9 @@ function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefin
 function buildEnvironmentInfoSuffix(): string | null {
   try {
     const workspaceRoot = resolvePreferredWorkspaceRoot();
-    const activeEditorPath =
-      (vscode.window.activeTextEditor?.document?.uri?.scheme === 'file' || vscode.window.activeTextEditor?.document?.uri?.scheme === 'vscode-remote')
-        ? vscode.window.activeTextEditor.document.uri.fsPath
-        : null;
+    const activeEditorPath = getFileBackedFsPath(vscode.window.activeTextEditor?.document?.uri) ?? null;
     const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
-      .map((e) => ((e?.document?.uri?.scheme === 'file' || e?.document?.uri?.scheme === 'vscode-remote') ? e.document.uri.fsPath : null))
+      .map((e) => getFileBackedFsPath(e?.document?.uri))
       .filter((p): p is string => typeof p === 'string' && p.length > 0);
     return formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths });
   } catch {
