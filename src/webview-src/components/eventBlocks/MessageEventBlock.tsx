@@ -6,6 +6,7 @@ import {
   EventContainer,
   MarkdownMessage,
   openWorkspaceFile,
+  stripEnvironmentInformationBlocks,
   USER_ACCENT_COLOR,
   withAlpha,
 } from './shared';
@@ -21,6 +22,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const isAgent = message.role === 'assistant';
 
   const rawText = message.content.filter(isTextContent).map((c) => c.text).join('\n');
+  const sanitizedText = stripEnvironmentInformationBlocks(rawText);
   const CONTEXT_HEADER = 'User has selected the following files for you to read:';
   function parseContextBlock(text: string): { main: string; files: string[] } {
     const idx = text.lastIndexOf(CONTEXT_HEADER);
@@ -31,7 +33,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     const files = after.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
     return { main: before, files };
   }
-  const { main: withoutContext, files: contextFiles } = parseContextBlock(rawText);
+  const { main: withoutContext, files: contextFiles } = parseContextBlock(sanitizedText);
 
   const ATTACHMENT_BEGIN_LINE_RE = /^-{5,}\s*BEGIN ATTACHMENT:\s*(.*?)\s*-{5,}\s*$/;
   const ATTACHMENT_END_LINE_RE = /^-{5,}\s*END ATTACHMENT:\s*(.*?)\s*-{5,}\s*$/;

@@ -1,4 +1,4 @@
-import { AGENT_ACCENT_COLOR, withAlpha } from './shared';
+import { AGENT_ACCENT_COLOR, stripEnvironmentInformationBlocks, withAlpha } from './shared';
 
 /**
  * Renders live streaming content while agent is generating response.
@@ -6,6 +6,7 @@ import { AGENT_ACCENT_COLOR, withAlpha } from './shared';
  */
 export function StreamingMessageBlock({ content }: { content: string }) {
   const accentColor = AGENT_ACCENT_COLOR;
+  const textContent = stripEnvironmentInformationBlocks(content);
 
   return (
     <div
@@ -42,7 +43,7 @@ export function StreamingMessageBlock({ content }: { content: string }) {
           </div>
 
           <div className="text-sm leading-relaxed whitespace-pre-wrap break-words text-stone-200">
-            {content}
+            {textContent}
             <span
               className="inline-block w-0.5 h-4 ml-0.5 rounded-sm animate-pulse"
               style={{ backgroundColor: accentColor }}
@@ -53,4 +54,3 @@ export function StreamingMessageBlock({ content }: { content: string }) {
     </div>
   );
 }
-
