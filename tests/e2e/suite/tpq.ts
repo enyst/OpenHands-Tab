@@ -19,20 +19,6 @@ export async function run(): Promise<void> {
   const mock = await startMockLlmServer();
 
   try {
-    await vscode.commands.executeCommand('openhands.open');
-
-    await pollUntil(async () => {
-      const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
-      return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
-    }, 30000);
-
-    // Force local mode + short runs for E2E.
-    const cfg = vscode.workspace.getConfiguration();
-    await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.conversation.maxIterations', 5, vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.confirmation.policy', 'never', vscode.ConfigurationTarget.Global);
-    await cfg.update('openhands.agent.enableSecurityAnalyzer', false, vscode.ConfigurationTarget.Global);
-
     const activeFile = (process.env.E2E_TPQ_ACTIVE_FILE ?? '').trim();
     if (!activeFile) throw new Error('E2E_TPQ_ACTIVE_FILE is required');
 
@@ -50,6 +36,20 @@ export async function run(): Promise<void> {
       if (active !== activeFile) return false;
       return (vscode.window.visibleTextEditors ?? []).some((e) => e?.document?.uri?.fsPath === activeFile);
     }, 15000);
+
+    // Force local mode + short runs for E2E (before opening the chat view, so the initial connection uses these settings).
+    const cfg = vscode.workspace.getConfiguration();
+    await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.conversation.maxIterations', 5, vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.confirmation.policy', 'never', vscode.ConfigurationTarget.Global);
+    await cfg.update('openhands.agent.enableSecurityAnalyzer', false, vscode.ConfigurationTarget.Global);
+
+    await vscode.commands.executeCommand('openhands.open');
+
+    await pollUntil(async () => {
+      const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+      return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
+    }, 30000);
 
     // Create a profile that points at the mock server.
     const v1BaseUrl = `${mock.baseUrl}/v1`;
