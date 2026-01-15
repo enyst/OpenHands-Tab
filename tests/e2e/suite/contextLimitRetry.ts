@@ -138,10 +138,12 @@ export async function run(): Promise<void> {
     try {
       await pollUntil(async () => {
         const newRequests = mock.requests.slice(beforeReqCount);
-        const mainReqs = newRequests.filter(
-          (r) => r.path === '/v1/chat/completions' && !isCondensationRequest(r.json),
-        );
+        const chatReqs = newRequests.filter((r) => r.path === '/v1/chat/completions');
+        const mainReqs = chatReqs.filter((r) => !isCondensationRequest(r.json));
+        const condenseReqs = chatReqs.filter((r) => isCondensationRequest(r.json));
         if (mainReqs.length < 2) return false;
+        if (condenseReqs.length < 1) return false;
+        if (chatReqs.length < 3) return false;
 
         const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
         const condensationCount = (rendered?.eventTypes ?? []).filter((t) => t === 'Condensation').length;
@@ -171,6 +173,11 @@ export async function run(): Promise<void> {
     }
 
     const newRequests = mock.requests.slice(beforeReqCount);
+    const newChatReqs = newRequests.filter((r) => r.path === '/v1/chat/completions');
+    if (newChatReqs.length !== 3) {
+      throw new Error(`Expected exactly 3 chat completions requests after triggering send, got ${newChatReqs.length}`);
+    }
+
     const mainIndices: number[] = [];
     let condenseIndex = -1;
     for (let i = 0; i < newRequests.length; i += 1) {
@@ -186,6 +193,10 @@ export async function run(): Promise<void> {
     if (mainIndices.length !== 2) {
       throw new Error(`Expected exactly 2 non-condensation requests (fail + retry), got ${mainIndices.length}`);
     }
+    const condenseCount = newRequests.filter((r) => isCondensationRequest(r.json)).length;
+    if (condenseCount !== 1) {
+      throw new Error(`Expected exactly 1 condensation request, got ${condenseCount}`);
+    }
     if (condenseIndex < 0) {
       throw new Error('Expected at least 1 condensation LLM request, but none was recorded');
     }
@@ -198,11 +209,9 @@ export async function run(): Promise<void> {
     // Guard against runaway retries.
     await sleep(1000);
     const afterRequests = mock.requests.slice(beforeReqCount);
-    const finalMainCount = afterRequests.filter(
-      (r) => r.path === '/v1/chat/completions' && !isCondensationRequest(r.json),
-    ).length;
-    if (finalMainCount !== 2) {
-      throw new Error(`Expected no extra non-condensation chat requests after completion (still 2), got ${finalMainCount}`);
+    const finalChatReqs = afterRequests.filter((r) => r.path === '/v1/chat/completions');
+    if (finalChatReqs.length !== 3) {
+      throw new Error(`Expected no extra chat requests after completion (still 3), got ${finalChatReqs.length}`);
     }
   } finally {
     await mock.close();
