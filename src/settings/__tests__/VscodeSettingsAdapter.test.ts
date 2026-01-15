@@ -18,6 +18,21 @@ describe('VscodeSettingsAdapter', () => {
       configurable: true,
     });
 
+    Object.defineProperty(vscode.workspace, 'getWorkspaceFolder', {
+      value: vi.fn(),
+      configurable: true,
+    });
+
+    Object.defineProperty(vscode.workspace, 'workspaceFile', {
+      value: undefined,
+      configurable: true,
+    });
+
+    Object.defineProperty(vscode.window, 'activeTextEditor', {
+      value: undefined,
+      configurable: true,
+    });
+
     // Create mock objects
     mockWorkspaceConfiguration = {
       get: vi.fn(),
@@ -46,6 +61,8 @@ describe('VscodeSettingsAdapter', () => {
         ? (mockWorkspaceConfiguration as vscode.WorkspaceConfiguration)
         : (mockGlobalConfiguration as vscode.WorkspaceConfiguration);
     });
+
+    vi.mocked(vscode.workspace.getWorkspaceFolder).mockReturnValue(undefined);
 
     // Create adapter with mocked context
     adapter = new VscodeSettingsAdapter(mockContext as vscode.ExtensionContext);
@@ -85,6 +102,28 @@ describe('VscodeSettingsAdapter', () => {
       expect(vscode.workspace.getConfiguration).toHaveBeenCalled();
       expect(mockWorkspaceConfiguration.get).toHaveBeenCalledWith(nestedKey, {});
       expect(result).toEqual(expectedValue);
+    });
+
+    it('scopes workspace configuration to the active editor workspace folder (not workspaceFolders[0])', () => {
+      const folder1 = { uri: { fsPath: '/test/workspace-1' } } as unknown as vscode.WorkspaceFolder;
+      const folder2 = { uri: { fsPath: '/test/workspace-2' } } as unknown as vscode.WorkspaceFolder;
+
+      Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+        value: [folder1, folder2],
+        configurable: true,
+      });
+
+      Object.defineProperty(vscode.window, 'activeTextEditor', {
+        value: { document: { uri: { fsPath: '/test/workspace-2/file.ts' } } },
+        configurable: true,
+      });
+
+      vi.mocked(vscode.workspace.getWorkspaceFolder).mockReturnValue(folder2);
+
+      adapter.get('test.key');
+
+      expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith(undefined, folder2.uri);
+      expect(vscode.workspace.getConfiguration).not.toHaveBeenCalledWith(undefined, folder1.uri);
     });
   });
 
@@ -178,6 +217,27 @@ describe('VscodeSettingsAdapter', () => {
         value,
         vscode.ConfigurationTarget.WorkspaceFolder
       );
+    });
+
+    it('updates workspace target at workspace scope in multi-root (.code-workspace) workspaces', async () => {
+      const key = 'test.key';
+      const value = 'test-value';
+      mockGlobalConfiguration.update.mockResolvedValue(undefined);
+
+      Object.defineProperty(vscode.workspace, 'workspaceFile', {
+        value: { fsPath: '/test/workspace.code-workspace' },
+        configurable: true,
+      });
+
+      Object.defineProperty(vscode.workspace, 'workspaceFolders', {
+        value: [{ uri: { fsPath: '/test/workspace-1' } }, { uri: { fsPath: '/test/workspace-2' } }],
+        configurable: true,
+      });
+
+      await adapter.update(key, value, 'workspace');
+
+      expect(mockGlobalConfiguration.update).toHaveBeenCalledWith(key, value, vscode.ConfigurationTarget.Workspace);
+      expect(mockWorkspaceConfiguration.update).not.toHaveBeenCalled();
     });
 
     it('should fall back to global when no workspace is open', async () => {

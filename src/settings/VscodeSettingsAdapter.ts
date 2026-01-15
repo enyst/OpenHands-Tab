@@ -15,10 +15,23 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
       || key === 'openhands.oracle.profileId';
   }
 
+  private getWorkspaceFolderUriForConfiguration(): vscode.Uri | undefined {
+    const activeUri = vscode.window.activeTextEditor?.document?.uri;
+    if (activeUri) {
+      const folder = vscode.workspace.getWorkspaceFolder(activeUri);
+      if (folder) return folder.uri;
+    }
+
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.length === 1) return folders[0].uri;
+
+    return undefined;
+  }
+
   private getWorkspaceConfiguration(): vscode.WorkspaceConfiguration {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    return workspaceFolder
-      ? vscode.workspace.getConfiguration(undefined, workspaceFolder.uri)
+    const workspaceFolderUri = this.getWorkspaceFolderUriForConfiguration();
+    return workspaceFolderUri
+      ? vscode.workspace.getConfiguration(undefined, workspaceFolderUri)
       : vscode.workspace.getConfiguration();
   }
 
@@ -77,11 +90,16 @@ export class VscodeSettingsAdapter implements SettingsAdapter {
       await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Global);
       return;
     }
-    const hasWorkspaceFolder = !!vscode.workspace.workspaceFolders?.length;
-    const effectiveTarget =
-      target === 'workspace' && hasWorkspaceFolder
-        ? vscode.ConfigurationTarget.WorkspaceFolder
-        : vscode.ConfigurationTarget.Global;
+
+    const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+    const isMultiRootWorkspace = !!vscode.workspace.workspaceFile;
+    const effectiveTarget = (() => {
+      if (target !== 'workspace') return vscode.ConfigurationTarget.Global;
+      if (!hasWorkspace) return vscode.ConfigurationTarget.Global;
+      return isMultiRootWorkspace
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.WorkspaceFolder;
+    })();
 
     const cfg =
       effectiveTarget === vscode.ConfigurationTarget.WorkspaceFolder
