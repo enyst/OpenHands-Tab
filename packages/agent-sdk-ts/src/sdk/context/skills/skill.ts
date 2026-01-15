@@ -88,6 +88,10 @@ export class Skill {
   inputs: InputMetadata[];
   isAgentSkillsFormat: boolean;
   description: string | null;
+  license: string | null;
+  compatibility: string | null;
+  metadata: Record<string, string> | null;
+  allowedTools: string[] | null;
   mcpTools: McpConfig | null;
   resources: SkillResources | null;
 
@@ -108,6 +112,10 @@ export class Skill {
     inputs?: InputMetadata[];
     isAgentSkillsFormat?: boolean;
     description?: string | null;
+    license?: string | null;
+    compatibility?: string | null;
+    metadata?: Record<string, string> | null;
+    allowedTools?: string[] | null;
     mcpTools?: McpConfig | null;
     resources?: SkillResources | null;
   }) {
@@ -118,6 +126,10 @@ export class Skill {
     this.inputs = params.inputs ?? [];
     this.isAgentSkillsFormat = params.isAgentSkillsFormat ?? false;
     this.description = params.description ?? null;
+    this.license = params.license ?? null;
+    this.compatibility = params.compatibility ?? null;
+    this.metadata = params.metadata ?? null;
+    this.allowedTools = params.allowedTools ?? null;
     this.mcpTools = params.mcpTools ?? null;
     this.resources = params.resources ?? null;
 
@@ -210,7 +222,55 @@ export class Skill {
       }
     }
 
-    const description = typeof metadata.description === 'string' ? metadata.description : null;
+    const rawDescription = metadata.description;
+    if (rawDescription !== undefined && rawDescription !== null && typeof rawDescription !== 'string') {
+      throw new SkillValidationError('description must be a string');
+    }
+    const description = typeof rawDescription === 'string' ? rawDescription : null;
+    if (typeof description === 'string' && description.length > 1024) {
+      throw new SkillValidationError(`description must be <= 1024 characters (got ${description.length})`);
+    }
+
+    const rawLicense = metadata.license;
+    if (rawLicense !== undefined && rawLicense !== null && typeof rawLicense !== 'string') {
+      throw new SkillValidationError('license must be a string');
+    }
+    const license = typeof rawLicense === 'string' ? rawLicense.trim() : null;
+
+    const rawCompatibility = metadata.compatibility;
+    if (rawCompatibility !== undefined && rawCompatibility !== null && typeof rawCompatibility !== 'string') {
+      throw new SkillValidationError('compatibility must be a string');
+    }
+    const compatibility = typeof rawCompatibility === 'string' ? rawCompatibility.trim() : null;
+
+    const rawMetadata = metadata.metadata;
+    if (rawMetadata !== undefined && rawMetadata !== null) {
+      if (typeof rawMetadata !== 'object' || Array.isArray(rawMetadata)) {
+        throw new SkillValidationError('metadata must be a dictionary');
+      }
+    }
+    const skillMetadata =
+      rawMetadata && typeof rawMetadata === 'object' && !Array.isArray(rawMetadata)
+        ? Object.fromEntries(
+            Object.entries(rawMetadata as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+          )
+        : null;
+
+    const allowedToolsRaw = metadata['allowed-tools'] ?? metadata.allowed_tools;
+    if (allowedToolsRaw !== undefined && allowedToolsRaw !== null) {
+      if (typeof allowedToolsRaw !== 'string' && !Array.isArray(allowedToolsRaw)) {
+        throw new SkillValidationError('allowed-tools must be a string or list of strings');
+      }
+      if (Array.isArray(allowedToolsRaw) && !allowedToolsRaw.every((t) => typeof t === 'string')) {
+        throw new SkillValidationError('allowed-tools must be a string or list of strings');
+      }
+    }
+    const allowedTools =
+      typeof allowedToolsRaw === 'string'
+        ? allowedToolsRaw.split(/\s+/).map((t) => t.trim()).filter(Boolean)
+        : Array.isArray(allowedToolsRaw)
+          ? allowedToolsRaw.map((t) => t.trim()).filter(Boolean)
+          : null;
 
     // For AgentSkills-format SKILL.md, load .mcp.json + discover resources (Python parity).
     let mcpTools: McpConfig | null = null;
@@ -275,6 +335,10 @@ export class Skill {
         source: filePath,
         isAgentSkillsFormat: isSkillMd,
         description,
+        license,
+        compatibility,
+        metadata: skillMetadata,
+        allowedTools,
         mcpTools,
         resources,
         trigger: { type: 'task', triggers: keywords },
@@ -287,6 +351,10 @@ export class Skill {
         source: filePath,
         isAgentSkillsFormat: isSkillMd,
         description,
+        license,
+        compatibility,
+        metadata: skillMetadata,
+        allowedTools,
         mcpTools,
         resources,
         trigger: { type: 'keyword', keywords },
@@ -299,6 +367,10 @@ export class Skill {
         source: filePath,
         isAgentSkillsFormat: isSkillMd,
         description,
+        license,
+        compatibility,
+        metadata: skillMetadata,
+        allowedTools,
         mcpTools,
         resources,
         trigger: null,
