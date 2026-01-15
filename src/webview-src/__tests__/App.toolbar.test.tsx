@@ -51,7 +51,8 @@ describe('App toolbar interactions', () => {
 
     const totalsRow = await screen.findByTestId('header-totals-row');
     expect(totalsRow).toHaveTextContent('Context:');
-    expect(totalsRow).not.toHaveTextContent('Total cost:');
+    expect(totalsRow).toHaveTextContent('Total cost:');
+    expect(totalsRow).toHaveTextContent('—');
 
     await act(async () => {
       window.dispatchEvent(
@@ -74,7 +75,8 @@ describe('App toolbar interactions', () => {
     });
 
     expect(totalsRow).toHaveTextContent('Context: 10 tokens');
-    expect(totalsRow).not.toHaveTextContent('Total cost:');
+    expect(totalsRow).toHaveTextContent('Total cost:');
+    expect(totalsRow).toHaveTextContent('—');
 
     await act(async () => {
       window.dispatchEvent(
@@ -146,8 +148,9 @@ describe('App toolbar interactions', () => {
     });
 
     expect(totalsRow).toHaveTextContent('Context: 12 tokens');
-    expect(totalsRow).not.toHaveTextContent('Total cost:');
-    expect(totalsRow).not.toHaveTextContent('—');
+    expect(totalsRow).toHaveTextContent('Total cost:');
+    expect(totalsRow).toHaveTextContent('—');
+    expect(totalsRow).not.toHaveTextContent('$0.0123');
   });
 
   it('uses the main agent usage bucket for context tokens (not sum across usages)', async () => {

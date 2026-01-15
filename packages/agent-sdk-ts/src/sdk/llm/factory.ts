@@ -12,6 +12,7 @@ import type { SecretRegistry } from '../runtime/SecretRegistry';
 import { LLMRegistry, TrackedLLMClient, llmRegistryKeyToString, toLLMRegistryKey } from './registry';
 import { Metrics } from './metrics';
 import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl } from './provider';
+import { lookupModelsDevTokenPricing } from './modelsDevPricing';
 
 export interface LLMFactoryOptions {
   secrets?: SecretRegistry;
@@ -68,7 +69,38 @@ export class LLMFactory {
     })();
     config = normalizeGenerationParamsForModel(config);
 
+    const normalizeUrl = (value: string | null | undefined): string | undefined => {
+      const trimmed = typeof value === 'string' ? value.trim() : '';
+      if (!trimmed) return undefined;
+      return trimmed.replace(/\/+$/, '');
+    };
+
     const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
+
+    if (
+      (config.inputCostPerToken === null || config.inputCostPerToken === undefined)
+      && (config.outputCostPerToken === null || config.outputCostPerToken === undefined)
+    ) {
+      const normalizedBaseUrl = normalizeUrl(config.baseUrl);
+      const normalizedDefaultBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS[provider]);
+      const baseUrlMatchesProviderDefault =
+        !normalizedBaseUrl || normalizedBaseUrl === normalizedDefaultBaseUrl;
+
+      if (baseUrlMatchesProviderDefault) {
+        try {
+          const pricing = await lookupModelsDevTokenPricing({ provider, model: config.model });
+          if (pricing) {
+            config = {
+              ...config,
+              inputCostPerToken: pricing.inputCostPerToken,
+              outputCostPerToken: pricing.outputCostPerToken,
+            };
+          }
+        } catch {
+          // Best-effort only: ignore pricing lookup errors.
+        }
+      }
+    }
 
     const inlineApiKey =
       typeof config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(config.apiKey)
@@ -101,11 +133,6 @@ export class LLMFactory {
 
     const normalizedModel = config.model.toLowerCase();
     const openaiApiMode = provider === 'openai' ? config.openaiApiMode ?? undefined : undefined;
-    const normalizeUrl = (value: string | null | undefined): string | undefined => {
-      const trimmed = typeof value === 'string' ? value.trim() : '';
-      if (!trimmed) return undefined;
-      return trimmed.replace(/\/+$/, '');
-    };
     const normalizedBaseUrl = normalizeUrl(config.baseUrl);
     const normalizedDefaultOpenAIBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS.openai);
     const baseUrlSupportsResponses = !normalizedBaseUrl || normalizedBaseUrl === normalizedDefaultOpenAIBaseUrl;
