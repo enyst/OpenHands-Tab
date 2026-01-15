@@ -6,6 +6,7 @@ import {
   isConversationErrorEvent,
   isConversationStateUpdateEvent,
   isEvent,
+  isMessageEvent,
   isObservationEvent,
   isPauseEvent,
   isUserRejectObservation,
@@ -41,6 +42,7 @@ type UseConversationEventsOptions = {
   setIsSubmitting: Dispatch<SetStateAction<boolean>>;
   setStreamingContent: Dispatch<SetStateAction<string | null>>;
   setEvents: Dispatch<SetStateAction<RenderedEvent[]>>;
+  setQueuedMessagesCount: Dispatch<SetStateAction<number>>;
   setConversationTotals: Dispatch<SetStateAction<ConversationTotals>>;
 };
 
@@ -62,6 +64,7 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     setIsSubmitting,
     setStreamingContent,
     setEvents,
+    setQueuedMessagesCount,
     setConversationTotals,
   } = options;
 
@@ -74,6 +77,9 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
       const previousStatus = agentStatusRef.current;
       agentStatusRef.current = event.agent_status;
       setAgentStatus(event.agent_status);
+      if (event.agent_status !== 'RUNNING') {
+        setQueuedMessagesCount(0);
+      }
       if (event.agent_status === 'WAITING_FOR_CONFIRMATION' && lastAgentStatusRef.current !== 'WAITING_FOR_CONFIRMATION') {
         showStatusMessage('warn', 'Agent is waiting for confirmation');
       }
@@ -133,6 +139,7 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
     setConversationTotals,
     setIsSubmitting,
     setPendingActions,
+    setQueuedMessagesCount,
     showStatusMessage,
     submissionTimeoutRef,
   ]);
@@ -205,11 +212,15 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
 
+    if (isMessageEvent(event) && event.source === 'user') {
+      setQueuedMessagesCount((prev) => Math.max(0, prev - 1));
+    }
+
     setEvents((ev) => {
       const next = [...ev, { id: eventId.current++, event }];
       return next.length > MAX_RENDERED_EVENTS ? next.slice(-MAX_RENDERED_EVENTS) : next;
     });
-  }, [eventId, setEvents]);
+  }, [eventId, setEvents, setQueuedMessagesCount]);
 
   const handleEvent = useCallback((incomingEvent: unknown) => {
     if (!isEvent(incomingEvent)) return;

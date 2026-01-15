@@ -153,6 +153,90 @@ describe('App toolbar interactions', () => {
     expect(totalsRow).not.toHaveTextContent('$0.0123');
   });
 
+  it('shows a queued-messages badge when sending while the agent is running', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'status', status: 'online', mode: 'remote', llmProfileLabel: 'gpt-5' },
+        }),
+      );
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'ConversationStateUpdateEvent',
+              agent_status: 'RUNNING',
+              key: 'llm_usage',
+              value: {
+                input: 1,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'queued-1' } });
+    fireEvent.click(screen.getByLabelText('Send message'));
+
+    expect(await screen.findByTestId('queued-messages-badge')).toHaveTextContent('1');
+
+    fireEvent.change(input, { target: { value: 'queued-2' } });
+    fireEvent.click(screen.getByLabelText('Send message'));
+
+    expect(await screen.findByTestId('queued-messages-badge')).toHaveTextContent('2');
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'MessageEvent',
+              source: 'user',
+              llm_message: {
+                role: 'user',
+                content: [{ type: 'text', text: 'dequeued' }],
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    expect(await screen.findByTestId('queued-messages-badge')).toHaveTextContent('1');
+
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'event',
+            event: {
+              kind: 'ConversationStateUpdateEvent',
+              agent_status: 'PAUSED',
+              key: 'llm_usage',
+              value: {
+                input: 1,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
+            },
+          },
+        }),
+      );
+    });
+
+    expect(screen.queryByTestId('queued-messages-badge')).not.toBeInTheDocument();
+  });
+
   it('uses the main agent usage bucket for context tokens (not sum across usages)', async () => {
     render(<App />);
 

@@ -60,6 +60,8 @@ interface InputAreaProps {
   // Stop agent (shown when running)
   isRunning?: boolean;
   onStopAgent?: () => void;
+  // Queued messages (shown while running)
+  queuedMessagesCount?: number;
 }
 
 export function InputArea({
@@ -107,6 +109,7 @@ export function InputArea({
   onSelectionChange,
   isRunning = false,
   onStopAgent,
+  queuedMessagesCount = 0,
 }: InputAreaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -269,25 +272,40 @@ export function InputArea({
               )}
 
               {/* Send button */}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={disabled || !canSend}
-                className={`
-                  h-9 w-9 rounded-lg
-                  flex items-center justify-center
-                  transition-all duration-200
-                  oh-focus-outline
-                  ${canSend && !disabled
-                    ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
-                    : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'
-                  }
-                `}
-                aria-label="Send message"
-                title="Send message (Enter)"
-              >
-                <span className="codicon codicon-send" />
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={disabled || !canSend}
+                  className={`
+                    h-9 w-9 rounded-lg
+                    flex items-center justify-center
+                    transition-all duration-200
+                    oh-focus-outline
+                    ${canSend && !disabled
+                      ? 'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-glow-sm hover:from-brand-400 hover:to-brand-500'
+                      : 'bg-white/[0.06] text-stone-500 cursor-not-allowed border border-white/[0.04]'
+                    }
+                  `}
+                  aria-label="Send message"
+                  title="Send message (Enter)"
+                >
+                  <span className="codicon codicon-send" />
+                </button>
+
+                {isRunning && queuedMessagesCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-gradient-to-b from-brand-400 to-brand-600 text-white text-[10px] font-semibold flex items-center justify-center shadow-glow-sm"
+                    title="Queued messages waiting for the agent to finish the current turn"
+                    aria-label={`Queued messages: ${queuedMessagesCount}`}
+                    role="status"
+                    aria-live="polite"
+                    data-testid="queued-messages-badge"
+                  >
+                    {queuedMessagesCount}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

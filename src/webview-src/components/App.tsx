@@ -53,6 +53,7 @@ export function App() {
   // Input state
   const [input, setInput] = useState('');
   const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
+  const [queuedMessagesCount, setQueuedMessagesCount] = useState(0);
 
   // Attachments state
   const [attachments, setAttachments] = useState<Array<{ uri: string; label: string; sizeBytes?: number }>>([]);
@@ -266,6 +267,7 @@ export function App() {
     setIsSubmitting,
     setStreamingContent,
     setEvents,
+    setQueuedMessagesCount,
     setConversationTotals,
   });
 
@@ -306,6 +308,7 @@ export function App() {
     setLlmProfiles,
     setMode,
     setPendingActions,
+    setQueuedMessagesCount,
     setSelectedContextFiles,
     setServers,
     setShowContextPicker,
@@ -396,6 +399,7 @@ export function App() {
     setEvents([]);
     setPendingActions([]);
     setAgentStatus(undefined);
+    setQueuedMessagesCount(0);
     setStreamingContent(null);
     setConversationTotals(INITIAL_CONVERSATION_TOTALS);
     hasLlmUsageRef.current = false;
@@ -452,6 +456,10 @@ export function App() {
     const finalText = [text, imageMarkdown].filter(Boolean).join('\n\n');
     if (!finalText) return;
 
+    if (agentStatus === 'RUNNING') {
+      setQueuedMessagesCount((prev) => prev + 1);
+    }
+
     setInput('');
     setShowContextPicker(false);
     setShowSkillsPopover(false);
@@ -467,7 +475,7 @@ export function App() {
       contextFiles: selectedContextFiles.slice(),
       attachments: attachments.map((a) => a.uri),
     });
-  }, [attachments, inlineImages, input, postMessage, selectedContextFiles, setInlineImages]);
+  }, [agentStatus, attachments, inlineImages, input, postMessage, selectedContextFiles, setInlineImages]);
 
   // Context picker handlers
   const handleOpenContext = useCallback(() => {
@@ -792,6 +800,7 @@ export function App() {
             onPasteImageFiles: (files) => { void handlePasteImageFiles(files); },
             onRemoveInlineImage: handleRemoveInlineImage,
             onSelectionChange: handleSelectionChange,
+            queuedMessagesCount,
           }}
           statusBanner={statusBanner}
           onDismissStatusBanner={() => setStatusBanner(null)}
