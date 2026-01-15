@@ -36,16 +36,27 @@ export class LocalWorkspace implements BaseWorkspace {
   }
 
   private static getVsCodeWorkspaceRoots(): string[] {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const vscode = require('vscode') as typeof import('vscode');
-      const folders = vscode.workspace?.workspaceFolders ?? [];
-      return folders
-        .map((folder) => (folder.uri?.scheme === 'file' ? folder.uri.fsPath : undefined))
-        .filter((folder): folder is string => typeof folder === 'string' && folder.length > 0);
-    } catch {
-      return [];
-    }
+    const vscode = (() => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        return require('vscode') as typeof import('vscode');
+      } catch {
+        // Unit tests (and some non-VS Code embeddings) may provide a minimal shim on globalThis.
+        return (globalThis as unknown as { vscode?: { workspace?: { workspaceFolders?: unknown[] } } }).vscode;
+      }
+    })();
+
+    const folders = vscode?.workspace?.workspaceFolders ?? [];
+    return folders
+      .map((folder) => {
+        if (!folder || typeof folder !== 'object') return undefined;
+        const uri = (folder as { uri?: { scheme?: unknown; fsPath?: unknown } }).uri;
+        const scheme = typeof uri?.scheme === 'string' ? uri.scheme : '';
+        const fsPath = typeof uri?.fsPath === 'string' ? uri.fsPath : '';
+        if (!fsPath) return undefined;
+        return (scheme === 'file' || scheme === 'vscode-remote') ? fsPath : undefined;
+      })
+      .filter((folder): folder is string => typeof folder === 'string' && folder.length > 0);
   }
 
   private normalizeExistingOrParent(candidate: string): string {
