@@ -186,6 +186,8 @@ Reviews (do not merge without review):
   ```bash
   git -C "$WORKTREE" fetch origin develop
   git -C "$WORKTREE" branch -f main origin/develop
+  # Optional: if this fails with "cannot force update the branch 'develop' used by worktree ...",
+  # skip it (it just means `develop` is already checked out somewhere else).
   git -C "$WORKTREE" branch -f develop origin/develop
   ```
 - Start a named tmux session and capture output to a log file:
@@ -221,7 +223,11 @@ Reviews (do not merge without review):
     ```bash
     uv tool install --force --with fastapi openhands==1.6.0
     ```
-  - If you see `Item 'rs_…' of type 'reasoning' was provided without its required following item.` (gpt-5.* “responses” models triggered this): end that tmux session, and restart OpenHands.
+  - If you see `Item 'rs_…' of type 'reasoning' was provided without its required following item.`:
+    - This is typically triggered by OpenAI “Responses API” models (notably GPT-5 / Codex) during long interactive sessions.
+    - Workaround: end that tmux session, restart OpenHands, and re-run the review using a non-Responses model (e.g. Claude/Gemini) via the OpenHands Settings screen (system command `SETTINGS`). OpenHands requires a restart for agent-settings changes to take effect.
+    - If it still recurs: start from a fresh conversation (do not resume), i.e. kill the tmux session and run the `openhands ... -t '/codereview-roasted pr N'` command again.
+    - For debugging: capture `openhands --version`, the “Agent initialized with model: …” line from the session log (`/tmp/${SESSION}.log`), and any LLM completion logs under `~/.openhands/` (if enabled).
   - `--exp` UI is noisy to log/copy (ANSI); `GIT_PAGER=cat` + `PAGER=cat` makes paste-back to Mail much easier.
 
 
