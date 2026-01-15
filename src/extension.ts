@@ -445,7 +445,6 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const workspaceRoot = resolvePreferredWorkspaceRoot();
-    (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot = workspaceRoot;
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';

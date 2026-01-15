@@ -20,8 +20,5 @@ export const resolvePreferredWorkspaceRoot = (): string | undefined => {
 };
 
 export const getEffectiveWorkspaceRoot = (): string | undefined => {
-  const globalRoot = (globalThis as { vscodeWorkspaceRoot?: unknown }).vscodeWorkspaceRoot;
-  if (typeof globalRoot === 'string' && globalRoot.trim().length > 0) return globalRoot;
   return resolvePreferredWorkspaceRoot();
 };
-
