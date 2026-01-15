@@ -30,6 +30,12 @@ export function registerCloudLoginCommand(options: {
   const { context } = options;
 
   return vscode.commands.registerCommand('openhands.cloudLogin', async () => {
+    const extensionMode = vscode.ExtensionMode;
+    const isTestMode =
+      extensionMode?.Test !== undefined &&
+      context.extensionMode === extensionMode.Test;
+    const isE2eMode = isTestMode && process.env.E2E_CLOUD_LOGIN === '1';
+
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
 
@@ -77,21 +83,23 @@ export function registerCloudLoginCommand(options: {
           });
 
           progress.report({ message: 'Open browser to enter code…' });
-          const opened = await vscode.env.openExternal(vscode.Uri.parse(auth.verificationUriComplete));
-          if (!opened) {
-            void vscode.window.showInformationMessage(
-              `OpenHands: Open this URL to login: ${auth.verificationUriComplete} (code: ${auth.userCode})`,
-            );
-          } else {
-            const action = await vscode.window.showInformationMessage(
-              `OpenHands: Enter code ${auth.userCode} to login to ${serverLabel}.`,
-              'Copy code',
-              'Copy URL',
-            );
-            if (action === 'Copy code') {
-              await vscode.env.clipboard.writeText(auth.userCode);
-            } else if (action === 'Copy URL') {
-              await vscode.env.clipboard.writeText(auth.verificationUriComplete);
+          if (!isE2eMode) {
+            const opened = await vscode.env.openExternal(vscode.Uri.parse(auth.verificationUriComplete));
+            if (!opened) {
+              void vscode.window.showInformationMessage(
+                `OpenHands: Open this URL to login: ${auth.verificationUriComplete} (code: ${auth.userCode})`,
+              );
+            } else {
+              const action = await vscode.window.showInformationMessage(
+                `OpenHands: Enter code ${auth.userCode} to login to ${serverLabel}.`,
+                'Copy code',
+                'Copy URL',
+              );
+              if (action === 'Copy code') {
+                await vscode.env.clipboard.writeText(auth.userCode);
+              } else if (action === 'Copy URL') {
+                await vscode.env.clipboard.writeText(auth.verificationUriComplete);
+              }
             }
           }
 
@@ -145,6 +153,11 @@ export function registerCloudLoginCommand(options: {
     }
 
     options.onLoginCompleted?.({ normalizedServerUrl: keyInfo.normalizedServerUrl });
+
+    if (isE2eMode) {
+      output?.appendLine('[auth] Skipping post-login UI prompt in E2E mode.');
+      return;
+    }
 
     const next = await vscode.window.showInformationMessage(
       `OpenHands: Logged in to ${serverLabel}.`,
