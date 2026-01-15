@@ -31,6 +31,7 @@ import { getFileBackedFsPath } from './shared/uri';
 import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import { getServerSessionApiKeySecretKey } from './auth/serverSessionApiKeys';
 import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
+import { registerCloudLogoutCommand } from './extension/cloudLogoutCommand';
 import {
   createOutputLogger,
   normalizeOutputVerbosity,
@@ -782,6 +783,10 @@ export function activate(context: vscode.ExtensionContext) {
     context,
     getOutputChannel: () => outputChannel,
   });
+  const cloudLogout = registerCloudLogoutCommand({
+    context,
+    getOutputChannel: () => outputChannel,
+  });
 
   const diagnosticsCommands = registerDiagnosticsCommands({
     context,
@@ -936,6 +941,7 @@ export function activate(context: vscode.ExtensionContext) {
     open,
     explainSelection,
     cloudLogin,
+    cloudLogout,
     ...diagnosticsCommands,
     ...halCommands,
     startNew,

@@ -273,6 +273,81 @@ describe('Extension Activation', () => {
     expect(secretStorage.get('openhands.sessionApiKey')).toBe('server-token');
   });
 
+  it('cloudLogout clears the per-server session key and legacy when they match', async () => {
+    const secretStorage = new Map<string, string>();
+
+    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
+    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+
+    secretStorage.set(keyInfo.secretKey, 'server-token');
+    secretStorage.set('openhands.sessionApiKey', 'server-token');
+
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.delete = vi.fn(async (key: string) => {
+      secretStorage.delete(key);
+    });
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Log out');
+
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.cloudLogout');
+
+    expect(secretStorage.has(keyInfo.secretKey)).toBe(false);
+    expect(secretStorage.has('openhands.sessionApiKey')).toBe(false);
+  });
+
+  it('cloudLogout clears the per-server session key without clobbering legacy when different', async () => {
+    const secretStorage = new Map<string, string>();
+
+    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
+    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+
+    secretStorage.set(keyInfo.secretKey, 'server-token');
+    secretStorage.set('openhands.sessionApiKey', 'legacy-key');
+
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.delete = vi.fn(async (key: string) => {
+      secretStorage.delete(key);
+    });
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Log out');
+
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.cloudLogout');
+
+    expect(secretStorage.has(keyInfo.secretKey)).toBe(false);
+    expect(secretStorage.get('openhands.sessionApiKey')).toBe('legacy-key');
+  });
+
+  it('cloudLogout clears legacy openhands.sessionApiKey when empty', async () => {
+    const secretStorage = new Map<string, string>();
+
+    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
+    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+
+    secretStorage.set(keyInfo.secretKey, 'server-token');
+    secretStorage.set('openhands.sessionApiKey', '');
+
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.delete = vi.fn(async (key: string) => {
+      secretStorage.delete(key);
+    });
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Log out');
+
+    await extension.activate(mockContext);
+    await vscode.commands.executeCommand('openhands.cloudLogout');
+
+    expect(secretStorage.has(keyInfo.secretKey)).toBe(false);
+    expect(secretStorage.has('openhands.sessionApiKey')).toBe(false);
+  });
+
   it('does not create a conversation until the chat view resolves', async () => {
     const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
     await extension.activate(mockContext);

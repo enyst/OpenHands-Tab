@@ -17,6 +17,7 @@ interface HeaderProps {
   onOpenHistory: () => void;
   onOpenSettings: () => void;
   onLoginToServer: () => void;
+  onLogoutFromServer: () => void;
   onReconnect: () => void;
   onSelectServer: (url: string) => void;
   onAddServer: (server: SavedServer) => void;
@@ -120,6 +121,7 @@ export function Header({
   onOpenHistory,
   onOpenSettings,
   onLoginToServer,
+  onLogoutFromServer,
   onReconnect,
   onSelectServer,
   onAddServer,
@@ -212,7 +214,10 @@ export function Header({
           <div className="w-px h-6 bg-white/[0.08]" />
 
           {mode === 'remote' && Boolean(currentServerUrl?.trim()) && (
-            <IconButton icon="key" label="Login to server" onClick={onLoginToServer} />
+            <>
+              <IconButton icon="key" label="Login to server" onClick={onLoginToServer} />
+              <IconButton icon="sign-out" label="Logout from server" onClick={onLogoutFromServer} />
+            </>
           )}
 
           <IconButton

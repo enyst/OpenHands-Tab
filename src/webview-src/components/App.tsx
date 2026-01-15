@@ -668,6 +668,11 @@ export function App() {
     showStatusMessage('info', 'Starting login…');
   }, [postMessage, showStatusMessage]);
 
+  const handleLogoutFromServer = useCallback(() => {
+    postMessage({ type: 'command', command: 'cloudAuthLogout' });
+    showStatusMessage('info', 'Logging out…');
+  }, [postMessage, showStatusMessage]);
+
   const handleSelectLlmProfileId = useCallback((profileId: string) => {
     setLlmProfileId(profileId);
     postMessage({ type: 'setLlmProfileId', profileId });
@@ -710,6 +715,7 @@ export function App() {
         onOpenHistory={handleOpenHistory}
         onOpenSettings={handleOpenSettings}
         onLoginToServer={handleLoginToServer}
+        onLogoutFromServer={handleLogoutFromServer}
         onReconnect={handleReconnect}
         onSelectServer={handleSelectServer}
         onAddServer={handleAddServer}
