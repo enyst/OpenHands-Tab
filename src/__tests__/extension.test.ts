@@ -498,6 +498,24 @@ describe('Chat view behavior', () => {
     expect(conv.pause).toHaveBeenCalledTimes(2);
   });
 
+  it('does not double-pause when the chat view is hidden then disposed', async () => {
+    const view = await resolveChatView(mockContext);
+    expect(view).toBeTruthy();
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    (conv.pause as Mock).mockClear();
+
+    view.visible = false;
+    view._visibilityHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
+
+    view._disposeHandler?.();
+    expect(conv.pause).toHaveBeenCalledTimes(1);
+  });
+
   it('refreshes the active conversation when LLM settings change', async () => {
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();

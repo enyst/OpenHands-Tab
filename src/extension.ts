@@ -314,13 +314,16 @@ export function activate(context: vscode.ExtensionContext) {
       }
     },
     onDisposed: () => {
-      void (async () => {
-        try {
-          await conversation?.pause();
-        } catch (err) {
-          outputChannel?.appendLine(`[pause] Failed to auto-pause when chat view was disposed: ${renderError(err)}`);
-        }
-      })();
+      const shouldPauseOnDispose = lastChatViewVisibility !== false;
+      if (shouldPauseOnDispose) {
+        void (async () => {
+          try {
+            await conversation?.pause();
+          } catch (err) {
+            outputChannel?.appendLine(`[pause] Failed to auto-pause when chat view was disposed: ${renderError(err)}`);
+          }
+        })();
+      }
       chatView = undefined;
       chatWebviewReady = false;
       chatLastConversationId = undefined;
