@@ -100,6 +100,21 @@ const mock = await startMockLlmServer({
 npm run e2e
 ```
 
+## Multi-root workspace E2E
+
+Some suites need multi-root workspace coverage. To launch VS Code against a `.code-workspace` file, pass it via `--file-uri` in `runTests({ launchArgs })`:
+
+```ts
+import { pathToFileURL } from 'url';
+
+launchArgs: [
+  // ...
+  `--file-uri=${pathToFileURL(workspaceFile).toString()}`,
+],
+```
+
+See `tests/e2e/tpq.test.ts` for a concrete example that creates a temporary workspace with two folders.
+
 ### Remote agent-server E2E (optional)
 
 Requires:
@@ -185,11 +200,28 @@ Verifies error event handling:
 
 ## Internal Commands Used
 
-The tests use these internal extension commands:
+The tests use these internal extension commands (test-only; not a stable public API):
 
 - `openhands._diagnostics`: Returns extension state for verification
-- `openhands._sendTestEvent`: Injects mock events into the webview
 - `openhands._queryRenderedEvents`: Queries webview rendered state
+- `openhands._queryUiState`: Queries webview UI state (welcome, counts, toggles, etc.)
+- `openhands._sendTestEvent`: Injects mock events into the webview
+- `openhands._injectTerminalEvent`: Injects terminal events into the webview/terminal log
+- `openhands._queryLastError`: Returns the most recent error captured by the extension
+- `openhands._queryHalState`: Returns HAL overlay state (enabled/phase/teleport state)
+- `openhands._webviewAction`: Performs a small scripted UI action in the webview (send message, open panels, etc.)
+- `openhands._queryLastObservation`: Returns the most recent tool observation snapshot (used by oracle suites)
+- `openhands._serversSet`: Sets the saved server list + current server selection (used by remote-mode suites)
+- `openhands._setProviderApiKey`: Stores a provider API key for the E2E run
+- `openhands._listProfiles`: Lists LLM profiles
+- `openhands._createProfile`: Creates an LLM profile
+- `openhands._updateProfile`: Updates an LLM profile
+- `openhands._deleteProfile`: Deletes an LLM profile
+- `openhands._selectProfile`: Selects the active LLM profile (or clears selection)
+- `openhands._setProfileApiKey`: Stores an API key for a specific profile
+- `openhands._testMarkAgentEditedFile`: Marks a file as “agent edited” for test assertions
+
+If you add a new suite that requires a new internal command, update this section so the docs stay in sync with harness usage.
 
 ## Notes
 
