@@ -981,6 +981,7 @@ describe('RemoteConversation', () => {
       if (url.includes('/confirmation_policy')) {
         expect(init?.method).toBe('POST');
         expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
+        expect(init?.headers?.Authorization).toBe('Bearer session-key');
         const body = JSON.parse(init?.body ?? '{}');
         expect(body).toEqual({
           policy: { kind: 'ConfirmRisky', threshold: 'HIGH', confirm_unknown: false },
@@ -1034,6 +1035,7 @@ describe('RemoteConversation', () => {
         call += 1;
         expect(init?.method).toBe('POST');
         expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
+        expect(init?.headers?.Authorization).toBe('Bearer session-key');
         const body = JSON.parse(init?.body ?? '{}');
         if (call === 1) {
           expect(body).toEqual({ security_analyzer: { kind: 'LLMSecurityAnalyzer' } });
@@ -1081,6 +1083,7 @@ describe('RemoteConversation', () => {
         expect(init?.method).toBe('POST');
         uploadCalls += 1;
         expect(init?.headers?.['X-Session-API-Key']).toBe(uploadCalls === 1 ? 'session-key-1' : 'session-key-2');
+        expect(init?.headers?.Authorization).toBe(uploadCalls === 1 ? 'Bearer session-key-1' : 'Bearer session-key-2');
         return {
           ok: true,
           status: 200,

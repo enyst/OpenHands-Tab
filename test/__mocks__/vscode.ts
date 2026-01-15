@@ -68,6 +68,11 @@ export const window = {
   showInformationMessage: vi.fn(),
   showErrorMessage: vi.fn(),
   showWarningMessage: vi.fn(),
+  withProgress: vi.fn(async (_options: any, task: any) => {
+    const progress = { report: vi.fn() };
+    const token = { onCancellationRequested: vi.fn(), isCancellationRequested: false };
+    return await task(progress, token);
+  }),
   createOutputChannel: vi.fn((name: string) => {
     const channel = {
       name,
@@ -125,6 +130,17 @@ export const Uri = {
     fsPath: args.join('/'),
   })),
 };
+
+export const env = {
+  openExternal: vi.fn(async () => true),
+  clipboard: {
+    writeText: vi.fn(async () => undefined),
+  },
+};
+
+export const ProgressLocation = {
+  Notification: 15,
+} as const;
 
 // ViewColumn used by extension.openTab
 export const ViewColumn = {

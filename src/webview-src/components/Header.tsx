@@ -16,6 +16,7 @@ interface HeaderProps {
   onNewConversation: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
+  onLoginToServer: () => void;
   onReconnect: () => void;
   onSelectServer: (url: string) => void;
   onAddServer: (server: SavedServer) => void;
@@ -118,6 +119,7 @@ export function Header({
   onNewConversation,
   onOpenHistory,
   onOpenSettings,
+  onLoginToServer,
   onReconnect,
   onSelectServer,
   onAddServer,
@@ -208,6 +210,10 @@ export function Header({
           <IconButton icon="add" label="Start new conversation" onClick={onNewConversation} />
 
           <div className="w-px h-6 bg-white/[0.08]" />
+
+          {mode === 'remote' && Boolean(currentServerUrl?.trim()) && (
+            <IconButton icon="key" label="Login to server" onClick={onLoginToServer} />
+          )}
 
           <IconButton
             icon="history"

@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import WebSocket from 'ws';
+import WebSocket, { type ClientOptions } from 'ws';
 import type { BashEvent, Event, Message, TextContent } from '../types';
 import { isEvent as isAgentEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
@@ -739,7 +739,10 @@ export class RemoteConversation extends EventEmitter {
   private getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const sessionKey = this.settings?.secrets.sessionApiKey || '';
-    if (sessionKey) headers['X-Session-API-Key'] = sessionKey;
+    if (sessionKey) {
+      headers['X-Session-API-Key'] = sessionKey;
+      headers['Authorization'] = `Bearer ${sessionKey}`;
+    }
     return headers;
   }
 
@@ -793,7 +796,9 @@ export class RemoteConversation extends EventEmitter {
     const qs = params.toString();
     const wsUrl = `${base.replace(/^http/, 'ws')}/sockets/events/${this.conversationId}?${qs}`;
     this.setStatus('connecting');
-    const ws = new WebSocket(wsUrl);
+    const wsHeaders = this.getAuthHeaders();
+    delete wsHeaders['Content-Type'];
+    const ws = new WebSocket(wsUrl, { headers: wsHeaders } satisfies ClientOptions);
     this.ws = ws;
     this.clearWsHandshakeTimer();
     this.wsHandshakeTimer = setTimeout(() => {

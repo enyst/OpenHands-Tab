@@ -33,6 +33,7 @@
     "onCommand:openhands.setLiteLlmApiKey",
     "onCommand:openhands.setGeminiLlmApiKey",
     "onCommand:openhands.setSessionApiKey",
+    "onCommand:openhands.cloudLogin",
     "onCommand:openhands.setGithubToken",
     "onCommand:openhands.setHalTtsApiKey",
     "onCommand:openhands.setCustomSecret1",
@@ -93,6 +94,10 @@
       {
         "command": "openhands.setSessionApiKey",
         "title": "OpenHands: Set Session API Key"
+      },
+      {
+        "command": "openhands.cloudLogin",
+        "title": "OpenHands: Login to Remote Server (Device Flow)"
       },
       {
         "command": "openhands.setGithubToken",
