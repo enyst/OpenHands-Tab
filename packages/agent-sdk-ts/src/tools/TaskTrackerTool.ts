@@ -15,18 +15,85 @@ export interface TaskTrackerResult {
   task_list: TaskItem[];
 }
 
-const TASK_TRACKER_DESCRIPTION = `Manage a structured task list for the current workspace.
+const TASK_TRACKER_DESCRIPTION = `This tool provides structured task management capabilities for development workflows.
+It enables systematic tracking of work items, progress monitoring, and efficient
+organization of complex development activities.
 
-Use this tool to create or update a lightweight plan when work has multiple steps.
+The tool maintains visibility into project status and helps communicate
+progress effectively to users.
 
-Commands:
+## Commands
+
 - plan: overwrite TASKS.json with the provided task_list
-- view: read TASKS.json and return the current task_list
+- view: read TASKS.json and return the current task_list (always view before making changes)
 
-Task items:
-- title (required)
-- notes (optional)
-- status: todo | in_progress | done (prefer at most one in_progress at a time)`;
+## Task items
+
+- title (required): A brief title for the task
+- notes (optional): Additional details or notes about the task
+- status: todo | in_progress | done (prefer at most one in_progress at a time)
+
+## Application Guidelines
+
+Utilize this tool in the following situations:
+
+1. Multi-phase development work - When projects involve multiple sequential or
+   parallel activities
+2. Complex implementation tasks - Work requiring systematic planning and
+   coordination across multiple components
+3. Explicit user request for task organization - When users specifically ask
+   for structured task management
+4. Multiple concurrent requirements - When users present several work items
+   that need coordination
+5. Project initiation - Capture and organize user requirements at project start
+6. Work commencement - Update task status to in_progress before beginning
+   implementation. Maintain focus by limiting active work to one task
+7. Task completion - Update status to done and identify any additional work
+   that emerged during implementation
+
+## Situations Where Tool Usage Is Unnecessary
+
+Avoid using this tool when:
+
+1. Single atomic tasks that require no decomposition
+2. Trivial operations where tracking adds no organizational value
+3. Simple activities completable in minimal steps
+4. Pure information exchange or discussion
+
+Note: For single straightforward tasks, proceed with direct implementation
+rather than creating tracking overhead.
+
+## Status Management and Workflow
+
+1. **Status Values**: Track work using these states:
+   - todo: Not yet initiated
+   - in_progress: Currently active (maintain single focus)
+   - done: Successfully completed
+
+2. **Workflow Practices**:
+   - Update status dynamically as work progresses
+   - Mark completion immediately upon task finish
+   - Limit active work to ONE task at any given time
+   - Complete current activities before initiating new ones
+   - Remove obsolete tasks from tracking entirely
+
+3. **Completion Criteria**:
+   - Mark tasks as done only when fully achieved
+   - Keep status as in_progress if errors, blocks, or partial completion exist
+   - Create new tasks for discovered issues or dependencies
+   - Never mark done when:
+       - Test suites are failing
+       - Implementation remains incomplete
+       - Unresolved errors persist
+       - Required resources are unavailable
+
+4. **Task Organization**:
+   - Write precise, actionable descriptions
+   - Decompose complex work into manageable units
+   - Use descriptive, clear naming conventions
+
+When uncertain, favor using this tool. Proactive task management demonstrates
+systematic approach and ensures comprehensive requirement fulfillment.`;
 
 const taskItemSchema = z.object({
   title: z.string().describe('A brief title for the task.'),
