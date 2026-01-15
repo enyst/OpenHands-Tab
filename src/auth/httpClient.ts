@@ -45,18 +45,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function extractErrorDetail(data: unknown): string | undefined {
-  if (!isRecord(data)) return undefined;
+function extractErrorDetail(data: unknown, status: number): string {
+  // Match OpenHands-CLI BaseHttpClient semantics: prefer explicit `detail`, otherwise fall back to the status code string.
+  if (!isRecord(data)) return `HTTP ${status}`;
   const detail = data.detail;
   if (typeof detail === 'string' && detail.trim()) return detail.trim();
-
-  const errorDescription = data.error_description;
-  if (typeof errorDescription === 'string' && errorDescription.trim()) return errorDescription.trim();
-
-  const error = data.error;
-  if (typeof error === 'string' && error.trim()) return error.trim();
-
-  return undefined;
+  return String(status);
 }
 
 function joinEndpoint(baseUrl: string, endpoint: string): string {
@@ -120,18 +114,18 @@ export class AuthHttpClient {
     } catch {
       const text = await res.text().catch(() => '');
       if (raiseForStatus && !res.ok) {
-        throw new AuthHttpStatusError(`Unexpected response from server: ${res.status}`, { status: res.status, bodyText: text });
+        const detail = `HTTP ${res.status}`;
+        throw new AuthHttpStatusError(`HTTP ${res.status}: ${detail}`, { status: res.status, bodyText: text, detail });
       }
       throw new AuthHttpProtocolError('Response was not valid JSON');
     }
 
     if (raiseForStatus && !res.ok) {
-      const detail = extractErrorDetail(json);
-      const message = `HTTP ${res.status}${detail ? `: ${detail}` : ''}`;
+      const detail = extractErrorDetail(json, res.status);
+      const message = `HTTP ${res.status}: ${detail}`;
       throw new AuthHttpStatusError(message, { status: res.status, bodyText: JSON.stringify(json), detail });
     }
 
     return { ok: res.ok, status: res.status, data: json as T };
   }
 }
-

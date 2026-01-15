@@ -26,12 +26,20 @@ describe('AuthHttpClient', () => {
       raiseForStatus: false,
     });
 
+    await client.requestJson({
+      method: 'POST',
+      endpoint: 'oauth/device/token',
+      json: { hello: 'world' },
+      raiseForStatus: false,
+    });
+
     expect(out.ok).toBe(true);
     expect(out.status).toBe(200);
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(2);
     expect(calls[0]?.url).toBe('https://example.com/v1/oauth/device/token');
     expect(calls[0]?.init.headers?.['content-type']).toBe('application/json');
     expect(calls[0]?.init.body).toBe(JSON.stringify({ hello: 'world' }));
+    expect(calls[1]?.url).toBe('https://example.com/v1/oauth/device/token');
   });
 
   it('supports form_data bodies', async () => {
@@ -53,8 +61,29 @@ describe('AuthHttpClient', () => {
   it('extracts JSON error details and throws AuthHttpStatusError by default', async () => {
     const fetch: HttpFetchLike = async () => jsonResponse(401, { detail: 'Unauthorized' });
     const client = new AuthHttpClient({ baseUrl: 'https://example.com/api', fetch });
-    await expect(client.requestJson({ method: 'GET', endpoint: 'me' })).rejects.toBeInstanceOf(AuthHttpStatusError);
-    await expect(client.requestJson({ method: 'GET', endpoint: 'me' })).rejects.toThrow('HTTP 401: Unauthorized');
+
+    try {
+      await client.requestJson({ method: 'GET', endpoint: 'me' });
+      throw new Error('Expected AuthHttpStatusError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(AuthHttpStatusError);
+      expect(err).toMatchObject({ status: 401, detail: 'Unauthorized' });
+      expect(err instanceof Error ? err.message : String(err)).toBe('HTTP 401: Unauthorized');
+    }
+  });
+
+  it('falls back to status code string when JSON lacks detail', async () => {
+    const fetch: HttpFetchLike = async () => jsonResponse(400, { error: 'bad_request' });
+    const client = new AuthHttpClient({ baseUrl: 'https://example.com/api', fetch });
+
+    try {
+      await client.requestJson({ method: 'GET', endpoint: 'me' });
+      throw new Error('Expected AuthHttpStatusError');
+    } catch (err) {
+      expect(err).toBeInstanceOf(AuthHttpStatusError);
+      expect(err).toMatchObject({ status: 400, detail: '400' });
+      expect(err instanceof Error ? err.message : String(err)).toBe('HTTP 400: 400');
+    }
   });
 
   it('does not throw on non-2xx when raiseForStatus=false', async () => {
@@ -72,4 +101,3 @@ describe('AuthHttpClient', () => {
     await expect(client.requestJson({ method: 'GET', endpoint: 'me' })).rejects.toBeInstanceOf(AuthHttpNetworkError);
   });
 });
-
