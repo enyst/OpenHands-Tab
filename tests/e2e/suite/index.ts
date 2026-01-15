@@ -94,6 +94,11 @@ export async function run(): Promise<void> {
     return runTerminalProgressTest();
   }
 
+  if (testName === 'welcome') {
+    const { run: runWelcomeTest } = await import('./welcome');
+    return runWelcomeTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness

@@ -35,6 +35,10 @@ export type UiStateSnapshot = {
   selectedContextFiles: string[];
   skillsCount: number;
   attachmentsCount: number;
+  hasWelcomeProviderKey: boolean;
+  hasWelcomeGeminiKey: boolean;
+  showWelcomeProviderKeyMessage: boolean;
+  showWelcomeGeminiKeyMessage: boolean;
 };
 
 const DEFAULT_UI_STATE: UiStateSnapshot = {
@@ -46,6 +50,10 @@ const DEFAULT_UI_STATE: UiStateSnapshot = {
   selectedContextFiles: [],
   skillsCount: 0,
   attachmentsCount: 0,
+  hasWelcomeProviderKey: false,
+  hasWelcomeGeminiKey: false,
+  showWelcomeProviderKeyMessage: false,
+  showWelcomeGeminiKeyMessage: false,
 };
 
 type EnsureConversationAndConnection = (options?: { uiJustCreated?: boolean; modeSwitched?: boolean }) => Promise<void>;

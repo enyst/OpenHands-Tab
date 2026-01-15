@@ -24,6 +24,7 @@ export type HostToWebviewMessage =
     mode: 'local' | 'remote';
     llmProfileLabel?: string | null;
   }
+  | { type: 'welcomeSecretStatus'; hasProviderKey: boolean; hasGeminiKey: boolean }
   | { type: 'error'; error: string }
   | { type: 'statusMessage'; level: 'info' | 'warn' | 'error'; message: string; autoDismiss?: boolean; autoDismissDelay?: number }
   | { type: 'llmProfilesUpdated'; profiles: string[]; activeProfileId: string | null }
@@ -78,6 +79,7 @@ export type WebviewToHostMessage =
   | { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number }
   | { type: 'openSettingsPage' }
   | { type: 'openSettings' }
+  | { type: 'openSettingsSecrets' }
   | { type: 'requestWorkspaceFiles' }
   | { type: 'requestSkills' }
   | { type: 'requestTools' }
@@ -125,6 +127,10 @@ export type WebviewToHostMessage =
     selectedContextFiles: string[];
     skillsCount: number;
     attachmentsCount: number;
+    hasWelcomeProviderKey: boolean;
+    hasWelcomeGeminiKey: boolean;
+    showWelcomeProviderKeyMessage: boolean;
+    showWelcomeGeminiKeyMessage: boolean;
   }
   | {
     type: 'halStateResponse';
