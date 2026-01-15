@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-last-user-message-${Date.now()}`);
+const userDataDir = path.join(os.tmpdir(), `vscode-t-lum-${Date.now()}`);
 
 describe('OpenHands-Tab last user message diagnostics E2E', function () {
   this.timeout(120000);
@@ -36,4 +36,3 @@ describe('OpenHands-Tab last user message diagnostics E2E', function () {
     assert.ok(true);
   });
 });
-

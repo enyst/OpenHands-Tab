@@ -365,11 +365,13 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     const extended = last.event.extended_content ?? [];
     const extendedText = extended.map((c) => c.text).join('\n');
     const maxChars = 400;
+    const maskedContentText = maskSecretsInText(contentText, deps.secretRegistry);
+    const maskedExtendedText = maskSecretsInText(extendedText, deps.secretRegistry);
 
     return {
       seq: last.seq,
-      contentTextPreview: maskSecretsInText(truncatePreview(contentText, maxChars), deps.secretRegistry),
-      extendedContentTextPreview: maskSecretsInText(truncatePreview(extendedText, maxChars), deps.secretRegistry),
+      contentTextPreview: truncatePreview(maskedContentText, maxChars),
+      extendedContentTextPreview: truncatePreview(maskedExtendedText, maxChars),
       extendedContentCount: extended.length,
     };
   });
