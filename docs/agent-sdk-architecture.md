@@ -1450,6 +1450,20 @@ import {
   isObservationEvent
 } from '@openhands/agent-sdk-ts';
 
+// Workspace root selection (multi-root-safe):
+// Prefer the workspace folder containing the active editor, fall back only when the workspace has a single folder.
+function resolveWorkspaceRoot(): string {
+  const activeUri = vscode.window.activeTextEditor?.document?.uri;
+  const folder = activeUri ? vscode.workspace.getWorkspaceFolder(activeUri) : undefined;
+  const activeRoot = folder?.uri?.fsPath;
+  if (typeof activeRoot === 'string' && activeRoot.trim().length > 0) return activeRoot;
+
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 1) return folders.at(0)!.uri.fsPath;
+
+  return process.cwd();
+}
+
 // Create conversation (auto-detects local vs remote)
 const conversation: ConversationInstance = Conversation({
   serverUrl: settings.serverUrl ?? undefined, // undefined = local mode
@@ -1467,7 +1481,7 @@ const conversation: ConversationInstance = Conversation({
       llmApiKey: await context.secrets.get('openhands.llmApiKey'),
     },
   },
-  workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd(),
+  workspaceRoot: resolveWorkspaceRoot(),
 });
 
 // Listen to events
@@ -1553,6 +1567,20 @@ For VS Code usage without an external server, run agent-server on localhost:
 ```typescript
 import { Conversation, isMessageEvent } from '@openhands/agent-sdk-ts';
 
+// Workspace root selection (multi-root-safe):
+// Prefer the workspace folder containing the active editor, fall back only when the workspace has a single folder.
+function resolveWorkspaceRoot(): string {
+  const activeUri = vscode.window.activeTextEditor?.document?.uri;
+  const folder = activeUri ? vscode.workspace.getWorkspaceFolder(activeUri) : undefined;
+  const activeRoot = folder?.uri?.fsPath;
+  if (typeof activeRoot === 'string' && activeRoot.trim().length > 0) return activeRoot;
+
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 1) return folders.at(0)!.uri.fsPath;
+
+  return process.cwd();
+}
+
 // Run agent-server locally: uv run agent-server --host 127.0.0.1 --port 3000 (use 0.0.0.0 only if you need remote access)
 const conversation = Conversation({
   serverUrl: 'http://localhost:3000', // connects to local agent-server
@@ -1565,7 +1593,7 @@ const conversation = Conversation({
       llmApiKey: process.env.ANTHROPIC_API_KEY,
     },
   },
-  workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '/workspace',
+  workspaceRoot: resolveWorkspaceRoot(),
 });
 
 conversation.on('event', (event) => {
