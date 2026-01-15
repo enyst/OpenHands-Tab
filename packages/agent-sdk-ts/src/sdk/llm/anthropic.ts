@@ -4,6 +4,16 @@ import { getAnthropicThinkingBudget } from './providerQuirks';
 
 const decoder = new TextDecoder();
 
+class NonRetryableHttpStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'NonRetryableHttpStatusError';
+    this.status = status;
+  }
+}
+
 // Anthropic content block types
 type AnthropicThinkingBlock = {
   type: 'thinking';
@@ -372,11 +382,14 @@ export class AnthropicClient implements LLMClient {
           }
 
           const message = await response.text();
-          throw new Error(`Anthropic request failed (${response.status}): ${message}`);
+          throw new NonRetryableHttpStatusError(response.status, `Anthropic request failed (${response.status}): ${message}`);
         }
 
         return response;
       } catch (error) {
+        if (error instanceof NonRetryableHttpStatusError) {
+          throw error;
+        }
         lastError = error as Error;
         if (attempt >= this.retry.maxRetries) break;
         await delay(delayMs);

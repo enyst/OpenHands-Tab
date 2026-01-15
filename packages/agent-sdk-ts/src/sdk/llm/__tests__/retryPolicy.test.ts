@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LLMStreamer } from '../../runtime';
-import { OpenAICompatibleClient, OpenAIResponsesClient } from '../index';
+import { AnthropicClient, GeminiClient, OpenAICompatibleClient, OpenAIResponsesClient } from '../index';
 import type { ChatCompletionRequest, LLMConfiguration, RetryOptions } from '../types';
 
 const encoder = new TextEncoder();
@@ -52,6 +52,32 @@ describe('LLM HTTP retry policies', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('AnthropicClient does not retry on non-retryable HTTP statuses', async () => {
+    const baseConfig: LLMConfiguration = { model: 'claude-3-5-sonnet', provider: 'anthropic', baseUrl: 'http://localhost:4000' };
+    const fetchMock = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response('bad request', { status: 400 }));
+
+    const client = new AnthropicClient(baseConfig, 'test-key');
+    const streamer = new LLMStreamer(client);
+
+    await expect(streamer.runChat(request)).rejects.toThrow(/Anthropic request failed \(400\)/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('GeminiClient does not retry on non-retryable HTTP statuses', async () => {
+    const baseConfig: LLMConfiguration = { model: 'gemini-3', provider: 'gemini', baseUrl: 'http://localhost:4000' };
+    const fetchMock = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(new Response('bad request', { status: 400 }));
+
+    const client = new GeminiClient(baseConfig, 'test-key');
+    const streamer = new LLMStreamer(client);
+
+    await expect(streamer.runChat(request)).rejects.toThrow(/LLM request failed \(HTTP 400\)/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('OpenAICompatibleClient still retries on retryable statuses', async () => {
     const baseConfig: LLMConfiguration = { model: 'gpt-4o-mini', provider: 'openai', baseUrl: 'http://localhost:4000' };
     const retry: RetryOptions = { maxRetries: 1, baseDelayMs: 0, maxDelayMs: 0, retryOn: (status) => status === 503 };
@@ -75,4 +101,3 @@ describe('LLM HTTP retry policies', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
-

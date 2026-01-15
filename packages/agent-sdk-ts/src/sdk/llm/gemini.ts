@@ -23,6 +23,16 @@ const decoder = new TextDecoder();
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+class NonRetryableHttpStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'NonRetryableHttpStatusError';
+    this.status = status;
+  }
+}
+
 type GeminiRole = 'user' | 'model';
 
 type GeminiPart =
@@ -393,11 +403,14 @@ export class GeminiClient implements LLMClient {
             continue;
           }
           const detail = await response.text().catch(() => '');
-          throw new Error(`LLM request failed (HTTP ${response.status}): ${detail.slice(0, 500)}`);
+          throw new NonRetryableHttpStatusError(response.status, `LLM request failed (HTTP ${response.status}): ${detail.slice(0, 500)}`);
         }
 
         return response;
       } catch (err) {
+        if (err instanceof NonRetryableHttpStatusError) {
+          throw err;
+        }
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt >= this.retry.maxRetries) break;
         await delay(delayMs);
