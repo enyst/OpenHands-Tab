@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { pollUntil } from '../pollUntil';
 import type { MockLlmRequest } from '../mockLlmServer';
+import { waitForRequestCount } from './waitForRequestCount';
 
 type WebviewActionResult = {
   sent?: boolean;
@@ -33,30 +34,16 @@ export async function sendAndWaitForRequestPath(options: {
     throw new Error(`sendMessage action was not sent: ${JSON.stringify(send)}`);
   }
 
-  try {
-    await pollUntil(async () => {
-      const reqs = getRequests();
-      const hasExpected = reqs.slice(beforeReqCount).some((r) => r.path === expectedPath);
-      if (!hasExpected) return false;
-      const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
-      const seq = typeof diag?.eventBacklog?.latestSeq === 'number' ? diag.eventBacklog.latestSeq : 0;
-      return seq > beforeSeq;
-    }, timeoutMs, 200);
-  } catch (err) {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    const lastError: any = await vscode.commands.executeCommand('openhands._queryLastError');
-    const recent = getRequests()
-      .slice(beforeReqCount)
-      .map((r) => r.path)
-      .slice(-20);
-    throw new Error(
-      `Timed out waiting for mock request (${expectedPath}).\n` +
-      `- diag: ${JSON.stringify(diag)}\n` +
-      `- lastError: ${JSON.stringify(lastError)}\n` +
-      `- requestsSinceSend: ${recent.join(', ') || '(none)'}\n` +
-      `- original: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  await waitForRequestCount({
+    expectedPath,
+    baselineIndex: beforeReqCount,
+    additionalCount: 1,
+    timeoutMs,
+    pollIntervalMs: 200,
+    getRequests,
+    beforeSeq,
+    beforeErrorSeq,
+  });
 
   const afterError = await vscode.commands.executeCommand<ErrorInfo>('openhands._queryLastError');
   const afterErrorSeq = typeof afterError?.seq === 'number' ? afterError.seq : -1;
@@ -78,4 +65,3 @@ export async function sendAndWaitForRequestPath(options: {
   }
   return last;
 }
-

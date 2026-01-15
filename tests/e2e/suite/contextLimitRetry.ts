@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
 import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
+import { waitForRequestCount } from './helpers/waitForRequestCount';
 
 type DiagnosticsInfo = {
   chat?: { hasView?: boolean; webviewReady?: boolean };
@@ -136,6 +137,16 @@ export async function run(): Promise<void> {
     if (!send?.sent) throw new Error(`sendMessage action was not sent: ${JSON.stringify(send)}`);
 
     try {
+      await waitForRequestCount({
+        expectedPath: '/v1/chat/completions',
+        baselineIndex: beforeReqCount,
+        additionalCount: 3,
+        timeoutMs: 60000,
+        pollIntervalMs: 250,
+        getRequests: () => mock.requests,
+        beforeErrorSeq,
+      });
+
       await pollUntil(async () => {
         const newRequests = mock.requests.slice(beforeReqCount);
         const chatReqs = newRequests.filter((r) => r.path === '/v1/chat/completions');
@@ -143,8 +154,6 @@ export async function run(): Promise<void> {
         const condenseReqs = chatReqs.filter((r) => isCondensationRequest(r.json));
         if (mainReqs.length < 2) return false;
         if (condenseReqs.length < 1) return false;
-        if (chatReqs.length < 3) return false;
-
         const rendered = await vscode.commands.executeCommand<RenderedEventsInfo>('openhands._queryRenderedEvents');
         const condensationCount = (rendered?.eventTypes ?? []).filter((t) => t === 'Condensation').length;
         const hasCondensation = condensationCount > beforeCondensations;
