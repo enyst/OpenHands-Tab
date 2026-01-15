@@ -3,6 +3,16 @@ import type { Message, ResponsesReasoningItem, ToolCall } from '../types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 import { DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type LLMToolDefinition, type RetryOptions } from './types';
 
+class NonRetryableHttpStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'NonRetryableHttpStatusError';
+    this.status = status;
+  }
+}
+
 const mergeHeaders = (base?: Record<string, string>, overrides?: Record<string, string>): Record<string, string> => ({
   ...(base ?? {}),
   ...(overrides ?? {}),
@@ -388,7 +398,7 @@ export class OpenAIResponsesClient implements LLMClient {
             continue;
           }
           const message = await response.text();
-          throw new Error(`LLM request failed (${response.status}): ${message}`);
+          throw new NonRetryableHttpStatusError(response.status, `LLM request failed (${response.status}): ${message}`);
         }
 
         const json = await response.json() as unknown;
@@ -397,6 +407,9 @@ export class OpenAIResponsesClient implements LLMClient {
         }
         return json as OpenAIResponsesResponse;
       } catch (error) {
+        if (error instanceof NonRetryableHttpStatusError) {
+          throw error;
+        }
         lastError = error as Error;
         if (attempt >= this.retry.maxRetries) break;
         await delay(delayMs);
