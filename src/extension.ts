@@ -661,6 +661,7 @@ export function activate(context: vscode.ExtensionContext) {
     pendingHalStateRequests,
     ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
     secretRegistry: secrets,
+    trackAgentEditedFile: fileEditNoteTracker.trackAgentEditedFile,
     getConversation: () => conversation,
     getConversationMode: () => conversationMode,
     getTerminal: () => terminal,

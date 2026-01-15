@@ -68,6 +68,7 @@ type RegisterDiagnosticsCommandsDeps = {
   pendingHalStateRequests: Map<string, (info: HalStateSnapshot) => void>;
   ensureConversationAndConnection: EnsureConversationAndConnection;
   secretRegistry: SecretRegistry;
+  trackAgentEditedFile: (fsPath: string) => void;
   getConversation: () => ConversationInstance | undefined;
   getConversationMode: () => 'local' | 'remote';
   getTerminal: () => vscode.Terminal | undefined;
@@ -584,6 +585,16 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     }
   });
 
+  const testMarkAgentEditedFile = vscode.commands.registerCommand('openhands._testMarkAgentEditedFile', (raw: unknown) => {
+    const fsPathRaw = (raw as { fsPath?: unknown } | undefined)?.fsPath;
+    const fsPath = typeof fsPathRaw === 'string' ? fsPathRaw.trim() : '';
+    if (!fsPath) throw new Error('fsPath is required');
+
+    if (deps.getConversationMode() !== 'local') return { ok: true };
+    deps.trackAgentEditedFile(fsPath);
+    return { ok: true };
+  });
+
   return [
     diag,
     serversGet,
@@ -606,5 +617,6 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     setProviderApiKey,
     listProfiles,
     injectTerminalEvent,
+    testMarkAgentEditedFile,
   ];
 }
