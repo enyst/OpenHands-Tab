@@ -45,6 +45,12 @@ export async function run(): Promise<void> {
       throw new Error(`Expected active file to be inside a workspace folder. workspaceFile=${String(workspaceFile)} folders=${JSON.stringify(folders)}`);
     }
 
+    await pollUntil(async () => {
+      const active = vscode.window.activeTextEditor?.document?.uri?.fsPath;
+      if (active !== activeFile) return false;
+      return (vscode.window.visibleTextEditors ?? []).some((e) => e?.document?.uri?.fsPath === activeFile);
+    }, 15000);
+
     // Create a profile that points at the mock server.
     const v1BaseUrl = `${mock.baseUrl}/v1`;
     const profileId = 'e2e-tpq-openai';
