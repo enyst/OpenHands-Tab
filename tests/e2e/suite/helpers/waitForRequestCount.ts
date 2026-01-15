@@ -59,19 +59,26 @@ export async function waitForRequestCount(options: {
   try {
     await pollUntil(predicate, timeoutMs, pollIntervalMs);
   } catch (err) {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    const lastError: any = await vscode.commands.executeCommand('openhands._queryLastError');
+    const diag = (await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics')) ?? {};
+    const lastError = (await vscode.commands.executeCommand<ErrorInfo>('openhands._queryLastError')) ?? null;
     const newRequests = getRequests().slice(baselineIndex);
     const matching = newRequests.filter((r) => r.path === expectedPath);
     const recentPaths = newRequests.map((r) => r.path).slice(-25);
+    const original = err instanceof Error ? err.message : String(err);
+    const isTimeout = original.startsWith('pollUntil timed out after');
+    const headline = isTimeout
+      ? `Timed out waiting for ${additionalCount} mock request(s) to (${expectedPath}).`
+      : `waitForRequestCount failed while waiting for ${additionalCount} mock request(s) to (${expectedPath}).`;
+
     throw new Error(
-      `Timed out waiting for ${additionalCount} mock request(s) to (${expectedPath}).\n` +
+      `${headline}\n` +
       `- baselineIndex: ${baselineIndex}\n` +
       `- observedMatching: ${matching.length}\n` +
       `- diag: ${JSON.stringify(diag)}\n` +
       `- lastError: ${JSON.stringify(lastError)}\n` +
       `- recentPathsSinceBaseline: ${recentPaths.join(', ') || '(none)'}\n` +
-      `- original: ${err instanceof Error ? err.message : String(err)}`,
+      `- original: ${original}`,
+      { cause: err },
     );
   }
 
@@ -79,4 +86,3 @@ export async function waitForRequestCount(options: {
     .slice(baselineIndex)
     .filter((r) => r.path === expectedPath);
 }
-

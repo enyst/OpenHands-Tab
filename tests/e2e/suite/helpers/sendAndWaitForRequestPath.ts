@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { pollUntil } from '../pollUntil';
 import type { MockLlmRequest } from '../mockLlmServer';
 import { waitForRequestCount } from './waitForRequestCount';
 
