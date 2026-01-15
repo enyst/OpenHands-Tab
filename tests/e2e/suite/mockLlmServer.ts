@@ -130,9 +130,9 @@ function sendGeminiStreamGenerateContentSse(res: http.ServerResponse, text: stri
   res.end();
 }
 
-function normalizePath(path: string): { prefix: string | null; normalizedPath: string } {
+function normalizePath(path: string): string {
   const prefix = PATH_PREFIXES.find((p) => path.startsWith(p + '/')) ?? null;
-  return { prefix, normalizedPath: prefix ? path.slice(prefix.length) : path };
+  return prefix ? path.slice(prefix.length) : path;
 }
 
 function sendScriptedResponse(res: http.ServerResponse, response: MockLlmScriptedResponse): void {
@@ -160,7 +160,7 @@ function sendScriptedResponse(res: http.ServerResponse, response: MockLlmScripte
       res.write(`event: ${e.event}\n`);
     }
     const dataLine = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
-    res.write(`data: ${dataLine}\n`);
+    res.write(`data: ${dataLine}\n\n`);
   }
   res.end();
 }
@@ -226,15 +226,21 @@ export async function startMockLlmServer(options?: { scripts?: MockLlmScript[] }
         return;
       }
 
-      const { normalizedPath } = normalizePath(path);
+      const normalizedPath = normalizePath(path);
 
-      const scripted = scripts.find((s) => {
-        const expectedMethod = (s.method ?? 'POST').toUpperCase();
-        const expectedPath = s.path;
-        if (expectedMethod !== method.toUpperCase()) return false;
-        return expectedPath === path || expectedPath === normalizedPath;
-      });
-      if (scripted && scripted.cursor < scripted.responses.length) {
+      let scripted: (MockLlmScript & { cursor: number }) | undefined;
+      for (let i = scripts.length - 1; i >= 0; i -= 1) {
+        const candidate = scripts[i];
+        if (candidate.cursor >= candidate.responses.length) continue;
+        const expectedMethod = (candidate.method ?? 'POST').toUpperCase();
+        const expectedPath = candidate.path;
+        if (expectedMethod !== method.toUpperCase()) continue;
+        if (expectedPath !== path && expectedPath !== normalizedPath) continue;
+        scripted = candidate;
+        break;
+      }
+
+      if (scripted) {
         const next = scripted.responses[scripted.cursor];
         scripted.cursor += 1;
         sendScriptedResponse(res, next);
