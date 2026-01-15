@@ -68,12 +68,16 @@ export const computeConversationTotalsFromStats = (
   let accumulatedPromptTokens = 0;
   let accumulatedCompletionTokens = 0;
   let totalCost = 0;
+  let hasKnownCost = false;
 
   for (const metricRaw of Object.values(usageToMetricsRaw)) {
     if (!isRecord(metricRaw)) continue;
     const costRaw = metricRaw.accumulatedCost ?? metricRaw.accumulated_cost;
     const cost = asFiniteNumber(costRaw);
-    if (cost !== null && cost > 0) totalCost += cost;
+    if (cost !== null && cost >= 0) {
+      hasKnownCost = true;
+      totalCost += cost;
+    }
 
     const usageRaw = metricRaw.accumulatedTokenUsage ?? metricRaw.accumulated_token_usage;
     if (!isRecord(usageRaw)) continue;
@@ -84,8 +88,7 @@ export const computeConversationTotalsFromStats = (
   }
 
   const totalTokens = accumulatedPromptTokens + accumulatedCompletionTokens;
-  // Best-effort: treat cost as "known" only once we have non-zero usage + non-zero cost.
-  const costIsKnown = totalTokens > 0 && totalCost > 0;
+  const costIsKnown = totalTokens > 0 && hasKnownCost;
 
   return { contextTokens, totalTokens, totalCost, costIsKnown };
 };
