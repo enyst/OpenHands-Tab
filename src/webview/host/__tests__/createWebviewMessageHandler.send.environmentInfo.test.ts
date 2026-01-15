@@ -8,7 +8,7 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     (vscode as any).__resetMocks?.();
   });
 
-  it('does not append env block inline in local mode (env is routed via AgentContext extended_content)', async () => {
+  it('does not append env block inline in local mode (env is routed via extendedContent)', async () => {
     const conversation = {
       sendUserMessage: vi.fn(async () => {}),
     };
@@ -52,14 +52,23 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(conversation.sendUserMessage).toHaveBeenCalledTimes(1);
     const sent = (conversation.sendUserMessage as any).mock.calls[0][0] as string;
     expect(sent).toContain('hello');
-    // As of routing via AgentContext, the webview handler no longer appends env info inline.
-    // The LLM still receives env info via extended_content, but the inline text should not include it.
+    // Env info is provided via extendedContent, not appended inline.
     expect(sent).not.toContain('<environment information>');
     expect(sent).not.toContain('Active editor:');
     expect(sent).not.toContain('Open editors:');
     expect(sent).not.toContain('- a.ts');
     expect(sent).not.toContain('- b.ts');
     expect(sent).not.toContain('</environment information>');
+
+    const opts = (conversation.sendUserMessage as any).mock.calls[0][1] as any;
+    expect(opts).toEqual({
+      extendedContent: [
+        {
+          type: 'text',
+          text: expect.stringContaining('<environment information>'),
+        },
+      ],
+    });
   });
 
   it('does not append <environment information> to user messages in remote mode', async () => {
@@ -110,6 +119,9 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(sent).not.toContain('Active editor:');
     expect(sent).not.toContain('Open editors:');
     expect(sent).not.toContain('</environment information>');
+
+    const opts = (conversation.sendUserMessage as any).mock.calls[0][1] as any;
+    expect(opts).toBeUndefined();
   });
 
   it('drains queued user-edit notes into sendUserMessage extendedContent', async () => {
@@ -156,11 +168,16 @@ describe('createWebviewMessageHandler(send) environment info suffix', () => {
     expect(firstCall[0]).not.toContain('note one');
     expect(firstCall[0]).not.toContain('note two');
     expect(firstCall[1]).toEqual({
-      extendedContent: [{ type: 'text', text: 'note one\nline 2\n\nnote two' }],
+      extendedContent: [
+        { type: 'text', text: expect.stringContaining('<environment information>') },
+        { type: 'text', text: 'note one\nline 2\n\nnote two' },
+      ],
     });
 
     expect(secondCall[0]).toContain('hello again');
-    expect(secondCall[1]).toBeUndefined();
+    expect(secondCall[1]).toEqual({
+      extendedContent: [{ type: 'text', text: expect.stringContaining('<environment information>') }],
+    });
   });
 
 });
