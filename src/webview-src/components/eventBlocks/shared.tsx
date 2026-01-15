@@ -79,8 +79,10 @@ export const stripEnvironmentInformationBlocks = (text: string): string => {
   const raw = typeof text === 'string' ? text : '';
   if (!raw) return raw;
 
+  // Only strip legacy env-info blocks when they appear as a trailing suffix.
+  // Avoid removing user-authored text that happens to include similar tags mid-message.
   const withoutBlocks = raw.replace(
-    /(?:\r?\n){0,2}<environment information>[\s\S]*?<\/environment information>(?:\r?\n){0,2}/gi,
+    /(?:\r?\n){0,2}<environment information>[\s\S]*?<\/environment information>\s*$/i,
     '\n\n',
   );
 
