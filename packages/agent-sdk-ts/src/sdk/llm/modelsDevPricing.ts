@@ -140,10 +140,12 @@ export const extractModelsDevTokenPricing = (params: {
 
 export const getModelsDevApi = async (): Promise<ModelsDevApi> => {
   if (cachedApiPromise) return cachedApiPromise;
+
+  const meta = loadCacheMeta();
+  const cached = loadCachedApi();
+  if (cached && isCacheFresh(meta)) return cached;
+
   cachedApiPromise = (async () => {
-    const meta = loadCacheMeta();
-    const cached = loadCachedApi();
-    if (cached && isCacheFresh(meta)) return cached;
 
     const headers: Record<string, string> = {};
     if (meta?.etag) headers['If-None-Match'] = meta.etag;
@@ -178,7 +180,12 @@ export const getModelsDevApi = async (): Promise<ModelsDevApi> => {
     }
   })();
 
-  return cachedApiPromise;
+  const api = await cachedApiPromise;
+  if (!cached && Object.keys(api).length === 0) {
+    // Avoid permanently memoizing an empty response when we had neither a network fetch nor a disk cache.
+    cachedApiPromise = null;
+  }
+  return api;
 };
 
 export const lookupModelsDevTokenPricing = async (params: {
