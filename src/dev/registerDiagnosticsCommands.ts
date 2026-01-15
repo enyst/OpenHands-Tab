@@ -6,6 +6,7 @@ import { resolveConfiguredLlmLabel } from '../shared/llmProfiles';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
+import { getServerSessionApiKeySecretKey, LEGACY_SESSION_API_KEY_SECRET_KEY } from '../auth/serverSessionApiKeys';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
 import { OpenHandsTerminalLogPseudoterminal } from '../terminal/OpenHandsTerminalLogPseudoterminal';
 import { isBashEvent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
@@ -201,6 +202,48 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     const updated = await settingsMgr.get();
     return { serverUrl: updated.serverUrl ?? '', servers: updated.servers ?? [] };
   });
+
+  const extensionMode = vscode.ExtensionMode;
+  const isTestMode =
+    extensionMode?.Test !== undefined &&
+    deps.context.extensionMode === extensionMode.Test;
+  const e2eSessionApiKeyStatus = isTestMode && process.env.E2E_CLOUD_LOGIN === '1'
+    ? vscode.commands.registerCommand('openhands._e2eGetServerSessionApiKeyStatus', async (raw: unknown) => {
+        const payload = raw as { serverUrl?: unknown } | undefined;
+        const payloadUrl = typeof payload?.serverUrl === 'string' ? payload.serverUrl.trim() : '';
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
+        const settings = await settingsMgr.get();
+        const serverUrl = payloadUrl || (typeof settings.serverUrl === 'string' ? settings.serverUrl.trim() : '');
+
+        if (!serverUrl) return { ok: false, error: 'Missing serverUrl' };
+
+        const keyInfo = getServerSessionApiKeySecretKey(serverUrl);
+        if (!keyInfo.ok) return { ok: false, error: keyInfo.error };
+
+        let stored: string | undefined;
+        try {
+          stored = await deps.context.secrets.get(keyInfo.secretKey);
+        } catch {
+          stored = undefined;
+        }
+        const token = typeof stored === 'string' ? stored.trim() : '';
+
+        let legacyRaw: string | undefined;
+        try {
+          legacyRaw = await deps.context.secrets.get(LEGACY_SESSION_API_KEY_SECRET_KEY);
+        } catch {
+          legacyRaw = undefined;
+        }
+        const legacy = typeof legacyRaw === 'string' ? legacyRaw.trim() : '';
+
+        return {
+          ok: true,
+          normalizedServerUrl: keyInfo.normalizedServerUrl,
+          hasSessionApiKey: Boolean(token),
+          hasLegacySessionApiKey: Boolean(legacy),
+        };
+      })
+    : undefined;
 
   const serversReset = vscode.commands.registerCommand('openhands._serversReset', async () => {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(deps.context));
@@ -597,7 +640,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     return { ok: true };
   });
 
-  return [
+  const disposables: vscode.Disposable[] = [
     diag,
     serversGet,
     serversSet,
@@ -621,4 +664,10 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     injectTerminalEvent,
     testMarkAgentEditedFile,
   ];
+
+  if (e2eSessionApiKeyStatus) {
+    disposables.push(e2eSessionApiKeyStatus);
+  }
+
+  return disposables;
 }
