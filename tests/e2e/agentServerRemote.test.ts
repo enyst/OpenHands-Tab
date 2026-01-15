@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
-import { downloadVSCodeWithRetry } from './testHelpers';
+import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
 function getDefaultAgentSdkDir(): string {
   return path.join(os.homedir(), 'repos', 'agent-sdk');
@@ -199,6 +199,8 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
       const extensionTestsPath = path.resolve(__dirname, './suite');
       const userDataDir = path.join(os.tmpdir(), `vscode-test-agent-server-${Date.now()}`);
+
+      await ensureVsCodeArgvJson(userDataDir);
 
       await runTests({
         vscodeExecutablePath,

@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
 import * as os from 'os';
-import { downloadVSCodeWithRetry } from './testHelpers';
+import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
 const userDataDir = path.join(os.tmpdir(), `vscode-test-confirmation-${Date.now()}`);
 
@@ -14,6 +14,8 @@ describe('OpenHands-Tab Confirmation E2E', function () {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
     const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
     const extensionTestsPath = path.resolve(__dirname, './suite');
+
+    await ensureVsCodeArgvJson(userDataDir);
 
     await runTests({
       vscodeExecutablePath,

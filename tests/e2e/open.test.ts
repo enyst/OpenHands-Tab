@@ -3,7 +3,7 @@ import { runTests, resolveCliPathFromVSCodeExecutablePath } from '@vscode/test-e
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import { downloadVSCodeWithRetry } from './testHelpers';
+import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
 const userDataDir = path.join(os.tmpdir(), `vscode-test-${Date.now()}`);
 
@@ -19,6 +19,8 @@ describe('OpenHands-Tab E2E', function () {
 
     // Log VS Code version via CLI (best-effort)
     cp.spawnSync(cliPath, ['--version'], { stdio: 'inherit', cwd: path.dirname(cliPath) });
+
+    await ensureVsCodeArgvJson(userDataDir);
 
     await runTests({
       vscodeExecutablePath,
