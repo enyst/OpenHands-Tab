@@ -154,7 +154,10 @@ export class RemoteConversation extends EventEmitter {
 
     this.serverUrl = normalizeRemoteServerUrl(options.serverUrl);
     this.settings = options.settings;
-    this.workspaceRoot = options.workspaceRoot ?? (globalThis as { vscodeWorkspaceRoot?: string }).vscodeWorkspaceRoot ?? process.cwd();
+    const normalizedWorkspaceRoot = typeof options.workspaceRoot === 'string' && options.workspaceRoot.trim()
+      ? options.workspaceRoot.trim()
+      : undefined;
+    this.workspaceRoot = normalizedWorkspaceRoot ?? process.cwd();
     this.hasToolsOption = Object.prototype.hasOwnProperty.call(options, 'tools');
     this.tools = options.tools;
     this.includeDefaultTools = options.includeDefaultTools;
