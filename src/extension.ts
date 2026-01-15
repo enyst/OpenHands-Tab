@@ -185,6 +185,12 @@ function buildEnvironmentInfoSuffix(): string | null {
   }
 }
 
+function syncLocalUserMessageSuffix(): void {
+  if (!localAgentContext) return;
+  const env = buildEnvironmentInfoSuffix();
+  localAgentContext.userMessageSuffix = env ?? undefined;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const secrets = new SecretRegistry(context.secrets);
   secretRegistry = secrets;
@@ -445,6 +451,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       syncActiveEditorSystemMessageSuffix(editor);
+      syncLocalUserMessageSuffix();
     })
   );
 
@@ -656,8 +663,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       // Populate user environment info suffix for local mode (after agentContext is created & system message synced)
       if (desiredMode === 'local' && localAgentContext) {
-        const env = buildEnvironmentInfoSuffix();
-        localAgentContext.userMessageSuffix = env ?? undefined;
+        syncLocalUserMessageSuffix();
       }
 
       try {
