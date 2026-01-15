@@ -18,6 +18,7 @@ import { useLlmProfilesRequests } from './app/useLlmProfilesRequests';
 import { useWebviewReady } from './app/useWebviewReady';
 import { ConversationPane } from './app/ConversationPane';
 import { ConversationInputDock } from './app/ConversationInputDock';
+import { getWelcomePromptFlags, type WelcomeSecretStatus } from './app/welcomePrompts';
 
 // Component imports
 import { Header } from './Header';
@@ -62,6 +63,7 @@ export function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showLlmProfiles, setShowLlmProfiles] = useState(false);
   const [llmProfilesOpenRequest, setLlmProfilesOpenRequest] = useState<LlmProfilesViewOpenRequest | null>(null);
+  const [welcomeSecretStatus, setWelcomeSecretStatus] = useState<WelcomeSecretStatus>({ hasProviderKey: false, hasGeminiKey: false });
 
   // Context picker state
   const [showContextPicker, setShowContextPicker] = useState(false);
@@ -109,6 +111,10 @@ export function App() {
     selectedContextFiles: [] as string[],
     skillsCount: 0,
     attachmentsCount: 0,
+    hasWelcomeProviderKey: false,
+    hasWelcomeGeminiKey: false,
+    showWelcomeProviderKeyMessage: true,
+    showWelcomeGeminiKeyMessage: true,
   });
 
   // Post message helper
@@ -135,6 +141,7 @@ export function App() {
 
   // Keep a snapshot for E2E state queries without re-registering message listeners on every keystroke.
   useEffect(() => {
+    const welcome = getWelcomePromptFlags(welcomeSecretStatus);
     uiStateRef.current = {
       input,
       showContextPicker,
@@ -144,8 +151,12 @@ export function App() {
       selectedContextFiles: selectedContextFiles.slice(),
       skillsCount: skills.length,
       attachmentsCount: attachments.length,
+      hasWelcomeProviderKey: welcome.hasProviderKey,
+      hasWelcomeGeminiKey: welcome.hasGeminiKey,
+      showWelcomeProviderKeyMessage: welcome.showProviderKeyMessage,
+      showWelcomeGeminiKeyMessage: welcome.showGeminiKeyMessage,
     };
-  }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, workspaceFiles.length]);
+  }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, welcomeSecretStatus, workspaceFiles.length]);
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
@@ -308,6 +319,7 @@ export function App() {
     setStreamingContent,
     setTools,
     setWorkspaceFiles,
+    setWelcomeSecretStatus,
     showStatusMessage,
     currentServerUrlRef,
     conversationIdRef,
@@ -697,6 +709,8 @@ export function App() {
           streamingContent={streamingContent}
           skills={skills}
           endRef={endRef}
+          welcomeSecretStatus={welcomeSecretStatus}
+          onOpenSecretsSettings={() => postMessage({ type: 'openSettingsSecrets' })}
         />
 
         {/* HAL overlay (Phase 0: bundled flow replaces confirmation UI) */}

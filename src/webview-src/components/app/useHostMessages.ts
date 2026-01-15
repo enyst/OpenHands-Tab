@@ -9,6 +9,7 @@ import type { PendingLlmProfilesRequest } from './llmProfilesRequests';
 import type { StatusBannerState } from './useStatusMessages';
 import { isHalDecision, type HalDecision, type HalStateSnapshot } from '../../../shared/halTypes';
 import type { ConversationTotals } from './conversationTotals';
+import type { WelcomeSecretStatus } from './welcomePrompts';
 
 type WebviewPersistedState = {
   conversationId?: string;
@@ -34,6 +35,10 @@ type UiStateSnapshot = {
   selectedContextFiles: string[];
   skillsCount: number;
   attachmentsCount: number;
+  hasWelcomeProviderKey: boolean;
+  hasWelcomeGeminiKey: boolean;
+  showWelcomeProviderKeyMessage: boolean;
+  showWelcomeGeminiKeyMessage: boolean;
 };
 
 type ShowStatusMessage = (
@@ -93,6 +98,7 @@ export type HostMessageHandlerOptions = {
   setStreamingContent: Dispatch<SetStateAction<string | null>>;
   setTools: Dispatch<SetStateAction<{ id: string; label: string; description?: string; isDefault?: boolean }[]>>;
   setWorkspaceFiles: Dispatch<SetStateAction<string[]>>;
+  setWelcomeSecretStatus: Dispatch<SetStateAction<WelcomeSecretStatus>>;
   showStatusMessage: ShowStatusMessage;
   currentServerUrlRef: RefObject<string | undefined>;
   conversationIdRef: RefObject<string | undefined>;
@@ -154,6 +160,7 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
     setStreamingContent,
     setTools,
     setWorkspaceFiles,
+    setWelcomeSecretStatus,
     showStatusMessage,
     currentServerUrlRef,
     conversationIdRef,
@@ -179,13 +186,14 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
         serverLabel?: string;
         mode?: 'local' | 'remote';
         llmProfileLabel?: string | null;
+        hasProviderKey?: unknown;
+        hasGeminiKey?: unknown;
         profiles?: string[];
         activeProfileId?: string | null;
         profileId?: unknown;
         profile?: unknown;
         hasKey?: unknown;
         hasProfileKey?: unknown;
-        hasProviderKey?: unknown;
         providerKeyName?: unknown;
         hal?: Partial<HalSettingsSnapshot> & { [k: string]: unknown };
         event?: unknown;
@@ -244,6 +252,12 @@ export function useHostMessages(options: HostMessageHandlerOptions): void {
             }
           }
           break;
+        case 'welcomeSecretStatus': {
+          const hasProviderKey = payload.hasProviderKey === true;
+          const hasGeminiKey = payload.hasGeminiKey === true;
+          setWelcomeSecretStatus({ hasProviderKey, hasGeminiKey });
+          break;
+        }
         case 'statusMessage': {
           const level = payload.level;
           const message = payload.message;

@@ -192,6 +192,10 @@ export type CreateWebviewMessageHandlerDeps = {
       selectedContextFiles: string[];
       skillsCount: number;
       attachmentsCount: number;
+      hasWelcomeProviderKey: boolean;
+      hasWelcomeGeminiKey: boolean;
+      showWelcomeProviderKeyMessage: boolean;
+      showWelcomeGeminiKeyMessage: boolean;
     }
   ) => void;
   onHalStateResponse: (
@@ -438,6 +442,58 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           hal: initSettings.hal,
         });
 
+        // Welcome page: communicate whether API keys are present so the UI can show onboarding prompts.
+        void (async () => {
+          const secretIsSet = async (key: string): Promise<boolean> => {
+            try {
+              const value = await context.secrets.get(key);
+              return typeof value === 'string' && value.trim().length > 0;
+            } catch {
+              return false;
+            }
+          };
+
+          const envIsSet = (key: string): boolean => {
+            const value = process.env[key];
+            return typeof value === 'string' && value.trim().length > 0;
+          };
+
+          const hasGeminiKey = (await secretIsSet('GEMINI_API_KEY'))
+            || envIsSet('GEMINI_API_KEY')
+            || (initSettings.llm.provider === 'gemini' && typeof initSettings.secrets.llmApiKey === 'string' && initSettings.secrets.llmApiKey.trim().length > 0);
+
+          const hasGenericKey = typeof initSettings.secrets.llmApiKey === 'string' && initSettings.secrets.llmApiKey.trim().length > 0;
+
+          const providerStorageKeys = [
+            'OPENAI_API_KEY',
+            'ANTHROPIC_API_KEY',
+            'OPENROUTER_API_KEY',
+            'LITELLM_API_KEY',
+          ];
+          let hasAnyProviderStorageKey = false;
+          for (const key of providerStorageKeys) {
+            if (envIsSet(key) || await secretIsSet(key)) {
+              hasAnyProviderStorageKey = true;
+              break;
+            }
+          }
+
+          let hasAnyProfileKey = false;
+          try {
+            for (const profileId of listAvailableLlmProfiles()) {
+              if (await secretIsSet(`openhands.llmProfileApiKey.${profileId}`)) {
+                hasAnyProfileKey = true;
+                break;
+              }
+            }
+          } catch {
+            hasAnyProfileKey = false;
+          }
+
+          const hasProviderKey = hasGeminiKey || hasGenericKey || hasAnyProviderStorageKey || hasAnyProfileKey;
+          void host.postMessage({ type: 'welcomeSecretStatus', hasProviderKey, hasGeminiKey });
+        })();
+
         deps.flushConversationEventBacklog({
           postMessage: host.postMessage,
           clientConversationId: message.conversationId,
@@ -449,6 +505,9 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       case 'openSettingsPage':
       case 'openSettings':
         await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
+        break;
+      case 'openSettingsSecrets':
+        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab openhands.secrets');
         break;
       case 'requestWorkspaceFiles': {
         const files = await listWorkspaceFiles();
@@ -1361,6 +1420,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           selectedContextFiles: message.selectedContextFiles,
           skillsCount: message.skillsCount,
           attachmentsCount: message.attachmentsCount,
+          hasWelcomeProviderKey: message.hasWelcomeProviderKey,
+          hasWelcomeGeminiKey: message.hasWelcomeGeminiKey,
+          showWelcomeProviderKeyMessage: message.showWelcomeProviderKeyMessage,
+          showWelcomeGeminiKeyMessage: message.showWelcomeGeminiKeyMessage,
         });
         break;
       case 'halStateResponse':
