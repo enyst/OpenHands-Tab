@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
+import { getEffectiveWorkspaceRoot } from '../shared/workspaceRoot';
 import { migrateWorkspaceConversationStore } from './conversationStoreMigration';
 
 function resolveConfiguredPath(p: string): string {
@@ -58,7 +59,7 @@ export async function resolveConversationStoreRoot(params: {
 
       // One-time best-effort migration away from legacy workspace persistence.
       // This keeps restore working for users who previously wrote to `./.openhands/conversations`.
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      const workspaceRoot = getEffectiveWorkspaceRoot();
       if (workspaceRoot) {
         const resolvedCandidate = path.resolve(candidate.dir);
         const resolvedWorkspace = path.resolve(workspaceRoot);

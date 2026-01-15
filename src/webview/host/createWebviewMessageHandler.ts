@@ -18,7 +18,7 @@ import { normalizeServerUrl } from '../../shared/serverUrls';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
 // Environment info is provided via AgentContext.userMessageSuffix (extension host).
-import { getEffectiveWorkspaceRoot } from '../../shared/workspaceRoot';
+import { getEffectiveWorkspaceRoot, resolvePreferredWorkspaceFolderUri } from '../../shared/workspaceRoot';
 import { getConversationHistoryList, persistConversationTitle } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
 import { resolveGitHeadDiffContents } from './gitHeadDiff';
@@ -1113,7 +1113,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
             break;
           }
 
-          const defaultUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+          const defaultUri = resolvePreferredWorkspaceFolderUri();
           const picked = await vscode.window.showOpenDialog({
             canSelectFiles: true,
             canSelectFolders: false,
