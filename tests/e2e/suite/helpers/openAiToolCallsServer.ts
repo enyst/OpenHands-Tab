@@ -76,17 +76,17 @@ function sendOpenAiToolCallsSse(res: http.ServerResponse, toolCalls: Array<{ id:
           },
         },
       ],
-    })}\n`,
+    })}\n\n`,
   );
 
   res.write(
     `data: ${JSON.stringify({
       choices: [{ delta: {}, finish_reason: 'tool_calls' }],
       usage: { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } },
-    })}\n`,
+    })}\n\n`,
   );
 
-  res.write('data: [DONE]\n');
+  res.write('data: [DONE]\n\n');
   res.end();
 }
 
@@ -178,4 +178,3 @@ export async function startOpenAiToolCallsMockServer(
     },
   };
 }
-
