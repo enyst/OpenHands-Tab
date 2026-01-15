@@ -99,6 +99,11 @@ export async function run(): Promise<void> {
     return runWelcomeTest();
   }
 
+  if (testName === 'gvc') {
+    const { run: runGvcTest } = await import('./gvc');
+    return runGvcTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness
