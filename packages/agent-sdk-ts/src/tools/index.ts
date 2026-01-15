@@ -7,6 +7,8 @@ export * from './ThinkTool';
 export * from './BrowserTool';
 export * from './BrowserUseTool';
 export * from './DelegateTool';
+export * from './delegate/registration';
+export * from './delegate/DelegationVisualizer';
 export * from './GlobTool';
 export * from './GrepTool';
 export * from './PlanningFileEditorTool';
