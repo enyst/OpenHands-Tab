@@ -35,6 +35,65 @@ These run inside VS Code and execute the actual tests:
 ### Helper Files
 - **testHelpers.ts**: Utility functions including VS Code download with retry
 
+## Scripted mock LLM server
+
+Many E2Es use the scripted mock server in `tests/e2e/suite/mockLlmServer.ts` to simulate provider behavior deterministically.
+
+### Path matching
+
+Each `MockLlmScript` matches either:
+- the **raw** request path (e.g. `/v1/chat/completions` or `/api/v1/chat/completions`), or
+- the **normalized** path with `/v1` and `/api/v1` prefixes stripped (e.g. `/chat/completions`).
+
+Scripts are searched from newest → oldest, so later `setScript(...)` calls override earlier ones.
+
+### SSE framing
+
+When using scripted SSE responses, each SSE event must be terminated by a blank line (`\n\n`). The scripted server handles this for you by emitting `data: ...\n\n` for each `events[]` entry, including when the last event is `[DONE]`.
+
+### Example: context-limit first, then success
+
+```ts
+import { startMockLlmServer } from './mockLlmServer';
+
+const mock = await startMockLlmServer({
+  scripts: [
+    {
+      // Either raw or normalized paths work; normalized is usually simpler.
+      path: '/chat/completions',
+      responses: [
+        {
+          type: 'json',
+          status: 400,
+          body: {
+            error: {
+              code: 'context_length_exceeded',
+              message: 'Context length exceeded',
+            },
+          },
+        },
+        {
+          type: 'sse',
+          status: 200,
+          events: [
+            { data: { choices: [{ delta: { content: [{ type: 'text', text: 'OK' }] } }] } },
+            {
+              data: {
+                choices: [{ delta: {}, finish_reason: 'stop' }],
+                usage: { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } },
+              },
+            },
+            { data: '[DONE]' },
+          ],
+        },
+      ],
+    },
+  ],
+});
+
+// Use `mock.baseUrl` as the provider base URL in your test settings.
+```
+
 ## Run locally
 
 ```bash
