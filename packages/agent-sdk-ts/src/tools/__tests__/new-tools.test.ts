@@ -13,6 +13,7 @@ import {
   ZodTool,
 } from '..';
 import { LocalWorkspace } from '../../workspace';
+import type { OpenHandsSettings } from '../../sdk/types/settings';
 
 const makeWorkspace = async () => {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-sdk-new-tools-'));
@@ -41,12 +42,24 @@ describe('BrowserUse toolset', () => {
 
 describe('DelegateTool', () => {
   it('requires ids for spawn and executes delegation', async () => {
+    const baseSettings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 5 },
+      confirmation: {},
+      secrets: {},
+    };
     const tool = new DelegateTool();
     expect(() => tool.validate({ command: 'spawn' })).toThrow();
-    const args = tool.validate({ command: 'delegate', tasks: { child: 'do work' } });
-    const result = await tool.execute(args, { workspace: new LocalWorkspace(process.cwd()) });
-    expect(result.command).toBe('delegate');
-    expect(result.detail.tasks).toEqual({ child: 'do work' });
+    const spawnArgs = tool.validate({ command: 'spawn', ids: ['child'] });
+    const spawnResult = await tool.execute(spawnArgs, { workspace: new LocalWorkspace(process.cwd()), settings: baseSettings });
+    expect(spawnResult.command).toBe('spawn');
+    expect(spawnResult.ok).toBe(true);
+
+    const delegateArgs = tool.validate({ command: 'delegate', tasks: { missing: 'do work' } });
+    const delegateResult = await tool.execute(delegateArgs, { workspace: new LocalWorkspace(process.cwd()), settings: baseSettings });
+    expect(delegateResult.command).toBe('delegate');
+    expect(delegateResult.ok).toBe(false);
   });
 });
 
