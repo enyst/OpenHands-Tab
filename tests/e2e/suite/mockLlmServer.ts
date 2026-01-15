@@ -24,8 +24,29 @@ export type MockLlmRequest = {
 export type MockLlmServer = {
   baseUrl: string;
   requests: MockLlmRequest[];
+  setScript: (script: MockLlmScript) => void;
   close: () => Promise<void>;
   reset: () => void;
+};
+
+export type MockLlmSseEvent = {
+  event?: string;
+  data: unknown | string;
+};
+
+export type MockLlmScriptedResponse =
+  | { type: 'json'; status: number; body: unknown; headers?: Record<string, string> }
+  | { type: 'text'; status: number; bodyText: string; headers?: Record<string, string> }
+  | { type: 'sse'; status: number; events: MockLlmSseEvent[]; headers?: Record<string, string> };
+
+export type MockLlmScript = {
+  method?: string;
+  /**
+   * Route path to match. This can be the raw request path (eg `/v1/chat/completions`) or the
+   * normalized path (eg `/chat/completions`) with `/v1` or `/api/v1` prefixes stripped.
+   */
+  path: string;
+  responses: MockLlmScriptedResponse[];
 };
 
 function sanitizeHeaders(headers: http.IncomingHttpHeaders): Record<string, string | string[] | undefined> {
@@ -109,9 +130,56 @@ function sendGeminiStreamGenerateContentSse(res: http.ServerResponse, text: stri
   res.end();
 }
 
-export async function startMockLlmServer(): Promise<MockLlmServer> {
+function normalizePath(path: string): { prefix: string | null; normalizedPath: string } {
+  const prefix = PATH_PREFIXES.find((p) => path.startsWith(p + '/')) ?? null;
+  return { prefix, normalizedPath: prefix ? path.slice(prefix.length) : path };
+}
+
+function sendScriptedResponse(res: http.ServerResponse, response: MockLlmScriptedResponse): void {
+  if (response.type === 'json') {
+    res.writeHead(response.status, { 'Content-Type': 'application/json', ...(response.headers ?? {}) });
+    res.end(JSON.stringify(response.body));
+    return;
+  }
+
+  if (response.type === 'text') {
+    res.writeHead(response.status, { 'Content-Type': 'text/plain', ...(response.headers ?? {}) });
+    res.end(response.bodyText);
+    return;
+  }
+
+  res.writeHead(response.status, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    ...(response.headers ?? {}),
+  });
+
+  for (const e of response.events) {
+    if (typeof e.event === 'string' && e.event.trim().length > 0) {
+      res.write(`event: ${e.event}\n`);
+    }
+    const dataLine = typeof e.data === 'string' ? e.data : JSON.stringify(e.data);
+    res.write(`data: ${dataLine}\n`);
+  }
+  res.end();
+}
+
+export async function startMockLlmServer(options?: { scripts?: MockLlmScript[] }): Promise<MockLlmServer> {
   const requests: MockLlmRequest[] = [];
   let port = 0;
+
+  const scripts: Array<MockLlmScript & { cursor: number }> = (options?.scripts ?? []).map((s) => ({ ...s, cursor: 0 }));
+  const setScript = (script: MockLlmScript): void => {
+    scripts.push({ ...script, cursor: 0 });
+  };
+
+  const resetState = (): void => {
+    requests.splice(0, requests.length);
+    for (const script of scripts) {
+      script.cursor = 0;
+    }
+  };
 
   const server = http.createServer((req, res) => {
     void (async () => {
@@ -127,7 +195,7 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
       }
 
       if (path === '/__reset' && method === 'POST') {
-        requests.splice(0, requests.length);
+        resetState();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
         return;
@@ -158,8 +226,20 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
         return;
       }
 
-      const prefix = PATH_PREFIXES.find((p) => path.startsWith(p + '/'));
-      const normalizedPath = prefix ? path.slice(prefix.length) : path;
+      const { normalizedPath } = normalizePath(path);
+
+      const scripted = scripts.find((s) => {
+        const expectedMethod = (s.method ?? 'POST').toUpperCase();
+        const expectedPath = s.path;
+        if (expectedMethod !== method.toUpperCase()) return false;
+        return expectedPath === path || expectedPath === normalizedPath;
+      });
+      if (scripted && scripted.cursor < scripted.responses.length) {
+        const next = scripted.responses[scripted.cursor];
+        scripted.cursor += 1;
+        sendScriptedResponse(res, next);
+        return;
+      }
 
       if (normalizedPath === '/chat/completions') {
         sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');
@@ -208,9 +288,8 @@ export async function startMockLlmServer(): Promise<MockLlmServer> {
   return {
     baseUrl: `http://127.0.0.1:${port}`,
     requests,
-    reset: () => {
-      requests.splice(0, requests.length);
-    },
+    setScript,
+    reset: resetState,
     close: async () => {
       await new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()));
