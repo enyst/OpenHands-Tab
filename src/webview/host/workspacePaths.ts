@@ -1,9 +1,9 @@
-import * as vscode from 'vscode';
 import * as path from 'path';
+import { getEffectiveWorkspaceRoot } from '../../shared/workspaceRoot';
 
 export function resolveWorkspaceFilePath(inputPath: string): { resolvedPath: string; displayPath: string } {
   const isAbs = path.isAbsolute(inputPath);
-  const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const wsRoot = getEffectiveWorkspaceRoot();
 
   let resolvedPath: string;
   if (!isAbs && wsRoot) {
@@ -25,4 +25,3 @@ export function resolveWorkspaceFilePath(inputPath: string): { resolvedPath: str
   const displayPath = rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? rel : resolvedPath;
   return { resolvedPath, displayPath };
 }
-

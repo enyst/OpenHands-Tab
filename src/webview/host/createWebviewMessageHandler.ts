@@ -17,7 +17,8 @@ import { MAX_PASTED_IMAGE_BYTES } from '../../shared/pasteLimits';
 import { normalizeServerUrl } from '../../shared/serverUrls';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewToHostMessage } from '../../shared/webviewMessages';
 import { buildAttachmentBlocks, safeParseUri, toAttachmentLabel } from './attachments';
-// import removed: environment info is provided via AgentContext.userMessageSuffix
+// Environment info is provided via AgentContext.userMessageSuffix (extension host).
+import { getEffectiveWorkspaceRoot } from '../../shared/workspaceRoot';
 import { getConversationHistoryList, persistConversationTitle } from './conversationHistory';
 import { showWorkspaceDiff } from './diffDocuments';
 import { resolveGitHeadDiffContents } from './gitHeadDiff';
@@ -538,7 +539,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           break;
         }
 
-        const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        const wsRoot = getEffectiveWorkspaceRoot();
         if (!wsRoot) {
           void vscode.window.showErrorMessage('Cannot open link: no workspace folder is open.');
           break;
@@ -579,7 +580,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           let newContent = message.newContent;
 
           if (message.preferGitHead === true) {
-            const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            const wsRoot = getEffectiveWorkspaceRoot();
             const { resolvedPath } = resolveWorkspaceFilePath(p);
             const resolved = await resolveGitHeadDiffContents({
               workspaceRoot: wsRoot,
