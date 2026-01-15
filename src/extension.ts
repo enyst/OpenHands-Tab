@@ -174,7 +174,7 @@ function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefin
 
 function buildEnvironmentInfoSuffix(): string | null {
   try {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const workspaceRoot = resolvePreferredWorkspaceRoot();
     const activeEditorPath =
       (vscode.window.activeTextEditor?.document?.uri?.scheme === 'file' || vscode.window.activeTextEditor?.document?.uri?.scheme === 'vscode-remote')
         ? vscode.window.activeTextEditor.document.uri.fsPath
