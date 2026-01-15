@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Ensure chat view is created
@@ -7,12 +8,15 @@ export async function run(): Promise<void> {
 
   // Wait until view and webview are ready
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
   // Test 1: Verify initial state - webview should be ready
-  const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diag) {
+    throw new Error('Diagnostics command returned null/undefined');
+  }
   if (!diag?.chat?.webviewReady) {
     throw new Error('Webview not ready');
   }
@@ -25,11 +29,14 @@ export async function run(): Promise<void> {
 
   // Poll until webview is ready after new conversation
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
-  const diagAfterNew: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diagAfterNew = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diagAfterNew) {
+    throw new Error('Diagnostics command returned null/undefined');
+  }
   console.log(`Conversation ID after new: ${diagAfterNew.conversationId || 'none'}`);
   if (initialConversationId && diagAfterNew.conversationId && diagAfterNew.conversationId === initialConversationId) {
     throw new Error(`Expected conversationId to change after startNewConversation (still ${diagAfterNew.conversationId})`);
@@ -89,7 +96,10 @@ export async function run(): Promise<void> {
   }
 
   // Test 5: Verify event backlog is tracked
-  const diagWithEvents: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diagWithEvents = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diagWithEvents) {
+    throw new Error('Diagnostics command returned null/undefined');
+  }
   console.log(`Event backlog size: ${diagWithEvents.eventBacklog?.size || 0}`);
   const backlogWithEvents = diagWithEvents.eventBacklog?.size ?? 0;
   if (backlogWithEvents < testEvents.length) {
@@ -101,11 +111,14 @@ export async function run(): Promise<void> {
 
   // Poll until webview is ready
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
-  const diagAfterReset: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diagAfterReset = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diagAfterReset) {
+    throw new Error('Diagnostics command returned null/undefined');
+  }
   const backlogAfterReset = diagAfterReset.eventBacklog?.size ?? 0;
   if (backlogAfterReset >= backlogWithEvents) {
     throw new Error(`Expected eventBacklog.size to reset after new conversation (before=${backlogWithEvents}, after=${backlogAfterReset})`);

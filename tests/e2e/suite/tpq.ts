@@ -2,10 +2,7 @@ import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
 import { startMockLlmServer } from './mockLlmServer';
 import { sendAndWaitForRequestPath } from './helpers/sendAndWaitForRequestPath';
-
-type DiagnosticsInfo = {
-  chat?: { hasView?: boolean; webviewReady?: boolean };
-};
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 function extractEnvInfoBlock(bodyText: string): string | null {
   const start = bodyText.indexOf('<environment information>');

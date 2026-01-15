@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
 import type { BashEvent } from '@openhands/agent-sdk-ts';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
@@ -35,7 +36,7 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands._injectTerminalEvent', exit);
 
   // Ensure terminal exists and we saw lots of events (coalesced)
-  const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
   if (!diag?.terminal?.hasTerminal) throw new Error('Expected OpenHands terminal to exist');
   if (typeof diag?.terminal?.received !== 'number' || diag.terminal.received < 10) {
     throw new Error(`Expected many terminal events, got: ${JSON.stringify(diag?.terminal)}`);

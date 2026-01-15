@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Ensure chat view is created
@@ -7,15 +8,18 @@ export async function run(): Promise<void> {
 
   // Wait until view and webview are ready
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
   // Test 1: Check initial mode (should be local when no serverUrl configured)
-  let diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  let diag: DiagnosticsInfo | undefined = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
 
   if (!diag) {
     throw new Error('Diagnostics returned null');
+  }
+  if (!diag.chat) {
+    throw new Error('Diagnostics missing chat object');
   }
 
   console.log(`Initial mode: ${diag.mode}`);
@@ -58,11 +62,14 @@ export async function run(): Promise<void> {
 
   // Poll until webview is ready after reconnect
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
-  diag = await vscode.commands.executeCommand('openhands._diagnostics');
+  diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diag?.chat) {
+    throw new Error('Diagnostics missing chat object');
+  }
   console.log(`Mode after reconnect: ${diag.mode}`);
 
   // Test 6: Verify webview maintains readiness after reconnect
@@ -75,11 +82,14 @@ export async function run(): Promise<void> {
 
   // Poll until webview is ready after new conversation
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
-  diag = await vscode.commands.executeCommand('openhands._diagnostics');
+  diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diag?.chat) {
+    throw new Error('Diagnostics missing chat object');
+  }
   console.log(`Mode after new conversation: ${diag.mode}`);
 
   // Mode should persist across conversation changes
@@ -107,10 +117,13 @@ export async function run(): Promise<void> {
     return r?.count >= 1;
   });
 
-  diag = await vscode.commands.executeCommand('openhands._diagnostics');
+  diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diag) {
+    throw new Error('Diagnostics returned null');
+  }
 
   // Verify backlog increased
-  if (diag.eventBacklog.size < 1) {
+  if ((diag.eventBacklog?.size ?? 0) < 1) {
     throw new Error('Event backlog should have increased after sending a test event');
   }
 

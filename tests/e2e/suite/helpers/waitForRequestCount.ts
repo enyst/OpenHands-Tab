@@ -1,10 +1,7 @@
 import * as vscode from 'vscode';
 import { pollUntil } from '../pollUntil';
 import type { MockLlmRequest } from '../mockLlmServer';
-
-type DiagnosticsInfo = {
-  eventBacklog?: { latestSeq?: number };
-};
+import type { DiagnosticsInfo } from './diagnosticsInfo';
 
 type ErrorInfo = { seq?: number } | null;
 

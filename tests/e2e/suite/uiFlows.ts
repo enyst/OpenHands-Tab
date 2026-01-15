@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { pollUntil } from './pollUntil';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Skills: create a temp skill file *before* opening the webview so the initial
@@ -15,8 +16,8 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
   await pollUntil(async () => {
@@ -36,7 +37,7 @@ export async function run(): Promise<void> {
       return state?.showContextPicker === true && typeof state.workspaceFilesCount === 'number';
     }, 15000);
   } catch (err) {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     const state: any = await vscode.commands.executeCommand('openhands._queryUiState');
     console.log('diagnosticsOnFailure', diag);
     console.log('uiStateOnFailure', state);

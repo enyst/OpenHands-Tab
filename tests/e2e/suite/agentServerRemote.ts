@@ -1,14 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
-
-type DiagnosticsInfo = {
-  chat?: { hasView?: boolean; webviewReady?: boolean };
-  mode?: string;
-  serverUrl?: string;
-  status?: string;
-  conversationId?: string;
-  eventBacklog?: { size?: number };
-};
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 type RenderedEventsInfo = {
   count?: number;

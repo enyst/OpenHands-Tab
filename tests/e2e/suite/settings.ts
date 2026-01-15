@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Ensure chat view is created
@@ -7,13 +8,13 @@ export async function run(): Promise<void> {
   // Wait until view and webview are ready
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     if (diag?.chat?.hasView && diag?.chat?.webviewReady) break;
     await new Promise((r) => setTimeout(r, 200));
   }
 
   // Test 1: Verify diagnostics command returns expected structure
-  const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
 
   if (!diag) {
     throw new Error('Diagnostics command returned null/undefined');
@@ -69,9 +70,9 @@ export async function run(): Promise<void> {
 
   // Poll until webview is ready after new conversation
   const afterDeadline = Date.now() + 10000;
-  let diagAfter: any;
+  let diagAfter: DiagnosticsInfo | undefined;
   while (Date.now() < afterDeadline) {
-    diagAfter = await vscode.commands.executeCommand('openhands._diagnostics');
+    diagAfter = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     if (diagAfter?.chat?.webviewReady) break;
     await new Promise((r) => setTimeout(r, 200));
   }

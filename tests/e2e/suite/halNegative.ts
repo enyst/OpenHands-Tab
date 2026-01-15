@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -20,7 +21,7 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('openhands.open');
 
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
     return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
@@ -100,4 +101,3 @@ export async function run(): Promise<void> {
 
   await assertHalStaysIdle(2000);
 }
-

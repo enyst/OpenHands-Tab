@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Ensure chat view is created
@@ -7,15 +8,15 @@ export async function run(): Promise<void> {
 
   // Wait until view and webview are ready
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
   // Start fresh conversation
   await vscode.commands.executeCommand('openhands.startNewConversation');
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
   // Test 1: Send AgentErrorEvent
@@ -190,13 +191,16 @@ export async function run(): Promise<void> {
   }
 
   // Test 7: Verify diagnostics show proper state
-  const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+  if (!diag?.chat) {
+    throw new Error('Diagnostics missing chat object');
+  }
 
   if (!diag.chat.webviewReady) {
     throw new Error('Webview should still be ready after error events');
   }
 
-  console.log(`Diagnostics - eventBacklog size: ${diag.eventBacklog.size}`);
+  console.log(`Diagnostics - eventBacklog size: ${diag.eventBacklog?.size ?? 0}`);
   const expectedMinBacklogSize = expectedAgentErrors + 1 + 1 + 1 + 1; // +ConversationError +Observation +Pause +Condensation
   if ((diag.eventBacklog?.size ?? 0) < expectedMinBacklogSize) {
     throw new Error(`Expected eventBacklog.size >= ${expectedMinBacklogSize}, got ${diag.eventBacklog?.size ?? 0}`);
@@ -208,11 +212,11 @@ export async function run(): Promise<void> {
 
   // Poll until webview is ready
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
-  const diagAfterRecovery: any = await vscode.commands.executeCommand('openhands._diagnostics');
+  const diagAfterRecovery = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
   const backlogAfterRecovery = diagAfterRecovery?.eventBacklog?.size ?? 0;
   if (backlogAfterRecovery >= backlogBeforeRecovery) {
     throw new Error(`Expected eventBacklog.size to reset after recovery (before=${backlogBeforeRecovery}, after=${backlogAfterRecovery})`);

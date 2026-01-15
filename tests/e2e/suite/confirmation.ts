@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
+import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {
   // Ensure chat view is created
@@ -7,15 +8,15 @@ export async function run(): Promise<void> {
 
   // Wait until view and webview are ready
   await pollUntil(async () => {
-    const diag: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return diag?.chat?.hasView && diag?.chat?.webviewReady;
+    const diag = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
   // Start fresh conversation
   await vscode.commands.executeCommand('openhands.startNewConversation');
   await pollUntil(async () => {
-    const d: any = await vscode.commands.executeCommand('openhands._diagnostics');
-    return d?.chat?.webviewReady;
+    const d = await vscode.commands.executeCommand<DiagnosticsInfo>('openhands._diagnostics');
+    return Boolean(d?.chat?.webviewReady);
   });
 
   // Test 1: Send action events with different security risk levels
