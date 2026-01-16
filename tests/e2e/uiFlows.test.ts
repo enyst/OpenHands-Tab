@@ -1,10 +1,9 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
-import * as os from 'os';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-ui-flows-${Date.now()}`);
+const userDataDir = createE2EUserDataDir('uiFlows');
 
 describe('OpenHands-Tab UI Flows E2E', function () {
   this.timeout(120000);

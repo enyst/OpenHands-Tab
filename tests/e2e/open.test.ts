@@ -2,10 +2,9 @@ import * as assert from 'assert';
 import { runTests, resolveCliPathFromVSCodeExecutablePath } from '@vscode/test-electron';
 import * as cp from 'child_process';
 import * as path from 'path';
-import * as os from 'os';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-${Date.now()}`);
+const userDataDir = createE2EUserDataDir('open');
 
 // Basic E2E: launch VS Code with the extension and ensure commands run without error.
 describe('OpenHands-Tab E2E', function () {

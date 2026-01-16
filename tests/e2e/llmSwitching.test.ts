@@ -1,10 +1,9 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
-import * as os from 'os';
 import * as path from 'path';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `oh-tab-llm-${Date.now().toString(36)}`);
+const userDataDir = createE2EUserDataDir('llmSwitching');
 
 // E2E test for switching LLM provider/model/apiMode in local mode.
 describe('OpenHands-Tab LLM Switching E2E', function () {

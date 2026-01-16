@@ -1,5 +1,6 @@
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 
 /**
@@ -44,4 +45,22 @@ export async function ensureVsCodeArgvJson(userDataDir: string): Promise<void> {
   const vscodeDir = path.join(userDataDir, '.vscode');
   await fs.mkdir(vscodeDir, { recursive: true });
   await fs.writeFile(path.join(vscodeDir, 'argv.json'), '{}\n', 'utf8');
+}
+
+function sanitizeTestNameForPath(raw: string): string {
+  const trimmed = raw.trim().toLowerCase();
+  const cleaned = trimmed.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return cleaned.slice(0, 16) || 'e2e';
+}
+
+export function createE2EUserDataDir(testName: string): string {
+  const slug = sanitizeTestNameForPath(testName);
+  // Keep basename short to avoid macOS IPC handle path warnings.
+  const userDataDir = path.join(os.tmpdir(), `vscode-t-${slug}-${Date.now().toString(36)}`);
+
+  after(async () => {
+    await fs.rm(userDataDir, { recursive: true, force: true });
+  });
+
+  return userDataDir;
 }
