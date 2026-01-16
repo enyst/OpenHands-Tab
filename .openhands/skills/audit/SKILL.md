@@ -1,190 +1,207 @@
 ---
 name: audit
 description: >
-  Security audit checklist for the OpenHands-Tab VS Code extension, focused on preventing API keys
-  and tokens from being persisted or logged. Use when asked to audit security, secret handling,
-  credential storage, logging redaction, or data exfiltration risks in this repo. Trigger with /audit.
+  AgentSkill: run a repo-specific security audit of the OpenHands-Tab VS Code extension with a focus on
+  secret handling, webview/host boundaries, persistence, and logging redaction. Trigger with /audit.
 license: MIT
 triggers:
   - /audit
-  - security audit
   - audit security
-  - api key leak
-  - token leak
-  - credential leak
-  - SecretStorage
+  - security audit
 ---
 
-# OpenHands-Tab Security Audit Skill
+# OpenHands-Tab Security Audit (AgentSkill)
 
-This skill teaches you how to audit **this repository** (the OpenHands-Tab VS Code extension) for common secret-handling and credential-leak problems.
+This is **not the audit report**. This is a **repeatable checklist** for an agent to run against *this repository*.
 
-## Command: `/audit`
+When invoked (e.g. the user types `/audit`), follow the checklist below, inspect the referenced code, and then output a short audit report.
 
-When the user asks for a security review (or types `/audit`), produce a short written audit report by following the steps below.
-
-### Output format (required)
+## Output format (required)
 
 Return a report with:
 
-1. **Scope** (what you reviewed)
-2. **High risk findings** (must fix)
-3. **Medium/low risk findings** (should fix)
+1. **Scope** (what you inspected)
+2. **High-risk findings** (must fix)
+3. **Medium/low-risk findings** (should fix)
 4. **Good practices already present** (keep)
 5. **Suggested follow-ups** (tests, hardening, docs)
 
-Never include real secret values in the report.
+**Never include real secret values** in the report (including partial tokens).
 
 ---
 
-## 1) Threat model (keep it concrete)
+## 1) Threat model (repo-specific)
 
-For this extension, the primary risks are:
+Primary risks for this VS Code extension:
 
-- **Accidental persistence of secrets to disk** (VS Code settings JSON, profile files, logs, conversation stores)
-- **Accidental logging of secrets** (OutputChannel, debug channels, dev bridge logs, error messages)
-- **Webview boundary leaks** (secrets sent to webview, persisted in webview state, or logged to console)
-- **Network exfiltration** (tokens placed in URLs, sent to wrong host, or sent without TLS)
-
----
-
-## 2) Inventory: what counts as a secret in this repo
-
-### VS Code SecretStorage keys (provider keys)
-
-These keys are stored via `context.secrets` and must never be written to disk or logs:
-
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `GEMINI_API_KEY`
-- `OPENROUTER_API_KEY`
-- `LITELLM_API_KEY`
-
-Relevant code:
-
-- `src/webview/host/handlers/secretHelpers.ts` (maps provider → env/SecretStorage key)
-- `src/extension/secretCommands.ts` (UI to set/clear provider keys)
-
-### Extension-managed secrets (stored under `openhands.*` keys)
-
-These are also secrets; they should be stored **only** in SecretStorage:
-
-- `openhands.sessionApiKey` (legacy)
-- `openhands.llmApiKey`
-- `openhands.awsAccessKeyId`
-- `openhands.awsSecretAccessKey`
-- `openhands.githubToken`
-- `openhands.hal.ttsApiKey`
-- `openhands.customSecret1/2/3`
-
-Relevant code:
-
-- `src/settings/SettingsManager.ts` (loads/stores these via `adapter.getSecret/storeSecret`)
-- `src/settings/VscodeSettingsAdapter.ts` (backed by `context.secrets`)
+- **Persistence leaks**: secrets written to disk (VS Code settings JSON, profile files, workspace/global state, logs, conversation stores)
+- **Logging leaks**: secrets exposed via OutputChannel, debug channels, error strings/stack traces, dev bridge logs, webview console
+- **Webview boundary leaks**: secrets crossing extension-host ↔ webview boundary; secrets persisted in webview state (`acquireVsCodeApi().setState`) or leaked via console
+- **Network leaks**: secrets in URLs/query params, secrets sent to wrong host, secrets attached to redirected requests, non-HTTPS when not explicitly intended
 
 ---
 
-## 3) Audit checklist (step-by-step)
+## 2) Inventory (authoritative sources, avoid stale lists)
+
+### A. Provider API key names and SecretStorage keys
+
+**Do not trust hardcoded lists in docs**. Derive the set of provider key names from code.
+
+- Authoritative code: `src/webview/host/handlers/secretHelpers.ts`
+  - Enumerate provider → key name mapping (e.g. `getProviderApiKeyName(...)`).
+  - Treat *all* provider keys as secrets.
+
+### B. Extension-managed secret keys
+
+- Authoritative code: `src/settings/SettingsManager.ts`, `src/settings/VscodeSettingsAdapter.ts`
+  - Enumerate any keys stored via `adapter.storeSecret(...)` / `context.secrets.store(...)`.
+
+---
+
+## 3) Audit checklist (step-by-step, falsifiable)
 
 ### A. Confirm secrets are not persisted in VS Code settings
 
-1. Verify the settings adapter does **not** store secrets via `workspace.getConfiguration().update(...)`.
-   - Expectation: all secret writes go through `context.secrets.store/delete`.
-   - Files:
-     - `src/settings/VscodeSettingsAdapter.ts`
-     - `src/settings/SettingsManager.ts`
-     - `src/extension/secretCommands.ts`
+**Check**: no secret values are written via `workspace.getConfiguration().update(...)` (or any other settings persistence).
 
-2. Verify any “status indicators” written to settings are non-sensitive.
-   - File: `src/extension/secretCommands.ts`
-   - Expectation: only a marker like `"✓ set"`, never the secret.
+- Files to inspect:
+  - `src/settings/VscodeSettingsAdapter.ts`
+  - `src/settings/SettingsManager.ts`
+  - `src/extension/secretCommands.ts`
 
-### B. Confirm per-server session API keys cannot be reused for arbitrary servers
+**Pass criteria**:
+- All secret writes go through `context.secrets.store(...)` / `context.secrets.delete(...)`.
+- Any settings written as “status indicators” are non-sensitive (boolean/marker only) and cannot be used to reconstruct the secret.
 
-1. Locate the per-server session key naming.
-   - File: `src/auth/serverSessionApiKeys.ts`
-   - Expectation: key name includes a **hash** of the normalized server URL:
-     - `openhands.sessionApiKey.server.${sha256(normalizedUrl)}`
+**Fail examples**:
+- Writing `apiKey`, `token`, `Authorization` headers, or full provider configs into settings JSON.
 
-2. Verify migration behavior is conservative.
-   - File: `src/extension.ts`
-   - Expectation: if a legacy session key exists, the extension should:
-     - NOT auto-send it to whatever server is configured
-     - Prompt the user before storing it under the hashed per-server key
+### B. Confirm per-server session API keys are scoped to a specific server
 
-### C. Confirm secrets don’t cross into the webview unnecessarily
+**Check**: session keys are not “global”; they must be bound to a specific normalized server URL.
 
-1. Inspect webview ↔ host messages related to API key overrides.
-   - Host handler: `src/webview/host/handlers/llmProfiles.ts` (`llmProfileApiKeySetRequest`)
-   - UI: `src/webview-src/components/LlmProfilesView.tsx`
+- Files to inspect:
+  - `src/auth/serverSessionApiKeys.ts`
+  - `src/shared/serverUrls.ts` (normalization rules)
+  - `src/extension.ts` (migration / usage)
 
-2. Expectations:
-   - The webview may temporarily hold a draft API key in memory for UX, but it must not be persisted.
-   - The host must store the API key in `context.secrets`, not in files.
-   - No `console.log`/debug logging should print the key or headers.
+**Pass criteria**:
+- The SecretStorage key name includes a stable identifier derived from the normalized server URL (e.g. a hash).
+- The normalized URL logic is understood and documented by the audit:
+  - This repo’s `normalizeServerUrl(...)` supports both `http:` and `https:` and may default to `http://` when no scheme is provided.
+- Migration from any legacy/global key is conservative:
+  - Do not automatically re-bind a legacy key to an arbitrary configured server without explicit user intent.
 
-### D. Confirm profile persistence strips secrets by default
+**Fail examples**:
+- A single `openhands.sessionApiKey` applied to whichever server URL is currently configured.
+- Storing per-server keys using an unnormalized URL (leading to aliasing or unintended reuse).
 
-Profiles can contain inline `apiKey` or `headers` in config, which are high risk if persisted.
+### C. Webview/host boundary: minimize secret exposure
 
-1. Verify profile persistence removes inline secrets unless explicitly opted-in.
-   - Host store wrapper: `src/webview/host/llmProfilesStore.ts`
-   - SDK store: `packages/agent-sdk-ts/src/sdk/llm/profiles.ts`
+**Non-negotiable policy**: the extension host **must never send secret values to the webview**.
 
-2. Expectations:
-   - `includeSecrets` defaults to `false`.
-   - When `includeSecrets=false`, both `apiKey` (if it looks like a real key, not an ENV var name) and `headers` are stripped.
+**Reality check**: the webview may still *see* a secret if the **user types it into a webview input field**. Treat that as the maximum tolerated exposure, not a convenience.
 
-### E. Confirm logs are redacted everywhere secrets may appear
+- Files to inspect:
+  - Webview → host request: `src/webview-src/components/app/useLlmProfilesRequests.ts` (`llmProfileApiKeySetRequest` includes `apiKey`)
+  - Host handler: `src/webview/host/handlers/llmProfiles.ts` (`handleLlmProfileApiKeySetRequest` stores to `context.secrets`)
+  - UI: `src/webview-src/components/LlmProfilesView.tsx`
 
-This repo has multiple logging surfaces. Verify each is covered.
+**Pass criteria**:
+- There are **no host→webview messages** that include secret material (API keys, tokens, Authorization headers, cookies).
+- Webview does not persist secrets:
+  - no `acquireVsCodeApi().setState(...)` (or other persistence) storing `apiKey`, headers, or tokens
+- On submit:
+  - webview sends the key to the host once, host stores it in SecretStorage, and the webview clears local state promptly.
+- No logging on either side:
+  - webview: no `console.log` / error reporting that includes key material
+  - host: no OutputChannel/dev logging of message payloads containing keys
 
-1. Output channel masking
-   - File: `src/extension/devBridgeLogger.ts` (`createMaskedOutputChannel`)
-   - Expectation: any `append/appendLine/replace` path masks via `maskSecretsInText(...)`.
+**Fail examples**:
+- Host echoes a stored key back to the webview for “display”.
+- Webview caches the key in persistent state to “remember” it.
 
-2. Debug JSON channel masking
-   - File: `src/extension/debugJsonOutputChannel.ts`
-   - Expectation: redacts using `maskSecretsInText(...)`.
+### D. Profile persistence: do not write secrets to disk by default
 
-3. Generic string redaction
-   - File: `src/shared/safeStringify.ts`
-   - Expectation: heuristically redacts common patterns (`Authorization: Bearer ...`, `sk-...`, GitHub tokens, etc.).
+Profiles can contain inline `apiKey` or `headers`, which are **high-risk** if persisted.
 
-4. “Known secret value” masking
-   - File: `src/shared/maskSecrets.ts`
-   - Expectation: uses a registry of known secret values (`SecretRegistry`) to replace exact matches.
+- Files to inspect:
+  - Host store wrapper: `src/webview/host/llmProfilesStore.ts`
+  - SDK store: `packages/agent-sdk-ts/src/sdk/llm/profiles.ts`
 
-Audit technique:
+**Check**: profile save paths have a default mode that **excludes secrets**.
 
-- Search for new/unmasked loggers:
-  - `console.log`, `console.warn`, `console.error`
-  - `outputChannel.appendLine` / `append`
-  - any `JSON.stringify(...)` used for logging
+**Pass criteria**:
+- A save option like `includeSecrets` exists and defaults to `false`.
+- When `includeSecrets=false`:
+  - `apiKey` is removed unless it is an explicit non-secret reference (e.g. an env-var indirection supported by this repo).
+  - `headers` are removed (or strictly allowlisted); never persist `Authorization` or cookies.
 
-If you find a logging path that doesn’t go through redaction utilities, flag it.
+**Fail examples**:
+- Persisting literal API keys or Authorization headers into any profile JSON file by default.
+- A heuristic like “strip if it looks like a real key” without a well-defined representation of non-secret references.
 
-### F. Confirm secrets are not placed in URLs
+### E. Logging & error handling: assume redaction is imperfect
 
-Tokens must be sent in headers, never as query parameters.
+**Rule**: the primary defense is **do not log secrets at all**. Redaction is a backstop.
 
-- Search for code that builds URLs with `token=`, `api_key=`, `key=`.
-- Ensure remote calls use `Authorization: Bearer ...` headers.
+- Files to inspect:
+  - Output channel masking: `src/extension/devBridgeLogger.ts` (`createMaskedOutputChannel`)
+  - Debug JSON channel masking: `src/extension/debugJsonOutputChannel.ts`
+  - Generic safe logging: `src/shared/safeStringify.ts`
+  - Known-secret masking registry: `src/shared/maskSecrets.ts`
+
+**Checks**:
+1. All extension-host logging surfaces run through masking utilities.
+2. Any errors posted to OutputChannel / webview / UI are sanitized:
+   - do not include request headers, Authorization, cookies, or full config objects.
+3. Webview-side logging is clean:
+   - no `console.*` printing request payloads that may contain secrets.
+
+**Audit technique**:
+- Search for unmasked loggers:
+  - `console.(log|warn|error)` in both `src/` and `src/webview-src/`
+  - direct `outputChannel.append/appendLine/replace`
+  - `JSON.stringify(...)` used in logs
+- When you find one, trace whether it flows through `maskSecretsInText(...)` or equivalent.
+
+**Fail examples**:
+- Logging the full webview message payload of `llmProfileApiKeySetRequest`.
+- Throwing/printing errors that embed headers or config with inline `apiKey`.
+
+### F. Network requests: keep secrets out of URLs and off the wrong host
+
+**Checks**:
+- No code constructs URLs containing secrets (`token=`, `api_key=`, `key=`, `authorization=`).
+- Secrets are sent via headers, not query params.
+- Ensure Authorization headers are only attached to the intended host:
+  - audit for redirect-following behavior and whether headers are preserved across redirects.
+
+**Repo-specific note**:
+- This repo supports `http:` server URLs (see `src/shared/serverUrls.ts`). If non-HTTPS is allowed, verify:
+  - it is explicit user intent (e.g. localhost/dev)
+  - secrets are not silently sent over `http://` due to scheme defaulting
+
+**Fail examples**:
+- `?token=...` in any URL.
+- Sending session API keys to a server URL that was inferred as `http://...` due to missing scheme.
 
 ---
 
-## 4) Suggested commands (optional, but recommended)
+## 4) Suggested commands (quick checks)
 
-If you have repo access, run quick checks:
+These are **assistive** checks (expect false positives/negatives). The real audit is code-path based.
 
-- Find potential secret patterns committed to code:
-  - `grep -RInE "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{12,}|(AKIA|ASIA)[A-Z0-9]{16}" src packages`
+- Find potential secret patterns committed to code (add context):
+  - `grep -RInEC 2 "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{12,}|(AKIA|ASIA)[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+" src packages`
 
-- Find places secrets might be written:
-  - `grep -RInE "writeFile|appendFile|fs\\." src packages`
-  - `grep -RInE "console\\.(log|warn|error)" src packages`
+- Find code paths that can write to disk (reduce noise):
+  - `grep -RInE "\\.writeFile(Sync)?\\(|\\.appendFile(Sync)?\\(" src packages`
 
-- Run tests that cover redaction and profile persistence:
+- Find obvious logging sites:
+  - `grep -RInE "console\\.(log|warn|error)" src packages src/webview-src`
+
+- Run tests:
   - `npm test`
 
 ---
