@@ -112,6 +112,30 @@ Whether testing manually or automated, verify:
 - ✅ Command "OpenHands: Start New Conversation" succeeds (HTTP 201)
 - ✅ WebSocket connects (status shows online) and events stream when you send a message
 
+## OpenHands Cloud auth (Device Flow)
+
+### Hermetic E2E (CI-safe)
+
+The suite `tests/e2e/deviceFlowAuth.test.ts` validates the device-flow login loop against a **local mock OAuth server** (no real credentials, no external network dependency).
+
+- Run all E2E: `npm run e2e`
+- The suite sets `E2E_CLOUD_LOGIN=1` so the extension uses test-friendly UX (no browser open, no post-login prompts).
+- Covered scenarios include:
+  - Happy path login stores a per-server session key
+  - Logout clears stored credentials
+  - Error paths: `access_denied`, `expired_token`
+  - Polling backoff: `slow_down` then success
+
+### Manual live test (OpenHands Cloud)
+
+To validate against the real cloud server (`https://app.all-hands.dev`):
+
+1) Set server URL to `https://app.all-hands.dev` (via “OpenHands: Configure”)
+2) Run “OpenHands: Login to Remote Server (Device Flow)” and complete the browser flow
+3) Verify remote usage works (e.g., “OpenHands: Start New Conversation” succeeds and the chat goes online)
+4) Restart VS Code and verify the token persists (remote usage still works without re-login)
+5) Run “OpenHands: Logout of Remote Server” and verify remote usage fails (401/403) until you re-login
+
 ## CI Integration
 
 GitHub Actions workflows can be added in `.github/workflows/`:

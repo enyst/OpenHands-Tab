@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-device-flow-auth-${Date.now()}`);
+const userDataDir = path.join(os.tmpdir(), `vscode-t-dfa-${Date.now()}`);
 
 describe('OpenHands-Tab OAuth Device Flow E2E', function () {
   this.timeout(180000);
@@ -37,4 +37,3 @@ describe('OpenHands-Tab OAuth Device Flow E2E', function () {
     assert.ok(true);
   });
 });
-

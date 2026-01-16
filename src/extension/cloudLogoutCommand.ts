@@ -28,6 +28,12 @@ export function registerCloudLogoutCommand(options: {
   const { context } = options;
 
   return vscode.commands.registerCommand('openhands.cloudLogout', async () => {
+    const extensionMode = vscode.ExtensionMode;
+    const isTestMode =
+      extensionMode?.Test !== undefined &&
+      context.extensionMode === extensionMode.Test;
+    const isE2eMode = isTestMode && process.env.E2E_CLOUD_LOGIN === '1';
+
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
 
@@ -44,11 +50,13 @@ export function registerCloudLogoutCommand(options: {
     }
 
     const serverLabel = renderServerLabel(keyInfo.normalizedServerUrl);
-    const confirm = await vscode.window.showWarningMessage(
-      `OpenHands: Log out of ${serverLabel}? This will clear stored credentials for this server.`,
-      { modal: true },
-      'Log out',
-    );
+    const confirm = isE2eMode
+      ? 'Log out'
+      : await vscode.window.showWarningMessage(
+        `OpenHands: Log out of ${serverLabel}? This will clear stored credentials for this server.`,
+        { modal: true },
+        'Log out',
+      );
     if (confirm !== 'Log out') return;
 
     const output = options.getOutputChannel();
@@ -83,4 +91,3 @@ export function registerCloudLogoutCommand(options: {
     void vscode.window.showInformationMessage(`OpenHands: Logged out of ${serverLabel}.`);
   });
 }
-
