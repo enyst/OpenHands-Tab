@@ -1,10 +1,9 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
-import * as os from 'os';
 import * as path from 'path';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `oh-tab-welcome-${Date.now().toString(36)}`);
+const userDataDir = createE2EUserDataDir('welcome');
 
 describe('OpenHands-Tab welcome missing-key prompts E2E', function () {
   this.timeout(180000);
@@ -44,4 +43,3 @@ describe('OpenHands-Tab welcome missing-key prompts E2E', function () {
     assert.ok(true);
   });
 });
-

@@ -1,18 +1,12 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
-import * as fs from 'fs/promises';
-import * as os from 'os';
 import * as path from 'path';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `oh-tab-default-profile-${Date.now().toString(36)}`);
+const userDataDir = createE2EUserDataDir('defaultProfileSelection');
 
 describe('OpenHands-Tab default profile selection E2E', function () {
   this.timeout(180000);
-
-  after(async () => {
-    await fs.rm(userDataDir, { recursive: true, force: true });
-  });
 
   it('defaults profileId on fresh install and uses profile config', async () => {
     const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');

@@ -1,10 +1,9 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
-import * as os from 'os';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-history-${Date.now()}`);
+const userDataDir = createE2EUserDataDir('history');
 
 // E2E test for conversation history functionality
 describe('OpenHands-Tab History E2E', function () {

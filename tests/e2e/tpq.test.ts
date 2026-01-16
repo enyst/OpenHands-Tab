@@ -4,9 +4,9 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `oh-tab-tpq-${Date.now().toString(36)}`);
+const userDataDir = createE2EUserDataDir('tpq');
 
 describe('OpenHands-Tab multi-root env-info workspaceRoot E2E', function () {
   this.timeout(180000);

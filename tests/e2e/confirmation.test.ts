@@ -1,10 +1,9 @@
 import * as assert from 'assert';
 import { runTests } from '@vscode/test-electron';
 import * as path from 'path';
-import * as os from 'os';
-import { downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
 
-const userDataDir = path.join(os.tmpdir(), `vscode-test-confirmation-${Date.now()}`);
+const userDataDir = createE2EUserDataDir('confirmation');
 
 // E2E test for action confirmation workflow
 describe('OpenHands-Tab Confirmation E2E', function () {
