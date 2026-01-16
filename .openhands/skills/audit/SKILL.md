@@ -178,7 +178,7 @@ Tokens must be sent in headers, never as query parameters.
 If you have repo access, run quick checks:
 
 - Find potential secret patterns committed to code:
-  - `grep -RInE "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}" src packages`
+  - `grep -RInE "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{12,}|(AKIA|ASIA)[A-Z0-9]{16}" src packages`
 
 - Find places secrets might be written:
   - `grep -RInE "writeFile|appendFile|fs\\." src packages`
