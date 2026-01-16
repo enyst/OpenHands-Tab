@@ -145,6 +145,19 @@ module.exports = [
       '@typescript-eslint/no-unsafe-function-type': 'off',
       'no-empty': 'off',
       'no-tabs': 'error',
+
+      // Avoid merging placeholder-only “tests” that keep CI green but add suite noise.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.object.name='it'][callee.property.name='todo']",
+          message: 'Do not use it.todo() in standard test folders. Use a real test or explicitly opt out via eslint-disable.',
+        },
+        {
+          selector: "CallExpression[callee.type='MemberExpression'][callee.object.name='describe'][callee.property.name='todo']",
+          message: 'Do not use describe.todo() in standard test folders. Use a real test or explicitly opt out via eslint-disable.',
+        },
+      ],
     },
   },
 ];
