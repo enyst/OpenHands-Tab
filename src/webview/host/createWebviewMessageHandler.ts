@@ -18,7 +18,8 @@ import { createPostToolsList, handleSetEnabledTools, isLocalConversationToolCont
 import { handleDeleteConversation, handleRequestHistory, handleRestoreConversation } from './handlers/history';
 import { handleAddServer, handleRemoveServer, handleSelectServer, handleSwitchToLocal } from './handlers/servers';
 import { handleSend } from './handlers/send';
-import { computeWelcomeSecretStatus, handleLlmProfileApiKeySetRequest, handleLlmProfileApiKeyStatusRequest, handleLlmProfileDeleteRequest, handleLlmProfileLoadRequest, handleLlmProfileSaveRequest, handleLlmProfilesListRequest, handleSetLlmProfileId, listAvailableLlmProfiles } from './handlers/llmProfiles';
+import { handleLlmProfileApiKeySetRequest, handleLlmProfileApiKeyStatusRequest, handleLlmProfileDeleteRequest, handleLlmProfileLoadRequest, handleLlmProfileSaveRequest, handleLlmProfilesListRequest, handleSetLlmProfileId, listAvailableLlmProfiles } from './handlers/llmProfiles';
+import { computeWelcomeSecretStatus } from '../../shared/welcomeSecretStatus';
 import { createElevenlabsTtsGateFactory, handleHalTtsRequest, handleHalVoiceConfirmRequest } from './handlers/hal';
 
 export type WebviewHost = {
@@ -161,7 +162,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
 
         // Welcome page: communicate whether API keys are present so the UI can show onboarding prompts.
         void (async () => {
-          const status = await computeWelcomeSecretStatus({ deps, context, settings: initSettings });
+          const status = await computeWelcomeSecretStatus({ context, settings: initSettings });
           void host.postMessage({ type: 'welcomeSecretStatus', hasProviderKey: status.hasProviderKey, hasGeminiKey: status.hasGeminiKey });
         })();
 
