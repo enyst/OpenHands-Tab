@@ -6,17 +6,9 @@ import type {
   DirectoryEntry,
   WorkspaceEncoding,
 } from './types';
+import { normalizeRemoteUrl } from '../shared/remoteUrl';
 
-const normalizeRemoteHostUrl = (raw: string): string => {
-  let url = raw.trim();
-  if (!url) return url;
-
-  if (url.startsWith('ws://')) url = `http://${url.slice('ws://'.length)}`;
-  else if (url.startsWith('wss://')) url = `https://${url.slice('wss://'.length)}`;
-  else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) url = `http://${url}`;
-
-  return url.replace(/\/+$/, '');
-};
+const normalizeRemoteHostUrl = normalizeRemoteUrl;
 
 const normalizePosixRoot = (raw: string): string => {
   const normalized = path.posix.normalize(raw.trim() || '/');
