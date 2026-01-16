@@ -12,7 +12,7 @@ triggers:
 
 # OpenHands-Tab Security Audit (AgentSkill)
 
-This is **not the audit report**. This is a **repeatable checklist** for an agent to run against *this repository*.
+This is a **repeatable checklist** for an agent to run against *this repository*.
 
 When invoked (e.g. the user types `/audit`), follow the checklist below, inspect the referenced code, and then output a short audit report.
 
