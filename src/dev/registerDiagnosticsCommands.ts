@@ -122,6 +122,11 @@ const truncatePreview = (text: string, maxChars: number): string => {
   return `${text.slice(0, maxChars)}…(truncated)`;
 };
 
+export function sanitizeDiagnosticsText(text: string, params: { secretRegistry?: SecretRegistry; maxChars: number }): string {
+  const masked = maskSecretsInText(text, params.secretRegistry);
+  return masked.length > params.maxChars ? truncatePreview(masked, params.maxChars) : masked;
+}
+
 export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDeps): vscode.Disposable[] {
   const postToWebview = async (message: HostToWebviewMessage): Promise<boolean> => {
     const chatView = deps.getChatView();
@@ -274,8 +279,8 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       source: e.source,
     };
     if (typeof e.code === 'string') payload.code = e.code;
-    if (typeof e.detail === 'string') payload.detail = e.detail;
-    if (typeof e.error === 'string') payload.error = e.error;
+    if (typeof e.detail === 'string') payload.detail = sanitizeDiagnosticsText(e.detail, { secretRegistry: deps.secretRegistry, maxChars: 4000 });
+    if (typeof e.error === 'string') payload.error = sanitizeDiagnosticsText(e.error, { secretRegistry: deps.secretRegistry, maxChars: 4000 });
     if (typeof e.tool_name === 'string') payload.tool_name = e.tool_name;
     if (typeof e.tool_call_id === 'string') payload.tool_call_id = e.tool_call_id;
     return payload;
@@ -317,7 +322,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
       source: e.source,
       tool_name: e.tool_name,
       tool_call_id: e.tool_call_id,
-      observationText: observationText.length > 4000 ? `${observationText.slice(0, 4000)}…(truncated)` : observationText,
+      observationText: sanitizeDiagnosticsText(observationText, { secretRegistry: deps.secretRegistry, maxChars: 4000 }),
     };
 
     return payload;
