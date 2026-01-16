@@ -120,6 +120,11 @@ export async function run(): Promise<void> {
     return runDeviceFlowAuthTest();
   }
 
+  if (testName === 'lastUserMessage') {
+    const { run: runLastUserMessageTest } = await import('./lastUserMessage');
+    return runLastUserMessageTest();
+  }
+
   // Default smoke test: open the chat view and verify it works
   await vscode.commands.executeCommand('openhands.open');
   // Wait until view and webview are ready via diagnostics to avoid flakiness
