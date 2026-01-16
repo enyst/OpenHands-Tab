@@ -526,21 +526,77 @@ export function activate(context: vscode.ExtensionContext) {
     let settings = await settingsMgr.get();
     lastKnownLlmLabel = resolveConfiguredLlmLabel(settings);
 
+    const trimOrEmpty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+    const withSessionApiKey = (token: string | undefined): typeof settings => {
+      const secrets = { ...(settings.secrets ?? {}) } as Record<string, unknown>;
+      if (token) {
+        secrets.sessionApiKey = token;
+      } else {
+        delete secrets.sessionApiKey;
+      }
+      return { ...settings, secrets: secrets as typeof settings.secrets };
+    };
+
     if (typeof settings.serverUrl === 'string' && settings.serverUrl.trim()) {
-      const serverKey = getServerSessionApiKeySecretKey(settings.serverUrl);
-      if (serverKey.ok) {
+      const keyInfo = getServerSessionApiKeySecretKey(settings.serverUrl);
+      if (keyInfo.ok) {
+        const legacyToken = trimOrEmpty(settings.secrets?.sessionApiKey);
+
         let stored: string | undefined;
         try {
-          stored = await context.secrets.get(serverKey.secretKey);
+          stored = await context.secrets.get(keyInfo.secretKey);
         } catch {
           stored = undefined;
         }
-        const token = typeof stored === 'string' ? stored.trim() : '';
-        if (token) {
-          settings = {
-            ...settings,
-            secrets: { ...settings.secrets, sessionApiKey: token },
-          };
+        const perServerToken = trimOrEmpty(stored);
+
+        if (perServerToken) {
+          settings = withSessionApiKey(perServerToken);
+        } else if (!legacyToken) {
+          // No per-server token and no legacy token: do not send a session key at all.
+          settings = withSessionApiKey(undefined);
+        } else {
+          // Legacy token exists, but do not auto-send it to an arbitrary server. Offer one-time migration.
+          const serverHash = keyInfo.secretKey.split('.server.')[1] ?? keyInfo.secretKey;
+          const promptKey = `openhands.sessionApiKey.migrationPrompted.${serverHash}`;
+          const alreadyPrompted = context.globalState.get<boolean>(promptKey) === true;
+
+          if (alreadyPrompted) {
+            settings = withSessionApiKey(undefined);
+          } else {
+            // Mark prompted before awaiting UI to avoid duplicate prompts from rapid config changes.
+            await context.globalState.update(promptKey, true);
+
+            const serverLabel = (() => {
+              try {
+                const url = new URL(keyInfo.normalizedServerUrl);
+                return url.hostname + (url.port ? `:${url.port}` : '');
+              } catch {
+                return keyInfo.normalizedServerUrl;
+              }
+            })();
+
+            const action = await vscode.window.showWarningMessage(
+              `OpenHands: A legacy Session API Key is set. Use it for ${serverLabel}?`,
+              { modal: true },
+              'Use key for this server',
+              'Not now',
+            );
+
+            if (action === 'Use key for this server') {
+              try {
+                await context.secrets.store(keyInfo.secretKey, legacyToken);
+                secrets.set(keyInfo.secretKey, legacyToken);
+                settings = withSessionApiKey(legacyToken);
+              } catch (err) {
+                outputChannel?.appendLine(`[auth] Failed to migrate session API key for ${keyInfo.normalizedServerUrl}: ${renderError(err)}`);
+                settings = withSessionApiKey(undefined);
+              }
+            } else {
+              settings = withSessionApiKey(undefined);
+            }
+          }
         }
       }
     }

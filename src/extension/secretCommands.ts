@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import type { ConversationInstance, SecretRegistry } from '@openhands/agent-sdk-ts';
+import { getServerSessionApiKeySecretKey, LEGACY_SESSION_API_KEY_SECRET_KEY } from '../auth/serverSessionApiKeys';
 
 type SecretKey = keyof OpenHandsSettings['secrets'];
 
@@ -270,13 +271,111 @@ export function registerSecretCommands(params: {
     errorPrefix: 'Failed to save Gemini API key',
   });
 
-  const setSessionApiKey = registerSecretCommand('openhands.setSessionApiKey', {
-    title: 'Session API Key',
-    secretKey: 'sessionApiKey',
-    prompt: 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Session API Key saved securely.',
-    clearedMessage: 'Session API Key cleared.',
-    errorPrefix: 'Failed to save Session API Key',
+  const setSessionApiKey = vscode.commands.registerCommand('openhands.setSessionApiKey', async () => {
+    const title = 'Session API Key';
+    const prompt = 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.';
+    const successMessage = 'Session API Key saved securely.';
+    const clearedMessage = 'Session API Key cleared.';
+    const errorPrefix = 'Failed to save Session API Key';
+
+    const trimOrEmpty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
+      const existing = await settingsMgr.get();
+      const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
+
+      const keyInfo = serverUrl ? getServerSessionApiKeySecretKey(serverUrl) : null;
+      const storageKey = keyInfo?.ok ? keyInfo.secretKey : LEGACY_SESSION_API_KEY_SECRET_KEY;
+
+      let currentValue: string | undefined;
+      try {
+        currentValue = await params.context.secrets.get(storageKey);
+      } catch {
+        currentValue = undefined;
+      }
+      const isCurrentlySet = trimOrEmpty(currentValue).length > 0;
+
+      if (isCurrentlySet) {
+        const action = await vscode.window.showQuickPick(
+          [
+            { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+            { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+          ],
+          {
+            title,
+            placeHolder: 'Choose an action',
+            canPickMany: false,
+          }
+        );
+        if (!action) return;
+
+        if (action.value === 'clear') {
+          const confirmed = await vscode.window.showWarningMessage(
+            `Clear ${title}${keyInfo?.ok ? ` for ${keyInfo.normalizedServerUrl}` : ''}?`,
+            { modal: true },
+            'Clear'
+          );
+          if (confirmed !== 'Clear') return;
+
+          await params.context.secrets.delete(storageKey);
+          params.secrets.set(storageKey, undefined);
+          vscode.window.showInformationMessage(clearedMessage);
+
+          const updated = await settingsMgr.get();
+          const next = keyInfo?.ok
+            ? { ...updated, secrets: { ...updated.secrets, sessionApiKey: undefined } }
+            : updated;
+          params.getConversation()?.setSettings(next);
+          await syncSecretStatusIndicatorsBestEffort();
+          return;
+        }
+      }
+
+      const value = await vscode.window.showInputBox({
+        title,
+        password: true,
+        prompt,
+        placeHolder: 'sk-...',
+      });
+
+      if (value === undefined) return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+
+      if (keyInfo?.ok) {
+        await params.context.secrets.store(storageKey, trimmed);
+        params.secrets.set(storageKey, trimmed);
+
+        let legacyRaw: string | undefined;
+        try {
+          legacyRaw = await params.context.secrets.get(LEGACY_SESSION_API_KEY_SECRET_KEY);
+        } catch {
+          legacyRaw = undefined;
+        }
+        const legacyValue = trimOrEmpty(legacyRaw);
+        const canUpdateLegacy = !legacyValue || legacyValue === trimmed;
+        if (canUpdateLegacy) {
+          await params.context.secrets.store(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
+          params.secrets.set(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
+        }
+      } else {
+        await params.context.secrets.store(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
+        params.secrets.set(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
+      }
+
+      vscode.window.showInformationMessage(successMessage);
+
+      const updated = await settingsMgr.get();
+      const next = keyInfo?.ok
+        ? { ...updated, secrets: { ...updated.secrets, sessionApiKey: trimmed } }
+        : updated;
+      params.getConversation()?.setSettings(next);
+      await syncSecretStatusIndicatorsBestEffort();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`${errorPrefix}: ${message}`);
+    }
   });
 
   const setGithubToken = registerSecretCommand('openhands.setGithubToken', {

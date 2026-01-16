@@ -598,6 +598,111 @@ describe('Chat view behavior', () => {
     expect(__getLastConversation()).toBeTruthy();
   });
 
+  it('does not send legacy sessionApiKey to a server when the per-server key is missing', async () => {
+    const secretStorage = new Map<string, string>();
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
+      secretStorage.set(key, value);
+    });
+
+    mockSettings = {
+      ...mockSettings,
+      serverUrl: 'http://localhost:3000',
+      secrets: {
+        ...mockSettings.secrets,
+        sessionApiKey: 'legacy-token',
+      },
+    };
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Not now');
+
+    await resolveChatView(mockContext);
+
+    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
+    expect(options?.settings?.secrets?.sessionApiKey).toBeUndefined();
+
+    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
+    const keyInfo = getServerSessionApiKeySecretKey(mockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+
+    expect(mockContext.secrets.store).not.toHaveBeenCalledWith(keyInfo.secretKey, expect.anything());
+  });
+
+  it('migrates legacy sessionApiKey to the per-server secret key after confirmation', async () => {
+    const secretStorage = new Map<string, string>();
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
+      secretStorage.set(key, value);
+    });
+
+    mockSettings = {
+      ...mockSettings,
+      serverUrl: 'http://localhost:3000',
+      secrets: {
+        ...mockSettings.secrets,
+        sessionApiKey: 'legacy-token',
+      },
+    };
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Use key for this server');
+
+    await resolveChatView(mockContext);
+
+    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
+    const keyInfo = getServerSessionApiKeySecretKey(mockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+
+    expect(secretStorage.get(keyInfo.secretKey)).toBe('legacy-token');
+
+    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
+    expect(options?.settings?.secrets?.sessionApiKey).toBe('legacy-token');
+  });
+
+  it('does not reuse legacy sessionApiKey when switching servers without a per-server key', async () => {
+    const secretStorage = new Map<string, string>();
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
+      secretStorage.set(key, value);
+    });
+
+    mockSettings = {
+      ...mockSettings,
+      serverUrl: 'http://server-a.test:3000',
+      secrets: {
+        ...mockSettings.secrets,
+        sessionApiKey: 'legacy-token',
+      },
+    };
+
+    (vscode.window.showWarningMessage as Mock)
+      .mockResolvedValueOnce('Not now')
+      .mockResolvedValueOnce('Not now');
+
+    await resolveChatView(mockContext);
+
+    mockSettings = { ...mockSettings, serverUrl: 'http://server-b.test:3000' };
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', mockSettings.serverUrl);
+    (vscode as any).__triggerConfigChange({
+      affectsConfiguration: (key: string) => key === 'openhands.serverUrl',
+    });
+
+    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const beforeCalls = (Conversation as unknown as Mock).mock.calls.length;
+
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      if ((Conversation as unknown as Mock).mock.calls.length > beforeCalls) break;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
+    expect(options?.settings?.secrets?.sessionApiKey).toBeUndefined();
+  });
+
   it('does not auto-restore saved conversation on first chat view resolve', async () => {
     // Intentionally does not restore on first open - users may return after weeks
     // and won't remember what the conversation was about
