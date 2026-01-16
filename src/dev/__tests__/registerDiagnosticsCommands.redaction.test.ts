@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SecretRegistry } from '@openhands/agent-sdk-ts';
 import { sanitizeDiagnosticsText } from '../registerDiagnosticsCommands';
 
 describe('sanitizeDiagnosticsText', () => {
@@ -6,9 +7,11 @@ describe('sanitizeDiagnosticsText', () => {
     const secret = 'super-secret-token';
     const text = `prefix ${secret} suffix`;
 
+    const secretRegistry = new SecretRegistry();
+    secretRegistry.register('test', secret);
+
     const preview = sanitizeDiagnosticsText(text, {
-      // Only `getRegisteredValues()` is needed by maskSecretsInText()
-      secretRegistry: { getRegisteredValues: () => [secret] } as any,
+      secretRegistry,
       maxChars: 'prefix '.length + 6, // would include only a partial secret if we truncated first
     });
 
@@ -16,5 +19,17 @@ describe('sanitizeDiagnosticsText', () => {
     expect(preview).not.toContain(secret);
     expect(preview).toContain('prefix ');
   });
-});
 
+  it('does not add a truncated suffix when the masked text is short enough', () => {
+    const secret = 'super-secret-token';
+    const text = `prefix ${secret} suffix`;
+
+    const secretRegistry = new SecretRegistry();
+    secretRegistry.register('test', secret);
+
+    const preview = sanitizeDiagnosticsText(text, { secretRegistry, maxChars: 4000 });
+
+    expect(preview).not.toContain(secret);
+    expect(preview).not.toContain('…(truncated)');
+  });
+});

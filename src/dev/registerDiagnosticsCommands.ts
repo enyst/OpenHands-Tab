@@ -124,7 +124,7 @@ const truncatePreview = (text: string, maxChars: number): string => {
 
 export function sanitizeDiagnosticsText(text: string, params: { secretRegistry?: SecretRegistry; maxChars: number }): string {
   const masked = maskSecretsInText(text, params.secretRegistry);
-  return truncatePreview(masked, params.maxChars);
+  return masked.length > params.maxChars ? truncatePreview(masked, params.maxChars) : masked;
 }
 
 export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDeps): vscode.Disposable[] {
