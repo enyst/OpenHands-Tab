@@ -178,11 +178,11 @@ Tokens must be sent in headers, never as query parameters.
 If you have repo access, run quick checks:
 
 - Find potential secret patterns committed to code:
-  - `grep -RInE "\bsk-[A-Za-z0-9_-]{12,}\b|\bgh[pousr]_[A-Za-z0-9]{12,}\b|github_pat_" src packages`
+  - `grep -RInE "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}" src packages`
 
 - Find places secrets might be written:
-  - `grep -RIn "writeFile\|appendFile\|fs\." src packages`
-  - `grep -RIn "console\.log\|console\.warn\|console\.error" src packages`
+  - `grep -RInE "writeFile|appendFile|fs\\." src packages`
+  - `grep -RInE "console\\.(log|warn|error)" src packages`
 
 - Run tests that cover redaction and profile persistence:
   - `npm test`
