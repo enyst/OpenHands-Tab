@@ -13,6 +13,7 @@ import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
 import type { BaseWorkspace } from '../../workspace/BaseWorkspace';
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from '../../workspace/types';
 import { resolveToolsWithDefaultTools } from './includeDefaultTools';
+import { normalizeRemoteUrl } from '../../shared/remoteUrl';
 
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -49,16 +50,7 @@ const toStaticSecret = (value: unknown): StaticSecret | undefined => {
   return { kind: 'StaticSecret', value: trimmed };
 };
 
-const normalizeRemoteServerUrl = (raw: string): string => {
-  let url = raw.trim();
-  if (!url) return url;
-
-  if (url.startsWith('ws://')) url = `http://${url.slice('ws://'.length)}`;
-  else if (url.startsWith('wss://')) url = `https://${url.slice('wss://'.length)}`;
-  else if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url)) url = `http://${url}`;
-
-  return url.replace(/\/+$/, '');
-};
+const normalizeRemoteServerUrl = normalizeRemoteUrl;
 
 export interface RemoteConversationOptions {
   serverUrl: string;
