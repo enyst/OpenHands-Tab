@@ -34,7 +34,7 @@ Primary risks for this VS Code extension:
 
 - **Persistence leaks**: secrets written to disk (VS Code settings JSON, profile files, workspace/global state, logs, conversation stores)
 - **Logging leaks**: secrets exposed via OutputChannel, debug channels, error strings/stack traces, dev bridge logs, webview console
-- **Webview boundary leaks**: secrets crossing extension-host ↔ webview boundary; secrets persisted in webview state (`acquireVsCodeApi().setState`) or leaked via console
+- **Webview boundary leaks**: host sending secrets to webview (prohibited); user-typed secrets in webview must be sent to host immediately for SecretStorage only and cleared from UI; secrets persisted in webview state (`acquireVsCodeApi().setState`) or leaked via console
 - **Network leaks**: secrets in URLs/query params, secrets sent to wrong host, secrets attached to redirected requests, non-HTTPS when not explicitly intended
 
 ---
