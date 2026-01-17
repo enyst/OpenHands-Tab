@@ -68,5 +68,16 @@ describe('collectEnvironmentInfo', () => {
       openEditorPaths: ['/test/workspace-a/src/other.ts'],
     });
   });
-});
 
+  it('handles no workspace root and no active editor', () => {
+    (vscode.workspace as any).workspaceFolders = [];
+    (vscode.window as any).activeTextEditor = undefined;
+    (vscode.window as any).visibleTextEditors = [];
+
+    expect(collectEnvironmentInfo()).toEqual({
+      workspaceRoot: undefined,
+      activeEditorPath: null,
+      openEditorPaths: [],
+    });
+  });
+});
