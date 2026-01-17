@@ -137,4 +137,76 @@ describe('createWebviewMessageHandler (HAL voice_confirm profile)', () => {
       apiKey: 'profile-secret',
     }));
   });
+
+  it('uses apiKeyRef.name from the profile config when set', async () => {
+    const cfg = {
+      get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+      inspect: vi.fn(() => ({})),
+      update: vi.fn(async () => undefined),
+    };
+
+    (vscode.workspace.getConfiguration as any).mockImplementation(() => cfg);
+
+    const context = {
+      secrets: {
+        get: vi.fn(async () => undefined),
+        store: vi.fn(async () => undefined),
+        delete: vi.fn(async () => undefined),
+      },
+      subscriptions: [],
+    } as unknown as vscode.ExtensionContext;
+
+    const { loadProfile } = await import('../llmProfilesStore');
+    (loadProfile as any).mockReturnValueOnce({
+      profileId: 'gemini-flash-hal',
+      config: {
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        baseUrl: 'https://profiles.example/v1beta',
+        apiKeyRef: { kind: 'key', name: 'HAL_GEMINI_KEY' },
+      },
+    });
+
+    const secretRegistryGet = vi.fn(async (key: string) => {
+      if (key === 'HAL_GEMINI_KEY') return 'apiKeyRef-secret';
+      if (key === 'openhands.llmProfileApiKey.gemini-flash-hal') return 'profile-secret';
+      if (key === 'GEMINI_API_KEY') return 'provider-secret';
+      return undefined;
+    });
+
+    const postMessage = vi.fn(async () => true);
+    const handler = createWebviewMessageHandler({
+      context,
+      host: { postMessage },
+      secretRegistry: { get: secretRegistryGet } as any,
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
+      getConversation: () => undefined,
+      getConversationMode: () => 'local',
+      getConversationStoreRoot: () => undefined,
+      resolveConversationStoreRoot: async () => '/tmp/openhands-conversations',
+      setWebviewReadyState: () => undefined,
+      setLastKnownLlmLabel: () => undefined,
+      getLastKnownLlmLabel: () => null,
+      flushConversationEventBacklog: () => undefined,
+      onRenderedEventsResponse: () => undefined,
+      onUiStateResponse: () => undefined,
+      onHalStateResponse: () => undefined,
+      isDevBridgeEnabled: () => false,
+      getOutputChannel: () => undefined,
+      fileLog: () => undefined,
+    });
+
+    await handler({
+      type: 'halVoiceConfirmRequest',
+      requestId: 'r1',
+      mimeType: 'audio/wav',
+      audioBase64: 'Zm9v',
+    });
+
+    const { classifyHalVoiceDecision } = await import('../../../hal/gemini/decisionClassifier');
+    expect(classifyHalVoiceDecision).toHaveBeenCalledWith(expect.objectContaining({
+      apiKey: 'apiKeyRef-secret',
+    }));
+  });
 });
