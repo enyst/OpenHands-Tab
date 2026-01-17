@@ -100,7 +100,9 @@ export interface AgentOptions {
 // Condensation is token-budget based (maxInputTokens). When the next request would exceed that
 // budget (or the provider returns a context-limit error), we emit a `Condensation` event
 // (summary + forgotten_event_ids). Future requests inject the summary and omit forgotten messages.
-const FALLBACK_CONDENSATION_MAX_INPUT_TOKENS = 8_000;
+// Note: This fallback budget is intentionally set to 32k. We do not try to fall back below 32k
+// because smaller budgets provide little practical value with modern LLM context windows.
+const FALLBACK_CONDENSATION_MAX_INPUT_TOKENS = 32_000;
 const MAX_CONDENSATIONS_PER_STEP = 2;
 
 const SECURITY_RISK_ASSESSMENT_SECTION = /\n?<SECURITY_RISK_ASSESSMENT>[\s\S]*?<\/SECURITY_RISK_ASSESSMENT>\n?/;
