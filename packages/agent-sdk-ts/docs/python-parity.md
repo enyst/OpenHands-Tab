@@ -326,6 +326,7 @@ GeminiClient           // Google Gemini with extended thinking
 
 // LLM factory
 createLLMClient(config: LLMConfiguration, options): LLMClient
+// API keys are supplied via `config.apiKeyRef` (reference or explicit inline) and resolved via SecretRegistry at request time.
 
 // Router
 createRouterLlmClient({ clients, router }): LLMClient

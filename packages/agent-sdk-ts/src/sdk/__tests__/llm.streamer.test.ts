@@ -426,7 +426,7 @@ describe('OpenAIResponsesClient (non-stream)', () => {
 describe('LLMFactory integration', () => {
   it('uses inline apiKey without registry lookup', async () => {
     const spy = vi.spyOn(LLMCredentialProvider.prototype, 'getApiKey');
-    const factory = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', apiKey: 'sk-inline' });
+    const factory = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', apiKeyRef: { kind: 'inline', value: 'sk-inline' } });
 
     const client = await factory.createClient();
 
@@ -447,13 +447,13 @@ describe('LLMFactory integration', () => {
   });
 
   it('routes GPT-5 models through Responses API', async () => {
-    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline' });
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKeyRef: { kind: 'inline', value: 'sk-inline' } });
     const client = await factory.createClient();
     expect(client).toBeInstanceOf(OpenAIResponsesClient);
   });
 
   it('honors openaiApiMode=chat_completions for GPT-5 models', async () => {
-    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', openaiApiMode: 'chat_completions', apiKey: 'sk-inline' });
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', openaiApiMode: 'chat_completions', apiKeyRef: { kind: 'inline', value: 'sk-inline' } });
     const client = await factory.createClient();
     expect(client).toBeInstanceOf(OpenAICompatibleClient);
   });
@@ -464,14 +464,14 @@ describe('LLMFactory integration', () => {
       provider: 'openai',
       baseUrl: 'http://localhost:4000',
       openaiApiMode: 'responses',
-      apiKey: 'sk-inline',
+      apiKeyRef: { kind: 'inline', value: 'sk-inline' },
     });
     const client = await factory.createClient();
     expect(client).toBeInstanceOf(OpenAIResponsesClient);
   });
 
   it('does not route GPT-5 models through Responses API when baseUrl is custom', async () => {
-    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', baseUrl: 'http://localhost:4000', apiKey: 'sk-inline' });
+    const factory = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', baseUrl: 'http://localhost:4000', apiKeyRef: { kind: 'inline', value: 'sk-inline' } });
     const client = await factory.createClient();
     expect(client).toBeInstanceOf(OpenAICompatibleClient);
   });

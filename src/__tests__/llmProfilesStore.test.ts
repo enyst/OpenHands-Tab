@@ -81,7 +81,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       {
         provider: 'openai',
         model: 'gpt-5-mini',
-        apiKey: 'sk-test-inline',
+        apiKeyRef: { kind: 'inline', value: 'sk-test-inline' },
         headers: { Authorization: 'Bearer secret' },
       },
       { rootDir: tmpDir, includeSecrets: true },
@@ -101,7 +101,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       profileId: 'secret',
     });
     expect(response.profile.model).toBe('gpt-5-mini');
-    expect(response.profile.apiKey).toBeUndefined();
+    expect(response.profile.apiKeyRef).toBeUndefined();
     expect(response.profile.headers).toBeUndefined();
   });
 
@@ -115,7 +115,7 @@ describe('LLM profile host CRUD (llm-profiles store)', () => {
       profile: {
         provider: 'openai',
         model: 'gpt-5-mini',
-        apiKey: 'sk-test-inline',
+        apiKeyRef: { kind: 'inline', value: 'sk-test-inline' },
         headers: { Authorization: 'Bearer secret' },
       },
     });

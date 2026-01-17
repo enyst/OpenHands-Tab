@@ -1,4 +1,4 @@
-import type { LLMClient, LLMProfileStoreOptions } from '../llm';
+import type { ApiKeyRef, LLMClient, LLMConfiguration, LLMProfileStoreOptions } from '../llm';
 import { LLMFactory } from '../llm';
 import type { LLMRegistry } from '../llm/registry';
 import type { OpenHandsSettings } from '../types/settings';
@@ -26,28 +26,26 @@ export function createLlmClientFromSettings(params: {
   const effectiveUsageId = 'agent';
 
   const configuredApiKey = toOptionalNonEmptyString(s.secrets?.llmApiKey);
-  const configuredApiKeyIsReference =
-    typeof configuredApiKey === 'string' && /^[A-Z0-9_]+$/.test(configuredApiKey);
-  const configuredApiKeyInline = configuredApiKeyIsReference ? undefined : configuredApiKey;
-  secrets.set('openhands.llmApiKey', configuredApiKeyInline);
+  // Always write through so clearing settings also clears any previously registered value.
+  secrets.set('openhands.llmApiKey', configuredApiKey);
 
   const preferredApiKeys = (() => {
     if (!profileId || !isSafeProfileId(profileId)) return undefined;
-    const keys: string[] = [`openhands.llmProfileApiKey.${profileId}`];
-    if (configuredApiKeyIsReference && configuredApiKey) {
-      keys.push(configuredApiKey);
-    }
-    return keys;
+    return [`openhands.llmProfileApiKey.${profileId}`];
   })();
 
-  const config = {
+  const apiKeyRef = configuredApiKey
+    ? ({ kind: 'key', name: 'openhands.llmApiKey' } satisfies ApiKeyRef)
+    : undefined;
+
+  const config: LLMConfiguration = {
     profileId,
     provider: s.llm.provider ?? undefined,
     model: model ?? '',
     openaiApiMode: s.llm.openaiApiMode ?? undefined,
     usageId: effectiveUsageId,
     baseUrl: s.llm.baseUrl ?? undefined,
-    apiKey: profileId ? undefined : configuredApiKey,
+    apiKeyRef: profileId ? undefined : apiKeyRef,
     apiVersion: s.llm.apiVersion ?? undefined,
     timeoutSeconds: s.llm.timeout ?? undefined,
     temperature: s.llm.temperature ?? undefined,

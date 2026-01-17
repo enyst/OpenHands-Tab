@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import type { LLMConfiguration, LLMProvider, OpenAIChatApi, ReasoningSummary } from './types';
+import type { ApiKeyRef, LLMConfiguration, LLMProvider, OpenAIChatApi, ReasoningSummary } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 
 export const DEFAULT_LLM_PROFILES_DIR = path.join(os.homedir(), '.openhands', 'llm-profiles');
@@ -114,10 +114,32 @@ const validateHeaders = (headers: unknown): void => {
   }
 };
 
+const validateApiKeyRef = (value: unknown): void => {
+  if (!isObjectRecord(value)) {
+    throw new LLMProfileValidationError('apiKeyRef must be an object');
+  }
+  const kind = value.kind;
+  if (kind === 'inline') {
+    if (typeof value.value !== 'string' || !value.value.trim()) {
+      throw new LLMProfileValidationError('apiKeyRef.value must be a non-empty string when kind="inline"');
+    }
+    return;
+  }
+  if (kind === 'key') {
+    if (typeof value.name !== 'string' || !value.name.trim()) {
+      throw new LLMProfileValidationError('apiKeyRef.name must be a non-empty string when kind="key"');
+    }
+    return;
+  }
+  throw new LLMProfileValidationError('apiKeyRef.kind must be "key" or "inline"');
+};
+
 export const validateProfile = (payload: unknown): LLMConfiguration => {
   if (!isObjectRecord(payload)) {
     throw new LLMProfileValidationError('Profile payload must be an object');
   }
+
+  const config = payload;
 
   if (typeof payload.model !== 'string' || !payload.model.trim()) {
     throw new LLMProfileValidationError('Profile must include a non-empty "model" string');
@@ -156,10 +178,19 @@ export const validateProfile = (payload: unknown): LLMConfiguration => {
     }
   }
 
-  if ('apiKey' in payload && payload.apiKey !== undefined) {
-    if (typeof payload.apiKey !== 'string') {
+  if ('apiKeyRef' in config && config.apiKeyRef !== undefined && config.apiKeyRef !== null) {
+    validateApiKeyRef(config.apiKeyRef);
+  }
+  // Backward-compat: treat legacy `apiKey` as a reference name, not an inline secret value.
+  if ('apiKey' in config && config.apiKey !== undefined) {
+    if (typeof config.apiKey !== 'string') {
       throw new LLMProfileValidationError('apiKey must be a string');
     }
+    const name = config.apiKey.trim();
+    if (name && config.apiKeyRef === undefined) {
+      config.apiKeyRef = { kind: 'key', name } satisfies ApiKeyRef;
+    }
+    delete config.apiKey;
   }
 
   for (const key of ['timeoutSeconds', 'temperature', 'topP', 'topK'] as const) {
@@ -209,13 +240,13 @@ export const validateProfile = (payload: unknown): LLMConfiguration => {
     }
   }
 
-  return payload as unknown as LLMConfiguration;
+  return config as unknown as LLMConfiguration;
 };
 
 const stripSecrets = (config: LLMConfiguration): LLMConfiguration => {
   const sanitized: LLMConfiguration = { ...config };
-  if (typeof sanitized.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(sanitized.apiKey)) {
-    delete sanitized.apiKey;
+  if (sanitized.apiKeyRef?.kind === 'inline') {
+    delete sanitized.apiKeyRef;
   }
   // Headers can plausibly contain auth material (Authorization, x-api-key, etc.).
   // In "no secrets" mode, be conservative and do not persist headers.

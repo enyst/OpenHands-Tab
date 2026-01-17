@@ -721,7 +721,7 @@ describe('RemoteConversation', () => {
       maxLength: 12,
       llm: {
         model: 'custom-model',
-        apiKey: 'llm-key',
+        apiKeyRef: { kind: 'inline', value: 'llm-key' },
         baseUrl: 'https://llm.example',
         apiVersion: '2025-01-01',
         timeoutSeconds: 10,
