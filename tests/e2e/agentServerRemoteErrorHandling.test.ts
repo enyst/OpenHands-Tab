@@ -174,7 +174,9 @@ describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
       // Make the default LLM config point at the mock server even if the client omits fields.
       LLM_MODEL: 'gpt-4o-mini',
       LLM_BASE_URL: `${mock.baseUrl}/v1`,
-      LLM_API_KEY: 'sk-e2e',
+      // LiteLLM expects provider-specific env vars when api_key isn't explicitly provided
+      // in the StartConversation payload.
+      OPENAI_API_KEY: 'sk-e2e',
     };
     if (env.SESSION_API_KEY === undefined) {
       env.SESSION_API_KEY = '';
