@@ -134,6 +134,10 @@ async function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
 describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
   this.timeout(180000);
 
+  after(async () => {
+    await fs.promises.rm(agentServerStateDir, { recursive: true, force: true });
+  });
+
   it('renders an error event when the LLM endpoint returns 400', async function () {
     if (process.env.E2E_AGENT_SERVER !== '1') {
       this.skip();

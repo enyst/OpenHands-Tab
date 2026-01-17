@@ -172,6 +172,10 @@ async function startAgentServerWithRetry(
 describe('OpenHands-Tab Remote Agent-Server E2E (messaging)', function () {
   this.timeout(180000);
 
+  after(async () => {
+    await fs.promises.rm(agentServerStateDir, { recursive: true, force: true });
+  });
+
   it('sends two messages and observes LLM requests via the mock server log', async function () {
     if (process.env.E2E_AGENT_SERVER !== '1') {
       this.skip();
