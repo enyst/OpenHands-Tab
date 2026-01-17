@@ -167,12 +167,15 @@ export async function handleHalVoiceConfirmRequest(args: {
 
   const { getStoredSecret } = createStoredSecretHelpers({ context: args.context, secretRegistry: args.deps.secretRegistry });
 
+  const apiKeyRefName = halProfile.config.apiKeyRef?.kind === 'key' ? halProfile.config.apiKeyRef.name : undefined;
+
   const keyOrder = [
+    ...(typeof apiKeyRefName === 'string' && apiKeyRefName.trim() ? [apiKeyRefName.trim()] : []),
     getProfileApiKeySecretKey(halProfileId),
     getProviderApiKeyName(provider),
     'openhands.llmApiKey',
     'LLM_API_KEY',
-  ];
+  ].filter((key, idx, arr) => arr.indexOf(key) === idx);
   let halGeminiKey: string | undefined;
   for (const key of keyOrder) {
     const candidate = await getStoredSecret(key);
