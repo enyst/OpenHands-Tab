@@ -6,8 +6,6 @@ description: >
 license: MIT
 triggers:
   - /audit
-  - audit security
-  - security audit
 ---
 
 # OpenHands-Tab Security Audit (AgentSkill)
