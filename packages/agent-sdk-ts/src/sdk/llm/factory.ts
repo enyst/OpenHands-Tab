@@ -90,12 +90,12 @@ export class LLMFactory {
 
     const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
 
-    const needsPricing = (
-      config.inputCostPerToken === null || config.inputCostPerToken === undefined
-      || config.outputCostPerToken === null || config.outputCostPerToken === undefined
-      || config.cacheReadCostPerToken === null || config.cacheReadCostPerToken === undefined
-      || config.cacheWriteCostPerToken === null || config.cacheWriteCostPerToken === undefined
-    );
+    const isNil = (value: unknown): boolean => value === null || value === undefined;
+    const needsPricing =
+      isNil(config.inputCostPerToken) ||
+      isNil(config.outputCostPerToken) ||
+      isNil(config.cacheReadCostPerToken) ||
+      isNil(config.cacheWriteCostPerToken);
 
     if (needsPricing) {
       const normalizedBaseUrl = normalizeUrl(config.baseUrl);
