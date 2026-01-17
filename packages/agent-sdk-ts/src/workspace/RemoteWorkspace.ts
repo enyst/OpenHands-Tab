@@ -32,7 +32,8 @@ const normalizeEncoding = (encoding: WorkspaceEncoding): NodeBufferEncoding => {
 
 export interface RemoteWorkspaceOptions {
   host: string;
-  apiKey?: string;
+  /** Session API key for authenticating with the OpenHands server. */
+  sessionApiKey?: string;
   workingDir?: string;
   pollIntervalMs?: number;
   httpTimeoutMs?: number;
@@ -94,7 +95,7 @@ export class RemoteWorkspace implements BaseWorkspace {
   readonly root: string;
 
   private readonly host: string;
-  private readonly apiKey?: string;
+  private readonly sessionApiKey?: string;
   private readonly pollIntervalMs: number;
   private readonly httpTimeoutMs: number;
 
@@ -107,7 +108,9 @@ export class RemoteWorkspace implements BaseWorkspace {
 
   constructor(options: RemoteWorkspaceOptions) {
     this.host = normalizeRemoteHostUrl(options.host);
-    this.apiKey = typeof options.apiKey === 'string' && options.apiKey.trim() ? options.apiKey.trim() : undefined;
+    this.sessionApiKey = typeof options.sessionApiKey === 'string' && options.sessionApiKey.trim()
+      ? options.sessionApiKey.trim()
+      : undefined;
     this.root = normalizePosixRoot(options.workingDir ?? '/workspace');
     this.pollIntervalMs = typeof options.pollIntervalMs === 'number' ? Math.max(0, options.pollIntervalMs) : 100;
     this.httpTimeoutMs = typeof options.httpTimeoutMs === 'number' ? Math.max(0, options.httpTimeoutMs) : 60_000;
@@ -420,9 +423,9 @@ export class RemoteWorkspace implements BaseWorkspace {
 
   private getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
-    if (this.apiKey) {
-      headers['X-Session-API-Key'] = this.apiKey;
-      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    if (this.sessionApiKey) {
+      headers['X-Session-API-Key'] = this.sessionApiKey;
+      headers['Authorization'] = `Bearer ${this.sessionApiKey}`;
     }
     return headers;
   }
