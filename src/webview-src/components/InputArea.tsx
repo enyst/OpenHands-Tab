@@ -28,6 +28,7 @@ interface InputAreaProps {
   contextQuery?: string;
   onContextQueryChange?: (query: string) => void;
   onCloseContextPicker?: (reason: CloseReason) => void;
+  contextPickerAutoFocusSearch?: boolean;
   // Skills
   onOpenSkills: () => void;
   skillsCount?: number;
@@ -84,6 +85,7 @@ export function InputArea({
   contextQuery = '',
   onContextQueryChange,
   onCloseContextPicker,
+  contextPickerAutoFocusSearch = true,
   onOpenSkills,
   skillsCount = 0,
   showSkillsPopover = false,
@@ -327,6 +329,7 @@ export function InputArea({
                 onToggleFile={onToggleContextFile}
                 searchQuery={contextQuery}
                 onSearchChange={onContextQueryChange}
+                autoFocusSearch={contextPickerAutoFocusSearch}
               />
             )}
           </div>

@@ -7,10 +7,12 @@ const mockApi = { postMessage: vi.fn() };
 
 describe('App toolbar interactions', () => {
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
   });
 
   beforeEach(() => {
+    vi.useRealTimers();
     // @ts-expect-error mock VS Code API
     window.acquireVsCodeApi = () => mockApi;
     mockApi.postMessage.mockClear();
@@ -427,6 +429,96 @@ describe('App toolbar interactions', () => {
     expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
   });
 
+  it('does not open the context picker for email addresses', async () => {
+    render(<App />);
+    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+    expect(input).toBeTruthy();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
+      }));
+    });
+
+    mockApi.postMessage.mockClear();
+    input.focus();
+    fireEvent.change(input, { target: { value: 'engel@gmail.com' } });
+    input.setSelectionRange(input.value.length, input.value.length);
+    fireEvent.select(input);
+
+    expect(mockApi.postMessage).not.toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+    expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
+  });
+
+  it('does not steal focus when opening the mention context picker', async () => {
+    render(<App />);
+    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+    expect(input).toBeTruthy();
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
+      }));
+    });
+
+    mockApi.postMessage.mockClear();
+    input.focus();
+    fireEvent.change(input, { target: { value: '@' } });
+    input.setSelectionRange(1, 1);
+    fireEvent.select(input);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+    });
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'workspaceFiles', files: ['src/index.ts', 'README.md'] }
+      }));
+    });
+
+    expect(await screen.findByPlaceholderText('Search files...')).toBeInTheDocument();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('closes the mention context picker when clicking back into the input', async () => {
+    vi.useFakeTimers();
+    try {
+      render(<App />);
+      const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+      expect(input).toBeTruthy();
+
+      await act(async () => {
+        window.dispatchEvent(new MessageEvent('message', {
+          data: { type: 'status', status: 'online', mode: 'local', llmProfileLabel: 'gpt-4.1' }
+        }));
+      });
+
+      mockApi.postMessage.mockClear();
+      act(() => {
+        input.focus();
+        fireEvent.change(input, { target: { value: '@' } });
+        input.setSelectionRange(1, 1);
+        fireEvent.select(input);
+      });
+
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+      expect(screen.getByPlaceholderText('Search files...')).toBeInTheDocument();
+
+      // Wait for the close handler to be attached (100ms delay in useCloseOnEscapeAndOutsideClick)
+      act(() => { vi.advanceTimersByTime(150); });
+
+      act(() => {
+        fireEvent.click(input);
+      });
+
+      expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(input);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('closes the context picker on Esc and returns focus to the input', async () => {
     render(<App />);
     const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
@@ -452,22 +544,6 @@ describe('App toolbar interactions', () => {
       }));
     });
 
-    expect(await screen.findByPlaceholderText('Search files...')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('src/index.ts'));
-
-    await waitFor(() => {
-      expect(input.value).toContain('@src/index.ts');
-    });
-
-    // Blur input (user clicked elsewhere)
-    input.blur();
-
-    // Clicking back into the input near the mention re-opens the picker.
-    input.setSelectionRange(input.value.length, input.value.length);
-    input.focus();
-    fireEvent.select(input);
-
     const searchInput = await screen.findByPlaceholderText('Search files...');
     fireEvent.keyDown(searchInput, { key: 'Escape' });
 
@@ -475,6 +551,26 @@ describe('App toolbar interactions', () => {
     expect(document.activeElement).toBe(input);
     expect(input.selectionStart).toBe(input.value.length);
     expect(input.selectionEnd).toBe(input.value.length);
+
+    // Selecting/focusing the input should not immediately reopen the picker and steal focus back.
+    fireEvent.select(input);
+    expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
+  });
+
+  it('does not open the context picker when @ is mid-word (email address)', async () => {
+    render(<App />);
+    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
+    expect(input).toBeTruthy();
+
+    const value = 'engel@gmail.com';
+    input.setSelectionRange(value.length, value.length);
+    fireEvent.select(input);
+    fireEvent.change(input, { target: { value } });
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).not.toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
+    });
+    expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
   });
 
   it('requests skills and opens selected skill file', async () => {
