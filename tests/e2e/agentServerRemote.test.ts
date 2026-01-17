@@ -18,9 +18,14 @@ function getDefaultAgentSdkDir(): string {
 }
 
 function resolveUvPath(): string | null {
-  const found = spawnSync('which', ['uv'], { encoding: 'utf8' });
-  const uvPath = typeof found.stdout === 'string' ? found.stdout.trim() : '';
-  return uvPath.length > 0 ? uvPath : null;
+  const cmd = process.platform === 'win32' ? 'where' : 'which';
+  const found = spawnSync(cmd, ['uv'], { encoding: 'utf8' });
+  if (found.error || found.status !== 0) {
+    return null;
+  }
+  const stdout = typeof found.stdout === 'string' ? found.stdout.trim() : '';
+  const firstLine = stdout.split(/\r?\n/)[0]?.trim() ?? '';
+  return firstLine.length > 0 ? firstLine : null;
 }
 
 type OutputTail = {
