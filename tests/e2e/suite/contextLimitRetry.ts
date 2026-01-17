@@ -99,10 +99,10 @@ export async function run(): Promise<void> {
     const longAssistant = `seed-assistant ${'y'.repeat(2_000)}`;
     mock.setScript({
       path: '/v1/chat/completions',
-      responses: Array.from({ length: 30 }, () => buildOpenAiChatCompletionsSseResponse(longAssistant)),
+      responses: Array.from({ length: 200 }, () => buildOpenAiChatCompletionsSseResponse(longAssistant)),
     });
 
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 40; i += 1) {
       const userText = `seed-user-${i} ` + 'x'.repeat(2_000);
       await sendAndWaitForRequestPath({
         text: userText,
