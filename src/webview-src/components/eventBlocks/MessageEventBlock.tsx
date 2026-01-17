@@ -33,15 +33,19 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     if (openEditorsIndex === -1) return text;
 
     const listStartIndex = openEditorsIndex + 1;
-    const listLines = lines.slice(listStartIndex, endIndex);
-    const editorLines = listLines.filter((line) => line.trimStart().startsWith('- '));
+    let listEndIndex = listStartIndex;
+    while (listEndIndex < endIndex && lines[listEndIndex]?.trimStart().startsWith('- ')) {
+      listEndIndex += 1;
+    }
+
+    const editorLines = lines.slice(listStartIndex, listEndIndex);
     if (editorLines.length <= 5) return text;
 
     const truncated = [
       ...lines.slice(0, listStartIndex),
       ...editorLines.slice(0, 5),
       '- ...',
-      ...lines.slice(endIndex),
+      ...lines.slice(listEndIndex),
     ];
 
     return truncated.join('\n');

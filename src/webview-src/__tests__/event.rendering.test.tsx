@@ -169,6 +169,7 @@ describe('Agent-SDK event rendering', () => {
       '- b4.ts',
       '- b5.ts',
       '- b6.ts',
+      'Other info: should stay',
       '</environment information>',
     ].join('\n');
 
@@ -192,6 +193,7 @@ describe('Agent-SDK event rendering', () => {
     expect(screen.getByText(/- b5\.ts/)).toBeInTheDocument();
     expect(screen.getByText(/- \.\.\./)).toBeInTheDocument();
     expect(screen.queryByText(/b6\.ts/)).toBeNull();
+    expect(screen.getByText(/Other info: should stay/)).toBeInTheDocument();
   });
 
   it('renders agent error events', async () => {
