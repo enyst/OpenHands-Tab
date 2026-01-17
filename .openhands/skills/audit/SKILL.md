@@ -132,12 +132,13 @@ Profiles can contain inline `apiKey` or `headers`, which are **high-risk** if pe
 **Pass criteria**:
 - A save option like `includeSecrets` exists and defaults to `false`.
 - When `includeSecrets=false`:
-  - `apiKey` is removed unless it is an explicit non-secret reference (e.g. an env-var indirection supported by this repo).
-  - `headers` are removed (or strictly allowlisted); never persist `Authorization` or cookies.
+  - `headers` are removed by default.
+  - `apiKey` is removed by default **unless** it is a clearly-defined, non-secret reference format supported by this repo.
+    - **Important**: do *not* rely on a regex heuristic like `/^[A-Z0-9_]+$/` to guess “env var name”. Only preserve `apiKey` when it uses an explicit indirection syntax (whatever this repo defines), e.g. `${env:OPENAI_API_KEY}`.
 
 **Fail examples**:
 - Persisting literal API keys or Authorization headers into any profile JSON file by default.
-- A heuristic like “strip if it looks like a real key” without a well-defined representation of non-secret references.
+- Using heuristics (e.g. “keep it if it looks like an env var name”) instead of an explicit indirection format.
 
 ### E. Logging & error handling: assume redaction is imperfect
 
