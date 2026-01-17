@@ -12,7 +12,7 @@ export type WorkspaceFactoryOptions =
   | {
     kind: 'remote';
     serverUrl: string;
-    apiKey?: string;
+    sessionApiKey?: string;
     workingDir?: string;
     workspaceRoot?: string;
     runtimeApiUrl?: string;
@@ -28,7 +28,7 @@ export function Workspace(options?: WorkspaceFactoryOptions): BaseWorkspace {
   const workingDir = options.workingDir ?? options.workspaceRoot;
   return new RemoteWorkspace({
     host: options.serverUrl,
-    apiKey: options.apiKey,
+    sessionApiKey: options.sessionApiKey,
     workingDir,
     runtimeApiUrl: options.runtimeApiUrl,
     runtimeApiKey: options.runtimeApiKey,

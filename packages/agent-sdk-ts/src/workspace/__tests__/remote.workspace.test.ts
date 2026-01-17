@@ -100,7 +100,7 @@ describe('RemoteWorkspace', () => {
     const ws = new RemoteWorkspace({
       host: 'http://localhost:3000',
       workingDir: '/workspace/project',
-      apiKey: 'session-key',
+      sessionApiKey: 'session-key',
       pollIntervalMs: 0,
     });
 
@@ -138,7 +138,7 @@ describe('RemoteWorkspace', () => {
     const ws = new RemoteWorkspace({
       host: 'http://localhost:3000',
       workingDir: '/workspace/project',
-      apiKey: 'session-key',
+      sessionApiKey: 'session-key',
     });
 
     await ws.writeFile('hello.txt', 'hello');
