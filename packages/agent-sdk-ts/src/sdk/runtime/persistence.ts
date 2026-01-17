@@ -39,6 +39,15 @@ const OPENAI_API_MODES: readonly OpenAIChatApi[] = ['chat_completions', 'respons
 const REASONING_SUMMARIES: readonly ReasoningSummary[] = ['auto', 'concise', 'detailed'];
 const REASONING_EFFORTS: readonly PersistedLlmConfig['reasoningEffort'][] = ['low', 'medium', 'high', 'none'];
 
+const bestEffortChmodSync = (targetPath: string, mode: number) => {
+  if (process.platform === 'win32') return;
+  try {
+    fs.chmodSync(targetPath, mode);
+  } catch (error) {
+    void error;
+  }
+};
+
 const toOptionalProvider = (value: unknown): LLMProvider | undefined =>
   typeof value === 'string' && PROVIDERS.includes(value as LLMProvider) ? (value as LLMProvider) : undefined;
 
@@ -121,6 +130,7 @@ export class FileStore implements ConversationPersistence {
   private readonly eventsFile: string;
   private readonly stateFile: string;
   private readonly llmFile: string;
+  private readonly openhandsRootDir?: string;
 
   constructor(options: FileStoreOptions) {
     this.rootDir = options.rootDir ?? path.join(os.homedir(), '.openhands', 'conversations');
@@ -129,11 +139,26 @@ export class FileStore implements ConversationPersistence {
     this.eventsFile = path.join(this.conversationDir, 'events.jsonl');
     this.stateFile = path.join(this.conversationDir, 'state.json');
     this.llmFile = path.join(this.conversationDir, 'llm.json');
-    fs.mkdirSync(this.conversationDir, { recursive: true });
+    this.openhandsRootDir = (() => {
+      try {
+        const candidate = path.join(os.homedir(), '.openhands');
+        const resolvedCandidate = path.resolve(candidate);
+        const resolvedRoot = path.resolve(this.rootDir);
+        return resolvedRoot === resolvedCandidate || resolvedRoot.startsWith(`${resolvedCandidate}${path.sep}`) ? candidate : undefined;
+      } catch (error) {
+        void error;
+        return undefined;
+      }
+    })();
+    fs.mkdirSync(this.conversationDir, { recursive: true, mode: 0o700 });
+    if (this.openhandsRootDir) bestEffortChmodSync(this.openhandsRootDir, 0o700);
+    bestEffortChmodSync(this.rootDir, 0o700);
+    bestEffortChmodSync(this.conversationDir, 0o700);
   }
 
   appendEvent(event: Event): void {
-    fs.appendFileSync(this.eventsFile, `${JSON.stringify(event)}\n`, 'utf8');
+    fs.appendFileSync(this.eventsFile, `${JSON.stringify(event)}\n`, { encoding: 'utf8', mode: 0o600 });
+    bestEffortChmodSync(this.eventsFile, 0o600);
   }
 
   readEvents(): Event[] {
@@ -154,7 +179,8 @@ export class FileStore implements ConversationPersistence {
   }
 
   writeState(state: AgentState): void {
-    fs.writeFileSync(this.stateFile, JSON.stringify(state), 'utf8');
+    fs.writeFileSync(this.stateFile, JSON.stringify(state), { encoding: 'utf8', mode: 0o600 });
+    bestEffortChmodSync(this.stateFile, 0o600);
   }
 
   readState(): AgentState | undefined {
@@ -171,6 +197,7 @@ export class FileStore implements ConversationPersistence {
   writeLlmConfig(config: PersistedLlmConfig): void {
     try {
       fs.writeFileSync(this.llmFile, `${JSON.stringify(config)}\n`, { encoding: 'utf8', mode: 0o600 });
+      bestEffortChmodSync(this.llmFile, 0o600);
     } catch (error) {
       console.error(`[FileStore] Failed to write llm config: ${String(error)}`);
     }

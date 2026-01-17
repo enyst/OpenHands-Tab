@@ -83,6 +83,29 @@ describe('FileStore', () => {
       temperature: 0.25,
     });
   });
+
+  it('creates directories and files with restrictive permissions', () => {
+    if (process.platform === 'win32') return;
+
+    const dir = makeTempDir('conversation-perms-');
+    const conversationId = 'conv-perms';
+    const persistence = new FileStore({ rootDir: dir, conversationId });
+
+    persistence.appendEvent({
+      kind: 'MessageEvent',
+      source: 'user',
+      llm_message: { role: 'user', content: [{ type: 'text', text: 'hi' }] },
+    } as Event);
+
+    persistence.writeState({ status: 'idle', iteration: 0, values: {} } as any);
+    persistence.writeLlmConfig?.({ profileId: 'test-profile' });
+
+    const conversationDir = path.join(dir, conversationId);
+    expect(fs.statSync(conversationDir).mode & 0o777).toBe(0o700);
+    expect(fs.statSync(path.join(conversationDir, 'events.jsonl')).mode & 0o777).toBe(0o600);
+    expect(fs.statSync(path.join(conversationDir, 'state.json')).mode & 0o777).toBe(0o600);
+    expect(fs.statSync(path.join(conversationDir, 'llm.json')).mode & 0o777).toBe(0o600);
+  });
 });
 
 

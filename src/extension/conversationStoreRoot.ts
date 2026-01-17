@@ -20,10 +20,32 @@ function resolveConfiguredPath(p: string): string {
   return path.resolve(os.homedir(), raw);
 }
 
+async function bestEffortChmod(targetPath: string, mode: number): Promise<void> {
+  if (process.platform === 'win32') return;
+  try {
+    await fs.chmod(targetPath, mode);
+  } catch (err) {
+    void err;
+  }
+}
+
 async function ensureWritableDirectory(dir: string): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+
+  try {
+    const openhandsRoot = path.join(os.homedir(), '.openhands');
+    const resolvedRoot = path.resolve(openhandsRoot);
+    const resolvedDir = path.resolve(dir);
+    if (resolvedDir === resolvedRoot || resolvedDir.startsWith(`${resolvedRoot}${path.sep}`)) {
+      await bestEffortChmod(openhandsRoot, 0o700);
+    }
+  } catch (err) {
+    void err;
+  }
+
+  await bestEffortChmod(dir, 0o700);
   const probe = path.join(dir, `.openhands-write-probe-${process.pid}-${Date.now()}`);
-  await fs.writeFile(probe, 'ok', 'utf8');
+  await fs.writeFile(probe, 'ok', { encoding: 'utf8', mode: 0o600 });
   await fs.unlink(probe);
 }
 
