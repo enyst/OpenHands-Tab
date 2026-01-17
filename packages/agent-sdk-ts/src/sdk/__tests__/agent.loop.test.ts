@@ -402,7 +402,7 @@ describe('Agent loop control', () => {
     }
 
     const agent = new Agent({
-      settings: { ...baseSettings, llm: { ...baseSettings.llm, provider: 'litellm_proxy' } },
+      settings: { ...baseSettings, llm: { ...baseSettings.llm, provider: 'litellm_proxy', maxInputTokens: 8000 } },
       events: log,
       workspaceRoot: createWorkspaceRoot(),
       llmClient: llm,
