@@ -198,8 +198,6 @@ describe('OpenHands-Tab Remote Agent-Server E2E (history-ish)', function () {
 
     const env: Record<string, string | undefined> = {
       ...process.env,
-      // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
-      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
       PYTHONUNBUFFERED: '1',
       OH_ENABLE_VSCODE: '0',
       OH_ENABLE_VNC: '0',
@@ -212,13 +210,25 @@ describe('OpenHands-Tab Remote Agent-Server E2E (history-ish)', function () {
       LLM_BASE_URL: `${mock.baseUrl}/v1`,
       OPENAI_API_KEY: 'sk-e2e',
     };
+    // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
+    // Note: keep PATH intact on Windows.
+    if (process.platform !== 'win32') {
+      env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+    }
     if (env.SESSION_API_KEY === undefined) {
       env.SESSION_API_KEY = '';
     }
 
-    const { child, serverUrl, output } = await startAgentServerWithRetry(agentSdkDir, uvPath, env, 3);
+    let child: ReturnType<typeof spawn> | null = null;
+    let serverUrl = '';
+    let output: OutputTail | null = null;
 
     try {
+      const started = await startAgentServerWithRetry(agentSdkDir, uvPath, env, 3);
+      child = started.child;
+      serverUrl = started.serverUrl;
+      output = started.output;
+
       const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
       const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
       const extensionTestsPath = path.resolve(__dirname, './suite');
@@ -246,10 +256,14 @@ describe('OpenHands-Tab Remote Agent-Server E2E (history-ish)', function () {
 
       assert.ok(true);
     } catch (err) {
-      console.error('agent-server output (tail):\n', output.dump());
+      if (output) {
+        console.error('agent-server output (tail):\n', output.dump());
+      }
       throw err;
     } finally {
-      await killProcessTree(child);
+      if (child) {
+        await killProcessTree(child);
+      }
       await mock.close();
     }
   });

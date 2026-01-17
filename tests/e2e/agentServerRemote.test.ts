@@ -207,8 +207,6 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
 
     const env: Record<string, string | undefined> = {
       ...process.env,
-      // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
-      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
       PYTHONUNBUFFERED: '1',
       // Keep server startup lightweight for CI (no VSCode/VNC, no tool preload).
       OH_ENABLE_VSCODE: '0',
@@ -219,6 +217,11 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       OH_CONVERSATIONS_PATH: agentServerConversationsPath,
       OH_BASH_EVENTS_DIR: agentServerBashEventsDir,
     };
+    // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
+    // Note: keep PATH intact on Windows.
+    if (process.platform !== 'win32') {
+      env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+    }
     if (env.SESSION_API_KEY === undefined) {
       // Default to no auth for CI, but allow authenticated runs by setting
       // SESSION_API_KEY in the environment.

@@ -170,8 +170,6 @@ describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
 
     const env: Record<string, string | undefined> = {
       ...process.env,
-      // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
-      PATH: '/usr/bin:/bin:/usr/sbin:/sbin',
       PYTHONUNBUFFERED: '1',
       OH_ENABLE_VSCODE: '0',
       OH_ENABLE_VNC: '0',
@@ -187,11 +185,20 @@ describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
       // in the StartConversation payload.
       OPENAI_API_KEY: 'sk-e2e',
     };
+    // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
+    // Note: keep PATH intact on Windows.
+    if (process.platform !== 'win32') {
+      env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
+    }
     if (env.SESSION_API_KEY === undefined) {
       env.SESSION_API_KEY = '';
     }
 
-    const { child, serverUrl, output } = await (async () => {
+    let child: ReturnType<typeof spawn> | null = null;
+    let serverUrl = '';
+    let output: OutputTail | null = null;
+
+    try {
       // Inline wrapper so we can spawn uv by absolute path.
       const failures: string[] = [];
       const triedPorts = new Set<number>();
@@ -213,16 +220,20 @@ describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
         childProc.stderr?.on('data', outputTail.append);
         try {
           await waitForHealthOrExit(childProc, `${candidateUrl}/health`, 45000);
-          return { child: childProc, serverUrl: candidateUrl, output: outputTail };
+          child = childProc;
+          serverUrl = candidateUrl;
+          output = outputTail;
+          break;
         } catch (err) {
           failures.push(`Attempt ${attempt}/3 (${candidateUrl}): ${String(err)}\n${outputTail.dump()}`);
           await killProcessTree(childProc);
         }
       }
-      throw new Error(`Failed to start agent-server after 3 attempts.\n\n${failures.join('\n\n')}`);
-    })();
 
-    try {
+      if (!child) {
+        throw new Error(`Failed to start agent-server after 3 attempts.\n\n${failures.join('\n\n')}`);
+      }
+
       const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
       const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
       const extensionTestsPath = path.resolve(__dirname, './suite');
@@ -250,10 +261,14 @@ describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
 
       assert.ok(true);
     } catch (err) {
-      console.error('agent-server output (tail):\n', output.dump());
+      if (output) {
+        console.error('agent-server output (tail):\n', output.dump());
+      }
       throw err;
     } finally {
-      await killProcessTree(child);
+      if (child) {
+        await killProcessTree(child);
+      }
       await mock.close();
     }
   });
