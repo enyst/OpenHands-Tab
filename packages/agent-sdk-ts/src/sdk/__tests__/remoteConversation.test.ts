@@ -18,12 +18,14 @@ class MockWS {
   static CLOSED = 3;
 
   url: string;
+  options?: unknown;
   handlers: Record<string, Handler[]> = {};
   readyState = MockWS.CONNECTING;
   sent: string[] = [];
 
-  constructor(url: string) {
+  constructor(url: string, options?: unknown) {
     this.url = url;
+    this.options = options;
     wsInstances.push(this);
   }
 
@@ -85,6 +87,38 @@ describe('RemoteConversation', () => {
     vi.clearAllMocks();
     wsInstances = [];
     (globalThis as any).fetch = undefined as any;
+  });
+
+  it('authenticates WebSocket via headers only (no session_api_key query param)', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toContain('/events/search');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [], next_page_id: null }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+    });
+
+    await conversation.restoreConversation('abc');
+
+    const ws = getEventWS();
+    expect(ws.url).toContain('/sockets/events/abc?');
+    expect(ws.url).toContain('resend_all=true');
+    expect(ws.url).not.toContain('session_api_key');
+    expect(ws.url).not.toContain('session-key');
+
+    const headers = (ws.options as any)?.headers;
+    expect(headers?.['X-Session-API-Key']).toBe('session-key');
+    expect(headers?.Authorization).toBe('Bearer session-key');
+    expect(headers?.['Content-Type']).toBeUndefined();
   });
 
   it('times out if the WebSocket never connects', async () => {

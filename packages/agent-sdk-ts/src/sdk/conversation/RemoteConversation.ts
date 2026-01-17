@@ -781,9 +781,7 @@ export class RemoteConversation extends EventEmitter {
   private connect() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
-    const sessionKey = this.settings?.secrets.sessionApiKey || '';
     const params = new URLSearchParams();
-    if (sessionKey) params.set('session_api_key', sessionKey);
     params.set('resend_all', 'true');
     const qs = params.toString();
     const wsUrl = `${base.replace(/^http/, 'ws')}/sockets/events/${this.conversationId}?${qs}`;
