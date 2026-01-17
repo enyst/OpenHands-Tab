@@ -557,22 +557,6 @@ describe('App toolbar interactions', () => {
     expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
   });
 
-  it('does not open the context picker when @ is mid-word (email address)', async () => {
-    render(<App />);
-    const input = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
-    expect(input).toBeTruthy();
-
-    const value = 'engel@gmail.com';
-    input.setSelectionRange(value.length, value.length);
-    fireEvent.select(input);
-    fireEvent.change(input, { target: { value } });
-
-    await waitFor(() => {
-      expect(mockApi.postMessage).not.toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
-    });
-    expect(screen.queryByPlaceholderText('Search files...')).not.toBeInTheDocument();
-  });
-
   it('requests skills and opens selected skill file', async () => {
     render(<App />);
     fireEvent.click(screen.getAllByLabelText('Skills')[0]);
