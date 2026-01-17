@@ -395,7 +395,7 @@ describe('Agent loop control', () => {
         source: i % 2 === 0 ? 'user' : 'agent',
         llm_message: {
           role: i % 2 === 0 ? 'user' : 'assistant',
-          content: [{ type: 'text', text: `seed ${i} ` + 'x'.repeat(2_000) }],
+          content: [{ type: 'text', text: `seed ${i} ` + 'x'.repeat(8_000) }],
         },
       } as any) as any;
       seededMessageIds.push(String(evt.id));
