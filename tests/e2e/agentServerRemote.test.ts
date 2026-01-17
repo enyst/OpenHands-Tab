@@ -75,7 +75,9 @@ async function waitForHealthOrExit(proc: ReturnType<typeof spawn>, url: string, 
       throw new Error(`Agent-server exited before reporting healthy (exit=${String(proc.exitCode)} signal=${String(proc.signalCode)})`);
     }
     try {
-      const res = await fetch(url, { method: 'GET' });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch(url, { method: 'GET', signal: controller.signal }).finally(() => clearTimeout(timer));
       if (res.ok) return;
       lastError = new Error(`HTTP ${res.status}`);
     } catch (err) {
