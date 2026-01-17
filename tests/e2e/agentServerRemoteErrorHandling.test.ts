@@ -5,8 +5,9 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { createE2EUserDataDir, downloadVSCodeWithRetry, ensureVsCodeArgvJson } from './testHelpers';
+import { startMockLlmServer, type MockLlmScript } from './suite/mockLlmServer';
 
-const userDataDir = createE2EUserDataDir('agentServerRemote');
+const userDataDir = createE2EUserDataDir('agentServerRemoteErrorHandling');
 const agentServerStateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oh-e2e-agent-server-'));
 const agentServerConversationsPath = path.join(agentServerStateDir, 'conversations');
 const agentServerBashEventsDir = path.join(agentServerStateDir, 'bash_events');
@@ -52,8 +53,6 @@ function createOutputTail(maxChars: number = 20000): OutputTail {
 }
 
 function pickPortForAgentServer(triedPorts: Set<number>): number {
-  // Avoid the bind+close+rebind race: pick a candidate port and retry on failure.
-  // (Similar to how we now bind the mock LLM server to port 0.)
   const min = 20_000;
   const max = 60_000;
   for (let attempts = 0; attempts < 50; attempts += 1) {
@@ -63,7 +62,6 @@ function pickPortForAgentServer(triedPorts: Set<number>): number {
       return port;
     }
   }
-  // Extremely unlikely; just return a candidate.
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -106,7 +104,6 @@ async function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
 
   if (process.platform === 'win32') {
     try {
-      // Best effort: terminate the entire process tree.
       spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
     } catch {
       // ignore
@@ -141,76 +138,41 @@ async function killProcessTree(proc: ReturnType<typeof spawn>): Promise<void> {
   await waitForExit(2000);
 }
 
-async function startAgentServerWithRetry(
-  agentSdkDir: string,
-  uvPath: string,
-  env: Record<string, string | undefined>,
-  maxAttempts: number = 3
-): Promise<{ child: ReturnType<typeof spawn>; serverUrl: string; output: OutputTail }> {
-  const failures: string[] = [];
-  const triedPorts = new Set<number>();
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const port = pickPortForAgentServer(triedPorts);
-    const serverUrl = `http://127.0.0.1:${port}`;
-    const output = createOutputTail();
-    const child = spawn(
-      uvPath,
-      ['run', 'python', '-m', 'openhands.agent_server', '--host', '127.0.0.1', '--port', String(port)],
-      {
-        cwd: agentSdkDir,
-        env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: process.platform !== 'win32',
-      }
-    );
-
-    child.stdout?.on('data', output.append);
-    child.stderr?.on('data', output.append);
-
-    try {
-      await waitForHealthOrExit(child, `${serverUrl}/health`, 45000);
-      return { child, serverUrl, output };
-    } catch (err) {
-      failures.push(`Attempt ${attempt}/${maxAttempts} (${serverUrl}): ${String(err)}\n${output.dump()}`);
-      await killProcessTree(child);
-    }
-  }
-
-  throw new Error(`Failed to start agent-server after ${maxAttempts} attempts.\n\n${failures.join('\n\n')}`);
-}
-
-describe('OpenHands-Tab Remote Agent-Server E2E', function () {
+describe('OpenHands-Tab Remote Agent-Server E2E (error handling)', function () {
   this.timeout(180000);
 
   after(async () => {
     await fs.promises.rm(agentServerStateDir, { recursive: true, force: true });
   });
 
-  it('connects to a live python agent-server and streams events', async function () {
+  it('renders an error event when the LLM endpoint returns 400', async function () {
     if (process.env.E2E_AGENT_SERVER !== '1') {
       this.skip();
     }
 
     const agentSdkDir = process.env.AGENT_SDK_DIR || process.env.OPENHANDS_AGENT_SDK_DIR || getDefaultAgentSdkDir();
-    if (!agentSdkDir) {
-      this.skip();
-    }
-    if (!fs.existsSync(agentSdkDir)) {
-      this.skip();
-    }
+    if (!agentSdkDir) this.skip();
+    if (!fs.existsSync(agentSdkDir)) this.skip();
     const uvPath = resolveUvPath();
-    if (!uvPath) {
-      this.skip();
-    }
+    if (!uvPath) this.skip();
     const uvCheck = spawnSync(uvPath, ['--version'], { stdio: 'ignore' });
-    if (uvCheck.error || uvCheck.status !== 0) {
-      this.skip();
-    }
+    if (uvCheck.error || uvCheck.status !== 0) this.skip();
+
+    const errorResponses = Array.from({ length: 25 }, () => ({
+      type: 'json' as const,
+      status: 400,
+      body: { error: { message: 'E2E forced error', type: 'e2e_error' } },
+    }));
+    const scripts: MockLlmScript[] = [
+      { path: '/chat/completions', responses: errorResponses },
+      { path: '/responses', responses: errorResponses },
+    ];
+
+    const mock = await startMockLlmServer({ scripts });
 
     const env: Record<string, string | undefined> = {
       ...process.env,
       PYTHONUNBUFFERED: '1',
-      // Keep server startup lightweight for CI (no VSCode/VNC, no tool preload).
       OH_ENABLE_VSCODE: '0',
       OH_ENABLE_VNC: '0',
       OH_PRELOAD_TOOLS: '0',
@@ -218,6 +180,12 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       // conversations in ~/repos/agent-sdk/workspace/conversations.
       OH_CONVERSATIONS_PATH: agentServerConversationsPath,
       OH_BASH_EVENTS_DIR: agentServerBashEventsDir,
+      // Make the default LLM config point at the mock server even if the client omits fields.
+      LLM_MODEL: 'gpt-4o-mini',
+      LLM_BASE_URL: `${mock.baseUrl}/v1`,
+      // LiteLLM expects provider-specific env vars when api_key isn't explicitly provided
+      // in the StartConversation payload.
+      OPENAI_API_KEY: 'sk-e2e',
     };
     // Avoid tmux-based terminal sessions in E2E (tmux can be flaky / unavailable in CI).
     // Note: keep PATH intact on Windows.
@@ -225,14 +193,49 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
       env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
     }
     if (env.SESSION_API_KEY === undefined) {
-      // Default to no auth for CI, but allow authenticated runs by setting
-      // SESSION_API_KEY in the environment.
       env.SESSION_API_KEY = '';
     }
 
-    const { child, serverUrl, output } = await startAgentServerWithRetry(agentSdkDir, uvPath, env, 3);
+    let child: ReturnType<typeof spawn> | null = null;
+    let serverUrl = '';
+    let output: OutputTail | null = null;
 
     try {
+      // Inline wrapper so we can spawn uv by absolute path.
+      const failures: string[] = [];
+      const triedPorts = new Set<number>();
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const port = pickPortForAgentServer(triedPorts);
+        const candidateUrl = `http://127.0.0.1:${port}`;
+        const outputTail = createOutputTail();
+        const childProc = spawn(
+          uvPath,
+          ['run', 'python', '-m', 'openhands.agent_server', '--host', '127.0.0.1', '--port', String(port)],
+          {
+            cwd: agentSdkDir,
+            env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            detached: process.platform !== 'win32',
+          }
+        );
+        childProc.stdout?.on('data', outputTail.append);
+        childProc.stderr?.on('data', outputTail.append);
+        try {
+          await waitForHealthOrExit(childProc, `${candidateUrl}/health`, 45000);
+          child = childProc;
+          serverUrl = candidateUrl;
+          output = outputTail;
+          break;
+        } catch (err) {
+          failures.push(`Attempt ${attempt}/3 (${candidateUrl}): ${String(err)}\n${outputTail.dump()}`);
+          await killProcessTree(childProc);
+        }
+      }
+
+      if (!child) {
+        throw new Error(`Failed to start agent-server after 3 attempts.\n\n${failures.join('\n\n')}`);
+      }
+
       const vscodeExecutablePath = await downloadVSCodeWithRetry('stable');
       const extensionDevelopmentPath = path.resolve(__dirname, '../../..');
       const extensionTestsPath = path.resolve(__dirname, './suite');
@@ -249,20 +252,26 @@ describe('OpenHands-Tab Remote Agent-Server E2E', function () {
           '--disable-gpu',
           '--disable-dev-shm-usage',
           '--disable-software-rasterizer',
-          extensionDevelopmentPath
+          extensionDevelopmentPath,
         ],
         extensionTestsEnv: {
-          TEST_NAME: 'agentServerRemote',
+          TEST_NAME: 'agentServerRemoteErrorHandling',
           AGENT_SERVER_URL: serverUrl,
-        }
+          MOCK_LLM_BASE_URL: mock.baseUrl,
+        },
       });
 
       assert.ok(true);
     } catch (err) {
-      console.error('agent-server output (tail):\n', output.dump());
+      if (output) {
+        console.error('agent-server output (tail):\n', output.dump());
+      }
       throw err;
     } finally {
-      await killProcessTree(child);
+      if (child) {
+        await killProcessTree(child);
+      }
+      await mock.close();
     }
   });
 });

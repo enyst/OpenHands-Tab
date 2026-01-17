@@ -73,15 +73,30 @@ function sendOpenAiChatCompletionsSse(res: http.ServerResponse, text: string): v
     'Cache-Control': 'no-cache',
     Connection: 'keep-alive',
   });
-  res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: [{ type: 'text', text }] } }] })}\n`);
+  res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
   res.write(
     `data: ${JSON.stringify({
       choices: [{ delta: {}, finish_reason: 'stop' }],
       usage: { prompt_tokens: 1, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } },
-    })}\n`,
+    })}\n\n`,
   );
-  res.write('data: [DONE]\n');
+  res.write('data: [DONE]\n\n');
   res.end();
+}
+
+function sendOpenAiChatCompletionsJson(res: http.ServerResponse, text: string): void {
+  const payload = {
+    choices: [
+      {
+        index: 0,
+        message: { role: 'assistant', content: text },
+        finish_reason: 'stop',
+      },
+    ],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2, prompt_tokens_details: { cached_tokens: 0 } },
+  };
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(payload));
 }
 
 function sendAnthropicMessagesSse(res: http.ServerResponse, text: string): void {
@@ -248,7 +263,12 @@ export async function startMockLlmServer(options?: { scripts?: MockLlmScript[] }
       }
 
       if (normalizedPath === '/chat/completions') {
-        sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');
+        const shouldStream = Boolean((json as { stream?: unknown } | undefined)?.stream);
+        if (shouldStream) {
+          sendOpenAiChatCompletionsSse(res, 'OK (chat_completions)');
+        } else {
+          sendOpenAiChatCompletionsJson(res, 'OK (chat_completions)');
+        }
         return;
       }
 
