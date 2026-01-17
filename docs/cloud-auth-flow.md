@@ -297,7 +297,7 @@ Never print tokens; avoid retries/loops.
 
 ---
 
-## Appendix: file index (all referenced)
+## Appendix: Relevant Files
 
 ### OpenHands-CLI
 - `~/repos/OpenHands-CLI/openhands_cli/auth/device_flow.py`
