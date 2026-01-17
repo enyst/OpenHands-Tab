@@ -567,5 +567,13 @@
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
     "ws": "^8.18.3"
+  },
+  "overrides": {
+    "mocha": {
+      "diff": "^8.0.3"
+    },
+    "ts-node": {
+      "diff": "^8.0.3"
+    }
   }
 }

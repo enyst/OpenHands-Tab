@@ -62,6 +62,16 @@ When only specific tests are relevant (e.g., during reviews):
 npx vitest run src/webview-src/__tests__/event.handlers.test.tsx
 ```
 
+### Dependency security (npm audit)
+
+```bash
+npm audit
+npm audit fix
+```
+
+Note: this repo uses `package.json#overrides` to pin `diff` for `mocha` and `ts-node` to a non-vulnerable version. If you change these dependencies, re-run `npm audit` and ensure the override remains compatible.
+
+
 ### Agent server scripts
 
 ```bash
