@@ -389,7 +389,7 @@ describe('Agent loop control', () => {
     const llm = new CondensingLLM();
 
     const seededMessageIds: string[] = [];
-    for (let i = 0; i < 30; i += 1) {
+    for (let i = 0; i < 100; i += 1) {
       const evt = log.push({
         kind: 'MessageEvent',
         source: i % 2 === 0 ? 'user' : 'agent',
