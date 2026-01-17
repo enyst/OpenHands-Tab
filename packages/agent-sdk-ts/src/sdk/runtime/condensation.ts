@@ -53,11 +53,22 @@ export const buildChatRequestWithCondensation = (params: {
     return -1;
   })();
 
+  const isEnvironmentInfoBlock = (text: string): boolean =>
+    text.trimStart().toLowerCase().startsWith('<environment information>');
+
   const rawMessages = messageEvents.map((event, idx) => {
-    // Only attach extended_content to the most recent user message so stale environment info
-    // from earlier turns doesn't pollute the request context.
-    if (idx === lastUserMessageIndex && event.source === 'user' && event.extended_content?.length) {
-      return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
+    if (event.source === 'user' && event.extended_content?.length) {
+      // Environment info is ephemeral and should reflect the latest editor state only.
+      // Keep other extended content (e.g. watched-file notes, skill suffixes) attached to its
+      // original message so it remains in conversation history.
+      const extendedContent =
+        idx === lastUserMessageIndex
+          ? event.extended_content
+          : event.extended_content.filter((c) => !(c.type === 'text' && isEnvironmentInfoBlock(c.text)));
+
+      if (extendedContent.length > 0) {
+        return { ...event.llm_message, content: [...event.llm_message.content, ...extendedContent] };
+      }
     }
     return event.llm_message;
   });

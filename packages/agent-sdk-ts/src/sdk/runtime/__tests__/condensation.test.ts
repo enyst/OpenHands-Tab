@@ -63,13 +63,16 @@ describe('condensation helpers', () => {
     expect(userMessage.content).toEqual([{ type: 'text', text: 'Hello' }, { type: 'text', text: 'Context' }]);
   });
 
-  it('only attaches extended_content to the most recent user message', () => {
+  it('only keeps <environment information> for the most recent user message', () => {
     const message1 = {
       kind: 'MessageEvent',
       id: 'm1',
       source: 'user',
       llm_message: { role: 'user', content: [{ type: 'text', text: 'First' }] },
-      extended_content: [{ type: 'text', text: 'Env 1' }],
+      extended_content: [
+        { type: 'text', text: '<environment information>\nActive editor: a.ts\n</environment information>' },
+        { type: 'text', text: 'Environment note: user edited file:\n/tmp/a.txt' },
+      ],
     } satisfies Extract<Event, { kind: 'MessageEvent' }>;
 
     const message2 = {
@@ -77,7 +80,7 @@ describe('condensation helpers', () => {
       id: 'm2',
       source: 'user',
       llm_message: { role: 'user', content: [{ type: 'text', text: 'Second' }] },
-      extended_content: [{ type: 'text', text: 'Env 2' }],
+      extended_content: [{ type: 'text', text: '<environment information>\nActive editor: b.ts\n</environment information>' }],
     } satisfies Extract<Event, { kind: 'MessageEvent' }>;
 
     const tools: LLMToolDefinition[] = [];
@@ -88,8 +91,14 @@ describe('condensation helpers', () => {
     });
 
     expect(request.messages.map((m) => m.role)).toEqual(['user', 'user']);
-    expect(request.messages[0]?.content).toEqual([{ type: 'text', text: 'First' }]);
-    expect(request.messages[1]?.content).toEqual([{ type: 'text', text: 'Second' }, { type: 'text', text: 'Env 2' }]);
+    expect(request.messages[0]?.content).toEqual([
+      { type: 'text', text: 'First' },
+      { type: 'text', text: 'Environment note: user edited file:\n/tmp/a.txt' },
+    ]);
+    expect(request.messages[1]?.content).toEqual([
+      { type: 'text', text: 'Second' },
+      { type: 'text', text: '<environment information>\nActive editor: b.ts\n</environment information>' },
+    ]);
   });
 
   it('tryCondenseConversation emits a Condensation event using injected condense()', async () => {
