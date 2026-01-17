@@ -1,4 +1,5 @@
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
+import { mkdtempSync } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
@@ -58,7 +59,7 @@ export function createE2EUserDataDir(testName: string): string {
   // Keep basename + base dir short to avoid macOS IPC handle path warnings.
   // On macOS, os.tmpdir() can be a very long /var/folders path, so prefer /tmp.
   const baseDir = process.platform === 'darwin' ? '/tmp' : os.tmpdir();
-  const userDataDir = path.join(baseDir, `oh-e2e-${slug}-${Date.now().toString(36)}`);
+  const userDataDir = mkdtempSync(path.join(baseDir, `oh-e2e-${slug}-`));
 
   after(async () => {
     await fs.rm(userDataDir, { recursive: true, force: true });
