@@ -40,7 +40,7 @@ export function normalizeServerUrl(raw: string): NormalizeServerUrlResult {
     candidate = candidate.replace(/^wss:/i, 'https:');
   }
 
-  candidate = candidate.replace(/^(https?:\/\/)::1(?=[:/?#]|$)/i, '$1[::1]');
+  candidate = candidate.replace(/^(https?:\/\/)([^/?#]*@)?::1(?=[:/?#]|$)/i, '$1$2[::1]');
 
   let parsed: URL;
   try {
