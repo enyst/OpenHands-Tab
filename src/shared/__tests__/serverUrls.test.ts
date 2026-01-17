@@ -25,6 +25,8 @@ describe('server URL normalization', () => {
     expect(normalizeServerUrl('localhost')).toEqual({ ok: true, url: 'http://localhost' });
     expect(normalizeServerUrl('localhost:3000')).toEqual({ ok: true, url: 'http://localhost:3000' });
     expect(normalizeServerUrl('127.0.0.1:3000')).toEqual({ ok: true, url: 'http://127.0.0.1:3000' });
+    expect(normalizeServerUrl('::1')).toEqual({ ok: true, url: 'http://[::1]' });
+    expect(normalizeServerUrl('::1:3000')).toEqual({ ok: true, url: 'http://[::1]:3000' });
     expect(normalizeServerUrl('[::1]:3000')).toEqual({ ok: true, url: 'http://[::1]:3000' });
   });
 

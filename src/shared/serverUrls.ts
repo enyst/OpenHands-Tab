@@ -11,15 +11,27 @@ export function normalizeServerUrl(raw: string): NormalizeServerUrlResult {
   }
 
   const hasLocalHostnamePrefix =
-    /^localhost([/:]|$)/i.test(trimmed) ||
-    /^127\.0\.0\.1([/:]|$)/.test(trimmed) ||
-    /^(?:\[::1\]|::1)([/:]|$)/.test(trimmed);
+    /^localhost([/:?#]|$)/i.test(trimmed) ||
+    /^127\.0\.0\.1([/:?#]|$)/.test(trimmed) ||
+    /^(?:\[::1\]|::1)([/:?#]|$)/.test(trimmed);
 
   let candidate = trimmed;
   if (/^(https?|wss?):/i.test(candidate) && !/^(https?|wss?):\/\//i.test(candidate)) {
     candidate = candidate.replace(/^(https?|wss?):/i, (match) => `${match}//`);
   } else if (!HAS_EXPLICIT_SCHEME.test(candidate)) {
-    candidate = `${hasLocalHostnamePrefix ? 'http' : 'https'}://${candidate}`;
+    const scheme = hasLocalHostnamePrefix ? 'http' : 'https';
+    let host = candidate;
+
+    if (!host.startsWith('[') && /^::1($|[/?#])/.test(host)) {
+      host = host.replace(/^::1/, '[::1]');
+    } else if (!host.startsWith('[')) {
+      const match = host.match(/^::1:(\d+)($|[/?#])/);
+      if (match) {
+        host = host.replace(/^::1:(\d+)/, '[::1]:$1');
+      }
+    }
+
+    candidate = `${scheme}://${host}`;
   }
 
   if (/^ws:\/\//i.test(candidate)) {
