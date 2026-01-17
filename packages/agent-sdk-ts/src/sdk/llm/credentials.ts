@@ -21,7 +21,7 @@ export class LLMCredentialProvider {
 
     for (const key of orderedKeys) {
       const value = await this.registry.get(key);
-      if (value) return value;
+      if (value && value !== '***') return value;
     }
     return undefined;
   }

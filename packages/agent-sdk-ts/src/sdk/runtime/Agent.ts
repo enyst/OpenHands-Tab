@@ -710,8 +710,16 @@ export class Agent extends EventEmitter {
           }
           break;
         } catch (error) {
-          if (condensationAttempt < MAX_CONDENSATIONS_PER_STEP && isContextLimitError(llmConfig.provider, error)) {
-            const budget = configuredMaxInputTokens ?? FALLBACK_CONDENSATION_MAX_INPUT_TOKENS;
+          if (
+            condensationAttempt < MAX_CONDENSATIONS_PER_STEP &&
+            (isContextLimitError(llmConfig.provider, error) || wouldExceedMaxInputTokens({ request, maxInputTokens: FALLBACK_CONDENSATION_MAX_INPUT_TOKENS }))
+          ) {
+            // On provider context-limit errors (or when the request would exceed a conservative fallback budget),
+            // force a shrink before retry. Large configured limits can cause the condenser to no-op.
+            const budget = Math.min(
+              configuredMaxInputTokens ?? FALLBACK_CONDENSATION_MAX_INPUT_TOKENS,
+              FALLBACK_CONDENSATION_MAX_INPUT_TOKENS,
+            );
             const condensed = await tryCondenseConversationWithDeps({
               maxInputTokens: budget,
               listEvents: () => this.events.list(),
