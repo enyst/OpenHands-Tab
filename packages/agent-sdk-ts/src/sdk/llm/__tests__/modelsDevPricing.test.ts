@@ -20,7 +20,7 @@ describe('modelsDevPricing', () => {
       const api = {
         openai: {
           models: {
-            'gpt-5': { cost: { input: 1.25, output: 10 } },
+            'gpt-5': { cost: { input: 1.25, output: 10, cache_read: 0.5, cache_write: 2 } },
           },
         },
       };
@@ -31,6 +31,8 @@ describe('modelsDevPricing', () => {
       });
       expect(pricing).toEqual({
         inputCostPerToken: 1.25 / 1_000_000,
+        cacheReadCostPerToken: 0.5 / 1_000_000,
+        cacheWriteCostPerToken: 2 / 1_000_000,
         outputCostPerToken: 10 / 1_000_000,
         source: 'models.dev',
       });
@@ -40,7 +42,7 @@ describe('modelsDevPricing', () => {
       const api = {
         openai: {
           models: {
-            'gpt-5': { cost: { input: 1.25, output: 10 } },
+            'gpt-5': { cost: { input: 1.25, output: 10, cache_read: 0.5 } },
           },
         },
       };
@@ -50,6 +52,7 @@ describe('modelsDevPricing', () => {
         modelId: 'GPT-5',
       });
       expect(pricing?.inputCostPerToken).toBeCloseTo(1.25 / 1_000_000);
+      expect(pricing?.cacheReadCostPerToken).toBeCloseTo(0.5 / 1_000_000);
       expect(pricing?.outputCostPerToken).toBeCloseTo(10 / 1_000_000);
     });
 
@@ -73,4 +76,3 @@ describe('modelsDevPricing', () => {
     });
   });
 });
-
