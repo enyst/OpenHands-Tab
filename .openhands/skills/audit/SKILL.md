@@ -248,7 +248,7 @@ These are **assistive** checks (expect false positives/negatives). The real audi
 > Safety rule: avoid printing raw matching lines (they may contain secrets). Prefer `file:line` only.
 
 - Find potential secret patterns in code (output paths + line numbers only):
-  - `grep -RInE "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{12,}|(AKIA|ASIA)[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+" src packages | cut -d: -f1-2 | sort -u`
+  - `grep -RInE "sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9]{12,}|github_pat_[A-Za-z0-9_]{12,}|AIza[A-Za-z0-9_-]{12,}|(AKIA|ASIA)[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]*" src packages | cut -d: -f1-2 | sort -u`
 
 - Find code paths that can write to disk:
   - `grep -RInE "\\.writeFile(Sync)?\\(|\\.appendFile(Sync)?\\(" src packages | cut -d: -f1-2 | sort -u`
