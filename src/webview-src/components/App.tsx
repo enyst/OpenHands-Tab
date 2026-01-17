@@ -73,7 +73,7 @@ export function App() {
   const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
   const [isMentionActive, setIsMentionActive] = useState(false);
   const mentionStartRef = useRef<number | null>(null);
-  const suppressMentionOnceRef = useRef(false);
+  const dismissedMentionStartRef = useRef<number | null>(null);
 
   // Skills state
   const [showSkillsPopover, setShowSkillsPopover] = useState(false);
@@ -348,17 +348,26 @@ export function App() {
     const before = text.slice(0, caret);
     const at = before.lastIndexOf('@');
 
-    // If we intentionally closed the picker (e.g. Esc), avoid reopening immediately on the focus/selection event.
-    if (suppressMentionOnceRef.current) {
-      suppressMentionOnceRef.current = false;
-      if (at !== -1 && !/\s/.test(before.slice(at + 1))) {
-        return;
-      }
-    }
+    const hasWhitespaceAfterAt = at !== -1 && /\s/.test(before.slice(at + 1));
+    const isAtTriggerPosition = at === 0 || (at > 0 && /\s/.test(before.charAt(at - 1)));
+    const shouldActivateMention = at !== -1 && isAtTriggerPosition && !hasWhitespaceAfterAt;
 
     // Clear mention if no @ or whitespace after @
-    if (at === -1 || /\s/.test(before.slice(at + 1))) {
+    if (!shouldActivateMention) {
       if (isMentionActive) {
+        setIsMentionActive(false);
+        setShowContextPicker(false);
+        setContextQuery('');
+        mentionStartRef.current = null;
+      }
+      dismissedMentionStartRef.current = null;
+      return;
+    }
+
+    if (dismissedMentionStartRef.current === at) {
+      // User dismissed the picker while the caret was in this mention token; keep it closed
+      // so it doesn't immediately steal focus back from the textarea.
+      if (isMentionActive || showContextPicker) {
         setIsMentionActive(false);
         setShowContextPicker(false);
         setContextQuery('');
@@ -370,6 +379,7 @@ export function App() {
     // Activate mention mode
     const afterAt = before.slice(at + 1);
     mentionStartRef.current = at;
+    dismissedMentionStartRef.current = null;
     setIsMentionActive(true);
     setShowSkillsPopover(false);
     setShowToolsPopover(false);
@@ -505,17 +515,19 @@ export function App() {
   const handleCloseContextPicker = useCallback((reason: 'escape' | 'outside') => {
     setShowContextPicker(false);
 
-    if (reason !== 'escape') {
-      return;
+    if (isMentionActive && mentionStartRef.current !== null) {
+      // Prevent immediate re-open while the caret remains in the same mention token.
+      dismissedMentionStartRef.current = mentionStartRef.current;
+      setIsMentionActive(false);
+      setContextQuery('');
+      mentionStartRef.current = null;
     }
 
-    // When Esc closes the picker, return focus to the input and prevent the mention logic from reopening it.
-    setIsMentionActive(false);
-    setContextQuery('');
-    mentionStartRef.current = null;
-    suppressMentionOnceRef.current = true;
-    focusInputAtEnd();
-  }, [focusInputAtEnd]);
+    if (reason === 'escape') {
+      // When Esc closes the picker, return focus to the input.
+      focusInputAtEnd();
+    }
+  }, [focusInputAtEnd, isMentionActive]);
 
   // Attachments handlers
   const handleOpenAttachments = useCallback(() => {
@@ -790,6 +802,7 @@ export function App() {
             contextQuery,
             onContextQueryChange: setContextQuery,
             onCloseContextPicker: handleCloseContextPicker,
+            contextPickerAutoFocusSearch: !isMentionActive,
             onOpenSkills: handleOpenSkills,
             skillsCount: skills.length,
             showSkillsPopover,

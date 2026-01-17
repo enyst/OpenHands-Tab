@@ -9,6 +9,7 @@ interface ContextPickerProps {
   onToggleFile: (file: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  autoFocusSearch?: boolean;
 }
 
 export function ContextPicker({
@@ -19,6 +20,7 @@ export function ContextPicker({
   onToggleFile,
   searchQuery,
   onSearchChange,
+  autoFocusSearch = true,
 }: ContextPickerProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -86,7 +88,7 @@ export function ContextPicker({
           aria-controls={listboxId}
           aria-activedescendant={activeOptionId}
           className="w-full px-3 py-2 bg-black/30 border border-white/[0.08] rounded-lg text-sm text-stone-200 placeholder:text-stone-500 focus:outline-none focus:ring-0 focus:border-white/[0.08] focus:shadow-[0_0_0_1px_rgba(232,166,66,0.08)] oh-focus-outline"
-          autoFocus
+          autoFocus={autoFocusSearch}
         />
       </div>
 

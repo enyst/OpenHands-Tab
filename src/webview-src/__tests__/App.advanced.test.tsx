@@ -941,7 +941,7 @@ describe('App - Advanced Test Coverage', () => {
       const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement;
       expect(textarea).toBeTruthy();
 
-      const initial = 'Please read@rethen';
+      const initial = 'Please read @rethen';
       const caret = initial.indexOf('@') + 1 + 2; // after "@re"
 
       Object.defineProperty(textarea, 'selectionStart', { value: caret, configurable: true });
