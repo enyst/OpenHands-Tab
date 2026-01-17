@@ -50,6 +50,21 @@ export async function run(): Promise<void> {
     return runAgentServerRemoteTest();
   }
 
+  if (testName === 'agentServerRemoteMessaging') {
+    const { run: runAgentServerRemoteMessagingTest } = await import('./agentServerRemoteMessaging');
+    return runAgentServerRemoteMessagingTest();
+  }
+
+  if (testName === 'agentServerRemoteErrorHandling') {
+    const { run: runAgentServerRemoteErrorHandlingTest } = await import('./agentServerRemoteErrorHandling');
+    return runAgentServerRemoteErrorHandlingTest();
+  }
+
+  if (testName === 'agentServerRemoteHistory') {
+    const { run: runAgentServerRemoteHistoryTest } = await import('./agentServerRemoteHistory');
+    return runAgentServerRemoteHistoryTest();
+  }
+
   if (testName === 'terminalLog') {
     const { run: runTerminalLogTest } = await import('./terminalLog');
     return runTerminalLogTest();
