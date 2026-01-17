@@ -12,12 +12,19 @@ type RenderedEventsInfo = {
 };
 
 async function resetMock(baseUrl: string): Promise<void> {
-  await fetch(`${baseUrl}/__reset`, { method: 'POST' });
+  const res = await fetch(`${baseUrl}/__reset`, { method: 'POST' });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to reset mock server (HTTP ${res.status})${body ? `: ${body}` : ''}`);
+  }
 }
 
 async function getMockRequestCount(baseUrl: string): Promise<number> {
   const res = await fetch(`${baseUrl}/__log`, { method: 'GET' });
-  if (!res.ok) return 0;
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Failed to fetch mock log (HTTP ${res.status})${body ? `: ${body}` : ''}`);
+  }
   const json = await res.json() as { requests?: unknown };
   const requests = Array.isArray(json.requests) ? json.requests : [];
   return requests.length;
