@@ -3,10 +3,12 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
+import type { MessageEvent } from '@openhands/agent-sdk-ts';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES } from '../../../shared/pasteLimits';
 import { buildAttachmentBlocks, safeParseUri } from '../attachments';
 import type { CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
+import type { WebviewHost } from '../createWebviewMessageHandler';
 
 async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
   const filePath = getPastedImagePath(baseDir, imageId);
@@ -17,6 +19,7 @@ async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8
 export async function handleSend(args: {
   context: vscode.ExtensionContext;
   deps: CreateWebviewMessageHandlerDeps;
+  host: WebviewHost;
   conversation: ConversationInstance;
   message: Extract<WebviewToHostMessage, { type: 'send' }>;
   outputChannel: vscode.OutputChannel | undefined;
@@ -77,6 +80,24 @@ export async function handleSend(args: {
     .filter((note) => typeof note === 'string' && note.trim().length > 0)
     .map((note) => note.trimEnd())
     .join('\n\n');
+
+  // Optimistically render the user message in the webview immediately, even if the remote runtime
+  // is currently paused / blocked on an in-flight LLM request (common right after "Stop").
+  // The webview deduplicates this optimistic event once the real persisted MessageEvent arrives.
+  const optimisticId = typeof globalThis.crypto?.randomUUID === 'function'
+    ? `optimistic:${globalThis.crypto.randomUUID()}`
+    : `optimistic:${Date.now()}:${Math.random().toString(16).slice(2)}`;
+  const optimisticEvent: MessageEvent = {
+    kind: 'MessageEvent',
+    id: optimisticId,
+    source: 'user',
+    llm_message: {
+      role: 'user',
+      content: [{ type: 'text', text: finalText }],
+    },
+    extended_content: queuedNotesText ? [{ type: 'text', text: queuedNotesText }] : undefined,
+  };
+  await args.host.postMessage({ type: 'event', event: optimisticEvent });
 
   if (queuedNotesText) {
     await args.conversation.sendUserMessage(finalText, { extendedContent: [{ type: 'text', text: queuedNotesText }] });

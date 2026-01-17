@@ -12,6 +12,7 @@ import {
   isUserRejectObservation,
   type ActionEvent,
   type Event,
+  type MessageEvent,
 } from '@openhands/agent-sdk-ts';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../../shared/llmStreaming';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS } from '../../../shared/webviewMessages';
@@ -47,6 +48,25 @@ type UseConversationEventsOptions = {
 };
 
 const isRenderableEvent = (event: Event) => !isConversationStateUpdateEvent(event);
+
+const isOptimisticUserMessageEvent = (event: Event): boolean => (
+  isMessageEvent(event)
+  && event.source === 'user'
+  && typeof event.id === 'string'
+  && event.id.startsWith('optimistic:')
+);
+
+const fingerprintMessageEvent = (event: MessageEvent): string => {
+  const role = event.llm_message?.role ?? '';
+  const content = Array.isArray(event.llm_message?.content) ? event.llm_message.content : [];
+  const extended = Array.isArray(event.extended_content) ? event.extended_content : [];
+  try {
+    return JSON.stringify({ role, content, extended });
+  } catch {
+    const firstText = content.find((c) => c?.type === 'text' && typeof (c as { text?: unknown }).text === 'string') as { text?: string } | undefined;
+    return `${role}:${firstText?.text ?? ''}`;
+  }
+};
 
 export function useConversationEvents(options: UseConversationEventsOptions) {
   const {
@@ -212,12 +232,24 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
 
-    if (isMessageEvent(event) && event.source === 'user') {
+    if (isMessageEvent(event) && event.source === 'user' && !isOptimisticUserMessageEvent(event)) {
       setQueuedMessagesCount((prev) => Math.max(0, prev - 1));
     }
 
     setEvents((ev) => {
-      const next = [...ev, { id: eventId.current++, event }];
+      let base = ev;
+      if (isMessageEvent(event) && event.source === 'user' && !isOptimisticUserMessageEvent(event)) {
+        const incomingFingerprint = fingerprintMessageEvent(event);
+        const optimisticIndex = base.findIndex(({ event: existing }) => (
+          isOptimisticUserMessageEvent(existing)
+          && fingerprintMessageEvent(existing as MessageEvent) === incomingFingerprint
+        ));
+        if (optimisticIndex !== -1) {
+          base = [...base.slice(0, optimisticIndex), ...base.slice(optimisticIndex + 1)];
+        }
+      }
+
+      const next = [...base, { id: eventId.current++, event }];
       return next.length > MAX_RENDERED_EVENTS ? next.slice(-MAX_RENDERED_EVENTS) : next;
     });
   }, [eventId, setEvents, setQueuedMessagesCount]);
