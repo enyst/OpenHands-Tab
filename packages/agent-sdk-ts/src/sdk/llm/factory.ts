@@ -4,7 +4,7 @@ import { AnthropicClient } from './anthropic';
 import { OpenAICompatibleClient } from './openai-compatible';
 import { OpenAIResponsesClient } from './openai-responses';
 import { GeminiClient } from './gemini';
-import type { ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
+import type { ApiKeyRef, ChatCompletionRequest, LLMClient, LLMConfiguration, LLMProvider } from './types';
 import type { LLMProfileStoreOptions } from './profiles';
 import { loadProfile } from './profiles';
 import { normalizeGenerationParamsForModel } from './providerQuirks';
@@ -42,6 +42,19 @@ export class LLMFactory {
       const trimmed = typeof value === 'string' ? value.trim() : '';
       return trimmed.length ? trimmed : undefined;
     };
+    const normalizeApiKeyRef = (value: unknown): ApiKeyRef | undefined => {
+      if (!value || typeof value !== 'object') return undefined;
+      const kind = (value as { kind?: unknown }).kind;
+      if (kind === 'inline') {
+        const inline = normalizeOptionalString((value as { value?: unknown }).value);
+        return inline ? { kind: 'inline', value: inline } : undefined;
+      }
+      if (kind === 'key') {
+        const name = normalizeOptionalString((value as { name?: unknown }).name);
+        return name ? { kind: 'key', name } : undefined;
+      }
+      return undefined;
+    };
     const hashString = (input: string): string => createHash('sha256').update(input).digest('hex');
     const stableStringifyHeaders = (headers: Record<string, string> | undefined): string | undefined => {
       if (!headers) return undefined;
@@ -63,8 +76,8 @@ export class LLMFactory {
       // set for runtime bookkeeping/secrets.
       const requestedUsageId = normalizeOptionalString(this.config.usageId);
       if (requestedUsageId) merged.usageId = requestedUsageId;
-      const requestedApiKey = normalizeOptionalString(this.config.apiKey);
-      if (requestedApiKey) merged.apiKey = requestedApiKey;
+      const requestedApiKeyRef = normalizeApiKeyRef(this.config.apiKeyRef);
+      if (requestedApiKeyRef) merged.apiKeyRef = requestedApiKeyRef;
       return merged;
     })();
     config = normalizeGenerationParamsForModel(config);
@@ -102,12 +115,11 @@ export class LLMFactory {
       }
     }
 
-    const inlineApiKey =
-      typeof config.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(config.apiKey)
-        ? config.apiKey
-        : undefined;
+    const normalizedApiKeyRef = normalizeApiKeyRef(config.apiKeyRef);
+    const inlineApiKey = normalizedApiKeyRef?.kind === 'inline' ? normalizedApiKeyRef.value : undefined;
+    const preferredApiKeyName = normalizedApiKeyRef?.kind === 'key' ? normalizedApiKeyRef.name : undefined;
     const defaultApiKeyName = this.getDefaultApiKeyName(provider);
-    const preferredApiKeys = config.apiKey ?? this.preferredKeys;
+    const preferredApiKeys = preferredApiKeyName ?? this.preferredKeys;
     const apiKeyLookup = (() => {
       const llmGlobalKey = 'openhands.llmApiKey';
       if (Array.isArray(preferredApiKeys)) {

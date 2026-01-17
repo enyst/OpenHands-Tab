@@ -25,7 +25,7 @@ describe('LLMFactory profile selection', () => {
           model: 'IGNORED',
           profileId: 'p1',
           usageId: 'default',
-          apiKey: 'sk-inline',
+          apiKeyRef: { kind: 'inline', value: 'sk-inline' },
         },
         { registry, profileStoreOptions: { rootDir: dir } },
       );
@@ -50,7 +50,7 @@ describe('LLMFactory profile selection', () => {
         provider: 'openai',
         model: 'gpt-5-mini',
         usageId: 'default',
-        apiKey: 'sk-inline',
+        apiKeyRef: { kind: 'inline', value: 'sk-inline' },
       },
       { registry },
     );
@@ -115,14 +115,14 @@ describe('LLMFactory profile selection', () => {
       registry.subscribe((event) => stats.registerLlm(event));
 
       const first = await new LLMFactory(
-        { provider: 'openai', model: 'IGNORED', profileId: 'gpt-5', usageId: 'agent', apiKey: 'sk-inline' },
+        { provider: 'openai', model: 'IGNORED', profileId: 'gpt-5', usageId: 'agent', apiKeyRef: { kind: 'inline', value: 'sk-inline' } },
         { registry, profileStoreOptions: { rootDir: dir } },
       ).createClient();
       expect(first).toBeInstanceOf(TrackedLLMClient);
       (first as TrackedLLMClient).metrics.addTokenUsage({ promptTokens: 10, completionTokens: 1, responseId: 'r1' });
 
       const second = await new LLMFactory(
-        { provider: 'openai', model: 'IGNORED', profileId: 'sonnet-45', usageId: 'agent', apiKey: 'sk-inline' },
+        { provider: 'openai', model: 'IGNORED', profileId: 'sonnet-45', usageId: 'agent', apiKeyRef: { kind: 'inline', value: 'sk-inline' } },
         { registry, profileStoreOptions: { rootDir: dir } },
       ).createClient();
       expect(second).toBeInstanceOf(TrackedLLMClient);

@@ -51,11 +51,11 @@ describe('LLMRegistry and TrackedLLMClient', () => {
     const events: string[] = [];
     registry.subscribe((e) => events.push(`${e.llm.usageId}:${e.llm.modelName}`));
 
-    const factory1 = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline', usageId: 'default-llm' }, { registry });
+    const factory1 = new LLMFactory({ model: 'gpt-5-mini', provider: 'openai', apiKeyRef: { kind: 'inline', value: 'sk-inline' }, usageId: 'default-llm' }, { registry });
     const c1 = await factory1.createClient();
     expect(registry.get('default-llm')).toBe(c1);
 
-    const factory2 = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', apiKey: 'sk-inline2', usageId: 'default-llm' }, { registry });
+    const factory2 = new LLMFactory({ model: 'gpt-4o-mini', provider: 'openai', apiKeyRef: { kind: 'inline', value: 'sk-inline2' }, usageId: 'default-llm' }, { registry });
     const c2 = await factory2.createClient();
     expect(c2).not.toBe(c1);
     expect(registry.get('default-llm')).toBe(c2);
@@ -66,12 +66,12 @@ describe('LLMRegistry and TrackedLLMClient', () => {
   it('registers tracked clients under provider/model registry keys', async () => {
     const registry = new LLMRegistry();
     const factory = new LLMFactory(
-      { model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline', usageId: 'default-llm' },
+      { model: 'gpt-5-mini', provider: 'openai', apiKeyRef: { kind: 'inline', value: 'sk-inline' }, usageId: 'default-llm' },
       { registry },
     );
     const client = await factory.createClient();
     expect(
-      registry.getByConfig({ model: 'gpt-5-mini', provider: 'openai', apiKey: 'sk-inline', usageId: 'default-llm' }),
+      registry.getByConfig({ model: 'gpt-5-mini', provider: 'openai' }),
     ).toBe(client);
   });
 

@@ -11,8 +11,8 @@ describe('LLM profiles', () => {
   it('saves, loads, and lists profiles', () => {
     const dir = makeTempDir();
     try {
-      const configA: LLMConfiguration = { provider: 'openai', model: 'gpt-5', apiKey: 'OPENAI_API_KEY' };
-      const configB: LLMConfiguration = { provider: 'anthropic', model: 'claude', apiKey: 'ANTHROPIC_API_KEY' };
+      const configA: LLMConfiguration = { provider: 'openai', model: 'gpt-5', apiKeyRef: { kind: 'key', name: 'OPENAI_API_KEY' } };
+      const configB: LLMConfiguration = { provider: 'anthropic', model: 'claude', apiKeyRef: { kind: 'key', name: 'ANTHROPIC_API_KEY' } };
       saveProfile('b', configB, { rootDir: dir });
       saveProfile('a', configA, { rootDir: dir });
 
@@ -27,7 +27,7 @@ describe('LLM profiles', () => {
     }
   });
 
-  it('omits inline apiKey and headers when includeSecrets=false', () => {
+  it('omits inline apiKeyRef and headers when includeSecrets=false', () => {
     const dir = makeTempDir();
     try {
       saveProfile(
@@ -35,7 +35,7 @@ describe('LLM profiles', () => {
         {
           provider: 'openai',
           model: 'gpt-5',
-          apiKey: 'sk-secret',
+          apiKeyRef: { kind: 'inline', value: 'sk-secret' },
           headers: { Authorization: 'Bearer sk-secret', 'X-Title': 'not-a-secret' },
         },
         { rootDir: dir },
@@ -43,28 +43,28 @@ describe('LLM profiles', () => {
       const filePath = path.join(dir, 'no-secrets.json');
       const payload = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, unknown>;
 
-      expect(payload.apiKey).toBeUndefined();
+      expect(payload.apiKeyRef).toBeUndefined();
       expect(payload.headers).toBeUndefined();
       const loaded = loadProfile('no-secrets', { rootDir: dir }).config;
-      expect(loaded.apiKey).toBeUndefined();
+      expect(loaded.apiKeyRef).toBeUndefined();
       expect(loaded.headers).toBeUndefined();
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('persists inline apiKey when includeSecrets=true', () => {
+  it('persists inline apiKeyRef when includeSecrets=true', () => {
     const dir = makeTempDir();
     try {
       saveProfile(
         'with-secrets',
-        { provider: 'openai', model: 'gpt-5', apiKey: 'sk-secret' },
+        { provider: 'openai', model: 'gpt-5', apiKeyRef: { kind: 'inline', value: 'sk-secret' } },
         { rootDir: dir, includeSecrets: true },
       );
       const filePath = path.join(dir, 'with-secrets.json');
       const payload = JSON.parse(fs.readFileSync(filePath, 'utf8')) as Record<string, unknown>;
 
-      expect(payload.apiKey).toBe('sk-secret');
+      expect(payload.apiKeyRef).toMatchObject({ kind: 'inline', value: 'sk-secret' });
       if (process.platform !== 'win32') {
         expect(fs.statSync(filePath).mode & 0o777).toBe(0o600);
       }

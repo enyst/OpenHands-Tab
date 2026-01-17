@@ -575,16 +575,16 @@ export class RemoteConversation extends EventEmitter {
       : 50;
 
     const llm = options?.llm;
-    const llmPayload = llm ? {
-      usage_id: llm.usageId ?? 'agent',
-      model: llm.model,
-      ...(llm.baseUrl ? { base_url: llm.baseUrl } : {}),
-      ...(llm.apiVersion ? { api_version: llm.apiVersion } : {}),
-      ...(llm.apiKey ? { api_key: llm.apiKey } : {}),
-      ...(typeof llm.timeoutSeconds === 'number' ? { timeout: llm.timeoutSeconds } : {}),
-      ...(typeof llm.temperature === 'number' ? { temperature: llm.temperature } : {}),
-      ...(typeof llm.topP === 'number' ? { top_p: llm.topP } : {}),
-      ...(typeof llm.topK === 'number' ? { top_k: llm.topK } : {}),
+      const llmPayload = llm ? {
+        usage_id: llm.usageId ?? 'agent',
+        model: llm.model,
+        ...(llm.baseUrl ? { base_url: llm.baseUrl } : {}),
+        ...(llm.apiVersion ? { api_version: llm.apiVersion } : {}),
+        ...(llm.apiKeyRef?.kind === 'inline' ? { api_key: llm.apiKeyRef.value } : {}),
+        ...(typeof llm.timeoutSeconds === 'number' ? { timeout: llm.timeoutSeconds } : {}),
+        ...(typeof llm.temperature === 'number' ? { temperature: llm.temperature } : {}),
+        ...(typeof llm.topP === 'number' ? { top_p: llm.topP } : {}),
+        ...(typeof llm.topK === 'number' ? { top_k: llm.topK } : {}),
       ...(typeof llm.maxInputTokens === 'number' ? { max_input_tokens: llm.maxInputTokens } : {}),
       ...(typeof llm.maxOutputTokens === 'number' ? { max_output_tokens: llm.maxOutputTokens } : {}),
       ...(typeof llm.reasoningEffort === 'string' ? { reasoning_effort: llm.reasoningEffort } : {}),

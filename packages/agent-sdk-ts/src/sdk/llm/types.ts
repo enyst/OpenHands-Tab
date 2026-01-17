@@ -6,6 +6,20 @@ export type OpenAIChatApi = 'chat_completions' | 'responses';
 
 export type ReasoningSummary = 'auto' | 'concise' | 'detailed';
 
+/**
+ * Reference (or explicit inline value) for resolving an LLM provider API key.
+ *
+ * - Prefer `{ kind: 'key', name: 'OPENAI_API_KEY' }` (or any other SecretRegistry key name).
+ *   This keeps secrets out of profile JSON and allows resolution at request time via SecretRegistry
+ *   (SecretStorage/env/in-memory).
+ * - `{ kind: 'inline', value: 'sk-...' }` is supported for explicit opt-in cases where the caller
+ *   wants to provide the raw credential directly. Avoid persisting this to disk unless you
+ *   understand the security trade-offs.
+ */
+export type ApiKeyRef =
+  | { kind: 'key'; name: string }
+  | { kind: 'inline'; value: string };
+
 export interface LLMToolDefinition {
   type: 'function';
   function: {
@@ -24,7 +38,7 @@ export interface LLMConfiguration {
   /** Only applies to OpenAI provider. */
   openaiApiMode?: OpenAIChatApi | null;
   baseUrl?: string | null;
-  apiKey?: string;
+  apiKeyRef?: ApiKeyRef | null;
   apiVersion?: string | null;
   timeoutSeconds?: number | null;
   temperature?: number | null;

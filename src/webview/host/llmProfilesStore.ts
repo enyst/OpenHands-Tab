@@ -10,14 +10,14 @@ import {
 } from '@openhands/agent-sdk-ts';
 
 export type HostLlmProfileSaveOptions = LLMProfileStoreOptions & {
-  /** When true, allow inline secrets (apiKey/headers) to be persisted to disk. */
+  /** When true, allow inline secrets (apiKeyRef.kind="inline"/headers) to be persisted to disk. */
   includeSecrets?: boolean;
 };
 
 const stripSecrets = (config: LLMConfiguration): LLMConfiguration => {
   const sanitized: LLMConfiguration = { ...config };
-  if (typeof sanitized.apiKey === 'string' && !/^[A-Z0-9_]+$/.test(sanitized.apiKey)) {
-    delete sanitized.apiKey;
+  if (sanitized.apiKeyRef?.kind === 'inline') {
+    delete sanitized.apiKeyRef;
   }
   // Headers can plausibly contain auth material (Authorization, x-api-key, etc.).
   // In "no secrets" mode, be conservative and do not send/persist headers.

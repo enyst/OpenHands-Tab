@@ -1032,9 +1032,7 @@ export class Agent extends EventEmitter {
       const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
       const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
       const configuredApiKey = toOptionalNonEmptyString(this.options.settings?.secrets?.llmApiKey);
-      const hasInlineApiKey =
-        typeof configuredApiKey === 'string' && !/^[A-Z0-9_]+$/.test(configuredApiKey);
-      const apiKeyStatus = configuredApiKey ? (hasInlineApiKey ? 'inline' : 'reference') : 'unset';
+      const apiKeyStatus = configuredApiKey ? 'set' : 'unset';
       const mode = this.options.settings?.serverUrl ? 'remote' : 'local';
       const serverUrl = toOptionalNonEmptyString(this.options.settings?.serverUrl);
 
@@ -1044,7 +1042,7 @@ export class Agent extends EventEmitter {
         `llm.provider=${provider}`,
         `llm.baseUrl=${configuredBaseUrl ?? '(default)'}`,
         `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
-        `llm.apiKey=${apiKeyStatus}`,
+        `llm.apiKeyStatus=${apiKeyStatus}`,
       ];
       if (profileId) {
         contextParts.push(`llm.profileId=${profileId}`);
