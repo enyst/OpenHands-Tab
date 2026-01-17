@@ -8,6 +8,8 @@ export const MODELS_DEV_API_URL = 'https://models.dev/api.json';
 type ModelsDevCost = {
   input?: unknown;
   output?: unknown;
+  cache_read?: unknown;
+  cache_write?: unknown;
 };
 
 type ModelsDevModel = {
@@ -23,6 +25,8 @@ type ModelsDevApi = Record<string, ModelsDevProvider>;
 export type ModelsDevTokenPricing = {
   inputCostPerToken: number;
   outputCostPerToken: number;
+  cacheReadCostPerToken?: number;
+  cacheWriteCostPerToken?: number;
   source: 'models.dev';
 };
 
@@ -133,9 +137,20 @@ export const extractModelsDevTokenPricing = (params: {
   if (inputPerMillion === null || outputPerMillion === null) return null;
   if (inputPerMillion <= 0 || outputPerMillion <= 0) return null;
 
+  const cacheReadPerMillion = asFiniteNumber(costRaw.cache_read);
+  const cacheWritePerMillion = asFiniteNumber(costRaw.cache_write);
+  const cacheReadCostPerToken = cacheReadPerMillion !== null && cacheReadPerMillion > 0
+    ? cacheReadPerMillion / 1_000_000
+    : undefined;
+  const cacheWriteCostPerToken = cacheWritePerMillion !== null && cacheWritePerMillion > 0
+    ? cacheWritePerMillion / 1_000_000
+    : undefined;
+
   return {
     inputCostPerToken: inputPerMillion / 1_000_000,
     outputCostPerToken: outputPerMillion / 1_000_000,
+    ...(cacheReadCostPerToken !== undefined ? { cacheReadCostPerToken } : {}),
+    ...(cacheWriteCostPerToken !== undefined ? { cacheWriteCostPerToken } : {}),
     source: 'models.dev',
   };
 };

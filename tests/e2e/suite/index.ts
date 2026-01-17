@@ -2,142 +2,47 @@ import * as vscode from 'vscode';
 import { waitForDiagnostics } from './helpers/waitForDiagnostics';
 
 export async function run(): Promise<void> {
-  // Route to specific test suite based on TEST_NAME environment variable
-  const testName = process.env.TEST_NAME;
+  const suites: Record<string, () => Promise<void>> = {
+    agentSdkEvents: async () => { await (await import('./agentSdkEvents')).run(); },
+    settings: async () => { await (await import('./settings')).run(); },
+    history: async () => { await (await import('./history')).run(); },
+    messaging: async () => { await (await import('./messaging')).run(); },
+    serverSelection: async () => { await (await import('./serverSelection')).run(); },
+    confirmation: async () => { await (await import('./confirmation')).run(); },
+    errorHandling: async () => { await (await import('./errorHandling')).run(); },
+    uiFlows: async () => { await (await import('./uiFlows')).run(); },
+    agentServerRemote: async () => { await (await import('./agentServerRemote')).run(); },
+    agentServerRemoteMessaging: async () => { await (await import('./agentServerRemoteMessaging')).run(); },
+    agentServerRemoteErrorHandling: async () => { await (await import('./agentServerRemoteErrorHandling')).run(); },
+    agentServerRemoteHistory: async () => { await (await import('./agentServerRemoteHistory')).run(); },
+    terminalLog: async () => { await (await import('./terminalLog')).run(); },
+    llmSwitching: async () => { await (await import('./llmSwitching')).run(); },
+    llmProfiles: async () => { await (await import('./llmProfiles')).run(); },
+    defaultProfileSelection: async () => { await (await import('./defaultProfileSelection')).run(); },
+    defaultProfilesSeeding: async () => { await (await import('./defaultProfilesSeeding')).run(); },
+    oracleUnset: async () => { await (await import('./oracleUnset')).run(); },
+    oracleConfigured: async () => { await (await import('./oracleConfigured')).run(); },
+    halNegative: async () => { await (await import('./halNegative')).run(); },
+    terminalProgress: async () => { await (await import('./terminalProgress')).run(); },
+    welcome: async () => { await (await import('./welcome')).run(); },
+    gvc: async () => { await (await import('./gvc')).run(); },
+    tpq: async () => { await (await import('./tpq')).run(); },
+    contextLimitRetry: async () => { await (await import('./contextLimitRetry')).run(); },
+    deviceFlowAuth: async () => { await (await import('./deviceFlowAuth')).run(); },
+    lastUserMessage: async () => { await (await import('./lastUserMessage')).run(); },
+  };
 
-  if (testName === 'agentSdkEvents') {
-    const { run: runAgentSdkEventsTest } = await import('./agentSdkEvents');
-    return runAgentSdkEventsTest();
-  }
+  // Route to specific test suite based on TEST_NAME environment variable.
+  const testNameRaw = process.env.TEST_NAME;
+  const testName = typeof testNameRaw === 'string' ? testNameRaw.trim() : '';
 
-  if (testName === 'settings') {
-    const { run: runSettingsTest } = await import('./settings');
-    return runSettingsTest();
-  }
-
-  if (testName === 'history') {
-    const { run: runHistoryTest } = await import('./history');
-    return runHistoryTest();
-  }
-
-  if (testName === 'messaging') {
-    const { run: runMessagingTest } = await import('./messaging');
-    return runMessagingTest();
-  }
-
-  if (testName === 'serverSelection') {
-    const { run: runServerSelectionTest } = await import('./serverSelection');
-    return runServerSelectionTest();
-  }
-
-  if (testName === 'confirmation') {
-    const { run: runConfirmationTest } = await import('./confirmation');
-    return runConfirmationTest();
-  }
-
-  if (testName === 'errorHandling') {
-    const { run: runErrorHandlingTest } = await import('./errorHandling');
-    return runErrorHandlingTest();
-  }
-
-  if (testName === 'uiFlows') {
-    const { run: runUiFlowsTest } = await import('./uiFlows');
-    return runUiFlowsTest();
-  }
-
-  if (testName === 'agentServerRemote') {
-    const { run: runAgentServerRemoteTest } = await import('./agentServerRemote');
-    return runAgentServerRemoteTest();
-  }
-
-  if (testName === 'agentServerRemoteMessaging') {
-    const { run: runAgentServerRemoteMessagingTest } = await import('./agentServerRemoteMessaging');
-    return runAgentServerRemoteMessagingTest();
-  }
-
-  if (testName === 'agentServerRemoteErrorHandling') {
-    const { run: runAgentServerRemoteErrorHandlingTest } = await import('./agentServerRemoteErrorHandling');
-    return runAgentServerRemoteErrorHandlingTest();
-  }
-
-  if (testName === 'agentServerRemoteHistory') {
-    const { run: runAgentServerRemoteHistoryTest } = await import('./agentServerRemoteHistory');
-    return runAgentServerRemoteHistoryTest();
-  }
-
-  if (testName === 'terminalLog') {
-    const { run: runTerminalLogTest } = await import('./terminalLog');
-    return runTerminalLogTest();
-  }
-
-  if (testName === 'llmSwitching') {
-    const { run: runLlmSwitchingTest } = await import('./llmSwitching');
-    return runLlmSwitchingTest();
-  }
-
-  if (testName === 'llmProfiles') {
-    const { run: runLlmProfilesTest } = await import('./llmProfiles');
-    return runLlmProfilesTest();
-  }
-
-  if (testName === 'defaultProfileSelection') {
-    const { run: runDefaultProfileSelectionTest } = await import('./defaultProfileSelection');
-    return runDefaultProfileSelectionTest();
-  }
-
-  if (testName === 'defaultProfilesSeeding') {
-    const { run: runDefaultProfilesSeedingTest } = await import('./defaultProfilesSeeding');
-    return runDefaultProfilesSeedingTest();
-  }
-
-  if (testName === 'oracleUnset') {
-    const { run: runOracleUnsetTest } = await import('./oracleUnset');
-    return runOracleUnsetTest();
-  }
-
-  if (testName === 'oracleConfigured') {
-    const { run: runOracleConfiguredTest } = await import('./oracleConfigured');
-    return runOracleConfiguredTest();
-  }
-
-  if (testName === 'halNegative') {
-    const { run: runHalNegativeTest } = await import('./halNegative');
-    return runHalNegativeTest();
-  }
-
-  if (testName === 'terminalProgress') {
-    const { run: runTerminalProgressTest } = await import('./terminalProgress');
-    return runTerminalProgressTest();
-  }
-
-  if (testName === 'welcome') {
-    const { run: runWelcomeTest } = await import('./welcome');
-    return runWelcomeTest();
-  }
-
-  if (testName === 'gvc') {
-    const { run: runGvcTest } = await import('./gvc');
-    return runGvcTest();
-  }
-
-  if (testName === 'tpq') {
-    const { run: runTpqTest } = await import('./tpq');
-    return runTpqTest();
-  }
-
-  if (testName === 'contextLimitRetry') {
-    const { run: runContextLimitRetryTest } = await import('./contextLimitRetry');
-    return runContextLimitRetryTest();
-  }
-
-  if (testName === 'deviceFlowAuth') {
-    const { run: runDeviceFlowAuthTest } = await import('./deviceFlowAuth');
-    return runDeviceFlowAuthTest();
-  }
-
-  if (testName === 'lastUserMessage') {
-    const { run: runLastUserMessageTest } = await import('./lastUserMessage');
-    return runLastUserMessageTest();
+  if (testName) {
+    const suite = suites[testName];
+    if (!suite) {
+      const known = Object.keys(suites).sort().join(', ');
+      throw new Error(`Unknown TEST_NAME '${testName}'. Valid values: ${known}`);
+    }
+    return suite();
   }
 
   // Default smoke test: open the chat view and verify it works

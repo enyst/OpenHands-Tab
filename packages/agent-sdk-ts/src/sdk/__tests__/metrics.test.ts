@@ -85,6 +85,29 @@ describe('Metrics', () => {
     expect(m.accumulatedCost).toBeCloseTo(0.21);
   });
 
+  it('adjusts input cost when cache token rates are configured', () => {
+    const m = new Metrics('priced-model', {
+      inputCostPerToken: 0.001,
+      outputCostPerToken: 0.002,
+      cacheReadCostPerToken: 0.0002,
+      cacheWriteCostPerToken: 0.0015,
+    });
+    m.addTokenUsage({
+      promptTokens: 100,
+      completionTokens: 10,
+      cacheReadTokens: 40,
+      cacheWriteTokens: 10,
+      contextWindow: 0,
+      responseId: 'r1',
+    });
+
+    // Base: 100*0.001 + 10*0.002 = 0.12
+    // Cache read adjustment: 40*(0.0002 - 0.001) = -0.032
+    // Cache write adjustment: 10*(0.0015 - 0.001) = +0.005
+    // Total = 0.093
+    expect(m.accumulatedCost).toBeCloseTo(0.093);
+  });
+
   it('does not compute cost when cost rates are not configured', () => {
     const m = new Metrics('model-without-rates');
     m.addTokenUsage({

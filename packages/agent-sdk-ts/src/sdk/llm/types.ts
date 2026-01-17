@@ -52,6 +52,10 @@ export interface LLMConfiguration {
   headers?: Record<string, string>;
   /** Cost per input token in USD (or base currency). */
   inputCostPerToken?: number | null;
+  /** Cost per cached input token read in USD (or base currency). */
+  cacheReadCostPerToken?: number | null;
+  /** Cost per cached input token write in USD (or base currency). */
+  cacheWriteCostPerToken?: number | null;
   /** Cost per output token in USD (or base currency). */
   outputCostPerToken?: number | null;
   encrypted_reasoning?: string | null;
