@@ -45,7 +45,7 @@ Primary risks for this VS Code extension:
 
 ### A. Provider API key names and SecretStorage keys
 
-**Do not trust hardcoded lists in docs**. Derive the set of provider key names from code.
+**Do not trust hardcoded lists in docs**. Investigate and find the set of provider key names in the codebase.
 
 - Authoritative code: `src/webview/host/handlers/secretHelpers.ts`
   - Enumerate provider → key name mapping (e.g. `getProviderApiKeyName(...)`).
