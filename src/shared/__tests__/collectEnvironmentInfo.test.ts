@@ -80,4 +80,16 @@ describe('collectEnvironmentInfo', () => {
       openEditorPaths: [],
     });
   });
+
+  it('handles workspaceFolders being undefined', () => {
+    (vscode.workspace as any).workspaceFolders = undefined;
+    (vscode.window as any).activeTextEditor = undefined;
+    (vscode.window as any).visibleTextEditors = [];
+
+    expect(collectEnvironmentInfo()).toEqual({
+      workspaceRoot: undefined,
+      activeEditorPath: null,
+      openEditorPaths: [],
+    });
+  });
 });
