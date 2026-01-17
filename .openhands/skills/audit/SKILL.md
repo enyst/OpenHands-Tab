@@ -224,4 +224,31 @@ These patterns are considered good practice in this repo; if present, explicitly
 - Webview messages that echo secrets back to the UI or store them in persistent webview state
 - Tokens included in URLs, query strings, or file paths
 
+
+---
+
+## ATTENTION: FOOTGUNS
+
+This section documents **current reality (today)** in this repo: the name `apiKey` is used across multiple domains and does **not** always mean the same thing.
+
+This is a source of audit mistakes and security regressions. We should **improve this over time** (clearer naming and explicit types/formats), but in the meantime we must be careful to **not make it worse** (no new ambiguous `apiKey` uses; avoid copying patterns blindly).
+
+### `apiKey` flows (source → sink) — verify each independently
+
+| Domain / meaning | Where it lives (structure) | Typical source (where it comes from) | Sinks (where it ends up) | What can go wrong |
+|---|---|---|---|---|
+| **LLM provider API key** (OpenAI/Anthropic/Gemini/etc.) | `LLMConfiguration.apiKey` (`packages/agent-sdk-ts/src/sdk/llm/types.ts`) and on-disk profile JSON (`~/.openhands/llm-profiles/*.json` when `includeSecrets=true`) | From SecretStorage / SecretRegistry, or inline config, or (today) sometimes “env-var-shaped” strings treated as references | Network requests to provider clients (`Authorization`, `x-api-key`, `x-goog-api-key`) | Easy to accidentally persist to disk, log, or treat a reference as a secret (or vice versa). **Do not add new heuristics.** Prefer explicit formats.
+| **Webview → host payload secret** (user typed key) | Webview message: `llmProfileApiKeySetRequest.apiKey` (`src/shared/webviewMessages.ts`) | User types into webview UI (`src/webview-src/components/LlmProfilesView.tsx`) | Stored in `context.secrets.store(...)` and optionally `secretRegistry.set(...)` (`src/webview/host/handlers/llmProfiles.ts`) | Webview JS memory is a leak surface (console logs, devtools, XSS, persistence via `acquireVsCodeApi().setState`). Host must **never** echo secrets back to webview.
+| **Agent-server session API key** (auth to OpenHands server) | `RemoteWorkspaceOptions.apiKey` / `RemoteWorkspace.apiKey` (`packages/agent-sdk-ts/src/workspace/*`) | `settings.secrets.sessionApiKey` (remote conversation setup) | Network requests to agent-server via `X-Session-API-Key` / `Authorization: Bearer ...` | Confusing it with provider keys can cause wrong-host leakage. Ensure per-server scoping and never attach to unintended hosts/redirects.
+| **HAL / auxiliary service keys** (Gemini classifier, ElevenLabs, etc.) | Feature params objects (e.g. `src/hal/gemini/decisionClassifier.ts`, `src/hal/elevenlabs/ttsClient.ts`) | From SecretStorage-backed settings / secrets | Outbound requests to those services | Same logging/persistence risks, plus accidental reuse in unrelated contexts.
+
+### Audit guidance
+
+- Treat each `apiKey` occurrence as **domain-specific**. During audit, always answer: *“which system is this key for?”* before evaluating risk.
+- **Do not assume** an `apiKey` string is a literal secret value. Today, some code paths treat `/^[A-Z0-9_]+$/` values as “env-var / key-name references”. This ambiguity is a known footgun.
+- When modifying code:
+  - do not introduce new `apiKey` fields/messages without strong justification
+  - prefer explicit names (`sessionApiKey`, `providerApiKey`, `ttsApiKey`, etc.) and explicit reference formats (e.g. `${env:NAME}`) over heuristics
+  - ensure secrets never cross host → webview boundaries
+
 If you suspect a leak but cannot prove it, write it as a **risk hypothesis** and point to the exact file + code region to inspect next.
