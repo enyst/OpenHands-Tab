@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 import { formatEnvironmentInformation } from '../shared/environmentInformation';
+import { collectOpenEditorPaths } from '../shared/openEditors';
 import { getEffectiveWorkspaceRoot } from '../shared/workspaceRoot';
 import { getFileBackedFsPath } from '../shared/uri';
 
@@ -66,9 +67,7 @@ export function registerExplainSelectionCommand(options: {
     if (getConversationMode() === 'local') {
       const workspaceRoot = getEffectiveWorkspaceRoot();
       const activeEditorPath = getFileBackedFsPath(vscode.window.activeTextEditor?.document?.uri) ?? null;
-      const openEditorPaths = (vscode.window.visibleTextEditors ?? [])
-        .map((e) => getFileBackedFsPath(e?.document?.uri))
-        .filter((p): p is string => typeof p === 'string' && p.length > 0);
+      const openEditorPaths = collectOpenEditorPaths({ activeEditorPath, max: 15 });
       finalPrompt += `\n\n${formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths })}`;
     }
 

@@ -202,6 +202,9 @@ export function __resetMocks() {
   mockSaveTextDocumentListeners.length = 0;
   mockConfigValues.clear();
   mockWebviewViewProviders.clear();
+  (window as any).activeTextEditor = undefined;
+  (window as any).visibleTextEditors = [];
+  (window as any).tabGroups = undefined;
   // Reset common spies to default implementations
   ;(workspace.getConfiguration as any).mockClear();
   ;(mockConfiguration.get as any).mockClear();

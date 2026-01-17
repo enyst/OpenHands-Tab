@@ -21,6 +21,36 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const isUser = message.role === 'user';
   const isAgent = message.role === 'assistant';
 
+  function truncateEnvironmentInformationForDisplay(text: string): string {
+    const lines = text.split(/\r?\n/);
+    const startIndex = lines.findIndex((line) => line.trim().toLowerCase() === '<environment information>');
+    if (startIndex === -1) return text;
+
+    const endIndex = lines.findIndex((line, idx) => idx > startIndex && line.trim().toLowerCase() === '</environment information>');
+    if (endIndex === -1) return text;
+
+    const openEditorsIndex = lines.findIndex((line, idx) => idx > startIndex && idx < endIndex && line.trim().toLowerCase() === 'open editors:');
+    if (openEditorsIndex === -1) return text;
+
+    const listStartIndex = openEditorsIndex + 1;
+    let listEndIndex = listStartIndex;
+    while (listEndIndex < endIndex && lines[listEndIndex]?.trimStart().startsWith('- ')) {
+      listEndIndex += 1;
+    }
+
+    const editorLines = lines.slice(listStartIndex, listEndIndex);
+    if (editorLines.length <= 5) return text;
+
+    const truncated = [
+      ...lines.slice(0, listStartIndex),
+      ...editorLines.slice(0, 5),
+      '- ...',
+      ...lines.slice(listEndIndex),
+    ];
+
+    return truncated.join('\n');
+  }
+
   const rawText = message.content.filter(isTextContent).map((c) => c.text).join('\n');
   const sanitizedText = stripEnvironmentInformationBlocks(rawText);
   const CONTEXT_HEADER = 'User has selected the following files for you to read:';
@@ -243,7 +273,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
               <div className="mt-2 space-y-1">
                 {event.extended_content.filter(isTextContent).map((content, idx) => (
                   <pre key={idx} className="bg-black/20 border border-white/[0.04] rounded-lg p-2 font-mono text-stone-400 whitespace-pre-wrap break-words">
-                    {content.text}
+                    {truncateEnvironmentInformationForDisplay(content.text)}
                   </pre>
                 ))}
               </div>

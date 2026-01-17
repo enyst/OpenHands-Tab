@@ -42,15 +42,36 @@ export const buildChatRequestWithCondensation = (params: {
     systemPrompt += `\n\n<CONVERSATION SUMMARY>\n${condensationState.summary}\n</CONVERSATION SUMMARY>`;
   }
 
-  const rawMessages = params.events
+  const messageEvents = params.events
     .filter(isMessageEvent)
-    .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''))
-    .map((event) => {
-      if (event.source === 'user' && event.extended_content?.length) {
-        return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
+    .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''));
+
+  const lastUserMessageIndex = (() => {
+    for (let i = messageEvents.length - 1; i >= 0; i -= 1) {
+      if (messageEvents[i]?.source === 'user') return i;
+    }
+    return -1;
+  })();
+
+  const isEnvironmentInfoBlock = (text: string): boolean =>
+    text.trimStart().toLowerCase().startsWith('<environment information>');
+
+  const rawMessages = messageEvents.map((event, idx) => {
+    if (event.source === 'user' && event.extended_content?.length) {
+      // Environment info is ephemeral and should reflect the latest editor state only.
+      // Keep other extended content (e.g. watched-file notes, skill suffixes) attached to its
+      // original message so it remains in conversation history.
+      const extendedContent =
+        idx === lastUserMessageIndex
+          ? event.extended_content
+          : event.extended_content.filter((c) => !(c.type === 'text' && isEnvironmentInfoBlock(c.text)));
+
+      if (extendedContent.length > 0) {
+        return { ...event.llm_message, content: [...event.llm_message.content, ...extendedContent] };
       }
-      return event.llm_message;
-    });
+    }
+    return event.llm_message;
+  });
   const messages = sanitizeChatMessages(rawMessages);
 
   return { systemPrompt, messages, tools: params.tools };
