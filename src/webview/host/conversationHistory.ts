@@ -19,6 +19,15 @@ const CONVERSATION_BASE_JSON = 'conversation.json';
 const isRecord = (candidate: unknown): candidate is Record<string, unknown> =>
   !!candidate && typeof candidate === 'object' && !Array.isArray(candidate);
 
+async function bestEffortChmod(targetPath: string, mode: number): Promise<void> {
+  if (process.platform === 'win32') return;
+  try {
+    await fs.chmod(targetPath, mode);
+  } catch (err) {
+    void err;
+  }
+}
+
 const toNonNegativeInt = (value: unknown): number | null => {
   const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
   if (!Number.isFinite(num)) return null;
@@ -93,6 +102,13 @@ export async function persistConversationTitle(
   const dir = path.join(conversationStoreRoot, conversationId);
   const filePath = path.join(dir, CONVERSATION_BASE_JSON);
 
+  try {
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+    await bestEffortChmod(dir, 0o700);
+  } catch (err) {
+    void err;
+  }
+
   let next: Record<string, unknown> = { title: trimmed };
   try {
     const content = await fs.readFile(filePath, 'utf8');
@@ -105,7 +121,8 @@ export async function persistConversationTitle(
   }
 
   try {
-    await fs.writeFile(filePath, JSON.stringify(next), 'utf8');
+    await fs.writeFile(filePath, JSON.stringify(next), { encoding: 'utf8', mode: 0o600 });
+    await bestEffortChmod(filePath, 0o600);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     outputChannel?.appendLine(`[history] Failed to persist title for ${conversationId}: ${reason}`);

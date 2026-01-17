@@ -84,6 +84,12 @@ describe('conversationHistory', () => {
     await persistConversationTitle(tmpRoot, id, 'New title');
     const updated = await getConversationHistoryList(tmpRoot);
     expect(updated.find((x) => x.id === id)?.title).toBe('New title');
+
+    if (process.platform !== 'win32') {
+      const dirStat = await fs.stat(dir);
+      expect(dirStat.mode & 0o777).toBe(0o700);
+      const baseStat = await fs.stat(path.join(dir, 'conversation.json'));
+      expect(baseStat.mode & 0o777).toBe(0o600);
+    }
   });
 });
-
