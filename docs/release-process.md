@@ -35,6 +35,8 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
 
 ## 2) Release PR workflow (GitHub)
 
+**Important**: A release PR with version bumps is required. Do not tag directly without merging the release PR first.
+
 1. Commit the version bump:
    - `git add package.json package-lock.json`
    - `git commit -m "release: X.Y.Z"`
@@ -45,10 +47,12 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
    - `.github/workflows/build-vsix.yml` runs on PRs to `develop` and will package a `.vsix` artifact.
    - The workflow posts a PR comment with a link to the Actions run where you can download the artifact.
 5. Get review/approval per the repo process.
-6. Merge the PR into `develop`.
-   - Important: the commit that ends up on `develop` after merging (merge commit or squash result) is what you should tag.
+6. **Squash-merge** the PR into `develop` (this repo uses squash merges).
+   - The resulting squashed commit on `develop` is what you will tag in the next step.
 
 ## 3) Tagging + GitHub Release (recommended path)
+
+**Important**: Only tag after the release PR has been squash-merged. The tag must point to the squash-merged commit on `develop`.
 
 This repo’s `Build VSIX (PRs and develop)` workflow is configured to run the release job only for tags matching:
 - `X.Y.Z` (example: `0.6.1`)
@@ -57,14 +61,16 @@ It will **not** match `vX.Y.Z` unless the workflow is changed.
 
 1. Update local `develop` to include the merged release PR:
    - `git switch develop && git pull`
-2. Create the tag on the `develop` HEAD commit (the merge result):
+2. Verify HEAD is the squash-merged release commit:
+   - `git log -1 --oneline` (should show the release commit)
+3. Create the tag on `develop` HEAD:
    - `git tag X.Y.Z`
-3. Push the tag:
+4. Push the tag:
    - `git push origin X.Y.Z`
-4. ⏳ Wait for the tag build to complete (~10–20 minutes depending on CI load).
+5. ⏳ Wait for the tag build to complete (~10–20 minutes depending on CI load).
    - `build-vsix.yml` verifies the tag name equals `package.json` version.
    - It builds/tests, packages the `.vsix`, uploads it as an artifact, and creates a **draft** GitHub Release with the `.vsix` attached.
-5. Publish the GitHub Release:
+6. Publish the GitHub Release:
    - Open the draft release in GitHub and add release notes (highlights, breaking changes, compatibility).
    - **Include contributors**: Add a "Contributors" section listing everyone who contributed to this release. Use `git shortlog -sne <previous-tag>..HEAD` to generate the list, or use GitHub's "Generate release notes" feature as a starting point.
    - Publish the release.
