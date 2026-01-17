@@ -27,7 +27,7 @@ import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
-import { collectOpenEditorPaths } from './shared/openEditors';
+import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
 import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import { computeWelcomeSecretStatus } from './shared/welcomeSecretStatus';
@@ -177,10 +177,7 @@ function syncActiveEditorSystemMessageSuffix(editor: vscode.TextEditor | undefin
 
 function buildEnvironmentInfoSuffix(): string | null {
   try {
-    const workspaceRoot = resolvePreferredWorkspaceRoot();
-    const activeEditorPath = getFileBackedFsPath(vscode.window.activeTextEditor?.document?.uri) ?? null;
-    const openEditorPaths = collectOpenEditorPaths({ activeEditorPath, max: 15 });
-    return formatEnvironmentInformation({ workspaceRoot, activeEditorPath, openEditorPaths });
+    return formatEnvironmentInformation(collectEnvironmentInfo());
   } catch {
     return null;
   }
