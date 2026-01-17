@@ -42,15 +42,25 @@ export const buildChatRequestWithCondensation = (params: {
     systemPrompt += `\n\n<CONVERSATION SUMMARY>\n${condensationState.summary}\n</CONVERSATION SUMMARY>`;
   }
 
-  const rawMessages = params.events
+  const messageEvents = params.events
     .filter(isMessageEvent)
-    .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''))
-    .map((event) => {
-      if (event.source === 'user' && event.extended_content?.length) {
-        return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
-      }
-      return event.llm_message;
-    });
+    .filter((event) => !condensationState.forgottenEventIds.has(event.id ?? ''));
+
+  const lastUserMessageIndex = (() => {
+    for (let i = messageEvents.length - 1; i >= 0; i -= 1) {
+      if (messageEvents[i]?.source === 'user') return i;
+    }
+    return -1;
+  })();
+
+  const rawMessages = messageEvents.map((event, idx) => {
+    // Only attach extended_content to the most recent user message so stale environment info
+    // from earlier turns doesn't pollute the request context.
+    if (idx === lastUserMessageIndex && event.source === 'user' && event.extended_content?.length) {
+      return { ...event.llm_message, content: [...event.llm_message.content, ...event.extended_content] };
+    }
+    return event.llm_message;
+  });
   const messages = sanitizeChatMessages(rawMessages);
 
   return { systemPrompt, messages, tools: params.tools };

@@ -920,7 +920,7 @@ describe('Chat view behavior', () => {
     expect(agentContext.userMessageSuffix).toContain('<environment information>');
     expect(agentContext.userMessageSuffix).toContain('Active editor: initial.ts');
     expect(agentContext.userMessageSuffix).toContain('Open editors:');
-    expect(agentContext.userMessageSuffix).toContain('- initial.ts');
+    expect(agentContext.userMessageSuffix).toContain('- none');
     expect(agentContext.userMessageSuffix).toContain('</environment information>');
 
     const nextEditor = {
@@ -935,13 +935,54 @@ describe('Chat view behavior', () => {
     (vscode.window as any).visibleTextEditors = [nextEditor];
     (vscode as any).__triggerActiveTextEditorChange(nextEditor);
     expect(agentContext.userMessageSuffix).toContain('Active editor: next.ts');
-    expect(agentContext.userMessageSuffix).toContain('- next.ts');
+    expect(agentContext.userMessageSuffix).toContain('- none');
 
     (vscode.window as any).activeTextEditor = undefined;
     (vscode.window as any).visibleTextEditors = [];
     (vscode as any).__triggerActiveTextEditorChange(undefined);
     expect(agentContext.userMessageSuffix).toContain('Active editor: none');
     expect(agentContext.userMessageSuffix).toContain('- none');
+  });
+
+  it('lists other open tabs (excluding the active editor) in the local environment info suffix', async () => {
+    mockSettings = { ...mockSettings, serverUrl: '' as any };
+    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', '');
+
+    const initialEditor = {
+      document: {
+        uri: {
+          scheme: 'file',
+          fsPath: '/test/workspace/src/initial.ts',
+        },
+      },
+    };
+    (vscode.workspace as any).workspaceFolders = [{ uri: { fsPath: '/test/workspace' } }];
+    (vscode.window as any).activeTextEditor = initialEditor;
+    (vscode.window as any).visibleTextEditors = [initialEditor];
+    (vscode.window as any).tabGroups = {
+      all: [
+        {
+          tabs: [
+            { input: { uri: { scheme: 'file', fsPath: '/test/workspace/src/initial.ts' } } },
+            { input: { uri: { scheme: 'file', fsPath: '/test/workspace/src/other.ts' } } },
+            { input: { uri: { scheme: 'file', fsPath: '/test/workspace/README.md' } } },
+          ],
+        },
+      ],
+    };
+
+    await resolveChatView(mockContext);
+
+    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
+    expect(options?.agentContext).toBeTruthy();
+    const agentContext = options.agentContext as any;
+
+    expect(agentContext.userMessageSuffix).toContain('Active editor: initial.ts');
+    expect(agentContext.userMessageSuffix).toContain('Open editors:');
+    expect(agentContext.userMessageSuffix).toContain('- other.ts');
+    expect(agentContext.userMessageSuffix).toContain('- README.md');
+    expect(agentContext.userMessageSuffix).not.toContain('- initial.ts');
   });
 
   it('auto-disables tool-call summarization when Gemini key is missing (local mode)', async () => {
@@ -1040,7 +1081,7 @@ describe('Command handlers', () => {
     expect(message).toContain('<environment information>');
     expect(message).toContain('Active editor: example.ts');
     expect(message).toContain('Open editors:');
-    expect(message).toContain('- example.ts');
+    expect(message).toContain('- none');
     expect(message).toContain('</environment information>');
   });
 
@@ -1077,7 +1118,7 @@ describe('Command handlers', () => {
     expect(message).toContain('<environment information>');
     expect(message).toContain('Active editor: ralph.md');
     expect(message).toContain('Open editors:');
-    expect(message).toContain('- ralph.md');
+    expect(message).toContain('- none');
     expect(message).toContain('</environment information>');
   });
 

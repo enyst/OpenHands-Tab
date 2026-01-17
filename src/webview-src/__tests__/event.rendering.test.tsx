@@ -156,6 +156,44 @@ describe('Agent-SDK event rendering', () => {
     expect(screen.queryByText(/open editors:/i)).toBeNull();
   });
 
+  it('truncates long open editors lists in Extended Context', async () => {
+    render(<App />);
+
+    const env = [
+      '<environment information>',
+      'Active editor: a.ts',
+      'Open editors:',
+      '- b1.ts',
+      '- b2.ts',
+      '- b3.ts',
+      '- b4.ts',
+      '- b5.ts',
+      '- b6.ts',
+      '</environment information>',
+    ].join('\n');
+
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      },
+      extended_content: [{ type: 'text', text: env }],
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+
+    expect(await screen.findByText('hello')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Extended Context'));
+
+    expect(await screen.findByText(/- b1\.ts/)).toBeInTheDocument();
+    expect(screen.getByText(/- b5\.ts/)).toBeInTheDocument();
+    expect(screen.getByText(/- \.\.\./)).toBeInTheDocument();
+    expect(screen.queryByText(/b6\.ts/)).toBeNull();
+  });
+
   it('renders agent error events', async () => {
     render(<App />);
     const ev: AgentErrorEvent = {

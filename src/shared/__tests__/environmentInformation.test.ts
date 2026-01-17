@@ -7,7 +7,6 @@ describe('formatEnvironmentInformation', () => {
       workspaceRoot: '/ws',
       activeEditorPath: '/ws/src/foo.ts',
       openEditorPaths: [
-        '/ws/src/foo.ts',
         '/ws/test/foo.ts',
         '/outside/bar.ts',
       ],
@@ -18,7 +17,6 @@ describe('formatEnvironmentInformation', () => {
 
     // duplicate basenames inside workspace are disambiguated
     expect(text).toContain('Active editor: foo.ts — src');
-    expect(text).toContain('- foo.ts — src');
     expect(text).toContain('- foo.ts — test');
 
     // outside-workspace paths remain absolute
