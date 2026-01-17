@@ -90,10 +90,14 @@ export class LLMFactory {
 
     const provider = config.provider ?? detectProviderFromBaseUrl(config.baseUrl);
 
-    if (
-      (config.inputCostPerToken === null || config.inputCostPerToken === undefined)
-      && (config.outputCostPerToken === null || config.outputCostPerToken === undefined)
-    ) {
+    const needsPricing = (
+      config.inputCostPerToken === null || config.inputCostPerToken === undefined
+      || config.outputCostPerToken === null || config.outputCostPerToken === undefined
+      || config.cacheReadCostPerToken === null || config.cacheReadCostPerToken === undefined
+      || config.cacheWriteCostPerToken === null || config.cacheWriteCostPerToken === undefined
+    );
+
+    if (needsPricing) {
       const normalizedBaseUrl = normalizeUrl(config.baseUrl);
       const normalizedDefaultBaseUrl = normalizeUrl(DEFAULT_PROVIDER_BASE_URLS[provider]);
       const baseUrlMatchesProviderDefault =
@@ -105,8 +109,10 @@ export class LLMFactory {
           if (pricing) {
             config = {
               ...config,
-              inputCostPerToken: pricing.inputCostPerToken,
-              outputCostPerToken: pricing.outputCostPerToken,
+              inputCostPerToken: config.inputCostPerToken ?? pricing.inputCostPerToken,
+              cacheReadCostPerToken: config.cacheReadCostPerToken ?? pricing.cacheReadCostPerToken,
+              cacheWriteCostPerToken: config.cacheWriteCostPerToken ?? pricing.cacheWriteCostPerToken,
+              outputCostPerToken: config.outputCostPerToken ?? pricing.outputCostPerToken,
             };
           }
         } catch {
@@ -210,6 +216,8 @@ export class LLMFactory {
     if (derivedUsageId) {
       const metrics = new Metrics(config.model, {
         inputCostPerToken: config.inputCostPerToken ?? null,
+        cacheReadCostPerToken: config.cacheReadCostPerToken ?? null,
+        cacheWriteCostPerToken: config.cacheWriteCostPerToken ?? null,
         outputCostPerToken: config.outputCostPerToken ?? null,
       });
       const tracked = new TrackedLLMClient({

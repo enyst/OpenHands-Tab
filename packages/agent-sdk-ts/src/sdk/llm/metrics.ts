@@ -26,6 +26,8 @@ export class Metrics {
   modelName: string;
   accumulatedCost = 0;
   inputCostPerToken: number | null = null;
+  cacheReadCostPerToken: number | null = null;
+  cacheWriteCostPerToken: number | null = null;
   outputCostPerToken: number | null = null;
   maxBudgetPerTask: number | null = null;
   accumulatedTokenUsage: TokenUsage | null = null;
@@ -34,12 +36,19 @@ export class Metrics {
 
   constructor(
     modelName = 'default',
-    options: { inputCostPerToken?: number | null; outputCostPerToken?: number | null } = {},
+    options: {
+      inputCostPerToken?: number | null;
+      cacheReadCostPerToken?: number | null;
+      cacheWriteCostPerToken?: number | null;
+      outputCostPerToken?: number | null;
+    } = {},
   ) {
     const sanitizeRate = (rate?: number | null) =>
       typeof rate === 'number' && Number.isFinite(rate) ? rate : null;
     this.modelName = modelName;
     this.inputCostPerToken = sanitizeRate(options.inputCostPerToken);
+    this.cacheReadCostPerToken = sanitizeRate(options.cacheReadCostPerToken);
+    this.cacheWriteCostPerToken = sanitizeRate(options.cacheWriteCostPerToken);
     this.outputCostPerToken = sanitizeRate(options.outputCostPerToken);
   }
 
@@ -188,8 +197,21 @@ export class Metrics {
     const outputRate = this.outputCostPerToken;
     // Best-effort: only compute cost when both rates are known.
     if (typeof inputRate !== 'number' || typeof outputRate !== 'number') return;
-    const cost = usage.promptTokens * inputRate + usage.completionTokens * outputRate;
-    if (cost > 0) this.addCost(cost);
+    let cost = usage.promptTokens * inputRate + usage.completionTokens * outputRate;
+
+    // If cache-specific rates are known, adjust the cached token portions to use those rates.
+    // Assumes `cacheReadTokens/cacheWriteTokens` are subsets of `promptTokens` (provider-reported total input tokens).
+    const cacheReadRate = this.cacheReadCostPerToken;
+    if (typeof cacheReadRate === 'number' && usage.cacheReadTokens > 0) {
+      cost += usage.cacheReadTokens * (cacheReadRate - inputRate);
+    }
+    const cacheWriteRate = this.cacheWriteCostPerToken;
+    if (typeof cacheWriteRate === 'number' && usage.cacheWriteTokens > 0) {
+      cost += usage.cacheWriteTokens * (cacheWriteRate - inputRate);
+    }
+
+    const adjustedCost = Math.max(0, cost);
+    if (adjustedCost > 0) this.addCost(adjustedCost);
   }
 
   merge(other: Metrics): void {
