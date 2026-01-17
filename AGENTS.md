@@ -97,6 +97,8 @@ If tooling is missing in your environment:
 
 - Install Node.js >= 22 (e.g., with nvm: `nvm install 22 && nvm use 22`, or via tarball)
 - Ensure `node` and `npm` are on PATH
+- For headless Linux (no `$DISPLAY`), run E2E tests under Xvfb: `xvfb-run -a npm run e2e`
+
 
 ## Project Structure
 ```
