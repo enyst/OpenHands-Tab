@@ -26,9 +26,8 @@ export function createLlmClientFromSettings(params: {
   const effectiveUsageId = 'agent';
 
   const configuredApiKey = toOptionalNonEmptyString(s.secrets?.llmApiKey);
-  if (configuredApiKey) {
-    secrets.set('openhands.llmApiKey', configuredApiKey);
-  }
+  // Always write through so clearing settings also clears any previously registered value.
+  secrets.set('openhands.llmApiKey', configuredApiKey);
 
   const preferredApiKeys = (() => {
     if (!profileId || !isSafeProfileId(profileId)) return undefined;
