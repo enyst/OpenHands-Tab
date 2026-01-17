@@ -288,7 +288,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'send': {
         if (!conversation) break;
-        await handleSend({ context, deps, conversation, message, outputChannel });
+        await handleSend({ context, deps, host, conversation, message, outputChannel });
         break;
       }
       case 'halTtsRequest': {
