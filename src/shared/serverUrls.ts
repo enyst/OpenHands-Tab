@@ -10,11 +10,16 @@ export function normalizeServerUrl(raw: string): NormalizeServerUrlResult {
     return { ok: false, error: 'Server URL is required' };
   }
 
+  const hasLocalHostnamePrefix =
+    /^localhost([/:]|$)/i.test(trimmed) ||
+    /^127\.0\.0\.1([/:]|$)/.test(trimmed) ||
+    /^(?:\[::1\]|::1)([/:]|$)/.test(trimmed);
+
   let candidate = trimmed;
   if (/^(https?|wss?):/i.test(candidate) && !/^(https?|wss?):\/\//i.test(candidate)) {
     candidate = candidate.replace(/^(https?|wss?):/i, (match) => `${match}//`);
   } else if (!HAS_EXPLICIT_SCHEME.test(candidate)) {
-    candidate = `http://${candidate}`;
+    candidate = `${hasLocalHostnamePrefix ? 'http' : 'https'}://${candidate}`;
   }
 
   if (/^ws:\/\//i.test(candidate)) {

@@ -17,10 +17,19 @@ describe('server URL normalization', () => {
     expect(normalizeServerUrl('wss://').ok).toBe(false);
   });
 
-  it('preserves existing http/https normalization behavior', () => {
-    expect(normalizeServerUrl('example.com')).toEqual({ ok: true, url: 'http://example.com' });
+  it('defaults to https:// for non-local hostnames without a scheme', () => {
+    expect(normalizeServerUrl('example.com')).toEqual({ ok: true, url: 'https://example.com' });
+  });
+
+  it('defaults to http:// for local hostnames without a scheme', () => {
+    expect(normalizeServerUrl('localhost')).toEqual({ ok: true, url: 'http://localhost' });
+    expect(normalizeServerUrl('localhost:3000')).toEqual({ ok: true, url: 'http://localhost:3000' });
+    expect(normalizeServerUrl('127.0.0.1:3000')).toEqual({ ok: true, url: 'http://127.0.0.1:3000' });
+    expect(normalizeServerUrl('[::1]:3000')).toEqual({ ok: true, url: 'http://[::1]:3000' });
+  });
+
+  it('preserves existing http/https normalization behavior when the scheme is provided', () => {
     expect(normalizeServerUrl('http:example.com')).toEqual({ ok: true, url: 'http://example.com' });
     expect(normalizeServerUrl('https:example.com')).toEqual({ ok: true, url: 'https://example.com' });
   });
 });
-
