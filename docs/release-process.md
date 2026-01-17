@@ -66,6 +66,7 @@ It will **not** match `vX.Y.Z` unless the workflow is changed.
    - It builds/tests, packages the `.vsix`, uploads it as an artifact, and creates a **draft** GitHub Release with the `.vsix` attached.
 5. Publish the GitHub Release:
    - Open the draft release in GitHub and add release notes (highlights, breaking changes, compatibility).
+   - **Include contributors**: Add a "Contributors" section listing everyone who contributed to this release. Use `git shortlog -sne <previous-tag>..HEAD` to generate the list, or use GitHub's "Generate release notes" feature as a starting point.
    - Publish the release.
 
 ## 4) Publishing to marketplaces (optional)
