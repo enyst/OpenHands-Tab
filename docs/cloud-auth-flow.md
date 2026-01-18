@@ -145,7 +145,9 @@ This is the concrete “two-interface” bridge:
 
 So V1 “app conversations” endpoints are under:
 - `POST /api/v1/app-conversations`
-- `GET /api/v1/app-conversations?...`
+- `POST /api/v1/app-conversations/stream-start`
+- `GET /api/v1/app-conversations?ids=<uuid>&ids=<uuid>` (batch-get)
+- `GET /api/v1/app-conversations/search` (paged search)
 - etc.
 
 ### 3.4 How V1 can call into the agent-server internally
@@ -250,20 +252,29 @@ So any endpoint returning `AppConversation` can be the source of truth.
 In practice, concrete endpoints that return this nested runtime connection info include:
 
 **V1 (preferred; `/api/v1`)**
-- `GET /api/v1/app-conversations`
-  - Returns a list of `AppConversation` objects including:
+- `GET /api/v1/app-conversations?ids=<uuid>&ids=<uuid>`
+  - Batch-get.
+  - Returns `list[AppConversation | null]`.
+  - Each `AppConversation` includes:
     - `conversation_url` (contains the nested `agent_server_url`)
     - `session_api_key` (runtime/sandbox credential for the nested agent-server)
-- `POST /api/v1/app-conversations/search`
-  - Returns matching `AppConversation` objects with `conversation_url` + `session_api_key`.
+- `GET /api/v1/app-conversations/search`
+  - Paged listing/search.
+  - Returns `AppConversationPage`:
+    - `items: AppConversation[]`
+    - `next_page_id: string | null`
 
 **Legacy/compat (deprecated; used by the CLI today)**
 - `GET /api/conversations`
+  - Paged list.
+  - Returns `ConversationInfoResultSet` (not a bare list), which contains `ConversationInfo` records.
 - `GET /api/conversations/{conversation_id}`
-  - Returns `ConversationInfo` including:
-    - `url` (derived from `AppConversation.conversation_url`)
-    - `session_api_key` (derived from `AppConversation.session_api_key`)
-  - In V1-backed deployments, these endpoints are shims that map `AppConversation` -> `ConversationInfo` (via `_to_conversation_info`).
+  - Single get.
+  - Returns `ConversationInfo | null`.
+
+In V1-backed deployments, these legacy endpoints are shims that map `AppConversation` -> `ConversationInfo` (via `_to_conversation_info`), which is why they can expose:
+- `ConversationInfo.url` (derived from `AppConversation.conversation_url`)
+- `ConversationInfo.session_api_key` (derived from `AppConversation.session_api_key`)
 
 ### 6.3 Separation of storage in oh-tab (recommended)
 Given the above, `oh-tab` likely should treat these as distinct secrets:
@@ -287,11 +298,11 @@ The goal is to validate which token works against which surface without flooding
 
 2) Identify how SaaS exposes nested runtime info
 - Prefer V1 endpoints returning `AppConversation(conversation_url, session_api_key)`:
-  - `GET /api/v1/app-conversations`
-  - `POST /api/v1/app-conversations/search`
+  - `GET /api/v1/app-conversations?ids=<uuid>&ids=<uuid>` (batch-get)
+  - `GET /api/v1/app-conversations/search` (paged)
 - If needed for compatibility (CLI / older clients), use legacy shim endpoints returning `ConversationInfo(url, session_api_key)`:
-  - `GET /api/conversations`
-  - `GET /api/conversations/{conversation_id}`
+  - `GET /api/conversations` (paged `ConversationInfoResultSet`)
+  - `GET /api/conversations/{conversation_id}` (`ConversationInfo | null`)
 - In enterprise code, the nested runtime manager also constructs `AgentLoopInfo(url, session_api_key)` for internal use.
 
 3) Once you have a nested `agent_server_url` and its `session_api_key`, validate nested runtime auth
@@ -315,11 +326,11 @@ Never print tokens; avoid retries/loops.
 
 - Which endpoint(s) should `oh-tab` call after cloud login to obtain the runtime `session_api_key` + `agent_server_url`?
   - Prefer V1 `AppConversation` endpoints:
-    - `GET /api/v1/app-conversations`
-    - `POST /api/v1/app-conversations/search`
+    - `GET /api/v1/app-conversations?ids=<uuid>&ids=<uuid>` (batch-get)
+    - `GET /api/v1/app-conversations/search` (paged)
   - Use legacy (deprecated) shim endpoints only for compatibility:
-    - `GET /api/conversations`
-    - `GET /api/conversations/{conversation_id}`
+    - `GET /api/conversations` (paged `ConversationInfoResultSet`)
+    - `GET /api/conversations/{conversation_id}` (`ConversationInfo | null`)
   - `AgentLoopInfo(url, session_api_key)` is an enterprise internal surface (not a client API contract).
 
 ---
