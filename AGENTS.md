@@ -65,11 +65,14 @@ npx vitest run src/webview-src/__tests__/event.handlers.test.tsx
 ### Dependency security (npm audit)
 
 ```bash
+# This repo generally remediates audit findings via `package.json#overrides`
+# (and a regenerated `package-lock.json`), not `npm audit fix`.
 npm ci
 npm audit
+npm explain diff
 ```
 
-Note: this repo generally remediates audit findings via `package.json#overrides` (and a regenerated `package-lock.json`), not `npm audit fix`. The override is applied by `npm ci`/`npm install`.
+Note: this repo uses `package.json#overrides` to pin `diff` to a non-vulnerable version. If you change related dependencies, re-run `npm audit` and ensure the override remains compatible (and that `npm explain diff` shows the expected version).
 
 
 ### Agent server scripts
