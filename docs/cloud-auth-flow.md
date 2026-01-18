@@ -247,6 +247,24 @@ From V1 app-server code:
 
 So any endpoint returning `AppConversation` can be the source of truth.
 
+In practice, concrete endpoints that return this nested runtime connection info include:
+
+**V1 (preferred; `/api/v1`)**
+- `GET /api/v1/app-conversations`
+  - Returns a list of `AppConversation` objects including:
+    - `conversation_url` (contains the nested `agent_server_url`)
+    - `session_api_key` (runtime/sandbox credential for the nested agent-server)
+- `POST /api/v1/app-conversations/search`
+  - Returns matching `AppConversation` objects with `conversation_url` + `session_api_key`.
+
+**Legacy/compat (deprecated; used by the CLI today)**
+- `GET /api/conversations`
+- `GET /api/conversations/{conversation_id}`
+  - Returns `ConversationInfo` including:
+    - `url` (derived from `AppConversation.conversation_url`)
+    - `session_api_key` (derived from `AppConversation.session_api_key`)
+  - In V1-backed deployments, these endpoints are shims that map `AppConversation` -> `ConversationInfo` (via `_to_conversation_info`).
+
 ### 6.3 Separation of storage in oh-tab (recommended)
 Given the above, `oh-tab` likely should treat these as distinct secrets:
 
@@ -268,9 +286,13 @@ The goal is to validate which token works against which surface without flooding
 - `GET https://app.all-hands.dev/api/user/info` with `Authorization: Bearer <cloud_api_key>`
 
 2) Identify how SaaS exposes nested runtime info
-- Look for SaaS endpoints returning `session_api_key` and a nested URL (`url` / `conversation_url` / `agent_server_url`).
-  - In code, the nested manager produces `AgentLoopInfo(url, session_api_key)`.
-  - In V1, `AppConversation(conversation_url, session_api_key)`.
+- Prefer V1 endpoints returning `AppConversation(conversation_url, session_api_key)`:
+  - `GET /api/v1/app-conversations`
+  - `POST /api/v1/app-conversations/search`
+- If needed for compatibility (CLI / older clients), use legacy shim endpoints returning `ConversationInfo(url, session_api_key)`:
+  - `GET /api/conversations`
+  - `GET /api/conversations/{conversation_id}`
+- In enterprise code, the nested runtime manager also constructs `AgentLoopInfo(url, session_api_key)` for internal use.
 
 3) Once you have a nested `agent_server_url` and its `session_api_key`, validate nested runtime auth
 - `GET <agent_server_url>/api/conversations/<id>` with `X-Session-API-Key: <runtime_session_api_key>`
@@ -292,8 +314,13 @@ Never print tokens; avoid retries/loops.
   - We did not find `sockets/events` routes in enterprise; the agent-sdk-ts WS path likely targets the agent-server directly.
 
 - Which endpoint(s) should `oh-tab` call after cloud login to obtain the runtime `session_api_key` + `agent_server_url`?
-  - V1 suggests `/api/v1/app-conversations` responses.
-  - SaaS nested runtime manager suggests “AgentLoopInfo” surfaces.
+  - Prefer V1 `AppConversation` endpoints:
+    - `GET /api/v1/app-conversations`
+    - `POST /api/v1/app-conversations/search`
+  - Use legacy (deprecated) shim endpoints only for compatibility:
+    - `GET /api/conversations`
+    - `GET /api/conversations/{conversation_id}`
+  - `AgentLoopInfo(url, session_api_key)` is an enterprise internal surface (not a client API contract).
 
 ---
 
