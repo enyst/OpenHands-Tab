@@ -15,14 +15,13 @@ import {
   loadProfile,
   wouldExceedMaxInputTokens,
 } from '../llm';
-import type { ActionEvent, BashEvent, ConversationStateUpdateEvent, Event, Message, MessageEvent, ObservationEvent, ToolCall } from '../types';
+import type { ActionEvent, BashEvent, ConversationStateUpdateEvent, Event, Message, MessageEvent, ObservationEvent, TextContent, ToolCall } from '../types';
 import {
   isActionEvent,
   isAgentErrorEvent,
   isObservationEvent,
   isPauseEvent,
   isSystemPromptEvent,
-  isTextContent,
   isUserRejectObservation,
   type SecurityRisk,
 } from '../types';
@@ -1234,7 +1233,9 @@ export class Agent extends EventEmitter {
     args: Record<string, unknown> | null,
     securityRisk?: SecurityRisk,
   ): ActionEvent {
-    const thought = message.content.filter(isTextContent);
+    // Tool-call assistant messages are already emitted as MessageEvents (user-visible content).
+    // Avoid duplicating that content in ActionEvent.thought, which the UI renders as "Reasoning".
+    const thought: TextContent[] = [];
     const thinkingBlocks =
       message.thinking_signature && typeof message.reasoning_content === 'string' && message.reasoning_content.trim().length
         ? [

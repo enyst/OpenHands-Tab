@@ -80,6 +80,7 @@ describe('Agent ActionEvent reasoning metadata', () => {
       const action = actions.find((evt) => evt.tool_call_id === 'call_echo');
       expect(action).toBeDefined();
 
+      expect(action?.thought).toEqual([]);
       expect(action?.thinking_blocks).toEqual([{ type: 'thinking', thinking: 'Thinking...', signature: 'sig_1' }]);
 
       expect(action?.responses_reasoning_item).toMatchObject({ id: 'rs_1', summary: ['short summary'] });
@@ -89,4 +90,3 @@ describe('Agent ActionEvent reasoning metadata', () => {
     }
   });
 });
-

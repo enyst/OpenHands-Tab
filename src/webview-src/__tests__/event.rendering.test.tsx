@@ -37,6 +37,29 @@ describe('Agent-SDK event rendering', () => {
     expect(await screen.findByText('OpenHands says')).toBeInTheDocument();
   });
 
+  it('does not show Extended Thinking on assistant tool-call messages', async () => {
+    render(<App />);
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Let me check that…' }],
+        reasoning_content: 'internal thinking',
+        tool_calls: [
+          { id: 'call_1', type: 'function', function: { name: 'terminal', arguments: '{}' } },
+        ],
+      },
+    } as any;
+
+    postToWindow({ type: 'event', event: ev });
+
+    expect(await screen.findByText('Let me check that…')).toBeInTheDocument();
+    expect(await screen.findByText('OpenHands (tool call)')).toBeInTheDocument();
+    expect(screen.queryByText('Extended Thinking')).toBeNull();
+    expect(screen.queryByText('internal thinking')).toBeNull();
+  });
+
   it('renders message markdown (inline code, fenced code, links)', async () => {
     render(<App />);
     const ev: AgentMessageEvent = {
