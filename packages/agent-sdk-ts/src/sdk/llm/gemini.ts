@@ -37,6 +37,7 @@ type GeminiRole = 'user' | 'model';
 
 type GeminiPart =
   | { text: string; thoughtSignature?: string }
+  | { inlineData: { mimeType: string; data: string } }
   | { functionCall: { name: string; args?: unknown }; thoughtSignature?: string }
   | { functionResponse: { name: string; response?: unknown } };
 
@@ -103,6 +104,13 @@ const reduceTextContent = (content: Content[]): string =>
     .map((item) => item.text)
     .join('\n');
 
+const parseBase64DataUrl = (url: string): { mimeType: string; base64: string } | null => {
+  const raw = typeof url === 'string' ? url.trim() : '';
+  const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+  if (!match) return null;
+  return { mimeType: match[1].toLowerCase(), base64: match[2] };
+};
+
 const toGeminiPartsForMessage = (message: Message): GeminiPart[] => {
   if (message.role === 'tool') {
     const toolName = (message.name ?? '').trim() || 'unknown_tool';
@@ -132,6 +140,14 @@ const toGeminiPartsForMessage = (message: Message): GeminiPart[] => {
         part.thoughtSignature = message.thinking_signature;
       }
       parts.push(part);
+    }
+
+    if (item.type === 'image' && Array.isArray(item.image_urls)) {
+      for (const url of item.image_urls) {
+        const parsed = parseBase64DataUrl(url);
+        if (!parsed) continue;
+        parts.push({ inlineData: { mimeType: parsed.mimeType, data: parsed.base64 } });
+      }
     }
   }
 

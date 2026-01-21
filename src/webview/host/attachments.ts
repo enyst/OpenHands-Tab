@@ -1,9 +1,18 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { TextDecoder } from 'util';
+import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../shared/pasteLimits';
 
 const MAX_ATTACHMENT_BYTES_PER_FILE = 200 * 1024;
 const MAX_ATTACHMENT_TOTAL_BYTES = 500 * 1024;
+
+const IMAGE_EXT_TO_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
 
 function isProbablyBinary(bytes: Uint8Array): boolean {
   // Heuristic: treat NUL bytes as binary.
@@ -11,6 +20,10 @@ function isProbablyBinary(bytes: Uint8Array): boolean {
     if (bytes[i] === 0) return true;
   }
   return false;
+}
+
+function escapeMarkdownAltText(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/[\r\n]+/g, ' ').trim();
 }
 
 export function toAttachmentLabel(uri: vscode.Uri): string {
@@ -38,6 +51,7 @@ export async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promi
   const decoder = new TextDecoder('utf-8', { fatal: false });
   const blocks: string[] = [];
   let totalIncluded = 0;
+  let imageCount = 0;
 
   for (const uri of attachmentUris) {
     const label = toAttachmentLabel(uri);
@@ -46,6 +60,26 @@ export async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promi
 
     try {
       const bytes = await vscode.workspace.fs.readFile(uri);
+
+      const ext = path.extname(uri.fsPath ?? '').toLowerCase();
+      const mime = IMAGE_EXT_TO_MIME[ext];
+      if (mime) {
+        if (imageCount >= MAX_PASTED_IMAGES) {
+          blocks.push(`\n\n${begin}\n(attachment skipped: too many images; max ${MAX_PASTED_IMAGES} images)\n${end}`);
+          continue;
+        }
+        if (bytes.length > MAX_PASTED_IMAGE_BYTES) {
+          const mb = MAX_PASTED_IMAGE_BYTES / (1024 * 1024);
+          blocks.push(`\n\n${begin}\n(attachment skipped: image too large; max ${mb}MB)\n${end}`);
+          continue;
+        }
+
+        imageCount += 1;
+        const base64 = Buffer.from(bytes).toString('base64');
+        const alt = escapeMarkdownAltText(label);
+        blocks.push(`\n\n${begin}\n![${alt}](data:${mime};base64,${base64})\n${end}`);
+        continue;
+      }
 
       if (isProbablyBinary(bytes)) {
         blocks.push(`\n\n${begin}\n(attachment skipped: binary file)\n${end}`);
@@ -74,4 +108,3 @@ export async function buildAttachmentBlocks(attachmentUris: vscode.Uri[]): Promi
 
   return blocks.join('');
 }
-

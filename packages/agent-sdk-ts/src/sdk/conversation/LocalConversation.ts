@@ -48,6 +48,7 @@ export interface LocalConversationOptions {
   persistenceDir?: string;
   persistence?: ConversationPersistence;
   agentContext?: AgentContext;
+  pastedImagesBaseDir?: string;
   hooks?: AgentHook | AgentHook[];
 }
 
@@ -67,6 +68,7 @@ export class LocalConversation extends EventEmitter {
   private readonly persistenceDir?: string;
   private persistence?: ConversationPersistence;
   private readonly agentContext?: AgentContext;
+  private readonly pastedImagesBaseDir?: string;
   private readonly hooks?: AgentHook | AgentHook[];
   private agent: Agent;
   private readonly llmRegistry: LLMRegistry;
@@ -88,6 +90,7 @@ export class LocalConversation extends EventEmitter {
     this.tools = this.resolveTools(this.hasToolsOption ? (options.tools ?? []) : undefined);
     this.secrets = options.secrets ?? new SecretRegistry(options.secretStorage);
     this.agentContext = options.agentContext;
+    this.pastedImagesBaseDir = options.pastedImagesBaseDir;
     this.hooks = options.hooks;
     this.llmRegistry = new LLMRegistry();
     this.stats = new ConversationStats();
@@ -312,6 +315,7 @@ export class LocalConversation extends EventEmitter {
       state: this.state,
       secrets: this.secrets,
       agentContext: this.agentContext,
+      pastedImagesBaseDir: this.pastedImagesBaseDir,
       hooks: this.hooks,
       onTerminalEvent: (event) => this.emit('terminal', event),
       registry: this.llmRegistry,

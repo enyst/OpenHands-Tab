@@ -5,7 +5,7 @@ import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { MessageEvent } from '@openhands/agent-sdk-ts';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../../shared/pastedImages';
-import { MAX_PASTED_IMAGE_BYTES } from '../../../shared/pasteLimits';
+import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../../shared/pasteLimits';
 import { buildAttachmentBlocks, safeParseUri } from '../attachments';
 import type { CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
 import type { WebviewHost } from '../createWebviewMessageHandler';
@@ -35,17 +35,32 @@ export async function handleSend(args: {
       .filter((u): u is vscode.Uri => u !== undefined)
     : [];
 
+  const attachmentsText = await buildAttachmentBlocks(attachmentUris);
+
+  let combinedText = baseText;
+  if (attachmentsText) {
+    combinedText += attachmentsText;
+  }
+  if (contextFiles.length > 0) {
+    combinedText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
+  }
+
   const globalStorageBaseDir = getGlobalStorageBaseDir(args.context.globalStorageUri?.fsPath);
   const pastedImages = new Map<string, Uint8Array>();
-  const rewriteResult = rewriteDataImageMarkdown(baseText, (dataUrl) => {
+  let didSkipImageCap = false;
+  const rewriteResult = rewriteDataImageMarkdown(combinedText, (dataUrl) => {
     const parsed = parseBase64DataImageUrl(dataUrl);
     if (!parsed) return { url: '' };
     if (parsed.bytes.length > MAX_PASTED_IMAGE_BYTES) return { url: '' };
+    if (pastedImages.size >= MAX_PASTED_IMAGES) {
+      didSkipImageCap = true;
+      return { url: '' };
+    }
     pastedImages.set(parsed.imageId, parsed.bytes);
     return { url: `${OPENHANDS_IMAGE_URL_PREFIX}${parsed.imageId}` };
   });
 
-  let sanitizedText = rewriteResult.text;
+  let finalText = rewriteResult.text;
   if (pastedImages.size > 0) {
     const failed = new Set<string>();
     for (const [imageId, bytes] of pastedImages.entries()) {
@@ -58,21 +73,17 @@ export async function handleSend(args: {
       }
     }
     if (failed.size > 0) {
-      sanitizedText = rewriteOpenHandsImageUrls(sanitizedText, (imageId) => (failed.has(imageId) ? '' : undefined));
+      finalText = rewriteOpenHandsImageUrls(finalText, (imageId) => (failed.has(imageId) ? '' : undefined));
       void vscode.window.showWarningMessage(`Some pasted images could not be saved (${failed.size}). They were omitted from the message.`);
+    }
+    if (didSkipImageCap) {
+      void vscode.window.showWarningMessage(`Some images were omitted (max ${MAX_PASTED_IMAGES} images per message).`);
     }
   } else if (rewriteResult.rewritten > 0) {
     void vscode.window.showWarningMessage('Some pasted images were not supported and were omitted from the message.');
-  }
-
-  const attachmentsText = await buildAttachmentBlocks(attachmentUris);
-
-  let finalText = sanitizedText;
-  if (attachmentsText) {
-    finalText += attachmentsText;
-  }
-  if (contextFiles.length > 0) {
-    finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
+    if (didSkipImageCap) {
+      void vscode.window.showWarningMessage(`Some images were omitted (max ${MAX_PASTED_IMAGES} images per message).`);
+    }
   }
 
   const queuedNotes = args.deps.getQueuedUserEditNotes();

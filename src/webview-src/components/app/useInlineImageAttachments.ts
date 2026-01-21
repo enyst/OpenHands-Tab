@@ -59,7 +59,9 @@ export function useInlineImageAttachments({
     }
 
     if (didSkipLarge) {
-      showStatusMessage('warn', `Some images were too large to paste (max ${Math.trunc(maxBytesPerImage / 1024)}KB).`);
+      const mb = maxBytesPerImage / (1024 * 1024);
+      const limitLabel = mb >= 1 ? `${mb.toFixed(1).replace(/\.0$/, '')}MB` : `${Math.trunc(maxBytesPerImage / 1024)}KB`;
+      showStatusMessage('warn', `Some images were too large to paste (max ${limitLabel}).`);
     }
     if (didSkipSvg) {
       showStatusMessage('warn', 'SVG images are not supported for pasted images.');
