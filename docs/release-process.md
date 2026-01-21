@@ -36,6 +36,7 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
 5. (Optional but recommended) Build the VSIX locally:
    - `npm run package`
    - This runs `scripts/run-vsce-package.cjs` (wraps `vsce package` and follows symlinks).
+   - Note: packaging uses `README.vscode.md` for the extension’s “Readme” tab in VS Code (separate from the repo `README.md`).
 6. (Optional but recommended) Smoke test the VSIX like a user (non-dev, non-debug):
    - Install the built VSIX into your normal VS Code profile:
      - `code --install-extension ./openhands-tab-X.Y.Z.vsix`

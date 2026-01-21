@@ -53,6 +53,7 @@ opencode.json
 *.mjs.map
 AGENTS.md
 CLAUDE.md
+README.md
 
 # TypeScript configs and tailwind config (not needed at runtime)
 tsconfig*.json
