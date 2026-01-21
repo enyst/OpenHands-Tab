@@ -56,10 +56,15 @@ const isOptimisticUserMessageEvent = (event: Event): boolean => (
   && event.id.startsWith('optimistic:')
 );
 
+const isEnvironmentInfoBlock = (text: string): boolean =>
+  text.trimStart().toLowerCase().startsWith('<environment information>');
+
 const fingerprintMessageEvent = (event: MessageEvent): string => {
   const role = event.llm_message?.role ?? '';
   const content = Array.isArray(event.llm_message?.content) ? event.llm_message.content : [];
-  const extended = Array.isArray(event.extended_content) ? event.extended_content : [];
+  const extended = Array.isArray(event.extended_content)
+    ? event.extended_content.filter((c) => !(c?.type === 'text' && typeof c.text === 'string' && isEnvironmentInfoBlock(c.text)))
+    : [];
   try {
     return JSON.stringify({ role, content, extended });
   } catch {

@@ -63,5 +63,51 @@ describe('App - optimistic user MessageEvent rendering', () => {
     expect(screen.getAllByText('hello')).toHaveLength(1);
     expect(screen.queryByTestId('queued-messages-badge')).toBeNull();
   });
-});
 
+  it('deduplicates an optimistic user message when the persisted event adds <environment information> extended content', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'webviewReady' });
+    });
+
+    postToWindow({ type: 'status', status: 'online', mode: 'local' });
+
+    const running: ConversationStateUpdateEvent = {
+      kind: 'ConversationStateUpdateEvent',
+      agent_status: 'RUNNING',
+    } as ConversationStateUpdateEvent;
+    postToWindow({ type: 'event', event: running });
+
+    const input = screen.getByPlaceholderText('Ask OpenHands anything...') as HTMLTextAreaElement;
+    const user = userEvent.setup();
+    await user.type(input, 'hello{enter}');
+
+    const optimistic: MessageEvent = {
+      kind: 'MessageEvent',
+      id: 'optimistic:test',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    } as MessageEvent;
+    postToWindow({ type: 'event', event: optimistic });
+
+    expect(screen.getAllByText('hello')).toHaveLength(1);
+
+    const persisted: MessageEvent = {
+      ...optimistic,
+      id: 'server:test',
+      extended_content: [
+        {
+          type: 'text',
+          text: '<environment information>\nActive editor: /tmp/a.ts\n</environment information>',
+        },
+      ],
+    } as MessageEvent;
+    postToWindow({ type: 'event', event: persisted });
+
+    expect(screen.getAllByText('hello')).toHaveLength(1);
+  });
+});
