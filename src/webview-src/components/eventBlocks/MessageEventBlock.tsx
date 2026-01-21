@@ -20,6 +20,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const message = event.llm_message;
   const isUser = message.role === 'user';
   const isAgent = message.role === 'assistant';
+  const hasToolCalls = Array.isArray(message.tool_calls) && message.tool_calls.length > 0;
 
   function truncateEnvironmentInformationForDisplay(text: string): string {
     const lines = text.split(/\r?\n/);
@@ -118,7 +119,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const accentColor = isUser ? USER_ACCENT_COLOR : isAgent ? AGENT_ACCENT_COLOR : DEFAULT_ACCENT_COLOR;
   const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
   const roleLabel = message.role === 'assistant'
-    ? 'OpenHands says'
+    ? (hasToolCalls ? 'OpenHands (tool call)' : 'OpenHands says')
     : message.role.charAt(0).toUpperCase() + message.role.slice(1);
   const showRoleLabel = !isUser;
 
@@ -233,6 +234,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           )}
 
           {(() => {
+            if (isAgent && hasToolCalls) return null;
             // Use reasoning_content if available (Anthropic/OpenAI Chat Completions),
             // otherwise fall back to responses_reasoning_item.summary (OpenAI Responses API / GPT-5)
             const reasoningContent = message.reasoning_content
