@@ -19,9 +19,13 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
    - `git switch develop && git pull`
 2. Create a release branch:
    - `git switch -c release/X.Y.Z`
-3. Bump the extension version in `package.json` (and `package-lock.json`):
-   - Prefer: `npm version X.Y.Z --no-git-tag-version`
-   - Alternatively, edit `package.json` manually, then run `npm i --package-lock-only`
+3. Bump versions:
+   - Extension (root): `package.json` + `package-lock.json`
+   - SDK (workspace): `packages/agent-sdk-ts/package.json` (and lockfile updates as needed)
+   - Prefer:
+     - `npm version X.Y.Z --no-git-tag-version`
+     - `npm version X.Y.Z --no-git-tag-version -w @openhands/agent-sdk-ts`
+   - Alternatively, edit the `package.json` files manually, then run `npm i --package-lock-only`
    - Note: avoid creating a tag locally here; the tag should be created on the final commit that lands on `develop`.
 4. (Recommended) Sanity checks:
    - `npm ci`
@@ -32,6 +36,12 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
 5. (Optional but recommended) Build the VSIX locally:
    - `npm run package`
    - This runs `scripts/run-vsce-package.cjs` (wraps `vsce package` and follows symlinks).
+6. (Optional but recommended) Smoke test the VSIX like a user (non-dev, non-debug):
+   - Install the built VSIX into your normal VS Code profile:
+     - `code --install-extension ./openhands-tab-X.Y.Z.vsix`
+   - Restart VS Code normally (no `--extensionDevelopmentPath`):
+     - `code -n "$(pwd)"`
+   - In VS Code: confirm the extension is installed/enabled, then try a basic chat flow.
 
 ## 2) Release PR workflow (GitHub)
 
@@ -116,4 +126,3 @@ Token / org setup varies by publisher; document the exact token name/location in
    - Cut a new patch release.
 3. If a marketplace publish happened:
    - Follow the Marketplace/Open VSX guidance for deprecating or replacing a broken version (policies can limit unpublishing).
-
