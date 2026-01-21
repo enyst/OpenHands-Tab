@@ -659,6 +659,7 @@ export function activate(context: vscode.ExtensionContext) {
         secrets,
         persistenceDir,
         agentContext,
+        pastedImagesBaseDir,
       };
 
       // Populate user environment info suffix for local mode (after agentContext is created & system message synced)

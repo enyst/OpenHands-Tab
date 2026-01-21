@@ -24,6 +24,11 @@ export interface ConversationFactoryOptions {
   secretStorage?: SecretStorage;
   persistenceDir?: string;
   agentContext?: AgentContext;
+  /**
+   * Base directory for OpenHands-Tab persisted images (used to resolve `openhands-image://...` references
+   * into data URLs for multimodal LLM requests in local mode).
+   */
+  pastedImagesBaseDir?: string;
   hooks?: AgentHook | AgentHook[];
 }
 
@@ -48,6 +53,7 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     secretStorage: options.secretStorage,
     persistenceDir: options.persistenceDir,
     agentContext: options.agentContext,
+    pastedImagesBaseDir: options.pastedImagesBaseDir,
     hooks: options.hooks,
   }) as ConversationInstance;
 }

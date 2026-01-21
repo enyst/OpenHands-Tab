@@ -88,6 +88,11 @@ export interface AgentOptions {
   state?: ConversationState;
   secrets?: SecretRegistry;
   agentContext?: AgentContext;
+  /**
+   * Base directory for OpenHands-Tab persisted images (used to resolve `openhands-image://...` references
+   * into data URLs for multimodal LLM requests).
+   */
+  pastedImagesBaseDir?: string;
   profileStoreOptions?: LLMProfileStoreOptions;
   onTerminalEvent?: (event: BashEvent) => void;
   registry?: import('../llm').LLMRegistry;
@@ -618,6 +623,7 @@ export class Agent extends EventEmitter {
           events: this.events.list(),
           systemPrompt: this.buildSystemPrompt(),
           tools: this.getToolDefinitions(),
+          pastedImagesBaseDir: this.options.pastedImagesBaseDir,
         });
 
         // Emit a lightweight debug/state event so hosts can log what tools are actually sent

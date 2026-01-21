@@ -2,6 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Event } from '../../types';
 import type { LLMToolDefinition } from '../../llm';
 import { buildChatRequestWithCondensation, getCondensationState, tryCondenseConversation } from '../condensation';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 describe('condensation helpers', () => {
   it('getCondensationState unions forgotten ids and keeps latest non-empty summary', () => {
@@ -99,6 +102,35 @@ describe('condensation helpers', () => {
       { type: 'text', text: 'Second' },
       { type: 'text', text: '<environment information>\nActive editor: b.ts\n</environment information>' },
     ]);
+  });
+
+  it('expands openhands-image markdown to image content when pastedImagesBaseDir is provided', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'condensation-images-'));
+    const pastedDir = path.join(tmp, 'pasted-images');
+    fs.mkdirSync(pastedDir, { recursive: true });
+
+    const imageId = '0123456789abcdef.png';
+    fs.writeFileSync(path.join(pastedDir, imageId), Buffer.from([0x89, 0x50, 0x4e, 0x47])); // PNG signature prefix
+
+    const message: Extract<Event, { kind: 'MessageEvent' }> = {
+      kind: 'MessageEvent',
+      id: 'm1',
+      source: 'user',
+      llm_message: { role: 'user', content: [{ type: 'text', text: `see this\n\n![shot](openhands-image://${imageId})` }] },
+    };
+
+    const tools: LLMToolDefinition[] = [];
+    const request = buildChatRequestWithCondensation({
+      events: [message],
+      systemPrompt: 'SYS',
+      tools,
+      pastedImagesBaseDir: tmp,
+    });
+
+    const userMessage = request.messages[0]!;
+    expect(userMessage.role).toBe('user');
+    const imagePart = userMessage.content.find((c) => c.type === 'image') as { image_urls?: string[] } | undefined;
+    expect(imagePart?.image_urls?.[0]).toMatch(/^data:image\/png;base64,/);
   });
 
   it('tryCondenseConversation emits a Condensation event using injected condense()', async () => {

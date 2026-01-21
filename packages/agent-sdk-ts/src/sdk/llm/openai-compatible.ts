@@ -31,6 +31,11 @@ type OpenAITextContentBlock = {
   text: string;
 };
 
+type OpenAIImageUrlContentBlock = {
+  type: 'image_url';
+  image_url: { url: string; detail?: string };
+};
+
 type OpenAIToolUseContentBlock = {
   type: 'tool_use';
   id: string;
@@ -38,7 +43,7 @@ type OpenAIToolUseContentBlock = {
   input: unknown;
 };
 
-type OpenAIContentBlock = OpenAIThinkingContentBlock | OpenAITextContentBlock | OpenAIToolUseContentBlock;
+type OpenAIContentBlock = OpenAIThinkingContentBlock | OpenAITextContentBlock | OpenAIImageUrlContentBlock | OpenAIToolUseContentBlock;
 
 type OpenAIChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -133,6 +138,28 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
       ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
     };
     return result;
+  }
+
+  // User messages: include image_url blocks when present.
+  if (message.role === 'user') {
+    const blocks: OpenAIContentBlock[] = [];
+    for (const part of message.content) {
+      if (part.type === 'text') {
+        blocks.push({ type: 'text', text: part.text });
+        continue;
+      }
+      if (part.type === 'image' && Array.isArray(part.image_urls)) {
+        for (const url of part.image_urls) {
+          blocks.push({ type: 'image_url', image_url: { url, detail: part.detail ?? 'auto' } });
+        }
+      }
+    }
+    if (blocks.some((b) => b.type === 'image_url')) {
+      if (!blocks.some((b) => b.type === 'text')) {
+        blocks.unshift({ type: 'text', text: '' });
+      }
+      return { role: 'user', content: blocks };
+    }
   }
 
   // Standard case: plain text content (for non-Anthropic models or messages without thinking)

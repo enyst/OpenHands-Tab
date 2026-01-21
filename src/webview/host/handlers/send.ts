@@ -35,9 +35,19 @@ export async function handleSend(args: {
       .filter((u): u is vscode.Uri => u !== undefined)
     : [];
 
+  const attachmentsText = await buildAttachmentBlocks(attachmentUris);
+
+  let combinedText = baseText;
+  if (attachmentsText) {
+    combinedText += attachmentsText;
+  }
+  if (contextFiles.length > 0) {
+    combinedText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
+  }
+
   const globalStorageBaseDir = getGlobalStorageBaseDir(args.context.globalStorageUri?.fsPath);
   const pastedImages = new Map<string, Uint8Array>();
-  const rewriteResult = rewriteDataImageMarkdown(baseText, (dataUrl) => {
+  const rewriteResult = rewriteDataImageMarkdown(combinedText, (dataUrl) => {
     const parsed = parseBase64DataImageUrl(dataUrl);
     if (!parsed) return { url: '' };
     if (parsed.bytes.length > MAX_PASTED_IMAGE_BYTES) return { url: '' };
@@ -45,7 +55,7 @@ export async function handleSend(args: {
     return { url: `${OPENHANDS_IMAGE_URL_PREFIX}${parsed.imageId}` };
   });
 
-  let sanitizedText = rewriteResult.text;
+  let finalText = rewriteResult.text;
   if (pastedImages.size > 0) {
     const failed = new Set<string>();
     for (const [imageId, bytes] of pastedImages.entries()) {
@@ -58,21 +68,11 @@ export async function handleSend(args: {
       }
     }
     if (failed.size > 0) {
-      sanitizedText = rewriteOpenHandsImageUrls(sanitizedText, (imageId) => (failed.has(imageId) ? '' : undefined));
+      finalText = rewriteOpenHandsImageUrls(finalText, (imageId) => (failed.has(imageId) ? '' : undefined));
       void vscode.window.showWarningMessage(`Some pasted images could not be saved (${failed.size}). They were omitted from the message.`);
     }
   } else if (rewriteResult.rewritten > 0) {
     void vscode.window.showWarningMessage('Some pasted images were not supported and were omitted from the message.');
-  }
-
-  const attachmentsText = await buildAttachmentBlocks(attachmentUris);
-
-  let finalText = sanitizedText;
-  if (attachmentsText) {
-    finalText += attachmentsText;
-  }
-  if (contextFiles.length > 0) {
-    finalText += `\n\nUser has selected the following files for you to read:\n${contextFiles.join('\n')}`;
   }
 
   const queuedNotes = args.deps.getQueuedUserEditNotes();

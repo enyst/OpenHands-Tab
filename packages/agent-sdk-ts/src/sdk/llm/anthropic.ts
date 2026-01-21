@@ -39,7 +39,17 @@ type AnthropicToolResultBlock = {
   content: string;
 };
 
-type AnthropicContentBlock = AnthropicThinkingBlock | AnthropicTextBlock | AnthropicToolUseBlock | AnthropicToolResultBlock;
+type AnthropicImageBlock = {
+  type: 'image';
+  source: { type: 'base64'; media_type: string; data: string };
+};
+
+type AnthropicContentBlock =
+  | AnthropicThinkingBlock
+  | AnthropicTextBlock
+  | AnthropicImageBlock
+  | AnthropicToolUseBlock
+  | AnthropicToolResultBlock;
 
 interface AnthropicMessage {
   role: 'user' | 'assistant';
@@ -130,16 +140,39 @@ class AnthropicToolCallAccumulator implements ToolCallAccumulator {
   }
 }
 
+const parseBase64DataUrl = (url: string): { mediaType: string; base64: string } | null => {
+  const raw = typeof url === 'string' ? url.trim() : '';
+  const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+  if (!match) return null;
+  return { mediaType: match[1].toLowerCase(), base64: match[2] };
+};
+
 const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[] => {
   const result: AnthropicMessage[] = [];
 
   for (const message of request.messages) {
     if (message.role === 'user') {
-      // User messages: simple text content
-      result.push({
-        role: 'user',
-        content: [{ type: 'text', text: reduceTextContent(message) }],
-      });
+      const contentBlocks: AnthropicContentBlock[] = [];
+      for (const part of message.content) {
+        if (part.type === 'text') {
+          contentBlocks.push({ type: 'text', text: part.text });
+          continue;
+        }
+        if (part.type === 'image' && Array.isArray(part.image_urls)) {
+          for (const url of part.image_urls) {
+            const parsed = parseBase64DataUrl(url);
+            if (!parsed) continue;
+            contentBlocks.push({
+              type: 'image',
+              source: { type: 'base64', media_type: parsed.mediaType, data: parsed.base64 },
+            });
+          }
+        }
+      }
+      if (contentBlocks.length === 0) {
+        contentBlocks.push({ type: 'text', text: '' });
+      }
+      result.push({ role: 'user', content: contentBlocks });
     } else if (message.role === 'assistant') {
       // Assistant messages: may have thinking + tool_use
       const contentBlocks: AnthropicContentBlock[] = [];
