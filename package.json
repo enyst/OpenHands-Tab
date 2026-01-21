@@ -531,7 +531,7 @@
     "ws"
   ],
   "devDependencies": {
-    "@tailwindcss/cli": "^4.1.13",
+    "@tailwindcss/cli": "^4.1.18",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
@@ -551,7 +551,7 @@
     "jsdom": "^27.3.0",
     "lint-staged": "^16.2.7",
     "mocha": "^10.8.2",
-    "tailwindcss": "^4.1.13",
+    "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
