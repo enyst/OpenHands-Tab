@@ -61,6 +61,8 @@ export const buildChatRequestWithCondensation = (params: {
 
   const OPENHANDS_IMAGE_URL_PREFIX = 'openhands-image://';
   const IMAGE_ID_REGEX = /^[a-f0-9]{16}\.[a-z0-9]+$/;
+  // Keep in sync with OpenHands-Tab's per-image attachment cap (host-side).
+  const MAX_OPENHANDS_IMAGE_BYTES = 5 * 1024 * 1024;
 
   const EXT_TO_MIME: Record<string, string> = {
     '.png': 'image/png',
@@ -81,6 +83,9 @@ export const buildChatRequestWithCondensation = (params: {
 
     try {
       const filePath = path.join(baseDir, 'pasted-images', imageId);
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile()) return undefined;
+      if (stat.size > MAX_OPENHANDS_IMAGE_BYTES) return undefined;
       const bytes = fs.readFileSync(filePath);
       const base64 = bytes.toString('base64');
       return `data:${mime};base64,${base64}`;

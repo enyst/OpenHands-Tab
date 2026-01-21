@@ -5,7 +5,7 @@ import type { ConversationInstance } from '@openhands/agent-sdk-ts';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { MessageEvent } from '@openhands/agent-sdk-ts';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../../shared/pastedImages';
-import { MAX_PASTED_IMAGE_BYTES } from '../../../shared/pasteLimits';
+import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../../shared/pasteLimits';
 import { buildAttachmentBlocks, safeParseUri } from '../attachments';
 import type { CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
 import type { WebviewHost } from '../createWebviewMessageHandler';
@@ -47,10 +47,15 @@ export async function handleSend(args: {
 
   const globalStorageBaseDir = getGlobalStorageBaseDir(args.context.globalStorageUri?.fsPath);
   const pastedImages = new Map<string, Uint8Array>();
+  let didSkipImageCap = false;
   const rewriteResult = rewriteDataImageMarkdown(combinedText, (dataUrl) => {
     const parsed = parseBase64DataImageUrl(dataUrl);
     if (!parsed) return { url: '' };
     if (parsed.bytes.length > MAX_PASTED_IMAGE_BYTES) return { url: '' };
+    if (pastedImages.size >= MAX_PASTED_IMAGES) {
+      didSkipImageCap = true;
+      return { url: '' };
+    }
     pastedImages.set(parsed.imageId, parsed.bytes);
     return { url: `${OPENHANDS_IMAGE_URL_PREFIX}${parsed.imageId}` };
   });
@@ -71,8 +76,14 @@ export async function handleSend(args: {
       finalText = rewriteOpenHandsImageUrls(finalText, (imageId) => (failed.has(imageId) ? '' : undefined));
       void vscode.window.showWarningMessage(`Some pasted images could not be saved (${failed.size}). They were omitted from the message.`);
     }
+    if (didSkipImageCap) {
+      void vscode.window.showWarningMessage(`Some images were omitted (max ${MAX_PASTED_IMAGES} images per message).`);
+    }
   } else if (rewriteResult.rewritten > 0) {
     void vscode.window.showWarningMessage('Some pasted images were not supported and were omitted from the message.');
+    if (didSkipImageCap) {
+      void vscode.window.showWarningMessage(`Some images were omitted (max ${MAX_PASTED_IMAGES} images per message).`);
+    }
   }
 
   const queuedNotes = args.deps.getQueuedUserEditNotes();

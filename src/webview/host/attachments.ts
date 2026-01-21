@@ -23,7 +23,7 @@ function isProbablyBinary(bytes: Uint8Array): boolean {
 }
 
 function escapeMarkdownAltText(value: string): string {
-  return value.replaceAll('[', '\\[').replaceAll(']', '\\]');
+  return value.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/[\r\n]+/g, ' ').trim();
 }
 
 export function toAttachmentLabel(uri: vscode.Uri): string {
