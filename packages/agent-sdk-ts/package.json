@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-sdk-ts",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "TypeScript models and guards for the OpenHands agent-sdk wire protocol",
   "license": "MIT",
   "main": "dist/index.cjs",

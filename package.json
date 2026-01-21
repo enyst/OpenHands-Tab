@@ -3,7 +3,7 @@
   "displayName": "OpenHands Tab",
   "publisher": "openhands",
   "icon": "media/icons/openhands-icon.png",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "A VS Code extension to interact with OpenHands agents in a dedicated sidebar chat view",
   "license": "MIT",
   "workspaces": [
