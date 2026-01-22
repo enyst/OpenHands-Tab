@@ -1021,6 +1021,7 @@ export function deactivate() {
   conversationStoreRoot = undefined;
   lastRemoteAuthPromptAtMs = 0;
   lastRemoteServerUrl = undefined;
+  cloudRemoteBootstrap = null;
   resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
   sentTestEvents.length = 0;

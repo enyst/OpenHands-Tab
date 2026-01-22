@@ -60,7 +60,7 @@ describe('bootstrapCloudRemoteConversation', () => {
     }));
   });
 
-  it('errors clearly when V1 endpoints are missing', async () => {
+  it('errors clearly when V1 endpoints are missing (404)', async () => {
     const fetchSpy = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 404,
@@ -73,6 +73,198 @@ describe('bootstrapCloudRemoteConversation', () => {
       fetchFn: fetchSpy as unknown as typeof fetch,
       timeoutMs: 10_000,
     })).rejects.toThrow(/does not support V1/i);
+  });
+
+  it('errors on authentication failure (401)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 401,
+      text: () => Promise.resolve('Unauthorized'),
+    } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'invalid-key',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/invalid or expired Cloud API Key/i);
+  });
+
+  it('errors on authentication failure (403)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve('Forbidden'),
+    } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'expired-key',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/invalid or expired Cloud API Key/i);
+  });
+
+  it('errors when stream-start returns non-array JSON', async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ not: 'an array' }),
+      text: () => Promise.resolve(''),
+    } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/expected JSON array/i);
+  });
+
+  it('errors when stream-start response has no READY task', async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([
+        { status: 'WORKING' },
+        { status: 'PENDING' },
+      ]),
+      text: () => Promise.resolve(''),
+    } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/never reached READY/i);
+  });
+
+  it('errors with detail when stream-start response has ERROR task', async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([
+        { status: 'WORKING' },
+        { status: 'ERROR', detail: 'Sandbox provisioning failed' },
+      ]),
+      text: () => Promise.resolve(''),
+    } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/Sandbox provisioning failed/i);
+  });
+
+  it('errors when GET app-conversations returns missing conversation_url', async () => {
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { status: 'READY', app_conversation_id: 'ac-123' },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { session_api_key: 'runtime-key-xyz' }, // missing conversation_url
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/missing conversation_url/i);
+  });
+
+  it('errors when GET app-conversations returns missing session_api_key', async () => {
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { status: 'READY', app_conversation_id: 'ac-123' },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { conversation_url: 'https://runtime.example.com/api/conversations/conv-456' }, // missing session_api_key
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/missing session_api_key/i);
+  });
+
+  it('errors when conversation_url has unexpected format', async () => {
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { status: 'READY', app_conversation_id: 'ac-123' },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          {
+            conversation_url: 'https://runtime.example.com/invalid/path', // missing /api/conversations/<id>
+            session_api_key: 'runtime-key-xyz',
+          },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/could not parse conversation_url/i);
+  });
+
+  it('errors when GET app-conversations returns 401', async () => {
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { status: 'READY', app_conversation_id: 'ac-123' },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve('Token expired'),
+      } as unknown as Response);
+
+    await expect(bootstrapCloudRemoteConversation({
+      saasServerUrl: 'https://app.all-hands.dev',
+      cloudApiKey: 'cloud-key-abc',
+      fetchFn: fetchSpy as unknown as typeof fetch,
+      timeoutMs: 10_000,
+    })).rejects.toThrow(/invalid or expired Cloud API Key/i);
   });
 });
 
