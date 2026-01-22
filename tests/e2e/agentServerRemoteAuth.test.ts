@@ -75,7 +75,9 @@ async function waitForHealthOrExit(proc: ReturnType<typeof spawn>, url: string, 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 3000);
       const res = await fetch(url, { method: 'GET', signal: controller.signal }).finally(() => clearTimeout(timer));
-      if (res.ok) return;
+      // Agent-server may not expose a dedicated health endpoint; any HTTP response indicates
+      // the process is accepting connections.
+      if (res.status < 500) return;
       lastError = new Error(`HTTP ${res.status}`);
     } catch (err) {
       lastError = err;
@@ -241,4 +243,3 @@ describe('OpenHands-Tab Remote Agent-Server E2E (auth required)', function () {
     }
   });
 });
-
