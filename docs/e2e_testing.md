@@ -98,6 +98,9 @@ describe('OpenHands-Tab E2E', function() {
 - In CI, you can launch a local agent-server or point to a remote test instance
 - By default, the agent-server E2E test runs with auth disabled (`SESSION_API_KEY=''`)
 - To run an authenticated agent-server E2E, set `SESSION_API_KEY` in your environment (the test runner forwards it to both the spawned server and the VS Code extension host)
+- Additional hermetic agent-server E2E suites (gated by `E2E_AGENT_SERVER=1`) include:
+  - direct agent-server auth (`SESSION_API_KEY` required)
+  - cloud bootstrap via a local mock SaaS server + local agent-server (cloud host override is enabled only in E2E via `E2E_CLOUD_LOGIN=1` + `OPENHANDS_CLOUD_HOSTNAMES`)
 
 **Test Stability:**
 - Start with smoke tests (activation + command execution + webview created)
