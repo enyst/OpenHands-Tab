@@ -4,9 +4,10 @@ description: |
   OpenProse is a programming language for AI sessions. An AI session is a Turing-complete
   computer; OpenProse structures English into unambiguous control flow.
 
-  OpenHands-Tab integration:
+  OpenHands integration:
   - This repo vendors the OpenProse VM docs as your Skill.
-  - When you see a `.prose` program, use `prose.md` for execution semantics and `docs.md` for syntax/validation.
+  - When you see a `.prose` program, use `runner.md` for OpenHands-specific execution.
+  - Use `prose.md` for core VM semantics and `docs.md` for syntax/validation.
 
   Activate when: running `.prose` files, mentioning OpenProse, or when a task is best expressed as an orchestrated multi-agent workflow.
 ---
@@ -20,6 +21,7 @@ OpenProse is a programming language for AI sessions. LLMs are simulators—when 
 Activate this skill when the user:
 
 - Asks to run a `.prose` file
+- Uses `prose run`, `prose compile`, or similar commands
 - Mentions "OpenProse" or "prose program"
 - Wants to orchestrate multiple AI agents from a script
 - Has a file with `session "..."` or `agent name:` syntax
@@ -27,17 +29,44 @@ Activate this skill when the user:
 
 ---
 
+## OpenHands Execution Mode
+
+**Important:** OpenHands does not have a Task tool for spawning subagents. Instead, use the **OpenHands runner** (`runner.md`) which adapts OpenProse for direct execution.
+
+### Key Differences from Standard OpenProse
+
+| Standard OpenProse | OpenHands Adaptation |
+|--------------------|---------------------|
+| `session` spawns subagent via Task tool | You execute the session directly |
+| `parallel:` runs branches concurrently | Execute sequentially, track with `task_tracker` |
+| Variables stored in files | Store in conversation context + `task_tracker` |
+| Model selection (`model: opus`) | Uses current model |
+
+### Running a .prose Program in OpenHands
+
+1. **Load `runner.md`** — OpenHands-specific execution semantics
+2. **Load `prose.md`** — Core VM concepts
+3. **Parse the program** — Identify agents, blocks, statements
+4. **Execute directly** — You are both VM and worker
+5. **Track with `task_tracker`** — Maintain visibility into progress
+
+---
+
 ## Documentation Files
 
-| File       | Purpose             | When to Read                                     |
-| ---------- | ------------------- | ------------------------------------------------ |
-| `prose.md` | Execution semantics | Always read for running programs                 |
-| `docs.md`  | Full language spec  | For compilation, validation, or syntax questions |
+| File        | Purpose                    | When to Read                                     |
+| ----------- | -------------------------- | ------------------------------------------------ |
+| `runner.md` | OpenHands execution        | **Always** for running programs in OpenHands     |
+| `prose.md`  | Core VM semantics          | For understanding the execution model            |
+| `docs.md`   | Full language spec         | For compilation, validation, or syntax questions |
+| `patterns.md` | Best practices           | When authoring or reviewing programs             |
+| `antipatterns.md` | Patterns to avoid    | When debugging or improving programs             |
 
 ### Typical Workflow
 
-1. **Interpret**: Read `prose.md` to execute a valid program
-2. **Compile/Validate**: Read `docs.md` when asked to compile or when syntax is ambiguous
+1. **Run**: Load `runner.md` + `prose.md`, execute the program
+2. **Compile/Validate**: Load `docs.md` when asked to compile or when syntax is ambiguous
+3. **Author**: Load `patterns.md` and `antipatterns.md` when writing new programs
 
 ## Quick Reference
 
@@ -114,28 +143,36 @@ choice **best approach**:
 
 ## Examples
 
-The plugin ships with 27 examples in the `examples/` directory:
+The skill includes 10 example programs in the `examples/` directory:
 
-- **01-08**: Basics (hello world, research, code review, debugging)
-- **09-12**: Agents and skills
-- **13-15**: Variables and composition
-- **16-19**: Parallel execution
-- **20**: Fixed loops
-- **21**: Pipeline operations
-- **22-23**: Error handling
-- **24-27**: Advanced (choice, conditionals, blocks, interpolation)
+| Example | Description |
+|---------|-------------|
+| `01-hello-world.prose` | Simplest program - a single session |
+| `02-research-and-summarize.prose` | Research a topic, then summarize |
+| `03-code-review.prose` | Multi-perspective code review |
+| `05-debug-issue.prose` | Step-by-step debugging workflow |
+| `09-research-with-agents.prose` | Custom agents with model selection |
+| `13-variables-and-context.prose` | Variable bindings and context passing |
+| `16-parallel-reviews.prose` | Parallel execution (sequential for now, parallel when we have remote agents) |
+| `20-fixed-loops.prose` | Fixed iteration patterns |
+| `22-error-handling.prose` | try/catch/finally patterns |
+| `25-conditionals.prose` | if/elif/else patterns |
 
-Start with `01-hello-world.prose` or `03-code-review.prose`.
+Start with `01-hello-world.prose` to see the basic structure.
+
+> **More examples:** The [upstream OpenProse repository](https://github.com/openprose/prose/tree/main/skills/open-prose/examples) has 50+ examples.
 
 ## Execution
 
-To execute a `.prose` file, you become the OpenProse VM:
+To execute a `.prose` file in OpenHands, you become the OpenProse VM with adaptations:
 
-1. **Read `prose.md`** — this document defines how you embody the VM
-2. **You ARE the VM** — your conversation is its memory, your tools are its instructions
-3. **Spawn sessions** — each `session` statement triggers a Task tool call
-4. **Narrate state** — use the emoji protocol to track execution (📍, 📦, ✅, etc.)
-5. **Evaluate intelligently** — `**...**` markers require your judgment
+1. **Read `runner.md`** — OpenHands-specific execution semantics
+2. **Read `prose.md`** — Core VM concepts and structure
+3. **You ARE the VM** — your conversation is its memory, your tools are its instructions
+4. **Execute directly** — each `session` is executed by you (no subagent spawning)
+5. **Track with `task_tracker`** — use for parallel blocks, loops, and progress visibility
+6. **Narrate state** — use the emoji protocol to track execution (📍, 📦, ✅, etc.)
+7. **Evaluate intelligently** — `**...**` markers require your judgment
 
 ## Syntax at a Glance
 
