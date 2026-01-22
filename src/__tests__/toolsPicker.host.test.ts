@@ -111,7 +111,6 @@ describe('Tools picker host messages', () => {
       method: 'GET',
       headers: expect.objectContaining({
         'X-Session-API-Key': 'test-key-123',
-        Authorization: 'Bearer test-key-123',
       }),
     }));
 
@@ -150,6 +149,30 @@ describe('Tools picker host messages', () => {
       headers: {
         Authorization: 'Bearer cloud-key-abc',
       },
+    }));
+  });
+
+  it('responds to requestTools in remote mode without auth headers when no keys are available', async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(['finish']),
+      text: () => Promise.resolve(''),
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = {
+      serverUrl: 'http://localhost:3000',
+      settings: { secrets: {} },
+    };
+
+    const { handler } = createRemoteHandler(conversation);
+    await handler({ type: 'requestTools' } as any);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: 'GET',
+      headers: {},
     }));
   });
 
