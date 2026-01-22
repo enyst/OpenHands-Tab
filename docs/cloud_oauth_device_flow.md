@@ -17,8 +17,10 @@ Important:
 
 - Remote mode uses two distinct fields:
   - `settings.secrets.cloudApiKey` for **SaaS/app-server** calls (Bearer).
-  - `settings.secrets.runtimeSessionApiKey` for **nested agent-server** calls (X-Session-API-Key / WS query param).
-- Tokens are stored in VS Code SecretStorage as per-server entries (see `src/auth/serverCloudApiKeys.ts` and `src/auth/serverRuntimeSessionApiKeys.ts`).
+  - `settings.secrets.runtimeSessionApiKey` for **agent-server** calls (X-Session-API-Key / WS query param).
+    - For **direct/non-cloud** agent-server connections, this may come from per-server SecretStorage.
+    - For OpenHands Cloud, this is obtained via SaaS V1 bootstrap and is kept in-memory only.
+- Tokens are stored in VS Code SecretStorage as per-server entries (see `src/auth/serverCloudApiKeys.ts` and `src/auth/serverRuntimeSessionApiKeys.ts`). For OpenHands Cloud, only the `cloudApiKey` is persisted; the runtime `session_api_key` is ephemeral.
 
 ## Clarification: two different keys (very important)
 
@@ -115,11 +117,11 @@ Problem:
 
 Recommendation:
 - Store the **cloud API key** per canonical SaaS server URL in VS Code SecretStorage.
-- Store the latest **runtime `session_api_key`** per SaaS server URL as well (useful for reconnect/debug; it is still runtime-scoped and expected to change across sandboxes/conversations).
+- Do **not** persist the runtime `session_api_key` for cloud servers. It is obtained from the SaaS V1 bootstrap (`/api/v1/app-conversations*`) and is **kept in-memory only** for the lifetime of the running conversation (it is sandbox/runtime-scoped and expected to change).
 
 Suggested secret keys:
 - `openhands.cloudApiKey.server.<hash>` (server-specific cloud token)
-- `openhands.runtimeSessionApiKey.server.<hash>` (server-specific runtime session key)
+- `openhands.runtimeSessionApiKey.server.<hash>` (server-specific runtime session key for **direct/non-cloud** agent-server connections)
 
 Where `<hash>` is a stable hash of the normalized server URL (e.g. SHA-256 hex of `normalizeServerUrl(url).url`).
 
