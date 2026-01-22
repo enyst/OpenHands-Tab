@@ -3,6 +3,7 @@ import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsMan
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import type { ConversationInstance, SecretRegistry } from '@openhands/agent-sdk-ts';
 import { getServerSessionApiKeySecretKey, LEGACY_SESSION_API_KEY_SECRET_KEY } from '../auth/serverSessionApiKeys';
+import { getRemoteAuthKeyLabelForServerUrl, isOpenHandsCloudServerUrl } from '../shared/cloudServers';
 
 type SecretKey = keyof OpenHandsSettings['secrets'];
 
@@ -272,18 +273,23 @@ export function registerSecretCommands(params: {
   });
 
   const setSessionApiKey = vscode.commands.registerCommand('openhands.setSessionApiKey', async () => {
-    const title = 'Session API Key';
-    const prompt = 'Enter your Session API key. It will be stored securely in VS Code SecretStorage.';
-    const successMessage = 'Session API Key saved securely.';
-    const clearedMessage = 'Session API Key cleared.';
-    const errorPrefix = 'Failed to save Session API Key';
-
     const trimOrEmpty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+    let errorPrefix = 'Failed to save Remote API Key';
 
     try {
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
       const existing = await settingsMgr.get();
       const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
+      const authKeyLabel = getRemoteAuthKeyLabelForServerUrl(serverUrl);
+      const isCloud = Boolean(serverUrl) && isOpenHandsCloudServerUrl(serverUrl);
+
+      const title = authKeyLabel;
+      const prompt = isCloud
+        ? 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.'
+        : 'Enter your Session API key for the remote agent-server. It will be stored securely in VS Code SecretStorage.';
+      const successMessage = `${authKeyLabel} saved securely.`;
+      const clearedMessage = `${authKeyLabel} cleared.`;
+      errorPrefix = `Failed to save ${authKeyLabel}`;
 
       const keyInfo = serverUrl ? getServerSessionApiKeySecretKey(serverUrl) : null;
       const storageKey = keyInfo?.ok ? keyInfo.secretKey : LEGACY_SESSION_API_KEY_SECRET_KEY;
@@ -336,7 +342,7 @@ export function registerSecretCommands(params: {
         title,
         password: true,
         prompt,
-        placeHolder: 'sk-...',
+        placeHolder: isCloud ? 'paste token...' : 'sk-...',
       });
 
       if (value === undefined) return;

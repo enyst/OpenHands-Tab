@@ -7,6 +7,7 @@ import type {
   WorkspaceEncoding,
 } from './types';
 import { normalizeRemoteUrl } from '../shared/remoteUrl';
+import { isOpenHandsCloudServerUrl } from '../shared/cloudServers';
 
 const normalizeRemoteHostUrl = normalizeRemoteUrl;
 
@@ -32,7 +33,12 @@ const normalizeEncoding = (encoding: WorkspaceEncoding): NodeBufferEncoding => {
 
 export interface RemoteWorkspaceOptions {
   host: string;
-  /** Session API key for authenticating with the OpenHands server. */
+  /**
+   * Authentication token for the remote host.
+   *
+   * - OpenHands Cloud/SaaS: cloud API key (device-flow `access_token`), used as `Authorization: Bearer ...`
+   * - Nested runtime agent-server: runtime `session_api_key`, used as `X-Session-API-Key: ...`
+   */
   sessionApiKey?: string;
   workingDir?: string;
   pollIntervalMs?: number;
@@ -424,8 +430,12 @@ export class RemoteWorkspace implements BaseWorkspace {
   private getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
     if (this.sessionApiKey) {
-      headers['X-Session-API-Key'] = this.sessionApiKey;
-      headers['Authorization'] = `Bearer ${this.sessionApiKey}`;
+      if (isOpenHandsCloudServerUrl(this.host)) {
+        headers['Authorization'] = `Bearer ${this.sessionApiKey}`;
+      } else {
+        headers['X-Session-API-Key'] = this.sessionApiKey;
+        headers['Authorization'] = `Bearer ${this.sessionApiKey}`;
+      }
     }
     return headers;
   }

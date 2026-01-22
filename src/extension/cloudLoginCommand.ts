@@ -147,7 +147,7 @@ export function registerCloudLoginCommand(options: {
       await context.secrets.store(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmedToken);
     }
 
-    output?.appendLine(`[auth] Stored session API key for ${keyInfo.normalizedServerUrl}.`);
+    output?.appendLine(`[auth] Stored cloud API key for ${keyInfo.normalizedServerUrl}.`);
     if (!canUpdateLegacy && legacyValue) {
       output?.appendLine('[auth] Legacy openhands.sessionApiKey was not overwritten (different value already set).');
     }
