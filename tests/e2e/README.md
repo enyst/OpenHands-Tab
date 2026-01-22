@@ -18,6 +18,8 @@ Each test file orchestrates a VS Code instance and runs a specific test suite:
 - **confirmation.test.ts**: Tests action confirmation workflow with security levels
 - **errorHandling.test.ts**: Tests error events and error state handling
 - **agentServerRemote.test.ts**: (Optional) Starts a local python agent-server and tests remote mode end-to-end (gated by `E2E_AGENT_SERVER=1`)
+- **agentServerRemoteAuth.test.ts**: (Optional) Starts a local python agent-server with `SESSION_API_KEY` enabled and tests runtime-key auth end-to-end (gated by `E2E_AGENT_SERVER=1`)
+- **agentServerRemoteCloudBootstrap.test.ts**: (Optional) Starts a local python agent-server + local mock SaaS server and tests cloud bootstrap wiring end-to-end (gated by `E2E_AGENT_SERVER=1`)
 
 ### Suite Files (suite/*.ts)
 These run inside VS Code and execute the actual tests:
