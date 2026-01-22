@@ -200,11 +200,16 @@ async function startMockSaasServer(params: {
         max_iterations: 1,
       }),
     });
-    const json = await res.json().catch(() => ({})) as { id?: string; conversation_id?: string; uuid?: string };
+    const text = await res.text().catch(() => '');
+    let json: { id?: string; conversation_id?: string; uuid?: string } = {};
+    try {
+      json = JSON.parse(text) as typeof json;
+    } catch {
+      // Not valid JSON, will use text in error message below
+    }
     const id = (json.id || json.conversation_id || json.uuid || '').trim();
     if (!id) {
-      const detail = await res.text().catch(() => '');
-      throw new Error(`Mock SaaS failed to create conversation on agent-server (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
+      throw new Error(`Mock SaaS failed to create conversation on agent-server (HTTP ${res.status})${text ? `: ${text}` : ''}`);
     }
     return id;
   };
