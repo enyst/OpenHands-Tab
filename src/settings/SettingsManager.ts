@@ -31,6 +31,12 @@ export type OpenHandsSettings = ServerSettings & {
   hal: HalSettings;
   servers: SavedServer[];
   secrets: {
+    /**
+     * Remote-mode credentials are injected by the extension host at runtime.
+     *
+     * These values are intentionally not persisted via `SettingsManager.update()` because they
+     * live in per-server VS Code SecretStorage slots.
+     */
     cloudApiKey?: string;
     runtimeSessionApiKey?: string;
     llmApiKey?: string;

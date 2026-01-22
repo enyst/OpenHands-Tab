@@ -118,6 +118,11 @@ export type OpenHandsSettings = ServerSettings & {
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
   secrets: {
+    /**
+     * Remote-mode credentials are injected by the host application at runtime.
+     *
+     * In OpenHands-Tab, these values come from per-server VS Code SecretStorage slots.
+     */
     cloudApiKey?: string;
     runtimeSessionApiKey?: string;
     llmApiKey?: string;

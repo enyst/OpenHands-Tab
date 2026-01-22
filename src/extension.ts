@@ -84,6 +84,7 @@ let verboseEventLogging = false;
 let localAgentContext: AgentContext | undefined;
 let activeEditorFilePath: string | undefined;
 let lastRemoteAuthPromptAtMs = 0;
+let lastRemoteServerUrl: string | undefined;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
@@ -484,6 +485,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     if (typeof settings.serverUrl === 'string' && settings.serverUrl.trim()) {
       const rawServerUrl = settings.serverUrl.trim();
+      lastRemoteServerUrl = rawServerUrl;
       const isCloud = isOpenHandsCloudServerUrl(rawServerUrl);
 
       const cloudKeyInfo = isCloud ? getServerCloudApiKeySecretKey(rawServerUrl) : null;
@@ -687,14 +689,27 @@ export function activate(context: vscode.ExtensionContext) {
           if (now - lastRemoteAuthPromptAtMs < 60_000) return;
           lastRemoteAuthPromptAtMs = now;
 
+          const serverUrl = lastRemoteServerUrl;
+          const isCloudServer = typeof serverUrl === 'string' && serverUrl.trim().length > 0
+            ? isOpenHandsCloudServerUrl(serverUrl)
+            : false;
+
           const action = await vscode.window.showWarningMessage(
-            'OpenHands: Authentication failed connecting to the selected server. Login now?',
-            'Login',
+            isCloudServer
+              ? 'OpenHands: Authentication failed connecting to OpenHands Cloud. Login now?'
+              : 'OpenHands: Authentication failed connecting to the selected server. Set Runtime Session API Key now?',
+            isCloudServer ? 'Login' : 'Set Key',
             'Dismiss',
           );
-          if (action !== 'Login') return;
+          if (!action || action === 'Dismiss') return;
 
-          await vscode.commands.executeCommand('openhands.cloudLogin');
+          if (isCloudServer && action === 'Login') {
+            await vscode.commands.executeCommand('openhands.cloudLogin');
+            return;
+          }
+          if (!isCloudServer && action === 'Set Key') {
+            await vscode.commands.executeCommand('openhands.setRuntimeSessionApiKey');
+          }
         })();
       });
 

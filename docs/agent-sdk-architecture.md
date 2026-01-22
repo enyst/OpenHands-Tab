@@ -141,7 +141,7 @@ LocalConversation supports persistent conversations through the `persistenceDir`
 - Real-time event streaming
 - HTTP fallback for message delivery
 - Automatic reconnection with exponential backoff
-- Session API key authentication
+- Runtime session API key authentication
 - Conversation lifecycle management via REST API
 
 **Connection Strategy**:
@@ -1469,11 +1469,13 @@ function resolveWorkspaceRoot(): string {
 
 // Create conversation (auto-detects local vs remote)
 const serverUrl = settings.serverUrl ?? undefined; // undefined = local mode
-const cloudApiKey = serverUrl && isOpenHandsCloudServerUrl(serverUrl)
-  ? await context.secrets.get(getServerCloudApiKeySecretKey(serverUrl).secretKey)
+const cloudKeyInfo = serverUrl ? getServerCloudApiKeySecretKey(serverUrl) : null;
+const cloudApiKey = serverUrl && isOpenHandsCloudServerUrl(serverUrl) && cloudKeyInfo?.ok
+  ? await context.secrets.get(cloudKeyInfo.secretKey)
   : undefined;
-const runtimeSessionApiKey = serverUrl
-  ? await context.secrets.get(getServerRuntimeSessionApiKeySecretKey(serverUrl).secretKey)
+const runtimeKeyInfo = serverUrl ? getServerRuntimeSessionApiKeySecretKey(serverUrl) : null;
+const runtimeSessionApiKey = serverUrl && runtimeKeyInfo?.ok
+  ? await context.secrets.get(runtimeKeyInfo.secretKey)
   : undefined;
 
 const conversation: ConversationInstance = Conversation({

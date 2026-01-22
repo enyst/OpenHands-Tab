@@ -557,6 +557,51 @@ describe('Chat view behavior', () => {
     expect(options?.settings?.secrets?.runtimeSessionApiKey).toBeUndefined();
   });
 
+  it('prompts to set runtimeSessionApiKey on remote auth failure for non-cloud servers', async () => {
+    await resolveChatView(mockContext);
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Set Key');
+
+    conv.emit('error', new Error('Authentication failed (HTTP 401)'));
+
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const calls = (vscode.commands.executeCommand as Mock).mock.calls;
+      if (calls.some((c) => c?.[0] === 'openhands.setRuntimeSessionApiKey')) break;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('openhands.setRuntimeSessionApiKey');
+  });
+
+  it('prompts to cloudLogin on remote auth failure for cloud servers', async () => {
+    mockSettings = { ...mockSettings, serverUrl: 'https://app.all-hands.dev' as any };
+    await resolveChatView(mockContext);
+
+    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const conv = __getLastConversation();
+    expect(conv).toBeTruthy();
+
+    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Login');
+
+    conv.emit('error', new Error('Authentication failed (HTTP 403)'));
+
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      const calls = (vscode.commands.executeCommand as Mock).mock.calls;
+      if (calls.some((c) => c?.[0] === 'openhands.cloudLogin')) break;
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalled();
+    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('openhands.cloudLogin');
+  });
+
   it('does not auto-restore saved conversation on first chat view resolve', async () => {
     // Intentionally does not restore on first open - users may return after weeks
     // and won't remember what the conversation was about

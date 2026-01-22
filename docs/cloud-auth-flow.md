@@ -22,7 +22,7 @@ The key takeaway: **cloud device-flow returns a user API key / access token for 
 ### B) Agent-server session API key (runtime/sandbox scoped)
 - **Origin:** Sandbox/runtime creation (generated per sandbox/runtime)
 - **Used to authenticate to:** the **nested runtime / agent-server** HTTP APIs and its WebSocket/event stream
-- **Transport (HTTP):** `X-Session-API-Key: <session_api_key>` (and sometimes also `Authorization: Bearer …` in TS client)
+- **Transport (HTTP):** `X-Session-API-Key: <session_api_key>`
 - **Transport (WS):** currently frequently appears as a **query param** `?session_api_key=…` for browser WS constraints (this is the `oh-tab-h3g` security concern)
 
 ---
@@ -95,7 +95,7 @@ So although it’s shaped like OAuth, the “access token” is effectively an *
 
 - Requests to most `/api/*` and `/mcp/*` paths require credentials.
 - It treats `Authorization: Bearer …` as the primary API credential.
-- It also treats `X-Session-API-Key` as an acceptable substitute when Authorization is absent.
+- It also treats `X-Session-API-Key` as an acceptable substitute when Authorization is absent (oh-tab should not rely on this fallback).
 
 ### 2.4 SaaS nested runtime manager: returns a *separate* `session_api_key` for the nested runtime
 **File:** `~/repos/odie/enterprise/server/saas_nested_conversation_manager.py`
