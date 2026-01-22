@@ -93,7 +93,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
   - POST `/api/conversations/{id}/run` - resume
   - POST `/api/conversations/{id}/events/respond_to_confirmation` - approve/reject
   - GET `/api/conversations/{id}/events/` - list events
-- Auth: X-Session-API-Key header (HTTP), `?session_api_key` query param (WebSocket)
+- Auth: `X-Session-API-Key` header (HTTP + non-browser WS handshake). Browser clients may still require legacy WS query-param auth (`?session_api_key=...`) due to header constraints; avoid secrets in URLs when possible.
 
 ### Message Format
 ```json

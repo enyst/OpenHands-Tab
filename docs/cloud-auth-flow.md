@@ -23,7 +23,14 @@ The key takeaway: **cloud device-flow returns a user API key / access token for 
 - **Origin:** Sandbox/runtime creation (generated per sandbox/runtime)
 - **Used to authenticate to:** the **nested runtime / agent-server** HTTP APIs and its WebSocket/event stream
 - **Transport (HTTP):** `X-Session-API-Key: <session_api_key>`
-- **Transport (WS):** currently frequently appears as a **query param** `?session_api_key=…` for browser WS constraints (this is the `oh-tab-h3g` security concern)
+- **Transport (WS):** prefer **headers** (no secrets in URLs).
+  - Non-browser clients: use `X-Session-API-Key` or `Authorization: Bearer ...` during the WS handshake.
+  - Browser clients: legacy `?session_api_key=...` query param (can’t set custom headers).
+  - See `oh-tab-h3g`.
+
+**Related work (Jan 22, 2026)**
+- Upstream unblock: OpenHands/software-agent-sdk#1786 + OpenHands/docs#270
+- Downstream change (draft): enyst/OpenHands-Tab#873 (removes `session_api_key` from WS URLs; merge blocked until upstream is merged/deployed)
 
 ---
 
@@ -175,8 +182,8 @@ Note: this file explicitly labels itself “LEGACY V0 CODE” and warns not to e
 **Repo:** `~/repos/agent-sdk` (python agent-server)
 
 (Previously inspected in our audit follow-up work)
-- Agent-server WS currently requires `session_api_key` query param when session auth is enabled.
-- BlackCastle validated locally that **headers-only WS fails** when `SESSION_API_KEY` is set.
+- As of upstream agent-server `main` (Jan 2026), WS auth requires the `session_api_key` query param when session auth is enabled.
+- Upstream unblock OpenHands/software-agent-sdk#1786 adds WS auth via headers (`X-Session-API-Key` / `Authorization: Bearer ...`) while keeping the query-param path for browser clients.
 
 ---
 
@@ -198,13 +205,14 @@ Note: this file explicitly labels itself “LEGACY V0 CODE” and warns not to e
   - `X-Session-API-Key: <runtimeSessionApiKey>`
 
 - `connect()` constructs WS URL:
-  - `${base.replace(/^http/, 'ws')}/sockets/events/${conversationId}?session_api_key=<runtimeSessionApiKey>&resend_all=true` (non-cloud only)
+  - Legacy (before enyst/OpenHands-Tab#873): `${base.replace(/^http/, 'ws')}/sockets/events/${conversationId}?session_api_key=<runtimeSessionApiKey>&resend_all=true` (non-cloud only)
+  - Target direction (enyst/OpenHands-Tab#873): `${base.replace(/^http/, 'ws')}/sockets/events/${conversationId}?resend_all=true` with WS auth via headers only
 
 This is the exact “secret-in-URL” issue from bead `oh-tab-h3g`.
 
 Clarification:
 - The cloud/SaaS device-flow token should be sent as `Authorization: Bearer <cloud_api_key>` to SaaS endpoints.
-- The runtime/sandbox `session_api_key` should be sent as `X-Session-API-Key: <runtime_session_api_key>` to the nested agent-server (and currently as `?session_api_key=...` for WS).
+- The runtime/sandbox `session_api_key` should be sent as `X-Session-API-Key: <runtime_session_api_key>` to the nested agent-server (and, for legacy browser clients, sometimes as `?session_api_key=...` for WS).
 
 ### 5.3 Why the cloud token vs runtime token confusion matters
 There are multiple server surfaces:
@@ -241,7 +249,7 @@ A V1-aligned client flow generally looks like:
 
 4) **For WS auth (`oh-tab-h3g`)**
    - ideal: server supports WS header auth or a short-lived ticket
-   - current reality: server requires `?session_api_key=…` query param
+   - current reality (as of upstream agent-server `main` in Jan 2026): WS auth requires `?session_api_key=…` when session auth is enabled; OpenHands/software-agent-sdk#1786 adds header auth
 
 ### 6.2 Concretely: where to get `agent_server_url` and runtime `session_api_key`
 From V1 app-server code:
@@ -312,8 +320,8 @@ The goal is to validate which token works against which surface without flooding
 - `GET <agent_server_url>/api/conversations/<id>` with `X-Session-API-Key: <runtime_session_api_key>`
 
 4) WS handshake sanity (one attempt)
-- Connect to the agent-server events WS using `?session_api_key=<runtime_session_api_key>`.
-- Try headers-only once to confirm whether the server supports it.
+- Prefer WS header auth (no secrets in URLs): `X-Session-API-Key: <runtime_session_api_key>` (or `Authorization: Bearer ...`).
+- If the server/client cannot do header auth (legacy browser path), the query param `?session_api_key=...` may still be required.
 
 Never print tokens; avoid retries/loops.
 
@@ -322,7 +330,7 @@ Never print tokens; avoid retries/loops.
 ## 8) Open questions to resolve before changing `oh-tab-h3g`
 
 - Does the deployed cloud agent-server accept WS header auth today?
-  - Local python agent-server does **not** (per BlackCastle’s test).
+  - Upstream agent-server `main` historically required `?session_api_key=...`; OpenHands/software-agent-sdk#1786 adds header auth.
 
 - Does SaaS proxy any of the agent-server WS paths?
   - We did not find `sockets/events` routes in enterprise; the agent-sdk-ts WS path likely targets the agent-server directly.

@@ -21,7 +21,9 @@ Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extens
 - `openhands.runtimeSessionApiKey.server.<hash>` (VS Code SecretStorage; per-server)
   - Used for **direct/non-cloud** agent-server endpoints (e.g. a local python agent-server or self-hosted agent-server).
   - HTTP header: `X-Session-API-Key: <runtimeSessionApiKey>`
-  - WebSocket query param: `?session_api_key=<runtimeSessionApiKey>`
+  - WebSocket: prefer handshake header auth (no URL secrets): `X-Session-API-Key: <runtimeSessionApiKey>` (or `Authorization: Bearer ...`).
+    - Legacy (browser-only): `?session_api_key=<runtimeSessionApiKey>` query param.
+    - Downstream change (draft): enyst/OpenHands-Tab#873 removes `session_api_key` from WS URLs; merge is blocked until upstream OpenHands/software-agent-sdk#1786 is merged/deployed.
   - Note (OpenHands Cloud): the nested runtime `session_api_key` is obtained via SaaS V1 bootstrap (`/api/v1/app-conversations*`) and is **not persisted**; it is injected into in-memory `settings.secrets.runtimeSessionApiKey` only for the lifetime of the running conversation.
 
 ## 2) Conversation lifecycle & persistence
