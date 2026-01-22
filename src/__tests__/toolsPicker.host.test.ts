@@ -111,6 +111,7 @@ describe('Tools picker host messages', () => {
       method: 'GET',
       headers: expect.objectContaining({
         'X-Session-API-Key': 'test-key-123',
+        Authorization: 'Bearer test-key-123',
       }),
     }));
 
@@ -123,6 +124,33 @@ describe('Tools picker host messages', () => {
       ],
       enabledToolIds: ['execute_bash', 'finish', 'file_edit'],
     });
+  });
+
+  it('responds to requestTools in remote mode using Bearer-only for cloud servers', async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(['finish']),
+      text: () => Promise.resolve(''),
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = {
+      serverUrl: 'https://app.all-hands.dev',
+      settings: { secrets: { cloudApiKey: 'cloud-key-abc', runtimeSessionApiKey: 'runtime-key-xyz' } },
+    };
+
+    const { handler } = createRemoteHandler(conversation);
+    await handler({ type: 'requestTools' } as any);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/api\/tools\/$/);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer cloud-key-abc',
+      },
+    }));
   });
 
   it('applies setEnabledTools by calling conversation.setTools', async () => {

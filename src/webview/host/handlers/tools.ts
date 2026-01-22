@@ -57,7 +57,10 @@ async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[
   if (isOpenHandsCloudServerUrl(normalized.url)) {
     if (params.cloudApiKey) headers['Authorization'] = `Bearer ${params.cloudApiKey}`;
   } else if (params.runtimeSessionApiKey) {
+    // Some deployments accept Bearer tokens but not `X-Session-API-Key`.
+    // Send both headers for non-cloud runtimes for maximum compatibility.
     headers['X-Session-API-Key'] = params.runtimeSessionApiKey;
+    headers['Authorization'] = `Bearer ${params.runtimeSessionApiKey}`;
   }
 
   const fetchFn = globalThis.fetch;
