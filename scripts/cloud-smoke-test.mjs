@@ -154,10 +154,10 @@ async function main() {
   ok(`stream-start OK (tasks=${start.json.length}).`);
 
   const tasks = start.json;
-  const ready = [...tasks].reverse().find((t) => t && typeof t === 'object' && t.status === 'READY' && typeof t.app_conversation_id === 'string');
+  const ready = tasks.findLast((t) => t && typeof t === 'object' && t.status === 'READY' && typeof t.app_conversation_id === 'string');
   const appConversationId = (ready?.app_conversation_id || '').trim();
   if (!appConversationId) {
-    const err = [...tasks].reverse().find((t) => t && typeof t === 'object' && t.status === 'ERROR');
+    const err = tasks.findLast((t) => t && typeof t === 'object' && t.status === 'ERROR');
     const hadErrorDetail = Boolean(err && typeof err.detail === 'string' && err.detail.trim());
     fail(`No READY task in stream-start response${hadErrorDetail ? ' (server returned ERROR detail)' : ''}`, secretsForRedaction);
   }
