@@ -15,9 +15,10 @@ Important:
 
 ## Current oh-tab behavior (baseline)
 
-- Remote mode uses `settings.secrets.sessionApiKey` (currently a misnomer) as its single “remote auth key” slot (see `packages/agent-sdk-ts/src/workspace/RemoteWorkspace.ts` and `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`).
-- The UI/helptext currently calls this “Session API Key”, even when it is actually a **cloud/SaaS API key** (device-flow output).
-- Tokens are stored in VS Code SecretStorage via `SettingsManager` / `VscodeSettingsAdapter` as `context.secrets` entries (see `src/settings/SettingsManager.ts` + `src/settings/VscodeSettingsAdapter.ts`).
+- Remote mode uses two distinct fields:
+  - `settings.secrets.cloudApiKey` for **SaaS/app-server** calls (Bearer).
+  - `settings.secrets.runtimeSessionApiKey` for **nested agent-server** calls (X-Session-API-Key / WS query param).
+- Tokens are stored in VS Code SecretStorage as per-server entries (see `src/auth/serverCloudApiKeys.ts` and `src/auth/serverRuntimeSessionApiKeys.ts`).
 
 ## Clarification: two different keys (very important)
 
@@ -105,38 +106,22 @@ Recommendation:
 - Keep auth orchestration in **extension host** (needs VS Code APIs + SecretStorage + safe UX):
   - new module(s) under `src/auth/`
 - Keep only small, pure helpers in `src/shared/` (e.g. server URL normalization already lives there).
-- Avoid putting auth logic into `packages/agent-sdk-ts` for now; the SDK should remain transport-agnostic and accept “sessionApiKey” as an input.
+- Avoid putting auth orchestration into `packages/agent-sdk-ts` for now; the SDK should remain transport-agnostic and accept explicit auth inputs (cloud vs runtime) from the host.
 
 ### Token storage model (per-server)
 
 Problem:
-- oh-tab currently stores a single `openhands.sessionApiKey` and treats it as “the remote auth key”.
-- But cloud mode needs two distinct keys (cloud user token vs runtime `session_api_key`), and users can have multiple `settings.servers[]`.
+- Cloud mode needs two distinct keys (cloud user token vs runtime `session_api_key`), and users can have multiple `settings.servers[]`.
 
 Recommendation:
 - Store the **cloud API key** per canonical SaaS server URL in VS Code SecretStorage.
-- Treat runtime `session_api_key` as runtime/sandbox-scoped data (generally obtained from V1 conversation metadata and not reused across unrelated sandboxes).
+- Store the latest **runtime `session_api_key`** per SaaS server URL as well (useful for reconnect/debug; it is still runtime-scoped and expected to change across sandboxes/conversations).
 
 Suggested secret keys:
-- `openhands.cloudApiKey` (new legacy-ish key for backwards compatibility)
 - `openhands.cloudApiKey.server.<hash>` (server-specific cloud token)
-- `openhands.cloudApiKey.server.<hash>.meta` (optional JSON metadata; e.g. `{ serverUrl, obtainedAt, tokenType, expiresAt? }`)
-
-Compatibility note:
-- Until the schema/code is migrated, oh-tab may temporarily keep storing the cloud API key in `openhands.sessionApiKey*` (misnamed). The UI should still call it “Cloud API Key” for SaaS servers.
+- `openhands.runtimeSessionApiKey.server.<hash>` (server-specific runtime session key)
 
 Where `<hash>` is a stable hash of the normalized server URL (e.g. SHA-256 hex of `normalizeServerUrl(url).url`).
-
-Lookup rules:
-1. Normalize server URL (`normalizeServerUrl`).
-2. Attempt per-server key first.
-3. Fall back to the legacy key (so existing manual workflows keep working).
-
-Write rules:
-- Whenever a token is obtained for a server, always store it in the per-server key.
-- Do **not** silently clobber the legacy key if it already contains a different value.
-  - If the legacy key is empty/unset, or already matches the per-server token for the currently-selected server, it is OK to write it for backwards compatibility.
-  - Otherwise leave it unchanged and rely on the per-server key as the authoritative source.
 
 ### CLI token reuse (optional)
 
@@ -266,7 +251,7 @@ sequenceDiagram
 
 Primary risks and mitigations:
 - **Token leakage via logs/UI**: never print tokens to OutputChannel, toasts, or webview messages. Keep the token in extension host only and persist it only in VS Code SecretStorage.
-- **Accidental token overwrite**: avoid silently replacing `openhands.sessionApiKey` when it differs (per “Write rules”); prefer server-scoped secrets as authoritative.
+- **Accidental token overwrite**: avoid silently replacing per-server secrets (e.g. `openhands.cloudApiKey.server.<hash>` / `openhands.runtimeSessionApiKey.server.<hash>`) without explicit user intent.
 - **Phishing / malicious serverUrl**: show the canonical server URL being logged into and the exact verification URL opened; require explicit user action to start login. Avoid auto-login loops without user confirmation.
 - **Replay / long-lived tokens**: treat access tokens as sensitive long-lived secrets; if the server provides expiry metadata (`expires_in`) or refresh tokens, store metadata (not secrets) separately and plan for re-auth / refresh.
 - **Compromised machine / extension host**: SecretStorage reduces accidental exposure but cannot defend against a fully compromised host; keep scope minimal (no additional token replication beyond SecretStorage).
@@ -275,7 +260,7 @@ Primary risks and mitigations:
 
 Suggested coverage to unblock implementation:
 - **Unit (host)**: device-flow polling state machine (`authorization_pending`, `slow_down` backoff, `expired_token`, `access_denied`, timeout, cancel).
-- **Unit (storage)**: per-server secret key selection, and the “do not clobber legacy key” write rules.
+- **Unit (storage)**: per-server secret key selection and explicit overwrite behavior (no implicit migration/compat keys).
 - **E2E (VS Code)**:
   - Login command opens browser + persists per-server token.
   - Remote connect with missing/invalid token shows a host-side prompt; after login, the connection retries and succeeds.

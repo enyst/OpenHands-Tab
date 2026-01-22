@@ -26,6 +26,8 @@ const SENSITIVE_KEYS = new Set([
   'password', 'pass', 'pwd',
   'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
   'awsAccessKeyId', 'awsSecretAccessKey',
+  'cloudApiKey', 'cloud_api_key',
+  'runtimeSessionApiKey', 'runtime_session_api_key',
   'sessionApiKey', 'session_api_key', 'x_api_key', 'x-api-key',
 ]);
 
@@ -82,7 +84,7 @@ export function redactStringHeuristics(text: string): string {
     t = t.replace(pattern, '***');
   });
   // Common key=value or key: value patterns
-  const keyPattern = /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
+  const keyPattern = /(api[_-]?key|cloud[_-]?api[_-]?key|runtime[_-]?session[_-]?api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret)/gi;
   t = t.replace(
     new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'),
     (_m, p1, _p2) => `${p1}: ***`,

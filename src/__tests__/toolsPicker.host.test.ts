@@ -99,7 +99,7 @@ describe('Tools picker host messages', () => {
 
     const conversation = {
       serverUrl: 'http://localhost:3000',
-      settings: { secrets: { sessionApiKey: 'test-key-123' } },
+      settings: { secrets: { runtimeSessionApiKey: 'test-key-123' } },
     };
 
     const { handler, postMessage } = createRemoteHandler(conversation);

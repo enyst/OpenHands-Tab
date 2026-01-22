@@ -7,7 +7,8 @@ import { maskSecretsInText } from '../shared/maskSecrets';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
-import { getServerSessionApiKeySecretKey, LEGACY_SESSION_API_KEY_SECRET_KEY } from '../auth/serverSessionApiKeys';
+import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
+import { getServerRuntimeSessionApiKeySecretKey } from '../auth/serverRuntimeSessionApiKeys';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
 import { OpenHandsTerminalLogPseudoterminal } from '../terminal/OpenHandsTerminalLogPseudoterminal';
 import { isBashEvent, isTextContent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
@@ -228,30 +229,28 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
 
         if (!serverUrl) return { ok: false, error: 'Missing serverUrl' };
 
-        const keyInfo = getServerSessionApiKeySecretKey(serverUrl);
-        if (!keyInfo.ok) return { ok: false, error: keyInfo.error };
+        const cloudKeyInfo = getServerCloudApiKeySecretKey(serverUrl);
+        if (!cloudKeyInfo.ok) return { ok: false, error: cloudKeyInfo.error };
+        const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(serverUrl);
+        if (!runtimeKeyInfo.ok) return { ok: false, error: runtimeKeyInfo.error };
 
-        let stored: string | undefined;
-        try {
-          stored = await deps.context.secrets.get(keyInfo.secretKey);
-        } catch {
-          stored = undefined;
-        }
-        const token = typeof stored === 'string' ? stored.trim() : '';
+        const readTrimmed = async (key: string): Promise<string> => {
+          try {
+            const raw = await deps.context.secrets.get(key);
+            return typeof raw === 'string' ? raw.trim() : '';
+          } catch {
+            return '';
+          }
+        };
 
-        let legacyRaw: string | undefined;
-        try {
-          legacyRaw = await deps.context.secrets.get(LEGACY_SESSION_API_KEY_SECRET_KEY);
-        } catch {
-          legacyRaw = undefined;
-        }
-        const legacy = typeof legacyRaw === 'string' ? legacyRaw.trim() : '';
+        const cloudToken = await readTrimmed(cloudKeyInfo.secretKey);
+        const runtimeToken = await readTrimmed(runtimeKeyInfo.secretKey);
 
         return {
           ok: true,
-          normalizedServerUrl: keyInfo.normalizedServerUrl,
-          hasSessionApiKey: Boolean(token),
-          hasLegacySessionApiKey: Boolean(legacy),
+          normalizedServerUrl: cloudKeyInfo.normalizedServerUrl,
+          hasCloudApiKey: Boolean(cloudToken),
+          hasRuntimeSessionApiKey: Boolean(runtimeToken),
         };
       })
     : undefined;

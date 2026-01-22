@@ -15,6 +15,5 @@ export function isOpenHandsCloudServerUrl(raw: string): boolean {
 }
 
 export function getRemoteAuthKeyLabelForServerUrl(raw: string): string {
-  return isOpenHandsCloudServerUrl(raw) ? 'Cloud API Key' : 'Session API Key';
+  return isOpenHandsCloudServerUrl(raw) ? 'Cloud API Key' : 'Runtime Session API Key';
 }
-

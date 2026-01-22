@@ -28,7 +28,8 @@ const ensureRequiredLocalToolIds = (toolIds: LocalToolId[]): LocalToolId[] => {
 
 type RemoteToolListDeps = {
   serverUrl: string;
-  sessionApiKey?: string;
+  cloudApiKey?: string;
+  runtimeSessionApiKey?: string;
 };
 
 const getRemoteToolListDeps = (conversation: unknown): RemoteToolListDeps | null => {
@@ -37,10 +38,15 @@ const getRemoteToolListDeps = (conversation: unknown): RemoteToolListDeps | null
   const serverUrl = candidate.serverUrl;
   if (typeof serverUrl !== 'string' || serverUrl.trim().length === 0) return null;
 
-  const rawSessionKey =
-    (candidate.settings as { secrets?: { sessionApiKey?: unknown } } | undefined)?.secrets?.sessionApiKey;
-  const sessionApiKey = typeof rawSessionKey === 'string' && rawSessionKey.trim().length > 0 ? rawSessionKey : undefined;
-  return { serverUrl: serverUrl.trim(), sessionApiKey };
+  const rawSecrets =
+    (candidate.settings as { secrets?: { runtimeSessionApiKey?: unknown; cloudApiKey?: unknown } } | undefined)?.secrets;
+
+  const rawCloudKey = rawSecrets?.cloudApiKey;
+  const cloudApiKey = typeof rawCloudKey === 'string' && rawCloudKey.trim().length > 0 ? rawCloudKey.trim() : undefined;
+
+  const rawRuntimeKey = rawSecrets?.runtimeSessionApiKey;
+  const runtimeSessionApiKey = typeof rawRuntimeKey === 'string' && rawRuntimeKey.trim().length > 0 ? rawRuntimeKey.trim() : undefined;
+  return { serverUrl: serverUrl.trim(), cloudApiKey, runtimeSessionApiKey };
 };
 
 async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[] | null> {
@@ -48,12 +54,10 @@ async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[
   if (!normalized.ok) return null;
   const url = `${normalized.url}/api/tools/`;
   const headers: Record<string, string> = {};
-  if (params.sessionApiKey) {
-    if (isOpenHandsCloudServerUrl(normalized.url)) {
-      headers['Authorization'] = `Bearer ${params.sessionApiKey}`;
-    } else {
-      headers['X-Session-API-Key'] = params.sessionApiKey;
-    }
+  if (isOpenHandsCloudServerUrl(normalized.url)) {
+    if (params.cloudApiKey) headers['Authorization'] = `Bearer ${params.cloudApiKey}`;
+  } else if (params.runtimeSessionApiKey) {
+    headers['X-Session-API-Key'] = params.runtimeSessionApiKey;
   }
 
   const fetchFn = globalThis.fetch;

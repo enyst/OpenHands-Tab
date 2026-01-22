@@ -16,11 +16,11 @@ Option A: agent-sdk local (recommended for developers)
 
 Option B: remote server
 - If you have a remote agent-server URL, set openhands.serverUrl accordingly.
-- If it requires a session API key, set it via `OpenHands: Set Session API Key`.
+- If it requires a session API key, set it via `OpenHands: Set Runtime Session API Key`.
 
-Session API Key (optional)
-- HTTP: the extension adds `X-Session-API-Key` when `openhands.secrets.sessionApiKey` is set
-- WebSocket: the extension appends `?session_api_key=...` to the WS URL when `openhands.secrets.sessionApiKey` is set
+Runtime Session API Key (optional)
+- HTTP: the extension adds `X-Session-API-Key` when `openhands.secrets.runtimeSessionApiKey` is set
+- WebSocket: the extension appends `?session_api_key=...` to the WS URL when `openhands.secrets.runtimeSessionApiKey` is set
 
 Notes
 - The extension sends a Start Conversation payload containing LLM and tool configuration for PoC. Ensure your server accepts that.

@@ -32,7 +32,8 @@
     "onCommand:openhands.setOpenRouterApiKey",
     "onCommand:openhands.setLiteLlmApiKey",
     "onCommand:openhands.setGeminiLlmApiKey",
-    "onCommand:openhands.setSessionApiKey",
+    "onCommand:openhands.setCloudApiKey",
+    "onCommand:openhands.setRuntimeSessionApiKey",
     "onCommand:openhands.cloudLogin",
     "onCommand:openhands.cloudLogout",
     "onCommand:openhands.setGithubToken",
@@ -93,8 +94,12 @@
         "title": "OpenHands: Set Gemini API Key"
       },
       {
-        "command": "openhands.setSessionApiKey",
-        "title": "OpenHands: Set Remote API Key"
+        "command": "openhands.setCloudApiKey",
+        "title": "OpenHands: Set Cloud API Key"
+      },
+      {
+        "command": "openhands.setRuntimeSessionApiKey",
+        "title": "OpenHands: Set Runtime Session API Key"
       },
       {
         "command": "openhands.cloudLogin",
@@ -414,52 +419,59 @@
         "title": "OpenHands: Secrets",
         "order": 9,
         "properties": {
-          "openhands.secrets.sessionApiKey": {
+          "openhands.secrets.cloudApiKey": {
             "type": "string",
             "default": "",
             "order": 1,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your remote auth key securely:**\n\n[🔑 Configure Remote API Key](command:openhands.setSessionApiKey)\n\n_(Stored in secure system keychain, not in settings.json.)_\n\nNotes:\n- **OpenHands Cloud/SaaS**: this is your **Cloud API Key** (Device Flow `access_token`), used as `Authorization: Bearer ...`.\n- **Nested runtime agent-server**: this is the runtime **session API key** (`session_api_key`), used as `X-Session-API-Key: ...`."
+            "markdownDescription": "**OpenHands Cloud API Key**\n\n[🔑 Configure Cloud API Key](command:openhands.setCloudApiKey)\n\n_(Stored in secure system keychain, not in settings.json.)_\n\nNotes:\n- This is your **Cloud API Key / SaaS user token** (Device Flow `access_token`).\n- Used to authenticate to the **SaaS/app-server** as `Authorization: Bearer ...`."
+          },
+          "openhands.secrets.runtimeSessionApiKey": {
+            "type": "string",
+            "default": "",
+            "order": 2,
+            "editPresentation": "singlelineText",
+            "markdownDescription": "**Runtime session API key (nested agent-server)**\n\n[🔑 Configure Runtime Session API Key](command:openhands.setRuntimeSessionApiKey)\n\n_(Stored in secure system keychain, not in settings.json.)_\n\nNotes:\n- This is the runtime/sandbox `session_api_key`.\n- Used to authenticate to the **nested agent-server** as `X-Session-API-Key: ...` (and currently as WS `?session_api_key=...`)."
           },
           "openhands.secrets.githubToken": {
             "type": "string",
             "default": "",
-            "order": 2,
+            "order": 3,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your GitHub token securely:**\n\n[🔑 Configure GitHub Token](command:openhands.setGithubToken)\n\n_(Tokens are stored in secure system keychain, not in settings.json)_"
           },
           "openhands.secrets.openaiApiKey": {
             "type": "string",
             "default": "",
-            "order": 3,
+            "order": 4,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your OpenAI API key securely:**\n\n[🔑 Configure OpenAI API Key](command:openhands.setOpenAiApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `OPENAI_API_KEY`.)_"
           },
           "openhands.secrets.anthropicApiKey": {
             "type": "string",
             "default": "",
-            "order": 4,
+            "order": 5,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your Anthropic API key securely:**\n\n[🔑 Configure Anthropic API Key](command:openhands.setAnthropicApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `ANTHROPIC_API_KEY`.)_"
           },
           "openhands.secrets.openrouterApiKey": {
             "type": "string",
             "default": "",
-            "order": 5,
+            "order": 6,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your OpenRouter API key securely:**\n\n[🔑 Configure OpenRouter API Key](command:openhands.setOpenRouterApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `OPENROUTER_API_KEY`.)_"
           },
           "openhands.secrets.litellmApiKey": {
             "type": "string",
             "default": "",
-            "order": 6,
+            "order": 7,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your LiteLLM Proxy API key securely:**\n\n[🔑 Configure LiteLLM Proxy API Key](command:openhands.setLiteLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `LITELLM_API_KEY`.)_"
           },
           "openhands.secrets.geminiLlmApiKey": {
             "type": "string",
             "default": "",
-            "order": 7,
+            "order": 8,
             "editPresentation": "singlelineText",
             "markdownDescription": "**To set your Gemini API key securely:**\n\n[🔑 Configure Gemini API Key](command:openhands.setGeminiLlmApiKey)\n\n_(Keys are stored in secure system keychain, not in settings.json. Stored as `GEMINI_API_KEY`.)_"
           },

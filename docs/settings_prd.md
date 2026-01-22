@@ -15,9 +15,13 @@ Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extens
   - If `serverUrl` is set, it is always injected into the saved server list.
 
 ### Secrets
-- `openhands.sessionApiKey` (VS Code SecretStorage)
-  - HTTP header: `X-Session-API-Key`
-  - WebSocket query param: `?session_api_key=...`
+- `openhands.cloudApiKey.server.<hash>` (VS Code SecretStorage; per-server)
+  - Used only for OpenHands Cloud/SaaS servers (e.g. `https://app.all-hands.dev`).
+  - HTTP header: `Authorization: Bearer <cloudApiKey>`
+- `openhands.runtimeSessionApiKey.server.<hash>` (VS Code SecretStorage; per-server)
+  - Used for agent-server endpoints (local python server or nested cloud runtime agent-server).
+  - HTTP header: `X-Session-API-Key: <runtimeSessionApiKey>`
+  - WebSocket query param: `?session_api_key=<runtimeSessionApiKey>`
 
 ## 2) Conversation lifecycle & persistence
 
@@ -98,7 +102,8 @@ These values map directly to the SDK confirmation policy and drive the confirmat
 Secrets are stored in VS Code SecretStorage and never in `settings.json`:
 
 **Extension-scoped secrets (SecretStorage keys)**
-- `openhands.sessionApiKey`
+- `openhands.cloudApiKey.server.<hash>`
+- `openhands.runtimeSessionApiKey.server.<hash>`
 - `openhands.llmApiKey` (global fallback LLM API key)
 - `openhands.awsAccessKeyId`, `openhands.awsSecretAccessKey` (plumbed but no dedicated UI)
 - `openhands.githubToken`
@@ -111,7 +116,7 @@ Secrets are stored in VS Code SecretStorage and never in `settings.json`:
 
 **Important: “secrets” settings are *status indicators only***
 The following VS Code settings exist only to display ✓/blank status in the Settings UI:
-- `openhands.secrets.*` (`sessionApiKey`, `githubToken`, provider keys, custom secrets)
+- `openhands.secrets.*` (`cloudApiKey`, `runtimeSessionApiKey`, `githubToken`, provider keys, custom secrets)
 
 These do **not** store secrets; they are updated automatically when SecretStorage changes.
 
@@ -121,8 +126,8 @@ These do **not** store secrets; they are updated automatically when SecretStorag
 - **Secret commands** prompt for values and store them securely:
   - `OpenHands: Set API Key` (global fallback key: `openhands.llmApiKey`)
   - Provider-specific keys: OpenAI, Anthropic, OpenRouter, LiteLLM, Gemini
-  - Session API key, GitHub token, HAL TTS key, Custom secrets 1–3
-- **LLM Profiles view** (webview slide-over) for profile CRUD and per-profile keys.
+  - Cloud API key, Runtime Session API key, GitHub token, HAL TTS key, Custom secrets 1–3
+  - **LLM Profiles view** (webview slide-over) for profile CRUD and per-profile keys.
 
 ## 9) Runtime mapping
 
