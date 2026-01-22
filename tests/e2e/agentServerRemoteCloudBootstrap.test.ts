@@ -341,6 +341,7 @@ describe('OpenHands-Tab Cloud Remote E2E (mock SaaS V1 + runtime key)', function
           TEST_NAME: 'agentServerRemoteCloudBootstrap',
           MOCK_SAAS_URL: mockSaas.url,
           CLOUD_API_KEY: cloudKey,
+          E2E_CLOUD_LOGIN: '1',
           OPENHANDS_CLOUD_HOSTNAMES: '127.0.0.1,localhost',
         }
       });
@@ -359,4 +360,3 @@ describe('OpenHands-Tab Cloud Remote E2E (mock SaaS V1 + runtime key)', function
     }
   });
 });
-

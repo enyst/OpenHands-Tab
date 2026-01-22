@@ -1,6 +1,11 @@
 import { normalizeServerUrl } from './serverUrls';
 
 function getExtraCloudHostnames(): string[] {
+  // This override exists only for hermetic E2E (mock SaaS on localhost). Gate it behind the
+  // E2E flag so users don't accidentally treat arbitrary hosts as “cloud”.
+  const isE2e = typeof process !== 'undefined' && process.env.E2E_CLOUD_LOGIN === '1';
+  if (!isE2e) return [];
+
   const raw = typeof process !== 'undefined' ? process.env.OPENHANDS_CLOUD_HOSTNAMES : undefined;
   if (!raw) return [];
   return raw
