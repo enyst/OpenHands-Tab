@@ -36,6 +36,7 @@ import { getServerRuntimeSessionApiKeySecretKey } from './auth/serverRuntimeSess
 import { isOpenHandsCloudServerUrl } from './shared/cloudServers';
 import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
 import { registerCloudLogoutCommand } from './extension/cloudLogoutCommand';
+import { bootstrapCloudRemoteConversation, type CloudBootstrapResult } from './cloud/cloudRemoteBootstrap';
 import {
   createOutputLogger,
   normalizeOutputVerbosity,
@@ -85,6 +86,7 @@ let localAgentContext: AgentContext | undefined;
 let activeEditorFilePath: string | undefined;
 let lastRemoteAuthPromptAtMs = 0;
 let lastRemoteServerUrl: string | undefined;
+let cloudRemoteBootstrap: CloudBootstrapResult | null = null;
 const receivedTerminalEvents: { type?: string; timestamp: number }[] = []; // Track terminal events for testing
 const MAX_TERMINAL_EVENTS = 1000; // Ring buffer size limit to prevent memory growth
 const MAX_EVENT_BACKLOG = 2000;
@@ -563,6 +565,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
     const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
+    const rawServerUrl = typeof settings.serverUrl === 'string' ? settings.serverUrl.trim() : '';
+    const isCloudRemote = desiredMode === 'remote' && rawServerUrl ? isOpenHandsCloudServerUrl(rawServerUrl) : false;
     if (options?.modeSwitched) {
       // Switching modes should always start a fresh conversation, never restore prior state.
       resetConversationEventBacklog(undefined);
@@ -573,6 +577,13 @@ export function activate(context: vscode.ExtensionContext) {
     let savedId = (options?.uiJustCreated || options?.modeSwitched)
       ? undefined
       : context.workspaceState.get<string>(savedIdKey);
+
+    if (isCloudRemote) {
+      // Cloud remote conversations are bootstrapped through SaaS V1 and require an ephemeral runtime session key.
+      // Do not attempt to restore persisted conversation ids for this mode.
+      savedId = undefined;
+      await context.workspaceState.update(savedIdKey, undefined);
+    }
 
     if (savedId) {
       const looksLocal = savedId.startsWith('local-');
@@ -587,6 +598,7 @@ export function activate(context: vscode.ExtensionContext) {
         conversation?.disconnect();
       } catch {}
       fileEditNoteTracker.reset();
+      cloudRemoteBootstrap = null;
 
       const persistenceDir =
         desiredMode === 'local'
@@ -619,8 +631,36 @@ export function activate(context: vscode.ExtensionContext) {
         syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);
       }
 
+      let effectiveServerUrl = settings.serverUrl ?? undefined;
+      let bootstrapConversationId: string | undefined;
+      if (desiredMode === 'remote' && isCloudRemote) {
+        const cloudApiKey = settings.secrets?.cloudApiKey ?? '';
+        if (!cloudApiKey) {
+          const action = await vscode.window.showWarningMessage(
+            'OpenHands Cloud: Login required to start a cloud runtime.',
+            'Login',
+            'Dismiss',
+          );
+          if (action === 'Login') {
+            await vscode.commands.executeCommand('openhands.cloudLogin');
+          }
+          throw new Error('OpenHands Cloud: missing Cloud API Key.');
+        }
+
+        const bootstrap = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: 'OpenHands Cloud: starting runtime…' },
+          async () => bootstrapCloudRemoteConversation({ saasServerUrl: rawServerUrl, cloudApiKey }),
+        );
+        cloudRemoteBootstrap = bootstrap;
+        bootstrapConversationId = bootstrap.conversationId;
+        effectiveServerUrl = bootstrap.nestedServerUrl;
+        // Inject the runtime key into the in-memory settings only (do not persist to SecretStorage).
+        settings = withRemoteSecrets({ cloudApiKey, runtimeSessionApiKey: bootstrap.runtimeSessionApiKey });
+        savedId = bootstrapConversationId;
+      }
+
       const conversationOptions = {
-        serverUrl: settings.serverUrl ?? undefined,
+        serverUrl: effectiveServerUrl,
         settings,
         workspaceRoot,
         tools: settings.serverUrl ? undefined : resolveLocalTools(),
@@ -628,6 +668,7 @@ export function activate(context: vscode.ExtensionContext) {
         persistenceDir,
         agentContext,
         pastedImagesBaseDir,
+        conversationId: bootstrapConversationId,
       };
 
       // Populate user environment info suffix for local mode (after agentContext is created & system message synced)
@@ -724,6 +765,17 @@ export function activate(context: vscode.ExtensionContext) {
         }
       }
     } else if (conversation) {
+      if (isCloudRemote && cloudRemoteBootstrap?.saasServerUrl) {
+        // Keep runtime session key in-memory only; refresh settings from SecretStorage won't include it.
+        const normalizedBootstrapSaas = cloudRemoteBootstrap.saasServerUrl;
+        const normalizedCurrent = typeof settings.serverUrl === 'string' ? settings.serverUrl.trim().replace(/\/$/, '') : '';
+        if (normalizedCurrent && normalizedCurrent === normalizedBootstrapSaas) {
+          settings = withRemoteSecrets({
+            cloudApiKey: settings.secrets?.cloudApiKey ?? undefined,
+            runtimeSessionApiKey: cloudRemoteBootstrap.runtimeSessionApiKey,
+          });
+        }
+      }
       conversation.setSettings(settings);
     } else {
       outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
