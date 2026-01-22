@@ -219,6 +219,52 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
   const isTestMode =
     extensionMode?.Test !== undefined &&
     deps.context.extensionMode === extensionMode.Test;
+
+  const e2eSetServerCloudApiKey = isTestMode
+    ? vscode.commands.registerCommand('openhands._e2eSetServerCloudApiKey', async (raw: unknown) => {
+        const payload = raw as { serverUrl?: unknown; apiKey?: unknown } | undefined;
+        const serverUrl = typeof payload?.serverUrl === 'string' ? payload.serverUrl.trim() : '';
+        const apiKey = typeof payload?.apiKey === 'string' ? payload.apiKey.trim() : '';
+
+        if (!serverUrl) return { ok: false, error: 'Missing serverUrl' };
+
+        const info = getServerCloudApiKeySecretKey(serverUrl);
+        if (!info.ok) return { ok: false, error: info.error };
+
+        if (!apiKey) {
+          await deps.context.secrets.delete(info.secretKey);
+          deps.secretRegistry.set(info.secretKey, undefined);
+          return { ok: true, cleared: true };
+        }
+
+        await deps.context.secrets.store(info.secretKey, apiKey);
+        deps.secretRegistry.set(info.secretKey, apiKey);
+        return { ok: true, stored: true };
+      })
+    : undefined;
+
+  const e2eSetServerRuntimeSessionApiKey = isTestMode
+    ? vscode.commands.registerCommand('openhands._e2eSetServerRuntimeSessionApiKey', async (raw: unknown) => {
+        const payload = raw as { serverUrl?: unknown; apiKey?: unknown } | undefined;
+        const serverUrl = typeof payload?.serverUrl === 'string' ? payload.serverUrl.trim() : '';
+        const apiKey = typeof payload?.apiKey === 'string' ? payload.apiKey.trim() : '';
+
+        if (!serverUrl) return { ok: false, error: 'Missing serverUrl' };
+
+        const info = getServerRuntimeSessionApiKeySecretKey(serverUrl);
+        if (!info.ok) return { ok: false, error: info.error };
+
+        if (!apiKey) {
+          await deps.context.secrets.delete(info.secretKey);
+          deps.secretRegistry.set(info.secretKey, undefined);
+          return { ok: true, cleared: true };
+        }
+
+        await deps.context.secrets.store(info.secretKey, apiKey);
+        deps.secretRegistry.set(info.secretKey, apiKey);
+        return { ok: true, stored: true };
+      })
+    : undefined;
   const e2eSessionApiKeyStatus = isTestMode && process.env.E2E_CLOUD_LOGIN === '1'
     ? vscode.commands.registerCommand('openhands._e2eGetServerSessionApiKeyStatus', async (raw: unknown) => {
         const payload = raw as { serverUrl?: unknown } | undefined;
@@ -702,6 +748,12 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
 
   if (e2eSessionApiKeyStatus) {
     disposables.push(e2eSessionApiKeyStatus);
+  }
+  if (e2eSetServerCloudApiKey) {
+    disposables.push(e2eSetServerCloudApiKey);
+  }
+  if (e2eSetServerRuntimeSessionApiKey) {
+    disposables.push(e2eSetServerRuntimeSessionApiKey);
   }
 
   return disposables;
