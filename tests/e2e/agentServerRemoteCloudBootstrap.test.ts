@@ -196,7 +196,7 @@ async function startMockSaasServer(params: {
       },
       body: JSON.stringify({
         agent: { llm: { model: 'gpt-4o-mini' }, tools: [] },
-        workspace: { kind: 'LocalWorkspace', working_dir: '/workspace' },
+        workspace: { kind: 'LocalWorkspace', working_dir: path.join(agentServerStateDir, 'workspace') },
         max_iterations: 1,
       }),
     });
