@@ -81,26 +81,44 @@ async function fetchJson(url, init) {
 async function tryWsConnect({ url, headers, label, secretsForRedaction }) {
   return await new Promise((resolve) => {
     let closeInfo = null;
-    const ws = new WebSocket(url, { headers });
-    const timer = setTimeout(() => {
+    let opened = false;
+    let settled = false;
+    let ws;
+    let timer;
+
+    const finalize = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve({ ...result, closeInfo });
+    };
+
+    try {
+      ws = new WebSocket(url, { headers });
+    } catch (err) {
+      void err;
+      finalize({ ok: false, label, kind: 'constructor' });
+      return;
+    }
+
+    timer = setTimeout(() => {
       try { ws.terminate(); } catch {}
-      resolve({ ok: false, label, kind: 'timeout', closeInfo });
+      finalize({ ok: false, label, kind: 'timeout' });
     }, 8000);
 
     ws.on('open', () => {
-      clearTimeout(timer);
+      opened = true;
       try { ws.close(); } catch {}
-      resolve({ ok: true, label, kind: 'open', closeInfo });
     });
     ws.on('error', (err) => {
       // Avoid printing error objects (can include URL). Keep it generic.
       void err;
-      clearTimeout(timer);
-      resolve({ ok: false, label, kind: 'error', closeInfo });
+      finalize({ ok: false, label, kind: 'error' });
     });
     ws.on('close', (code, reasonBuf) => {
       const reason = typeof reasonBuf === 'string' ? reasonBuf : Buffer.from(reasonBuf || []).toString('utf8');
       closeInfo = { code, reason: redactSecrets(reason || '', secretsForRedaction).slice(0, 200) };
+      finalize({ ok: opened, label, kind: opened ? 'open' : 'close' });
     });
   });
 }
