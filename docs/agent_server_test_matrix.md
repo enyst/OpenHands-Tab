@@ -13,7 +13,10 @@ This document captures the minimal setup and a test matrix for running the OpenH
 
 - TS RemoteConversation endpoints: `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`
   - HTTP: `POST {serverUrl}/api/conversations`
-  - WS: `ws(s)://{serverUrl}/sockets/events/{conversationId}?session_api_key=...&resend_all=true`
+  - WS: `ws(s)://{serverUrl}/sockets/events/{conversationId}?resend_all=true`
+    - Auth: WS handshake headers for non-browser clients (`X-Session-API-Key` / `Authorization: Bearer ...`).
+    - Legacy (browser-only): `?session_api_key=...` query param.
+    - Note: the “no URL secrets” WS contract lands once upstream `OpenHands/software-agent-sdk#1786` is deployed and downstream `enyst/OpenHands-Tab#873` is merged.
 - Python agent-sdk examples:
   - `~/repos/agent-sdk/examples/02_remote_agent_server/01_convo_with_local_agent_server.py`
   - Server command used there: `python -m openhands.agent_server --host 127.0.0.1 --port 8001`

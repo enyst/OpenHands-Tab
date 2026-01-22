@@ -17,7 +17,7 @@ Important:
 
 - Remote mode uses two distinct fields:
   - `settings.secrets.cloudApiKey` for **SaaS/app-server** calls (Bearer).
-  - `settings.secrets.runtimeSessionApiKey` for **agent-server** calls (X-Session-API-Key / WS query param).
+  - `settings.secrets.runtimeSessionApiKey` for **agent-server** calls (`X-Session-API-Key` for HTTP + WS handshake headers; legacy WS query-param auth only for browser clients).
     - For **direct/non-cloud** agent-server connections, this may come from per-server SecretStorage.
     - For OpenHands Cloud, this is obtained via SaaS V1 bootstrap and is kept in-memory only.
 - Tokens are stored in VS Code SecretStorage as per-server entries (see `src/auth/serverCloudApiKeys.ts` and `src/auth/serverRuntimeSessionApiKeys.ts`). For OpenHands Cloud, only the `cloudApiKey` is persisted; the runtime `session_api_key` is ephemeral.
@@ -34,7 +34,11 @@ OpenHands Cloud remote mode involves two different secrets:
 2) **Runtime session API key** (`session_api_key`, sandbox/runtime-scoped)
    - Used to authenticate requests to the **nested runtime agent-server** (HTTP + WS).
    - Transport (HTTP): `X-Session-API-Key: <runtime_session_api_key>`.
-   - Transport (WS today): query param `?session_api_key=<runtime_session_api_key>` (see `oh-tab-h3g`).
+   - Transport (WS): prefer header auth (no secrets in URLs).
+     - Non-browser clients: use `X-Session-API-Key` or `Authorization: Bearer ...` during the WS handshake.
+     - Browser clients: legacy `?session_api_key=...` query param.
+     - Upstream unblock: OpenHands/software-agent-sdk#1786 + OpenHands/docs#270
+     - Downstream change (draft): enyst/OpenHands-Tab#873 (merge blocked until upstream is merged/deployed)
 
 The cloud API key is **not** the same as the runtime `session_api_key`.
 
@@ -51,7 +55,7 @@ Goal: after cloud login, use the cloud API key to discover the nested agent-serv
    - Continue to document legacy `/api/conversations*` for compatibility, but avoid depending on it.
 3) Connect to the nested agent-server directly
    - Base URL: derived from `conversation_url`
-   - Auth: `X-Session-API-Key: <runtime_session_api_key>` and (today) WS `?session_api_key=...`
+   - Auth: `X-Session-API-Key: <runtime_session_api_key>` (HTTP + WS handshake headers). Legacy WS query-param auth is only for browser clients.
 
 ## Reference implementation: OpenHands-CLI
 
@@ -246,7 +250,7 @@ sequenceDiagram
   Host->>Cloud: OAuth device flow (as above)
   Host->>Cloud: retry POST /api/v1/app-conversations (Authorization: Bearer cloud_api_key)
   Cloud-->>Host: AppConversation { conversation_url, session_api_key, ... }
-  Host->>Agent: connect to conversation_url (X-Session-API-Key: session_api_key, WS ?session_api_key=...)
+  Host->>Agent: connect to conversation_url (X-Session-API-Key: session_api_key; WS auth via headers, no URL secrets)
 ```
 
 ## Threat model (extension-side)
