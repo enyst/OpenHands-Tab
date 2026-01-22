@@ -28,7 +28,7 @@ The key takeaway: **cloud device-flow returns a user API key / access token for 
   - Browser clients: legacy `?session_api_key=...` query param (can’t set custom headers).
   - See `oh-tab-h3g`.
 
-**Related work (Jan 22, 2026)**
+## Related work (Jan 22, 2026)
 - Upstream unblock: OpenHands/software-agent-sdk#1786 + OpenHands/docs#270
 - Downstream change (draft): enyst/OpenHands-Tab#873 (removes `session_api_key` from WS URLs; merge blocked until upstream is merged/deployed)
 
