@@ -16,7 +16,7 @@ The key takeaway: **cloud device-flow returns a user API key / access token for 
 ### A) Cloud device-flow token (aka “cloud API key”, “device link access key”)
 - **Origin:** OAuth 2.0 Device Flow endpoints on the SaaS server
 - **Used to authenticate to:** SaaS server HTTP APIs (e.g. `/api/user/info`, `/api/settings`, cloud conversation creation)
-- **Transport:** `Authorization: Bearer <token>` (or sometimes `X-Session-API-Key: <token>` as a compatibility fallback)
+- **Transport:** `Authorization: Bearer <token>` (clients should treat this as the canonical scheme)
 - **Storage (CLI):** `~/.openhands/cloud/api_key.txt` (owner-only perms)
 
 ### B) Agent-server session API key (runtime/sandbox scoped)
@@ -202,6 +202,10 @@ Note: this file explicitly labels itself “LEGACY V0 CODE” and warns not to e
   - `${base.replace(/^http/, 'ws')}/sockets/events/${conversationId}?session_api_key=<sessionKey>&resend_all=true`
 
 This is the exact “secret-in-URL” issue from bead `oh-tab-h3g`.
+
+Clarification:
+- The cloud/SaaS device-flow token should be sent as `Authorization: Bearer <cloud_api_key>` to SaaS endpoints.
+- The runtime/sandbox `session_api_key` should be sent as `X-Session-API-Key: <runtime_session_api_key>` to the nested agent-server (and currently as `?session_api_key=...` for WS).
 
 ### 5.3 Why the cloud token vs runtime token confusion matters
 There are multiple server surfaces:

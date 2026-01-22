@@ -74,7 +74,7 @@ export const computeConversationTotalsFromStats = (
     if (!isRecord(metricRaw)) continue;
     const costRaw = metricRaw.accumulatedCost ?? metricRaw.accumulated_cost;
     const cost = asFiniteNumber(costRaw);
-    if (cost !== null && cost >= 0) {
+    if (cost !== null && cost > 0) {
       hasKnownCost = true;
       totalCost += cost;
     }

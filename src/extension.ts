@@ -32,6 +32,7 @@ import { getFileBackedFsPath } from './shared/uri';
 import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import { computeWelcomeSecretStatus } from './shared/welcomeSecretStatus';
 import { getServerSessionApiKeySecretKey } from './auth/serverSessionApiKeys';
+import { getRemoteAuthKeyLabelForServerUrl } from './shared/cloudServers';
 import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
 import { registerCloudLogoutCommand } from './extension/cloudLogoutCommand';
 import {
@@ -521,7 +522,7 @@ export function activate(context: vscode.ExtensionContext) {
             })();
 
             const action = await vscode.window.showWarningMessage(
-              `OpenHands: A legacy Session API Key is set. Use it for ${serverLabel}?`,
+              `OpenHands: A legacy ${getRemoteAuthKeyLabelForServerUrl(settings.serverUrl)} is set. Use it for ${serverLabel}?`,
               { modal: true },
               'Use key for this server',
               'Not now',

@@ -166,7 +166,7 @@ npm run agent-server
 ```
 
 Notes:
-- If you set `SESSION_API_KEY`, you must also set it in VS Code via “OpenHands: Set Session API Key”.
+- If you set `SESSION_API_KEY`, you must also set it in VS Code via “OpenHands: Set Remote API Key”.
 - Avoid `DEBUG_LLM=1` unless you know what you’re doing: it prompts for confirmation and may expose secrets in logs.
 
 ## Logs and Diagnostics

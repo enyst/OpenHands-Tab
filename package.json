@@ -94,7 +94,7 @@
       },
       {
         "command": "openhands.setSessionApiKey",
-        "title": "OpenHands: Set Session API Key"
+        "title": "OpenHands: Set Remote API Key"
       },
       {
         "command": "openhands.cloudLogin",
@@ -419,7 +419,7 @@
             "default": "",
             "order": 1,
             "editPresentation": "singlelineText",
-            "markdownDescription": "**To set your Session API Key securely:**\n\n[🔑 Configure Session API Key](command:openhands.setSessionApiKey)\n\n_(Stored in secure system keychain, not in settings.json. Used to authenticate to agent-server.)_"
+            "markdownDescription": "**To set your remote auth key securely:**\n\n[🔑 Configure Remote API Key](command:openhands.setSessionApiKey)\n\n_(Stored in secure system keychain, not in settings.json.)_\n\nNotes:\n- **OpenHands Cloud/SaaS**: this is your **Cloud API Key** (Device Flow `access_token`), used as `Authorization: Bearer ...`.\n- **Nested runtime agent-server**: this is the runtime **session API key** (`session_api_key`), used as `X-Session-API-Key: ...`."
           },
           "openhands.secrets.githubToken": {
             "type": "string",

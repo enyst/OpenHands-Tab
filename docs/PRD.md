@@ -116,7 +116,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - **OpenHands: Set OpenRouter API Key**
 - **OpenHands: Set LiteLLM Proxy API Key**
 - **OpenHands: Set Gemini API Key**
-- **OpenHands: Set Session API Key** - set agent-server auth key
+- **OpenHands: Set Remote API Key** - set the remote auth key (agent-server session key, or Cloud API key for SaaS)
 - **OpenHands: Set GitHub Token**
 - **OpenHands: Set HAL TTS API Key**
 - **OpenHands: Set Custom Secret 1/2/3**

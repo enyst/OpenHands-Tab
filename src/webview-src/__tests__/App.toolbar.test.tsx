@@ -151,8 +151,8 @@ describe('App toolbar interactions', () => {
 
     expect(totalsRow).toHaveTextContent('Context: 12 tokens');
     expect(totalsRow).toHaveTextContent('Total cost:');
-    expect(totalsRow).toHaveTextContent('Total cost: $0.00');
-    expect(totalsRow).not.toHaveTextContent('—');
+    expect(totalsRow).toHaveTextContent('—');
+    expect(totalsRow).not.toHaveTextContent('$0.00');
     expect(totalsRow).not.toHaveTextContent('$0.0123');
   });
 
