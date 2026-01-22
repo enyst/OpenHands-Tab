@@ -125,6 +125,57 @@ describe('Tools picker host messages', () => {
     });
   });
 
+  it('responds to requestTools in remote mode using Bearer-only for cloud servers', async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(['finish']),
+      text: () => Promise.resolve(''),
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = {
+      serverUrl: 'https://app.all-hands.dev',
+      settings: { secrets: { cloudApiKey: 'cloud-key-abc', runtimeSessionApiKey: 'runtime-key-xyz' } },
+    };
+
+    const { handler } = createRemoteHandler(conversation);
+    await handler({ type: 'requestTools' } as any);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/api\/tools\/$/);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: 'GET',
+      headers: {
+        Authorization: 'Bearer cloud-key-abc',
+      },
+    }));
+  });
+
+  it('responds to requestTools in remote mode without auth headers when no keys are available', async () => {
+    const fetchSpy = vi.fn(() => Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(['finish']),
+      text: () => Promise.resolve(''),
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = {
+      serverUrl: 'http://localhost:3000',
+      settings: { secrets: {} },
+    };
+
+    const { handler } = createRemoteHandler(conversation);
+    await handler({ type: 'requestTools' } as any);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: 'GET',
+      headers: {},
+    }));
+  });
+
   it('applies setEnabledTools by calling conversation.setTools', async () => {
     const state = { toolNames: ['terminal', 'file_editor', 'task_tracker'] as string[] };
     const conversation = {
