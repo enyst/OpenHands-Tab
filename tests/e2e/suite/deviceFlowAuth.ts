@@ -3,19 +3,20 @@ import { pollUntil } from './pollUntil';
 import { waitForDiagnostics } from './helpers/waitForDiagnostics';
 import { startMockOAuthDeviceFlowServer, type DeviceFlowScenarioName } from './helpers/oauthDeviceFlowServer';
 
-type SessionApiKeyStatus = {
+type CloudLoginStatus = {
   ok?: boolean;
   normalizedServerUrl?: string;
-  hasSessionApiKey?: boolean;
-  hasLegacySessionApiKey?: boolean;
+  hasCloudApiKey?: boolean;
+  hasRuntimeSessionApiKey?: boolean;
 };
 
 async function setServerUrl(serverUrl: string): Promise<void> {
   await vscode.commands.executeCommand('openhands._serversSet', { serverUrl, servers: [serverUrl] });
 }
 
-async function getSessionStatus(serverUrl: string): Promise<SessionApiKeyStatus> {
-  return await vscode.commands.executeCommand<SessionApiKeyStatus>('openhands._e2eGetServerSessionApiKeyStatus', { serverUrl });
+async function getCloudLoginStatus(serverUrl: string): Promise<CloudLoginStatus> {
+  // Command name is legacy; the response shape is now cloud/runtime-specific.
+  return await vscode.commands.executeCommand<CloudLoginStatus>('openhands._e2eGetServerSessionApiKeyStatus', { serverUrl });
 }
 
 async function runScenario(params: { scenario: DeviceFlowScenarioName; expectStored: boolean }): Promise<{ serverUrl: string }> {
@@ -30,18 +31,18 @@ async function runScenario(params: { scenario: DeviceFlowScenarioName; expectSto
 
     if (params.expectStored) {
       await pollUntil(async () => {
-        const status = await getSessionStatus(serverUrl);
-        return Boolean(status?.ok && status?.hasSessionApiKey);
+        const status = await getCloudLoginStatus(serverUrl);
+        return Boolean(status?.ok && status?.hasCloudApiKey);
       }, 60000, 250);
       return { serverUrl };
     }
 
-    const status = await getSessionStatus(serverUrl);
-    if (status?.ok && status?.hasSessionApiKey) {
-      throw new Error(`Expected no stored session key for scenario=${params.scenario}, but status=${JSON.stringify(status)}`);
+    const status = await getCloudLoginStatus(serverUrl);
+    if (status?.ok && status?.hasCloudApiKey) {
+      throw new Error(`Expected no stored cloud token for scenario=${params.scenario}, but status=${JSON.stringify(status)}`);
     }
-    if (status?.ok && status?.hasLegacySessionApiKey) {
-      throw new Error(`Expected legacy session key to remain unset for scenario=${params.scenario}, but status=${JSON.stringify(status)}`);
+    if (status?.ok && status?.hasRuntimeSessionApiKey) {
+      throw new Error(`Expected runtime session key to remain unset for scenario=${params.scenario}, but status=${JSON.stringify(status)}`);
     }
 
     return { serverUrl };
@@ -66,8 +67,8 @@ export async function run(): Promise<void> {
 
   await vscode.commands.executeCommand('openhands.cloudLogout');
   await pollUntil(async () => {
-    const status = await getSessionStatus(happy.serverUrl);
-    return Boolean(status?.ok && !status?.hasSessionApiKey && !status?.hasLegacySessionApiKey);
+    const status = await getCloudLoginStatus(happy.serverUrl);
+    return Boolean(status?.ok && !status?.hasCloudApiKey && !status?.hasRuntimeSessionApiKey);
   }, 60000, 250);
 
   await runScenario({ scenario: 'access_denied', expectStored: false });
