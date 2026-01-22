@@ -59,7 +59,7 @@ describe('openMarkdownLink security rules', () => {
   it('opens https links via vscode.env.openExternal', async () => {
     const handler = createHandler();
 
-    await handler({ type: 'openMarkdownLink', href: 'https://example.com' } as any);
+    await handler({ type: 'openMarkdownLink', href: 'https://example.com' });
 
     expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
     const uriArg = (vscode.env.openExternal as any).mock.calls[0][0] as vscode.Uri;
@@ -70,7 +70,7 @@ describe('openMarkdownLink security rules', () => {
   it('opens mailto links via vscode.env.openExternal', async () => {
     const handler = createHandler();
 
-    await handler({ type: 'openMarkdownLink', href: 'mailto:test@example.com' } as any);
+    await handler({ type: 'openMarkdownLink', href: 'mailto:test@example.com' });
 
     expect(vscode.env.openExternal).toHaveBeenCalledTimes(1);
     const uriArg = (vscode.env.openExternal as any).mock.calls[0][0] as vscode.Uri;
@@ -82,7 +82,7 @@ describe('openMarkdownLink security rules', () => {
   it('does not open javascript: links externally', async () => {
     const handler = createHandler();
 
-    await handler({ type: 'openMarkdownLink', href: 'javascript:alert(1)' } as any);
+    await handler({ type: 'openMarkdownLink', href: 'javascript:alert(1)' });
 
     expect(vscode.env.openExternal).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalled();
@@ -91,7 +91,7 @@ describe('openMarkdownLink security rules', () => {
   it('does not open file:// links externally', async () => {
     const handler = createHandler();
 
-    await handler({ type: 'openMarkdownLink', href: 'file:///etc/passwd' } as any);
+    await handler({ type: 'openMarkdownLink', href: 'file:///etc/passwd' });
 
     expect(vscode.env.openExternal).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe('openMarkdownLink security rules', () => {
     const handler = createHandler();
     await fs.writeFile(path.join(tmpDir, 'README.md'), 'hello');
 
-    await handler({ type: 'openMarkdownLink', href: 'README.md' } as any);
+    await handler({ type: 'openMarkdownLink', href: 'README.md' });
 
     expect((vscode.workspace as any).openTextDocument).toHaveBeenCalledTimes(1);
     expect((vscode.window as any).showTextDocument).toHaveBeenCalledTimes(1);
@@ -111,7 +111,7 @@ describe('openMarkdownLink security rules', () => {
   it('blocks path traversal outside the workspace', async () => {
     const handler = createHandler();
 
-    await handler({ type: 'openMarkdownLink', href: '../secrets.txt' } as any);
+    await handler({ type: 'openMarkdownLink', href: '../secrets.txt' });
 
     expect(vscode.env.openExternal).not.toHaveBeenCalled();
     expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Blocked unsafe link.');
