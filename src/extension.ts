@@ -968,6 +968,7 @@ export function deactivate() {
   chatLastSeenSeq = undefined;
   conversationStoreRoot = undefined;
   lastRemoteAuthPromptAtMs = 0;
+  lastRemoteServerUrl = undefined;
   resetConversationEventBacklog(undefined);
   receivedTerminalEvents.length = 0;
   sentTestEvents.length = 0;
