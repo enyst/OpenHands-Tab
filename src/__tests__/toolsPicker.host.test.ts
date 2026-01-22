@@ -68,7 +68,7 @@ describe('Tools picker host messages', () => {
     };
 
     const { handler, postMessage } = createHandler(conversation);
-    await handler({ type: 'requestTools' } as any);
+    await handler({ type: 'requestTools' });
 
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: 'toolsList',
@@ -103,7 +103,7 @@ describe('Tools picker host messages', () => {
     };
 
     const { handler, postMessage } = createRemoteHandler(conversation);
-    await handler({ type: 'requestTools' } as any);
+    await handler({ type: 'requestTools' });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/api\/tools\/$/);
@@ -140,7 +140,7 @@ describe('Tools picker host messages', () => {
     };
 
     const { handler } = createRemoteHandler(conversation);
-    await handler({ type: 'requestTools' } as any);
+    await handler({ type: 'requestTools' });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[0]).toMatch(/\/api\/tools\/$/);
@@ -167,7 +167,7 @@ describe('Tools picker host messages', () => {
     };
 
     const { handler } = createRemoteHandler(conversation);
-    await handler({ type: 'requestTools' } as any);
+    await handler({ type: 'requestTools' });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
@@ -187,7 +187,7 @@ describe('Tools picker host messages', () => {
     };
 
     const { handler, postMessage } = createHandler(conversation);
-    await handler({ type: 'setEnabledTools', toolIds: ['file_editor'] } as any);
+    await handler({ type: 'setEnabledTools', toolIds: ['file_editor'] });
 
     expect(conversation.setTools).toHaveBeenCalledTimes(1);
     const arg = (conversation.setTools as any).mock.calls[0][0] as Array<{ name: string }>;
@@ -211,7 +211,7 @@ describe('Tools picker host messages', () => {
     };
 
     const { handler, postMessage } = createHandler(conversation);
-    await handler({ type: 'setEnabledTools', toolIds: ['finish', 'file_editor', 'finish'] } as any);
+    await handler({ type: 'setEnabledTools', toolIds: ['finish', 'file_editor', 'finish'] });
 
     const arg = (conversation.setTools as any).mock.calls[0][0] as Array<{ name: string }>;
     expect(arg.map((t) => t.name)).toEqual(['finish', 'file_editor']);
