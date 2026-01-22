@@ -17,7 +17,6 @@ The key takeaway: **cloud device-flow returns a user API key / access token for 
 - **Origin:** OAuth 2.0 Device Flow endpoints on the SaaS server
 - **Used to authenticate to:** SaaS server HTTP APIs (e.g. `/api/user/info`, `/api/settings`, cloud conversation creation)
 - **Transport:** `Authorization: Bearer <token>` (clients should treat this as the canonical scheme)
-  - Note: some deployments also accept `X-Session-API-Key: <token>` as a temporary compatibility hack; do not rely on this as the default client behavior.
 - **Storage (CLI):** `~/.openhands/cloud/api_key.txt` (owner-only perms)
 
 ### B) Agent-server session API key (runtime/sandbox scoped)
