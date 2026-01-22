@@ -118,7 +118,8 @@ export type OpenHandsSettings = ServerSettings & {
   conversation: ConversationSettings;
   confirmation: ConfirmationSettings;
   secrets: {
-    sessionApiKey?: string;
+    cloudApiKey?: string;
+    runtimeSessionApiKey?: string;
     llmApiKey?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;

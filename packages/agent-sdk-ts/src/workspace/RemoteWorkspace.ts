@@ -36,10 +36,11 @@ export interface RemoteWorkspaceOptions {
   /**
    * Authentication token for the remote host.
    *
-   * - OpenHands Cloud/SaaS: cloud API key (device-flow `access_token`), used as `Authorization: Bearer ...`
-   * - Nested runtime agent-server: runtime `session_api_key`, used as `X-Session-API-Key: ...`
+   * - OpenHands Cloud/SaaS: `cloudApiKey` (device-flow `access_token`), used as `Authorization: Bearer ...`
+   * - Nested runtime agent-server: `runtimeSessionApiKey` (runtime `session_api_key`), used as `X-Session-API-Key: ...`
    */
-  sessionApiKey?: string;
+  cloudApiKey?: string;
+  runtimeSessionApiKey?: string;
   workingDir?: string;
   pollIntervalMs?: number;
   httpTimeoutMs?: number;
@@ -101,7 +102,8 @@ export class RemoteWorkspace implements BaseWorkspace {
   readonly root: string;
 
   private readonly host: string;
-  private readonly sessionApiKey?: string;
+  private readonly cloudApiKey?: string;
+  private readonly runtimeSessionApiKey?: string;
   private readonly pollIntervalMs: number;
   private readonly httpTimeoutMs: number;
 
@@ -114,8 +116,11 @@ export class RemoteWorkspace implements BaseWorkspace {
 
   constructor(options: RemoteWorkspaceOptions) {
     this.host = normalizeRemoteHostUrl(options.host);
-    this.sessionApiKey = typeof options.sessionApiKey === 'string' && options.sessionApiKey.trim()
-      ? options.sessionApiKey.trim()
+    this.cloudApiKey = typeof options.cloudApiKey === 'string' && options.cloudApiKey.trim()
+      ? options.cloudApiKey.trim()
+      : undefined;
+    this.runtimeSessionApiKey = typeof options.runtimeSessionApiKey === 'string' && options.runtimeSessionApiKey.trim()
+      ? options.runtimeSessionApiKey.trim()
       : undefined;
     this.root = normalizePosixRoot(options.workingDir ?? '/workspace');
     this.pollIntervalMs = typeof options.pollIntervalMs === 'number' ? Math.max(0, options.pollIntervalMs) : 100;
@@ -429,14 +434,11 @@ export class RemoteWorkspace implements BaseWorkspace {
 
   private getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
-    if (this.sessionApiKey) {
-      if (isOpenHandsCloudServerUrl(this.host)) {
-        headers['Authorization'] = `Bearer ${this.sessionApiKey}`;
-      } else {
-        headers['X-Session-API-Key'] = this.sessionApiKey;
-        headers['Authorization'] = `Bearer ${this.sessionApiKey}`;
-      }
+    if (isOpenHandsCloudServerUrl(this.host)) {
+      if (this.cloudApiKey) headers['Authorization'] = `Bearer ${this.cloudApiKey}`;
+      return headers;
     }
+    if (this.runtimeSessionApiKey) headers['X-Session-API-Key'] = this.runtimeSessionApiKey;
     return headers;
   }
 

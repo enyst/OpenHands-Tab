@@ -3,9 +3,8 @@ import { SettingsManager } from '../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import { startDeviceAuthorization, pollDeviceToken, type HttpClientLike } from '../auth/deviceFlow';
 import {
-  getServerSessionApiKeySecretKey,
-  LEGACY_SESSION_API_KEY_SECRET_KEY,
-} from '../auth/serverSessionApiKeys';
+  getServerCloudApiKeySecretKey,
+} from '../auth/serverCloudApiKeys';
 
 type Output = Pick<vscode.OutputChannel, 'appendLine'>;
 
@@ -16,10 +15,6 @@ function renderServerLabel(serverUrl: string): string {
   } catch {
     return serverUrl;
   }
-}
-
-function trimOrEmpty(value: string | undefined): string {
-  return typeof value === 'string' ? value.trim() : '';
 }
 
 export function registerCloudLoginCommand(options: {
@@ -45,7 +40,7 @@ export function registerCloudLoginCommand(options: {
       return;
     }
 
-    const keyInfo = getServerSessionApiKeySecretKey(currentServerUrl);
+    const keyInfo = getServerCloudApiKeySecretKey(currentServerUrl);
     if (!keyInfo.ok) {
       void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
       return;
@@ -135,22 +130,7 @@ export function registerCloudLoginCommand(options: {
 
     await context.secrets.store(keyInfo.secretKey, trimmedToken);
 
-    let legacyRaw: string | undefined;
-    try {
-      legacyRaw = await context.secrets.get(LEGACY_SESSION_API_KEY_SECRET_KEY);
-    } catch {
-      legacyRaw = undefined;
-    }
-    const legacyValue = trimOrEmpty(legacyRaw);
-    const canUpdateLegacy = !legacyValue || legacyValue === trimmedToken;
-    if (canUpdateLegacy) {
-      await context.secrets.store(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmedToken);
-    }
-
     output?.appendLine(`[auth] Stored cloud API key for ${keyInfo.normalizedServerUrl}.`);
-    if (!canUpdateLegacy && legacyValue) {
-      output?.appendLine('[auth] Legacy openhands.sessionApiKey was not overwritten (different value already set).');
-    }
 
     options.onLoginCompleted?.({ normalizedServerUrl: keyInfo.normalizedServerUrl });
 

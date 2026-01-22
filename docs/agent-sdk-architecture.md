@@ -169,7 +169,7 @@ const conversation = Conversation({
   settings: {
     llm: { model: 'claude-sonnet-4-20250514', usageId: 'remote' },
     secrets: {
-      sessionApiKey: 'sk_session_xxx',
+      runtimeSessionApiKey: 'sk_session_xxx',
       llmApiKey: process.env.ANTHROPIC_API_KEY,
     },
   },
@@ -1449,6 +1449,9 @@ import {
   isActionEvent,
   isObservationEvent
 } from '@openhands/agent-sdk-ts';
+import { isOpenHandsCloudServerUrl } from '../src/shared/cloudServers';
+import { getServerCloudApiKeySecretKey } from '../src/auth/serverCloudApiKeys';
+import { getServerRuntimeSessionApiKeySecretKey } from '../src/auth/serverRuntimeSessionApiKeys';
 
 // Workspace root selection (multi-root-safe):
 // Prefer the workspace folder containing the active editor, fall back only when the workspace has a single folder.
@@ -1465,8 +1468,16 @@ function resolveWorkspaceRoot(): string {
 }
 
 // Create conversation (auto-detects local vs remote)
+const serverUrl = settings.serverUrl ?? undefined; // undefined = local mode
+const cloudApiKey = serverUrl && isOpenHandsCloudServerUrl(serverUrl)
+  ? await context.secrets.get(getServerCloudApiKeySecretKey(serverUrl).secretKey)
+  : undefined;
+const runtimeSessionApiKey = serverUrl
+  ? await context.secrets.get(getServerRuntimeSessionApiKeySecretKey(serverUrl).secretKey)
+  : undefined;
+
 const conversation: ConversationInstance = Conversation({
-  serverUrl: settings.serverUrl ?? undefined, // undefined = local mode
+  serverUrl,
   settings: {
     llm: {
       model: 'claude-sonnet-4-20250514',
@@ -1477,7 +1488,8 @@ const conversation: ConversationInstance = Conversation({
       maxIterations: 50,
     },
     secrets: {
-      sessionApiKey: await context.secrets.get('openhands.sessionApiKey'),
+      cloudApiKey,
+      runtimeSessionApiKey,
       llmApiKey: await context.secrets.get('openhands.llmApiKey'),
     },
   },

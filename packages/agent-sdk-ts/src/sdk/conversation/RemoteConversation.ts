@@ -179,8 +179,13 @@ export class RemoteConversation extends EventEmitter {
     if (!this.workspaceClient) {
       const rawWorkingDir = this.workspace?.['working_dir'];
       const workingDir = typeof rawWorkingDir === 'string' ? rawWorkingDir : this.workspaceRoot;
-      const sessionApiKey = this.settings?.secrets.sessionApiKey;
-      this.workspaceClient = new RemoteWorkspace({ host: this.serverUrl, sessionApiKey, workingDir });
+      const secrets = this.settings?.secrets;
+      this.workspaceClient = new RemoteWorkspace({
+        host: this.serverUrl,
+        cloudApiKey: secrets?.cloudApiKey,
+        runtimeSessionApiKey: secrets?.runtimeSessionApiKey,
+        workingDir,
+      });
     }
     return this.workspaceClient;
   }
@@ -228,8 +233,15 @@ export class RemoteConversation extends EventEmitter {
   getStatus(): ConversationStatus { return this.status; }
 
   setSettings(settings: OpenHandsSettings) {
-    const oldApiKey = this.settings?.secrets.sessionApiKey;
-    const newApiKey = settings?.secrets.sessionApiKey;
+    const getWorkspaceAuthKey = (serverUrl: string, s: OpenHandsSettings | undefined): string | undefined => {
+      const secrets = s?.secrets;
+      return isOpenHandsCloudServerUrl(serverUrl)
+        ? secrets?.cloudApiKey
+        : secrets?.runtimeSessionApiKey;
+    };
+
+    const oldApiKey = getWorkspaceAuthKey(this.serverUrl, this.settings);
+    const newApiKey = getWorkspaceAuthKey(this.serverUrl, settings);
     this.settings = settings;
     if (this.workspaceClient && oldApiKey !== newApiKey) {
       this.workspaceClient = undefined;
@@ -731,15 +743,15 @@ export class RemoteConversation extends EventEmitter {
 
   private getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const sessionKey = this.settings?.secrets.sessionApiKey || '';
-    if (sessionKey) {
-      if (isOpenHandsCloudServerUrl(this.serverUrl)) {
-        headers['Authorization'] = `Bearer ${sessionKey}`;
-      } else {
-        headers['X-Session-API-Key'] = sessionKey;
-        headers['Authorization'] = `Bearer ${sessionKey}`;
-      }
+    const secrets = this.settings?.secrets;
+    const isCloud = isOpenHandsCloudServerUrl(this.serverUrl);
+    if (isCloud) {
+      const cloudApiKey = secrets?.cloudApiKey ?? '';
+      if (cloudApiKey) headers['Authorization'] = `Bearer ${cloudApiKey}`;
+      return headers;
     }
+    const runtimeSessionApiKey = secrets?.runtimeSessionApiKey ?? '';
+    if (runtimeSessionApiKey) headers['X-Session-API-Key'] = runtimeSessionApiKey;
     return headers;
   }
 
@@ -786,7 +798,7 @@ export class RemoteConversation extends EventEmitter {
   private connect() {
     if (!this.conversationId) return;
     const base = this.serverUrl.replace(/\/$/, '');
-    const sessionKey = this.settings?.secrets.sessionApiKey || '';
+    const sessionKey = this.settings?.secrets.runtimeSessionApiKey || '';
     const params = new URLSearchParams();
     if (sessionKey && !isOpenHandsCloudServerUrl(this.serverUrl)) params.set('session_api_key', sessionKey);
     params.set('resend_all', 'true');

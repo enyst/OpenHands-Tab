@@ -71,7 +71,7 @@ curl -fsS http://127.0.0.1:8001/health
 | Server down | Select server while not running | `offline` + clear error message (no hang) |
 | Wrong port | Select `http://127.0.0.1:9999` | Same as “Server down” |
 | WebSocket blocked | Allow HTTP but break WS (if reproducible) | Start conversation via HTTP; WS reconnect/backoff behavior is sensible; errors surface |
-| Auth required (optional) | Set/clear `sessionApiKey` (if server enforces) | 401/403 surfaced with helpful message |
+| Auth required (optional) | Set/clear `runtimeSessionApiKey` (if server enforces) | 401/403 surfaced with helpful message |
 
 ### Conversation flow (remote)
 
@@ -99,4 +99,3 @@ curl -fsS http://127.0.0.1:8001/health
   - conversationStarted received
   - event stream is non-empty after sending a message
 - Always include teardown with timeouts to avoid hung CI runs.
-

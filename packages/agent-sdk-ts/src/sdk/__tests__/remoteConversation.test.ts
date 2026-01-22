@@ -981,7 +981,6 @@ describe('RemoteConversation', () => {
       if (url.includes('/confirmation_policy')) {
         expect(init?.method).toBe('POST');
         expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
-        expect(init?.headers?.Authorization).toBe('Bearer session-key');
         const body = JSON.parse(init?.body ?? '{}');
         expect(body).toEqual({
           policy: { kind: 'ConfirmRisky', threshold: 'HIGH', confirm_unknown: false },
@@ -1001,7 +1000,7 @@ describe('RemoteConversation', () => {
     const { RemoteConversation } = await import('../conversation/RemoteConversation');
     const conversation = new RemoteConversation({
       serverUrl: 'http://localhost:3000',
-      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+      settings: { ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key' } },
     });
 
     await conversation.restoreConversation('abc');
@@ -1035,7 +1034,6 @@ describe('RemoteConversation', () => {
         call += 1;
         expect(init?.method).toBe('POST');
         expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
-        expect(init?.headers?.Authorization).toBe('Bearer session-key');
         const body = JSON.parse(init?.body ?? '{}');
         if (call === 1) {
           expect(body).toEqual({ security_analyzer: { kind: 'LLMSecurityAnalyzer' } });
@@ -1057,7 +1055,7 @@ describe('RemoteConversation', () => {
     const { RemoteConversation } = await import('../conversation/RemoteConversation');
     const conversation = new RemoteConversation({
       serverUrl: 'http://localhost:3000',
-      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key' } },
+      settings: { ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key' } },
     });
 
     await conversation.restoreConversation('abc');
@@ -1076,14 +1074,13 @@ describe('RemoteConversation', () => {
     );
   });
 
-  it('getWorkspace exposes a RemoteWorkspace using sessionApiKey and invalidates on key change', async () => {
+  it('getWorkspace exposes a RemoteWorkspace using runtimeSessionApiKey and invalidates on key change', async () => {
     let uploadCalls = 0;
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       if (url.includes('/api/file/upload')) {
         expect(init?.method).toBe('POST');
         uploadCalls += 1;
         expect(init?.headers?.['X-Session-API-Key']).toBe(uploadCalls === 1 ? 'session-key-1' : 'session-key-2');
-        expect(init?.headers?.Authorization).toBe(uploadCalls === 1 ? 'Bearer session-key-1' : 'Bearer session-key-2');
         return {
           ok: true,
           status: 200,
@@ -1099,7 +1096,7 @@ describe('RemoteConversation', () => {
     const conversation = new RemoteConversation({
       serverUrl: 'http://localhost:3000',
       workspaceRoot: '/workspace',
-      settings: { ...baseSettings, secrets: { sessionApiKey: 'session-key-1' } },
+      settings: { ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key-1' } },
     });
 
     const w1 = conversation.getWorkspace();
@@ -1110,7 +1107,7 @@ describe('RemoteConversation', () => {
 
     await w1.writeFile('notes.txt', 'hello');
 
-    conversation.setSettings({ ...baseSettings, secrets: { sessionApiKey: 'session-key-2' } });
+    conversation.setSettings({ ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key-2' } });
     const w3 = conversation.getWorkspace();
     expect(w3).not.toBe(w1);
 

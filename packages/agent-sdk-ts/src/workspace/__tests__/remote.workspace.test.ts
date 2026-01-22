@@ -100,7 +100,7 @@ describe('RemoteWorkspace', () => {
     const ws = new RemoteWorkspace({
       host: 'http://localhost:3000',
       workingDir: '/workspace/project',
-      sessionApiKey: 'session-key',
+      runtimeSessionApiKey: 'session-key',
       pollIntervalMs: 0,
     });
 
@@ -129,7 +129,6 @@ describe('RemoteWorkspace', () => {
       expect(url).toContain('/workspace/project/hello.txt');
       expect(init?.method).toBe('POST');
       expect(init?.headers?.['X-Session-API-Key']).toBe('session-key');
-      expect(init?.headers?.Authorization).toBe('Bearer session-key');
       expect(init?.body).toBeInstanceOf(FormData);
       return okJson({ ok: true }) as any;
     });
@@ -138,7 +137,7 @@ describe('RemoteWorkspace', () => {
     const ws = new RemoteWorkspace({
       host: 'http://localhost:3000',
       workingDir: '/workspace/project',
-      sessionApiKey: 'session-key',
+      runtimeSessionApiKey: 'session-key',
     });
 
     await ws.writeFile('hello.txt', 'hello');

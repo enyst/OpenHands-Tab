@@ -182,24 +182,23 @@ Note: this file explicitly labels itself “LEGACY V0 CODE” and warns not to e
 
 ## 5) OpenHands-Tab (`oh-tab`) / agent-sdk-ts: current client behavior
 
-### 5.1 VS Code extension cloud login stores the device-flow access token as “session API key”
+### 5.1 VS Code extension cloud login stores the device-flow access token as “Cloud API Key”
 **File:** `src/extension/cloudLoginCommand.ts`
 
 - Runs device flow against the currently selected `settings.serverUrl`.
-- Stores returned `access_token` in VS Code SecretStorage under the per-server key.
-- Logs: `[auth] Stored session API key for <normalizedServerUrl>.`
+- Stores returned `access_token` in VS Code SecretStorage under a per-server **cloud API key** slot.
+- Logs: `[auth] Stored cloud API key for <normalizedServerUrl>.`
 
-**Important:** naming aside, this means the device-flow API key is stored in the same slot used by agent-sdk-ts RemoteConversation as `settings.secrets.sessionApiKey`.
-
-### 5.2 RemoteConversation uses that `sessionApiKey` for both HTTP headers and WS URL query
+### 5.2 RemoteConversation uses distinct keys for SaaS vs nested runtime
 **File:** `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`
 
-- `getAuthHeaders()` sets:
-  - `X-Session-API-Key: <sessionApiKey>`
-  - `Authorization: Bearer <sessionApiKey>`
+- For cloud/SaaS hosts, `getAuthHeaders()` uses:
+  - `Authorization: Bearer <cloudApiKey>`
+- For non-cloud agent-servers, `getAuthHeaders()` uses:
+  - `X-Session-API-Key: <runtimeSessionApiKey>`
 
 - `connect()` constructs WS URL:
-  - `${base.replace(/^http/, 'ws')}/sockets/events/${conversationId}?session_api_key=<sessionKey>&resend_all=true`
+  - `${base.replace(/^http/, 'ws')}/sockets/events/${conversationId}?session_api_key=<runtimeSessionApiKey>&resend_all=true` (non-cloud only)
 
 This is the exact “secret-in-URL” issue from bead `oh-tab-h3g`.
 
@@ -289,7 +288,7 @@ Given the above, `oh-tab` likely should treat these as distinct secrets:
 - **Runtime session API key** (per-sandbox)
   - used to call the agent-server and open WS connections
 
-Today, `oh-tab` uses a single `sessionApiKey` slot for both, which creates ambiguity.
+`oh-tab` stores these separately (`cloudApiKey` vs `runtimeSessionApiKey`) to avoid ambiguity.
 
 ---
 

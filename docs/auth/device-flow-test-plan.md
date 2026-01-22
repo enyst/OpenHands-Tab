@@ -43,11 +43,9 @@ It is a **porting plan** derived from the OpenHands-CLI Python tests listed in t
 ## Token storage
 
 - Per-server token storage uses a canonical server URL key.
-- Legacy compatibility:
-  - Does not silently clobber `openhands.sessionApiKey` when it differs.
-  - Writes `openhands.sessionApiKey` when empty or already matches the per-server token.
+- Device flow stores the **cloud API key** only (device-flow `access_token`) under `openhands.cloudApiKey.server.<hash>`.
 - Delete token:
-  - Clears per-server token and (when applicable) legacy token.
+  - Clears the per-server cloud token and leaves other servers untouched.
 - Metadata storage:
   - Stores non-secret metadata (e.g. obtainedAt/expiresAt/tokenType) separately from the secret.
 
@@ -70,6 +68,4 @@ It is a **porting plan** derived from the OpenHands-CLI Python tests listed in t
 ## Logout command
 
 - Logout clears per-server token and leaves other servers untouched.
-- Logout clears legacy `openhands.sessionApiKey` only when it matches the cleared server token.
 - Logout updates UI state (logged-in indicator) without leaking tokens.
-

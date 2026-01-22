@@ -2,9 +2,8 @@ import * as vscode from 'vscode';
 import { SettingsManager } from '../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import {
-  getServerSessionApiKeySecretKey,
-  LEGACY_SESSION_API_KEY_SECRET_KEY,
-} from '../auth/serverSessionApiKeys';
+  getServerCloudApiKeySecretKey,
+} from '../auth/serverCloudApiKeys';
 
 type Output = Pick<vscode.OutputChannel, 'appendLine'>;
 
@@ -15,10 +14,6 @@ function renderServerLabel(serverUrl: string): string {
   } catch {
     return serverUrl;
   }
-}
-
-function trimOrEmpty(value: string | undefined): string {
-  return typeof value === 'string' ? value.trim() : '';
 }
 
 export function registerCloudLogoutCommand(options: {
@@ -43,7 +38,7 @@ export function registerCloudLogoutCommand(options: {
       return;
     }
 
-    const keyInfo = getServerSessionApiKeySecretKey(currentServerUrl);
+    const keyInfo = getServerCloudApiKeySecretKey(currentServerUrl);
     if (!keyInfo.ok) {
       void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
       return;
@@ -61,32 +56,9 @@ export function registerCloudLogoutCommand(options: {
 
     const output = options.getOutputChannel();
 
-    let serverTokenRaw: string | undefined;
-    try {
-      serverTokenRaw = await context.secrets.get(keyInfo.secretKey);
-    } catch {
-      serverTokenRaw = undefined;
-    }
-    const serverToken = trimOrEmpty(serverTokenRaw);
-
     await context.secrets.delete(keyInfo.secretKey);
 
-    let legacyRaw: string | undefined;
-    try {
-      legacyRaw = await context.secrets.get(LEGACY_SESSION_API_KEY_SECRET_KEY);
-    } catch {
-      legacyRaw = undefined;
-    }
-    const legacyValue = trimOrEmpty(legacyRaw);
-    const shouldClearLegacy = !legacyValue || (!!serverToken && legacyValue === serverToken);
-    if (shouldClearLegacy) {
-      await context.secrets.delete(LEGACY_SESSION_API_KEY_SECRET_KEY);
-    }
-
-    output?.appendLine(`[auth] Cleared session API key for ${keyInfo.normalizedServerUrl}.`);
-    if (!shouldClearLegacy && legacyValue) {
-      output?.appendLine('[auth] Legacy openhands.sessionApiKey was not cleared (different value already set).');
-    }
+    output?.appendLine(`[auth] Cleared cloud API key for ${keyInfo.normalizedServerUrl}.`);
 
     void vscode.window.showInformationMessage(`OpenHands: Logged out of ${serverLabel}.`);
   });

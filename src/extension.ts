@@ -31,8 +31,9 @@ import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
 import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import { computeWelcomeSecretStatus } from './shared/welcomeSecretStatus';
-import { getServerSessionApiKeySecretKey } from './auth/serverSessionApiKeys';
-import { getRemoteAuthKeyLabelForServerUrl } from './shared/cloudServers';
+import { getServerCloudApiKeySecretKey } from './auth/serverCloudApiKeys';
+import { getServerRuntimeSessionApiKeySecretKey } from './auth/serverRuntimeSessionApiKeys';
+import { isOpenHandsCloudServerUrl } from './shared/cloudServers';
 import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
 import { registerCloudLogoutCommand } from './extension/cloudLogoutCommand';
 import {
@@ -472,77 +473,41 @@ export function activate(context: vscode.ExtensionContext) {
 
     const trimOrEmpty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
-    const withSessionApiKey = (token: string | undefined): typeof settings => {
+    const withRemoteSecrets = (params: { cloudApiKey?: string; runtimeSessionApiKey?: string }): typeof settings => {
       const secrets = { ...(settings.secrets ?? {}) } as Record<string, unknown>;
-      if (token) {
-        secrets.sessionApiKey = token;
-      } else {
-        delete secrets.sessionApiKey;
-      }
+      if (params.cloudApiKey) secrets.cloudApiKey = params.cloudApiKey;
+      else delete secrets.cloudApiKey;
+      if (params.runtimeSessionApiKey) secrets.runtimeSessionApiKey = params.runtimeSessionApiKey;
+      else delete secrets.runtimeSessionApiKey;
       return { ...settings, secrets: secrets as typeof settings.secrets };
     };
 
     if (typeof settings.serverUrl === 'string' && settings.serverUrl.trim()) {
-      const keyInfo = getServerSessionApiKeySecretKey(settings.serverUrl);
-      if (keyInfo.ok) {
-        const legacyToken = trimOrEmpty(settings.secrets?.sessionApiKey);
+      const rawServerUrl = settings.serverUrl.trim();
+      const isCloud = isOpenHandsCloudServerUrl(rawServerUrl);
 
-        let stored: string | undefined;
+      const cloudKeyInfo = isCloud ? getServerCloudApiKeySecretKey(rawServerUrl) : null;
+      const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(rawServerUrl);
+
+      let cloudApiKey: string | undefined;
+      if (cloudKeyInfo?.ok) {
         try {
-          stored = await context.secrets.get(keyInfo.secretKey);
+          cloudApiKey = trimOrEmpty(await context.secrets.get(cloudKeyInfo.secretKey)) || undefined;
         } catch {
-          stored = undefined;
-        }
-        const perServerToken = trimOrEmpty(stored);
-
-        if (perServerToken) {
-          settings = withSessionApiKey(perServerToken);
-        } else if (!legacyToken) {
-          // No per-server token and no legacy token: do not send a session key at all.
-          settings = withSessionApiKey(undefined);
-        } else {
-          // Legacy token exists, but do not auto-send it to an arbitrary server. Offer one-time migration.
-          const serverHash = keyInfo.secretKey.split('.server.')[1] ?? keyInfo.secretKey;
-          const promptKey = `openhands.sessionApiKey.migrationPrompted.${serverHash}`;
-          const alreadyPrompted = context.globalState.get<boolean>(promptKey) === true;
-
-          if (alreadyPrompted) {
-            settings = withSessionApiKey(undefined);
-          } else {
-            // Mark prompted before awaiting UI to avoid duplicate prompts from rapid config changes.
-            await context.globalState.update(promptKey, true);
-
-            const serverLabel = (() => {
-              try {
-                const url = new URL(keyInfo.normalizedServerUrl);
-                return url.hostname + (url.port ? `:${url.port}` : '');
-              } catch {
-                return keyInfo.normalizedServerUrl;
-              }
-            })();
-
-            const action = await vscode.window.showWarningMessage(
-              `OpenHands: A legacy ${getRemoteAuthKeyLabelForServerUrl(settings.serverUrl)} is set. Use it for ${serverLabel}?`,
-              { modal: true },
-              'Use key for this server',
-              'Not now',
-            );
-
-            if (action === 'Use key for this server') {
-              try {
-                await context.secrets.store(keyInfo.secretKey, legacyToken);
-                secrets.set(keyInfo.secretKey, legacyToken);
-                settings = withSessionApiKey(legacyToken);
-              } catch (err) {
-                outputChannel?.appendLine(`[auth] Failed to migrate session API key for ${keyInfo.normalizedServerUrl}: ${renderError(err)}`);
-                settings = withSessionApiKey(undefined);
-              }
-            } else {
-              settings = withSessionApiKey(undefined);
-            }
-          }
+          cloudApiKey = undefined;
         }
       }
+
+      let runtimeSessionApiKey: string | undefined;
+      if (runtimeKeyInfo.ok) {
+        try {
+          runtimeSessionApiKey = trimOrEmpty(await context.secrets.get(runtimeKeyInfo.secretKey)) || undefined;
+        } catch {
+          runtimeSessionApiKey = undefined;
+        }
+      }
+
+      settings = withRemoteSecrets({ cloudApiKey, runtimeSessionApiKey });
     }
 
     const cfg = vscode.workspace.getConfiguration();

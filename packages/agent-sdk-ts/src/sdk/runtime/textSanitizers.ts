@@ -26,6 +26,8 @@ const SENSITIVE_KEYS = new Set([
   'password', 'pass', 'pwd',
   'secret', 'secret_key', 'secretKey', 'client_secret', 'clientSecret', 'private_key', 'privateKey',
   'awsAccessKeyId', 'awsSecretAccessKey',
+  'cloudApiKey', 'cloud_api_key',
+  'runtimeSessionApiKey', 'runtime_session_api_key',
   'sessionApiKey', 'session_api_key', 'x_api_key', 'x-api-key',
 ]);
 

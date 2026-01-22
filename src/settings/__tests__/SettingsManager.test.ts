@@ -203,7 +203,7 @@ describe('SettingsManager', () => {
         volume: 0.25,
         cache: false,
       },
-      secrets: { sessionApiKey: 'sess', llmApiKey: 'key' }
+      secrets: { llmApiKey: 'key' }
     });
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://example:1234');
@@ -228,7 +228,6 @@ describe('SettingsManager', () => {
     expect(s.hal.modelId).toBe('eleven_turbo_v2');
     expect(s.hal.volume).toBe(0.25);
     expect(s.hal.cache).toBe(false);
-    expect(s.secrets.sessionApiKey).toBe('sess');
     expect(s.secrets.llmApiKey).toBe('key');
     // HAL voice_confirm does not have a separate Gemini secret setting; it relies on profile/provider/global keys.
   });

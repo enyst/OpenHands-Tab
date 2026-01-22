@@ -26,7 +26,7 @@ const defaultMockSettings = {
   },
   secrets: {
     llmApiKey: 'test-llm-key',
-    sessionApiKey: 'test-session-key',
+    runtimeSessionApiKey: 'test-session-key',
   },
 };
 
@@ -216,9 +216,8 @@ describe('Extension Activation', () => {
     expect(vscode.commands.registerCommand).toHaveBeenCalled();
   });
 
-  it('cloudLogin stores a per-server session key without clobbering legacy when different', async () => {
+  it('cloudLogin stores a per-server cloud API key', async () => {
     const secretStorage = new Map<string, string>();
-    secretStorage.set('openhands.sessionApiKey', 'legacy-key');
 
     mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
     mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
@@ -239,50 +238,23 @@ describe('Extension Activation', () => {
     await extension.activate(mockContext);
     await vscode.commands.executeCommand('openhands.cloudLogin');
 
-    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
-    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    const { getServerCloudApiKeySecretKey } = await import('../auth/serverCloudApiKeys');
+    const keyInfo = getServerCloudApiKeySecretKey(defaultMockSettings.serverUrl);
     expect(keyInfo.ok).toBe(true);
     if (!keyInfo.ok) return;
 
     expect(secretStorage.get(keyInfo.secretKey)).toBe('server-token');
-    expect(secretStorage.get('openhands.sessionApiKey')).toBe('legacy-key');
   });
 
-  it('cloudLogin updates legacy openhands.sessionApiKey when unset', async () => {
+  it('cloudLogout clears the per-server cloud API key', async () => {
     const secretStorage = new Map<string, string>();
 
-    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
-    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
-      secretStorage.set(key, value);
-    });
-
-    startDeviceAuthorizationMock.mockResolvedValue({
-      deviceCode: 'dev',
-      userCode: 'ABC-123',
-      verificationUri: 'https://example.com/verify',
-      verificationUriComplete: 'https://example.com/verify?user_code=ABC-123',
-      intervalMs: 1000,
-    });
-    pollDeviceTokenMock.mockResolvedValue({ accessToken: 'server-token' });
-    (vscode.env.openExternal as Mock).mockResolvedValue(true);
-    (vscode.window.showInformationMessage as Mock).mockResolvedValue(undefined);
-
-    await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.cloudLogin');
-
-    expect(secretStorage.get('openhands.sessionApiKey')).toBe('server-token');
-  });
-
-  it('cloudLogout clears the per-server session key and legacy when they match', async () => {
-    const secretStorage = new Map<string, string>();
-
-    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
-    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    const { getServerCloudApiKeySecretKey } = await import('../auth/serverCloudApiKeys');
+    const keyInfo = getServerCloudApiKeySecretKey(defaultMockSettings.serverUrl);
     expect(keyInfo.ok).toBe(true);
     if (!keyInfo.ok) return;
 
     secretStorage.set(keyInfo.secretKey, 'server-token');
-    secretStorage.set('openhands.sessionApiKey', 'server-token');
 
     mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
     mockContext.secrets.delete = vi.fn(async (key: string) => {
@@ -295,57 +267,6 @@ describe('Extension Activation', () => {
     await vscode.commands.executeCommand('openhands.cloudLogout');
 
     expect(secretStorage.has(keyInfo.secretKey)).toBe(false);
-    expect(secretStorage.has('openhands.sessionApiKey')).toBe(false);
-  });
-
-  it('cloudLogout clears the per-server session key without clobbering legacy when different', async () => {
-    const secretStorage = new Map<string, string>();
-
-    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
-    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
-    expect(keyInfo.ok).toBe(true);
-    if (!keyInfo.ok) return;
-
-    secretStorage.set(keyInfo.secretKey, 'server-token');
-    secretStorage.set('openhands.sessionApiKey', 'legacy-key');
-
-    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
-    mockContext.secrets.delete = vi.fn(async (key: string) => {
-      secretStorage.delete(key);
-    });
-
-    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Log out');
-
-    await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.cloudLogout');
-
-    expect(secretStorage.has(keyInfo.secretKey)).toBe(false);
-    expect(secretStorage.get('openhands.sessionApiKey')).toBe('legacy-key');
-  });
-
-  it('cloudLogout clears legacy openhands.sessionApiKey when empty', async () => {
-    const secretStorage = new Map<string, string>();
-
-    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
-    const keyInfo = getServerSessionApiKeySecretKey(defaultMockSettings.serverUrl);
-    expect(keyInfo.ok).toBe(true);
-    if (!keyInfo.ok) return;
-
-    secretStorage.set(keyInfo.secretKey, 'server-token');
-    secretStorage.set('openhands.sessionApiKey', '');
-
-    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
-    mockContext.secrets.delete = vi.fn(async (key: string) => {
-      secretStorage.delete(key);
-    });
-
-    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Log out');
-
-    await extension.activate(mockContext);
-    await vscode.commands.executeCommand('openhands.cloudLogout');
-
-    expect(secretStorage.has(keyInfo.secretKey)).toBe(false);
-    expect(secretStorage.has('openhands.sessionApiKey')).toBe(false);
   });
 
   it('does not create a conversation until the chat view resolves', async () => {
@@ -423,7 +344,16 @@ describe('Secret indicator sync', () => {
     extension?.deactivate?.();
   });
 
-  it('writes a non-secret status marker for settings-backed secrets', async () => {
+  it('writes a non-secret status marker for runtimeSessionApiKey', async () => {
+    const secretStorage = new Map<string, string>();
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+
+    const { getServerRuntimeSessionApiKeySecretKey } = await import('../auth/serverRuntimeSessionApiKeys');
+    const keyInfo = getServerRuntimeSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(keyInfo.ok).toBe(true);
+    if (!keyInfo.ok) return;
+    secretStorage.set(keyInfo.secretKey, 'runtime-token');
+
     await extension.activate(mockContext);
 
     const cfg = vscode.workspace.getConfiguration();
@@ -433,10 +363,10 @@ describe('Secret indicator sync', () => {
       await new Promise((r) => setTimeout(r, 0));
     }
 
-    expect(cfg.update).toHaveBeenCalledWith('openhands.secrets.sessionApiKey', '✓ set', vscode.ConfigurationTarget.Global);
+    expect(cfg.update).toHaveBeenCalledWith('openhands.secrets.runtimeSessionApiKey', '✓ set', vscode.ConfigurationTarget.Global);
     expect(cfg.update).not.toHaveBeenCalledWith(
-      'openhands.secrets.sessionApiKey',
-      defaultMockSettings.secrets.sessionApiKey,
+      'openhands.secrets.runtimeSessionApiKey',
+      'runtime-token',
       vscode.ConfigurationTarget.Global
     );
   });
@@ -598,109 +528,33 @@ describe('Chat view behavior', () => {
     expect(__getLastConversation()).toBeTruthy();
   });
 
-  it('does not send legacy sessionApiKey to a server when the per-server key is missing', async () => {
+  it('injects a per-server runtimeSessionApiKey when present', async () => {
     const secretStorage = new Map<string, string>();
     mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
-    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
-      secretStorage.set(key, value);
-    });
 
-    mockSettings = {
-      ...mockSettings,
-      serverUrl: 'http://localhost:3000',
-      secrets: {
-        ...mockSettings.secrets,
-        sessionApiKey: 'legacy-token',
-      },
-    };
-
-    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Not now');
-
-    await resolveChatView(mockContext);
-
-    const { Conversation } = await import('@openhands/agent-sdk-ts');
-    const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
-    expect(options?.settings?.secrets?.sessionApiKey).toBeUndefined();
-
-    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
-    const keyInfo = getServerSessionApiKeySecretKey(mockSettings.serverUrl);
+    const { getServerRuntimeSessionApiKeySecretKey } = await import('../auth/serverRuntimeSessionApiKeys');
+    const keyInfo = getServerRuntimeSessionApiKeySecretKey(mockSettings.serverUrl);
     expect(keyInfo.ok).toBe(true);
     if (!keyInfo.ok) return;
 
-    expect(mockContext.secrets.store).not.toHaveBeenCalledWith(keyInfo.secretKey, expect.anything());
-  });
-
-  it('migrates legacy sessionApiKey to the per-server secret key after confirmation', async () => {
-    const secretStorage = new Map<string, string>();
-    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
-    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
-      secretStorage.set(key, value);
-    });
-
-    mockSettings = {
-      ...mockSettings,
-      serverUrl: 'http://localhost:3000',
-      secrets: {
-        ...mockSettings.secrets,
-        sessionApiKey: 'legacy-token',
-      },
-    };
-
-    (vscode.window.showWarningMessage as Mock).mockResolvedValue('Use key for this server');
+    secretStorage.set(keyInfo.secretKey, 'runtime-token');
 
     await resolveChatView(mockContext);
 
-    const { getServerSessionApiKeySecretKey } = await import('../auth/serverSessionApiKeys');
-    const keyInfo = getServerSessionApiKeySecretKey(mockSettings.serverUrl);
-    expect(keyInfo.ok).toBe(true);
-    if (!keyInfo.ok) return;
-
-    expect(secretStorage.get(keyInfo.secretKey)).toBe('legacy-token');
-
     const { Conversation } = await import('@openhands/agent-sdk-ts');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
-    expect(options?.settings?.secrets?.sessionApiKey).toBe('legacy-token');
+    expect(options?.settings?.secrets?.runtimeSessionApiKey).toBe('runtime-token');
   });
 
-  it('does not reuse legacy sessionApiKey when switching servers without a per-server key', async () => {
+  it('does not inject runtimeSessionApiKey when missing', async () => {
     const secretStorage = new Map<string, string>();
     mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
-    mockContext.secrets.store = vi.fn(async (key: string, value: string) => {
-      secretStorage.set(key, value);
-    });
-
-    mockSettings = {
-      ...mockSettings,
-      serverUrl: 'http://server-a.test:3000',
-      secrets: {
-        ...mockSettings.secrets,
-        sessionApiKey: 'legacy-token',
-      },
-    };
-
-    (vscode.window.showWarningMessage as Mock)
-      .mockResolvedValueOnce('Not now')
-      .mockResolvedValueOnce('Not now');
 
     await resolveChatView(mockContext);
 
-    mockSettings = { ...mockSettings, serverUrl: 'http://server-b.test:3000' };
-    (vscode as any).__getMockConfigValues().set('openhands.serverUrl', mockSettings.serverUrl);
-    (vscode as any).__triggerConfigChange({
-      affectsConfiguration: (key: string) => key === 'openhands.serverUrl',
-    });
-
     const { Conversation } = await import('@openhands/agent-sdk-ts');
-    const beforeCalls = (Conversation as unknown as Mock).mock.calls.length;
-
-    const deadline = Date.now() + 2000;
-    while (Date.now() < deadline) {
-      if ((Conversation as unknown as Mock).mock.calls.length > beforeCalls) break;
-      await new Promise((r) => setTimeout(r, 0));
-    }
-
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
-    expect(options?.settings?.secrets?.sessionApiKey).toBeUndefined();
+    expect(options?.settings?.secrets?.runtimeSessionApiKey).toBeUndefined();
   });
 
   it('does not auto-restore saved conversation on first chat view resolve', async () => {
@@ -762,6 +616,12 @@ describe('Chat view behavior', () => {
   });
 
   it('refreshes the active conversation when LLM settings change', async () => {
+    const secretStorage = new Map<string, string>();
+    const { getServerRuntimeSessionApiKeySecretKey } = await import('../auth/serverRuntimeSessionApiKeys');
+    const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    secretStorage.set(runtimeKeyInfo.secretKey, defaultMockSettings.secrets.runtimeSessionApiKey);
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();
 
@@ -791,6 +651,12 @@ describe('Chat view behavior', () => {
   });
 
   it('refreshes the active conversation when confirmation settings change', async () => {
+    const secretStorage = new Map<string, string>();
+    const { getServerRuntimeSessionApiKeySecretKey } = await import('../auth/serverRuntimeSessionApiKeys');
+    const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    secretStorage.set(runtimeKeyInfo.secretKey, defaultMockSettings.secrets.runtimeSessionApiKey);
+    mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
+
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();
 

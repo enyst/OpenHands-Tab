@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import type { ConversationInstance, SecretRegistry } from '@openhands/agent-sdk-ts';
-import { getServerSessionApiKeySecretKey, LEGACY_SESSION_API_KEY_SECRET_KEY } from '../auth/serverSessionApiKeys';
-import { getRemoteAuthKeyLabelForServerUrl, isOpenHandsCloudServerUrl } from '../shared/cloudServers';
+import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
+import { getServerRuntimeSessionApiKeySecretKey } from '../auth/serverRuntimeSessionApiKeys';
+import { isOpenHandsCloudServerUrl } from '../shared/cloudServers';
 
 type SecretKey = keyof OpenHandsSettings['secrets'];
 
@@ -17,16 +18,31 @@ async function syncSecretStatusIndicators(params: { context: vscode.ExtensionCon
     return typeof value === 'string' && value.trim().length > 0;
   };
 
-  let settingsSecrets: OpenHandsSettings['secrets'] | undefined;
+  let settings: OpenHandsSettings | undefined;
   try {
     const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
-    settingsSecrets = (await settingsMgr.get())?.secrets;
+    settings = await settingsMgr.get();
   } catch {
     // Best-effort: do not surface errors for a purely UX indicator.
-    settingsSecrets = undefined;
+    settings = undefined;
   }
 
   const getIsSetFromSettingsSecrets = (value: unknown): boolean => typeof value === 'string' && value.trim().length > 0;
+
+  const serverUrl = typeof settings?.serverUrl === 'string' ? settings.serverUrl.trim() : '';
+  const isCloud = Boolean(serverUrl) && isOpenHandsCloudServerUrl(serverUrl);
+  const isCloudApiKeySet = await (async (): Promise<boolean> => {
+    if (!serverUrl || !isCloud) return false;
+    const keyInfo = getServerCloudApiKeySecretKey(serverUrl);
+    if (!keyInfo.ok) return false;
+    return await getIsSetFromSecretStorage(keyInfo.secretKey);
+  })();
+  const isRuntimeSessionApiKeySet = await (async (): Promise<boolean> => {
+    if (!serverUrl) return false;
+    const keyInfo = getServerRuntimeSessionApiKeySecretKey(serverUrl);
+    if (!keyInfo.ok) return false;
+    return await getIsSetFromSecretStorage(keyInfo.secretKey);
+  })();
 
   const indicators: Array<{ key: string; isSet: boolean }> = [
     { key: 'openhands.secrets.openaiApiKey', isSet: await getIsSetFromSecretStorage('OPENAI_API_KEY') },
@@ -35,12 +51,13 @@ async function syncSecretStatusIndicators(params: { context: vscode.ExtensionCon
     { key: 'openhands.secrets.litellmApiKey', isSet: await getIsSetFromSecretStorage('LITELLM_API_KEY') },
     { key: 'openhands.secrets.geminiLlmApiKey', isSet: await getIsSetFromSecretStorage('GEMINI_API_KEY') },
 
-    { key: 'openhands.secrets.sessionApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.sessionApiKey) },
-    { key: 'openhands.secrets.githubToken', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.githubToken) },
-    { key: 'openhands.hal.ttsApiKey', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.halTtsApiKey) },
-    { key: 'openhands.secrets.customSecret1', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret1) },
-    { key: 'openhands.secrets.customSecret2', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret2) },
-    { key: 'openhands.secrets.customSecret3', isSet: getIsSetFromSettingsSecrets(settingsSecrets?.customSecret3) },
+    { key: 'openhands.secrets.cloudApiKey', isSet: isCloudApiKeySet },
+    { key: 'openhands.secrets.runtimeSessionApiKey', isSet: isRuntimeSessionApiKeySet },
+    { key: 'openhands.secrets.githubToken', isSet: getIsSetFromSettingsSecrets(settings?.secrets?.githubToken) },
+    { key: 'openhands.hal.ttsApiKey', isSet: getIsSetFromSettingsSecrets(settings?.secrets?.halTtsApiKey) },
+    { key: 'openhands.secrets.customSecret1', isSet: getIsSetFromSettingsSecrets(settings?.secrets?.customSecret1) },
+    { key: 'openhands.secrets.customSecret2', isSet: getIsSetFromSettingsSecrets(settings?.secrets?.customSecret2) },
+    { key: 'openhands.secrets.customSecret3', isSet: getIsSetFromSettingsSecrets(settings?.secrets?.customSecret3) },
   ];
 
   for (const indicator of indicators) {
@@ -272,35 +289,46 @@ export function registerSecretCommands(params: {
     errorPrefix: 'Failed to save Gemini API key',
   });
 
-  const setSessionApiKey = vscode.commands.registerCommand('openhands.setSessionApiKey', async () => {
-    const trimOrEmpty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
-    let errorPrefix = 'Failed to save Remote API Key';
+  const updateConversationSettingsBestEffort = async (patch: Partial<OpenHandsSettings['secrets']>): Promise<void> => {
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
+      const updated = await settingsMgr.get();
+      params.getConversation()?.setSettings({ ...updated, secrets: { ...updated.secrets, ...patch } });
+    } catch {
+      // Best-effort only.
+    }
+  };
 
+  const setCloudApiKey = vscode.commands.registerCommand('openhands.setCloudApiKey', async () => {
     try {
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
       const existing = await settingsMgr.get();
       const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
-      const authKeyLabel = getRemoteAuthKeyLabelForServerUrl(serverUrl);
-      const isCloud = Boolean(serverUrl) && isOpenHandsCloudServerUrl(serverUrl);
+      if (!serverUrl) {
+        void vscode.window.showErrorMessage('OpenHands: Select a remote server before setting a Cloud API Key.');
+        return;
+      }
+      if (!isOpenHandsCloudServerUrl(serverUrl)) {
+        void vscode.window.showErrorMessage('OpenHands: Cloud API Key is only used for OpenHands Cloud/SaaS servers.');
+        return;
+      }
 
-      const title = authKeyLabel;
-      const prompt = isCloud
-        ? 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.'
-        : 'Enter your Session API key for the remote agent-server. It will be stored securely in VS Code SecretStorage.';
-      const successMessage = `${authKeyLabel} saved securely.`;
-      const clearedMessage = `${authKeyLabel} cleared.`;
-      errorPrefix = `Failed to save ${authKeyLabel}`;
+      const keyInfo = getServerCloudApiKeySecretKey(serverUrl);
+      if (!keyInfo.ok) {
+        void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
+        return;
+      }
 
-      const keyInfo = serverUrl ? getServerSessionApiKeySecretKey(serverUrl) : null;
-      const storageKey = keyInfo?.ok ? keyInfo.secretKey : LEGACY_SESSION_API_KEY_SECRET_KEY;
+      const title = 'Cloud API Key';
+      const prompt = 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.';
 
       let currentValue: string | undefined;
       try {
-        currentValue = await params.context.secrets.get(storageKey);
+        currentValue = await params.context.secrets.get(keyInfo.secretKey);
       } catch {
         currentValue = undefined;
       }
-      const isCurrentlySet = trimOrEmpty(currentValue).length > 0;
+      const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
 
       if (isCurrentlySet) {
         const action = await vscode.window.showQuickPick(
@@ -308,31 +336,20 @@ export function registerSecretCommands(params: {
             { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
             { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
           ],
-          {
-            title,
-            placeHolder: 'Choose an action',
-            canPickMany: false,
-          }
+          { title, placeHolder: 'Choose an action', canPickMany: false }
         );
         if (!action) return;
-
         if (action.value === 'clear') {
           const confirmed = await vscode.window.showWarningMessage(
-            `Clear ${title}${keyInfo?.ok ? ` for ${keyInfo.normalizedServerUrl}` : ''}?`,
+            `Clear ${title} for ${keyInfo.normalizedServerUrl}?`,
             { modal: true },
             'Clear'
           );
           if (confirmed !== 'Clear') return;
-
-          await params.context.secrets.delete(storageKey);
-          params.secrets.set(storageKey, undefined);
-          vscode.window.showInformationMessage(clearedMessage);
-
-          const updated = await settingsMgr.get();
-          const next = keyInfo?.ok
-            ? { ...updated, secrets: { ...updated.secrets, sessionApiKey: undefined } }
-            : updated;
-          params.getConversation()?.setSettings(next);
+          await params.context.secrets.delete(keyInfo.secretKey);
+          params.secrets.set(keyInfo.secretKey, undefined);
+          await updateConversationSettingsBestEffort({ cloudApiKey: undefined });
+          void vscode.window.showInformationMessage('Cloud API Key cleared.');
           await syncSecretStatusIndicatorsBestEffort();
           return;
         }
@@ -342,45 +359,93 @@ export function registerSecretCommands(params: {
         title,
         password: true,
         prompt,
-        placeHolder: isCloud ? 'paste token...' : 'sk-...',
+        placeHolder: 'paste token...',
       });
-
       if (value === undefined) return;
       const trimmed = value.trim();
       if (!trimmed) return;
 
-      if (keyInfo?.ok) {
-        await params.context.secrets.store(storageKey, trimmed);
-        params.secrets.set(storageKey, trimmed);
-
-        let legacyRaw: string | undefined;
-        try {
-          legacyRaw = await params.context.secrets.get(LEGACY_SESSION_API_KEY_SECRET_KEY);
-        } catch {
-          legacyRaw = undefined;
-        }
-        const legacyValue = trimOrEmpty(legacyRaw);
-        const canUpdateLegacy = !legacyValue || legacyValue === trimmed;
-        if (canUpdateLegacy) {
-          await params.context.secrets.store(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
-          params.secrets.set(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
-        }
-      } else {
-        await params.context.secrets.store(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
-        params.secrets.set(LEGACY_SESSION_API_KEY_SECRET_KEY, trimmed);
-      }
-
-      vscode.window.showInformationMessage(successMessage);
-
-      const updated = await settingsMgr.get();
-      const next = keyInfo?.ok
-        ? { ...updated, secrets: { ...updated.secrets, sessionApiKey: trimmed } }
-        : updated;
-      params.getConversation()?.setSettings(next);
+      await params.context.secrets.store(keyInfo.secretKey, trimmed);
+      params.secrets.set(keyInfo.secretKey, trimmed);
+      await updateConversationSettingsBestEffort({ cloudApiKey: trimmed });
+      void vscode.window.showInformationMessage('Cloud API Key saved securely.');
       await syncSecretStatusIndicatorsBestEffort();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`${errorPrefix}: ${message}`);
+      void vscode.window.showErrorMessage(`Failed to save Cloud API Key: ${message}`);
+    }
+  });
+
+  const setRuntimeSessionApiKey = vscode.commands.registerCommand('openhands.setRuntimeSessionApiKey', async () => {
+    try {
+      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
+      const existing = await settingsMgr.get();
+      const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
+      if (!serverUrl) {
+        void vscode.window.showErrorMessage('OpenHands: Select a remote server before setting a Runtime Session API Key.');
+        return;
+      }
+
+      const keyInfo = getServerRuntimeSessionApiKeySecretKey(serverUrl);
+      if (!keyInfo.ok) {
+        void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
+        return;
+      }
+
+      const title = 'Runtime Session API Key';
+      const prompt = 'Enter the runtime session API key (`session_api_key`) for the remote agent-server. It will be stored securely in VS Code SecretStorage.';
+
+      let currentValue: string | undefined;
+      try {
+        currentValue = await params.context.secrets.get(keyInfo.secretKey);
+      } catch {
+        currentValue = undefined;
+      }
+      const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
+
+      if (isCurrentlySet) {
+        const action = await vscode.window.showQuickPick(
+          [
+            { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+            { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+          ],
+          { title, placeHolder: 'Choose an action', canPickMany: false }
+        );
+        if (!action) return;
+        if (action.value === 'clear') {
+          const confirmed = await vscode.window.showWarningMessage(
+            `Clear ${title} for ${keyInfo.normalizedServerUrl}?`,
+            { modal: true },
+            'Clear'
+          );
+          if (confirmed !== 'Clear') return;
+          await params.context.secrets.delete(keyInfo.secretKey);
+          params.secrets.set(keyInfo.secretKey, undefined);
+          await updateConversationSettingsBestEffort({ runtimeSessionApiKey: undefined });
+          void vscode.window.showInformationMessage('Runtime Session API Key cleared.');
+          await syncSecretStatusIndicatorsBestEffort();
+          return;
+        }
+      }
+
+      const value = await vscode.window.showInputBox({
+        title,
+        password: true,
+        prompt,
+        placeHolder: 'sk-...',
+      });
+      if (value === undefined) return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+
+      await params.context.secrets.store(keyInfo.secretKey, trimmed);
+      params.secrets.set(keyInfo.secretKey, trimmed);
+      await updateConversationSettingsBestEffort({ runtimeSessionApiKey: trimmed });
+      void vscode.window.showInformationMessage('Runtime Session API Key saved securely.');
+      await syncSecretStatusIndicatorsBestEffort();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      void vscode.window.showErrorMessage(`Failed to save Runtime Session API Key: ${message}`);
     }
   });
 
@@ -440,7 +505,8 @@ export function registerSecretCommands(params: {
     setOpenRouterApiKey,
     setLiteLlmApiKey,
     setGeminiLlmApiKey,
-    setSessionApiKey,
+    setCloudApiKey,
+    setRuntimeSessionApiKey,
     setGithubToken,
     setHalTtsApiKey,
     setCustomSecret1,

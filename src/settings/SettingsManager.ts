@@ -31,7 +31,8 @@ export type OpenHandsSettings = ServerSettings & {
   hal: HalSettings;
   servers: SavedServer[];
   secrets: {
-    sessionApiKey?: string;
+    cloudApiKey?: string;
+    runtimeSessionApiKey?: string;
     llmApiKey?: string;
     awsAccessKeyId?: string;
     awsSecretAccessKey?: string;
@@ -357,7 +358,6 @@ export class SettingsManager {
       cache: this.adapter.get<boolean>('openhands.hal.cache', DEFAULTS.hal.cache) ?? DEFAULTS.hal.cache,
     };
     const secrets = {
-      sessionApiKey: await this.adapter.getSecret('openhands.sessionApiKey'),
       llmApiKey: await this.adapter.getSecret('openhands.llmApiKey'),
       awsAccessKeyId: await this.adapter.getSecret('openhands.awsAccessKeyId'),
       awsSecretAccessKey: await this.adapter.getSecret('openhands.awsSecretAccessKey'),
@@ -430,9 +430,6 @@ export class SettingsManager {
     }
 
     if (partial.secrets) {
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'sessionApiKey')) {
-        ops.push(this.adapter.storeSecret('openhands.sessionApiKey', partial.secrets.sessionApiKey));
-      }
       if (Object.prototype.hasOwnProperty.call(partial.secrets, 'llmApiKey')) {
         ops.push(this.adapter.storeSecret('openhands.llmApiKey', partial.secrets.llmApiKey));
       }
