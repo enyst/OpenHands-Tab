@@ -17,8 +17,12 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
 1. Update your local checkout:
    - `git fetch origin`
    - `git switch develop && git pull`
+   - Recommended: use the repo-supported Node version to avoid toolchain warnings:
+     - `node --version` (should satisfy `package.json#engines.node`)
 2. Create a release branch:
    - `git switch -c release/X.Y.Z`
+   - If you merged a last-minute fix PR into `develop` while the release PR is open, rebase the release branch before packaging:
+     - `git fetch origin && git rebase origin/develop`
 3. Bump versions:
    - Extension (root): `package.json` + `package-lock.json`
    - SDK (workspace): `packages/agent-sdk-ts/package.json` (and lockfile updates as needed)
@@ -37,6 +41,7 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
    - `npm run package`
    - This runs `scripts/run-vsce-package.cjs` (wraps `vsce package` and follows symlinks).
    - Note: packaging uses `README.vscode.md` for the extension’s “Readme” tab in VS Code (separate from the repo `README.md`).
+   - If you see a VSIX error about “same case insensitive path” for README files, ensure the repo `README.md` is excluded from the VSIX via `.vscodeignore`.
 6. (Optional but recommended) Smoke test the VSIX like a user (non-dev, non-debug):
    - Install the built VSIX into your normal VS Code profile:
      - `code --install-extension ./openhands-tab-X.Y.Z.vsix`
@@ -81,6 +86,7 @@ It will **not** match `vX.Y.Z` unless the workflow is changed.
 5. ⏳ Wait for the tag build to complete (~10–20 minutes depending on CI load).
    - `build-vsix.yml` verifies the tag name equals `package.json` version.
    - It builds/tests, packages the `.vsix`, uploads it as an artifact, and creates a **draft** GitHub Release with the `.vsix` attached.
+   - Note: the draft release URL may show an `untagged-…` slug; confirm `tagName` is `X.Y.Z` and that the `.vsix` asset is present before publishing.
 6. Publish the GitHub Release:
    - Open the draft release in GitHub and add release notes (highlights, breaking changes, compatibility).
    - **Include contributors**: Add a "Contributors" section listing everyone who contributed to this release. Use `git shortlog -sne <previous-tag>..HEAD` to generate the list, or use GitHub's "Generate release notes" feature as a starting point.
