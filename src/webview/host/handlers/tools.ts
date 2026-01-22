@@ -1,6 +1,7 @@
 import type * as vscode from 'vscode';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds, resolveLocalTools, type LocalToolId } from '../../../shared/localTools';
+import { isOpenHandsCloudServerUrl } from '../../../shared/cloudServers';
 import { normalizeServerUrl } from '../../../shared/serverUrls';
 import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../createWebviewMessageHandler';
 
@@ -48,7 +49,11 @@ async function fetchRemoteToolNames(params: RemoteToolListDeps): Promise<string[
   const url = `${normalized.url}/api/tools/`;
   const headers: Record<string, string> = {};
   if (params.sessionApiKey) {
-    headers['X-Session-API-Key'] = params.sessionApiKey;
+    if (isOpenHandsCloudServerUrl(normalized.url)) {
+      headers['Authorization'] = `Bearer ${params.sessionApiKey}`;
+    } else {
+      headers['X-Session-API-Key'] = params.sessionApiKey;
+    }
   }
 
   const fetchFn = globalThis.fetch;
@@ -142,4 +147,3 @@ export async function handleSetEnabledTools(args: {
 
   await args.postToolsList();
 }
-

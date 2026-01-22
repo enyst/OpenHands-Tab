@@ -14,6 +14,7 @@ import type { BaseWorkspace } from '../../workspace/BaseWorkspace';
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from '../../workspace/types';
 import { resolveToolsWithDefaultTools } from './includeDefaultTools';
 import { normalizeRemoteUrl } from '../../shared/remoteUrl';
+import { getRemoteAuthKeyLabelForServerUrl, isOpenHandsCloudServerUrl } from '../../shared/cloudServers';
 
 
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
@@ -392,7 +393,7 @@ export class RemoteConversation extends EventEmitter {
         const status = res.status;
         let userMessage = `Failed to start conversation (HTTP ${status})`;
         if (status === 401 || status === 403) {
-          userMessage += '. Authentication failed - check your Session API Key in settings.';
+          userMessage += `. Authentication failed - check your ${getRemoteAuthKeyLabelForServerUrl(this.serverUrl)} in settings.`;
         } else if (status === 404) {
           userMessage += `. Server not found at ${this.serverUrl}. Check the server URL in settings.`;
         } else if (status >= 500) {
@@ -732,8 +733,12 @@ export class RemoteConversation extends EventEmitter {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const sessionKey = this.settings?.secrets.sessionApiKey || '';
     if (sessionKey) {
-      headers['X-Session-API-Key'] = sessionKey;
-      headers['Authorization'] = `Bearer ${sessionKey}`;
+      if (isOpenHandsCloudServerUrl(this.serverUrl)) {
+        headers['Authorization'] = `Bearer ${sessionKey}`;
+      } else {
+        headers['X-Session-API-Key'] = sessionKey;
+        headers['Authorization'] = `Bearer ${sessionKey}`;
+      }
     }
     return headers;
   }
@@ -783,7 +788,7 @@ export class RemoteConversation extends EventEmitter {
     const base = this.serverUrl.replace(/\/$/, '');
     const sessionKey = this.settings?.secrets.sessionApiKey || '';
     const params = new URLSearchParams();
-    if (sessionKey) params.set('session_api_key', sessionKey);
+    if (sessionKey && !isOpenHandsCloudServerUrl(this.serverUrl)) params.set('session_api_key', sessionKey);
     params.set('resend_all', 'true');
     const qs = params.toString();
     const wsUrl = `${base.replace(/^http/, 'ws')}/sockets/events/${this.conversationId}?${qs}`;
