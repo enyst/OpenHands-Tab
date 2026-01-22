@@ -656,7 +656,10 @@ export function activate(context: vscode.ExtensionContext) {
         effectiveServerUrl = bootstrap.nestedServerUrl;
         // Inject the runtime key into the in-memory settings only (do not persist to SecretStorage).
         settings = withRemoteSecrets({ cloudApiKey, runtimeSessionApiKey: bootstrap.runtimeSessionApiKey });
-        savedId = bootstrapConversationId;
+        // Note: Do NOT set savedId = bootstrapConversationId here.
+        // The bootstrapConversationId is passed to Conversation() via conversationOptions.conversationId,
+        // which already initializes the conversation. Setting savedId would trigger a redundant
+        // restoreConversation() call below.
       }
 
       const conversationOptions = {
