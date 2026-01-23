@@ -15,7 +15,7 @@ To reproduce or analyze other conversations, use `scripts/conversation_token_bre
 **Breakdown (approximate, `o200k_base`):**
 
 - **Base system prompt** (`SYSTEM_PROMPT`): **2,268**
-- **`<REPO_CONTEXT>` block** (repo + user skills that are always‑on): **12,784**
+- **`<REPO_CONTEXT>` block** (repo + user skills that are always‑on): **~9k–13k** (varies by repo + user skills)
 - **`<SKILLS>` list** (available skills summary): **323**
 - **`<CUSTOM_SECRETS>` block**: **368**
 - **“Available tools:” list** appended to the system prompt: **1,450**
@@ -29,17 +29,16 @@ The summed components are close to the provider‑reported `inputTokens`; the re
 
 These are the always‑on skills that were included in the system prompt for the example above:
 
-- **`agents`** (repo root `AGENTS.md`): **2,620**
-- **`repo`** (`.openhands/skills/repo.md` → `AGENTS.md` symlink): **3,737**
-- **`runtime-no-set`** (`.openhands/skills/runtime-no-set.md`): **43**
-- **`conversation-persistence`** (`~/.openhands/skills/conversation-persistence.md`): **620**
-- **`local-bd`** (`~/.openhands/skills/local-bd.md`): **342**
-- **`local`** (`~/.openhands/skills/local.md`): **257**
-- **`vscode_local_setup`** (`~/.openhands/skills/vscode_local_setup.md`): **1,726**
-- **`vscode_remote_setup`** (`~/.openhands/skills/vscode_remote_setup.md`): **2,691**
-- **`worktree`** (`~/.openhands/skills/worktree.md`): **717**
+- **`agents`** (repo root `AGENTS.md`): **3,726**
+- **`runtime-no-set`** (`.openhands/skills/runtime-no-set.md`): **61**
+- **`conversation-persistence`** (`~/.openhands/skills/conversation-persistence.md`): *(varies by user setup)*
+- **`local-bd`** (`~/.openhands/skills/local-bd.md`): *(varies by user setup)*
+- **`local`** (`~/.openhands/skills/local.md`): *(varies by user setup)*
+- **`vscode_local_setup`** (`~/.openhands/skills/vscode_local_setup.md`): *(varies by user setup)*
+- **`vscode_remote_setup`** (`~/.openhands/skills/vscode_remote_setup.md`): *(varies by user setup)*
+- **`worktree`** (`~/.openhands/skills/worktree.md`): *(varies by user setup)*
 
-**Note:** `AGENTS.md` appears twice here (`agents` and `repo`) because this repo includes both the root `AGENTS.md` **and** `.openhands/skills/repo.md` (a symlink to `AGENTS.md`). That duplication alone adds ~3.7k tokens to the system prompt.
+**Note:** Previously, this repo also had `.openhands/skills/repo.md` as a symlink to `AGENTS.md`, which duplicated the same content in `<REPO_CONTEXT>`. That symlink has been removed, so `AGENTS.md` should only appear once now.
 
 ## Why the number is high for a simple greeting
 
