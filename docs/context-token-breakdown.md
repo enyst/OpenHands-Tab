@@ -4,6 +4,8 @@ When the UI shows `Context: N tokens` in the toolbar or history list, the value 
 
 Below is a concrete breakdown from a fresh local conversation (single user message “are you there?”) using **gpt‑5** on **2026‑01‑23**. Token counts were computed with `tiktoken.encoding_for_model('gpt-5')` (maps to `o200k_base`). `gpt-5-nano` resolves to the same tokenizer, so counts are identical.
 
+To reproduce or analyze other conversations, use `scripts/conversation_token_breakdown.py`.
+
 ## Example: `Context: 19,756 tokens`
 
 **Provider input tokens** (from `state.json`):
