@@ -133,7 +133,7 @@ def load_base_system_prompt(repo_root: Path) -> str:
     if not prompt_path.exists():
         return ""
     text = prompt_path.read_text(encoding="utf-8")
-    match = re.search(r"SYSTEM_PROMPT\\s*=\\s*`([\\s\\S]*?)`;", text)
+    match = re.search(r"SYSTEM_PROMPT\s*=\s*`([\s\S]*?)`;", text)
     if not match:
         return ""
     return match.group(1)
@@ -150,10 +150,10 @@ def extract_repo_skill_blocks(repo_block: str) -> List[Tuple[str, str]]:
     blocks: List[Tuple[str, str]] = []
     if not repo_block:
         return blocks
-    pattern = re.compile(r"\\[BEGIN context from \\[(.*?)\\]\\]\\n([\\s\\S]*?)\\n\\[END Context\\]")
+    pattern = re.compile(r"\[BEGIN context from \[(.*?)\]\]\n([\s\S]*?)\n\[END Context\]")
     for match in pattern.finditer(repo_block):
         name = match.group(1)
-        block = match.group(0)
+        block = match.group(2)
         blocks.append((name, block))
     return blocks
 

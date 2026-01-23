@@ -38,7 +38,6 @@ These are the always‑on skills that were included in the system prompt for the
 - **`vscode_remote_setup`** (`~/.openhands/skills/vscode_remote_setup.md`): *(varies by user setup)*
 - **`worktree`** (`~/.openhands/skills/worktree.md`): *(varies by user setup)*
 
-**Note:** Previously, this repo also had `.openhands/skills/repo.md` as a symlink to `AGENTS.md`, which duplicated the same content in `<REPO_CONTEXT>`. That symlink has been removed, so `AGENTS.md` should only appear once now.
 
 ## Why the number is high for a simple greeting
 
