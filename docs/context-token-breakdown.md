@@ -1,0 +1,57 @@
+# Context Token Breakdown (Local Conversations)
+
+When the UI shows `Context: N tokens` in the toolbar or history list, the value comes from the last LLM response usage (`state.values.llm_usage.inputTokens` when available). That is the provider‑reported **prompt tokens**, so it includes everything sent in the request: system prompt, tool definitions, user message, and any extended context appended to the user message.
+
+Below is a concrete breakdown from a fresh local conversation (single user message “are you there?”) using **gpt‑5** on **2026‑01‑23**. Token counts were computed with `tiktoken.encoding_for_model('gpt-5')` (maps to `o200k_base`). `gpt-5-nano` resolves to the same tokenizer, so counts are identical.
+
+## Example: `Context: 19,756 tokens`
+
+**Provider input tokens** (from `state.json`):
+
+- `inputTokens`: **19,756**
+
+**Breakdown (approximate, `o200k_base`):**
+
+- **Base system prompt** (`SYSTEM_PROMPT`): **2,268**
+- **`<REPO_CONTEXT>` block** (repo + user skills that are always‑on): **12,784**
+- **`<SKILLS>` list** (available skills summary): **323**
+- **`<CUSTOM_SECRETS>` block**: **368**
+- **“Available tools:” list** appended to the system prompt: **1,450**
+- **User message text** (“are you there?”): **4**
+- **User environment suffix** (extended content block): **131**
+- **Tool schema JSON** (function definitions sent to OpenAI; approximate): **2,696**
+
+The summed components are close to the provider‑reported `inputTokens`; the remaining difference is expected chat‑format/tool‑schema overhead.
+
+### What’s inside `<REPO_CONTEXT>` (per‑skill tokens)
+
+These are the always‑on skills that were included in the system prompt for the example above:
+
+- **`agents`** (repo root `AGENTS.md`): **2,620**
+- **`repo`** (`.openhands/skills/repo.md` → `AGENTS.md` symlink): **3,737**
+- **`runtime-no-set`** (`.openhands/skills/runtime-no-set.md`): **43**
+- **`conversation-persistence`** (`~/.openhands/skills/conversation-persistence.md`): **620**
+- **`local-bd`** (`~/.openhands/skills/local-bd.md`): **342**
+- **`local`** (`~/.openhands/skills/local.md`): **257**
+- **`vscode_local_setup`** (`~/.openhands/skills/vscode_local_setup.md`): **1,726**
+- **`vscode_remote_setup`** (`~/.openhands/skills/vscode_remote_setup.md`): **2,691**
+- **`worktree`** (`~/.openhands/skills/worktree.md`): **717**
+
+**Note:** `AGENTS.md` appears twice here (`agents` and `repo`) because this repo includes both the root `AGENTS.md` **and** `.openhands/skills/repo.md` (a symlink to `AGENTS.md`). That duplication alone adds ~3.7k tokens to the system prompt.
+
+## Why the number is high for a simple greeting
+
+Even with a minimal user message, local mode sends a **large system prompt** that includes:
+
+- the full OpenHands base system prompt,
+- repo context (AGENTS/CLAUDE/etc files and `.openhands/skills` repo skills),
+- user skills from `~/.openhands/skills` that have no trigger (always‑on),
+- an “Available tools” summary,
+- the **full tool schema JSON** (counted as input tokens by OpenAI),
+- and the environment info suffix appended to the latest user message.
+
+This is expected behavior given the current prompt construction. If you want to reduce context tokens, consider:
+
+- removing redundant always‑on skills (e.g., avoid duplicating `AGENTS.md` via `.openhands/skills/repo.md`),
+- trimming large skill files,
+- or disabling user skills when they aren’t needed.
