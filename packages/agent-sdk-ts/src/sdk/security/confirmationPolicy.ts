@@ -1,5 +1,6 @@
 import type { ConfirmationSettings } from '../types/settings';
 import type { SecurityRisk } from '../types';
+import { normalizeSecurityRisk } from './riskUtils';
 
 const SECURITY_RISK_ORDER: Array<Exclude<SecurityRisk, 'UNKNOWN'>> = ['LOW', 'MEDIUM', 'HIGH'];
 
@@ -39,8 +40,9 @@ export class ConfirmRisky implements ConfirmationPolicy {
   }
 
   shouldConfirm(risk: SecurityRisk = 'UNKNOWN'): boolean {
-    if (risk === 'UNKNOWN') return this.confirmUnknown;
-    return SECURITY_RISK_ORDER.indexOf(risk) >= SECURITY_RISK_ORDER.indexOf(this.threshold);
+    const normalizedRisk = normalizeSecurityRisk(risk);
+    if (normalizedRisk === 'UNKNOWN') return this.confirmUnknown;
+    return SECURITY_RISK_ORDER.indexOf(normalizedRisk) >= SECURITY_RISK_ORDER.indexOf(this.threshold);
   }
 }
 
@@ -54,4 +56,3 @@ export const createConfirmationPolicyFromSettings = (settings?: ConfirmationSett
   }
   return new NeverConfirm();
 };
-

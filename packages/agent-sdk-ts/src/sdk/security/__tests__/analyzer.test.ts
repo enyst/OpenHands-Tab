@@ -43,6 +43,12 @@ describe('LLMSecurityAnalyzer', () => {
       const action = createActionEvent('MEDIUM');
       expect(analyzer.securityRisk(action)).toBe('MEDIUM');
     });
+
+    it('treats invalid risk levels as HIGH', () => {
+      const analyzer = new LLMSecurityAnalyzer();
+      const action = createActionEvent('CRITICAL' as SecurityRisk);
+      expect(analyzer.securityRisk(action)).toBe('HIGH');
+    });
   });
 
   describe('analyzeEvent', () => {
