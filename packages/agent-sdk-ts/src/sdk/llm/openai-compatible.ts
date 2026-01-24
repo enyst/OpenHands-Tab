@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 import { supportsThinkingBlocks } from './providerQuirks';
+import { buildOpenAiHeaders } from './openaiHeaders';
 
 const decoder = new TextDecoder();
 
@@ -14,11 +15,6 @@ class NonRetryableHttpStatusError extends Error {
     this.status = status;
   }
 }
-
-const mergeHeaders = (base?: Record<string, string>, overrides?: Record<string, string>): Record<string, string> => ({
-  ...(base ?? {}),
-  ...(overrides ?? {}),
-});
 
 type OpenAIThinkingContentBlock = {
   type: 'thinking';
@@ -438,16 +434,10 @@ export class OpenAICompatibleClient implements LLMClient {
   }
 
   private requestHeaders(): Record<string, string> {
-    const baseHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${this.apiKey}`,
-    };
-
-    if (this.config.provider === 'openrouter') {
-      baseHeaders['HTTP-Referer'] = 'https://openhands.io';
-      baseHeaders['X-Title'] = 'OpenHands';
-    }
-
-    return mergeHeaders(baseHeaders, this.config.headers);
+    return buildOpenAiHeaders({
+      apiKey: this.apiKey,
+      provider: this.config.provider,
+      headers: this.config.headers,
+    });
   }
 }
