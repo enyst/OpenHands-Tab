@@ -93,6 +93,42 @@ const SECRET_STORAGE_KEYS: Array<{ key: keyof OpenHandsSettings['secrets']; stor
   { key: 'customSecret3', storageKey: 'openhands.customSecret3' },
 ];
 
+const OPENHANDS_SECRET_KEYS: Array<keyof OpenHandsSettings['secrets']> = [
+  'cloudApiKey',
+  'runtimeSessionApiKey',
+  'llmApiKey',
+  'awsAccessKeyId',
+  'awsSecretAccessKey',
+  'githubToken',
+  'halTtsApiKey',
+  'customSecret1',
+  'customSecret2',
+  'customSecret3',
+];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+export const isOpenHandsSettingsSecrets = (value: unknown): value is OpenHandsSettings['secrets'] => {
+  if (!isRecord(value)) return false;
+  for (const key of OPENHANDS_SECRET_KEYS) {
+    const entry = value[key];
+    if (entry !== undefined && typeof entry !== 'string') return false;
+  }
+  return true;
+};
+
+export const isOpenHandsSettings = (value: unknown): value is OpenHandsSettings => {
+  if (!isRecord(value)) return false;
+  if (!isRecord(value.llm)) return false;
+  if (!isRecord(value.agent)) return false;
+  if (!isRecord(value.conversation)) return false;
+  if (!isRecord(value.confirmation)) return false;
+  if (!isRecord(value.hal)) return false;
+  if (!Array.isArray(value.servers)) return false;
+  return isOpenHandsSettingsSecrets(value.secrets);
+};
+
 const isSafeProfileId = (value: string): boolean => {
   if (!value.trim()) return false;
   if (value !== value.trim()) return false;
