@@ -69,6 +69,16 @@ describe('textSanitizers', () => {
     expect(text.length).toBeLessThan(250);
   });
 
+  it('sanitizeMessageForDebug redacts non-tool text content', () => {
+    const message: Message = {
+      role: 'user',
+      content: [{ type: 'text', text: 'Authorization: Bearer SECRET', cache_prompt: false }],
+    };
+    const sanitized = sanitizeMessageForDebug(message);
+    const text = sanitized.content[0].type === 'text' ? sanitized.content[0].text : '';
+    expect(text).toBe('Authorization: Bearer ***');
+  });
+
   it('sanitizeChatRequestForDebug strips system prompt, lists tool names, and includes parameters when provided', () => {
     const request: ChatCompletionRequest = {
       systemPrompt: 'REAL_SYSTEM',
