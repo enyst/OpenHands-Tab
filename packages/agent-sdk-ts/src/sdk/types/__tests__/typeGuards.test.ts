@@ -338,6 +338,30 @@ describe('Bash event guards', () => {
       expect(isBashEvent({ type: 'BashCommand' })).toBe(false);
       expect(isBashEvent({ type: 'BashCommand', command_id: 'id' })).toBe(false);
     });
+
+    it('rejects invalid output payload field types', () => {
+      expect(isBashEvent({
+        id: '2',
+        type: 'BashOutput',
+        timestamp: '2024-01-01T00:00:00Z',
+        command_id: 'cmd1',
+        order: 1,
+        exit_code: '0',
+        stdout: 'output',
+        stderr: null,
+      })).toBe(false);
+
+      expect(isBashEvent({
+        id: '2',
+        type: 'BashOutput',
+        timestamp: '2024-01-01T00:00:00Z',
+        command_id: 'cmd1',
+        order: 1,
+        exit_code: 0,
+        stdout: 123,
+        stderr: null,
+      })).toBe(false);
+    });
   });
 
   describe('Bash event kind guards', () => {
