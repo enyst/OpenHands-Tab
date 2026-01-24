@@ -37,7 +37,10 @@ export const createStoredSecretHelpers = (args: {
     try {
       let resolved = args.secretRegistry ? await args.secretRegistry.get(trimmedKey) : undefined;
       if (!resolved) {
-        resolved = process.env[trimmedKey] ?? (await args.context.secrets.get(trimmedKey));
+        resolved = await args.context.secrets.get(trimmedKey);
+        if (!resolved) {
+          resolved = process.env[trimmedKey];
+        }
       }
       const trimmedValue = typeof resolved === 'string' ? resolved.trim() : '';
       return trimmedValue || undefined;
