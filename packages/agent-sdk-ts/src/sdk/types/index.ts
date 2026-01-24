@@ -284,7 +284,11 @@ export const isBashEvent = (candidate: unknown): candidate is BashEvent => {
     case 'BashCommand':
       return typeof e.command === 'string';
     case 'BashOutput':
-      return 'exit_code' in e && 'stdout' in e && 'stderr' in e;
+      return (
+        ('exit_code' in e && (e.exit_code === null || typeof e.exit_code === 'number'))
+        && ('stdout' in e && (e.stdout === null || typeof e.stdout === 'string'))
+        && ('stderr' in e && (e.stderr === null || typeof e.stderr === 'string'))
+      );
     case 'BashExit':
       return typeof e.exit_code === 'number';
     default:
