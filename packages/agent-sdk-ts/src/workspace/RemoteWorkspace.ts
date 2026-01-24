@@ -372,34 +372,22 @@ export class RemoteWorkspace implements BaseWorkspace {
   }
 
   async pause(): Promise<void> {
-    if (!this.runtimeApiUrl || !this.runtimeId) {
-      throw new Error('RemoteWorkspace.pause requires runtimeApiUrl + runtimeId');
-    }
-
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.runtimeApiKey) headers['X-API-Key'] = this.runtimeApiKey;
-
-    const res = await this.fetchWithTimeout(`${this.runtimeApiUrl}/pause`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ runtime_id: this.runtimeId }),
-    }, 30_000);
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      throw new Error(`RemoteWorkspace.pause failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
-    }
+    await this.callRuntimeApi('pause');
   }
 
   async resume(): Promise<void> {
+    await this.callRuntimeApi('resume');
+  }
+
+  private async callRuntimeApi(action: 'pause' | 'resume'): Promise<void> {
     if (!this.runtimeApiUrl || !this.runtimeId) {
-      throw new Error('RemoteWorkspace.resume requires runtimeApiUrl + runtimeId');
+      throw new Error(`RemoteWorkspace.${action} requires runtimeApiUrl + runtimeId`);
     }
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.runtimeApiKey) headers['X-API-Key'] = this.runtimeApiKey;
 
-    const res = await this.fetchWithTimeout(`${this.runtimeApiUrl}/resume`, {
+    const res = await this.fetchWithTimeout(`${this.runtimeApiUrl}/${action}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ runtime_id: this.runtimeId }),
@@ -407,7 +395,7 @@ export class RemoteWorkspace implements BaseWorkspace {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
-      throw new Error(`RemoteWorkspace.resume failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
+      throw new Error(`RemoteWorkspace.${action} failed (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
     }
   }
 
