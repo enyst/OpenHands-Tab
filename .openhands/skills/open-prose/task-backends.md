@@ -79,11 +79,14 @@ Example:
 # Start a new tmux session that runs a headless OpenHands task
 session_name="prose_sess_001"
 log="/tmp/${session_name}.jsonl"
+TASK='Fix the failing unit tests in packages/agent-sdk-ts'
 
 # -d: detached
-# bash -lc ensures login shell behavior similar to interactive
+# bash -lc: login shell semantics
+# Note: we printf %q to safely embed the task string inside the tmux command.
 
-tmux new-session -d -s "$session_name" "bash -lc 'openhands --headless --json -t \"$TASK\" > $log 2>&1'"
+tmux new-session -d -s "$session_name" \
+  "bash -lc 'openhands --headless --json -t '"$(printf %q "$TASK")"' > '"$(printf %q "$log")"' 2>&1'"
 
 # Wait until tmux session ends
 while tmux has-session -t "$session_name" 2>/dev/null; do sleep 1; done
