@@ -35,9 +35,10 @@ export const createStoredSecretHelpers = (args: {
     const trimmedKey = key.trim();
     if (!trimmedKey) return undefined;
     try {
-      const resolved = args.secretRegistry
-        ? await args.secretRegistry.get(trimmedKey)
-        : (process.env[trimmedKey] ?? (await args.context.secrets.get(trimmedKey)));
+      let resolved = args.secretRegistry ? await args.secretRegistry.get(trimmedKey) : undefined;
+      if (!resolved) {
+        resolved = process.env[trimmedKey] ?? (await args.context.secrets.get(trimmedKey));
+      }
       const trimmedValue = typeof resolved === 'string' ? resolved.trim() : '';
       return trimmedValue || undefined;
     } catch {
@@ -51,4 +52,3 @@ export const createStoredSecretHelpers = (args: {
 
   return { getStoredSecret, hasStoredSecret };
 };
-
