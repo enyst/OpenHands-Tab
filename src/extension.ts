@@ -110,16 +110,28 @@ const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
 
 const printedExitFor = new Map<string, true>();
 
+const pushWithLimit = <T>(buffer: T[], value: T, maxSize: number): void => {
+  buffer.push(value);
+  if (buffer.length > maxSize) {
+    buffer.splice(0, buffer.length - maxSize);
+  }
+};
+
+const setMapWithLimit = <K, V>(map: Map<K, V>, key: K, value: V, maxSize: number): void => {
+  if (map.has(key)) {
+    map.delete(key);
+  }
+  map.set(key, value);
+  while (map.size > maxSize) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) return;
+    map.delete(oldest);
+  }
+};
+
 function markPrintedExitFor(commandId: string): void {
   // LRU-ish: bump recency on re-add
-  if (printedExitFor.has(commandId)) {
-    printedExitFor.delete(commandId);
-  }
-  printedExitFor.set(commandId, true);
-
-  if (printedExitFor.size <= MAX_PRINTED_EXIT_FOR) return;
-  const oldest = printedExitFor.keys().next().value;
-  if (oldest) printedExitFor.delete(oldest);
+  setMapWithLimit(printedExitFor, commandId, true, MAX_PRINTED_EXIT_FOR);
 }
 
 function resetConversationEventBacklog(conversationId: string | undefined) {
@@ -409,10 +421,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const handleTerminalEvent = (event: BashEvent) => {
-    receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
-    if (receivedTerminalEvents.length > MAX_TERMINAL_EVENTS) {
-      receivedTerminalEvents.shift();
-    }
+    pushWithLimit(receivedTerminalEvents, { type: event.type, timestamp: Date.now() }, MAX_TERMINAL_EVENTS);
 
     if (chatView && chatWebviewReady && chatView.visible) {
       void chatView.webview.postMessage({ type: 'terminalEvent', event } satisfies HostToWebviewMessage);
