@@ -12,36 +12,12 @@ import {
   withAlpha,
 } from './shared';
 import { Tooltip } from '../Tooltip';
+import { redactStringHeuristics } from '../../../shared/redaction';
 
 /**
  * Renders environment result - shows observation with summary and expandable raw data.
  */
 export function ObservationEventBlock({ event, index }: { event: ObservationEvent; index?: number }) {
-  const redactObservationText = (text: string): string => {
-    const REDACTED = '[REDACTED]';
-    let t = text;
-
-    // Authorization / Bearer patterns
-    t = t.replace(/(Authorization\s*:\s*Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
-    t = t.replace(/(Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
-
-    // Common token prefixes
-    t = t.replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gi, REDACTED);
-    t = t.replace(/\bgh[pousr]_[A-Za-z0-9]{12,}\b/gi, REDACTED);
-    t = t.replace(/\bgithub_pat_[A-Za-z0-9_]{12,}\b/gi, REDACTED);
-
-    // AWS access key ids (AKIA..., ASIA...)
-    t = t.replace(/\b(AKIA|ASIA)[0-9A-Z]{16}\b/g, REDACTED);
-
-    // Common key=value or key: value patterns
-    const keyPattern =
-      /(api[_-]?key|access[_-]?token|refresh[_-]?token|session[_-]?api[_-]?key|password|secret|client[_-]?secret|aws[_-]?access[_-]?key[_-]?id|aws[_-]?secret[_-]?access[_-]?key)/gi;
-    t = t.replace(new RegExp(`(${keyPattern.source})\\s*[:=]\\s*"?([^"\\s&]+)"?`, 'gi'), (_m, key) => `${key}: ${REDACTED}`);
-    t = t.replace(new RegExp(`([?&])(${keyPattern.source})=([^&\\s]+)`, 'gi'), (_m, sep, key) => `${sep}${key}=${REDACTED}`);
-
-    return t;
-  };
-
   const [isExpanded, setIsExpanded] = useState(false);
   const isFinishTool = event.tool_name === 'finish';
   const maybeMessage = isFinishTool ? event.observation['message'] : undefined;
@@ -101,7 +77,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   })();
   const hasSummary = observationSummary !== null;
   const shouldShowRaw = isFileEditObservation ? false : !hasSummary || isExpanded;
-  const observationString = shouldShowRaw ? redactObservationText(JSON.stringify(event.observation, null, 2)) : '';
+  const observationString = shouldShowRaw ? redactStringHeuristics(JSON.stringify(event.observation, null, 2)) : '';
   const isTruncated = shouldShowRaw && observationString.length > 2000;
   const showHeaderToggle = hasSummary && event.tool_name !== 'terminal' && !isFileEditObservation;
   const showFooterToggle = !hasSummary && isTruncated;
