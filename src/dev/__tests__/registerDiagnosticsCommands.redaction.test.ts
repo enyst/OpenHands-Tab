@@ -32,4 +32,13 @@ describe('sanitizeDiagnosticsText', () => {
     expect(preview).not.toContain(secret);
     expect(preview).not.toContain('…(truncated)');
   });
+
+  it('redacts common token patterns even without registered secrets', () => {
+    const text = 'Authorization: Bearer sk-abcdef1234567890';
+
+    const preview = sanitizeDiagnosticsText(text, { maxChars: 4000 });
+
+    expect(preview).toContain('[REDACTED]');
+    expect(preview).not.toContain('sk-abcdef1234567890');
+  });
 });
