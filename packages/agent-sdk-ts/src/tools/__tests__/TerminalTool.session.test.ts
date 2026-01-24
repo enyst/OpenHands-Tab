@@ -38,6 +38,35 @@ describe('TerminalTool session behavior', () => {
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
   });
 
+  it('avoids injecting secrets when the command does not reference the name', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+    const secrets = new SecretRegistry();
+    const secretName = 'OH_TAB_TEST_SECRET';
+
+    const previous = process.env[secretName];
+    delete process.env[secretName];
+
+    secrets.register(secretName, 'super-secret');
+
+    const result = await tool.execute(
+      tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 0.2 }),
+      { workspace, secrets },
+    );
+
+    expect(result.exit_code).toBe(0);
+    expect(result.stdout ?? '').not.toContain(secretName);
+
+    if (previous === undefined) {
+      delete process.env[secretName];
+    } else {
+      process.env[secretName] = previous;
+    }
+
+    await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
+  });
+
   it('persists working directory across commands', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);

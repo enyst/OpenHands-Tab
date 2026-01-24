@@ -33,6 +33,14 @@ const TIMEOUT_MESSAGE_TEMPLATE =
 
 type SupportedSignal = 'SIGTERM' | 'SIGINT' | 'SIGTSTP';
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const commandReferencesSecret = (command: string, name: string): boolean => {
+  if (!command || !name) return false;
+  const pattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'i');
+  return pattern.test(command);
+};
+
 type RunningTerminalProcess = {
   id: string;
   command: string;
@@ -85,13 +93,12 @@ class TerminalSession {
     const names = secrets.getRegisteredNames();
     if (!names.length) return;
 
-    const lower = trimmed.toLowerCase();
     const updates: Record<string, string> = {};
 
     for (const name of names) {
       const candidate = typeof name === 'string' ? name.trim() : '';
       if (!candidate) continue;
-      if (!lower.includes(candidate.toLowerCase())) continue;
+      if (!commandReferencesSecret(command, candidate)) continue;
       const value = await secrets.get(candidate);
       if (!value) continue;
       updates[candidate] = value;
