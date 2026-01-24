@@ -40,6 +40,8 @@ function redactStringHeuristics(text: string): string {
   // Authorization / Bearer patterns
   t = t.replace(/(Authorization\s*:\s*Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
   t = t.replace(/(Bearer\s+)[^\s]+/gi, `$1${REDACTED}`);
+  // URL-embedded credentials (userinfo)
+  t = t.replace(/((?:https?|wss?):\/\/)([^/\s@]+)@/gi, `$1${REDACTED}@`);
 
   // Common token prefixes
   t = t.replace(/\bsk-[A-Za-z0-9_-]{12,}\b/gi, REDACTED);
@@ -82,4 +84,3 @@ export function safeStringify(value: unknown): string {
   }
 }
 /* eslint-enable @typescript-eslint/no-unsafe-return */
-
