@@ -82,6 +82,17 @@ const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
   ['cache', 'openhands.hal.cache'],
 ];
 
+const SECRET_STORAGE_KEYS: Array<{ key: keyof OpenHandsSettings['secrets']; storageKey: string }> = [
+  { key: 'llmApiKey', storageKey: 'openhands.llmApiKey' },
+  { key: 'awsAccessKeyId', storageKey: 'openhands.awsAccessKeyId' },
+  { key: 'awsSecretAccessKey', storageKey: 'openhands.awsSecretAccessKey' },
+  { key: 'githubToken', storageKey: 'openhands.githubToken' },
+  { key: 'halTtsApiKey', storageKey: 'openhands.hal.ttsApiKey' },
+  { key: 'customSecret1', storageKey: 'openhands.customSecret1' },
+  { key: 'customSecret2', storageKey: 'openhands.customSecret2' },
+  { key: 'customSecret3', storageKey: 'openhands.customSecret3' },
+];
+
 const isSafeProfileId = (value: string): boolean => {
   if (!value.trim()) return false;
   if (value !== value.trim()) return false;
@@ -363,17 +374,10 @@ export class SettingsManager {
       ),
       cache: this.adapter.get<boolean>('openhands.hal.cache', DEFAULTS.hal.cache) ?? DEFAULTS.hal.cache,
     };
-    const secrets = {
-      llmApiKey: await this.adapter.getSecret('openhands.llmApiKey'),
-      awsAccessKeyId: await this.adapter.getSecret('openhands.awsAccessKeyId'),
-      awsSecretAccessKey: await this.adapter.getSecret('openhands.awsSecretAccessKey'),
-      githubToken: await this.adapter.getSecret('openhands.githubToken'),
-      halTtsApiKey: await this.adapter.getSecret('openhands.hal.ttsApiKey'),
-
-      customSecret1: await this.adapter.getSecret('openhands.customSecret1'),
-      customSecret2: await this.adapter.getSecret('openhands.customSecret2'),
-      customSecret3: await this.adapter.getSecret('openhands.customSecret3'),
-    };
+    const secrets = {} as OpenHandsSettings['secrets'];
+    for (const entry of SECRET_STORAGE_KEYS) {
+      secrets[entry.key] = await this.adapter.getSecret(entry.storageKey);
+    }
     return { serverUrl, servers, llm, oracle, agent, conversation, confirmation, hal, secrets };
   }
 
@@ -436,30 +440,10 @@ export class SettingsManager {
     }
 
     if (partial.secrets) {
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'llmApiKey')) {
-        ops.push(this.adapter.storeSecret('openhands.llmApiKey', partial.secrets.llmApiKey));
-      }
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'awsAccessKeyId')) {
-        ops.push(this.adapter.storeSecret('openhands.awsAccessKeyId', partial.secrets.awsAccessKeyId));
-      }
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'awsSecretAccessKey')) {
-        ops.push(this.adapter.storeSecret('openhands.awsSecretAccessKey', partial.secrets.awsSecretAccessKey));
-      }
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'githubToken')) {
-        ops.push(this.adapter.storeSecret('openhands.githubToken', partial.secrets.githubToken));
-      }
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'halTtsApiKey')) {
-        ops.push(this.adapter.storeSecret('openhands.hal.ttsApiKey', partial.secrets.halTtsApiKey));
-      }
-
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret1')) {
-        ops.push(this.adapter.storeSecret('openhands.customSecret1', partial.secrets.customSecret1));
-      }
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret2')) {
-        ops.push(this.adapter.storeSecret('openhands.customSecret2', partial.secrets.customSecret2));
-      }
-      if (Object.prototype.hasOwnProperty.call(partial.secrets, 'customSecret3')) {
-        ops.push(this.adapter.storeSecret('openhands.customSecret3', partial.secrets.customSecret3));
+      for (const entry of SECRET_STORAGE_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(partial.secrets, entry.key)) {
+          ops.push(this.adapter.storeSecret(entry.storageKey, partial.secrets[entry.key]));
+        }
       }
     }
 
