@@ -243,6 +243,44 @@ describe('bootstrapCloudRemoteConversation', () => {
     })).rejects.toThrow(/could not parse conversation_url/i);
   });
 
+  it('redacts query params from conversation_url in parse errors', async () => {
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          { status: 'READY', app_conversation_id: 'ac-123' },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([
+          {
+            conversation_url: 'https://runtime.example.com/invalid/path?session_api_key=runtime-key-xyz&token=abc',
+            session_api_key: 'runtime-key-xyz',
+          },
+        ]),
+        text: () => Promise.resolve(''),
+      } as unknown as Response);
+
+    let error: Error | undefined;
+    try {
+      await bootstrapCloudRemoteConversation({
+        saasServerUrl: 'https://app.all-hands.dev',
+        cloudApiKey: 'cloud-key-abc',
+        fetchFn: fetchSpy as unknown as typeof fetch,
+        timeoutMs: 10_000,
+      });
+    } catch (err) {
+      error = err as Error;
+    }
+
+    expect(error?.message).toMatch(/could not parse conversation_url/i);
+    expect(error?.message).not.toMatch(/session_api_key|runtime-key-xyz|token=abc/i);
+  });
+
   it('errors when GET app-conversations returns 401', async () => {
     const fetchSpy = vi.fn()
       .mockResolvedValueOnce({
@@ -267,4 +305,3 @@ describe('bootstrapCloudRemoteConversation', () => {
     })).rejects.toThrow(/invalid or expired Cloud API Key/i);
   });
 });
-
