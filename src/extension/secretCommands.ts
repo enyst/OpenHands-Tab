@@ -7,6 +7,9 @@ import { getServerRuntimeSessionApiKeySecretKey } from '../auth/serverRuntimeSes
 import { isOpenHandsCloudServerUrl } from '../shared/cloudServers';
 
 type SecretKey = keyof OpenHandsSettings['secrets'];
+type PerServerSecretKeyResult =
+  | { ok: true; normalizedServerUrl: string; secretKey: string }
+  | { ok: false; error: string };
 
 const SECRET_STATUS_SET_VALUE = '✓ set';
 
@@ -299,154 +302,118 @@ export function registerSecretCommands(params: {
     }
   };
 
-  const setCloudApiKey = vscode.commands.registerCommand('openhands.setCloudApiKey', async () => {
-    try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
-      const existing = await settingsMgr.get();
-      const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
-      if (!serverUrl) {
-        void vscode.window.showErrorMessage('OpenHands: Select a remote server before setting a Cloud API Key.');
-        return;
-      }
-      if (!isOpenHandsCloudServerUrl(serverUrl)) {
-        void vscode.window.showErrorMessage('OpenHands: Cloud API Key is only used for OpenHands Cloud/SaaS servers.');
-        return;
-      }
-
-      const keyInfo = getServerCloudApiKeySecretKey(serverUrl);
-      if (!keyInfo.ok) {
-        void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
-        return;
-      }
-
-      const title = 'Cloud API Key';
-      const prompt = 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.';
-
-      let currentValue: string | undefined;
+  const registerPerServerSecretCommand = (
+    commandId: string,
+    options: {
+      title: string;
+      prompt: string;
+      placeHolder: string;
+      missingServerMessage: string;
+      invalidServerMessage?: string;
+      getSecretKey: (serverUrl: string) => PerServerSecretKeyResult;
+      settingsKey: SecretKey;
+      successMessage: string;
+      clearedMessage: string;
+      errorPrefix: string;
+    }
+  ) =>
+    vscode.commands.registerCommand(commandId, async () => {
       try {
-        currentValue = await params.context.secrets.get(keyInfo.secretKey);
-      } catch {
-        currentValue = undefined;
-      }
-      const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
-
-      if (isCurrentlySet) {
-        const action = await vscode.window.showQuickPick(
-          [
-            { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-            { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-          ],
-          { title, placeHolder: 'Choose an action', canPickMany: false }
-        );
-        if (!action) return;
-        if (action.value === 'clear') {
-          const confirmed = await vscode.window.showWarningMessage(
-            `Clear ${title} for ${keyInfo.normalizedServerUrl}?`,
-            { modal: true },
-            'Clear'
-          );
-          if (confirmed !== 'Clear') return;
-          await params.context.secrets.delete(keyInfo.secretKey);
-          params.secrets.set(keyInfo.secretKey, undefined);
-          await updateConversationSettingsBestEffort({ cloudApiKey: undefined });
-          void vscode.window.showInformationMessage('Cloud API Key cleared.');
-          await syncSecretStatusIndicatorsBestEffort();
+        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
+        const existing = await settingsMgr.get();
+        const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
+        if (!serverUrl) {
+          void vscode.window.showErrorMessage(options.missingServerMessage);
           return;
         }
+        if (options.invalidServerMessage && !isOpenHandsCloudServerUrl(serverUrl)) {
+          void vscode.window.showErrorMessage(options.invalidServerMessage);
+          return;
+        }
+
+        const keyInfo = options.getSecretKey(serverUrl);
+        if (!keyInfo.ok) {
+          void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
+          return;
+        }
+
+        let currentValue: string | undefined;
+        try {
+          currentValue = await params.context.secrets.get(keyInfo.secretKey);
+        } catch {
+          currentValue = undefined;
+        }
+        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
+
+        if (isCurrentlySet) {
+          const action = await vscode.window.showQuickPick(
+            [
+              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+            ],
+            { title: options.title, placeHolder: 'Choose an action', canPickMany: false }
+          );
+          if (!action) return;
+          if (action.value === 'clear') {
+            const confirmed = await vscode.window.showWarningMessage(
+              `Clear ${options.title} for ${keyInfo.normalizedServerUrl}?`,
+              { modal: true },
+              'Clear'
+            );
+            if (confirmed !== 'Clear') return;
+            await params.context.secrets.delete(keyInfo.secretKey);
+            params.secrets.set(keyInfo.secretKey, undefined);
+            await updateConversationSettingsBestEffort({ [options.settingsKey]: undefined } as Partial<OpenHandsSettings['secrets']>);
+            void vscode.window.showInformationMessage(options.clearedMessage);
+            await syncSecretStatusIndicatorsBestEffort();
+            return;
+          }
+        }
+
+        const value = await vscode.window.showInputBox({
+          title: options.title,
+          password: true,
+          prompt: options.prompt,
+          placeHolder: options.placeHolder,
+        });
+        if (value === undefined) return;
+        const trimmed = value.trim();
+        if (!trimmed) return;
+
+        await params.context.secrets.store(keyInfo.secretKey, trimmed);
+        params.secrets.set(keyInfo.secretKey, trimmed);
+        await updateConversationSettingsBestEffort({ [options.settingsKey]: trimmed } as Partial<OpenHandsSettings['secrets']>);
+        void vscode.window.showInformationMessage(options.successMessage);
+        await syncSecretStatusIndicatorsBestEffort();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
       }
+    });
 
-      const value = await vscode.window.showInputBox({
-        title,
-        password: true,
-        prompt,
-        placeHolder: 'paste token...',
-      });
-      if (value === undefined) return;
-      const trimmed = value.trim();
-      if (!trimmed) return;
-
-      await params.context.secrets.store(keyInfo.secretKey, trimmed);
-      params.secrets.set(keyInfo.secretKey, trimmed);
-      await updateConversationSettingsBestEffort({ cloudApiKey: trimmed });
-      void vscode.window.showInformationMessage('Cloud API Key saved securely.');
-      await syncSecretStatusIndicatorsBestEffort();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      void vscode.window.showErrorMessage(`Failed to save Cloud API Key: ${message}`);
-    }
+  const setCloudApiKey = registerPerServerSecretCommand('openhands.setCloudApiKey', {
+    title: 'Cloud API Key',
+    prompt: 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'paste token...',
+    missingServerMessage: 'OpenHands: Select a remote server before setting a Cloud API Key.',
+    invalidServerMessage: 'OpenHands: Cloud API Key is only used for OpenHands Cloud/SaaS servers.',
+    getSecretKey: getServerCloudApiKeySecretKey,
+    settingsKey: 'cloudApiKey',
+    successMessage: 'Cloud API Key saved securely.',
+    clearedMessage: 'Cloud API Key cleared.',
+    errorPrefix: 'Failed to save Cloud API Key',
   });
 
-  const setRuntimeSessionApiKey = vscode.commands.registerCommand('openhands.setRuntimeSessionApiKey', async () => {
-    try {
-      const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
-      const existing = await settingsMgr.get();
-      const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
-      if (!serverUrl) {
-        void vscode.window.showErrorMessage('OpenHands: Select a remote server before setting a Runtime Session API Key.');
-        return;
-      }
-
-      const keyInfo = getServerRuntimeSessionApiKeySecretKey(serverUrl);
-      if (!keyInfo.ok) {
-        void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
-        return;
-      }
-
-      const title = 'Runtime Session API Key';
-      const prompt = 'Enter the runtime session API key (`session_api_key`) for the remote agent-server. It will be stored securely in VS Code SecretStorage.';
-
-      let currentValue: string | undefined;
-      try {
-        currentValue = await params.context.secrets.get(keyInfo.secretKey);
-      } catch {
-        currentValue = undefined;
-      }
-      const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
-
-      if (isCurrentlySet) {
-        const action = await vscode.window.showQuickPick(
-          [
-            { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-            { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-          ],
-          { title, placeHolder: 'Choose an action', canPickMany: false }
-        );
-        if (!action) return;
-        if (action.value === 'clear') {
-          const confirmed = await vscode.window.showWarningMessage(
-            `Clear ${title} for ${keyInfo.normalizedServerUrl}?`,
-            { modal: true },
-            'Clear'
-          );
-          if (confirmed !== 'Clear') return;
-          await params.context.secrets.delete(keyInfo.secretKey);
-          params.secrets.set(keyInfo.secretKey, undefined);
-          await updateConversationSettingsBestEffort({ runtimeSessionApiKey: undefined });
-          void vscode.window.showInformationMessage('Runtime Session API Key cleared.');
-          await syncSecretStatusIndicatorsBestEffort();
-          return;
-        }
-      }
-
-      const value = await vscode.window.showInputBox({
-        title,
-        password: true,
-        prompt,
-        placeHolder: 'sk-...',
-      });
-      if (value === undefined) return;
-      const trimmed = value.trim();
-      if (!trimmed) return;
-
-      await params.context.secrets.store(keyInfo.secretKey, trimmed);
-      params.secrets.set(keyInfo.secretKey, trimmed);
-      await updateConversationSettingsBestEffort({ runtimeSessionApiKey: trimmed });
-      void vscode.window.showInformationMessage('Runtime Session API Key saved securely.');
-      await syncSecretStatusIndicatorsBestEffort();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      void vscode.window.showErrorMessage(`Failed to save Runtime Session API Key: ${message}`);
-    }
+  const setRuntimeSessionApiKey = registerPerServerSecretCommand('openhands.setRuntimeSessionApiKey', {
+    title: 'Runtime Session API Key',
+    prompt: 'Enter the runtime session API key (`session_api_key`) for the remote agent-server. It will be stored securely in VS Code SecretStorage.',
+    placeHolder: 'sk-...',
+    missingServerMessage: 'OpenHands: Select a remote server before setting a Runtime Session API Key.',
+    getSecretKey: getServerRuntimeSessionApiKeySecretKey,
+    settingsKey: 'runtimeSessionApiKey',
+    successMessage: 'Runtime Session API Key saved securely.',
+    clearedMessage: 'Runtime Session API Key cleared.',
+    errorPrefix: 'Failed to save Runtime Session API Key',
   });
 
   const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
