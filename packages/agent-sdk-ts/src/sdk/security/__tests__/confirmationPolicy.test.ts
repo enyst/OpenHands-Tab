@@ -5,6 +5,7 @@ import {
   ConfirmRisky,
   createConfirmationPolicyFromSettings,
 } from '../confirmationPolicy';
+import type { SecurityRisk } from '../../types';
 
 describe('AlwaysConfirm', () => {
   it('always returns true regardless of risk level', () => {
@@ -83,6 +84,11 @@ describe('ConfirmRisky', () => {
       const policy = new ConfirmRisky({ confirmUnknown: true });
       expect(policy.shouldConfirm('UNKNOWN')).toBe(true);
     });
+  });
+
+  it('treats invalid risk values as HIGH', () => {
+    const policy = new ConfirmRisky({ threshold: 'MEDIUM', confirmUnknown: false });
+    expect(policy.shouldConfirm('CRITICAL' as unknown as SecurityRisk)).toBe(true);
   });
 
   it('has kind ConfirmRisky', () => {

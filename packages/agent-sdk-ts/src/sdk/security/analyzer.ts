@@ -1,5 +1,6 @@
 import type { ActionEvent, Event, SecurityRisk } from '../types';
 import { isActionEvent } from '../types';
+import { normalizeSecurityRisk } from './riskUtils';
 
 export interface SecurityAnalyzer {
   kind: string;
@@ -12,7 +13,7 @@ export class LLMSecurityAnalyzer implements SecurityAnalyzer {
   readonly kind = 'LLMSecurityAnalyzer' as const;
 
   securityRisk(action: ActionEvent): SecurityRisk {
-    return action.security_risk ?? 'UNKNOWN';
+    return normalizeSecurityRisk(action.security_risk);
   }
 
   analyzeEvent(event: Event): SecurityRisk | null {
