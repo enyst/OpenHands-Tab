@@ -20,6 +20,8 @@ type AppConversation = {
   session_api_key?: unknown;
 };
 
+const MAX_ERROR_DETAIL_CHARS = 300;
+
 function parseNestedConversationUrl(conversationUrl: string): { nestedServerUrl: string; conversationId: string } | null {
   let url: URL;
   try {
@@ -40,6 +42,28 @@ function parseNestedConversationUrl(conversationUrl: string): { nestedServerUrl:
   const basePath = baseParts.length ? `/${baseParts.join('/')}` : '';
   const nested = `${url.origin}${basePath}`;
   return { nestedServerUrl: nested, conversationId: id };
+}
+
+function sanitizeErrorDetail(detail: string): string {
+  if (!detail) return '';
+  const trimmed = detail.trim();
+  if (!trimmed) return '';
+  const singleLine = trimmed.replace(/\s+/g, ' ');
+  if (singleLine.length <= MAX_ERROR_DETAIL_CHARS) return singleLine;
+  return `${singleLine.slice(0, MAX_ERROR_DETAIL_CHARS)}…`;
+}
+
+function formatUrlForError(value: string): string {
+  try {
+    const url = new URL(value);
+    url.username = '';
+    url.password = '';
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return value;
+  }
 }
 
 function buildAuthHeaders(cloudApiKey: string): Record<string, string> {
@@ -93,7 +117,7 @@ export async function bootstrapCloudRemoteConversation(params: {
   }, timeoutMs);
 
   if (!startRes.ok) {
-    const detail = await startRes.text().catch(() => '');
+    const detail = sanitizeErrorDetail(await startRes.text().catch(() => ''));
     const status = startRes.status;
     if (status === 401 || status === 403) {
       throw new Error(`Cloud bootstrap failed (HTTP ${status}): invalid or expired Cloud API Key.`);
@@ -130,7 +154,8 @@ export async function bootstrapCloudRemoteConversation(params: {
         break;
       }
     }
-    const errorDetail = typeof errorTask?.detail === 'string' ? errorTask.detail : '';
+    const rawErrorDetail = typeof errorTask?.detail === 'string' ? errorTask.detail : '';
+    const errorDetail = sanitizeErrorDetail(rawErrorDetail);
     throw new Error(`Cloud bootstrap failed: app conversation never reached READY${errorDetail ? ` (${errorDetail})` : ''}`);
   }
 
@@ -141,7 +166,7 @@ export async function bootstrapCloudRemoteConversation(params: {
   }, timeoutMs);
 
   if (!getRes.ok) {
-    const detail = await getRes.text().catch(() => '');
+    const detail = sanitizeErrorDetail(await getRes.text().catch(() => ''));
     const status = getRes.status;
     if (status === 401 || status === 403) {
       throw new Error(`Cloud bootstrap failed (HTTP ${status}): invalid or expired Cloud API Key.`);
@@ -169,7 +194,7 @@ export async function bootstrapCloudRemoteConversation(params: {
 
   const parsed = parseNestedConversationUrl(conversationUrl);
   if (!parsed) {
-    throw new Error(`Cloud bootstrap failed: could not parse conversation_url (${conversationUrl})`);
+    throw new Error(`Cloud bootstrap failed: could not parse conversation_url (${formatUrlForError(conversationUrl)})`);
   }
 
   return {
