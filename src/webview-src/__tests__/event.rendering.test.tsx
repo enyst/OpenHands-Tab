@@ -315,6 +315,27 @@ describe('Agent-SDK event rendering', () => {
     expect(await screen.findByText(/Directory listing output from bash execution/)).toBeInTheDocument();
   });
 
+  it('redacts secrets in ObservationEvent raw output', async () => {
+    render(<App />);
+    const ev = {
+      kind: 'ObservationEvent',
+      source: 'environment' as const,
+      observation: {
+        output: 'Authorization: Bearer sk-abcdef1234567890',
+        token: 'ghp_0123456789abcdef0123456789abcdef',
+      },
+      tool_name: 'terminal',
+      tool_call_id: 'call_obs_secret',
+      action_id: 'action_obs_secret'
+    } as any;
+    postToWindow({ type: 'event', event: ev });
+    const toggle = await screen.findByRole('button', { name: /Show environment result/i });
+    fireEvent.click(toggle);
+    expect(await screen.findByText(/\[REDACTED\]/)).toBeInTheDocument();
+    expect(screen.queryByText(/sk-abcdef1234567890/)).toBeNull();
+    expect(screen.queryByText(/ghp_0123456789abcdef/)).toBeNull();
+  });
+
   it('renders UserRejectObservation', async () => {
     render(<App />);
     const ev = {
