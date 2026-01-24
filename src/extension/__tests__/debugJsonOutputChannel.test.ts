@@ -47,6 +47,6 @@ describe('createDebugJsonOutputChannel', () => {
 
     expect(payload.responses_reasoning_item.encrypted_content).toBe(encrypted);
     const printed = mocks.appendLines.join('\n');
-    expect(printed).toContain('"encrypted_content": "abcd…wxyz"');
+    expect(printed).toContain('"encrypted_content": "abcd...wxyz"');
   });
 });
