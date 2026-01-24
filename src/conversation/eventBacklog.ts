@@ -20,7 +20,10 @@ export class ConversationEventBacklog {
   private conversationId: string | undefined;
 
   constructor(options?: { maxSize?: number }) {
-    this.maxSize = options?.maxSize ?? 2000;
+    const rawMaxSize = options?.maxSize;
+    this.maxSize = typeof rawMaxSize === 'number' && Number.isFinite(rawMaxSize) && rawMaxSize > 0
+      ? Math.floor(rawMaxSize)
+      : 2000;
   }
 
   reset(conversationId: string | undefined): void {
