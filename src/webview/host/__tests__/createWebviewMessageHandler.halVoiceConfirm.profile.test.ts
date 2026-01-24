@@ -209,4 +209,76 @@ describe('createWebviewMessageHandler (HAL voice_confirm profile)', () => {
       apiKey: 'apiKeyRef-secret',
     }));
   });
+
+  it('redacts Gemini API keys from voice confirm errors', async () => {
+    const cfg = {
+      get: vi.fn((key: string, defaultValue?: unknown) => defaultValue),
+      inspect: vi.fn(() => ({})),
+      update: vi.fn(async () => undefined),
+    };
+
+    (vscode.workspace.getConfiguration as any).mockImplementation(() => cfg);
+
+    const context = {
+      secrets: {
+        get: vi.fn(async () => undefined),
+        store: vi.fn(async () => undefined),
+        delete: vi.fn(async () => undefined),
+      },
+      subscriptions: [],
+    } as unknown as vscode.ExtensionContext;
+
+    const { classifyHalVoiceDecision } = await import('../../../hal/gemini/decisionClassifier');
+    (classifyHalVoiceDecision as any).mockResolvedValueOnce({
+      ok: false,
+      error: 'bad key provider-secret',
+    });
+
+    const secretRegistryGet = vi.fn(async (key: string) => {
+      if (key === 'GEMINI_API_KEY') return 'provider-secret';
+      return undefined;
+    });
+
+    const postMessage = vi.fn(async () => true);
+    const handler = createWebviewMessageHandler({
+      context,
+      host: { postMessage },
+      secretRegistry: {
+        get: secretRegistryGet,
+        getRegisteredValues: () => ['provider-secret'],
+      } as any,
+      getQueuedUserEditNotes: () => [],
+      clearQueuedUserEditNotes: () => {},
+      getConversation: () => undefined,
+      getConversationMode: () => 'local',
+      getConversationStoreRoot: () => undefined,
+      resolveConversationStoreRoot: async () => '/tmp/openhands-conversations',
+      setWebviewReadyState: () => undefined,
+      setLastKnownLlmLabel: () => undefined,
+      getLastKnownLlmLabel: () => null,
+      flushConversationEventBacklog: () => undefined,
+      onRenderedEventsResponse: () => undefined,
+      onUiStateResponse: () => undefined,
+      onHalStateResponse: () => undefined,
+      isDevBridgeEnabled: () => false,
+      getOutputChannel: () => undefined,
+      fileLog: () => undefined,
+    });
+
+    await handler({
+      type: 'halVoiceConfirmRequest',
+      requestId: 'r1',
+      mimeType: 'audio/wav',
+      audioBase64: 'Zm9v',
+    });
+
+    const response = postMessage.mock.calls
+      .map((call) => call[0])
+      .find((payload) => payload?.type === 'halVoiceConfirmResponse');
+
+    expect(response).toBeTruthy();
+    expect(response?.ok).toBe(false);
+    expect(response?.error).toContain('[REDACTED]');
+    expect(response?.error).not.toContain('provider-secret');
+  });
 });

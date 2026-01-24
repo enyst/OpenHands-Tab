@@ -7,6 +7,7 @@ import { TtsConversationGate } from '../../../hal/elevenlabs/ttsConversationGate
 import { classifyHalVoiceDecision } from '../../../hal/gemini/decisionClassifier';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../../../shared/halDefaults';
 import { getHalDialogueLinesForMode } from '../../../shared/halScript';
+import { maskSecretsInText } from '../../../shared/maskSecrets';
 import type { SettingsManager } from '../../../settings/SettingsManager';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../createWebviewMessageHandler';
@@ -34,6 +35,23 @@ const llmProfileStoreOptions = (deps: CreateWebviewMessageHandlerDeps): { rootDi
   if (typeof rootDir !== 'string') return {};
   const trimmed = rootDir.trim();
   return trimmed ? { rootDir: trimmed } : {};
+};
+
+const maskHalSecrets = (text: string, extraValues: Array<string | undefined>, registry?: CreateWebviewMessageHandlerDeps['secretRegistry']): string => {
+  if (!text) return text;
+
+  const values = new Set<string>();
+  if (typeof registry?.getRegisteredValues === 'function') {
+    for (const value of registry.getRegisteredValues()) {
+      if (typeof value === 'string' && value.trim()) values.add(value.trim());
+    }
+  }
+  for (const value of extraValues) {
+    if (typeof value === 'string' && value.trim()) values.add(value.trim());
+  }
+
+  if (values.size === 0) return text;
+  return maskSecretsInText(text, { getRegisteredValues: () => Array.from(values) });
 };
 
 export const createElevenlabsTtsGateFactory = (args: {
@@ -100,11 +118,13 @@ export async function handleHalTtsRequest(args: {
     return;
   }
 
+  const maskedError = maskHalSecrets(result.error, [apiKey], args.deps.secretRegistry);
+
   void args.host.postMessage({
     type: 'halTtsResponse',
     requestId: args.message.requestId,
     ok: false,
-    error: result.error,
+    error: maskedError,
     shouldNotify: result.shouldNotify,
     disabled: result.disabled,
   });
@@ -198,5 +218,6 @@ export async function handleHalVoiceConfirmRequest(args: {
     return;
   }
 
-  void args.host.postMessage({ type: 'halVoiceConfirmResponse', requestId: args.message.requestId, ok: false, error: result.error });
+  const maskedError = maskHalSecrets(result.error, [halGeminiKey], args.deps.secretRegistry);
+  void args.host.postMessage({ type: 'halVoiceConfirmResponse', requestId: args.message.requestId, ok: false, error: maskedError });
 }
