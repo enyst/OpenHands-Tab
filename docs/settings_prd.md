@@ -27,6 +27,26 @@ Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extens
     - Downstream change (draft): enyst/OpenHands-Tab#873 removes `session_api_key` from WS URLs; merge is blocked until upstream OpenHands/software-agent-sdk#1786 is merged/deployed.
   - Note (OpenHands Cloud): the nested runtime `session_api_key` is obtained via SaaS V1 bootstrap (`/api/v1/app-conversations*`) and is **not persisted**; it is injected into in-memory `settings.secrets.runtimeSessionApiKey` only for the lifetime of the running conversation.
 
+### Cloud vs runtime auth UX (user view)
+**Cloud/SaaS servers (e.g. `app.all-hands.dev`):**
+- Use **OpenHands: Login to Remote Server (Device Flow)** to obtain and store a **cloud API key**.
+- Storage: `openhands.cloudApiKey.server.<hash>` in VS Code SecretStorage.
+- The **runtime session API key** is fetched per-conversation from SaaS `/api/v1/app-conversations*` and kept **in-memory only** (not persisted).
+- Auth headers:
+  - SaaS/app-server: `Authorization: Bearer <cloudApiKey>`
+  - Nested runtime: `X-Session-API-Key: <runtime_session_api_key>` (or `Authorization: Bearer ...` when supported)
+
+**Direct/self-hosted agent-servers (non-cloud):**
+- Use **OpenHands: Set Runtime Session API Key** to store a per-server runtime key.
+- Storage: `openhands.runtimeSessionApiKey.server.<hash>` in VS Code SecretStorage.
+- Auth header: `X-Session-API-Key: <runtimeSessionApiKey>`
+
+**Troubleshooting quick checks:**
+- 401/403 on **cloud**: re-run device flow login, confirm `serverUrl` is a cloud host, and ensure you are not using a runtime session key as a cloud key.
+- 401/403 on **non-cloud**: set the runtime session API key (must match the server’s `SESSION_API_KEY`), and verify the selected server URL.
+- Keys are **per-server**: switching servers requires separate login/key entry.
+- To clear cloud auth, use **OpenHands: Logout of Remote Server**; to clear runtime auth, run **OpenHands: Set Runtime Session API Key** and choose “Clear”.
+
 ## 2) Conversation lifecycle & persistence
 
 ### Conversation IDs
