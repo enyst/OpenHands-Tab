@@ -12,6 +12,7 @@ import {
   withAlpha,
 } from './shared';
 import { Tooltip } from '../Tooltip';
+import { redactStringHeuristics } from '../../../shared/redaction';
 
 /**
  * Renders environment result - shows observation with summary and expandable raw data.
@@ -76,7 +77,7 @@ export function ObservationEventBlock({ event, index }: { event: ObservationEven
   })();
   const hasSummary = observationSummary !== null;
   const shouldShowRaw = isFileEditObservation ? false : !hasSummary || isExpanded;
-  const observationString = shouldShowRaw ? JSON.stringify(event.observation, null, 2) : '';
+  const observationString = shouldShowRaw ? redactStringHeuristics(JSON.stringify(event.observation, null, 2)) : '';
   const isTruncated = shouldShowRaw && observationString.length > 2000;
   const showHeaderToggle = hasSummary && event.tool_name !== 'terminal' && !isFileEditObservation;
   const showFooterToggle = !hasSummary && isTruncated;

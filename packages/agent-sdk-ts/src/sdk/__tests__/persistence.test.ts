@@ -168,6 +168,22 @@ describe('LocalConversation persistence', () => {
     expect(restoredState.values.llm_usage).toEqual(initialState.values.llm_usage);
   });
 
+  it('rejects conversation ids with path separators', () => {
+    const dir = makeTempDir('local-conversation-unsafe-');
+    const workspaceRoot = makeTempDir('local-workspace-');
+    const llm = new MockLLM([{ type: 'finish' }]);
+
+    const restored = new LocalConversation({
+      settings: baseSettings,
+      workspaceRoot,
+      llmClient: llm,
+      persistenceDir: dir,
+    });
+
+    expect(() => restored.restoreConversation('../escape')).toThrow(/Invalid conversation id/i);
+    expect(fs.readdirSync(dir)).toHaveLength(0);
+  });
+
   it('restores persisted LLM config on conversation restore', async () => {
     const dir = makeTempDir('local-conversation-llm-');
     const workspaceRoot = makeTempDir('local-workspace-');

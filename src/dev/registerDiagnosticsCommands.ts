@@ -4,6 +4,7 @@ import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
 import { DEFAULT_HAL_STATE } from '../shared/halDefaults';
 import { resolveConfiguredLlmLabel } from '../shared/llmProfiles';
 import { maskSecretsInText } from '../shared/maskSecrets';
+import { safeStringify } from '../shared/safeStringify';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
@@ -124,7 +125,17 @@ const truncatePreview = (text: string, maxChars: number): string => {
 };
 
 export function sanitizeDiagnosticsText(text: string, params: { secretRegistry?: SecretRegistry; maxChars: number }): string {
-  const masked = maskSecretsInText(text, params.secretRegistry);
+  let redacted = text;
+  try {
+    const safe = safeStringify(text);
+    if (!safe.startsWith('<unserializable')) {
+      const parsed = JSON.parse(safe) as unknown;
+      if (typeof parsed === 'string') redacted = parsed;
+    }
+  } catch {
+    // Best-effort only; fall back to original text.
+  }
+  const masked = maskSecretsInText(redacted, params.secretRegistry);
   return masked.length > params.maxChars ? truncatePreview(masked, params.maxChars) : masked;
 }
 
@@ -355,7 +366,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
     const observationText = (() => {
       if (typeof observation === 'string') return observation;
       try {
-        return JSON.stringify(observation);
+        return safeStringify(observation);
       } catch {
         return String(observation);
       }

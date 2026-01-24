@@ -28,7 +28,7 @@ const SENSITIVE_KEYS = new Set([
   'awsAccessKeyId', 'awsSecretAccessKey',
   'cloudApiKey', 'cloud_api_key',
   'runtimeSessionApiKey', 'runtime_session_api_key',
-  'sessionApiKey', 'session_api_key', 'x_api_key', 'x-api-key',
+  'session_api_key', 'x_api_key', 'x-api-key',
 ]);
 
 const shouldRedactKey = (key: string): boolean => {
@@ -118,13 +118,12 @@ const sanitizeToolCallsForDebug = (toolCalls: ToolCall[] | undefined): ToolCall[
 
 export const sanitizeMessageForDebug = (message: Message): Message => {
   const safeToolCalls = sanitizeToolCallsForDebug(message.tool_calls);
-  const safeContent = message.role === 'tool'
-    ? message.content.map((item) => (
-      item.type === 'text'
-        ? { ...item, text: truncateToolMessageForDebug(item.text) }
-        : item
-    ))
-    : message.content;
+  const safeContent = message.content.map((item) => {
+    if (item.type !== 'text') return item;
+    const redacted = redactStringHeuristics(item.text);
+    const text = message.role === 'tool' ? truncateToolMessageForDebug(redacted) : redacted;
+    return { ...item, text };
+  });
 
   const out: Message = { ...message, content: safeContent };
   if (safeToolCalls) out.tool_calls = safeToolCalls;

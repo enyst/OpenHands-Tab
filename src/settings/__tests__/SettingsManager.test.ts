@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { saveProfile } from '@openhands/agent-sdk-ts';
-import { SettingsManager } from '../SettingsManager';
+import { SettingsManager, isOpenHandsSettings, isOpenHandsSettingsSecrets } from '../SettingsManager';
 import type { SettingsAdapter } from '../SettingsAdapter';
 
 class MemoryAdapter implements SettingsAdapter {
@@ -388,5 +388,27 @@ describe('SettingsManager', () => {
 
     const s = await mgr.get();
     expect(s.serverUrl).toBe('http://global:5000');
+  });
+
+  it('validates settings secrets with a type guard', () => {
+    expect(isOpenHandsSettingsSecrets({ llmApiKey: 'sk-test', customSecret1: 'custom' })).toBe(true);
+    expect(isOpenHandsSettingsSecrets({ llmApiKey: 123 } as unknown)).toBe(false);
+    expect(isOpenHandsSettingsSecrets(null)).toBe(false);
+  });
+
+  it('validates OpenHandsSettings shape with a type guard', async () => {
+    const s = await mgr.get();
+    expect(isOpenHandsSettings(s)).toBe(true);
+
+    const invalid = {
+      llm: {},
+      agent: {},
+      conversation: {},
+      confirmation: {},
+      hal: {},
+      servers: [],
+      secrets: { llmApiKey: 123 },
+    };
+    expect(isOpenHandsSettings(invalid)).toBe(false);
   });
 });

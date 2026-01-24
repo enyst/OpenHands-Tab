@@ -110,16 +110,28 @@ const MAX_PRINTED_EXIT_FOR = MAX_TERMINAL_EVENTS;
 
 const printedExitFor = new Map<string, true>();
 
+const pushWithLimit = <T>(buffer: T[], value: T, maxSize: number): void => {
+  buffer.push(value);
+  if (buffer.length > maxSize) {
+    buffer.splice(0, buffer.length - maxSize);
+  }
+};
+
+const setMapWithLimit = <K, V>(map: Map<K, V>, key: K, value: V, maxSize: number): void => {
+  if (map.has(key)) {
+    map.delete(key);
+  }
+  map.set(key, value);
+  while (map.size > maxSize) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) return;
+    map.delete(oldest);
+  }
+};
+
 function markPrintedExitFor(commandId: string): void {
   // LRU-ish: bump recency on re-add
-  if (printedExitFor.has(commandId)) {
-    printedExitFor.delete(commandId);
-  }
-  printedExitFor.set(commandId, true);
-
-  if (printedExitFor.size <= MAX_PRINTED_EXIT_FOR) return;
-  const oldest = printedExitFor.keys().next().value;
-  if (oldest) printedExitFor.delete(oldest);
+  setMapWithLimit(printedExitFor, commandId, true, MAX_PRINTED_EXIT_FOR);
 }
 
 function resetConversationEventBacklog(conversationId: string | undefined) {
@@ -159,6 +171,24 @@ function flushConversationEventBacklog(params: {
 function renderError(err: unknown): string {
   const rendered = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   return maskSecretsInText(rendered, secretRegistry);
+}
+
+function maskTerminalEventForDisplay(event: BashEvent): BashEvent {
+  if (!secretRegistry) return event;
+
+  if (isBashCommand(event)) {
+    const command = maskSecretsInText(event.command, secretRegistry);
+    return command === event.command ? event : { ...event, command };
+  }
+
+  if (isBashOutput(event)) {
+    const stdout = typeof event.stdout === 'string' ? maskSecretsInText(event.stdout, secretRegistry) : event.stdout;
+    const stderr = typeof event.stderr === 'string' ? maskSecretsInText(event.stderr, secretRegistry) : event.stderr;
+    if (stdout === event.stdout && stderr === event.stderr) return event;
+    return { ...event, stdout, stderr };
+  }
+
+  return event;
 }
 
 function resolveActiveEditorFilePath(editor: vscode.TextEditor | undefined): string | undefined {
@@ -409,13 +439,11 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const handleTerminalEvent = (event: BashEvent) => {
-    receivedTerminalEvents.push({ type: event.type, timestamp: Date.now() });
-    if (receivedTerminalEvents.length > MAX_TERMINAL_EVENTS) {
-      receivedTerminalEvents.shift();
-    }
+    const displayEvent = maskTerminalEventForDisplay(event);
+    pushWithLimit(receivedTerminalEvents, { type: event.type, timestamp: Date.now() }, MAX_TERMINAL_EVENTS);
 
     if (chatView && chatWebviewReady && chatView.visible) {
-      void chatView.webview.postMessage({ type: 'terminalEvent', event } satisfies HostToWebviewMessage);
+      void chatView.webview.postMessage({ type: 'terminalEvent', event: displayEvent } satisfies HostToWebviewMessage);
     }
 
     if (conversationMode !== 'local') {
@@ -438,27 +466,27 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     try {
-      if (isBashCommand(event)) {
+      if (isBashCommand(displayEvent)) {
         // Add a spacer only if previous output didn't end with a newline
         terminalLogPty.ensureNewline?.();
-        terminalLogPty.writeLine(`$ ${event.command}`);
-        if (event.command_id) printedExitFor.delete(event.command_id);
-      } else if (isBashOutput(event)) {
-        if (event.stdout) terminalLogPty.write(event.stdout);
-        if (event.stderr) terminalLogPty.write(event.stderr);
+        terminalLogPty.writeLine(`$ ${displayEvent.command}`);
+        if (displayEvent.command_id) printedExitFor.delete(displayEvent.command_id);
+      } else if (isBashOutput(displayEvent)) {
+        if (displayEvent.stdout) terminalLogPty.write(displayEvent.stdout);
+        if (displayEvent.stderr) terminalLogPty.write(displayEvent.stderr);
         // Defensive: if exit_code is provided on output but no BashExit arrives, synthesize a footer once
-        const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
-        const code = 'exit_code' in event ? (event as { exit_code?: number }).exit_code : undefined;
+        const cid = 'command_id' in displayEvent ? (displayEvent as { command_id?: string }).command_id : undefined;
+        const code = 'exit_code' in displayEvent ? (displayEvent as { exit_code?: number }).exit_code : undefined;
         if (cid && typeof code === 'number' && !printedExitFor.has(cid)) {
           terminalLogPty.ensureNewline?.();
           terminalLogPty.writeLine(`[Process exited with code ${code}]`);
           markPrintedExitFor(cid);
         }
-      } else if (isBashExit(event)) {
-        const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
+      } else if (isBashExit(displayEvent)) {
+        const cid = 'command_id' in displayEvent ? (displayEvent as { command_id?: string }).command_id : undefined;
         if (!cid || !printedExitFor.has(cid)) {
           terminalLogPty.ensureNewline?.();
-          terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
+          terminalLogPty.writeLine(`[Process exited with code ${displayEvent.exit_code}]`);
         }
         if (cid) {
           markPrintedExitFor(cid);

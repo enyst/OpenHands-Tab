@@ -29,6 +29,16 @@ describe('ConversationEventBacklog', () => {
     expect(seqs).toEqual([2, 3, 4]);
   });
 
+  it('defaults maxSize when provided value is invalid', () => {
+    const backlog = new ConversationEventBacklog({ maxSize: 0 });
+    backlog.reset('conv-1');
+    backlog.push(mkMessageEvent('m1'));
+    backlog.push(mkMessageEvent('m2'));
+
+    expect(backlog.getSize()).toBe(2);
+    expect(backlog.getLatestSeq()).toBe(2);
+  });
+
   it('flushes a full replay when client conversation id mismatches', () => {
     const backlog = new ConversationEventBacklog({ maxSize: 5 });
     backlog.reset('conv-1');

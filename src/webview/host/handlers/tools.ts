@@ -3,6 +3,7 @@ import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds, resolveLocalTools, type LocalToolId } from '../../../shared/localTools';
 import { isOpenHandsCloudServerUrl } from '../../../shared/cloudServers';
 import { normalizeServerUrl } from '../../../shared/serverUrls';
+import { isOpenHandsSettingsSecrets } from '../../../settings/SettingsManager';
 import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../createWebviewMessageHandler';
 
 type LocalConversationToolControls = {
@@ -18,6 +19,12 @@ export const isLocalConversationToolControls = (value: unknown): value is LocalC
     && typeof candidate.getToolNames === 'function'
     && typeof candidate.setTools === 'function';
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const normalizeSecret = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 
 const ensureRequiredLocalToolIds = (toolIds: LocalToolId[]): LocalToolId[] => {
   // `finish` is always enabled by the runtime agent (for safe termination).
@@ -38,14 +45,13 @@ const getRemoteToolListDeps = (conversation: unknown): RemoteToolListDeps | null
   const serverUrl = candidate.serverUrl;
   if (typeof serverUrl !== 'string' || serverUrl.trim().length === 0) return null;
 
-  const rawSecrets =
-    (candidate.settings as { secrets?: { runtimeSessionApiKey?: unknown; cloudApiKey?: unknown } } | undefined)?.secrets;
+  const rawSettings = isRecord(candidate.settings) ? candidate.settings : undefined;
+  const rawSecrets = rawSettings?.secrets;
+  const secrets = isOpenHandsSettingsSecrets(rawSecrets) ? rawSecrets : undefined;
 
-  const rawCloudKey = rawSecrets?.cloudApiKey;
-  const cloudApiKey = typeof rawCloudKey === 'string' && rawCloudKey.trim().length > 0 ? rawCloudKey.trim() : undefined;
+  const cloudApiKey = normalizeSecret(secrets?.cloudApiKey);
 
-  const rawRuntimeKey = rawSecrets?.runtimeSessionApiKey;
-  const runtimeSessionApiKey = typeof rawRuntimeKey === 'string' && rawRuntimeKey.trim().length > 0 ? rawRuntimeKey.trim() : undefined;
+  const runtimeSessionApiKey = normalizeSecret(secrets?.runtimeSessionApiKey);
   return { serverUrl: serverUrl.trim(), cloudApiKey, runtimeSessionApiKey };
 };
 

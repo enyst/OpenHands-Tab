@@ -38,6 +38,73 @@ describe('TerminalTool session behavior', () => {
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
   });
 
+  it('avoids injecting secrets when the command does not reference the name', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const secrets = new SecretRegistry();
+    const secretName = 'OH_TAB_TEST_SECRET';
+
+    const previous = process.env[secretName];
+    delete process.env[secretName];
+
+    try {
+      const tool = new TerminalTool();
+      secrets.register(secretName, 'super-secret');
+
+      const result = await tool.execute(
+        tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 0.2 }),
+        { workspace, secrets },
+      );
+
+      expect(result.exit_code).toBe(0);
+      expect(result.stdout ?? '').not.toContain(secretName);
+
+      await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
+    } finally {
+      if (previous === undefined) {
+        delete process.env[secretName];
+      } else {
+        process.env[secretName] = previous;
+      }
+    }
+  });
+
+  it('does not inject secrets for partial name matches', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const secrets = new SecretRegistry();
+    const secretName = 'OH_TAB_TEST_SECRET';
+
+    const previous = process.env[secretName];
+    delete process.env[secretName];
+
+    try {
+      const tool = new TerminalTool();
+      secrets.register(secretName, 'super-secret');
+
+      const trigger = await tool.execute(
+        tool.validate({ command: 'node -e "process.stdout.write(\'OH_TAB_TEST_SECRET_EXTRA\')"', timeout: 0.2 }),
+        { workspace, secrets },
+      );
+      expect(trigger.exit_code).toBe(0);
+
+      const check = await tool.execute(
+        tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 0.2 }),
+        { workspace, secrets },
+      );
+      expect(check.exit_code).toBe(0);
+      expect(check.stdout ?? '').not.toContain(secretName);
+
+      await tool.execute(tool.validate({ command: '', reset: true }), { workspace, secrets });
+    } finally {
+      if (previous === undefined) {
+        delete process.env[secretName];
+      } else {
+        process.env[secretName] = previous;
+      }
+    }
+  });
+
   it('persists working directory across commands', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);

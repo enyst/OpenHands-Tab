@@ -1,20 +1,9 @@
-import { createHash } from 'crypto';
-import { normalizeServerUrl } from '../shared/serverUrls';
+import { getPerServerSecretKey, type PerServerSecretKeyResult } from './serverSecretKeys';
 
 export const CLOUD_API_KEY_SECRET_KEY = 'openhands.cloudApiKey';
 
-export type ServerCloudApiKeySecretKeyResult =
-  | { ok: true; normalizedServerUrl: string; secretKey: string }
-  | { ok: false; error: string };
+export type ServerCloudApiKeySecretKeyResult = PerServerSecretKeyResult;
 
 export function getServerCloudApiKeySecretKey(serverUrl: string): ServerCloudApiKeySecretKeyResult {
-  const normalized = normalizeServerUrl(serverUrl);
-  if (!normalized.ok) return { ok: false, error: normalized.error };
-
-  const hash = createHash('sha256').update(normalized.url).digest('hex');
-  return {
-    ok: true,
-    normalizedServerUrl: normalized.url,
-    secretKey: `${CLOUD_API_KEY_SECRET_KEY}.server.${hash}`,
-  };
+  return getPerServerSecretKey(serverUrl, CLOUD_API_KEY_SECRET_KEY);
 }

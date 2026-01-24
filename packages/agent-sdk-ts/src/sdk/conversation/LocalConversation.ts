@@ -33,6 +33,8 @@ const toOptionalNonEmptyString = (value: unknown): string | undefined => {
   return trimmed ? trimmed : undefined;
 };
 
+const hasPathSeparators = (value: string): boolean => /[\\/]/.test(value);
+
 export type ConversationStatus = 'online' | 'offline' | 'connecting';
 
 export interface LocalConversationOptions {
@@ -162,6 +164,12 @@ export class LocalConversation extends EventEmitter {
   }
 
   restoreConversation(id: string) {
+    // Security: guard against path traversal via conversation ids before passing to FileStore.
+    if (hasPathSeparators(id) || id.includes('\0')) {
+      const err = new Error('Invalid conversation id: path separators are not allowed');
+      this.emit('error', err);
+      throw err;
+    }
     // Switch to a new runtime bound to the requested conversation id
     this.conversationId = id;
     this.hasUserMessage = true;

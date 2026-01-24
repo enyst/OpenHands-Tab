@@ -31,6 +31,7 @@ const defaultMockSettings = {
 };
 
 let mockSettings = structuredClone(defaultMockSettings);
+let registeredSecretValues: string[] = [];
 
 const startDeviceAuthorizationMock = vi.fn();
 const pollDeviceTokenMock = vi.fn();
@@ -55,6 +56,10 @@ vi.mock('../settings/VscodeSettingsAdapter', () => ({
     return this;
   }),
 }));
+
+afterEach(() => {
+  registeredSecretValues = [];
+});
 
 let lastConversation: any = null;
 vi.mock('@openhands/agent-sdk-ts', () => {
@@ -85,7 +90,7 @@ vi.mock('@openhands/agent-sdk-ts', () => {
 
     set = vi.fn();
 
-    getRegisteredValues = vi.fn(() => []);
+    getRegisteredValues = vi.fn(() => registeredSecretValues);
   }
 
   const Conversation = vi.fn((options: any) => {
@@ -1394,6 +1399,42 @@ describe('Settings and modes', () => {
     expect(joined).toContain('$ mixed_output\r\n');
     expect(joined).toContain('stdout line\r\n');
     expect(joined).toContain('stderr line\r\n');
+  });
+
+  it('masks secrets in terminal output before writing to the log', async () => {
+    registeredSecretValues = ['supersecret'];
+    mockSettings.serverUrl = undefined as any;
+    extension = await import('../extension');
+    await extension.activate(mockContext);
+    await resolveChatView(mockContext);
+
+    const { writes } = mockOpenHandsTerminalLog();
+
+    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+
+    conv?.emit('terminal', {
+      id: 'bash-secret-1',
+      type: 'BashCommand',
+      timestamp: '2025-01-01T00:00:00.000Z',
+      command_id: 'tc-secret-1',
+      order: 0,
+      command: 'echo supersecret',
+    });
+    conv?.emit('terminal', {
+      id: 'bash-secret-2',
+      type: 'BashOutput',
+      timestamp: '2025-01-01T00:00:01.000Z',
+      command_id: 'tc-secret-1',
+      order: 1,
+      exit_code: 0,
+      stdout: 'token=supersecret\n',
+      stderr: null,
+    });
+
+    const joined = writes.join('');
+    expect(joined).toContain('$ echo [REDACTED]\r\n');
+    expect(joined).toContain('token=[REDACTED]\r\n');
+    expect(joined).not.toContain('supersecret');
   });
 
   it('coalesces CR-only progress output in the OpenHands terminal log', async () => {
