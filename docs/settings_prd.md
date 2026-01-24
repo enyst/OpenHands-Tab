@@ -34,7 +34,7 @@ Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extens
 - The **runtime session API key** is fetched per-conversation from SaaS `/api/v1/app-conversations*` and kept **in-memory only** (not persisted).
 - Auth headers:
   - SaaS/app-server: `Authorization: Bearer <cloudApiKey>`
-  - Nested runtime: `X-Session-API-Key: <runtime_session_api_key>` (or `Authorization: Bearer ...` when supported)
+  - Nested runtime: `X-Session-API-Key: <runtimeSessionApiKey>` (or `Authorization: Bearer ...` when supported)
 
 **Direct/self-hosted agent-servers (non-cloud):**
 - Use **OpenHands: Set Runtime Session API Key** to store a per-server runtime key.
