@@ -461,7 +461,8 @@ export function loadSkillsFromDir(skillDir: string): {
       const entries = readdirSync(dir);
       for (const entry of entries) {
         const fullPath = join(dir, entry);
-        const stat = statSync(fullPath);
+        const stat = lstatSync(fullPath);
+        if (stat.isSymbolicLink()) continue;
         if (stat.isDirectory()) {
           if (excludedDirs.has(fullPath)) continue;
           collectMarkdownFiles(fullPath);
@@ -571,7 +572,9 @@ function findSkillMd(skillDir: string): string | null {
   const entries = readdirSync(skillDir);
   for (const entry of entries) {
     const fullPath = join(skillDir, entry);
-    if (statSync(fullPath).isFile() && entry.toLowerCase() === 'skill.md') {
+    const stat = lstatSync(fullPath);
+    if (stat.isSymbolicLink()) continue;
+    if (stat.isFile() && entry.toLowerCase() === 'skill.md') {
       return fullPath;
     }
   }
@@ -583,7 +586,8 @@ function findSkillMdDirectories(skillsDir: string): string[] {
   if (!existsSync(skillsDir) || !statSync(skillsDir).isDirectory()) return results;
   for (const entry of readdirSync(skillsDir)) {
     const fullPath = join(skillsDir, entry);
-    if (!statSync(fullPath).isDirectory()) continue;
+    const stat = lstatSync(fullPath);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) continue;
     const skillMd = findSkillMd(fullPath);
     if (skillMd) results.push(skillMd);
   }
