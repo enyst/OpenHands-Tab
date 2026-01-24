@@ -121,7 +121,7 @@ export const sanitizeMessageForDebug = (message: Message): Message => {
   const safeContent = message.role === 'tool'
     ? message.content.map((item) => (
       item.type === 'text'
-        ? { ...item, text: truncateToolMessageForDebug(item.text) }
+        ? { ...item, text: truncateToolMessageForDebug(redactStringHeuristics(item.text)) }
         : item
     ))
     : message.content;

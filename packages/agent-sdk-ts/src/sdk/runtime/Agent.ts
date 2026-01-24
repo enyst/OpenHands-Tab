@@ -1070,7 +1070,8 @@ export class Agent extends EventEmitter {
 
       return `${message} (${contextParts.join(', ')})`;
     })();
-    return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail } as Event;
+    const maskedDetail = this.secretMasker.maskText(detail);
+    return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail: maskedDetail } as Event;
   }
 
   private ensureSystemPrompt() {
@@ -1123,7 +1124,8 @@ export class Agent extends EventEmitter {
   }
 
   private async emitToolError(toolCall: ToolCall, error: string): Promise<void> {
-    const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, error);
+    const maskedError = this.secretMasker.maskText(error);
+    const { agentErrorEvent, toolMessageEvent } = createToolCallErrorEvents(toolCall, maskedError);
     await this.pushEventWithHooks(agentErrorEvent);
     await this.pushEventWithHooks(toolMessageEvent);
   }
