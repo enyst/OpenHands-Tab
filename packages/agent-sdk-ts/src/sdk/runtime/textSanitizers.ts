@@ -28,7 +28,7 @@ const SENSITIVE_KEYS = new Set([
   'awsAccessKeyId', 'awsSecretAccessKey',
   'cloudApiKey', 'cloud_api_key',
   'runtimeSessionApiKey', 'runtime_session_api_key',
-  'sessionApiKey', 'session_api_key', 'x_api_key', 'x-api-key',
+  'session_api_key', 'x_api_key', 'x-api-key',
 ]);
 
 const shouldRedactKey = (key: string): boolean => {
