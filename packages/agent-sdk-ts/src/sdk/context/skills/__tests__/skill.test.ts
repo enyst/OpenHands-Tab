@@ -590,6 +590,25 @@ Knowledge content`);
       expect(repoSkills.has('claude')).toBe(false);
     });
 
+    it('skips symlinked skill files and directories', () => {
+      const externalFile = join(tempDir, 'external-skill.md');
+      writeFileSync(externalFile, 'External skill');
+      symlinkSync(externalFile, join(skillDir, 'symlink-skill.md'));
+
+      const externalDir = join(tempDir, 'external-skill-dir');
+      mkdirSync(externalDir, { recursive: true });
+      writeFileSync(join(externalDir, 'SKILL.md'), 'External agent skill');
+      symlinkSync(externalDir, join(skillDir, 'linked-skill'));
+
+      writeFileSync(join(skillDir, 'real-skill.md'), 'Real skill');
+
+      const { repoSkills, agentSkills } = loadSkillsFromDir(skillDir);
+
+      expect(repoSkills.has('real-skill')).toBe(true);
+      expect(repoSkills.has('symlink-skill')).toBe(false);
+      expect(agentSkills.has('linked-skill')).toBe(false);
+    });
+
     it('truncates oversized third-party files', () => {
       const repoRoot = join(tempDir, 'repo');
       const head = 'HEAD\n';
