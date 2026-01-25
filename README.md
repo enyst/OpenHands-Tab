@@ -2,6 +2,8 @@
 
 <img width="607" height="450" alt="image" src="https://github.com/user-attachments/assets/32e27cd3-452a-4a90-bf57-45a1b4f76ec8" />
 <img width="602" height="304" alt="image" src="https://github.com/user-attachments/assets/eb658ee6-6e0e-4a9c-85bb-e77e1339d607" />
+<img width="423" height="253" alt="image" src="https://github.com/user-attachments/assets/596e5d1e-ebfd-4595-a2b7-3a673f5436a8" />
+
 
 A VS Code extension for interacting with OpenHands AI agents directly in your IDE.
 
