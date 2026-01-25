@@ -57,6 +57,7 @@ Activate this skill when the user:
 | File        | Purpose                    | When to Read                                     |
 | ----------- | -------------------------- | ------------------------------------------------ |
 | `runner.md` | OpenHands execution        | **Always** for running programs in OpenHands     |
+| `task-backends.md` | Task backend options | When you want subagent-like execution via CLI/REST |
 | `prose.md`  | Core VM semantics          | For understanding the execution model            |
 | `docs.md`   | Full language spec         | For compilation, validation, or syntax questions |
 | `patterns.md` | Best practices           | When authoring or reviewing programs             |
