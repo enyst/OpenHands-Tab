@@ -419,6 +419,20 @@ export function TerminalActionSummary({ action }: { action: JsonRecord | null })
   );
 }
 
+export function ThinkActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
+  if (!action) return null;
+  const thought = getString(action.thought) ?? getString(action.message);
+  if (!thought) return null;
+  return (
+    <div className="text-sm leading-relaxed space-y-1">
+      <p>The agent logged a thought.</p>
+      <pre className="font-mono text-xs text-stone-400 bg-black/20 rounded-lg p-3 border border-white/[0.04] whitespace-pre-wrap break-words">
+        {thought}
+      </pre>
+    </div>
+  );
+}
+
 export function TerminalObservationSummary({
   observation,
   isExpanded,
