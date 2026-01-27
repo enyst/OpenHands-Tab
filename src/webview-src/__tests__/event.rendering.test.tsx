@@ -105,6 +105,7 @@ describe('Agent-SDK event rendering', () => {
 
     const fenced = await screen.findByText(/console\.log/);
     expect(fenced.closest('pre')).not.toBeNull();
+    expect(await screen.findByLabelText('Copy code block')).toBeInTheDocument();
 
     const link = await screen.findByRole('button', { name: 'docs' });
     fireEvent.click(link);
