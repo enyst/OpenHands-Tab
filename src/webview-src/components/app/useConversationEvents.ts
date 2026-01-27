@@ -59,6 +59,8 @@ const isOptimisticUserMessageEvent = (event: Event): boolean => (
 const isEnvironmentInfoBlock = (text: string): boolean =>
   text.trimStart().toLowerCase().startsWith('<environment information>');
 
+const OPTIMISTIC_DEDUPE_WINDOW_MS = 2000;
+
 const fingerprintMessageEvent = (event: MessageEvent): string => {
   const role = event.llm_message?.role ?? '';
   const content = Array.isArray(event.llm_message?.content) ? event.llm_message.content : [];
@@ -94,6 +96,7 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
   } = options;
 
   const streamingStateRef = useRef(initialLlmStreamingState);
+  const recentUserMessageFingerprintsRef = useRef<Map<string, number>>(new Map());
 
   const handleConversationStateUpdate = useCallback((event: Event) => {
     if (!isConversationStateUpdateEvent(event)) return false;
@@ -237,8 +240,23 @@ export function useConversationEvents(options: UseConversationEventsOptions) {
   const handleRenderableEvent = useCallback((event: Event) => {
     if (!isRenderableEvent(event)) return;
 
-    if (isMessageEvent(event) && event.source === 'user' && !isOptimisticUserMessageEvent(event)) {
-      setQueuedMessagesCount((prev) => Math.max(0, prev - 1));
+    if (isMessageEvent(event) && event.source === 'user') {
+      const fingerprint = fingerprintMessageEvent(event);
+      const now = Date.now();
+      const recent = recentUserMessageFingerprintsRef.current;
+      for (const [key, timestamp] of recent.entries()) {
+        if (now - timestamp > OPTIMISTIC_DEDUPE_WINDOW_MS) {
+          recent.delete(key);
+        }
+      }
+      if (isOptimisticUserMessageEvent(event)) {
+        if (recent.has(fingerprint)) {
+          return;
+        }
+      } else {
+        recent.set(fingerprint, now);
+        setQueuedMessagesCount((prev) => Math.max(0, prev - 1));
+      }
     }
 
     setEvents((ev) => {

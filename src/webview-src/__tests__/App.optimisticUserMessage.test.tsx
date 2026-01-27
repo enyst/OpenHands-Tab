@@ -64,6 +64,40 @@ describe('App - optimistic user MessageEvent rendering', () => {
     expect(screen.queryByTestId('queued-messages-badge')).toBeNull();
   });
 
+  it('skips an optimistic user message if the persisted event already arrived', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'webviewReady' });
+    });
+
+    postToWindow({ type: 'status', status: 'online', mode: 'remote' });
+
+    const persisted: MessageEvent = {
+      kind: 'MessageEvent',
+      id: 'server:test',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    } as MessageEvent;
+    postToWindow({ type: 'event', event: persisted });
+
+    const optimistic: MessageEvent = {
+      kind: 'MessageEvent',
+      id: 'optimistic:test',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    } as MessageEvent;
+    postToWindow({ type: 'event', event: optimistic });
+
+    expect(screen.getAllByText('hello')).toHaveLength(1);
+  });
+
   it('deduplicates an optimistic user message when the persisted event adds <environment information> extended content', async () => {
     render(<App />);
 
