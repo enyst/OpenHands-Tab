@@ -69,8 +69,10 @@ const fingerprintMessageEvent = (event: MessageEvent): string => {
   const content = Array.isArray(event.llm_message?.content) ? event.llm_message.content : [];
   const extended = Array.isArray(event.extended_content)
     ? event.extended_content.filter((c) => {
-      if (!(c?.type === 'text' && typeof c.text === 'string')) return true;
-      return !isEnvironmentInfoBlock(c.text) && !isExtraInfoBlock(c.text);
+      if (c?.type === 'text' && typeof c.text === 'string') {
+        return !isEnvironmentInfoBlock(c.text) && !isExtraInfoBlock(c.text);
+      }
+      return true;
     })
     : [];
   try {
