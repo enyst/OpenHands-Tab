@@ -144,4 +144,39 @@ describe('App - optimistic user MessageEvent rendering', () => {
 
     expect(screen.getAllByText('hello')).toHaveLength(1);
   });
+
+  it('deduplicates an optimistic user message when the persisted event adds <EXTRA_INFO> extended content', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'webviewReady' });
+    });
+
+    postToWindow({ type: 'status', status: 'online', mode: 'local' });
+
+    const optimistic: MessageEvent = {
+      kind: 'MessageEvent',
+      id: 'optimistic:test',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      },
+    } as MessageEvent;
+    postToWindow({ type: 'event', event: optimistic });
+
+    const persisted: MessageEvent = {
+      ...optimistic,
+      id: 'server:test',
+      extended_content: [
+        {
+          type: 'text',
+          text: '<EXTRA_INFO>\nInjected skill content\n</EXTRA_INFO>',
+        },
+      ],
+    } as MessageEvent;
+    postToWindow({ type: 'event', event: persisted });
+
+    expect(screen.getAllByText('hello')).toHaveLength(1);
+  });
 });

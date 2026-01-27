@@ -61,11 +61,17 @@ const isEnvironmentInfoBlock = (text: string): boolean =>
 
 const OPTIMISTIC_DEDUPE_WINDOW_MS = 2000;
 
+const isExtraInfoBlock = (text: string): boolean =>
+  text.trimStart().toLowerCase().startsWith('<extra_info>');
+
 const fingerprintMessageEvent = (event: MessageEvent): string => {
   const role = event.llm_message?.role ?? '';
   const content = Array.isArray(event.llm_message?.content) ? event.llm_message.content : [];
   const extended = Array.isArray(event.extended_content)
-    ? event.extended_content.filter((c) => !(c?.type === 'text' && typeof c.text === 'string' && isEnvironmentInfoBlock(c.text)))
+    ? event.extended_content.filter((c) => {
+      if (!(c?.type === 'text' && typeof c.text === 'string')) return true;
+      return !isEnvironmentInfoBlock(c.text) && !isExtraInfoBlock(c.text);
+    })
     : [];
   try {
     return JSON.stringify({ role, content, extended });
