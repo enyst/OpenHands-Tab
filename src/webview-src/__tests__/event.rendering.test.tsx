@@ -329,6 +329,24 @@ describe('Agent-SDK event rendering', () => {
     expect(await screen.findByText(/We should compare the two approaches/)).toBeInTheDocument();
   });
 
+  it('does not render think ActionEvent content without action.thought', async () => {
+    render(<App />);
+    const ev = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [],
+      action: { message: 'Legacy thought text' },
+      tool_name: 'think',
+      tool_call_id: 'call_action_think_legacy',
+      tool_call: { id: 'call_action_think_legacy', type: 'function' as const, function: { name: 'think', arguments: '{}' } },
+      llm_response_id: 'resp_action_think_legacy'
+    } as any;
+    postToWindow({ type: 'event', event: ev });
+    await waitFor(() => {
+      expect(screen.queryByText(/Legacy thought text/)).toBeNull();
+    });
+  });
+
   it('renders ObservationEvent', async () => {
     render(<App />);
     const ev = {
