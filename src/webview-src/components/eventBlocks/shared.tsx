@@ -55,7 +55,9 @@ const formatSizeDelta = (previous?: number, next?: number): string | undefined =
 const collectTextFromNode = (node: ReactNode): string => {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
   if (Array.isArray(node)) return node.map(collectTextFromNode).join('');
-  if (React.isValidElement(node)) return collectTextFromNode(node.props.children as ReactNode);
+  if (React.isValidElement<{ children?: ReactNode }>(node)) {
+    return collectTextFromNode(node.props.children);
+  }
   return '';
 };
 
