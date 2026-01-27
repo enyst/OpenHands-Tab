@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import React, { type ReactNode, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -51,6 +51,75 @@ const formatSizeDelta = (previous?: number, next?: number): string | undefined =
   const sign = delta > 0 ? '+' : '';
   return 'File size changed by ' + sign + delta.toLocaleString() + ' ' + unit + '.';
 };
+
+const collectTextFromNode = (node: ReactNode): string => {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(collectTextFromNode).join('');
+  if (React.isValidElement<{ children?: ReactNode }>(node)) {
+    return collectTextFromNode(node.props.children);
+  }
+  return '';
+};
+
+const copyTextToClipboard = async (payload: string) => {
+  if (!payload) return;
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(payload);
+      return;
+    }
+  } catch {
+    // Fall back to execCommand copy.
+  }
+  const textarea = document.createElement('textarea');
+  try {
+    textarea.value = payload;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    document.execCommand('copy');
+  } catch {
+    // Ignore clipboard failures.
+  } finally {
+    textarea.remove();
+  }
+};
+
+function CodeBlock({ children }: { children: ReactNode }) {
+  const [hideCopy, setHideCopy] = useState(false);
+  const codeText = useMemo(() => {
+    const raw = collectTextFromNode(children);
+    return raw.replace(/\n$/, '');
+  }, [children]);
+  const shouldShowCopy = codeText.trim().length > 0;
+  const handleCopy = () => {
+    setHideCopy(true);
+    void copyTextToClipboard(codeText);
+  };
+
+  return (
+    <pre
+      className="mt-2 first:mt-0 font-mono bg-black/20 border border-white/[0.04] rounded-lg p-3 pr-10 leading-relaxed text-xs overflow-auto whitespace-pre [&_code]:bg-transparent [&_code]:border-0 [&_code]:px-0 [&_code]:py-0 [&_code]:rounded-none relative group/codeblock"
+      onMouseLeave={() => setHideCopy(false)}
+    >
+      {shouldShowCopy && (
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label="Copy code block"
+          className={`absolute top-2 right-2 opacity-0 pointer-events-none transition-opacity text-stone-300 hover:text-stone-100 bg-black/30 border border-white/[0.06] rounded-md p-1 shadow-sm ${
+            hideCopy ? '' : 'group-hover/codeblock:opacity-100 group-hover/codeblock:pointer-events-auto'
+          }`}
+        >
+          <span className="codicon codicon-copy text-[11px]" />
+        </button>
+      )}
+      {children}
+    </pre>
+  );
+}
 
 const postMessage = (message: WebviewToHostMessage) => {
   const api = getVscodeApi();
@@ -203,11 +272,7 @@ export function MarkdownMessage({ text }: { text: string }) {
         h1: ({ children }) => <h1 className="text-lg font-semibold mt-3 first:mt-0">{children}</h1>,
         h2: ({ children }) => <h2 className="text-base font-semibold mt-3 first:mt-0">{children}</h2>,
         h3: ({ children }) => <h3 className="text-sm font-semibold mt-3 first:mt-0">{children}</h3>,
-        pre: ({ children }) => (
-          <pre className="mt-2 first:mt-0 font-mono bg-black/20 border border-white/[0.04] rounded-lg p-3 leading-relaxed text-xs overflow-auto whitespace-pre [&_code]:bg-transparent [&_code]:border-0 [&_code]:px-0 [&_code]:py-0 [&_code]:rounded-none">
-            {children}
-          </pre>
-        ),
+        pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
         code: ({ className, children }) => (
           <code
             className={[
@@ -720,6 +785,7 @@ export function EventContainer({
   index = 0,
   dataTestId,
   alignRight = false,
+  onMouseLeave,
 }: {
   children: React.ReactNode;
   accentColor: string;
@@ -728,6 +794,7 @@ export function EventContainer({
   index?: number;
   dataTestId?: string;
   alignRight?: boolean;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
 }) {
   const animationDelay = `${index * 40}ms`;
   const bgOpacityPercent = Math.round(bgOpacity * 100);
@@ -752,6 +819,7 @@ export function EventContainer({
         ${alignRight ? 'ml-auto max-w-[85%]' : ''}
         ${className}
       `}
+      onMouseLeave={onMouseLeave}
       style={{
         [alignRight ? 'borderRightColor' : 'borderLeftColor']: accentColor,
         background: `linear-gradient(${alignRight ? '225deg' : '135deg'}, color-mix(in srgb, ${accentColor} ${bgOpacityPercent}%, transparent) 0%, color-mix(in srgb, ${accentColor} ${Math.round(bgOpacity * 50)}%, transparent) 100%)`,

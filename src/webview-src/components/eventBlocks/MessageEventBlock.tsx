@@ -1,5 +1,6 @@
 import type { MessageEvent as AgentMessageEvent } from '@openhands/agent-sdk-ts';
 import { isTextContent } from '@openhands/agent-sdk-ts';
+import { useState } from 'react';
 import {
   AGENT_ACCENT_COLOR,
   DEFAULT_ACCENT_COLOR,
@@ -21,6 +22,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
   const isUser = message.role === 'user';
   const isAgent = message.role === 'assistant';
   const hasToolCalls = Array.isArray(message.tool_calls) && message.tool_calls.length > 0;
+  const [hideMessageCopy, setHideMessageCopy] = useState(false);
 
   function truncateEnvironmentInformationForDisplay(text: string): string {
     const lines = text.split(/\r?\n/);
@@ -144,6 +146,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     }
   };
   const handleCopyText = () => {
+    setHideMessageCopy(true);
     void copyMessageText();
   };
 
@@ -167,13 +170,16 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       dataTestId="message-event"
       className={`${isUser ? '!bg-neutral-700' : ''} group/message`}
       alignRight={isUser}
+      onMouseLeave={() => setHideMessageCopy(false)}
     >
       {canCopyText && (
         <button
           type="button"
           onClick={handleCopyText}
           aria-label="Copy message text"
-          className="absolute bottom-2 right-2 opacity-0 pointer-events-none group-hover/message:opacity-100 group-hover/message:pointer-events-auto transition-opacity text-stone-300 hover:text-stone-100 bg-black/30 border border-white/[0.06] rounded-md p-1.5 shadow-sm"
+          className={`absolute top-2 right-2 opacity-0 pointer-events-none transition-opacity text-stone-300 hover:text-stone-100 bg-black/30 border border-white/[0.06] rounded-md p-1.5 shadow-sm ${
+            hideMessageCopy ? '' : 'group-hover/message:opacity-100 group-hover/message:pointer-events-auto'
+          }`}
         >
           <span className="codicon codicon-copy text-xs" />
         </button>
