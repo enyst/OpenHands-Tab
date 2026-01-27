@@ -115,6 +115,37 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
 
   const { main: textContent, attachments } = parseAttachmentBlocks(withoutContext);
   const imageContent = message.content.filter((c) => c.type === 'image');
+  const canCopyText = (isUser || isAgent) && textContent.trim().length > 0;
+
+  const copyMessageText = async () => {
+    if (!canCopyText) return;
+    const payload = textContent;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+        return;
+      }
+    } catch {
+      // Fall back to execCommand copy.
+    }
+    const textarea = document.createElement('textarea');
+    try {
+      textarea.value = payload;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+    } catch {
+      // Ignore clipboard failures.
+    } finally {
+      textarea.remove();
+    }
+  };
+  const handleCopyText = () => {
+    void copyMessageText();
+  };
 
   const accentColor = isUser ? USER_ACCENT_COLOR : isAgent ? AGENT_ACCENT_COLOR : DEFAULT_ACCENT_COLOR;
   const icon = isUser ? 'account' : isAgent ? 'hubot' : 'info';
@@ -134,9 +165,19 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       bgOpacity={bgOpacity}
       index={index}
       dataTestId="message-event"
-      className={isUser ? '!bg-neutral-700' : ''}
+      className={`${isUser ? '!bg-neutral-700' : ''} group`}
       alignRight={isUser}
     >
+      {canCopyText && (
+        <button
+          type="button"
+          onClick={handleCopyText}
+          aria-label="Copy message text"
+          className="absolute bottom-2 right-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity text-stone-300 hover:text-stone-100 bg-black/30 border border-white/[0.06] rounded-md p-1.5 shadow-sm"
+        >
+          <span className="codicon codicon-copy text-xs" />
+        </button>
+      )}
       <div className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
         {!isUser && (
           <div
