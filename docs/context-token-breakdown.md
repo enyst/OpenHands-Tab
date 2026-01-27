@@ -1,6 +1,6 @@
 # Context Token Breakdown (Local Conversations)
 
-When the UI shows `Context: N tokens` in the toolbar or history list, the value comes from the last LLM response usage (`state.values.llm_usage.inputTokens` when available). That is the provider‑reported **prompt tokens**, so it includes everything sent in the request: system prompt, tool definitions, user message, and any extended context appended to the user message.
+When the UI shows `Context: N tokens` in the toolbar or history list, the value comes from the last LLM response usage (`state.values.llm_usage.inputTokens` when available). When `llm_usage` is missing, the UI falls back to the most recent prompt token count in `state.values.stats` — specifically `state.values.stats.usage_to_metrics.agent.lastTokenUsage.promptTokens` (or legacy `last_token_usage.prompt_tokens`), and then `state.values.stats.usage_to_metrics.agent.accumulatedTokenUsage.perTurnToken` (or legacy `accumulated_token_usage.per_turn_token`). These are provider‑reported **prompt tokens**, so they include everything sent in the request: system prompt, tool definitions, user message, and any extended context appended to the user message.
 
 Below is a concrete breakdown from a fresh local conversation (single user message “are you there?”) using **gpt‑5** on **2026‑01‑23**. Token counts were computed with `tiktoken.encoding_for_model('gpt-5')` (maps to `o200k_base`). `gpt-5-nano` resolves to the same tokenizer, so counts are identical.
 

@@ -85,6 +85,7 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 | [docs/PRD.md](docs/PRD.md) | Product requirements and architecture |
 | [docs/settings_prd.md](docs/settings_prd.md) | Product requirements and architecture |
 | [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) | SDK architecture details |
+| [docs/context-token-breakdown.md](docs/context-token-breakdown.md) | Why context tokens can be high in local mode |
 | [docs/vscode_local_setup.md](docs/vscode_local_setup.md) | Local development setup |
 | [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) | Headless/remote setup |
 | [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) | SDK development guide |
