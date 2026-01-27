@@ -128,8 +128,8 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
     } catch {
       // Fall back to execCommand copy.
     }
+    const textarea = document.createElement('textarea');
     try {
-      const textarea = document.createElement('textarea');
       textarea.value = payload;
       textarea.style.position = 'fixed';
       textarea.style.opacity = '0';
@@ -137,9 +137,10 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       textarea.focus();
       textarea.select();
       document.execCommand('copy');
-      document.body.removeChild(textarea);
     } catch {
       // Ignore clipboard failures.
+    } finally {
+      textarea.remove();
     }
   };
   const handleCopyText = () => {
