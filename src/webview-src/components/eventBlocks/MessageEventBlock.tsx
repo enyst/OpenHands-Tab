@@ -165,7 +165,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
       bgOpacity={bgOpacity}
       index={index}
       dataTestId="message-event"
-      className={`${isUser ? '!bg-neutral-700' : ''} group`}
+      className={`${isUser ? '!bg-neutral-700' : ''} group/message`}
       alignRight={isUser}
     >
       {canCopyText && (
@@ -173,7 +173,7 @@ export function MessageEventBlock({ event, index }: { event: AgentMessageEvent; 
           type="button"
           onClick={handleCopyText}
           aria-label="Copy message text"
-          className="absolute bottom-2 right-2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity text-stone-300 hover:text-stone-100 bg-black/30 border border-white/[0.06] rounded-md p-1.5 shadow-sm"
+          className="absolute bottom-2 right-2 opacity-0 pointer-events-none group-hover/message:opacity-100 group-hover/message:pointer-events-auto transition-opacity text-stone-300 hover:text-stone-100 bg-black/30 border border-white/[0.06] rounded-md p-1.5 shadow-sm"
         >
           <span className="codicon codicon-copy text-xs" />
         </button>
