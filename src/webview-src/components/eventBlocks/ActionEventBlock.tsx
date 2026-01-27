@@ -10,6 +10,7 @@ import {
   GlobActionSummary,
   GrepActionSummary,
   TerminalActionSummary,
+  ThinkActionSummary,
   withAlpha,
 } from './shared';
 
@@ -27,6 +28,8 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
         return <FileEditorActionSummary action={event.action} />;
       case 'terminal':
         return <TerminalActionSummary action={event.action} />;
+      case 'think':
+        return <ThinkActionSummary action={event.action} />;
       case 'glob':
         return <GlobActionSummary action={event.action} />;
       case 'grep':
@@ -97,4 +100,3 @@ export function ActionEventBlock({ event, index }: { event: ActionEvent; index?:
     </EventContainer>
   );
 }
-

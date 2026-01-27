@@ -299,6 +299,22 @@ describe('Agent-SDK event rendering', () => {
     expect((await screen.findAllByText(/terminal/)).length).toBeGreaterThan(0);
   });
 
+  it('renders think ActionEvent content', async () => {
+    render(<App />);
+    const ev = {
+      kind: 'ActionEvent',
+      source: 'agent' as const,
+      thought: [],
+      action: { thought: 'We should compare the two approaches before deciding.' },
+      tool_name: 'think',
+      tool_call_id: 'call_action_think',
+      tool_call: { id: 'call_action_think', type: 'function' as const, function: { name: 'think', arguments: '{}' } },
+      llm_response_id: 'resp_action_think'
+    } as any;
+    postToWindow({ type: 'event', event: ev });
+    expect(await screen.findByText(/We should compare the two approaches/)).toBeInTheDocument();
+  });
+
   it('renders ObservationEvent', async () => {
     render(<App />);
     const ev = {
