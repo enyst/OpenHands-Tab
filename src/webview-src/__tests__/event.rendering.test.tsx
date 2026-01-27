@@ -37,6 +37,20 @@ describe('Agent-SDK event rendering', () => {
     expect(await screen.findByText('OpenHands says')).toBeInTheDocument();
   });
 
+  it('shows a copy button for user messages with text', async () => {
+    render(<App />);
+    const ev: AgentMessageEvent = {
+      kind: 'MessageEvent',
+      source: 'user',
+      llm_message: {
+        role: 'user',
+        content: [{ type: 'text', text: 'Copy me' }],
+      },
+    } as any;
+    postToWindow({ type: 'event', event: ev });
+    expect(await screen.findByLabelText('Copy message text')).toBeInTheDocument();
+  });
+
   it('does not show Extended Thinking on assistant tool-call messages', async () => {
     render(<App />);
     const ev: AgentMessageEvent = {
