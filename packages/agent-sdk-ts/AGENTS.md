@@ -500,3 +500,4 @@ Always enable strict mode and use explicit types for function parameters and ret
 - [Main README](../../README.md) - Overall project documentation
 - [Repository Guidelines](../../AGENTS.md) - Repository-wide development guidelines
 - [docs/agent-sdk-architecture.md](../../docs/agent-sdk-architecture.md) - Detailed SDK architecture guide
+- [docs/tool-integration-tests.md](docs/tool-integration-tests.md) - Tool integration test workflow
