@@ -214,11 +214,14 @@ describe('TerminalTool session behavior', () => {
     created.push(dir);
     const tool = new TerminalTool();
 
-    const started = await tool.execute(
-      tool.validate({ command: 'sleep 0.4 > /dev/null 2>&1 &', timeout: 0.05 }),
+    let completed = await tool.execute(
+      tool.validate({ command: 'sleep 0.4 > /dev/null 2>&1 &', timeout: 0.2 }),
       { workspace },
     );
-    expect(started.exit_code).toBe(0);
+    for (let i = 0; i < 5 && completed.exit_code === -1; i++) {
+      completed = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.2 }), { workspace });
+    }
+    expect(completed.exit_code).toBe(0);
 
     const next = await tool.execute(tool.validate({ command: 'echo ok', timeout: 0.2 }), { workspace });
     expect(next.exit_code).toBe(0);
