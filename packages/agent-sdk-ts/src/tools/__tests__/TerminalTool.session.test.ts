@@ -230,6 +230,58 @@ describe('TerminalTool session behavior', () => {
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
   });
 
+  it('runs a foreground command while a background job is still running', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+    let backgroundPid: number | null = null;
+
+    try {
+      let started = await tool.execute(
+        tool.validate({ command: 'sleep 2 & echo $!', timeout: 0.2 }),
+        { workspace },
+      );
+      for (let i = 0; i < 5 && started.exit_code === -1; i++) {
+        started = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.2 }), { workspace });
+      }
+
+      expect(started.exit_code).toBe(0);
+      expect((started.stderr ?? '').trim()).toBe('');
+      const pidText = (started.stdout ?? '').trim();
+      expect(pidText).toMatch(/^\d+$/);
+      backgroundPid = Number.parseInt(pidText, 10);
+      expect(Number.isFinite(backgroundPid)).toBe(true);
+
+      const second = await tool.execute(tool.validate({ command: 'echo second', timeout: 0.2 }), { workspace });
+      expect(second.exit_code).toBe(0);
+      expect((second.stdout ?? '').trim()).toBe('second');
+      expect((second.stderr ?? '').trim()).toBe('');
+
+      const running = await tool.execute(
+        tool.validate({ command: `ps -p ${backgroundPid} -o pid=`, timeout: 0.2 }),
+        { workspace },
+      );
+      expect(running.exit_code).toBe(0);
+      expect((running.stdout ?? '').trim()).toBe(String(backgroundPid));
+
+      await new Promise((resolve) => setTimeout(resolve, 2100));
+      const finished = await tool.execute(
+        tool.validate({ command: `ps -p ${backgroundPid} -o pid=`, timeout: 0.2 }),
+        { workspace },
+      );
+      expect((finished.stdout ?? '').trim()).toBe('');
+      expect(finished.exit_code).not.toBe(0);
+    } finally {
+      if (backgroundPid && Number.isFinite(backgroundPid)) {
+        await tool.execute(
+          tool.validate({ command: `kill ${backgroundPid} 2>/dev/null || true`, timeout: 0.2 }),
+          { workspace },
+        );
+      }
+      await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
+    }
+  });
+
   it('returns the final exit code when a timed-out command completes later', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
