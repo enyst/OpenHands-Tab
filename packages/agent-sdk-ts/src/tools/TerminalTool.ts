@@ -214,6 +214,7 @@ class TerminalSession {
       const parsed = Number.parseInt(raw, 10);
       if (Number.isFinite(parsed)) {
         cmd.exitCode = parsed;
+        cmd.done = true;
       }
     }
 

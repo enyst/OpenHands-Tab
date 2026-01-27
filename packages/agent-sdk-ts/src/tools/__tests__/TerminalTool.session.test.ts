@@ -209,6 +209,27 @@ describe('TerminalTool session behavior', () => {
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
   });
 
+  it('allows a new command after a background command returns immediately', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    const tool = new TerminalTool();
+
+    let completed = await tool.execute(
+      tool.validate({ command: 'sleep 0.4 > /dev/null 2>&1 &', timeout: 0.2 }),
+      { workspace },
+    );
+    for (let i = 0; i < 5 && completed.exit_code === -1; i++) {
+      completed = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.2 }), { workspace });
+    }
+    expect(completed.exit_code).toBe(0);
+
+    const next = await tool.execute(tool.validate({ command: 'echo ok', timeout: 0.2 }), { workspace });
+    expect(next.exit_code).toBe(0);
+    expect((next.stdout ?? '').trim()).toBe('ok');
+
+    await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
+  });
+
   it('returns the final exit code when a timed-out command completes later', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
