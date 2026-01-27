@@ -421,7 +421,7 @@ export function TerminalActionSummary({ action }: { action: JsonRecord | null })
 
 export function ThinkActionSummary({ action }: { action: JsonRecord | null }): React.ReactElement | null {
   if (!action) return null;
-  const thought = getString(action.thought) ?? getString(action.message);
+  const thought = getString(action.thought);
   if (!thought) return null;
   return (
     <div className="text-sm leading-relaxed space-y-1">
