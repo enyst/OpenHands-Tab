@@ -60,6 +60,7 @@ class CdpClient {
   }>();
   private defaultContextId: number | null = null;
   private contextsByFrame = new Map<string, number>();
+  private frameByContextId = new Map<number, string>();
   private defaultTimeoutMs: number;
 
   private constructor(ws: WebSocket, defaultTimeoutMs: number) {
@@ -77,17 +78,27 @@ class CdpClient {
         const aux = context?.auxData;
         if (aux?.frameId && (aux?.isDefault || aux?.type === 'default')) {
           this.contextsByFrame.set(aux.frameId, context.id);
+          this.frameByContextId.set(context.id, aux.frameId);
           if (this.defaultContextId === null) {
             this.defaultContextId = context.id;
           }
         }
       } else if (message?.method === 'Runtime.executionContextDestroyed') {
-        if (message.params?.executionContextId === this.defaultContextId) {
+        const contextId = message.params?.executionContextId;
+        if (typeof contextId === 'number') {
+          const frameId = this.frameByContextId.get(contextId);
+          if (frameId) {
+            this.contextsByFrame.delete(frameId);
+            this.frameByContextId.delete(contextId);
+          }
+        }
+        if (contextId === this.defaultContextId) {
           this.defaultContextId = null;
         }
       } else if (message?.method === 'Runtime.executionContextsCleared') {
         this.defaultContextId = null;
         this.contextsByFrame.clear();
+        this.frameByContextId.clear();
       }
       if (typeof message?.id !== 'number') return;
       const pending = this.pending.get(message.id);
