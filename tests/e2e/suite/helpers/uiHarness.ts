@@ -13,17 +13,6 @@ async function waitForValue<T>(label: string, getter: () => T | Promise<T>, time
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-async function waitForFrame(label: string, getter: () => Frame | undefined, timeoutMs: number, page: Page): Promise<Frame> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const frame = getter();
-    if (frame) return frame;
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-  const urls = page.frames().map((frame) => frame.url());
-  throw new Error(`Timed out waiting for ${label}. Frames seen: ${urls.join(' | ')}`);
-}
-
 export async function connectToVsCodeUi(options: { port: number; timeoutMs?: number; webviewSelector?: string }): Promise<{
   browser: Browser;
   page: Page;
@@ -48,19 +37,27 @@ export async function connectToVsCodeUi(options: { port: number; timeoutMs?: num
       await browser.close();
     },
     waitForWebviewFrame: async (timeoutOverride?: number) => {
+      const timeout = timeoutOverride ?? timeoutMs;
+      const deadline = Date.now() + timeout;
       if (options.webviewSelector) {
         try {
-          await page.locator(options.webviewSelector).first().waitFor({ state: 'attached', timeout: timeoutOverride ?? timeoutMs });
+          await page.locator(options.webviewSelector).first().waitFor({ state: 'attached', timeout });
         } catch {
           // fall through to frame discovery
         }
       }
-      return waitForFrame(
-        'OpenHands webview frame',
-        () => page.frames().find((frame) => frame.url().includes('openhands.openhands-tab')),
-        timeoutOverride ?? timeoutMs,
-        page
-      );
+      while (Date.now() < deadline) {
+        const pages = browser.contexts().flatMap((context) => context.pages());
+        for (const candidate of pages) {
+          const frame = candidate.frames().find((f) => f.url().includes('openhands.openhands-tab'));
+          if (frame) return frame;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      const pages = browser.contexts().flatMap((context) => context.pages());
+      const urls = pages.flatMap((candidate) => candidate.frames().map((frame) => frame.url()));
+      throw new Error(`Timed out waiting for OpenHands webview frame. Frames seen: ${urls.join(' | ')}`);
     },
   };
 }
