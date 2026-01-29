@@ -55,14 +55,10 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 
 ### Configuration
 
-- **OpenHands: Set OpenAI API Key** - Set OpenAI API key
-- **OpenHands: Set Anthropic API Key** - Set Anthropic API key
-- **OpenHands: Set OpenRouter API Key** - Set OpenRouter API key
-- **OpenHands: Set LiteLLM Proxy API Key** - Set LiteLLM Proxy API key
-- **OpenHands: Set Gemini API Key** - Set Gemini API key (used for summarization, highly **recommended**)
-- **OpenHands: Set ElevenLabs API Key** - Set ElevenLabs API key
-- **OpenHands: Set Session API Key** - Set session API key for agent-server authentication
-- **OpenHands: Set GitHub Token** - Set GitHub token for repository access
+- You can use LLM Profiles View or regular VS Code Settings to set LLM Providers API key(s)
+- Set Gemini API key (used for summarizations, highly **recommended**)
+- Set ElevenLabs API key (optional feature)
+- Set GitHub token
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
 **Using Gemini**: Gemini can be used in three ways:
