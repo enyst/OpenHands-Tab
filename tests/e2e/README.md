@@ -20,7 +20,6 @@ Each test file orchestrates a VS Code instance and runs a specific test suite:
 - **llmSwitching.test.ts**: Tests switching LLM provider/model/api mode (local, mock server)
 - **confirmation.test.ts**: Tests action confirmation workflow with security levels
 - **errorHandling.test.ts**: Tests error events and error state handling
-- **uiFlowsUi.test.ts**: UI-driven smoke test using Playwright CDP (gated by `E2E_UI=1`)
 - **agentServerRemote.test.ts**: (Optional) Starts a local python agent-server and tests remote mode end-to-end (gated by `E2E_AGENT_SERVER=1`)
 - **agentServerRemoteAuth.test.ts**: (Optional) Starts a local python agent-server with `SESSION_API_KEY` enabled and tests runtime-key auth end-to-end (gated by `E2E_AGENT_SERVER=1`)
 - **agentServerRemoteCloudBootstrap.test.ts**: (Optional) Starts a local python agent-server + local mock SaaS server and tests cloud bootstrap wiring end-to-end (gated by `E2E_AGENT_SERVER=1`)
@@ -39,7 +38,6 @@ These run inside VS Code and execute the actual tests:
 - **suite/llmSwitching.ts**: Exercises local LLM switching against a mock server
 - **suite/confirmation.ts**: Tests actions with different security risk levels
 - **suite/errorHandling.ts**: Tests error events and recovery
-- **suite/uiFlowsUi.ts**: Clicks/hover UI flows in the webview using Playwright
 
 ### Helper Files
 - **testHelpers.ts**: Utility functions including VS Code download with retry
