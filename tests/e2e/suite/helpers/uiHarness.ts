@@ -179,10 +179,15 @@ export async function connectToWebviewCdp(options: {
           const testIds = Array.from(document.querySelectorAll('[data-testid]'))
             .slice(0, 10)
             .map((node) => node.getAttribute('data-testid'));
+          const root = document.getElementById('root');
+          const bodyText = document.body?.textContent?.trim() ?? '';
           return {
             readyState: document.readyState,
             title: document.title,
             testIds,
+            rootExists: Boolean(root),
+            rootChildCount: root?.childElementCount ?? 0,
+            bodyTextSample: bodyText.slice(0, 200),
           };
         });
       } catch {
