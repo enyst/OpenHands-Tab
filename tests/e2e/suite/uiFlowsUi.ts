@@ -31,16 +31,16 @@ export async function run(): Promise<void> {
   let closeWebview: (() => Promise<void>) | null = null;
 
   try {
+    await vscode.commands.executeCommand('workbench.action.focusSideBar');
+    await vscode.commands.executeCommand('workbench.view.extension.openhands');
+    await vscode.commands.executeCommand('openhands.agent.focus');
+
     await vscode.commands.executeCommand('openhands.open');
     await waitForDiagnostics({
       label: 'chat view ready',
       timeoutMs: 20000,
-      predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady),
+      predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady && diag.chat?.visible),
     });
-
-    await vscode.commands.executeCommand('workbench.action.focusSideBar');
-    await vscode.commands.executeCommand('workbench.view.extension.openhands');
-    await vscode.commands.executeCommand('openhands.agent.focus');
 
     const webview = await connectToWebviewCdp({ port, timeoutMs: 45000 });
     closeWebview = webview.close;
