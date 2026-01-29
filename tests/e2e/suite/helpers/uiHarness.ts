@@ -280,23 +280,36 @@ export async function connectToWebviewCdp(options: {
         await client.send('Runtime.enable');
         await client.send('Page.enable');
         const frameTree = await client.send('Page.getFrameTree');
-        const frameId = findFrameId(frameTree, target.url ?? '');
-        if (frameId) {
+        const frameIds = collectFrameIds(frameTree);
+        let matched = false;
+        for (const frameId of frameIds) {
           try {
             const world = await client.send('Page.createIsolatedWorld', {
               frameId,
               worldName: 'openhands-e2e',
             });
-            if (world?.executionContextId) {
-              client.setDefaultContext(world.executionContextId);
-            } else {
-              await client.waitForFrameContext(frameId, timeoutMs);
+            if (!world?.executionContextId) continue;
+            client.setDefaultContext(world.executionContextId);
+            const hasApp = await waitForCondition(
+              'app element',
+              () => client.evaluate(() => Boolean(document.getElementById('app'))),
+              1000
+            ).then(() => true, () => false);
+            if (hasApp) {
+              matched = true;
+              break;
             }
           } catch {
-            await client.waitForFrameContext(frameId, timeoutMs);
+            // ignore and try next frame
           }
-        } else {
-          await client.waitForDefaultContext(timeoutMs);
+        }
+        if (!matched) {
+          const frameId = findFrameId(frameTree, target.url ?? '');
+          if (frameId) {
+            await client.waitForFrameContext(frameId, timeoutMs);
+          } else {
+            await client.waitForDefaultContext(timeoutMs);
+          }
         }
       } catch (error) {
         await client.close();
@@ -510,4 +523,22 @@ function findFrameId(frameTree: any, targetUrl: string): string | null {
   }
 
   return root.frame?.id ?? null;
+}
+
+function collectFrameIds(frameTree: any): string[] {
+  const root = frameTree?.frameTree ?? frameTree;
+  const ids: string[] = [];
+  if (!root) return ids;
+
+  const visit = (node: any) => {
+    const frameId = node?.frame?.id;
+    if (typeof frameId === 'string') ids.push(frameId);
+    const children = Array.isArray(node?.childFrames) ? node.childFrames : [];
+    for (const child of children) {
+      visit(child);
+    }
+  };
+
+  visit(root);
+  return ids;
 }
