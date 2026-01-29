@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Frame, type Page } from 'playwright-core';
+import WebSocket from 'ws';
 
 type CdpTarget = {
   id?: string;
@@ -8,106 +8,202 @@ type CdpTarget = {
   webSocketDebuggerUrl?: string;
 };
 
+type WaitForSelectorOptions = {
+  timeoutMs?: number;
+  visible?: boolean;
+};
+
+export type WebviewSession = {
+  evaluate: <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) => Promise<T>;
+  waitForSelector: (selector: string, options?: WaitForSelectorOptions) => Promise<void>;
+  click: (selector: string) => Promise<void>;
+  clickByText: (tag: string, text: string) => Promise<void>;
+  getAttribute: (selector: string, name: string) => Promise<string | null>;
+  count: (selector: string) => Promise<number>;
+  close: () => Promise<void>;
+};
+
+const DEFAULT_TIMEOUT_MS = 15000;
+const POLL_INTERVAL_MS = 200;
+
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForValue<T>(label: string, getter: () => T | Promise<T>, timeoutMs: number): Promise<T> {
+async function waitForCondition(
+  label: string,
+  condition: () => Promise<boolean>,
+  timeoutMs: number
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  let last: T | undefined;
-
   while (Date.now() < deadline) {
-    last = await getter();
-    if (last !== undefined && last !== null) return last;
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    if (await condition()) return;
+    await sleep(POLL_INTERVAL_MS);
   }
-
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-export async function connectToVsCodeUi(options: { port: number; timeoutMs?: number; webviewSelector?: string }): Promise<{
-  browser: Browser;
-  page: Page;
-  close: () => Promise<void>;
-  waitForWebviewFrame: (timeoutOverride?: number) => Promise<Frame>;
-}> {
-  const timeoutMs = options.timeoutMs ?? 15000;
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${options.port}`);
-  const extraBrowsers: Browser[] = [];
-  const extensionId = 'openhands.openhands-tab';
-  let cachedWebviewFrame: Frame | null = null;
+class CdpClient {
+  private ws: WebSocket;
+  private nextId = 1;
+  private pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
 
-  const context = await waitForValue('browser context', () => browser.contexts()[0], timeoutMs);
-  const page = await waitForValue('VS Code page', () => {
-    const pages = context.pages();
-    return pages.find((p) => p.url().includes('vscode')) ?? pages[0];
-  }, timeoutMs);
+  private constructor(ws: WebSocket) {
+    this.ws = ws;
+    this.ws.on('message', (data) => {
+      let message: any;
+      try {
+        message = JSON.parse(data.toString());
+      } catch {
+        return;
+      }
+      if (typeof message?.id !== 'number') return;
+      const pending = this.pending.get(message.id);
+      if (!pending) return;
+      this.pending.delete(message.id);
+      if (message.error) {
+        pending.reject(new Error(message.error.message ?? 'CDP error'));
+        return;
+      }
+      pending.resolve(message.result);
+    });
 
-  await page.bringToFront();
+    this.ws.on('close', () => {
+      for (const pending of this.pending.values()) {
+        pending.reject(new Error('CDP connection closed'));
+      }
+      this.pending.clear();
+    });
+
+    this.ws.on('error', (error) => {
+      for (const pending of this.pending.values()) {
+        pending.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+      this.pending.clear();
+    });
+  }
+
+  static async connect(wsUrl: string, timeoutMs: number): Promise<CdpClient> {
+    const ws = new WebSocket(wsUrl);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Timed out connecting to CDP websocket')), timeoutMs);
+      ws.once('open', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      ws.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+    return new CdpClient(ws);
+  }
+
+  async send(method: string, params?: Record<string, any>): Promise<any> {
+    const id = this.nextId++;
+    const payload = { id, method, params };
+    const promise = new Promise<any>((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+    });
+    this.ws.send(JSON.stringify(payload));
+    return promise;
+  }
+
+  async evaluate<T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]): Promise<T> {
+    const expression = `(${fn.toString()})(...${JSON.stringify(args)})`;
+    const result = await this.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    });
+    if (result?.exceptionDetails) {
+      const text = result.exceptionDetails.text ?? 'Runtime.evaluate failed';
+      throw new Error(text);
+    }
+    return result?.result?.value as T;
+  }
+
+  async close(): Promise<void> {
+    if (this.ws.readyState === WebSocket.OPEN) {
+      this.ws.close();
+    }
+  }
+}
+
+export async function connectToWebviewCdp(options: {
+  port: number;
+  timeoutMs?: number;
+  extensionId?: string;
+}): Promise<WebviewSession> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const extensionId = options.extensionId ?? 'openhands.openhands-tab';
+
+  const target = await waitForWebviewTarget(options.port, extensionId, timeoutMs);
+  if (!target?.webSocketDebuggerUrl) {
+    const targets = await getWebviewTargets(options.port);
+    const targetUrls = targets.map((item) => `${item.type ?? 'unknown'}:${item.url ?? 'unknown'}`);
+    throw new Error(`Unable to find OpenHands webview target. Targets: ${targetUrls.join(' | ')}`);
+  }
+
+  const client = await CdpClient.connect(target.webSocketDebuggerUrl, timeoutMs);
+  await client.send('Runtime.enable');
+
+  const evaluate = <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) => client.evaluate<T>(fn, ...args);
+
+  const waitForSelector = async (selector: string, options?: WaitForSelectorOptions) => {
+    const requireVisible = options?.visible ?? false;
+    const deadlineMs = options?.timeoutMs ?? timeoutMs;
+    await waitForCondition(
+      `selector ${selector}`,
+      async () =>
+        evaluate((sel, visible) => {
+          const el = document.querySelector(sel);
+          if (!el) return false;
+          if (!visible) return true;
+          const style = window.getComputedStyle(el);
+          if (style.visibility === 'hidden' || style.display === 'none') return false;
+          const rect = el.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        }, selector, requireVisible),
+      deadlineMs,
+    );
+  };
+
+  const click = async (selector: string) => {
+    const clicked = await evaluate((sel) => {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      if (!el) return false;
+      el.click();
+      return true;
+    }, selector);
+    if (!clicked) throw new Error(`Unable to click selector: ${selector}`);
+  };
+
+  const clickByText = async (tag: string, text: string) => {
+    const clicked = await evaluate((tagName, textValue) => {
+      const nodes = Array.from(document.querySelectorAll(tagName));
+      const match = nodes.find((node) => (node.textContent ?? '').trim().includes(textValue));
+      if (!match) return false;
+      (match as HTMLElement).click();
+      return true;
+    }, tag, text);
+    if (!clicked) throw new Error(`Unable to click ${tag} containing text: ${text}`);
+  };
+
+  const getAttribute = (selector: string, name: string) =>
+    evaluate((sel, attr) => document.querySelector(sel)?.getAttribute(attr) ?? null, selector, name);
+
+  const count = (selector: string) =>
+    evaluate((sel) => document.querySelectorAll(sel).length, selector);
 
   return {
-    browser,
-    page,
-    close: async () => {
-      for (const extra of extraBrowsers) {
-        await extra.close();
-      }
-      await browser.close();
-    },
-    waitForWebviewFrame: async (timeoutOverride?: number) => {
-      if (cachedWebviewFrame) return cachedWebviewFrame;
-      const timeout = timeoutOverride ?? timeoutMs;
-      const deadline = Date.now() + timeout;
-      let lastCdpError: Error | null = null;
-      if (options.webviewSelector) {
-        try {
-          await page.locator(options.webviewSelector).first().waitFor({ state: 'attached', timeout });
-        } catch {
-          // fall through to frame discovery
-        }
-      }
-      while (Date.now() < deadline) {
-        const pages = browser.contexts().flatMap((context) => context.pages());
-        const webviewPage = pages.find((candidate) => candidate.url().includes(extensionId));
-        if (webviewPage) {
-          cachedWebviewFrame = webviewPage.mainFrame();
-          return cachedWebviewFrame;
-        }
-        for (const candidate of pages) {
-          const frame = candidate.frames().find((f) => f.url().includes(extensionId));
-          if (frame) return frame;
-        }
-        await sleep(200);
-        const webviewTarget = await waitForWebviewTarget(options.port, extensionId, 500);
-        if (webviewTarget?.webSocketDebuggerUrl) {
-          try {
-            const webviewBrowser = await chromium.connectOverCDP(webviewTarget.webSocketDebuggerUrl);
-            extraBrowsers.push(webviewBrowser);
-            const webviewContext = await waitForValue('webview context', () => webviewBrowser.contexts()[0], timeout);
-            const webviewPageAttached = await waitForValue(
-              'webview page',
-              () => webviewContext.pages().find((candidate) => candidate.url().includes(extensionId)) ?? webviewContext.pages()[0],
-              timeout,
-            );
-            cachedWebviewFrame = webviewPageAttached.mainFrame();
-            return cachedWebviewFrame;
-          } catch (error) {
-            lastCdpError = error instanceof Error ? error : new Error(String(error));
-          }
-        }
-      }
-
-      const pages = browser.contexts().flatMap((context) => context.pages());
-      const frameUrls = pages.flatMap((candidate) => candidate.frames().map((frame) => frame.url()));
-      const pageUrls = pages.map((candidate) => candidate.url());
-      const targets = await getWebviewTargets(options.port);
-      const targetUrls = targets.map((target) => `${target.type ?? 'unknown'}:${target.url ?? 'unknown'}`);
-      throw new Error(
-        `Timed out waiting for OpenHands webview frame. Pages: ${pageUrls.join(' | ')}. ` +
-          `Frames: ${frameUrls.join(' | ')}. Targets: ${targetUrls.join(' | ')}.` +
-          (lastCdpError ? ` Last CDP error: ${lastCdpError.message}` : ''),
-      );
-    },
+    evaluate,
+    waitForSelector,
+    click,
+    clickByText,
+    getAttribute,
+    count,
+    close: () => client.close(),
   };
 }
 
@@ -128,7 +224,7 @@ async function waitForWebviewTarget(port: number, extensionId: string, timeoutMs
     const targets = await getWebviewTargets(port);
     const match = targets.find((target) => target.url?.includes(extensionId));
     if (match) return match;
-    await sleep(200);
+    await sleep(POLL_INTERVAL_MS);
   }
   return null;
 }
