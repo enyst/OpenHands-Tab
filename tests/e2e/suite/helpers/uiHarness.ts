@@ -13,7 +13,7 @@ async function waitForValue<T>(label: string, getter: () => T | Promise<T>, time
   throw new Error(`Timed out waiting for ${label}`);
 }
 
-export async function connectToVsCodeUi(options: { port: number; timeoutMs?: number }): Promise<{
+export async function connectToVsCodeUi(options: { port: number; timeoutMs?: number; webviewSelector?: string }): Promise<{
   browser: Browser;
   page: Page;
   webview: FrameLocator;
@@ -30,7 +30,9 @@ export async function connectToVsCodeUi(options: { port: number; timeoutMs?: num
 
   await page.bringToFront();
 
-  const webview = page.frameLocator('iframe.webview').first();
+  const webviewSelector = options.webviewSelector ?? 'iframe.webview[src*="openhands.openhands-tab"]';
+  await page.locator(webviewSelector).waitFor({ state: 'attached', timeout: timeoutMs });
+  const webview = page.frameLocator(webviewSelector);
   await webview.locator('body').waitFor({ state: 'attached', timeout: timeoutMs });
 
   return {

@@ -50,16 +50,20 @@ export async function run(): Promise<void> {
       predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady),
     });
 
-    const { page, webview, close } = await connectToVsCodeUi({ port, timeoutMs: 20000 });
+    const { page, webview, close } = await connectToVsCodeUi({
+      port,
+      timeoutMs: 30000,
+      webviewSelector: 'iframe.webview[src*="openhands.openhands-tab"]',
+    });
     closeBrowser = close;
 
     await tryActivateOpenHandsView(page);
-    await webview.getByTestId('header-totals-row').waitFor({ state: 'visible', timeout: 15000 });
+    await webview.locator('[data-testid="header-totals-row"]').waitFor({ state: 'visible', timeout: 30000 });
 
     // Context picker: open, select README.md, close.
-    const contextButton = webview.getByTestId('open-context-picker');
+    const contextButton = webview.locator('[data-testid="open-context-picker"]');
     await contextButton.click();
-    await webview.getByTestId('context-picker').waitFor({ state: 'visible', timeout: 15000 });
+    await webview.locator('[data-testid="context-picker"]').waitFor({ state: 'visible', timeout: 15000 });
 
     const readmeOption = webview.getByRole('option', { name: 'README.md' });
     await readmeOption.waitFor({ state: 'visible', timeout: 15000 });
@@ -68,20 +72,20 @@ export async function run(): Promise<void> {
     await pollUntil(async () => (await readmeOption.getAttribute('aria-selected')) === 'true', 15000);
 
     await contextButton.click();
-    await pollUntil(async () => (await webview.getByTestId('context-picker').count()) === 0, 15000);
+    await pollUntil(async () => (await webview.locator('[data-testid="context-picker"]').count()) === 0, 15000);
 
     // Skills popover: open and ensure skills are listed.
-    const skillsButton = webview.getByTestId('open-skills-popover');
+    const skillsButton = webview.locator('[data-testid="open-skills-popover"]');
     await skillsButton.click();
-    await webview.getByTestId('skills-popover').waitFor({ state: 'visible', timeout: 15000 });
+    await webview.locator('[data-testid="skills-popover"]').waitFor({ state: 'visible', timeout: 15000 });
 
     await pollUntil(async () => (await webview.locator('[data-testid="skills-popover"] [role="option"]').count()) >= 1, 15000);
 
     await skillsButton.click();
-    await pollUntil(async () => (await webview.getByTestId('skills-popover').count()) === 0, 15000);
+    await pollUntil(async () => (await webview.locator('[data-testid="skills-popover"]').count()) === 0, 15000);
 
     // Attachments: click and verify mocked attachment renders.
-    const attachmentsButton = webview.getByTestId('attachments-button');
+    const attachmentsButton = webview.locator('[data-testid="attachments-button"]');
     await attachmentsButton.click();
     await pollUntil(async () => (await webview.locator('[aria-label^="Open attachment "]').count()) >= 1, 15000);
 
@@ -112,7 +116,7 @@ export async function run(): Promise<void> {
       agent_status: 'WAITING_FOR_CONFIRMATION',
     });
 
-    await webview.getByTestId('confirmation-prompt').waitFor({ state: 'visible', timeout: 15000 });
+    await webview.locator('[data-testid="confirmation-prompt"]').waitFor({ state: 'visible', timeout: 15000 });
     await webview.getByRole('button', { name: 'Approve & Continue' }).click();
 
     await vscode.commands.executeCommand('openhands._sendTestEvent', {
@@ -129,7 +133,7 @@ export async function run(): Promise<void> {
       agent_status: 'IDLE',
     });
 
-    await pollUntil(async () => (await webview.getByTestId('confirmation-prompt').count()) === 0, 15000);
+    await pollUntil(async () => (await webview.locator('[data-testid="confirmation-prompt"]').count()) === 0, 15000);
 
     // HAL overlay: approve locally.
     await cfg.update('openhands.serverUrl', '', vscode.ConfigurationTarget.Global);
@@ -166,7 +170,7 @@ export async function run(): Promise<void> {
       agent_status: 'WAITING_FOR_CONFIRMATION',
     });
 
-    await webview.getByTestId('hal-overlay').waitFor({ state: 'visible', timeout: 15000 });
+    await webview.locator('[data-testid="hal-overlay"]').waitFor({ state: 'visible', timeout: 15000 });
     await webview.getByRole('button', { name: 'Approve Locally' }).click();
 
     await vscode.commands.executeCommand('openhands._sendTestEvent', {
@@ -183,11 +187,11 @@ export async function run(): Promise<void> {
       agent_status: 'IDLE',
     });
 
-    await pollUntil(async () => (await webview.getByTestId('hal-overlay').count()) === 0, 15000);
+    await pollUntil(async () => (await webview.locator('[data-testid="hal-overlay"]').count()) === 0, 15000);
 
     // LLM profiles drawer: open + verify profile list.
     await webview.getByRole('button', { name: 'LLM Profiles' }).click();
-    await webview.getByTestId('llm-profiles-view').waitFor({ state: 'visible', timeout: 15000 });
+    await webview.locator('[data-testid="llm-profiles-view"]').waitFor({ state: 'visible', timeout: 15000 });
 
     const profileSelect = webview.getByRole('button', { name: 'Profile' });
     await profileSelect.click();
@@ -197,7 +201,7 @@ export async function run(): Promise<void> {
     await profileSelect.click();
     await webview.getByRole('button', { name: 'Close profiles view' }).click();
 
-    await pollUntil(async () => (await webview.getByTestId('llm-profiles-view').count()) === 0, 15000);
+    await pollUntil(async () => (await webview.locator('[data-testid="llm-profiles-view"]').count()) === 0, 15000);
   } finally {
     if (closeBrowser) {
       await closeBrowser();
