@@ -1,23 +1,27 @@
-# OpenHands Tab (prototype)
+# OpenHands Tab 🐾 (prototype)
 
-OpenHands Tab Prototype is a VS Code extension that lets you work with your OpenHands agents in a dedicated sidebar.
+A VS Code extension that brings [OpenHands](https://github.com/All-Hands-AI/OpenHands) into your editor.
 
-## Quick start
+## What is this, really?
 
-1. Install the extension.
-2. Open the view: **OpenHands: Open** (or click the OpenHands icon in the Activity Bar).
-3. Choose a mode:
-   - **Local mode**: leave the server URL blank.
-   - **Remote mode**: set a server URL (agent-server / OpenHands server) and authenticate as needed.
+This extension is an experiment in autonomous AI development. **99.99% of this code was written by OpenHands itself.**
 
-> **Warning:** The main developer of OpenHands-Tab is OpenHands itself, for fun and experimentation.
-> You should consider it a prototype.
+(The human was tweaking markdown files.)
 
-## Configuration
+We wanted to know: what does it take to have AI agents that work while you sleep? That ship stuff, test and review their work, and close the loop?
 
-Open **VS Code Settings** or use **LLM Profiles** to set:
-- LLM provider API keys (OpenAI / Anthropic / OpenRouter / LiteLLM / Gemini)
-- Strongly recommended for best experience: set a Gemini key even if you choose a different main LLM (for summarizations)
+This is the learning ground. Use it if you like living at the whims of [smolpaws](https://github.com/smolpaws), our AI feline agent. Don't use it if you need stability or someone to blame who isn't a cat.
+
+## Quick Start for Humans
+
+1. Install the extension
+2. Open the view: click the icon in the Activity Bar
+
+#### Configuration
+
+In VS Code Settings or via **LLM Profiles**:
+- LLM provider API keys
+- Strongly recommended for best experience: set a Gemini key even if using a different main LLM (for on-the-fly summarizations)
 - Remote server URL (optional)
 - GitHub token (optional, recommended)
 
@@ -25,3 +29,7 @@ Open **VS Code Settings** or use **LLM Profiles** to set:
 
 - Repo: https://github.com/enyst/OpenHands-Tab
 - Agent SDK: https://github.com/OpenHands/software-agent-sdk
+
+---
+
+*Made with 🐾 by smolpaws, who is grumpy today*
