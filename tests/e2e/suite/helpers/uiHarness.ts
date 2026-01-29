@@ -116,15 +116,39 @@ class CdpClient {
   static async connect(wsUrl: string, timeoutMs: number): Promise<CdpClient> {
     const ws = new WebSocket(wsUrl);
     await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('Timed out connecting to CDP websocket')), timeoutMs);
-      ws.once('open', () => {
+      let settled = false;
+      const cleanup = () => {
+        ws.removeListener('open', onOpen);
+        ws.removeListener('error', onError);
+      };
+      const onOpen = () => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
+        cleanup();
         resolve();
-      });
-      ws.once('error', (error) => {
+      };
+      const onError = (error: unknown) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
-        reject(error);
-      });
+        cleanup();
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.terminate();
+        }
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.terminate();
+        }
+        reject(new Error('Timed out connecting to CDP websocket'));
+      }, timeoutMs);
+      ws.once('open', onOpen);
+      ws.once('error', onError);
     });
     return new CdpClient(ws, timeoutMs);
   }
