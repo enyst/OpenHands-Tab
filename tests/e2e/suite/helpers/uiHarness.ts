@@ -13,6 +13,13 @@ type WaitForSelectorOptions = {
   visible?: boolean;
 };
 
+type WebviewTargetHint = {
+  host?: string;
+  pathname?: string;
+  extensionId?: string;
+  title?: string;
+};
+
 export type WebviewSession = {
   evaluate: <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) => Promise<T>;
   waitForSelector: (selector: string, options?: WaitForSelectorOptions) => Promise<void>;
@@ -169,15 +176,27 @@ export async function connectToWebviewCdp(options: {
   port: number;
   timeoutMs?: number;
   extensionId?: string;
+  webviewInfo?: WebviewTargetHint | null;
 }): Promise<WebviewSession> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const extensionId = options.extensionId ?? 'openhands.openhands-tab';
+  const extensionId = options.webviewInfo?.extensionId ?? options.extensionId ?? 'openhands.openhands-tab';
+  const targetHint: WebviewTargetHint | null = options.webviewInfo
+    ? {
+        host: options.webviewInfo.host,
+        pathname: options.webviewInfo.pathname,
+        extensionId,
+        title: options.webviewInfo.title,
+      }
+    : extensionId
+      ? { extensionId }
+      : null;
 
-  const target = await waitForWebviewTarget(options.port, extensionId, timeoutMs);
+  const target = await waitForWebviewTarget(options.port, targetHint, timeoutMs);
   if (!target?.webSocketDebuggerUrl) {
     const targets = await getWebviewTargets(options.port);
     const targetUrls = targets.map((item) => `${item.type ?? 'unknown'}:${item.url ?? 'unknown'}`);
-    throw new Error(`Unable to find OpenHands webview target. Targets: ${targetUrls.join(' | ')}`);
+    const hintLabel = targetHint ? JSON.stringify(targetHint) : 'none';
+    throw new Error(`Unable to find OpenHands webview target (hint=${hintLabel}). Targets: ${targetUrls.join(' | ')}`);
   }
 
   console.log(`UI E2E: attaching to webview target (${target.type ?? 'unknown'}) ${target.url ?? 'unknown'}`);
@@ -300,8 +319,30 @@ async function getWebviewTargets(port: number): Promise<CdpTarget[]> {
   }
 }
 
-function pickWebviewTarget(targets: CdpTarget[], extensionId: string): CdpTarget | null {
-  const candidates = targets.filter((target) => target.url?.includes(extensionId));
+function pickWebviewTarget(targets: CdpTarget[], hint: WebviewTargetHint | null): CdpTarget | null {
+  const matchesHint = (target: CdpTarget): boolean => {
+    if (!hint) return true;
+    if (hint.extensionId && !target.url?.includes(`extensionId=${hint.extensionId}`)) return false;
+    if (hint.title && !target.title?.includes(hint.title)) return false;
+    if (hint.host || hint.pathname) {
+      if (!target.url) return false;
+      try {
+        const url = new URL(target.url);
+        if (hint.host && url.host !== hint.host) return false;
+        if (hint.pathname && url.pathname !== hint.pathname) return false;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const primaryCandidates = targets.filter(matchesHint);
+  const fallbackCandidates = hint?.extensionId
+    ? targets.filter((target) => target.url?.includes(`extensionId=${hint.extensionId}`))
+    : targets;
+
+  const candidates = primaryCandidates.length > 0 ? primaryCandidates : fallbackCandidates;
   const iframeCandidates = candidates.filter((target) => target.type === 'iframe');
   const pageCandidates = candidates.filter((target) => target.type === 'page');
   const pickIndex = (list: CdpTarget[]) =>
@@ -310,11 +351,15 @@ function pickWebviewTarget(targets: CdpTarget[], extensionId: string): CdpTarget
   return pickIndex(iframeCandidates) ?? pickIndex(pageCandidates) ?? candidates[0] ?? null;
 }
 
-async function waitForWebviewTarget(port: number, extensionId: string, timeoutMs: number): Promise<CdpTarget | null> {
+async function waitForWebviewTarget(
+  port: number,
+  hint: WebviewTargetHint | null,
+  timeoutMs: number
+): Promise<CdpTarget | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const targets = await getWebviewTargets(port);
-    const match = pickWebviewTarget(targets, extensionId);
+    const match = pickWebviewTarget(targets, hint);
     if (match) return match;
     await sleep(POLL_INTERVAL_MS);
   }

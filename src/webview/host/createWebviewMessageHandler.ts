@@ -4,7 +4,7 @@ import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 
-import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { HostToWebviewMessage, WebviewE2EInfo, WebviewToHostMessage } from '../../shared/webviewMessages';
 // Environment info is provided via AgentContext.userMessageSuffix (extension host).
 
 import { listSkillFiles } from './skills';
@@ -46,6 +46,7 @@ export type CreateWebviewMessageHandlerDeps = {
 
   setWebviewReadyState: (conversationId?: string, lastSeenSeq?: number) => void;
   setWebviewE2EReady?: (ready: boolean) => void;
+  setWebviewE2EInfo?: (info: WebviewE2EInfo | null) => void;
   setLastKnownLlmLabel: (label: string | null) => void;
   getLastKnownLlmLabel: () => string | null;
 
@@ -120,6 +121,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
     });
   };
 
+  const normalizeE2EInfo = (payload: WebviewE2EInfo | undefined): WebviewE2EInfo | null => {
+    if (!payload || typeof payload !== 'object') return null;
+    const host = typeof payload.host === 'string' ? payload.host : '';
+    const pathname = typeof payload.pathname === 'string' ? payload.pathname : '';
+    if (!host || !pathname) return null;
+    const extensionId = typeof payload.extensionId === 'string' ? payload.extensionId : undefined;
+    const title = typeof payload.title === 'string' ? payload.title : undefined;
+    return { host, pathname, extensionId, title };
+  };
+
   return async (msg: unknown) => {
     if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
     const message = msg as WebviewToHostMessage;
@@ -181,6 +192,7 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       }
       case 'openhandsE2E': {
         if (e2eEnabled && message.event === 'ready') {
+          deps.setWebviewE2EInfo?.(normalizeE2EInfo(message.payload));
           deps.setWebviewE2EReady?.(true);
         }
         break;

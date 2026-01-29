@@ -55,13 +55,21 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('openhands.agent.focus');
 
     await vscode.commands.executeCommand('openhands.open');
-    await waitForDiagnostics({
+    const diag = await waitForDiagnostics({
       label: 'chat view ready',
       timeoutMs: 20000,
-      predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady && diag.chat?.visible && diag.chat?.e2eReady),
+      predicate: (diag) =>
+        Boolean(
+          diag.chat?.hasView &&
+          diag.chat?.webviewReady &&
+          diag.chat?.visible &&
+          diag.chat?.e2eReady &&
+          diag.chat?.e2eInfo?.host &&
+          diag.chat?.e2eInfo?.pathname
+        ),
     });
 
-    const webview = await connectToWebviewCdp({ port, timeoutMs: 45000 });
+    const webview = await connectToWebviewCdp({ port, timeoutMs: 45000, webviewInfo: diag.chat?.e2eInfo ?? undefined });
     closeWebview = webview.close;
 
     await webview.waitForSelector('[data-testid="header-totals-row"]', { timeoutMs: 45000, visible: true });

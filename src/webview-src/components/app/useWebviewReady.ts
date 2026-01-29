@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { getVscodeApi } from '../../shared/vscodeApi';
-import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
+import type { WebviewE2EInfo, WebviewToHostMessage } from '../../../shared/webviewMessages';
 
 type WebviewPersistedState = {
   conversationId?: string;
@@ -13,10 +13,26 @@ export function useWebviewReady({ postMessage }: { postMessage: (message: Webvie
     let didRequestSkills = false;
     let didRequestTools = false;
     let didSendE2EReady = false;
+    let e2ePayload: WebviewE2EInfo | undefined;
     const e2eMeta = typeof document !== 'undefined'
       ? document.querySelector('meta[name="openhands-e2e"]')
       : null;
     const isE2EEnabled = e2eMeta?.getAttribute('content') === '1';
+
+    if (isE2EEnabled && typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        const extensionId = url.searchParams.get('extensionId') ?? undefined;
+        e2ePayload = {
+          host: url.host,
+          pathname: url.pathname,
+          extensionId,
+          title: document.title || undefined,
+        };
+      } catch {
+        e2ePayload = undefined;
+      }
+    }
 
     const sendReady = () => {
       const state = vscodeApi.getState?.<WebviewPersistedState>() ?? {};
@@ -26,7 +42,7 @@ export function useWebviewReady({ postMessage }: { postMessage: (message: Webvie
       postMessage(payload);
       if (isE2EEnabled && !didSendE2EReady) {
         didSendE2EReady = true;
-        postMessage({ type: 'openhandsE2E', event: 'ready' });
+        postMessage({ type: 'openhandsE2E', event: 'ready', payload: e2ePayload });
       }
       if (!didRequestSkills) {
         didRequestSkills = true;

@@ -4,6 +4,12 @@ export type DiagnosticsInfo = {
     visible?: boolean;
     webviewReady?: boolean;
     e2eReady?: boolean;
+    e2eInfo?: {
+      host: string;
+      pathname: string;
+      extensionId?: string;
+      title?: string;
+    } | null;
     clientConversationId?: string;
     clientLastSeenSeq?: number;
   };
