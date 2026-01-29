@@ -123,6 +123,9 @@ class CdpClient {
   }
 
   async send(method: string, params?: Record<string, any>): Promise<any> {
+    if (this.ws.readyState !== WebSocket.OPEN) {
+      return Promise.reject(new Error(`CDP WebSocket is not open (state ${this.ws.readyState})`));
+    }
     const id = this.nextId++;
     const payload = { id, method, params };
     const promise = new Promise<any>((resolve, reject) => {
