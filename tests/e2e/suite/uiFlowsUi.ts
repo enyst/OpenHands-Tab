@@ -38,12 +38,12 @@ export async function run(): Promise<void> {
       predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady),
     });
 
-    const webview = await connectToWebviewCdp({ port, timeoutMs: 45000 });
-    closeWebview = webview.close;
-
     await vscode.commands.executeCommand('workbench.action.focusSideBar');
     await vscode.commands.executeCommand('workbench.view.extension.openhands');
     await vscode.commands.executeCommand('openhands.agent.focus');
+
+    const webview = await connectToWebviewCdp({ port, timeoutMs: 45000 });
+    closeWebview = webview.close;
 
     await webview.waitForSelector('[data-testid="header-totals-row"]', { timeoutMs: 45000, visible: true });
 

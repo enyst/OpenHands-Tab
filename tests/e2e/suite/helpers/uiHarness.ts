@@ -145,6 +145,8 @@ export async function connectToWebviewCdp(options: {
     throw new Error(`Unable to find OpenHands webview target. Targets: ${targetUrls.join(' | ')}`);
   }
 
+  console.log(`UI E2E: attaching to webview target (${target.type ?? 'unknown'}) ${target.url ?? 'unknown'}`);
+
   const client = await CdpClient.connect(target.webSocketDebuggerUrl, timeoutMs);
   await client.send('Runtime.enable');
 
