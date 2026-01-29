@@ -53,7 +53,7 @@ export async function run(): Promise<void> {
     const { page, waitForWebviewFrame, close } = await connectToVsCodeUi({
       port,
       timeoutMs: 30000,
-      webviewSelector: 'iframe.webview[src*="openhands.openhands-tab"]',
+      webviewSelector: 'webview[src*="openhands.openhands-tab"], iframe.webview[src*="openhands.openhands-tab"]',
     });
     closeBrowser = close;
 
