@@ -203,7 +203,7 @@ export async function connectToWebviewCdp(options: {
 
   const target = await waitForWebviewTarget(options.port, targetHint, timeoutMs);
   if (!target?.webSocketDebuggerUrl) {
-    const targets = await getWebviewTargets(options.port);
+    const targets = await getWebviewTargets(options.port, Math.min(timeoutMs, 5000));
     const targetUrls = targets.map((item) => `${item.type ?? 'unknown'}:${item.url ?? 'unknown'}`);
     const hintLabel = targetHint ? JSON.stringify(targetHint) : 'none';
     throw new Error(`Unable to find OpenHands webview target (hint=${hintLabel}). Targets: ${targetUrls.join(' | ')}`);
@@ -323,14 +323,18 @@ export async function connectToWebviewCdp(options: {
   };
 }
 
-async function getWebviewTargets(port: number): Promise<CdpTarget[]> {
+async function getWebviewTargets(port: number, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<CdpTarget[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+    const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: controller.signal });
     if (!response.ok) return [];
     const data = await response.json();
     return Array.isArray(data) ? (data as CdpTarget[]) : [];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -372,8 +376,9 @@ async function waitForWebviewTarget(
   timeoutMs: number
 ): Promise<CdpTarget | null> {
   const deadline = Date.now() + timeoutMs;
+  const perRequestTimeoutMs = Math.min(timeoutMs, 5000);
   while (Date.now() < deadline) {
-    const targets = await getWebviewTargets(port);
+    const targets = await getWebviewTargets(port, perRequestTimeoutMs);
     const match = pickWebviewTarget(targets, hint);
     if (match) return match;
     await sleep(POLL_INTERVAL_MS);
