@@ -563,6 +563,7 @@
     "jsdom": "^27.3.0",
     "lint-staged": "^16.2.7",
     "mocha": "^10.8.2",
+    "playwright-core": "^1.58.0",
     "tailwindcss": "^4.1.18",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
@@ -582,5 +583,8 @@
   },
   "overrides": {
     "diff": "8.0.3"
-  }
+  },
+  "bundleDependencies": [
+    "ws"
+  ]
 }

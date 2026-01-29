@@ -263,6 +263,7 @@ export function InputArea({
                   `}
                   aria-label="Attachments"
                   title="Attachments"
+                  data-testid="attachments-button"
                 >
                   <span className="codicon codicon-clippy" />
                   {attachments.length > 0 && (
@@ -319,6 +320,7 @@ export function InputArea({
               displayLabel="@"
               onClick={onOpenContext}
               badge={contextCount > 0 ? contextCount : undefined}
+              testId="open-context-picker"
             />
             {showContextPicker && onCloseContextPicker && onToggleContextFile && onContextQueryChange && (
               <ContextPicker
@@ -349,6 +351,7 @@ export function InputArea({
                 label="Tools"
                 onClick={onOpenTools}
                 badge={toolsCount > 0 ? toolsCount : undefined}
+                testId="open-tools-popover"
               />
               {showToolsPopover && onCloseToolsPopover && (
                 <ToolsPopover
@@ -369,6 +372,7 @@ export function InputArea({
               label="Skills"
               onClick={onOpenSkills}
               badge={skillsCount > 0 ? skillsCount : undefined}
+              testId="open-skills-popover"
             />
             {showSkillsPopover && onCloseSkillsPopover && onOpenSkill && (
               <SkillsPopover

@@ -11,6 +11,7 @@ export async function run(): Promise<void> {
     confirmation: async () => { await (await import('./confirmation')).run(); },
     errorHandling: async () => { await (await import('./errorHandling')).run(); },
     uiFlows: async () => { await (await import('./uiFlows')).run(); },
+    uiFlowsUi: async () => { await (await import('./uiFlowsUi')).run(); },
     agentServerRemote: async () => { await (await import('./agentServerRemote')).run(); },
     agentServerRemoteAuth: async () => { await (await import('./agentServerRemoteAuth')).run(); },
     agentServerRemoteMessaging: async () => { await (await import('./agentServerRemoteMessaging')).run(); },

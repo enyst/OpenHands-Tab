@@ -83,4 +83,6 @@ jobs:
           QTWEBENGINE_DISABLE_SANDBOX: '1'
           # Set to 1 to attempt optional server-backed steps; otherwise smoke only
           E2E_WITH_SERVER: '0'
+          # Enable Playwright UI E2E flows
+          E2E_UI: '1'
         timeout-minutes: 10

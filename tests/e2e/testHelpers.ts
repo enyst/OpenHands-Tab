@@ -3,6 +3,7 @@ import { mkdtempSync } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import * as net from 'net';
 
 /**
  * Downloads VS Code with retry logic to handle transient network errors
@@ -46,6 +47,28 @@ export async function ensureVsCodeArgvJson(userDataDir: string): Promise<void> {
   const vscodeDir = path.join(userDataDir, '.vscode');
   await fs.mkdir(vscodeDir, { recursive: true });
   await fs.writeFile(path.join(vscodeDir, 'argv.json'), '{}\n', 'utf8');
+}
+
+export async function getAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Failed to resolve a free port')));
+        return;
+      }
+      const { port } = address;
+      server.close((err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
 }
 
 function sanitizeTestNameForPath(raw: string): string {
