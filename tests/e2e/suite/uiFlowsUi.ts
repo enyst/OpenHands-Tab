@@ -10,7 +10,7 @@ import { connectToVsCodeUi } from './helpers/uiHarness';
 
 async function tryActivateOpenHandsView(page: Page): Promise<void> {
   try {
-    const button = page.locator('a[role="button"][aria-label="OpenHands"], div[role="button"][aria-label="OpenHands"]');
+    const button = page.locator('[role="button"][aria-label*="OpenHands"]');
     if (await button.count()) {
       await button.first().click({ timeout: 2000 });
     }
@@ -57,8 +57,11 @@ export async function run(): Promise<void> {
     });
     closeBrowser = close;
 
+    await vscode.commands.executeCommand('workbench.action.focusSideBar');
+    await vscode.commands.executeCommand('workbench.view.extension.openhands');
+    await vscode.commands.executeCommand('openhands.agent.focus');
     await tryActivateOpenHandsView(page);
-    await webview.locator('[data-testid="header-totals-row"]').waitFor({ state: 'visible', timeout: 30000 });
+    await webview.locator('[data-testid="header-totals-row"]').waitFor({ state: 'visible', timeout: 45000 });
 
     // Context picker: open, select README.md, close.
     const contextButton = webview.locator('[data-testid="open-context-picker"]');
