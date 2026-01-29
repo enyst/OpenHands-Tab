@@ -1,6 +1,6 @@
 # OpenHands Tab 🐾 (prototype)
 
-A VS Code extension that brings [OpenHands](https://github.com/All-Hands-AI/OpenHands) into your editor.
+A VS Code extension that brings [OpenHands](https://github.com/OpenHands/software-agent-sdk) into your editor.
 
 ## What is this, really?
 
