@@ -1,4 +1,4 @@
-name: E2E (VS Code Desktop)
+name: E2E-UI (VS Code Desktop)
 
 on:
   pull_request:
@@ -14,7 +14,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  e2e:
+  e2e-ui:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -73,7 +73,7 @@ jobs:
       - name: Compile extension
         run: npm run compile
 
-      - name: Run E2E tests (headless)
+      - name: Run UI E2E tests (headless)
         run: xvfb-run -a --server-args="-screen 0 1920x1080x24" npm run e2e
         env:
           ELECTRON_DISABLE_SANDBOX: '1'
@@ -83,4 +83,6 @@ jobs:
           QTWEBENGINE_DISABLE_SANDBOX: '1'
           # Set to 1 to attempt optional server-backed steps; otherwise smoke only
           E2E_WITH_SERVER: '0'
+          # Enable UI E2E flows
+          E2E_UI: '1'
         timeout-minutes: 10
