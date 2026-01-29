@@ -161,7 +161,8 @@ export async function connectToWebviewCdp(options: {
         async () =>
           evaluate((sel, visible) => {
             if (typeof document === 'undefined') return false;
-            const el = document.querySelector(sel);
+            const shadowRoot = document.body?.shadowRoot ?? null;
+            const el = document.querySelector(sel) ?? shadowRoot?.querySelector(sel) ?? null;
             if (!el) return false;
             if (!visible) return true;
             const style = window.getComputedStyle(el);
@@ -176,7 +177,9 @@ export async function connectToWebviewCdp(options: {
       try {
         debug = await evaluate(() => {
           if (typeof document === 'undefined') return { readyState: 'no-document' };
+          const shadowRoot = document.body?.shadowRoot ?? null;
           const testIds = Array.from(document.querySelectorAll('[data-testid]'))
+            .concat(Array.from(shadowRoot?.querySelectorAll('[data-testid]') ?? []))
             .slice(0, 10)
             .map((node) => node.getAttribute('data-testid'));
           const root = document.getElementById('root');
@@ -185,6 +188,7 @@ export async function connectToWebviewCdp(options: {
             readyState: document.readyState,
             title: document.title,
             testIds,
+            bodyHasShadowRoot: Boolean(shadowRoot),
             rootExists: Boolean(root),
             rootChildCount: root?.childElementCount ?? 0,
             bodyTextSample: bodyText.slice(0, 200),
@@ -201,7 +205,8 @@ export async function connectToWebviewCdp(options: {
   const click = async (selector: string) => {
     const clicked = await evaluate((sel) => {
       if (typeof document === 'undefined') return false;
-      const el = document.querySelector(sel) as HTMLElement | null;
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      const el = (document.querySelector(sel) ?? shadowRoot?.querySelector(sel)) as HTMLElement | null;
       if (!el) return false;
       el.click();
       return true;
@@ -212,7 +217,9 @@ export async function connectToWebviewCdp(options: {
   const clickByText = async (tag: string, text: string) => {
     const clicked = await evaluate((tagName, textValue) => {
       if (typeof document === 'undefined') return false;
-      const nodes = Array.from(document.querySelectorAll(tagName));
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      const nodes = Array.from(document.querySelectorAll(tagName))
+        .concat(Array.from(shadowRoot?.querySelectorAll(tagName) ?? []));
       const match = nodes.find((node) => (node.textContent ?? '').trim().includes(textValue));
       if (!match) return false;
       (match as HTMLElement).click();
@@ -224,13 +231,15 @@ export async function connectToWebviewCdp(options: {
   const getAttribute = (selector: string, name: string) =>
     evaluate((sel, attr) => {
       if (typeof document === 'undefined') return null;
-      return document.querySelector(sel)?.getAttribute(attr) ?? null;
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      return (document.querySelector(sel) ?? shadowRoot?.querySelector(sel))?.getAttribute(attr) ?? null;
     }, selector, name);
 
   const count = (selector: string) =>
     evaluate((sel) => {
       if (typeof document === 'undefined') return 0;
-      return document.querySelectorAll(sel).length;
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      return document.querySelectorAll(sel).length + (shadowRoot?.querySelectorAll(sel).length ?? 0);
     }, selector);
 
   return {
