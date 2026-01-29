@@ -78,14 +78,22 @@ export async function run(): Promise<void> {
     await webview.click('[data-testid="open-context-picker"]');
     await webview.waitForSelector('[data-testid="context-picker"]', { timeoutMs: 15000, visible: true });
 
-    const readmeOptionSelector = '[role="option"][aria-label="README.md"]';
-    await webview.waitForSelector(readmeOptionSelector, { timeoutMs: 15000 });
-    await webview.click(readmeOptionSelector);
+    const selectedLabel = await webview.evaluate(() => {
+      if (typeof document === 'undefined') return null;
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      const options = Array.from(document.querySelectorAll('[role="option"]'))
+        .concat(Array.from(shadowRoot?.querySelectorAll('[role="option"]') ?? []));
+      const first = options.find((option) => option.getAttribute('aria-label'));
+      if (!first) return null;
+      (first as HTMLElement).click();
+      return first.getAttribute('aria-label');
+    });
+    if (!selectedLabel) {
+      throw new Error('No context options found to select');
+    }
 
-    await pollUntil(
-      async () => (await webview.getAttribute(readmeOptionSelector, 'aria-selected')) === 'true',
-      15000,
-    );
+    const optionSelector = `[role="option"][aria-label="${selectedLabel}"]`;
+    await pollUntil(async () => (await webview.getAttribute(optionSelector, 'aria-selected')) === 'true', 15000);
 
     await webview.click('[data-testid="open-context-picker"]');
     await pollUntil(async () => (await webview.count('[data-testid="context-picker"]')) === 0, 15000);
