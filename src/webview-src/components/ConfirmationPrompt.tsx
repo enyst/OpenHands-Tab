@@ -57,6 +57,7 @@ export function ConfirmationPrompt({
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirmation-title"
+      data-testid="confirmation-prompt"
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" aria-hidden="true" />

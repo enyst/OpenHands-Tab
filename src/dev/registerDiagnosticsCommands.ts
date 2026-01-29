@@ -5,7 +5,7 @@ import { DEFAULT_HAL_STATE } from '../shared/halDefaults';
 import { resolveConfiguredLlmLabel } from '../shared/llmProfiles';
 import { maskSecretsInText } from '../shared/maskSecrets';
 import { safeStringify } from '../shared/safeStringify';
-import type { HostToWebviewMessage } from '../shared/webviewMessages';
+import type { HostToWebviewMessage, WebviewE2EInfo } from '../shared/webviewMessages';
 import type { ConversationEventBacklog, BufferedConversationEvent } from '../conversation/eventBacklog';
 import type { HalStateSnapshot } from '../shared/halTypes';
 import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
@@ -62,6 +62,8 @@ type RegisterDiagnosticsCommandsDeps = {
   context: vscode.ExtensionContext;
   getChatView: () => vscode.WebviewView | undefined;
   getChatWebviewReady: () => boolean;
+  getChatWebviewE2EReady: () => boolean;
+  getChatWebviewE2EInfo: () => WebviewE2EInfo | null;
   getChatLastConversationId: () => string | undefined;
   getChatLastSeenSeq: () => number | undefined;
   eventBacklog: ConversationEventBacklog;
@@ -178,6 +180,8 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
         hasView: !!chatView,
         visible: chatView?.visible ?? false,
         webviewReady: deps.getChatWebviewReady(),
+        e2eReady: deps.getChatWebviewE2EReady(),
+        e2eInfo: deps.getChatWebviewE2EInfo(),
         clientConversationId: deps.getChatLastConversationId(),
         clientLastSeenSeq: deps.getChatLastSeenSeq(),
       },

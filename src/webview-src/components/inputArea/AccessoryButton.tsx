@@ -7,9 +7,10 @@ interface AccessoryButtonProps {
   onClick: () => void;
   badge?: number;
   comingSoon?: boolean;
+  testId?: string;
 }
 
-export function AccessoryButton({ icon, label, displayLabel, onClick, badge, comingSoon }: AccessoryButtonProps) {
+export function AccessoryButton({ icon, label, displayLabel, onClick, badge, comingSoon, testId }: AccessoryButtonProps) {
   return (
     <Tooltip content={label} position="top">
       <button
@@ -28,6 +29,7 @@ export function AccessoryButton({ icon, label, displayLabel, onClick, badge, com
           }
         `}
         aria-label={label}
+        data-testid={testId}
       >
         {icon && <span className={`codicon codicon-${icon}`} />}
         <span>{displayLabel ?? label}</span>

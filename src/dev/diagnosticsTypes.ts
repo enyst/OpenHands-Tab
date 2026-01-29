@@ -1,4 +1,5 @@
 import type { OpenHandsSettings } from '../settings/SettingsManager';
+import type { WebviewE2EInfo } from '../shared/webviewMessages';
 
 export type TerminalLogInfo = {
   hasTerminal: boolean;
@@ -14,6 +15,8 @@ export type DiagnosticsInfo = {
     hasView?: boolean;
     visible?: boolean;
     webviewReady?: boolean;
+    e2eReady?: boolean;
+    e2eInfo?: WebviewE2EInfo | null;
     clientConversationId?: string;
     clientLastSeenSeq?: number;
   };

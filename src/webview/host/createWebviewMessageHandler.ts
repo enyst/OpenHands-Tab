@@ -4,7 +4,7 @@ import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 
-import type { HostToWebviewMessage, WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { HostToWebviewMessage, WebviewE2EInfo, WebviewToHostMessage } from '../../shared/webviewMessages';
 // Environment info is provided via AgentContext.userMessageSuffix (extension host).
 
 import { listSkillFiles } from './skills';
@@ -45,6 +45,8 @@ export type CreateWebviewMessageHandlerDeps = {
   getLlmProfilesStoreRoot?: () => string | undefined;
 
   setWebviewReadyState: (conversationId?: string, lastSeenSeq?: number) => void;
+  setWebviewE2EReady?: (ready: boolean) => void;
+  setWebviewE2EInfo?: (info: WebviewE2EInfo | null) => void;
   setLastKnownLlmLabel: (label: string | null) => void;
   getLastKnownLlmLabel: () => string | null;
 
@@ -102,6 +104,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
   const getElevenlabsTtsGate = createElevenlabsTtsGateFactory({ context, maxCacheBytes: 50 * 1024 * 1024 });
   const historyTitleGenerationInFlight = new Set<string>();
+  const extensionMode = vscode.ExtensionMode;
+  const isProduction =
+    extensionMode?.Production !== undefined ? context.extensionMode === extensionMode.Production : true;
+  const e2eEnabled = !isProduction && process.env.E2E_UI === '1';
 
   const postToolsList = createPostToolsList({ deps, host });
 
@@ -113,6 +119,16 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
       autoDismiss: true,
       autoDismissDelay: 6000,
     });
+  };
+
+  const normalizeE2EInfo = (payload: WebviewE2EInfo | undefined): WebviewE2EInfo | null => {
+    if (!payload || typeof payload !== 'object') return null;
+    const host = typeof payload.host === 'string' ? payload.host : '';
+    const pathname = typeof payload.pathname === 'string' ? payload.pathname : '';
+    if (!host || !pathname) return null;
+    const extensionId = typeof payload.extensionId === 'string' ? payload.extensionId : undefined;
+    const title = typeof payload.title === 'string' ? payload.title : undefined;
+    return { host, pathname, extensionId, title };
   };
 
   return async (msg: unknown) => {
@@ -172,6 +188,13 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           clientLastSeenSeq: message.lastSeenSeq,
         });
 
+        break;
+      }
+      case 'openhandsE2E': {
+        if (e2eEnabled && message.event === 'ready') {
+          deps.setWebviewE2EInfo?.(normalizeE2EInfo(message.payload));
+          deps.setWebviewE2EReady?.(true);
+        }
         break;
       }
       case 'openSettingsPage':

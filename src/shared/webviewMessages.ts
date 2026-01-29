@@ -17,6 +17,13 @@ export type LlmProfileApiKeyStatusOverrides = {
   baseUrl?: string;
 };
 
+export type WebviewE2EInfo = {
+  host: string;
+  pathname: string;
+  extensionId?: string;
+  title?: string;
+};
+
 export type HostToWebviewMessage =
   | {
     type: 'status';
@@ -77,6 +84,7 @@ export type HostToWebviewMessage =
 
 export type WebviewToHostMessage =
   | { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number }
+  | { type: 'openhandsE2E'; event: 'ready'; payload?: WebviewE2EInfo }
   | { type: 'openSettingsPage' }
   | { type: 'openSettings' }
   | { type: 'openSettingsSecrets' }

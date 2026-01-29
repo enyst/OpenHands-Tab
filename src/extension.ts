@@ -14,7 +14,7 @@ import { ConversationEventBacklog, type BufferedConversationEvent } from './conv
 import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminalLogPseudoterminal';
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import { registerHalCommands } from './hal/registerHalCommands';
-import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage } from './shared/webviewMessages';
+import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewE2EInfo } from './shared/webviewMessages';
 import { resolveLocalTools } from './shared/localTools';
 import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
 import { createDebugJsonOutputChannel, type DebugJsonOutputChannel } from './extension/debugJsonOutputChannel';
@@ -72,6 +72,8 @@ const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo)
 const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
 const pendingHalStateRequests = new Map<string, (info: HalStateSnapshot) => void>();
 let chatWebviewReady = false; // Track if chat WebviewView is ready
+let chatWebviewE2EReady = false; // Track if chat webview sent E2E handshake
+let chatWebviewE2EInfo: WebviewE2EInfo | null = null;
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
@@ -299,6 +301,12 @@ export function activate(context: vscode.ExtensionContext) {
           chatLastConversationId = conversationId;
           chatLastSeenSeq = lastSeenSeq;
         },
+        setWebviewE2EReady: (ready) => {
+          chatWebviewE2EReady = ready;
+        },
+        setWebviewE2EInfo: (info) => {
+          chatWebviewE2EInfo = info;
+        },
         setLastKnownLlmLabel: (label) => {
           lastKnownLlmLabel = label;
         },
@@ -332,6 +340,8 @@ export function activate(context: vscode.ExtensionContext) {
     onResolved: (view) => {
       chatView = view;
       chatWebviewReady = false;
+      chatWebviewE2EReady = false;
+      chatWebviewE2EInfo = null;
       lastChatViewVisibility = Boolean(view.visible);
       void ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
         outputChannel?.appendLine(`[error] ensureConversationAndConnection failed: ${renderError(err)}`);
@@ -365,6 +375,8 @@ export function activate(context: vscode.ExtensionContext) {
       }
       chatView = undefined;
       chatWebviewReady = false;
+      chatWebviewE2EReady = false;
+      chatWebviewE2EInfo = null;
       chatLastConversationId = undefined;
       chatLastSeenSeq = undefined;
       lastChatViewVisibility = undefined;
@@ -859,6 +871,8 @@ export function activate(context: vscode.ExtensionContext) {
     context,
     getChatView: () => chatView,
     getChatWebviewReady: () => chatWebviewReady,
+    getChatWebviewE2EReady: () => chatWebviewE2EReady,
+    getChatWebviewE2EInfo: () => chatWebviewE2EInfo,
     getChatLastConversationId: () => chatLastConversationId,
     getChatLastSeenSeq: () => chatLastSeenSeq,
     eventBacklog,
@@ -1044,6 +1058,8 @@ export function deactivate() {
   pendingUiStateRequests.clear();
   pendingHalStateRequests.clear();
   chatWebviewReady = false;
+  chatWebviewE2EReady = false;
+  chatWebviewE2EInfo = null;
   chatLastConversationId = undefined;
   chatLastSeenSeq = undefined;
   conversationStoreRoot = undefined;
