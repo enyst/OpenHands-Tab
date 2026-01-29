@@ -153,24 +153,47 @@ export async function connectToWebviewCdp(options: {
   const waitForSelector = async (selector: string, options?: WaitForSelectorOptions) => {
     const requireVisible = options?.visible ?? false;
     const deadlineMs = options?.timeoutMs ?? timeoutMs;
-    await waitForCondition(
-      `selector ${selector}`,
-      async () =>
-        evaluate((sel, visible) => {
-          const el = document.querySelector(sel);
-          if (!el) return false;
-          if (!visible) return true;
-          const style = window.getComputedStyle(el);
-          if (style.visibility === 'hidden' || style.display === 'none') return false;
-          const rect = el.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0;
-        }, selector, requireVisible),
-      deadlineMs,
-    );
+    try {
+      await waitForCondition(
+        `selector ${selector}`,
+        async () =>
+          evaluate((sel, visible) => {
+            if (typeof document === 'undefined') return false;
+            const el = document.querySelector(sel);
+            if (!el) return false;
+            if (!visible) return true;
+            const style = window.getComputedStyle(el);
+            if (style.visibility === 'hidden' || style.display === 'none') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          }, selector, requireVisible),
+        deadlineMs,
+      );
+    } catch (error) {
+      let debug: any = null;
+      try {
+        debug = await evaluate(() => {
+          if (typeof document === 'undefined') return { readyState: 'no-document' };
+          const testIds = Array.from(document.querySelectorAll('[data-testid]'))
+            .slice(0, 10)
+            .map((node) => node.getAttribute('data-testid'));
+          return {
+            readyState: document.readyState,
+            title: document.title,
+            testIds,
+          };
+        });
+      } catch {
+        debug = { readyState: 'unknown' };
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`${message}. Debug: ${JSON.stringify(debug)}`);
+    }
   };
 
   const click = async (selector: string) => {
     const clicked = await evaluate((sel) => {
+      if (typeof document === 'undefined') return false;
       const el = document.querySelector(sel) as HTMLElement | null;
       if (!el) return false;
       el.click();
@@ -181,6 +204,7 @@ export async function connectToWebviewCdp(options: {
 
   const clickByText = async (tag: string, text: string) => {
     const clicked = await evaluate((tagName, textValue) => {
+      if (typeof document === 'undefined') return false;
       const nodes = Array.from(document.querySelectorAll(tagName));
       const match = nodes.find((node) => (node.textContent ?? '').trim().includes(textValue));
       if (!match) return false;
@@ -191,10 +215,16 @@ export async function connectToWebviewCdp(options: {
   };
 
   const getAttribute = (selector: string, name: string) =>
-    evaluate((sel, attr) => document.querySelector(sel)?.getAttribute(attr) ?? null, selector, name);
+    evaluate((sel, attr) => {
+      if (typeof document === 'undefined') return null;
+      return document.querySelector(sel)?.getAttribute(attr) ?? null;
+    }, selector, name);
 
   const count = (selector: string) =>
-    evaluate((sel) => document.querySelectorAll(sel).length, selector);
+    evaluate((sel) => {
+      if (typeof document === 'undefined') return 0;
+      return document.querySelectorAll(sel).length;
+    }, selector);
 
   return {
     evaluate,
@@ -218,11 +248,21 @@ async function getWebviewTargets(port: number): Promise<CdpTarget[]> {
   }
 }
 
+function pickWebviewTarget(targets: CdpTarget[], extensionId: string): CdpTarget | null {
+  const candidates = targets.filter((target) => target.url?.includes(extensionId));
+  const iframeCandidates = candidates.filter((target) => target.type === 'iframe');
+  const pageCandidates = candidates.filter((target) => target.type === 'page');
+  const pickIndex = (list: CdpTarget[]) =>
+    list.find((target) => target.url?.includes('index.html')) ?? list[0] ?? null;
+
+  return pickIndex(iframeCandidates) ?? pickIndex(pageCandidates) ?? candidates[0] ?? null;
+}
+
 async function waitForWebviewTarget(port: number, extensionId: string, timeoutMs: number): Promise<CdpTarget | null> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const targets = await getWebviewTargets(port);
-    const match = targets.find((target) => target.url?.includes(extensionId));
+    const match = pickWebviewTarget(targets, extensionId);
     if (match) return match;
     await sleep(POLL_INTERVAL_MS);
   }
