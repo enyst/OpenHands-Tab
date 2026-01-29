@@ -196,7 +196,7 @@ export async function run(): Promise<void> {
     await webview.getByRole('button', { name: 'LLM Profiles' }).click();
     await webview.locator('[data-testid="llm-profiles-view"]').waitFor({ state: 'visible', timeout: 15000 });
 
-    const profileSelect = webview.getByRole('button', { name: 'Profile' });
+    const profileSelect = webview.getByRole('button', { name: /llm profile/i });
     await profileSelect.click();
 
     await webview.getByRole('option', { name: profileId }).waitFor({ state: 'visible', timeout: 15000 });
