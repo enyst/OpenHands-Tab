@@ -13,6 +13,9 @@ Each test file orchestrates a VS Code instance and runs a specific test suite:
 - **settings.test.ts**: Tests settings and configuration commands
 - **history.test.ts**: Tests conversation history and restore functionality
 - **messaging.test.ts**: Tests message events and rendering
+- **uiFlows.test.ts**: Tests UI flows via command-driven harness (non-UI automation)
+- **uiFlowsUi.test.ts**: UI-driven smoke test using CDP (gated by `E2E_UI=1`). The context picker
+  selection is skipped if no workspace file options appear within the timeout (see bead `oh-tab-puxi`).
 - **serverSelection.test.ts**: Tests server selection and local/remote mode switching
 - **llmSwitching.test.ts**: Tests switching LLM provider/model/api mode (local, mock server)
 - **confirmation.test.ts**: Tests action confirmation workflow with security levels
@@ -30,6 +33,8 @@ These run inside VS Code and execute the actual tests:
 - **suite/settings.ts**: Tests extension commands and diagnostics structure
 - **suite/history.ts**: Tests conversation state and event backlog
 - **suite/messaging.ts**: Tests message event rendering and multi-part content
+- **suite/uiFlows.ts**: Exercises UI flows via host-side commands
+- **suite/uiFlowsUi.ts**: Exercises UI flows via CDP-based UI automation
 - **suite/serverSelection.ts**: Tests mode switching and diagnostics state
 - **suite/llmSwitching.ts**: Exercises local LLM switching against a mock server
 - **suite/confirmation.ts**: Tests actions with different security risk levels

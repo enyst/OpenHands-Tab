@@ -74,7 +74,9 @@ export async function run(): Promise<void> {
 
     await webview.waitForSelector('[data-testid="header-totals-row"]', { timeoutMs: 45000, visible: true });
 
-    // Context picker: open, select README.md, close.
+    // Context picker: open, select a file if options appear, close.
+    // Note: in CI the workspace file list can be empty; we skip selection when no options
+    // appear within the timeout (tracked in bead oh-tab-puxi).
     await webview.click('[data-testid="open-context-picker"]');
     await webview.waitForSelector('[data-testid="context-picker"]', { timeoutMs: 15000, visible: true });
 
