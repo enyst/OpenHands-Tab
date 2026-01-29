@@ -1,4 +1,4 @@
-import { chromium, type Browser, type FrameLocator, type Page } from 'playwright-core';
+import { chromium, type Browser, type Frame, type Page } from 'playwright-core';
 
 async function waitForValue<T>(label: string, getter: () => T | Promise<T>, timeoutMs: number): Promise<T> {
   const deadline = Date.now() + timeoutMs;
@@ -13,10 +13,21 @@ async function waitForValue<T>(label: string, getter: () => T | Promise<T>, time
   throw new Error(`Timed out waiting for ${label}`);
 }
 
+async function waitForFrame(label: string, getter: () => Frame | undefined, timeoutMs: number, page: Page): Promise<Frame> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const frame = getter();
+    if (frame) return frame;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  const urls = page.frames().map((frame) => frame.url());
+  throw new Error(`Timed out waiting for ${label}. Frames seen: ${urls.join(' | ')}`);
+}
+
 export async function connectToVsCodeUi(options: { port: number; timeoutMs?: number; webviewSelector?: string }): Promise<{
   browser: Browser;
   page: Page;
-  webview: FrameLocator;
+  webview: Frame;
   close: () => Promise<void>;
 }> {
   const timeoutMs = options.timeoutMs ?? 15000;
@@ -30,15 +41,25 @@ export async function connectToVsCodeUi(options: { port: number; timeoutMs?: num
 
   await page.bringToFront();
 
-  const webviewSelector = options.webviewSelector ?? 'iframe.webview[src*="openhands.openhands-tab"]';
-  await page.locator(webviewSelector).waitFor({ state: 'attached', timeout: timeoutMs });
-  const webview = page.frameLocator(webviewSelector);
-  await webview.locator('body').waitFor({ state: 'attached', timeout: timeoutMs });
+  if (options.webviewSelector) {
+    try {
+      await page.locator(options.webviewSelector).first().waitFor({ state: 'attached', timeout: timeoutMs });
+    } catch {
+      // frame discovery below is the source of truth
+    }
+  }
+
+  const webviewFrame = await waitForFrame(
+    'OpenHands webview frame',
+    () => page.frames().find((frame) => frame.url().includes('openhands.openhands-tab')),
+    timeoutMs,
+    page
+  );
 
   return {
     browser,
     page,
-    webview,
+    webview: webviewFrame,
     close: async () => {
       await browser.close();
     },
