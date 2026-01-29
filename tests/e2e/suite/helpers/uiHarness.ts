@@ -59,6 +59,7 @@ class CdpClient {
     timer?: ReturnType<typeof setTimeout>;
   }>();
   private defaultContextId: number | null = null;
+  private contextsByFrame = new Map<string, number>();
   private defaultTimeoutMs: number;
 
   private constructor(ws: WebSocket, defaultTimeoutMs: number) {
@@ -74,8 +75,11 @@ class CdpClient {
       if (message?.method === 'Runtime.executionContextCreated') {
         const context = message.params?.context;
         const aux = context?.auxData;
-        if (aux?.isDefault || aux?.type === 'default' || context?.name === '') {
-          this.defaultContextId = context.id;
+        if (aux?.frameId && (aux?.isDefault || aux?.type === 'default')) {
+          this.contextsByFrame.set(aux.frameId, context.id);
+          if (this.defaultContextId === null) {
+            this.defaultContextId = context.id;
+          }
         }
       } else if (message?.method === 'Runtime.executionContextDestroyed') {
         if (message.params?.executionContextId === this.defaultContextId) {
@@ -83,6 +87,7 @@ class CdpClient {
         }
       } else if (message?.method === 'Runtime.executionContextsCleared') {
         this.defaultContextId = null;
+        this.contextsByFrame.clear();
       }
       if (typeof message?.id !== 'number') return;
       const pending = this.pending.get(message.id);
@@ -184,6 +189,14 @@ class CdpClient {
     await waitForCondition('execution context', async () => this.defaultContextId !== null, timeoutMs);
   }
 
+  async waitForFrameContext(frameId: string, timeoutMs: number): Promise<void> {
+    await waitForCondition('execution context', async () => this.contextsByFrame.has(frameId), timeoutMs);
+    const contextId = this.contextsByFrame.get(frameId) ?? null;
+    if (contextId !== null) {
+      this.defaultContextId = contextId;
+    }
+  }
+
   async evaluate<T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]): Promise<T> {
     const expression = `(${fn.toString()})(...${JSON.stringify(args)})`;
     const result = await this.send('Runtime.evaluate', {
@@ -238,7 +251,14 @@ export async function connectToWebviewCdp(options: {
   const client = await CdpClient.connect(target.webSocketDebuggerUrl, timeoutMs);
   try {
     await client.send('Runtime.enable');
-    await client.waitForDefaultContext(timeoutMs);
+    await client.send('Page.enable');
+    const frameTree = await client.send('Page.getFrameTree');
+    const frameId = findFrameId(frameTree, target.url ?? '');
+    if (frameId) {
+      await client.waitForFrameContext(frameId, timeoutMs);
+    } else {
+      await client.waitForDefaultContext(timeoutMs);
+    }
   } catch (error) {
     await client.close();
     throw error;
@@ -285,6 +305,9 @@ export async function connectToWebviewCdp(options: {
             bodyHasShadowRoot: Boolean(shadowRoot),
             rootExists: Boolean(root),
             rootChildCount: root?.childElementCount ?? 0,
+            appExists: Boolean(document.getElementById('app')),
+            appChildCount: document.getElementById('app')?.childElementCount ?? 0,
+            locationHref: window.location.href,
             bodyTextSample: bodyText.slice(0, 200),
           };
         });
@@ -408,4 +431,47 @@ async function waitForWebviewTarget(
     await sleep(POLL_INTERVAL_MS);
   }
   return null;
+}
+
+function findFrameId(frameTree: any, targetUrl: string): string | null {
+  const root = frameTree?.frameTree ?? frameTree;
+  if (!root) return null;
+
+  const findByPredicate = (node: any, predicate: (url: string) => boolean): string | null => {
+    const url = typeof node?.frame?.url === 'string' ? node.frame.url : '';
+    if (url && predicate(url)) return node.frame.id ?? null;
+    const children = Array.isArray(node?.childFrames) ? node.childFrames : [];
+    for (const child of children) {
+      const match = findByPredicate(child, predicate);
+      if (match) return match;
+    }
+    return null;
+  };
+
+  if (targetUrl) {
+    const exact = findByPredicate(root, (url) => url === targetUrl);
+    if (exact) return exact;
+    try {
+      const target = new URL(targetUrl);
+      const host = target.host;
+      const pathname = target.pathname;
+      const extensionId = target.searchParams.get('extensionId');
+      const byHostPath = findByPredicate(root, (url) => {
+        try {
+          const candidate = new URL(url);
+          if (host && candidate.host !== host) return false;
+          if (pathname && candidate.pathname !== pathname) return false;
+          if (extensionId && !candidate.searchParams.get('extensionId')?.includes(extensionId)) return false;
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      if (byHostPath) return byHostPath;
+    } catch {
+      // ignore
+    }
+  }
+
+  return root.frame?.id ?? null;
 }
