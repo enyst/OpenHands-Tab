@@ -50,7 +50,7 @@ export async function run(): Promise<void> {
       predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady),
     });
 
-    const { page, webview, close } = await connectToVsCodeUi({
+    const { page, waitForWebviewFrame, close } = await connectToVsCodeUi({
       port,
       timeoutMs: 30000,
       webviewSelector: 'iframe.webview[src*="openhands.openhands-tab"]',
@@ -61,6 +61,7 @@ export async function run(): Promise<void> {
     await vscode.commands.executeCommand('workbench.view.extension.openhands');
     await vscode.commands.executeCommand('openhands.agent.focus');
     await tryActivateOpenHandsView(page);
+    const webview = await waitForWebviewFrame(45000);
     await webview.locator('[data-testid="header-totals-row"]').waitFor({ state: 'visible', timeout: 45000 });
 
     // Context picker: open, select README.md, close.

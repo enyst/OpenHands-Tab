@@ -27,8 +27,8 @@ async function waitForFrame(label: string, getter: () => Frame | undefined, time
 export async function connectToVsCodeUi(options: { port: number; timeoutMs?: number; webviewSelector?: string }): Promise<{
   browser: Browser;
   page: Page;
-  webview: Frame;
   close: () => Promise<void>;
+  waitForWebviewFrame: (timeoutOverride?: number) => Promise<Frame>;
 }> {
   const timeoutMs = options.timeoutMs ?? 15000;
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${options.port}`);
@@ -41,27 +41,26 @@ export async function connectToVsCodeUi(options: { port: number; timeoutMs?: num
 
   await page.bringToFront();
 
-  if (options.webviewSelector) {
-    try {
-      await page.locator(options.webviewSelector).first().waitFor({ state: 'attached', timeout: timeoutMs });
-    } catch {
-      // frame discovery below is the source of truth
-    }
-  }
-
-  const webviewFrame = await waitForFrame(
-    'OpenHands webview frame',
-    () => page.frames().find((frame) => frame.url().includes('openhands.openhands-tab')),
-    timeoutMs,
-    page
-  );
-
   return {
     browser,
     page,
-    webview: webviewFrame,
     close: async () => {
       await browser.close();
+    },
+    waitForWebviewFrame: async (timeoutOverride?: number) => {
+      if (options.webviewSelector) {
+        try {
+          await page.locator(options.webviewSelector).first().waitFor({ state: 'attached', timeout: timeoutOverride ?? timeoutMs });
+        } catch {
+          // fall through to frame discovery
+        }
+      }
+      return waitForFrame(
+        'OpenHands webview frame',
+        () => page.frames().find((frame) => frame.url().includes('openhands.openhands-tab')),
+        timeoutOverride ?? timeoutMs,
+        page
+      );
     },
   };
 }
