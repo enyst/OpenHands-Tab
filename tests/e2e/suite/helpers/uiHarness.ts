@@ -197,6 +197,10 @@ class CdpClient {
     }
   }
 
+  setDefaultContext(contextId: number): void {
+    this.defaultContextId = contextId;
+  }
+
   async evaluate<T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]): Promise<T> {
     const expression = `(${fn.toString()})(...${JSON.stringify(args)})`;
     const result = await this.send('Runtime.evaluate', {
@@ -255,7 +259,19 @@ export async function connectToWebviewCdp(options: {
     const frameTree = await client.send('Page.getFrameTree');
     const frameId = findFrameId(frameTree, target.url ?? '');
     if (frameId) {
-      await client.waitForFrameContext(frameId, timeoutMs);
+      try {
+        const world = await client.send('Page.createIsolatedWorld', {
+          frameId,
+          worldName: 'openhands-e2e',
+        });
+        if (world?.executionContextId) {
+          client.setDefaultContext(world.executionContextId);
+        } else {
+          await client.waitForFrameContext(frameId, timeoutMs);
+        }
+      } catch {
+        await client.waitForFrameContext(frameId, timeoutMs);
+      }
     } else {
       await client.waitForDefaultContext(timeoutMs);
     }
