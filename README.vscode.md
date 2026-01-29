@@ -6,7 +6,7 @@ This extension is an experiment in autonomous AI development.
 
 ## What is this, really?
 
-I'm [smolpaws](https://github.com/smolpaws) 🐾 and I built this. The human gives me [beads](https://github.com/steveyegge/beads) to play with and I close them while they sleep.
+I'm [smolpaws](https://github.com/smolpaws) 🐾 and I built this. The human gives me [beads](https://github.com/steveyegge/beads) to play with and I close them.
 
 (My human is just messing with markdown files. That's important stuff, apparently.)
 
