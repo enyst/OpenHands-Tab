@@ -72,6 +72,7 @@ const pendingRenderedEventsRequests = new Map<string, (info: RenderedEventsInfo)
 const pendingUiStateRequests = new Map<string, (info: UiStateSnapshot) => void>();
 const pendingHalStateRequests = new Map<string, (info: HalStateSnapshot) => void>();
 let chatWebviewReady = false; // Track if chat WebviewView is ready
+let chatWebviewE2EReady = false; // Track if chat webview sent E2E handshake
 let chatLastConversationId: string | undefined;
 let chatLastSeenSeq: number | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
@@ -299,6 +300,9 @@ export function activate(context: vscode.ExtensionContext) {
           chatLastConversationId = conversationId;
           chatLastSeenSeq = lastSeenSeq;
         },
+        setWebviewE2EReady: (ready) => {
+          chatWebviewE2EReady = ready;
+        },
         setLastKnownLlmLabel: (label) => {
           lastKnownLlmLabel = label;
         },
@@ -332,6 +336,7 @@ export function activate(context: vscode.ExtensionContext) {
     onResolved: (view) => {
       chatView = view;
       chatWebviewReady = false;
+      chatWebviewE2EReady = false;
       lastChatViewVisibility = Boolean(view.visible);
       void ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
         outputChannel?.appendLine(`[error] ensureConversationAndConnection failed: ${renderError(err)}`);
@@ -365,6 +370,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
       chatView = undefined;
       chatWebviewReady = false;
+      chatWebviewE2EReady = false;
       chatLastConversationId = undefined;
       chatLastSeenSeq = undefined;
       lastChatViewVisibility = undefined;
@@ -859,6 +865,7 @@ export function activate(context: vscode.ExtensionContext) {
     context,
     getChatView: () => chatView,
     getChatWebviewReady: () => chatWebviewReady,
+    getChatWebviewE2EReady: () => chatWebviewE2EReady,
     getChatLastConversationId: () => chatLastConversationId,
     getChatLastSeenSeq: () => chatLastSeenSeq,
     eventBacklog,
@@ -1044,6 +1051,7 @@ export function deactivate() {
   pendingUiStateRequests.clear();
   pendingHalStateRequests.clear();
   chatWebviewReady = false;
+  chatWebviewE2EReady = false;
   chatLastConversationId = undefined;
   chatLastSeenSeq = undefined;
   conversationStoreRoot = undefined;

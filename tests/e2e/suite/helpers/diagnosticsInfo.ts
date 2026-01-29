@@ -3,6 +3,7 @@ export type DiagnosticsInfo = {
     hasView?: boolean;
     visible?: boolean;
     webviewReady?: boolean;
+    e2eReady?: boolean;
     clientConversationId?: string;
     clientLastSeenSeq?: number;
   };
@@ -25,4 +26,3 @@ export type DiagnosticsInfo = {
   serverUrl?: string;
   servers?: Array<{ url: string; label?: string }>;
 };
-

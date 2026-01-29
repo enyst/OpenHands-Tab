@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import { saveProfile as saveSdkProfile } from '@openhands/agent-sdk-ts';
 import { waitForDiagnostics } from './helpers/waitForDiagnostics';
 import { pollUntil } from './pollUntil';
@@ -18,8 +19,9 @@ export async function run(): Promise<void> {
 
   const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
   const llmProfilesDir = path.join(os.homedir(), '.openhands', 'llm-profiles');
-  const skillPath = path.join(skillsDir, `e2e-ui-skill-${Date.now()}.md`);
-  const profileId = `e2e-ui-${Date.now()}`;
+  const uniqueId = randomUUID();
+  const skillPath = path.join(skillsDir, `e2e-ui-skill-${uniqueId}.md`);
+  const profileId = `e2e-ui-${uniqueId}`;
   const profilePath = path.join(llmProfilesDir, `${profileId}.json`);
 
   await fs.mkdir(skillsDir, { recursive: true });
@@ -27,6 +29,23 @@ export async function run(): Promise<void> {
 
   await fs.mkdir(llmProfilesDir, { recursive: true });
   saveSdkProfile(profileId, { model: 'gpt-5-mini' }, { rootDir: llmProfilesDir, includeSecrets: false });
+
+  const cfg = vscode.workspace.getConfiguration();
+  const settingsSnapshot: Record<string, unknown> = {
+    'openhands.hal.enabled': cfg.inspect('openhands.hal.enabled')?.globalValue,
+    'openhands.hal.mode': cfg.inspect('openhands.hal.mode')?.globalValue,
+    'openhands.confirmation.policy': cfg.inspect('openhands.confirmation.policy')?.globalValue,
+    'openhands.confirmation.risky.threshold': cfg.inspect('openhands.confirmation.risky.threshold')?.globalValue,
+    'openhands.serverUrl': cfg.inspect('openhands.serverUrl')?.globalValue,
+    'openhands.servers': cfg.inspect('openhands.servers')?.globalValue,
+  };
+  const restoreSettings = async () => {
+    await Promise.all(
+      Object.entries(settingsSnapshot).map(([key, value]) =>
+        cfg.update(key, value === undefined ? undefined : value, vscode.ConfigurationTarget.Global)
+      )
+    );
+  };
 
   let closeWebview: (() => Promise<void>) | null = null;
 
@@ -39,7 +58,7 @@ export async function run(): Promise<void> {
     await waitForDiagnostics({
       label: 'chat view ready',
       timeoutMs: 20000,
-      predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady && diag.chat?.visible),
+      predicate: (diag) => Boolean(diag.chat?.hasView && diag.chat?.webviewReady && diag.chat?.visible && diag.chat?.e2eReady),
     });
 
     const webview = await connectToWebviewCdp({ port, timeoutMs: 45000 });
@@ -77,11 +96,10 @@ export async function run(): Promise<void> {
     await pollUntil(async () => (await webview.count('[aria-label^="Open attachment "]')) >= 1, 15000);
 
     // Confirmation prompt: approve.
-    const cfg = vscode.workspace.getConfiguration();
     await cfg.update('openhands.hal.enabled', false, vscode.ConfigurationTarget.Global);
     await cfg.update('openhands.confirmation.policy', 'always', vscode.ConfigurationTarget.Global);
 
-    const confirmationCallId = `call_ui_confirm_${Date.now()}`;
+    const confirmationCallId = `call_ui_confirm_${randomUUID()}`;
     await vscode.commands.executeCommand('openhands._sendTestEvent', {
       kind: 'ActionEvent',
       source: 'agent',
@@ -135,7 +153,7 @@ export async function run(): Promise<void> {
       return hal?.enabled === true && hal?.mode === 'bundled';
     }, 15000);
 
-    const halCallId = `call_ui_hal_${Date.now()}`;
+    const halCallId = `call_ui_hal_${randomUUID()}`;
     await vscode.commands.executeCommand('openhands._sendTestEvent', {
       kind: 'ActionEvent',
       source: 'agent',
@@ -192,6 +210,7 @@ export async function run(): Promise<void> {
     if (closeWebview) {
       await closeWebview();
     }
+    await restoreSettings();
     await fs.rm(skillPath, { force: true });
     await fs.rm(profilePath, { force: true });
   }

@@ -77,6 +77,7 @@ export type HostToWebviewMessage =
 
 export type WebviewToHostMessage =
   | { type: 'webviewReady'; conversationId?: string; lastSeenSeq?: number }
+  | { type: 'openhandsE2E'; event: 'ready'; payload?: unknown }
   | { type: 'openSettingsPage' }
   | { type: 'openSettings' }
   | { type: 'openSettingsSecrets' }

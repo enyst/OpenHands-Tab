@@ -14,6 +14,7 @@ export type DiagnosticsInfo = {
     hasView?: boolean;
     visible?: boolean;
     webviewReady?: boolean;
+    e2eReady?: boolean;
     clientConversationId?: string;
     clientLastSeenSeq?: number;
   };

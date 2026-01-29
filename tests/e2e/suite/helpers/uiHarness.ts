@@ -46,11 +46,17 @@ async function waitForCondition(
 class CdpClient {
   private ws: WebSocket;
   private nextId = 1;
-  private pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
+  private pending = new Map<number, {
+    resolve: (value: any) => void;
+    reject: (error: Error) => void;
+    timer?: ReturnType<typeof setTimeout>;
+  }>();
   private defaultContextId: number | null = null;
+  private defaultTimeoutMs: number;
 
-  private constructor(ws: WebSocket) {
+  private constructor(ws: WebSocket, defaultTimeoutMs: number) {
     this.ws = ws;
+    this.defaultTimeoutMs = defaultTimeoutMs;
     this.ws.on('message', (data) => {
       let message: any;
       try {
@@ -74,6 +80,7 @@ class CdpClient {
       if (typeof message?.id !== 'number') return;
       const pending = this.pending.get(message.id);
       if (!pending) return;
+      if (pending.timer) clearTimeout(pending.timer);
       this.pending.delete(message.id);
       if (message.error) {
         pending.reject(new Error(message.error.message ?? 'CDP error'));
@@ -84,6 +91,7 @@ class CdpClient {
 
     this.ws.on('close', () => {
       for (const pending of this.pending.values()) {
+        if (pending.timer) clearTimeout(pending.timer);
         pending.reject(new Error('CDP connection closed'));
       }
       this.pending.clear();
@@ -91,6 +99,7 @@ class CdpClient {
 
     this.ws.on('error', (error) => {
       for (const pending of this.pending.values()) {
+        if (pending.timer) clearTimeout(pending.timer);
         pending.reject(error instanceof Error ? error : new Error(String(error)));
       }
       this.pending.clear();
@@ -110,14 +119,18 @@ class CdpClient {
         reject(error);
       });
     });
-    return new CdpClient(ws);
+    return new CdpClient(ws, timeoutMs);
   }
 
   async send(method: string, params?: Record<string, any>): Promise<any> {
     const id = this.nextId++;
     const payload = { id, method, params };
     const promise = new Promise<any>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`CDP ${method} timed out after ${this.defaultTimeoutMs}ms`));
+      }, this.defaultTimeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
     });
     this.ws.send(JSON.stringify(payload));
     return promise;

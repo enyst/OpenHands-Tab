@@ -45,6 +45,7 @@ export type CreateWebviewMessageHandlerDeps = {
   getLlmProfilesStoreRoot?: () => string | undefined;
 
   setWebviewReadyState: (conversationId?: string, lastSeenSeq?: number) => void;
+  setWebviewE2EReady?: (ready: boolean) => void;
   setLastKnownLlmLabel: (label: string | null) => void;
   getLastKnownLlmLabel: () => string | null;
 
@@ -102,6 +103,10 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
   const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
   const getElevenlabsTtsGate = createElevenlabsTtsGateFactory({ context, maxCacheBytes: 50 * 1024 * 1024 });
   const historyTitleGenerationInFlight = new Set<string>();
+  const extensionMode = vscode.ExtensionMode;
+  const isProduction =
+    extensionMode?.Production !== undefined ? context.extensionMode === extensionMode.Production : true;
+  const e2eEnabled = !isProduction && process.env.E2E_UI === '1';
 
   const postToolsList = createPostToolsList({ deps, host });
 
@@ -172,6 +177,12 @@ export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDep
           clientLastSeenSeq: message.lastSeenSeq,
         });
 
+        break;
+      }
+      case 'openhandsE2E': {
+        if (e2eEnabled && message.event === 'ready') {
+          deps.setWebviewE2EReady?.(true);
+        }
         break;
       }
       case 'openSettingsPage':

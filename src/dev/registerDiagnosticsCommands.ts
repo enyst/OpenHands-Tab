@@ -62,6 +62,7 @@ type RegisterDiagnosticsCommandsDeps = {
   context: vscode.ExtensionContext;
   getChatView: () => vscode.WebviewView | undefined;
   getChatWebviewReady: () => boolean;
+  getChatWebviewE2EReady: () => boolean;
   getChatLastConversationId: () => string | undefined;
   getChatLastSeenSeq: () => number | undefined;
   eventBacklog: ConversationEventBacklog;
@@ -178,6 +179,7 @@ export function registerDiagnosticsCommands(deps: RegisterDiagnosticsCommandsDep
         hasView: !!chatView,
         visible: chatView?.visible ?? false,
         webviewReady: deps.getChatWebviewReady(),
+        e2eReady: deps.getChatWebviewE2EReady(),
         clientConversationId: deps.getChatLastConversationId(),
         clientLastSeenSeq: deps.getChatLastSeenSeq(),
       },
