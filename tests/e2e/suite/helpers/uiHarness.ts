@@ -242,148 +242,174 @@ export async function connectToWebviewCdp(options: {
       ? { extensionId }
       : null;
 
-  const target = await waitForWebviewTarget(options.port, targetHint, timeoutMs);
-  if (!target?.webSocketDebuggerUrl) {
-    const targets = await getWebviewTargets(options.port, Math.min(timeoutMs, 5000));
-    const targetUrls = targets.map((item) => `${item.type ?? 'unknown'}:${item.url ?? 'unknown'}`);
-    const hintLabel = targetHint ? JSON.stringify(targetHint) : 'none';
-    throw new Error(`Unable to find OpenHands webview target (hint=${hintLabel}). Targets: ${targetUrls.join(' | ')}`);
-  }
-
-  console.log(`UI E2E: attaching to webview target (${target.type ?? 'unknown'}) ${target.url ?? 'unknown'}`);
-
-  const client = await CdpClient.connect(target.webSocketDebuggerUrl, timeoutMs);
-  try {
-    await client.send('Runtime.enable');
-    await client.send('Page.enable');
-    const frameTree = await client.send('Page.getFrameTree');
-    const frameId = findFrameId(frameTree, target.url ?? '');
-    if (frameId) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError: Error | null = null;
+  while (Date.now() < deadline) {
+    const candidates = await getWebviewCandidates(options.port, targetHint, timeoutMs);
+    for (const candidate of candidates) {
+      if (!candidate.webSocketDebuggerUrl) continue;
+      console.log(`UI E2E: probing target (${candidate.type ?? 'unknown'}) ${candidate.url ?? 'unknown'}`);
       try {
-        const world = await client.send('Page.createIsolatedWorld', {
-          frameId,
-          worldName: 'openhands-e2e',
-        });
-        if (world?.executionContextId) {
-          client.setDefaultContext(world.executionContextId);
-        } else {
-          await client.waitForFrameContext(frameId, timeoutMs);
+        const session = await attachToTarget(candidate, timeoutMs);
+        const hasApp = await waitForCondition(
+          'app element',
+          () => session.evaluate(() => Boolean(document.getElementById('app'))),
+          3000
+        ).then(() => true, () => false);
+        if (hasApp) {
+          console.log(`UI E2E: attached to target (${candidate.type ?? 'unknown'}) ${candidate.url ?? 'unknown'}`);
+          return session;
         }
-      } catch {
-        await client.waitForFrameContext(frameId, timeoutMs);
+        await session.close();
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
       }
-    } else {
-      await client.waitForDefaultContext(timeoutMs);
     }
-  } catch (error) {
-    await client.close();
-    throw error;
+    await sleep(POLL_INTERVAL_MS);
   }
+  const hintLabel = targetHint ? JSON.stringify(targetHint) : 'none';
+  if (lastError) {
+    throw new Error(`Unable to attach to OpenHands webview (hint=${hintLabel}). Last error: ${lastError.message}`);
+  }
+  throw new Error(`Unable to attach to OpenHands webview (hint=${hintLabel}).`);
 
-  const evaluate = <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) => client.evaluate<T>(fn, ...args);
-
-  const waitForSelector = async (selector: string, options?: WaitForSelectorOptions) => {
-    const requireVisible = options?.visible ?? false;
-    const deadlineMs = options?.timeoutMs ?? timeoutMs;
-    try {
-      await waitForCondition(
-        `selector ${selector}`,
-        async () =>
-          evaluate((sel, visible) => {
-            if (typeof document === 'undefined') return false;
-            const shadowRoot = document.body?.shadowRoot ?? null;
-            const el = document.querySelector(sel) ?? shadowRoot?.querySelector(sel) ?? null;
-            if (!el) return false;
-            if (!visible) return true;
-            const style = window.getComputedStyle(el);
-            if (style.visibility === 'hidden' || style.display === 'none') return false;
-            const rect = el.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
-          }, selector, requireVisible),
-        deadlineMs,
-      );
-    } catch (error) {
-      let debug: any = null;
+  function attachToTarget(target: CdpTarget, timeoutMs: number): Promise<WebviewSession> {
+    return (async () => {
+      const client = await CdpClient.connect(target.webSocketDebuggerUrl!, timeoutMs);
       try {
-        debug = await evaluate(() => {
-          if (typeof document === 'undefined') return { readyState: 'no-document' };
-          const shadowRoot = document.body?.shadowRoot ?? null;
-          const testIds = Array.from(document.querySelectorAll('[data-testid]'))
-            .concat(Array.from(shadowRoot?.querySelectorAll('[data-testid]') ?? []))
-            .slice(0, 10)
-            .map((node) => node.getAttribute('data-testid'));
-          const root = document.getElementById('root');
-          const bodyText = document.body?.textContent?.trim() ?? '';
-          return {
-            readyState: document.readyState,
-            title: document.title,
-            testIds,
-            bodyHasShadowRoot: Boolean(shadowRoot),
-            rootExists: Boolean(root),
-            rootChildCount: root?.childElementCount ?? 0,
-            appExists: Boolean(document.getElementById('app')),
-            appChildCount: document.getElementById('app')?.childElementCount ?? 0,
-            locationHref: window.location.href,
-            bodyTextSample: bodyText.slice(0, 200),
-          };
-        });
-      } catch {
-        debug = { readyState: 'unknown' };
+        await client.send('Runtime.enable');
+        await client.send('Page.enable');
+        const frameTree = await client.send('Page.getFrameTree');
+        const frameId = findFrameId(frameTree, target.url ?? '');
+        if (frameId) {
+          try {
+            const world = await client.send('Page.createIsolatedWorld', {
+              frameId,
+              worldName: 'openhands-e2e',
+            });
+            if (world?.executionContextId) {
+              client.setDefaultContext(world.executionContextId);
+            } else {
+              await client.waitForFrameContext(frameId, timeoutMs);
+            }
+          } catch {
+            await client.waitForFrameContext(frameId, timeoutMs);
+          }
+        } else {
+          await client.waitForDefaultContext(timeoutMs);
+        }
+      } catch (error) {
+        await client.close();
+        throw error;
       }
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`${message}. Debug: ${JSON.stringify(debug)}`);
-    }
-  };
 
-  const click = async (selector: string) => {
-    const clicked = await evaluate((sel) => {
-      if (typeof document === 'undefined') return false;
-      const shadowRoot = document.body?.shadowRoot ?? null;
-      const el = (document.querySelector(sel) ?? shadowRoot?.querySelector(sel)) as HTMLElement | null;
-      if (!el) return false;
-      el.click();
-      return true;
-    }, selector);
-    if (!clicked) throw new Error(`Unable to click selector: ${selector}`);
-  };
+      const evaluate = <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) =>
+        client.evaluate<T>(fn, ...args);
 
-  const clickByText = async (tag: string, text: string) => {
-    const clicked = await evaluate((tagName, textValue) => {
-      if (typeof document === 'undefined') return false;
-      const shadowRoot = document.body?.shadowRoot ?? null;
-      const nodes = Array.from(document.querySelectorAll(tagName))
-        .concat(Array.from(shadowRoot?.querySelectorAll(tagName) ?? []));
-      const match = nodes.find((node) => (node.textContent ?? '').trim().includes(textValue));
-      if (!match) return false;
-      (match as HTMLElement).click();
-      return true;
-    }, tag, text);
-    if (!clicked) throw new Error(`Unable to click ${tag} containing text: ${text}`);
-  };
+      const waitForSelector = async (selector: string, options?: WaitForSelectorOptions) => {
+        const requireVisible = options?.visible ?? false;
+        const deadlineMs = options?.timeoutMs ?? timeoutMs;
+        try {
+          await waitForCondition(
+            `selector ${selector}`,
+            async () =>
+              evaluate((sel, visible) => {
+                if (typeof document === 'undefined') return false;
+                const shadowRoot = document.body?.shadowRoot ?? null;
+                const el = document.querySelector(sel) ?? shadowRoot?.querySelector(sel) ?? null;
+                if (!el) return false;
+                if (!visible) return true;
+                const style = window.getComputedStyle(el);
+                if (style.visibility === 'hidden' || style.display === 'none') return false;
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }, selector, requireVisible),
+            deadlineMs,
+          );
+        } catch (error) {
+          let debug: any = null;
+          try {
+            debug = await evaluate(() => {
+              if (typeof document === 'undefined') return { readyState: 'no-document' };
+              const shadowRoot = document.body?.shadowRoot ?? null;
+              const testIds = Array.from(document.querySelectorAll('[data-testid]'))
+                .concat(Array.from(shadowRoot?.querySelectorAll('[data-testid]') ?? []))
+                .slice(0, 10)
+                .map((node) => node.getAttribute('data-testid'));
+              const root = document.getElementById('root');
+              const bodyText = document.body?.textContent?.trim() ?? '';
+              return {
+                readyState: document.readyState,
+                title: document.title,
+                testIds,
+                bodyHasShadowRoot: Boolean(shadowRoot),
+                rootExists: Boolean(root),
+                rootChildCount: root?.childElementCount ?? 0,
+                appExists: Boolean(document.getElementById('app')),
+                appChildCount: document.getElementById('app')?.childElementCount ?? 0,
+                locationHref: window.location.href,
+                bodyTextSample: bodyText.slice(0, 200),
+              };
+            });
+          } catch {
+            debug = { readyState: 'unknown' };
+          }
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(`${message}. Debug: ${JSON.stringify(debug)}`);
+        }
+      };
 
-  const getAttribute = (selector: string, name: string) =>
-    evaluate((sel, attr) => {
-      if (typeof document === 'undefined') return null;
-      const shadowRoot = document.body?.shadowRoot ?? null;
-      return (document.querySelector(sel) ?? shadowRoot?.querySelector(sel))?.getAttribute(attr) ?? null;
-    }, selector, name);
+      const click = async (selector: string) => {
+        const clicked = await evaluate((sel) => {
+          if (typeof document === 'undefined') return false;
+          const shadowRoot = document.body?.shadowRoot ?? null;
+          const el = (document.querySelector(sel) ?? shadowRoot?.querySelector(sel)) as HTMLElement | null;
+          if (!el) return false;
+          el.click();
+          return true;
+        }, selector);
+        if (!clicked) throw new Error(`Unable to click selector: ${selector}`);
+      };
 
-  const count = (selector: string) =>
-    evaluate((sel) => {
-      if (typeof document === 'undefined') return 0;
-      const shadowRoot = document.body?.shadowRoot ?? null;
-      return document.querySelectorAll(sel).length + (shadowRoot?.querySelectorAll(sel).length ?? 0);
-    }, selector);
+      const clickByText = async (tag: string, text: string) => {
+        const clicked = await evaluate((tagName, textValue) => {
+          if (typeof document === 'undefined') return false;
+          const shadowRoot = document.body?.shadowRoot ?? null;
+          const nodes = Array.from(document.querySelectorAll(tagName))
+            .concat(Array.from(shadowRoot?.querySelectorAll(tagName) ?? []));
+          const match = nodes.find((node) => (node.textContent ?? '').trim().includes(textValue));
+          if (!match) return false;
+          (match as HTMLElement).click();
+          return true;
+        }, tag, text);
+        if (!clicked) throw new Error(`Unable to click ${tag} containing text: ${text}`);
+      };
 
-  return {
-    evaluate,
-    waitForSelector,
-    click,
-    clickByText,
-    getAttribute,
-    count,
-    close: () => client.close(),
-  };
+      const getAttribute = (selector: string, name: string) =>
+        evaluate((sel, attr) => {
+          if (typeof document === 'undefined') return null;
+          const shadowRoot = document.body?.shadowRoot ?? null;
+          return (document.querySelector(sel) ?? shadowRoot?.querySelector(sel))?.getAttribute(attr) ?? null;
+        }, selector, name);
+
+      const count = (selector: string) =>
+        evaluate((sel) => {
+          if (typeof document === 'undefined') return 0;
+          const shadowRoot = document.body?.shadowRoot ?? null;
+          return document.querySelectorAll(sel).length + (shadowRoot?.querySelectorAll(sel).length ?? 0);
+        }, selector);
+
+      return {
+        evaluate,
+        waitForSelector,
+        click,
+        clickByText,
+        getAttribute,
+        count,
+        close: () => client.close(),
+      };
+    })();
+  }
 }
 
 async function getWebviewTargets(port: number, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<CdpTarget[]> {
@@ -401,7 +427,7 @@ async function getWebviewTargets(port: number, timeoutMs: number = DEFAULT_TIMEO
   }
 }
 
-function pickWebviewTarget(targets: CdpTarget[], hint: WebviewTargetHint | null): CdpTarget | null {
+function pickWebviewTarget(targets: CdpTarget[], hint: WebviewTargetHint | null): CdpTarget[] {
   const matchesHint = (target: CdpTarget): boolean => {
     if (!hint) return true;
     if (hint.extensionId && !target.url?.includes(`extensionId=${hint.extensionId}`)) return false;
@@ -427,26 +453,20 @@ function pickWebviewTarget(targets: CdpTarget[], hint: WebviewTargetHint | null)
   const candidates = primaryCandidates.length > 0 ? primaryCandidates : fallbackCandidates;
   const iframeCandidates = candidates.filter((target) => target.type === 'iframe');
   const pageCandidates = candidates.filter((target) => target.type === 'page');
-  const pickIndex = (list: CdpTarget[]) =>
-    list.find((target) => target.url?.includes('index.html')) ?? list[0] ?? null;
+  const byIndex = (list: CdpTarget[]) =>
+    list.sort((a, b) => Number(Boolean(b.url?.includes('index.html'))) - Number(Boolean(a.url?.includes('index.html'))));
 
-  return pickIndex(iframeCandidates) ?? pickIndex(pageCandidates) ?? candidates[0] ?? null;
+  return [...byIndex(iframeCandidates), ...byIndex(pageCandidates), ...byIndex(candidates)];
 }
 
-async function waitForWebviewTarget(
+async function getWebviewCandidates(
   port: number,
   hint: WebviewTargetHint | null,
   timeoutMs: number
-): Promise<CdpTarget | null> {
-  const deadline = Date.now() + timeoutMs;
+): Promise<CdpTarget[]> {
   const perRequestTimeoutMs = Math.min(timeoutMs, 5000);
-  while (Date.now() < deadline) {
-    const targets = await getWebviewTargets(port, perRequestTimeoutMs);
-    const match = pickWebviewTarget(targets, hint);
-    if (match) return match;
-    await sleep(POLL_INTERVAL_MS);
-  }
-  return null;
+  const targets = await getWebviewTargets(port, perRequestTimeoutMs);
+  return pickWebviewTarget(targets, hint);
 }
 
 function findFrameId(frameTree: any, targetUrl: string): string | null {
