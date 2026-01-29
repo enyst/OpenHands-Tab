@@ -142,7 +142,17 @@ class CdpClient {
       }, this.defaultTimeoutMs);
       this.pending.set(id, { resolve, reject, timer });
     });
-    this.ws.send(JSON.stringify(payload));
+    try {
+      this.ws.send(JSON.stringify(payload));
+    } catch (error) {
+      const pending = this.pending.get(id);
+      if (pending?.timer) clearTimeout(pending.timer);
+      this.pending.delete(id);
+      if (pending) {
+        pending.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+      throw error;
+    }
     return promise;
   }
 
@@ -202,8 +212,13 @@ export async function connectToWebviewCdp(options: {
   console.log(`UI E2E: attaching to webview target (${target.type ?? 'unknown'}) ${target.url ?? 'unknown'}`);
 
   const client = await CdpClient.connect(target.webSocketDebuggerUrl, timeoutMs);
-  await client.send('Runtime.enable');
-  await client.waitForDefaultContext(timeoutMs);
+  try {
+    await client.send('Runtime.enable');
+    await client.waitForDefaultContext(timeoutMs);
+  } catch (error) {
+    await client.close();
+    throw error;
+  }
 
   const evaluate = <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) => client.evaluate<T>(fn, ...args);
 

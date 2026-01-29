@@ -207,7 +207,7 @@ export async function run(): Promise<void> {
     await webview.waitForSelector('[data-testid="llm-profiles-view"]', { timeoutMs: 15000, visible: true });
 
     await webview.click('button[aria-label="LLM profile"]');
-    const profileOptionSelector = `[role="option"][aria-label="${profileId}"]`;
+    const profileOptionSelector = `button[aria-label="Select profile ${profileId}"]`;
     await webview.waitForSelector(profileOptionSelector, { timeoutMs: 15000 });
 
     await webview.click('button[aria-label="LLM profile"]');
