@@ -47,6 +47,7 @@ class CdpClient {
   private ws: WebSocket;
   private nextId = 1;
   private pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
+  private defaultContextId: number | null = null;
 
   private constructor(ws: WebSocket) {
     this.ws = ws;
@@ -56,6 +57,19 @@ class CdpClient {
         message = JSON.parse(data.toString());
       } catch {
         return;
+      }
+      if (message?.method === 'Runtime.executionContextCreated') {
+        const context = message.params?.context;
+        const aux = context?.auxData;
+        if (aux?.isDefault || aux?.type === 'default' || context?.name === '') {
+          this.defaultContextId = context.id;
+        }
+      } else if (message?.method === 'Runtime.executionContextDestroyed') {
+        if (message.params?.executionContextId === this.defaultContextId) {
+          this.defaultContextId = null;
+        }
+      } else if (message?.method === 'Runtime.executionContextsCleared') {
+        this.defaultContextId = null;
       }
       if (typeof message?.id !== 'number') return;
       const pending = this.pending.get(message.id);
@@ -109,12 +123,17 @@ class CdpClient {
     return promise;
   }
 
+  async waitForDefaultContext(timeoutMs: number): Promise<void> {
+    await waitForCondition('execution context', async () => this.defaultContextId !== null, timeoutMs);
+  }
+
   async evaluate<T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]): Promise<T> {
     const expression = `(${fn.toString()})(...${JSON.stringify(args)})`;
     const result = await this.send('Runtime.evaluate', {
       expression,
       returnByValue: true,
       awaitPromise: true,
+      contextId: this.defaultContextId ?? undefined,
     });
     if (result?.exceptionDetails) {
       const text = result.exceptionDetails.text ?? 'Runtime.evaluate failed';
@@ -149,6 +168,7 @@ export async function connectToWebviewCdp(options: {
 
   const client = await CdpClient.connect(target.webSocketDebuggerUrl, timeoutMs);
   await client.send('Runtime.enable');
+  await client.waitForDefaultContext(timeoutMs);
 
   const evaluate = <T>(fn: (...args: any[]) => T | Promise<T>, ...args: any[]) => client.evaluate<T>(fn, ...args);
 
