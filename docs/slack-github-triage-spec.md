@@ -78,17 +78,17 @@ Build a FastAPI service (Python 3.13) that subscribes to Slack Events API for th
 
 ## GitHub Integration
 
-### OAuth App
-- Use GitHub OAuth app per GitHub docs to obtain tokens for API access.
-- Support the **web application flow** for browser-based auth.
-- Optional: support **device flow** for headless setup.
-- Store GitHub OAuth credentials:
-  - `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
-  - `GITHUB_REDIRECT_URI`
+### GitHub App
+- Use a GitHub App instead of an OAuth app for more granular permissions and enhanced security.
+- The app will need `issues:write` permission, which can be granted on a per-repository basis during installation.
+- The service will authenticate as an installation of the app to create issues.
+- Store GitHub App credentials securely:
+  - `GITHUB_APP_ID`
+  - `GITHUB_INSTALLATION_ID`
+  - `GITHUB_PRIVATE_KEY`
 
-### Required OAuth Scopes
-- `repo` (create issues in private repos if needed)
-- `public_repo` (only public repos)
+### Required App Permissions
+- `issues: write` (to create issues in repositories where the app is installed)
 
 ### Issue Creation Policy
 - Pick the most likely repo based on LLM classification + heuristics.
