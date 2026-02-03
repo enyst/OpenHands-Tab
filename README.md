@@ -49,6 +49,11 @@ Alternatively, for humans in development mode:
 - Set GitHub token
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
+**Using Gemini**: Gemini can be used in three ways:
+- **As the main agent LLM**: set `openhands.llm.profileId` to a Gemini profile id (e.g., `gemini-flash`) and configure your API key via **OpenHands: Set Gemini API Key**
+- **As utility for summarization**: highly recommended, just set the key and it will be used for the built-in Gemini profiles
+- **For HAL voice confirmation** (optional): HAL uses its own Gemini profile specified by `openhands.hal.llmProfileId` (default: `gemini-flash-hal`) for audio understanding in voice_confirm mode
+
 ## Documentation
 
 | Document | Description |
