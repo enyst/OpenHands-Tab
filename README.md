@@ -30,7 +30,13 @@ Alternatively, for humans in development mode:
   - Run [OpenHands-CLI](https://github.com/OpenHands/OpenHands-CLI), or another agent of your choice, including itself
   - Tell it to clone, build, install, or ask it questions about this repo if you'd like. It can tell stories.
 
-### Development
+### Development (recommended)
+
+1. Run [OpenHands-CLI](https://github.com/OpenHands/OpenHands-CLI) in the extension directory
+2. Tell it to build, install, and run VSCode in dev/debug on `cwd`
+3. Have fun!
+
+### Development (old style)
 
 1. Open the project in VS Code
 2. Press F5 to launch Extension Development Host
