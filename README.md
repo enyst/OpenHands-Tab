@@ -40,24 +40,12 @@ Alternatively, for humans in development mode:
 
 1. Open the project in VS Code
 2. Press F5 to launch Extension Development Host
-3. Click the OpenHands icon in the Activity Bar (or run "OpenHands: Open") to reveal the chat sidebar view
-
-### Git Hooks
-
-This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit (installed automatically by `npm install` via the `prepare` script).
-
-- Run manually: `npm exec -- lint-staged`
-
-### Useful commands
-
-- **OpenHands: Explain Selection** - Explain selected code in the editor (context menu)
-- (maybe, outdated) **OpenHands: Configure** - Set up server URL, API keys
+3. Click the OpenHands icon in the Activity Bar to reveal the chat sidebar view
 
 ### Configuration
 
 - You can use LLM Profiles View or regular VS Code Settings to set LLM Providers API key(s)
 - Set Gemini API key (used for summarizations, highly **recommended**)
-- Set ElevenLabs API key (optional feature)
 - Set GitHub token
 - Leave server URL blank for local mode, or set it to connect to an [agent-server](https://github.com/OpenHands/software-agent-sdk)
 
@@ -72,12 +60,9 @@ This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files 
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | Quick reference for AI agents |
 | [docs/PRD.md](docs/PRD.md) | Product requirements and architecture |
-| [docs/settings_prd.md](docs/settings_prd.md) | Product requirements and architecture |
 | [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) | SDK architecture details |
-| [docs/context-token-breakdown.md](docs/context-token-breakdown.md) | Why context tokens can be high in local mode |
 | [docs/vscode_local_setup.md](docs/vscode_local_setup.md) | Local development setup |
 | [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) | Headless/remote setup |
-| [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) | SDK development guide |
 
 ## Architecture
 
@@ -86,12 +71,7 @@ This is an npm workspace with two packages:
 1. **Root package** - VS Code extension (`src/`)
 2. **@openhands/agent-sdk-ts** - TypeScript SDK (`packages/agent-sdk-ts/`)
 
-The SDK provides:
-- `Conversation` API for local/remote agent execution
-- LLM clients (Anthropic, OpenAI-compatible, Gemini)
-- Tools (Terminal, FileEditor, TaskTracker, Browser, Glob, Grep, BrowserUse, PlanningFileEditor, Delegate, Finish)
-- `Workspace` factory for connecting to remote servers
-- Protocol types and event handling
+The SDK provides the `Conversation` API, LLM clients, tools, and protocol types.
 
 ## Commands
 
@@ -99,13 +79,7 @@ The SDK provides:
 npm run build           # Build SDK + extension + webview
 npm run compile         # Compile TypeScript + Tailwind + webview (faster)
 npm test                # Run all tests
-npm run test:watch      # Run tests in watch mode
 npm run lint            # Lint all code
-npm run lint:fix        # Auto-fix lint issues
-npm run typecheck       # Type check all code
-npm run watch           # Development watch mode
-npm run e2e             # E2E tests
-npm run e2e:agent-server  # E2E tests against remote agent-server
 npm run package         # Package extension as VSIX
 ```
 

@@ -153,6 +153,12 @@ OpenHands-Tab/
 - E2E tests: `npm run e2e` (Mocha + @vscode/test-electron)
 - Place tests in `__tests__/` directories alongside source
 
+## Git Hooks
+
+This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit (installed automatically by `npm install` via the `prepare` script).
+
+- Run manually: `npm exec -- lint-staged`
+
 ## Commits
 
 Short imperative sentences. Reference issues with `(#123)`.
@@ -306,6 +312,8 @@ Pitfalls to avoid
 - [docs/PRD.md](docs/PRD.md) - Product requirements
 - [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) - SDK architecture
 - [docs/vscode_local_setup.md](docs/vscode_local_setup.md) - Local development setup
+- [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) - Headless/remote setup
+- [docs/settings_prd.md](docs/settings_prd.md) - Settings and configuration PRD
 - [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) - SDK-specific guidelines
 
 
