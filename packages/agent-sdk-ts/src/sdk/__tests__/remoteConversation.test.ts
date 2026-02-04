@@ -315,7 +315,7 @@ describe('RemoteConversation', () => {
         serverUrl: 'http://localhost:3000',
         settings: {
           ...baseSettings,
-          llm: { profileId: 'p1', usageId: 'default-llm' },
+          llm: { profileId: 'p1' },
         } as any,
         profileStoreOptions: { rootDir: dir },
       });

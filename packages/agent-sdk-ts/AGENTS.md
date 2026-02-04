@@ -299,7 +299,6 @@ const conversation: ConversationInstance = Conversation({
   settings: {
     llm: {
       model: 'claude-sonnet-4-20250514',
-      usageId: 'default-llm',
       temperature: 0.7,
     },
     conversation: {

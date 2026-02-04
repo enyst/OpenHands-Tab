@@ -90,6 +90,16 @@ Current selection heuristic (best-effort):
   - Local mode: applies to the **next** LLM request (no interruption of in-flight streaming).
   - Remote mode: applies when you start a **new conversation** (the agent-server does not currently support mid-conversation LLM switching).
 
+### Usage IDs vs Profile IDs
+
+- **`usageId` identifies the component that is spending tokens**, not the profile.
+  - Example usage buckets: `agent` (main assistant), `tool-summarizer`, `file-diff-summarizer`, etc.
+- **`profileId` selects the LLM configuration** (provider/model/base URL/generation params).
+- In OpenHands-Tab, the **main agent usageId is fixed to `agent`**:
+  - Switching profiles does **not** change the usageId.
+  - This keeps the main agent’s totals stable across profile changes (one bucket for the agent).
+- Usage IDs are **not user-configurable in settings**; component-specific usage IDs are set in code.
+
 ### Consistency requirement (critical)
 
 These three must always match (no “snap back to session default”):
