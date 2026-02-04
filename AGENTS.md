@@ -254,6 +254,8 @@ Reviews (do not merge without review):
 
 ## SDK Package
 
+`packages/agent-sdk-ts` is a TypeScript port of the OpenHands Python SDK (typically checked out separately at `~/repos/agent-sdk`). It aims for behavioral parity, but it is not mechanically transpiled, so occasional impedance mismatches can exist.
+
 When editing `packages/agent-sdk-ts`, rebuild before launching extension:
 ```bash
 npm run build -w @openhands/agent-sdk-ts
