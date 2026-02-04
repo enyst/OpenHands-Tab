@@ -369,9 +369,6 @@ export class LocalConversation extends EventEmitter {
       if (model) config.model = model;
     }
 
-    const usageId = toOptionalNonEmptyString(llm.usageId);
-    if (usageId) config.usageId = usageId;
-
     if (!profileId) {
       if (llm.openaiApiMode) config.openaiApiMode = llm.openaiApiMode;
 
@@ -417,14 +414,12 @@ export class LocalConversation extends EventEmitter {
       ? clearRawLlmFieldsWhenProfileSelected({
         ...existing,
         profileId: persisted.profileId,
-        usageId: persisted.usageId ?? undefined,
       })
       : {
         ...existing,
         profileId: undefined,
         provider: persisted.provider ?? undefined,
         model: persisted.model ?? undefined,
-        usageId: persisted.usageId ?? undefined,
         openaiApiMode: persisted.openaiApiMode ?? undefined,
         baseUrl: persisted.baseUrl ?? undefined,
         apiVersion: persisted.apiVersion ?? undefined,

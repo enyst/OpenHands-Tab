@@ -10,7 +10,6 @@ describe('clearRawLlmFieldsWhenProfileSelected', () => {
       baseUrl: 'http://example.test',
       openaiApiMode: 'chat_completions',
       maxInputTokens: 123,
-      usageId: 'u1',
     } as any;
 
     expect(clearRawLlmFieldsWhenProfileSelected(input)).toEqual(input);
@@ -34,7 +33,6 @@ describe('clearRawLlmFieldsWhenProfileSelected', () => {
       reasoningSummary: 'detailed',
       inputCostPerToken: 0.1,
       outputCostPerToken: 0.2,
-      usageId: 'u1',
     } as any;
 
     expect(clearRawLlmFieldsWhenProfileSelected(input)).toEqual({
@@ -57,4 +55,3 @@ describe('clearRawLlmFieldsWhenProfileSelected', () => {
     });
   });
 });
-

@@ -1,7 +1,6 @@
 import type { LLMProvider, OpenAIChatApi, ReasoningSummary } from '../llm/types';
 
 export type LLMSettings = {
-  usageId?: string | null;
   /**
    * Optional LLM profile identifier (filename stem under the profile store).
    * When set, the effective provider/model/baseUrl/etc are resolved from the profile store.

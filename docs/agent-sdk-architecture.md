@@ -167,7 +167,7 @@ Reconnection:
 const conversation = Conversation({
   serverUrl: 'http://localhost:3000',
   settings: {
-    llm: { model: 'claude-sonnet-4-20250514', usageId: 'remote' },
+    llm: { model: 'claude-sonnet-4-20250514' },
     secrets: {
       runtimeSessionApiKey: 'sk_session_xxx',
       llmApiKey: process.env.ANTHROPIC_API_KEY,
@@ -1483,7 +1483,6 @@ const conversation: ConversationInstance = Conversation({
   settings: {
     llm: {
       model: 'claude-sonnet-4-20250514',
-      usageId: 'default-llm',
       temperature: 0.7,
     },
     conversation: {
@@ -1601,7 +1600,6 @@ const conversation = Conversation({
   settings: {
     llm: {
       model: 'claude-sonnet-4-20250514',
-      usageId: 'local-server',
     },
     secrets: {
       llmApiKey: process.env.ANTHROPIC_API_KEY,

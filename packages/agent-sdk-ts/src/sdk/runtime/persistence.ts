@@ -10,7 +10,6 @@ export type PersistedLlmConfig = {
   profileId?: string;
   provider?: LLMProvider;
   model?: string;
-  usageId?: string;
   openaiApiMode?: OpenAIChatApi;
   baseUrl?: string;
   apiVersion?: string;
@@ -72,8 +71,6 @@ export const parsePersistedLlmConfig = (value: unknown): PersistedLlmConfig | un
   if (provider) config.provider = provider;
   const model = toOptionalNonEmptyString(value.model);
   if (model) config.model = model;
-  const usageId = toOptionalNonEmptyString(value.usageId);
-  if (usageId) config.usageId = usageId;
   const openaiApiMode = toOptionalOpenAiApiMode(value.openaiApiMode);
   if (openaiApiMode) config.openaiApiMode = openaiApiMode;
   const baseUrl = toOptionalNonEmptyString(value.baseUrl);

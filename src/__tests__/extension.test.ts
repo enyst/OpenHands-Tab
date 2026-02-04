@@ -9,7 +9,6 @@ import * as os from 'os';
 const defaultMockSettings = {
   serverUrl: 'http://localhost:3000',
   llm: {
-    usageId: 'default-llm',
     model: 'claude-3-5-sonnet-20241022',
     baseUrl: undefined,
   },
