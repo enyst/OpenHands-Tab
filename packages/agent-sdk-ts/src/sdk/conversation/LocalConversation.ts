@@ -360,44 +360,9 @@ export class LocalConversation extends EventEmitter {
 
     const llm = this.settings.llm ?? {};
     const profileId = toOptionalNonEmptyString(llm.profileId);
-    const model = toOptionalNonEmptyString(llm.model);
     const config: PersistedLlmConfig = {};
-    if (profileId) {
-      config.profileId = profileId;
-    } else {
-      if (llm.provider) config.provider = llm.provider;
-      if (model) config.model = model;
-    }
-
-    if (!profileId) {
-      if (llm.openaiApiMode) config.openaiApiMode = llm.openaiApiMode;
-
-      const baseUrl = toOptionalNonEmptyString(llm.baseUrl);
-      if (baseUrl) config.baseUrl = baseUrl;
-      const apiVersion = toOptionalNonEmptyString(llm.apiVersion);
-      if (apiVersion) config.apiVersion = apiVersion;
-
-      if (typeof llm.timeout === 'number' && Number.isFinite(llm.timeout)) config.timeoutSeconds = llm.timeout;
-      if (typeof llm.temperature === 'number' && Number.isFinite(llm.temperature)) config.temperature = llm.temperature;
-      if (typeof llm.topP === 'number' && Number.isFinite(llm.topP)) config.topP = llm.topP;
-      if (typeof llm.topK === 'number' && Number.isFinite(llm.topK)) config.topK = llm.topK;
-      if (typeof llm.maxInputTokens === 'number' && Number.isFinite(llm.maxInputTokens)) {
-        config.maxInputTokens = llm.maxInputTokens;
-      }
-      if (typeof llm.maxOutputTokens === 'number' && Number.isFinite(llm.maxOutputTokens)) {
-        config.maxOutputTokens = llm.maxOutputTokens;
-      }
-
-      if (llm.reasoningEffort) config.reasoningEffort = llm.reasoningEffort;
-      if (llm.reasoningSummary) config.reasoningSummary = llm.reasoningSummary;
-
-      if (typeof llm.inputCostPerToken === 'number' && Number.isFinite(llm.inputCostPerToken)) {
-        config.inputCostPerToken = llm.inputCostPerToken;
-      }
-      if (typeof llm.outputCostPerToken === 'number' && Number.isFinite(llm.outputCostPerToken)) {
-        config.outputCostPerToken = llm.outputCostPerToken;
-      }
-    }
+    if (!profileId) return;
+    config.profileId = profileId;
 
     if (!Object.keys(config).length) return;
     this.persistence.writeLlmConfig(config);
@@ -407,33 +372,13 @@ export class LocalConversation extends EventEmitter {
     if (!store.readLlmConfig) return;
     const persisted = store.readLlmConfig();
     if (!persisted) return;
-    if (!persisted.profileId && !persisted.model) return;
+    if (!persisted.profileId) return;
 
     const existing = this.settings.llm ?? {};
-    const merged: OpenHandsSettings['llm'] = persisted.profileId
-      ? clearRawLlmFieldsWhenProfileSelected({
-        ...existing,
-        profileId: persisted.profileId,
-      })
-      : {
-        ...existing,
-        profileId: undefined,
-        provider: persisted.provider ?? undefined,
-        model: persisted.model ?? undefined,
-        openaiApiMode: persisted.openaiApiMode ?? undefined,
-        baseUrl: persisted.baseUrl ?? undefined,
-        apiVersion: persisted.apiVersion ?? undefined,
-        timeout: persisted.timeoutSeconds ?? undefined,
-        temperature: persisted.temperature ?? undefined,
-        topP: persisted.topP ?? undefined,
-        topK: persisted.topK ?? undefined,
-        maxInputTokens: persisted.maxInputTokens ?? undefined,
-        maxOutputTokens: persisted.maxOutputTokens ?? undefined,
-        reasoningEffort: persisted.reasoningEffort ?? undefined,
-        reasoningSummary: persisted.reasoningSummary ?? undefined,
-        inputCostPerToken: persisted.inputCostPerToken ?? undefined,
-        outputCostPerToken: persisted.outputCostPerToken ?? undefined,
-      };
+    const merged: OpenHandsSettings['llm'] = clearRawLlmFieldsWhenProfileSelected({
+      ...existing,
+      profileId: persisted.profileId,
+    });
 
     this.settings = { ...this.settings, llm: merged };
     this.agent.setSettings(this.settings);
