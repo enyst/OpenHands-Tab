@@ -35,7 +35,6 @@ export type ConversationLifecycleDeps = {
   getOutputChannel: () => vscode.OutputChannel | undefined;
   setOutputVerbosity: (verbosity: OutputVerbosity) => void;
   setVerboseEventLogging: (verbose: boolean) => void;
-  hasDevBridgeEnabled: () => boolean;
   hasChatView: () => boolean;
   isChatWebviewReady: () => boolean;
   postWebviewMessage: (message: HostToWebviewMessage) => void;
@@ -122,7 +121,7 @@ export function createConversationLifecycleOrchestrator(deps: ConversationLifecy
     deps.setVerboseEventLogging(
       verbosity === 'verbose'
       || Boolean(settings.agent?.debug)
-      || deps.hasDevBridgeEnabled(),
+      || Boolean(cfg.get<boolean>('openhands.devBridge.enabled')),
     );
 
     if (!settings.serverUrl && settings.agent?.summarizeToolCalls === true) {

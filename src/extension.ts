@@ -515,7 +515,6 @@ export function activate(context: vscode.ExtensionContext) {
     setVerboseEventLogging: (verbose) => {
       verboseEventLogging = verbose;
     },
-    hasDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
     hasChatView: () => Boolean(chatView),
     isChatWebviewReady: () => chatWebviewReady,
     postWebviewMessage: (message) => {
