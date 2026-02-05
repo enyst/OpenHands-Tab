@@ -1,5 +1,5 @@
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps } from '../webviewMessageHandler.types';
 
 export function handleRenderedEventsResponse(args: {
   deps: CreateWebviewMessageHandlerDeps;
@@ -46,4 +46,3 @@ export function handleHalStateResponse(args: {
     lastError: args.message.lastError,
   });
 }
-

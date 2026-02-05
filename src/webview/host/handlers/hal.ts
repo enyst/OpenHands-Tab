@@ -10,7 +10,7 @@ import { getHalDialogueLinesForMode } from '../../../shared/halScript';
 import { maskSecretsInText } from '../../../shared/maskSecrets';
 import type { SettingsManager } from '../../../settings/SettingsManager';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../webviewMessageHandler.types';
 import * as llmProfilesStore from '../llmProfilesStore';
 import { createStoredSecretHelpers, getProviderApiKeyName } from './secretHelpers';
 

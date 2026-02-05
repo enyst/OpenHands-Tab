@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps } from '../webviewMessageHandler.types';
 
 export function handleWebviewConsole(args: {
   deps: CreateWebviewMessageHandlerDeps;
@@ -47,4 +47,3 @@ export function handleWebviewWebSocket(args: {
   args.outputChannel?.appendLine(parts.join(' '));
   args.deps.fileLog(parts.join(' '));
 }
-

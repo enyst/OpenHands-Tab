@@ -4,7 +4,7 @@ import { getDefaultLocalToolIds, listLocalToolDescriptors, normalizeLocalToolIds
 import { isOpenHandsCloudServerUrl } from '../../../shared/cloudServers';
 import { normalizeServerUrl } from '../../../shared/serverUrls';
 import { isOpenHandsSettingsSecrets } from '../../../settings/SettingsManager';
-import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../webviewMessageHandler.types';
 
 type LocalConversationToolControls = {
   mode: 'local';
