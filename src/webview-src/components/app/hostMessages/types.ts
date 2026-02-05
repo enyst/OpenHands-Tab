@@ -44,6 +44,47 @@ export type ShowStatusMessage = (
   options?: { autoDismiss?: boolean; autoDismissDelay?: number }
 ) => void;
 
+export type HostMessagePayload = {
+  type?: string;
+  requestId?: string;
+  ok?: unknown;
+  status?: 'online' | 'offline' | 'connecting';
+  serverUrl?: string | null;
+  serverLabel?: string;
+  mode?: 'local' | 'remote';
+  llmProfileLabel?: string | null;
+  hasProviderKey?: unknown;
+  hasGeminiKey?: unknown;
+  profiles?: string[];
+  activeProfileId?: string | null;
+  profileId?: unknown;
+  profile?: unknown;
+  hasKey?: unknown;
+  hasProfileKey?: unknown;
+  providerKeyName?: unknown;
+  hal?: Partial<HalSettingsSnapshot> & { [k: string]: unknown };
+  event?: unknown;
+  seq?: unknown;
+  error?: unknown;
+  conversationId?: string;
+  files?: string[];
+  skills?: { label: string; path: string }[];
+  tools?: { id: string; label: string }[];
+  enabledToolIds?: string[];
+  conversations?: ConversationsList;
+  servers?: { url: string; label?: string }[];
+  attachments?: Array<{ uri: string; label: string; sizeBytes?: number }>;
+  level?: unknown;
+  message?: unknown;
+  autoDismiss?: unknown;
+  autoDismissDelay?: unknown;
+  action?: unknown;
+  payload?: unknown;
+};
+
+export type HostMessageHandler = (payload: HostMessagePayload) => void;
+export type HostMessageHandlerRegistry = Partial<Record<string, HostMessageHandler>>;
+
 export type HostMessageHandlerOptions = {
   applyHalSettings: (payload: Partial<HalSettingsSnapshot> | null | undefined) => void;
   applyHalVoiceConfirmDecision: (
@@ -108,4 +149,3 @@ export type HostMessageHandlerOptions = {
   eventId: RefObject<number>;
   uiStateRef: RefObject<UiStateSnapshot>;
 };
-
