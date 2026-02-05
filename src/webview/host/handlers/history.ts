@@ -2,7 +2,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { WebviewHost, CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../webviewMessageHandler.types';
 import { getConversationHistoryList, persistConversationTitle } from '../conversationHistory';
 import { summarizeWithLocalLlm } from '../../../extension/summarizeWithLocalLlm';
 import type { OpenHandsSettings } from '../../../settings/SettingsManager';

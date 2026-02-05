@@ -7,8 +7,7 @@ import type { MessageEvent } from '@openhands/agent-sdk-ts';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../../shared/pasteLimits';
 import { buildAttachmentBlocks, safeParseUri } from '../attachments';
-import type { CreateWebviewMessageHandlerDeps } from '../createWebviewMessageHandler';
-import type { WebviewHost } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../webviewMessageHandler.types';
 
 async function persistPastedImage(baseDir: string, imageId: string, bytes: Uint8Array): Promise<void> {
   const filePath = getPastedImagePath(baseDir, imageId);

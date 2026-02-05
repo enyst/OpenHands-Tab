@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import { resolvePreferredWorkspaceFolderUri } from '../../../shared/workspaceRoot';
 import { toAttachmentLabel } from '../attachments';
-import type { WebviewHost } from '../createWebviewMessageHandler';
+import type { WebviewHost } from '../webviewMessageHandler.types';
 
 export async function handleSelectAttachments(args: {
   context: vscode.ExtensionContext;
@@ -75,4 +75,3 @@ export async function handleOpenAttachment(message: Extract<WebviewToHostMessage
     void vscode.window.showErrorMessage(`Failed to open attachment: ${reason}`);
   }
 }
-
