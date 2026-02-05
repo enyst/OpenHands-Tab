@@ -1,22 +1,17 @@
 import type { LLMToolDefinition } from '../llm/types';
+import type { SecretRegistry } from '../runtime/SecretRegistry';
 import type { BaseWorkspace } from '../../workspace';
 import type { OpenHandsSettings } from './settings';
 
 export interface ToolEventLog {
-  push: (event: unknown) => unknown;
-  list: () => unknown[];
-}
-
-export interface ToolSecretRegistry {
-  get: (name: string) => Promise<string | undefined>;
-  getRegisteredNames: () => string[];
-  getRegisteredValues?: () => string[];
+  push(event: unknown): unknown;
+  list(): unknown[];
 }
 
 export interface ToolContext {
   workspace: BaseWorkspace;
   events?: ToolEventLog;
-  secrets?: ToolSecretRegistry;
+  secrets?: SecretRegistry;
   settings?: OpenHandsSettings;
 }
 
