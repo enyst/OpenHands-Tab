@@ -35,6 +35,9 @@ npm run test:watch
 # Lint
 npm run lint
 
+# Circular dependency guardrail (allowlist-based)
+npm run lint:cycles
+
 # Auto-fix lint issues
 npm run lint:fix
 
