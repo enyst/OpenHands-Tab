@@ -2,6 +2,8 @@
 
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const TARGETS = [
   {
@@ -34,19 +36,101 @@ const TARGETS = [
 
 const ALLOWLIST_PATH = new URL('./circular-deps-allowlist.json', import.meta.url);
 
-function parseCycleJson(raw) {
+function isCycleArray(value) {
+  if (!Array.isArray(value)) {
+    return false;
+  }
+  return value.every((cycle) => Array.isArray(cycle) && cycle.every((entry) => typeof entry === 'string'));
+}
+
+function parseCycleArrayJson(raw) {
+  const parsed = JSON.parse(raw);
+  if (!isCycleArray(parsed)) {
+    throw new Error('JSON value is not a cycle-array payload.');
+  }
+  return parsed;
+}
+
+function findMatchingArrayEnd(text, startIndex) {
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+
+  for (let i = startIndex; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (char === '\\') {
+        escaping = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '[') {
+      depth += 1;
+      continue;
+    }
+
+    if (char === ']') {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+      if (depth < 0) {
+        return -1;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function parseEmbeddedCycleArray(raw) {
+  for (let start = raw.indexOf('['); start !== -1; start = raw.indexOf('[', start + 1)) {
+    const end = findMatchingArrayEnd(raw, start);
+    if (end === -1) {
+      continue;
+    }
+    const candidate = raw.slice(start, end + 1);
+    try {
+      return parseCycleArrayJson(candidate);
+    } catch {
+      // keep scanning for the next valid JSON array payload.
+    }
+  }
+  return null;
+}
+
+export function parseCycleJson(raw) {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     return [];
   }
 
-  const start = trimmed.indexOf('[');
-  const end = trimmed.lastIndexOf(']');
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error(`Unexpected madge output: ${trimmed}`);
+  try {
+    return parseCycleArrayJson(trimmed);
+  } catch (strictError) {
+    const embedded = parseEmbeddedCycleArray(trimmed);
+    if (embedded) {
+      return embedded;
+    }
+    const strictReason = strictError instanceof Error ? strictError.message : String(strictError);
+    const preview = trimmed.length > 240 ? `${trimmed.slice(0, 240)}…` : trimmed;
+    throw new Error(`Unexpected madge output (strict parse failed: ${strictReason}): ${preview}`);
   }
-
-  return JSON.parse(trimmed.slice(start, end + 1));
 }
 
 function compareStringArrays(left, right) {
@@ -161,4 +245,14 @@ function main() {
   console.log('\nCircular dependency check passed.');
 }
 
-main();
+function isDirectRun() {
+  const entry = process.argv[1];
+  if (!entry) {
+    return false;
+  }
+  return pathToFileURL(resolve(entry)).href === import.meta.url;
+}
+
+if (isDirectRun()) {
+  main();
+}
