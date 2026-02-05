@@ -1,20 +1,10 @@
-import { setTimeout as delay } from 'node:timers/promises';
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
 import { supportsThinkingBlocks } from './providerQuirks';
 import { buildOpenAiHeaders } from './openaiHeaders';
+import { NonRetryableHttpStatusError, requestWithRetry } from './httpRetry';
 
 const decoder = new TextDecoder();
-
-class NonRetryableHttpStatusError extends Error {
-  readonly status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'NonRetryableHttpStatusError';
-    this.status = status;
-  }
-}
 
 type OpenAIThinkingContentBlock = {
   type: 'thinking';
@@ -379,51 +369,20 @@ export class OpenAICompatibleClient implements LLMClient {
   }
 
   private async fetchWithRetry(request: ChatCompletionRequest): Promise<Response> {
-    let attempt = 0;
-    let delayMs = this.retry.baseDelayMs;
-    let lastError: Error | undefined;
-
-    while (attempt <= this.retry.maxRetries) {
-      try {
-        const controller = new AbortController();
-        const effectiveSeconds = (typeof this.config.timeoutSeconds === 'number' && this.config.timeoutSeconds > 0)
-          ? this.config.timeoutSeconds
-          : (DEFAULT_TIMEOUT_MS / 1000);
-        const timeout = setTimeout(() => controller.abort(), effectiveSeconds * 1000);
-        const response = await fetch(this.requestUrl(), {
-          method: 'POST',
-          headers: this.requestHeaders(),
-          body: JSON.stringify(toRequestBody(this.config, request)),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          if (this.retry.retryOn(response.status) && attempt < this.retry.maxRetries) {
-            await delay(delayMs);
-            delayMs = Math.min(this.retry.maxDelayMs, delayMs * 2);
-            attempt += 1;
-            continue;
-          }
-
-          const message = await response.text();
-          throw new NonRetryableHttpStatusError(response.status, `LLM request failed (${response.status}): ${message}`);
-        }
-
-        return response;
-      } catch (error) {
-        if (error instanceof NonRetryableHttpStatusError) {
-          throw error;
-        }
-        lastError = error as Error;
-        if (attempt >= this.retry.maxRetries) break;
-        await delay(delayMs);
-        delayMs = Math.min(this.retry.maxDelayMs, delayMs * 2);
-        attempt += 1;
-      }
-    }
-
-    throw lastError ?? new Error('LLM request failed after retries');
+    return requestWithRetry<Response>({
+      retry: this.retry,
+      timeoutSeconds: this.config.timeoutSeconds,
+      defaultTimeoutMs: DEFAULT_TIMEOUT_MS,
+      request: (signal) => fetch(this.requestUrl(), {
+        method: 'POST',
+        headers: this.requestHeaders(),
+        body: JSON.stringify(toRequestBody(this.config, request)),
+        signal,
+      }),
+      parseResponse: (response) => Promise.resolve(response),
+      buildStatusError: (status, detail) => new NonRetryableHttpStatusError(status, `LLM request failed (${status}): ${detail}`),
+      finalErrorMessage: 'LLM request failed after retries',
+    });
   }
 
   private requestUrl(): string {
