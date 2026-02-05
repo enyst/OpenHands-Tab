@@ -65,7 +65,7 @@ export function createAppHandlers(
       setAttachments((prev) => {
         const existing = new Set(prev.map((a) => a.uri));
         const next = [...prev];
-        for (const attachment of payload.attachments ?? []) {
+        for (const attachment of payload.attachments) {
           if (!attachment || typeof attachment.uri !== 'string' || typeof attachment.label !== 'string') {
             continue;
           }
