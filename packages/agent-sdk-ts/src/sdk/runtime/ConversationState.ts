@@ -2,12 +2,8 @@ import type { ConversationStateUpdateEvent, Event } from '../types';
 import { isConversationStateUpdateEvent } from '../types';
 import { EventLog } from './EventLog';
 import type { ConversationPersistence } from './persistence';
-
-export interface AgentState {
-  status: string;
-  iteration: number;
-  values: Record<string, unknown>;
-}
+import type { AgentState } from './stateTypes';
+export type { AgentState } from './stateTypes';
 
 export interface ConversationStateOptions {
   eventLog?: EventLog;

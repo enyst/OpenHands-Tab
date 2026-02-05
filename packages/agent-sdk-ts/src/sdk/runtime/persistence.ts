@@ -1,7 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import type { AgentState } from './ConversationState';
+import type { AgentState } from './stateTypes';
 import type { Event } from '../types';
 import type { LLMProvider, OpenAIChatApi, ReasoningSummary } from '../llm/types';
 import { toOptionalNonEmptyString } from './settingsUtils';

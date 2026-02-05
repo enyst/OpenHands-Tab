@@ -1,4 +1,4 @@
-import type { Message, ResponsesReasoningItem, ToolCall } from '../types';
+import type { Message, ResponsesReasoningItem, ToolCall } from '../types/messageTypes';
 
 export type LLMProvider = 'openai' | 'litellm_proxy' | 'openrouter' | 'anthropic' | 'gemini';
 

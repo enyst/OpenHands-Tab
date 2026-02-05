@@ -1,12 +1,16 @@
-import type { EventLog } from '../runtime/EventLog';
+import type { LLMToolDefinition } from '../llm/types';
 import type { SecretRegistry } from '../runtime/SecretRegistry';
-import type { LLMToolDefinition } from '../llm';
 import type { BaseWorkspace } from '../../workspace';
 import type { OpenHandsSettings } from './settings';
 
+export interface ToolEventLog {
+  push(event: unknown): unknown;
+  list(): unknown[];
+}
+
 export interface ToolContext {
   workspace: BaseWorkspace;
-  events?: EventLog;
+  events?: ToolEventLog;
   secrets?: SecretRegistry;
   settings?: OpenHandsSettings;
 }
