@@ -1,11 +1,8 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as os from 'os';
 import { SettingsManager } from './settings/SettingsManager';
 import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { type HalStateSnapshot, isHalMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { DEFAULT_HAL_STATE } from './shared/halDefaults';
-import { resolveConfiguredLlmLabel } from './shared/llmProfiles';
 import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
 import { getGlobalStorageBaseDir } from './shared/pastedImages';
@@ -14,29 +11,25 @@ import { ConversationEventBacklog, type BufferedConversationEvent } from './conv
 import { OpenHandsTerminalLogPseudoterminal } from './terminal/OpenHandsTerminalLogPseudoterminal';
 import { registerDiagnosticsCommands, type RenderedEventsInfo, type UiStateSnapshot } from './dev/registerDiagnosticsCommands';
 import { registerHalCommands } from './hal/registerHalCommands';
-import { STATUS_MESSAGE_DISMISS_DELAY_MS, type HostToWebviewMessage, type WebviewE2EInfo } from './shared/webviewMessages';
-import { resolveLocalTools } from './shared/localTools';
+import { type HostToWebviewMessage, type WebviewE2EInfo } from './shared/webviewMessages';
 import { createDevBridgeLogger, createMaskedOutputChannel } from './extension/devBridgeLogger';
 import { createDebugJsonOutputChannel, type DebugJsonOutputChannel } from './extension/debugJsonOutputChannel';
 import { createFileEditNoteTracker } from './extension/fileEditNote';
 import { getGitHeadDiffSummaryForFile, resolveGitContext } from './extension/gitDiffSummary';
-import { resolveConversationStoreRoot } from './extension/conversationStoreRoot';
 import { registerExplainSelectionCommand } from './extension/explainSelectionCommand';
 import { createPastedImagesCleanupScheduler } from './extension/pastedImagesCleanupScheduler';
+import { createConversationLifecycleOrchestrator, type EnsureConversationOptions } from './extension/conversationLifecycle';
+import { resolveConversationStoreRoot } from './extension/conversationStoreRoot';
 import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
 import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
-import { resolvePreferredWorkspaceRoot } from './shared/workspaceRoot';
 import { computeWelcomeSecretStatus } from './shared/welcomeSecretStatus';
-import { getServerCloudApiKeySecretKey } from './auth/serverCloudApiKeys';
-import { getServerRuntimeSessionApiKeySecretKey } from './auth/serverRuntimeSessionApiKeys';
-import { isOpenHandsCloudServerUrl } from './shared/cloudServers';
 import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
 import { registerCloudLogoutCommand } from './extension/cloudLogoutCommand';
-import { bootstrapCloudRemoteConversation, type CloudBootstrapResult } from './cloud/cloudRemoteBootstrap';
+import type { CloudBootstrapResult } from './cloud/cloudRemoteBootstrap';
 import {
   createOutputLogger,
   normalizeOutputVerbosity,
@@ -44,13 +37,9 @@ import {
   type OutputVerbosity,
 } from './extension/outputLogger';
 import {
-  AgentContext,
-  Conversation,
+  type AgentContext,
   type ConversationInstance,
   SecretRegistry,
-  listProfiles,
-  loadSkillsFromDir,
-  type Skill,
   type BashEvent,
   type Event,
   isBashCommand,
@@ -281,6 +270,12 @@ export function activate(context: vscode.ExtensionContext) {
     getGitHeadDiffSummaryForFile,
   });
 
+  let ensureConversationAndConnectionDelegate = (_options?: EnsureConversationOptions): Promise<void> =>
+    Promise.reject(new Error('Conversation lifecycle orchestrator not initialized'));
+  async function ensureConversationAndConnection(options?: EnsureConversationOptions): Promise<void> {
+    await ensureConversationAndConnectionDelegate(options);
+  }
+
   let lastChatViewVisibility: boolean | undefined;
 
   const chatViewProvider = new OpenHandsChatViewProvider(context, {
@@ -509,233 +504,69 @@ export function activate(context: vscode.ExtensionContext) {
     }
   };
 
-  async function ensureConversationAndConnection(options?: { uiJustCreated?: boolean; modeSwitched?: boolean }) {
-    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-    let settings = await settingsMgr.get();
-    lastKnownLlmLabel = resolveConfiguredLlmLabel(settings);
-
-    const trimOrEmpty = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
-
-    const withRemoteSecrets = (params: { cloudApiKey?: string; runtimeSessionApiKey?: string }): typeof settings => {
-      const secrets = { ...(settings.secrets ?? {}) } as Record<string, unknown>;
-      if (params.cloudApiKey) secrets.cloudApiKey = params.cloudApiKey;
-      else delete secrets.cloudApiKey;
-      if (params.runtimeSessionApiKey) secrets.runtimeSessionApiKey = params.runtimeSessionApiKey;
-      else delete secrets.runtimeSessionApiKey;
-      return { ...settings, secrets: secrets as typeof settings.secrets };
-    };
-
-    if (typeof settings.serverUrl === 'string' && settings.serverUrl.trim()) {
-      const rawServerUrl = settings.serverUrl.trim();
-      lastRemoteServerUrl = rawServerUrl;
-      const isCloud = isOpenHandsCloudServerUrl(rawServerUrl);
-
-      const cloudKeyInfo = isCloud ? getServerCloudApiKeySecretKey(rawServerUrl) : null;
-      const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(rawServerUrl);
-
-      let cloudApiKey: string | undefined;
-      if (cloudKeyInfo?.ok) {
-        try {
-          cloudApiKey = trimOrEmpty(await context.secrets.get(cloudKeyInfo.secretKey)) || undefined;
-        } catch {
-          cloudApiKey = undefined;
-        }
-      }
-
-      let runtimeSessionApiKey: string | undefined;
-      if (runtimeKeyInfo.ok) {
-        try {
-          runtimeSessionApiKey = trimOrEmpty(await context.secrets.get(runtimeKeyInfo.secretKey)) || undefined;
-        } catch {
-          runtimeSessionApiKey = undefined;
-        }
-      }
-
-      settings = withRemoteSecrets({ cloudApiKey, runtimeSessionApiKey });
-    }
-
-    const cfg = vscode.workspace.getConfiguration();
-    outputVerbosity = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
-    verboseEventLogging =
-      outputVerbosity === 'verbose' ||
-      Boolean(settings.agent?.debug) ||
-      Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
-
-    if (!settings.serverUrl && settings.agent?.summarizeToolCalls === true) {
-      const hasGeminiKey = await (async (): Promise<boolean> => {
-        let storedGeminiKey: string | undefined;
-        try {
-          storedGeminiKey = await context.secrets.get('GEMINI_API_KEY');
-        } catch {
-          storedGeminiKey = undefined;
-        }
-        if (typeof storedGeminiKey === 'string' && storedGeminiKey.trim()) return true;
-        if (typeof process.env.GEMINI_API_KEY === 'string' && process.env.GEMINI_API_KEY.trim()) return true;
-
-        // If the main agent LLM is configured to use Gemini, allow the generic LLM key as well.
-        if (settings.llm.provider === 'gemini') {
-          const mainKey = settings.secrets.llmApiKey;
-          if (typeof mainKey === 'string' && mainKey.trim()) return true;
-        }
-
-        return false;
-      })();
-
-      if (!hasGeminiKey) {
-        try {
-          await settingsMgr.update({ agent: { ...settings.agent, summarizeToolCalls: false } });
-          settings = await settingsMgr.get();
-        } catch (err) {
-          outputChannel?.appendLine(`[settings] Failed to auto-disable tool summarization: ${renderError(err)}`);
-        }
-
-        if (chatView) {
-          void chatView.webview.postMessage({
-            type: 'statusMessage',
-            level: 'error',
-            message: 'No Gemini key found, tool summarization disabled',
-            autoDismiss: true,
-            autoDismissDelay: STATUS_MESSAGE_DISMISS_DELAY_MS,
-          } satisfies HostToWebviewMessage);
-        }
-      }
-    }
-
-    const workspaceRoot = resolvePreferredWorkspaceRoot();
-
-    const desiredMode: 'local' | 'remote' = settings.serverUrl ? 'remote' : 'local';
-    const savedIdKey = desiredMode === 'local' ? 'openhands.conversationId.local' : 'openhands.conversationId.remote';
-    const rawServerUrl = typeof settings.serverUrl === 'string' ? settings.serverUrl.trim() : '';
-    const isCloudRemote = desiredMode === 'remote' && rawServerUrl ? isOpenHandsCloudServerUrl(rawServerUrl) : false;
-    if (options?.modeSwitched) {
-      // Switching modes should always start a fresh conversation, never restore prior state.
-      resetConversationEventBacklog(undefined);
-      printedExitFor.clear();
-      await context.workspaceState.update(savedIdKey, undefined);
-    }
-
-    let savedId = (options?.uiJustCreated || options?.modeSwitched)
-      ? undefined
-      : context.workspaceState.get<string>(savedIdKey);
-
-    if (isCloudRemote) {
-      // Cloud remote conversations are bootstrapped through SaaS V1 and require an ephemeral runtime session key.
-      // Do not attempt to restore persisted conversation ids for this mode.
-      savedId = undefined;
-      await context.workspaceState.update(savedIdKey, undefined);
-    }
-
-    if (savedId) {
-      const looksLocal = savedId.startsWith('local-');
-      const matchesDesiredMode = desiredMode === 'local' ? looksLocal : !looksLocal;
-      if (!matchesDesiredMode) savedId = undefined;
-    }
-    const needsNewConversation = !conversation || conversationMode !== desiredMode;
-
-    if (needsNewConversation) {
-      try {
-        conversation?.removeAllListeners();
-        conversation?.disconnect();
-      } catch {}
+  ensureConversationAndConnectionDelegate = createConversationLifecycleOrchestrator({
+    context,
+    secrets,
+    renderError,
+    getOutputChannel: () => outputChannel,
+    setOutputVerbosity: (verbosity) => {
+      outputVerbosity = verbosity;
+    },
+    setVerboseEventLogging: (verbose) => {
+      verboseEventLogging = verbose;
+    },
+    hasChatView: () => Boolean(chatView),
+    isChatWebviewReady: () => chatWebviewReady,
+    postWebviewMessage: (message) => {
+      if (!chatView) return;
+      void chatView.webview.postMessage(message);
+    },
+    getConversation: () => conversation,
+    setConversation: (next) => {
+      conversation = next;
+    },
+    getConversationMode: () => conversationMode,
+    setConversationMode: (mode) => {
+      conversationMode = mode;
+    },
+    getPastedImagesBaseDir: () => pastedImagesBaseDir,
+    setConversationStoreRoot: (root) => {
+      conversationStoreRoot = root;
+    },
+    setLocalAgentContext: (next) => {
+      localAgentContext = next;
+    },
+    getLastKnownLlmLabel: () => lastKnownLlmLabel,
+    setLastKnownLlmLabel: (label) => {
+      lastKnownLlmLabel = label;
+    },
+    getLastRemoteServerUrl: () => lastRemoteServerUrl,
+    setLastRemoteServerUrl: (url) => {
+      lastRemoteServerUrl = url;
+    },
+    getLastRemoteAuthPromptAtMs: () => lastRemoteAuthPromptAtMs,
+    setLastRemoteAuthPromptAtMs: (value) => {
+      lastRemoteAuthPromptAtMs = value;
+    },
+    getCloudRemoteBootstrap: () => cloudRemoteBootstrap,
+    setCloudRemoteBootstrap: (bootstrap) => {
+      cloudRemoteBootstrap = bootstrap;
+    },
+    resetFileEditNoteTracker: () => {
       fileEditNoteTracker.reset();
-      cloudRemoteBootstrap = null;
-
-      const persistenceDir =
-        desiredMode === 'local'
-          ? await resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }).catch((err: unknown) => {
-              outputChannel?.appendLine(`[storage] Failed to resolve conversation store root: ${renderError(err)}`);
-              return path.join(os.tmpdir(), 'openhands-conversations-vscode');
-            })
-          : undefined;
-      conversationStoreRoot = persistenceDir;
-
-      const agentContext = (() => {
-        if (desiredMode !== 'local' || !workspaceRoot) return undefined;
-
-        const skillsDir = path.join(workspaceRoot, '.openhands', 'skills');
-        let skills: Skill[] = [];
-        try {
-          const { repoSkills, knowledgeSkills, agentSkills } = loadSkillsFromDir(skillsDir);
-          skills = [...repoSkills.values(), ...knowledgeSkills.values(), ...agentSkills.values()];
-        } catch (err) {
-          outputChannel?.appendLine(`[skills] Failed to load project skills from ${skillsDir}: ${renderError(err)}`);
-        }
-
-        return new AgentContext({
-          skills,
-          loadUserSkills: true,
-        });
-      })();
-      localAgentContext = desiredMode === 'local' ? agentContext : undefined;
-      if (desiredMode === 'local') {
-        syncActiveEditorSystemMessageSuffix(vscode.window.activeTextEditor);
-      }
-
-      let effectiveServerUrl = settings.serverUrl ?? undefined;
-      let bootstrapConversationId: string | undefined;
-      if (desiredMode === 'remote' && isCloudRemote) {
-        const cloudApiKey = settings.secrets?.cloudApiKey ?? '';
-        if (!cloudApiKey) {
-          const action = await vscode.window.showWarningMessage(
-            'OpenHands Cloud: Login required to start a cloud runtime.',
-            'Login',
-            'Dismiss',
-          );
-          if (action === 'Login') {
-            await vscode.commands.executeCommand('openhands.cloudLogin');
-          }
-          throw new Error('OpenHands Cloud: missing Cloud API Key.');
-        }
-
-        const bootstrap = await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: 'OpenHands Cloud: starting runtime…' },
-          async () => bootstrapCloudRemoteConversation({ saasServerUrl: rawServerUrl, cloudApiKey }),
-        );
-        cloudRemoteBootstrap = bootstrap;
-        bootstrapConversationId = bootstrap.conversationId;
-        effectiveServerUrl = bootstrap.nestedServerUrl;
-        // Inject the runtime key into the in-memory settings only (do not persist to SecretStorage).
-        settings = withRemoteSecrets({ cloudApiKey, runtimeSessionApiKey: bootstrap.runtimeSessionApiKey });
-        savedId = bootstrapConversationId;
-      }
-
-      const conversationOptions = {
-        serverUrl: effectiveServerUrl,
-        settings,
-        workspaceRoot,
-        tools: settings.serverUrl ? undefined : resolveLocalTools(),
-        secrets,
-        persistenceDir,
-        agentContext,
-        pastedImagesBaseDir,
-        conversationId: bootstrapConversationId,
-      };
-
-      // Populate user environment info suffix for local mode (after agentContext is created & system message synced)
-      if (desiredMode === 'local' && localAgentContext) {
-        syncLocalUserMessageSuffix();
-      }
-
-      try {
-        conversation = Conversation(conversationOptions);
-      } catch (err) {
-        outputChannel?.appendLine(`[error] Failed to create Conversation: ${renderError(err)}`);
-        // Keep extension alive even if persistence path is broken; fall back to temp.
-        if (desiredMode === 'local' && persistenceDir) {
-          const fallbackDir = path.join(os.tmpdir(), 'openhands-conversations-vscode');
-          outputChannel?.appendLine(`[storage] Retrying Conversation with fallback dir: ${fallbackDir}`);
-          conversationStoreRoot = fallbackDir;
-          conversation = Conversation({ ...conversationOptions, persistenceDir: fallbackDir });
-        } else {
-          throw err;
-        }
-      }
-      conversationMode = desiredMode;
-
-      conversation.removeAllListeners();
+    },
+    resetConversationEventBacklog,
+    clearPrintedExitFor: () => {
+      printedExitFor.clear();
+    },
+    syncActiveEditorSystemMessageSuffix,
+    syncLocalUserMessageSuffix,
+    getActiveTextEditor: () => vscode.window.activeTextEditor,
+    attachConversationListeners: (conversationInstance) => {
+      conversationInstance.removeAllListeners();
       attachConversationListeners({
         context,
-        conversation,
+        conversation: conversationInstance,
         log: {
           info: (line) => outputLogger?.info(line),
           warn: (line) => outputLogger?.warn(line),
@@ -756,90 +587,8 @@ export function activate(context: vscode.ExtensionContext) {
         renderError,
         handleTerminalEvent,
       });
-
-      conversation.on('error', (err: unknown) => {
-        void (async () => {
-          if (conversationMode !== 'remote') return;
-
-          const message = err instanceof Error ? err.message : String(err);
-          const isAuthFailure = /\(HTTP (401|403)\)/.test(message) && message.toLowerCase().includes('authentication failed');
-          if (!isAuthFailure) return;
-
-          const now = Date.now();
-          // Avoid spamming the user if the server keeps rejecting auth (e.g. wrong key or user cancels login).
-          if (now - lastRemoteAuthPromptAtMs < 60_000) return;
-          lastRemoteAuthPromptAtMs = now;
-
-          const serverUrl = lastRemoteServerUrl;
-          const isCloudServer = typeof serverUrl === 'string' && serverUrl.trim().length > 0
-            ? isOpenHandsCloudServerUrl(serverUrl)
-            : false;
-
-          const action = await vscode.window.showWarningMessage(
-            isCloudServer
-              ? 'OpenHands: Authentication failed connecting to OpenHands Cloud. Login now?'
-              : 'OpenHands: Authentication failed connecting to the selected server. Set Runtime Session API Key now?',
-            isCloudServer ? 'Login' : 'Set Key',
-            'Dismiss',
-          );
-          if (!action || action === 'Dismiss') return;
-
-          if (isCloudServer && action === 'Login') {
-            await vscode.commands.executeCommand('openhands.cloudLogin');
-            return;
-          }
-          if (!isCloudServer && action === 'Set Key') {
-            await vscode.commands.executeCommand('openhands.setRuntimeSessionApiKey');
-          }
-        })();
-      });
-
-      if (savedId && conversation) {
-        try {
-          const maybe = conversation.restoreConversation(savedId);
-          void Promise.resolve(maybe).catch((err: unknown) => {
-            outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
-          });
-        } catch (err) {
-          outputChannel?.appendLine(`[restoreConversation] ${renderError(err)}`);
-        }
-      }
-    } else if (conversation) {
-      if (isCloudRemote && cloudRemoteBootstrap?.saasServerUrl) {
-        // Keep runtime session key in-memory only; refresh settings from SecretStorage won't include it.
-        const normalizedBootstrapSaas = cloudRemoteBootstrap.saasServerUrl;
-        const normalizedCurrent = typeof settings.serverUrl === 'string' ? settings.serverUrl.trim().replace(/\/$/, '') : '';
-        if (normalizedCurrent && normalizedCurrent === normalizedBootstrapSaas) {
-          settings = withRemoteSecrets({
-            cloudApiKey: settings.secrets?.cloudApiKey ?? undefined,
-            runtimeSessionApiKey: cloudRemoteBootstrap.runtimeSessionApiKey,
-          });
-        }
-      }
-      conversation.setSettings(settings);
-    } else {
-      outputChannel?.appendLine('[warn] Conversation unavailable during settings refresh');
-    }
-
-    if (chatView && chatWebviewReady) {
-      void chatView.webview.postMessage({
-        type: 'status',
-        status: conversation?.getStatus() ?? 'offline',
-        mode: conversationMode,
-        llmProfileLabel: lastKnownLlmLabel,
-      } satisfies HostToWebviewMessage);
-
-      try {
-        void chatView.webview.postMessage({
-          type: 'llmProfilesUpdated',
-          profiles: listProfiles(),
-          activeProfileId: settings.llm.profileId ?? null,
-        } satisfies HostToWebviewMessage);
-      } catch (err) {
-        outputChannel?.appendLine(`[llm] Failed to list profiles for webview sync: ${renderError(err)}`);
-      }
-    }
-  }
+    },
+  }).ensureConversationAndConnection;
 
   const open = vscode.commands.registerCommand('openhands.open', async () => {
     try {
