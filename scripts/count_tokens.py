@@ -116,10 +116,15 @@ def main():
     parser.add_argument('directory', help='Directory to analyze')
     parser.add_argument('--model', default='gpt-4', help='Model for tokenizer (default: gpt-4)')
     parser.add_argument('--extensions', nargs='+',
-                       default=['.py', '.js', '.ts', '.tsx', '.jsx', '.md', '.java', '.cpp', '.c', '.h', '.go', '.rs', '.rb'],
+                       default=[
+                           '.py', '.js', '.ts', '.tsx', '.jsx',
+                           '.md', '.json', '.yml', '.yaml',
+                           '.css', '.scss',
+                           '.java', '.cpp', '.c', '.h', '.go', '.rs', '.rb',
+                       ],
                        help='File extensions to include')
     parser.add_argument('--ignore-dirs', nargs='+',
-                       default=['node_modules', 'dist', 'out', 'build', '.git', 'media', '.openhands', '__pycache__', 'venv', '.venv'],
+                       default=['node_modules', 'dist', 'out', 'build', '.git', 'media', '.openhands', '__pycache__', 'venv', '.venv', '.venv-tokens'],
                        help='Directory names to ignore (default: common build/cache dirs)')
     parser.add_argument('--format', choices=['text', 'markdown'], default='text',
                        help='Output format (default: text)')
