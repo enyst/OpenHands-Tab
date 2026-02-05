@@ -531,8 +531,9 @@
     "test": "npm test -w @openhands/agent-sdk-ts && vitest run --dir src",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
-    "lint": "npm run lint -w @openhands/agent-sdk-ts && eslint src tests && npm run lint:cycles",
+    "lint": "npm run lint -w @openhands/agent-sdk-ts && eslint src tests && npm run lint:cycles && npm run lint:duplication",
     "lint:cycles": "node scripts/check-circular-deps.mjs",
+    "lint:duplication": "node scripts/check-duplication.mjs",
     "lint:fix": "eslint . --fix",
     "build:webview": "node esbuild.webview.mjs",
     "agent-server": "bash scripts/start-agent-server.sh",
@@ -561,6 +562,7 @@
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "husky": "^9.1.7",
+    "jscpd": "^4.0.8",
     "jsdom": "^27.3.0",
     "lint-staged": "^16.2.7",
     "madge": "^8.0.0",
@@ -585,5 +587,8 @@
   },
   "overrides": {
     "diff": "8.0.3"
-  }
+  },
+  "bundleDependencies": [
+    "ws"
+  ]
 }

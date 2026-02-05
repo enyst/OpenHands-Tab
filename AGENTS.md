@@ -38,6 +38,9 @@ npm run lint
 # Circular dependency guardrail (allowlist-based)
 npm run lint:cycles
 
+# Duplication guardrail (production TS/TSX budget)
+npm run lint:duplication
+
 # Auto-fix lint issues
 npm run lint:fix
 
@@ -316,6 +319,7 @@ Pitfalls to avoid
 
 - [docs/PRD.md](docs/PRD.md) - Product requirements
 - [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) - SDK architecture
+- [docs/duplication-guardrail.md](docs/duplication-guardrail.md) - Duplication threshold policy and ratchet plan
 - [docs/vscode_local_setup.md](docs/vscode_local_setup.md) - Local development setup
 - [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) - Headless/remote setup
 - [docs/settings_prd.md](docs/settings_prd.md) - Settings and configuration PRD
