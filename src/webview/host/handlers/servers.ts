@@ -1,5 +1,5 @@
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { WebviewHost } from '../createWebviewMessageHandler';
+import type { WebviewHost } from '../webviewMessageHandler.types';
 import { normalizeServerUrl } from '../../../shared/serverUrls';
 
 type SettingsManagerLike = {
@@ -115,4 +115,3 @@ export async function handleSwitchToLocal(args: {
     serverUrl: '',
   });
 }
-

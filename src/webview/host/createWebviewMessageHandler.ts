@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
-import type { SecretRegistry } from '@openhands/agent-sdk-ts';
 import { SettingsManager } from '../../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../../settings/VscodeSettingsAdapter';
 import { resolveConfiguredLlmLabel } from '../../shared/llmProfiles';
 
-import type { HostToWebviewMessage, WebviewE2EInfo, WebviewToHostMessage } from '../../shared/webviewMessages';
+import type { WebviewE2EInfo, WebviewToHostMessage } from '../../shared/webviewMessages';
 // Environment info is provided via AgentContext.userMessageSuffix (extension host).
 
 import { listSkillFiles } from './skills';
@@ -21,83 +20,8 @@ import { handleSend } from './handlers/send';
 import { handleLlmProfileApiKeySetRequest, handleLlmProfileApiKeyStatusRequest, handleLlmProfileDeleteRequest, handleLlmProfileLoadRequest, handleLlmProfileSaveRequest, handleLlmProfilesListRequest, handleSetLlmProfileId, listAvailableLlmProfiles } from './handlers/llmProfiles';
 import { computeWelcomeSecretStatus } from '../../shared/welcomeSecretStatus';
 import { createElevenlabsTtsGateFactory, handleHalTtsRequest, handleHalVoiceConfirmRequest } from './handlers/hal';
-
-export type WebviewHost = {
-  postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
-};
-
-export type CreateWebviewMessageHandlerDeps = {
-  context: vscode.ExtensionContext;
-  host: WebviewHost;
-  secretRegistry?: SecretRegistry;
-  getQueuedUserEditNotes: () => string[];
-  clearQueuedUserEditNotes: () => void;
-
-  getConversation: () => import('@openhands/agent-sdk-ts').ConversationInstance | undefined;
-  getConversationMode: () => 'local' | 'remote';
-  getConversationStoreRoot: () => string | undefined;
-  resolveConversationStoreRoot: () => Promise<string>;
-
-  /**
-   * Optional override for the LLM profile store root directory. Defaults to `~/.openhands/llm-profiles`.
-   * Intended for tests only (no workspace overrides).
-   */
-  getLlmProfilesStoreRoot?: () => string | undefined;
-
-  setWebviewReadyState: (conversationId?: string, lastSeenSeq?: number) => void;
-  setWebviewE2EReady?: (ready: boolean) => void;
-  setWebviewE2EInfo?: (info: WebviewE2EInfo | null) => void;
-  setLastKnownLlmLabel: (label: string | null) => void;
-  getLastKnownLlmLabel: () => string | null;
-
-  flushConversationEventBacklog: (args: {
-    postMessage: WebviewHost['postMessage'];
-    clientConversationId?: string;
-    clientLastSeenSeq?: number;
-  }) => void;
-
-  onRenderedEventsResponse: (
-    requestId: string,
-    info: {
-      count: number;
-      eventTypes: string[];
-      events?: Array<{ type: string; marker?: string; toolCallId?: string }>;
-    }
-  ) => void;
-  onUiStateResponse: (
-    requestId: string,
-    info: {
-      input: string;
-      showContextPicker: boolean;
-      showSkillsPopover: boolean;
-      showHistory: boolean;
-      workspaceFilesCount: number;
-      selectedContextFiles: string[];
-      skillsCount: number;
-      attachmentsCount: number;
-      hasWelcomeProviderKey: boolean;
-      hasWelcomeGeminiKey: boolean;
-      showWelcomeProviderKeyMessage: boolean;
-      showWelcomeGeminiKeyMessage: boolean;
-    }
-  ) => void;
-  onHalStateResponse: (
-    requestId: string,
-    info: {
-      enabled: boolean;
-      mode: string;
-      phase: string;
-      eye: string;
-      stepIndex: number | null;
-      decision: string | null;
-      lastError: string | null;
-    }
-  ) => void;
-
-  isDevBridgeEnabled: () => boolean;
-  getOutputChannel: () => vscode.OutputChannel | undefined;
-  fileLog: (line: string) => void;
-};
+import type { CreateWebviewMessageHandlerDeps } from './webviewMessageHandler.types';
+export type { CreateWebviewMessageHandlerDeps, WebviewHost } from './webviewMessageHandler.types';
 
 export function createWebviewMessageHandler(deps: CreateWebviewMessageHandlerDeps) {
   const { context, host } = deps;

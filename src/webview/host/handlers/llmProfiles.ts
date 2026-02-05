@@ -4,7 +4,7 @@ import { assertValidProfileId, detectProviderFromBaseUrl, LLMProfileValidationEr
 import type { SettingsManager } from '../../../settings/SettingsManager';
 import { resolveConfiguredLlmLabel } from '../../../shared/llmProfiles';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../createWebviewMessageHandler';
+import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../webviewMessageHandler.types';
 import * as llmProfilesStore from '../llmProfilesStore';
 import { createStoredSecretHelpers, getProviderApiKeyName, isLlmProvider } from './secretHelpers';
 
