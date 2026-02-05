@@ -7,6 +7,8 @@ Counts tokens (tiktoken estimate) for the repo's major surfaces:
 - extension host tests (src/**/__tests__ excluding src/webview-src)
 - webview UI source (src/webview-src excluding __tests__)
 - webview UI tests (src/webview-src/__tests__)
+- agent-sdk-ts source (packages/agent-sdk-ts/src excluding __tests__)
+- agent-sdk-ts tests (packages/agent-sdk-ts/src/**/__tests__)
 """
 
 import argparse
@@ -176,6 +178,33 @@ def _print_bucket(title: str, stats: dict, *, fmt: str):
     print()
 
 
+def _merge_totals(a: dict, b: dict) -> dict:
+    merged = {
+        "total_tokens": int(a.get("total_tokens", 0)) + int(b.get("total_tokens", 0)),
+        "total_lines": int(a.get("total_lines", 0)) + int(b.get("total_lines", 0)),
+        "file_count": int(a.get("file_count", 0)) + int(b.get("file_count", 0)),
+        "tokens_by_ext": defaultdict(int),
+        "lines_by_ext": defaultdict(int),
+        "files_by_ext": defaultdict(int),
+    }
+    for ext, v in (a.get("tokens_by_ext") or {}).items():
+        merged["tokens_by_ext"][ext] += int(v)
+    for ext, v in (b.get("tokens_by_ext") or {}).items():
+        merged["tokens_by_ext"][ext] += int(v)
+    for ext, v in (a.get("lines_by_ext") or {}).items():
+        merged["lines_by_ext"][ext] += int(v)
+    for ext, v in (b.get("lines_by_ext") or {}).items():
+        merged["lines_by_ext"][ext] += int(v)
+    for ext, v in (a.get("files_by_ext") or {}).items():
+        merged["files_by_ext"][ext] += int(v)
+    for ext, v in (b.get("files_by_ext") or {}).items():
+        merged["files_by_ext"][ext] += int(v)
+    merged["tokens_by_ext"] = dict(merged["tokens_by_ext"])
+    merged["lines_by_ext"] = dict(merged["lines_by_ext"])
+    merged["files_by_ext"] = dict(merged["files_by_ext"])
+    return merged
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Count tokens for key OpenHands-Tab surfaces")
     parser.add_argument("--model", default="gpt-4", help="Tokenizer model (default: gpt-4)")
@@ -209,6 +238,7 @@ def main() -> int:
     repo_root = pathlib.Path.cwd()
     src_root = repo_root / "src"
     webview_src_root = src_root / "webview-src"
+    sdk_src_root = repo_root / "packages" / "agent-sdk-ts" / "src"
 
     if not src_root.exists():
         print("Error: expected to run from repo root (missing ./src)", file=sys.stderr)
@@ -230,6 +260,14 @@ def main() -> int:
 
     def include_webview_ui_tests(p: pathlib.Path) -> bool:
         return True
+
+    def include_sdk_src(p: pathlib.Path) -> bool:
+        parts = set(p.parts)
+        return "__tests__" not in parts
+
+    def include_sdk_tests(p: pathlib.Path) -> bool:
+        parts = set(p.parts)
+        return "__tests__" in parts
 
     extension_src = _count_path_tokens(
         src_root,
@@ -260,13 +298,42 @@ def main() -> int:
         include_file=include_webview_ui_tests,
     )
 
+    sdk_src = None
+    sdk_tests = None
+    if sdk_src_root.exists():
+        sdk_src = _count_path_tokens(
+            sdk_src_root,
+            encoding=encoding,
+            extensions=extensions,
+            ignore_dirs=ignore_dirs,
+            include_file=include_sdk_src,
+        )
+        sdk_tests = _count_path_tokens(
+            sdk_src_root,
+            encoding=encoding,
+            extensions=extensions,
+            ignore_dirs=ignore_dirs,
+            include_file=include_sdk_tests,
+        )
+    else:
+        print("Warning: missing packages/agent-sdk-ts/src; skipping agent-sdk-ts buckets", file=sys.stderr)
+
     _print_bucket("Extension host source (src/** excluding webview-src and __tests__)", extension_src, fmt=fmt)
     _print_bucket("Extension host tests (src/**/__tests__ excluding webview-src)", extension_tests, fmt=fmt)
     _print_bucket("Webview UI source (src/webview-src excluding __tests__)", webview_ui_src, fmt=fmt)
     _print_bucket("Webview UI tests (src/webview-src/__tests__)", webview_ui_tests, fmt=fmt)
+
+    if sdk_src is not None and sdk_tests is not None:
+        _print_bucket("agent-sdk-ts source (packages/agent-sdk-ts/src excluding __tests__)", sdk_src, fmt=fmt)
+        _print_bucket("agent-sdk-ts tests (packages/agent-sdk-ts/src/**/__tests__)", sdk_tests, fmt=fmt)
+
+    # Convenience totals (excluding tests).
+    product_src = _merge_totals(extension_src, webview_ui_src)
+    if sdk_src is not None:
+        product_src = _merge_totals(product_src, sdk_src)
+    _print_bucket("TOTAL source (extension host + webview UI + agent-sdk-ts; excluding tests)", product_src, fmt=fmt)
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
