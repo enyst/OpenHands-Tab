@@ -52,7 +52,7 @@ export async function requestWithRetry<T>(options: RequestWithRetryOptions<T>): 
 
         const detail = options.readErrorBody
           ? await options.readErrorBody(response)
-          : await response.text();
+          : await response.text().catch(() => `(error reading response body for status: ${response.status})`);
         throw options.buildStatusError(response.status, detail);
       }
 

@@ -387,7 +387,6 @@ export class GeminiClient implements LLMClient {
         signal,
       }),
       parseResponse: (response) => Promise.resolve(response),
-      readErrorBody: async (response) => response.text().catch(() => ''),
       buildStatusError: (status, detail) =>
         new NonRetryableHttpStatusError(status, `LLM request failed (HTTP ${status}): ${detail.slice(0, 500)}`),
       finalErrorMessage: 'LLM request failed',
