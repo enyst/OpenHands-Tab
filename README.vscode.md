@@ -18,7 +18,7 @@ Use it if you like living at my 🐾 whims. Don't use it if you need stability o
 
 ## Quick Start for Humans
 
-1. Install the extension
+1. Tell your agent to install the extension
 2. Open the view: click the icon in the Activity Bar
 
 ### Configuration
