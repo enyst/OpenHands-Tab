@@ -1,15 +1,21 @@
 import { spawn } from 'child_process';
 import type { SpawnOptions } from 'child_process';
 import * as fs from 'fs';
-import { readFile as readFileAsync, mkdir, rm, readdir } from 'node:fs/promises';
+import { readFile as readFileAsync, rm, readdir } from 'node:fs/promises';
 import path from 'path';
 import os from 'os';
 import type { BaseWorkspace } from './BaseWorkspace';
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from './types';
+import {
+  type AllowedRootKind,
+  ensureSafeDirectory,
+  findContainingDirRoot,
+  normalizeExistingOrParent,
+  resolveAllowedPath,
+  revalidateDirectory,
+} from './localWorkspacePathPolicy';
 
 type EnvVars = Record<string, string | undefined>;
-
-type AllowedRootKind = 'dir' | 'file';
 
 export class LocalWorkspace implements BaseWorkspace {
   readonly kind = 'local' as const;
@@ -59,41 +65,9 @@ export class LocalWorkspace implements BaseWorkspace {
       .filter((folder): folder is string => typeof folder === 'string' && folder.length > 0);
   }
 
-  private normalizeExistingOrParent(candidate: string): string {
-    const parsed = path.parse(candidate);
-    const root = parsed.root;
-    const parts = candidate
-      .slice(root.length)
-      .split(path.sep)
-      .filter((part) => part.length > 0);
-
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const next = path.join(current, parts[i]);
-      let stat: fs.Stats;
-      try {
-        stat = fs.lstatSync(next);
-      } catch (error) {
-        if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
-          const remaining = parts.slice(i).join(path.sep);
-          return remaining ? path.join(current, remaining) : current;
-        }
-        throw error;
-      }
-
-      if (stat.isSymbolicLink()) {
-        // Treat symlink components as hostile: require them to resolve now.
-        current = fs.realpathSync(next);
-        continue;
-      }
-      current = next;
-    }
-    return current;
-  }
-
   allowPath(targetPath: string): void {
     const candidate = path.resolve(targetPath);
-    const normalized = this.normalizeExistingOrParent(candidate);
+    const normalized = normalizeExistingOrParent(candidate);
     const kind: AllowedRootKind = (() => {
       try {
         const stat = fs.statSync(normalized);
@@ -115,171 +89,7 @@ export class LocalWorkspace implements BaseWorkspace {
   }
 
   resolvePath(targetPath: string): string {
-    const candidate = path.isAbsolute(targetPath)
-      ? path.resolve(targetPath)
-      : path.resolve(this.root, targetPath);
-    const normalized = this.normalizeExistingOrParent(candidate);
-    for (const [root, kind] of this.allowedRoots.entries()) {
-      if (kind === 'file') {
-        if (normalized === root) return normalized;
-        continue;
-      }
-      const relative = path.relative(root, normalized);
-      if (
-        relative === ''
-        || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
-      ) {
-        return normalized;
-      }
-    }
-    throw new Error(`Path escapes workspace root: ${targetPath}`);
-  }
-
-  private getContainingDirRoot(resolvedPath: string): string | null {
-    let best: string | null = null;
-    for (const [root, kind] of this.allowedRoots.entries()) {
-      if (kind !== 'dir') continue;
-      const relative = path.relative(root, resolvedPath);
-      if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
-        if (!best || root.length > best.length) best = root;
-      }
-    }
-    return best;
-  }
-
-  private async ensureSafeDirectory(root: string, dirPath: string): Promise<void> {
-    const relative = path.relative(root, dirPath);
-    if (relative === '' || relative === '.') return;
-    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
-      throw new Error(`Path escapes workspace root: ${dirPath}`);
-    }
-
-    const assertContained = (candidate: string) => {
-      const candidateRel = path.relative(root, candidate);
-      if (
-        candidateRel.startsWith(`..${path.sep}`)
-        || candidateRel === '..'
-        || path.isAbsolute(candidateRel)
-      ) {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
-    };
-
-    const parts = relative.split(path.sep).filter((part) => part.length > 0);
-    let current = root;
-
-    for (const part of parts) {
-      let currentStat: fs.Stats;
-      try {
-        currentStat = await fs.promises.lstat(current);
-      } catch {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
-
-      if (currentStat.isSymbolicLink() || !currentStat.isDirectory()) {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
-      assertContained(current);
-
-      let next = path.join(current, part);
-
-      let stat: fs.Stats;
-      try {
-        stat = await fs.promises.lstat(next);
-      } catch (error) {
-        if (typeof error === 'object' && error && 'code' in error && (error as { code?: unknown }).code === 'ENOENT') {
-          // Re-check the parent directory immediately before creating the next component.
-          // This closes a TOCTTOU window where the parent can be swapped to a symlink between
-          // validation and mkdir, causing `mkdir(next)` to escape the workspace root.
-          try {
-            currentStat = await fs.promises.lstat(current);
-          } catch {
-            throw new Error(`Path escapes workspace root: ${dirPath}`);
-          }
-          if (currentStat.isSymbolicLink() || !currentStat.isDirectory()) {
-            throw new Error(`Path escapes workspace root: ${dirPath}`);
-          }
-          assertContained(current);
-          next = path.join(current, part);
-
-          try {
-            await mkdir(next);
-          } catch (mkdirError) {
-            if (typeof mkdirError !== 'object' || !mkdirError || !('code' in mkdirError) || (mkdirError as { code?: unknown }).code !== 'EEXIST') {
-              throw mkdirError;
-            }
-          }
-          stat = await fs.promises.lstat(next);
-        } else {
-          throw error;
-        }
-      }
-
-      if (stat.isSymbolicLink()) {
-        const resolved = await fs.promises.realpath(next);
-        assertContained(resolved);
-
-        let resolvedStat: fs.Stats;
-        try {
-          resolvedStat = await fs.promises.stat(resolved);
-        } catch {
-          throw new Error(`Path escapes workspace root: ${dirPath}`);
-        }
-        if (!resolvedStat.isDirectory()) {
-          throw new Error(`Path escapes workspace root: ${dirPath}`);
-        }
-
-        current = resolved;
-        continue;
-      }
-
-      if (!stat.isDirectory()) {
-        throw new Error(`Path escapes workspace root: ${dirPath}`);
-      }
-      current = next;
-    }
-  }
-
-  private async revalidateDirectory(
-    operation: string,
-    verb: string,
-    subject: string,
-    directoryPath: string,
-    absPath: string,
-    expectedCanonicalDir: string,
-    containingRoot: string | undefined,
-    options: { requireDirectory: boolean; throwIfMissing: boolean; notDirectorySubject?: string },
-  ): Promise<string> {
-    let parentStat: fs.Stats;
-    try {
-      parentStat = await fs.promises.lstat(directoryPath);
-    } catch (error) {
-      if (options.throwIfMissing) {
-        throw new Error(`${operation} failed: ${subject} does not exist: ${directoryPath}`);
-      }
-      throw error;
-    }
-
-    if (parentStat.isSymbolicLink()) {
-      throw new Error(`${operation} failed: refusing to ${verb} through symlink ${subject}: ${directoryPath}`);
-    }
-    if (options.requireDirectory && !parentStat.isDirectory()) {
-      const notDirectorySubject = options.notDirectorySubject ?? subject;
-      throw new Error(`${operation} failed: ${notDirectorySubject} is not a directory: ${directoryPath}`);
-    }
-
-    const canonicalDir = await fs.promises.realpath(directoryPath);
-    if (containingRoot) {
-      const rel = path.relative(containingRoot, canonicalDir);
-      if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
-        throw new Error(`Path escapes workspace root: ${absPath}`);
-      }
-    }
-    if (canonicalDir !== expectedCanonicalDir) {
-      throw new Error(`${operation} failed: ${subject} changed during ${verb}: ${directoryPath}`);
-    }
-
-    return canonicalDir;
+    return resolveAllowedPath(targetPath, this.root, this.allowedRoots);
   }
 
   private async writeFileSafely(absPath: string, content: string | Buffer, containingRoot?: string): Promise<void> {
@@ -308,7 +118,7 @@ export class LocalWorkspace implements BaseWorkspace {
 
     const requestedDir = path.dirname(absPath);
     if (containingRoot) {
-      await this.ensureSafeDirectory(containingRoot, requestedDir);
+      await ensureSafeDirectory(containingRoot, requestedDir);
     }
 
     let parentStat: fs.Stats;
@@ -337,16 +147,16 @@ export class LocalWorkspace implements BaseWorkspace {
     if (noFollow) {
       // `O_NOFOLLOW` only protects the final path component; re-validate the parent directory
       // immediately before opening so a late parent symlink swap can't redirect the write.
-      const canonicalDirBeforeOpen = await this.revalidateDirectory(
-        'writeFile',
-        'write',
-        'parent directory',
-        requestedDir,
+      const canonicalDirBeforeOpen = await revalidateDirectory({
+        operation: 'writeFile',
+        verb: 'write',
+        subject: 'parent directory',
+        directoryPath: requestedDir,
         absPath,
-        canonicalDir,
+        expectedCanonicalDir: canonicalDir,
         containingRoot,
-        { requireDirectory: true, throwIfMissing: true },
-      );
+        options: { requireDirectory: true, throwIfMissing: true },
+      });
 
       const safeTargetPath = path.join(canonicalDirBeforeOpen, base);
       const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | noFollow;
@@ -374,9 +184,18 @@ export class LocalWorkspace implements BaseWorkspace {
         handle = undefined;
 
         // Re-check parent just before renaming to avoid late symlink swaps.
-        await this.revalidateDirectory('writeFile', 'write', 'parent directory', requestedDir, absPath, canonicalDir, containingRoot, {
-          requireDirectory: false,
-          throwIfMissing: false,
+        await revalidateDirectory({
+          operation: 'writeFile',
+          verb: 'write',
+          subject: 'parent directory',
+          directoryPath: requestedDir,
+          absPath,
+          expectedCanonicalDir: canonicalDir,
+          containingRoot,
+          options: {
+            requireDirectory: false,
+            throwIfMissing: false,
+          },
         });
 
         await fs.promises.rename(tempPath, targetPath);
@@ -407,7 +226,7 @@ export class LocalWorkspace implements BaseWorkspace {
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = this.getContainingDirRoot(parentDir) ?? undefined;
+    const root = findContainingDirRoot(parentDir, this.allowedRoots) ?? undefined;
 
     let canonicalParentDir: string;
     try {
@@ -419,16 +238,16 @@ export class LocalWorkspace implements BaseWorkspace {
       throw error;
     }
 
-    const stableParentDir = await this.revalidateDirectory(
-      'readFile',
-      'read',
-      'parent directory',
-      parentDir,
-      resolved,
-      canonicalParentDir,
-      root,
-      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
-    );
+    const stableParentDir = await revalidateDirectory({
+      operation: 'readFile',
+      verb: 'read',
+      subject: 'parent directory',
+      directoryPath: parentDir,
+      absPath: resolved,
+      expectedCanonicalDir: canonicalParentDir,
+      containingRoot: root,
+      options: { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
+    });
 
     const constants = fs.constants as Record<string, number>;
     const noFollow =
@@ -459,7 +278,7 @@ export class LocalWorkspace implements BaseWorkspace {
   async readFileBytes(targetPath: string, options: { maxBytes?: number } = {}): Promise<Buffer> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = this.getContainingDirRoot(parentDir) ?? undefined;
+    const root = findContainingDirRoot(parentDir, this.allowedRoots) ?? undefined;
 
     let canonicalParentDir: string;
     try {
@@ -471,16 +290,16 @@ export class LocalWorkspace implements BaseWorkspace {
       throw error;
     }
 
-    const stableParentDir = await this.revalidateDirectory(
-      'readFileBytes',
-      'read',
-      'parent directory',
-      parentDir,
-      resolved,
-      canonicalParentDir,
-      root,
-      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
-    );
+    const stableParentDir = await revalidateDirectory({
+      operation: 'readFileBytes',
+      verb: 'read',
+      subject: 'parent directory',
+      directoryPath: parentDir,
+      absPath: resolved,
+      expectedCanonicalDir: canonicalParentDir,
+      containingRoot: root,
+      options: { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
+    });
 
     const constants = fs.constants as Record<string, number>;
     const noFollow =
@@ -532,7 +351,7 @@ export class LocalWorkspace implements BaseWorkspace {
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = this.getContainingDirRoot(parentDir);
+    const root = findContainingDirRoot(parentDir, this.allowedRoots);
     if (!root) {
       const kind = this.allowedRoots.get(resolved);
       if (kind === 'file') {
@@ -560,7 +379,7 @@ export class LocalWorkspace implements BaseWorkspace {
   async remove(targetPath: string): Promise<void> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = this.getContainingDirRoot(parentDir) ?? undefined;
+    const root = findContainingDirRoot(parentDir, this.allowedRoots) ?? undefined;
     if (!root) {
       const kind = this.allowedRoots.get(resolved);
       if (kind !== 'file') {
@@ -578,16 +397,16 @@ export class LocalWorkspace implements BaseWorkspace {
       throw error;
     }
 
-    const stableParentDir = await this.revalidateDirectory(
-      'remove',
-      'remove',
-      'parent directory',
-      parentDir,
-      resolved,
-      canonicalParentDir,
-      root,
-      { requireDirectory: true, throwIfMissing: false, notDirectorySubject: 'parent' },
-    );
+    const stableParentDir = await revalidateDirectory({
+      operation: 'remove',
+      verb: 'remove',
+      subject: 'parent directory',
+      directoryPath: parentDir,
+      absPath: resolved,
+      expectedCanonicalDir: canonicalParentDir,
+      containingRoot: root,
+      options: { requireDirectory: true, throwIfMissing: false, notDirectorySubject: 'parent' },
+    });
 
     const safeTargetPath = path.join(stableParentDir, path.basename(resolved));
     await rm(safeTargetPath, { force: true, recursive: true });
@@ -595,22 +414,22 @@ export class LocalWorkspace implements BaseWorkspace {
 
   async list(targetPath = '.'): Promise<DirectoryEntry[]> {
     const resolved = this.resolvePath(targetPath);
-    const root = this.getContainingDirRoot(resolved);
+    const root = findContainingDirRoot(resolved, this.allowedRoots);
     if (!root) {
       throw new Error(`list failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
     }
 
     const canonicalDir = await fs.promises.realpath(resolved);
-    const stableDir = await this.revalidateDirectory(
-      'list',
-      'list',
-      'directory',
-      resolved,
-      resolved,
-      canonicalDir,
-      root,
-      { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'path' },
-    );
+    const stableDir = await revalidateDirectory({
+      operation: 'list',
+      verb: 'list',
+      subject: 'directory',
+      directoryPath: resolved,
+      absPath: resolved,
+      expectedCanonicalDir: canonicalDir,
+      containingRoot: root,
+      options: { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'path' },
+    });
 
     const entries = await readdir(stableDir, { withFileTypes: true });
     return entries.map((entry) => ({
@@ -622,12 +441,12 @@ export class LocalWorkspace implements BaseWorkspace {
 
   async ensureDirectory(targetPath: string): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    const root = this.getContainingDirRoot(resolved);
+    const root = findContainingDirRoot(resolved, this.allowedRoots);
     if (!root) {
       throw new Error(`Path escapes workspace root: ${targetPath}`);
     }
 
-    await this.ensureSafeDirectory(root, resolved);
+    await ensureSafeDirectory(root, resolved);
     const canonical = await fs.promises.realpath(resolved);
     const relative = path.relative(root, canonical);
     if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
