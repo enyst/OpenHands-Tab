@@ -194,7 +194,13 @@ export const revalidateDirectory = async ({
   try {
     parentStat = await fs.promises.lstat(directoryPath);
   } catch (error) {
-    if (options.throwIfMissing) {
+    if (
+      options.throwIfMissing
+      && typeof error === 'object'
+      && error
+      && 'code' in error
+      && (error as { code?: unknown }).code === 'ENOENT'
+    ) {
       throw new Error(`${operation} failed: ${subject} does not exist: ${directoryPath}`);
     }
     throw error;

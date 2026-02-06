@@ -1,7 +1,7 @@
 import fs from 'fs';
 import * as os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   findContainingDirRoot,
   normalizeExistingOrParent,
@@ -10,8 +10,18 @@ import {
 } from '../localWorkspacePathPolicy';
 
 describe('localWorkspacePathPolicy', () => {
+  const tmpDirs = new Set<string>();
+
+  afterEach(async () => {
+    for (const dir of tmpDirs) {
+      await fs.promises.rm(dir, { recursive: true, force: true });
+    }
+    tmpDirs.clear();
+  });
+
   it('resolves paths inside allowlisted directory roots and blocks escapes', async () => {
     const tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-policy-'));
+    tmpDirs.add(tempRoot);
     const root = await fs.promises.realpath(tempRoot);
     const nestedDir = path.join(root, 'nested');
     await fs.promises.mkdir(nestedDir);
@@ -25,6 +35,7 @@ describe('localWorkspacePathPolicy', () => {
 
   it('supports file-only allowlist entries', async () => {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-policy-file-'));
+    tmpDirs.add(tempDir);
     const dir = await fs.promises.realpath(tempDir);
     const allowedFile = path.join(dir, 'allowed.txt');
     await fs.promises.writeFile(allowedFile, 'ok', 'utf8');
@@ -36,6 +47,7 @@ describe('localWorkspacePathPolicy', () => {
 
   it('prefers the deepest containing directory root', async () => {
     const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-policy-root-'));
+    tmpDirs.add(tempDir);
     const dir = await fs.promises.realpath(tempDir);
     const sub = path.join(dir, 'sub');
     await fs.promises.mkdir(sub);
