@@ -25,4 +25,6 @@ export const resolveCondensationBudget = (
   configuredMaxInputTokens: number | null | undefined,
   fallbackMaxInputTokens: number,
 ): number =>
-  typeof configuredMaxInputTokens === 'number' ? configuredMaxInputTokens : fallbackMaxInputTokens;
+  typeof configuredMaxInputTokens === 'number' && Number.isFinite(configuredMaxInputTokens)
+    ? configuredMaxInputTokens
+    : fallbackMaxInputTokens;

@@ -56,5 +56,7 @@ describe('runLoopDecisions', () => {
     expect(resolveCondensationBudget(8192, 32000)).toBe(8192);
     expect(resolveCondensationBudget(undefined, 32000)).toBe(32000);
     expect(resolveCondensationBudget(null, 32000)).toBe(32000);
+    expect(resolveCondensationBudget(Number.NaN, 32000)).toBe(32000);
+    expect(resolveCondensationBudget(Number.POSITIVE_INFINITY, 32000)).toBe(32000);
   });
 });
