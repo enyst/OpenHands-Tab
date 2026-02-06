@@ -1,11 +1,18 @@
 import type { SettingsAdapter } from './SettingsAdapter';
-import type { HalMode } from '../shared/halTypes';
-import type { HalSettings, OpenHandsSettings, SavedServer } from '../shared/settingsTypes';
+import type { HalSettings, OpenHandsSettings } from '../shared/settingsTypes';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
-import { normalizeServerUrl } from '../shared/serverUrls';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
 import type { AgentSettings, ConfirmationSettings, ConversationSettings, LLMSettings } from '@openhands/agent-sdk-ts';
-import { detectProviderFromBaseUrl, ensureDefaultProfiles, listProfiles, loadProfile } from '@openhands/agent-sdk-ts';
+import { detectProviderFromBaseUrl } from '@openhands/agent-sdk-ts';
+import { loadSelectedProfileConfig, pickDefaultProfileId } from './settingsProfileDefaults';
+import {
+  clampUnitInterval,
+  isSafeProfileId,
+  normalizeHalMode,
+  normalizeOracleProfileId,
+  normalizeServerSettings,
+  sanitizePositiveInteger,
+} from './settingsNormalization';
 
 export type { HalSettings, OpenHandsSettings, SavedServer } from '../shared/settingsTypes';
 
@@ -20,14 +27,6 @@ const DEFAULTS: OpenHandsSettings = {
   hal: { enabled: false, mode: 'tts_only', llmProfileId: DEFAULT_HAL_LLM_PROFILE_ID, userName: 'Engel', volume: 1, cache: true },
   secrets: {}
 };
-
-const DEFAULT_LLM_PROFILE_ID = 'sonnet-45';
-
-const DEFAULT_LLM_PROFILE_ID_BY_API_KEY: Array<{ secretKey: string; profileId: string }> = [
-  { secretKey: 'OPENAI_API_KEY', profileId: 'gpt-5-mini' },
-  { secretKey: 'ANTHROPIC_API_KEY', profileId: 'sonnet-45' },
-  { secretKey: 'GEMINI_API_KEY', profileId: 'gemini-flash' },
-];
 
 const HAL_CONFIG_UPDATES: Array<[keyof HalSettings, string]> = [
   ['enabled', 'openhands.hal.enabled'],
@@ -88,86 +87,6 @@ export const isOpenHandsSettings = (value: unknown): value is OpenHandsSettings 
   return isOpenHandsSettingsSecrets(value.secrets);
 };
 
-const isSafeProfileId = (value: string): boolean => {
-  if (!value.trim()) return false;
-  if (value !== value.trim()) return false;
-  if (value.includes('/') || value.includes('\\')) return false;
-  return /^[a-zA-Z0-9._-]+$/.test(value);
-};
-
-const sanitizePositiveInteger = (value: number | null | undefined): number | undefined => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
-  const int = Math.trunc(value);
-  return int > 0 ? int : undefined;
-};
-
-const normalizeHalMode = (value: unknown, defaultValue: HalMode): HalMode => {
-  const trimmed = typeof value === 'string' ? value.trim() : '';
-  switch (trimmed) {
-    case 'bundled':
-    case 'tts_only':
-    case 'voice_confirm':
-      return trimmed;
-    default:
-      return defaultValue;
-  }
-};
-
-const clampUnitInterval = (value: number | null | undefined, defaultValue: number): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
-  return Math.min(1, Math.max(0, value));
-};
-
-const normalizeSavedServers = (value: unknown, defaultValue: SavedServer[]): { servers: SavedServer[]; changed: boolean; dropped: number } => {
-  if (!Array.isArray(value)) return { servers: defaultValue, changed: true, dropped: 0 };
-
-  const byUrl = new Map<string, SavedServer>();
-  let changed = false;
-  let dropped = 0;
-
-  for (const entry of value) {
-    if (!entry || typeof entry !== 'object') {
-      changed = true;
-      dropped += 1;
-      continue;
-    }
-
-    const candidate = entry as Partial<Record<keyof SavedServer, unknown>>;
-    const rawUrl = normalizeNonEmptyString(typeof candidate.url === 'string' ? candidate.url : undefined);
-    if (!rawUrl) {
-      changed = true;
-      dropped += 1;
-      continue;
-    }
-
-    const normalizedUrl = normalizeServerUrl(rawUrl);
-    if (!normalizedUrl.ok) {
-      changed = true;
-      dropped += 1;
-      continue;
-    }
-
-    const label = normalizeNonEmptyString(typeof candidate.label === 'string' ? candidate.label : undefined);
-    if (normalizedUrl.url !== rawUrl) changed = true;
-
-    const existing = byUrl.get(normalizedUrl.url);
-    if (existing) {
-      // Deduplicate by canonical URL; preserve an existing label, but upgrade if we encounter one later.
-      if (!existing.label && label) {
-        byUrl.set(normalizedUrl.url, { ...existing, label });
-        changed = true;
-      } else {
-        changed = true;
-      }
-      continue;
-    }
-
-    byUrl.set(normalizedUrl.url, label ? { url: normalizedUrl.url, label } : { url: normalizedUrl.url });
-  }
-
-  return { servers: Array.from(byUrl.values()), changed, dropped };
-};
-
 export class SettingsManager {
   private serverNormalizationWarnings: string[] = [];
   private validationWarnings: string[] = [];
@@ -188,29 +107,7 @@ export class SettingsManager {
       const envValue = process.env[key];
       return typeof envValue === 'string' && envValue.trim().length > 0;
     };
-
-    const profileOptions = this.llmProfileStoreRoot ? { rootDir: this.llmProfileStoreRoot } : {};
-
-    // Ensure seeded defaults exist when using a non-default root (tests/custom dirs).
-    if (this.llmProfileStoreRoot) {
-      try {
-        ensureDefaultProfiles(profileOptions);
-      } catch {
-        // Best-effort seeding; not all environments can write to the profile store.
-      }
-    }
-
-    // If a user set a per-profile API key (via the Profiles UI) before explicitly selecting a profile,
-    // prefer that profile as the default on startup.
-    for (const profileId of listProfiles(profileOptions)) {
-      if (await hasSecret(`openhands.llmProfileApiKey.${profileId}`)) return profileId;
-    }
-
-    for (const entry of DEFAULT_LLM_PROFILE_ID_BY_API_KEY) {
-      if (await hasSecret(entry.secretKey)) return entry.profileId;
-    }
-
-    return DEFAULT_LLM_PROFILE_ID;
+    return pickDefaultProfileId(this.llmProfileStoreRoot, hasSecret);
   }
 
   drainServerNormalizationWarnings(): string[] {
@@ -221,41 +118,13 @@ export class SettingsManager {
   }
 
   async get(): Promise<OpenHandsSettings> {
-    const warnings: string[] = [];
-
     const rawServerUrl = this.adapter.get<string | null>('openhands.serverUrl', DEFAULTS.serverUrl) ?? DEFAULTS.serverUrl;
-    const trimmedServerUrl = normalizeNonEmptyString(rawServerUrl);
-    let serverUrl: string | undefined;
-    let serverUrlChanged = false;
-
-    if (trimmedServerUrl) {
-      const normalized = normalizeServerUrl(trimmedServerUrl);
-      if (normalized.ok) {
-        serverUrl = normalized.url;
-        if (serverUrl !== trimmedServerUrl) serverUrlChanged = true;
-      } else {
-        warnings.push(`Invalid server URL: ${normalized.error}`);
-        serverUrlChanged = true;
-      }
-    }
-
     const rawServers = this.adapter.get<unknown>('openhands.servers', DEFAULTS.servers) ?? DEFAULTS.servers;
-    const serversResult = normalizeSavedServers(rawServers, DEFAULTS.servers);
-    let servers = serversResult.servers;
-    let serversChanged = serversResult.changed;
+    const normalizedServerSettings = normalizeServerSettings(rawServerUrl, rawServers, DEFAULTS.servers);
+    const { serverUrl, servers } = normalizedServerSettings;
 
-    if (serversResult.dropped > 0) {
-      warnings.push(`Dropped ${serversResult.dropped} invalid saved server entr${serversResult.dropped === 1 ? 'y' : 'ies'}.`);
-    }
-
-    // If serverUrl is set, always ensure it appears in the servers list (even if manually configured in settings).
-    if (serverUrl && !servers.some((s) => s.url === serverUrl)) {
-      servers = [...servers, { url: serverUrl }];
-      serversChanged = true;
-    }
-
-    if (serverUrlChanged || serversChanged) {
-      this.serverNormalizationWarnings = warnings;
+    if (normalizedServerSettings.changed) {
+      this.serverNormalizationWarnings = normalizedServerSettings.warnings;
       try {
         await this.update({ serverUrl: serverUrl ?? '', servers }, 'global');
       } catch {
@@ -279,23 +148,7 @@ export class SettingsManager {
       }
     }
 
-    const profileConfig = (() => {
-      const profileId = effectiveProfileId?.trim();
-      if (!profileId || !isSafeProfileId(profileId)) return undefined;
-      try {
-        const options = this.llmProfileStoreRoot ? { rootDir: this.llmProfileStoreRoot } : {};
-        if (this.llmProfileStoreRoot) {
-          try {
-            ensureDefaultProfiles(options);
-          } catch {
-            // Best-effort seeding for tests/custom dirs.
-          }
-        }
-        return loadProfile(profileId, options).config;
-      } catch {
-        return undefined;
-      }
-    })();
+    const profileConfig = loadSelectedProfileConfig(effectiveProfileId, this.llmProfileStoreRoot);
     const provider = profileConfig?.provider ?? detectProviderFromBaseUrl(profileConfig?.baseUrl);
 
     const llm: LLMSettings = {
@@ -317,24 +170,13 @@ export class SettingsManager {
       outputCostPerToken: profileConfig?.outputCostPerToken ?? undefined,
     };
 
-    const oracleWarnings: string[] = [];
-
     const explicitOracleProfileId = this.adapter.getExplicit<unknown>('openhands.oracle.profileId');
-    if (explicitOracleProfileId === null) {
-      oracleWarnings.push('Oracle profile id is null. Clear the setting or set a valid string.');
-    }
-
     const rawOracleProfileId = explicitOracleProfileId === undefined
       ? this.adapter.get<unknown>('openhands.oracle.profileId', DEFAULTS.oracle?.profileId ?? null)
       : explicitOracleProfileId;
-
-    const oracleProfileIdRaw = normalizeNonEmptyString(typeof rawOracleProfileId === 'string' ? rawOracleProfileId : undefined);
-    const oracleProfileId = oracleProfileIdRaw && isSafeProfileId(oracleProfileIdRaw) ? oracleProfileIdRaw : undefined;
-    if (oracleProfileIdRaw && !oracleProfileId) {
-      oracleWarnings.push(`Invalid oracle LLM profile id: ${oracleProfileIdRaw}`);
-    }
-    this.validationWarnings = oracleWarnings;
-    const oracle = { profileId: oracleProfileId };
+    const oracleResult = normalizeOracleProfileId(rawOracleProfileId, explicitOracleProfileId === null);
+    this.validationWarnings = oracleResult.warnings;
+    const oracle = { profileId: oracleResult.profileId };
     const agent: AgentSettings = {
       enableSecurityAnalyzer: this.adapter.get<boolean>('openhands.agent.enableSecurityAnalyzer', DEFAULTS.agent.enableSecurityAnalyzer) ?? DEFAULTS.agent.enableSecurityAnalyzer,
       debug: this.adapter.get<boolean>('openhands.agent.debug', DEFAULTS.agent.debug) ?? DEFAULTS.agent.debug,
