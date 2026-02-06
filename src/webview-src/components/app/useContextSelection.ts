@@ -180,7 +180,6 @@ export function useContextSelection({
     setSelectedContextFiles,
     isMentionActive,
     setIsMentionActive,
-    selectionRef,
     mentionStartRef,
     handleSelectionChange,
     handleInputChange,
