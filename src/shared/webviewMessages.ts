@@ -1,6 +1,6 @@
 import type { BashEvent, Event } from '@openhands/agent-sdk-ts';
 import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
-import type { OpenHandsSettings, SavedServer } from '../settings/SettingsManager';
+import type { HalSettings, SavedServer } from './settingsTypes';
 
 /** Default auto-dismiss delay for transient status messages (in milliseconds). */
 export const STATUS_MESSAGE_DISMISS_DELAY_MS = 5000;
@@ -48,7 +48,7 @@ export type HostToWebviewMessage =
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: true; profileId: string }
   | { type: 'llmProfileApiKeySetResponse'; requestId: string; ok: false; profileId: string; error: string }
   | { type: 'serverListUpdated'; servers: SavedServer[]; serverUrl: string }
-  | { type: 'halSettings'; hal: OpenHandsSettings['hal'] }
+  | { type: 'halSettings'; hal: HalSettings }
   | {
     type: 'historyList';
     conversations: Array<{

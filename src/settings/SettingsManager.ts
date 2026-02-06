@@ -1,54 +1,13 @@
-import type { SettingsAdapter, LLMSettings, ServerSettings, AgentSettings, ConversationSettings, ConfirmationSettings } from './SettingsAdapter';
+import type { SettingsAdapter } from './SettingsAdapter';
 import type { HalMode } from '../shared/halTypes';
+import type { HalSettings, OpenHandsSettings, SavedServer } from '../shared/settingsTypes';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
 import { normalizeServerUrl } from '../shared/serverUrls';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
+import type { AgentSettings, ConfirmationSettings, ConversationSettings, LLMSettings } from '@openhands/agent-sdk-ts';
 import { detectProviderFromBaseUrl, ensureDefaultProfiles, listProfiles, loadProfile } from '@openhands/agent-sdk-ts';
 
-export interface SavedServer {
-  url: string;
-  label?: string;
-}
-
-export type HalSettings = {
-  enabled: boolean;
-  mode: HalMode;
-  llmProfileId: string;
-  userName: string;
-  voiceAId?: string;
-  voiceUserId?: string;
-  modelId?: string;
-  volume: number;
-  cache: boolean;
-};
-
-export type OpenHandsSettings = ServerSettings & {
-  llm: LLMSettings;
-  oracle?: { profileId?: string | null };
-  agent: AgentSettings;
-  conversation: ConversationSettings;
-  confirmation: ConfirmationSettings;
-  hal: HalSettings;
-  servers: SavedServer[];
-  secrets: {
-    /**
-     * Remote-mode credentials are injected by the extension host at runtime.
-     *
-     * These values are intentionally not persisted via `SettingsManager.update()` because they
-     * live in per-server VS Code SecretStorage slots.
-     */
-    cloudApiKey?: string;
-    runtimeSessionApiKey?: string;
-    llmApiKey?: string;
-    awsAccessKeyId?: string;
-    awsSecretAccessKey?: string;
-    githubToken?: string;
-    halTtsApiKey?: string;
-    customSecret1?: string;
-    customSecret2?: string;
-    customSecret3?: string;
-  };
-};
+export type { HalSettings, OpenHandsSettings, SavedServer } from '../shared/settingsTypes';
 
 const DEFAULTS: OpenHandsSettings = {
   serverUrl: '',
