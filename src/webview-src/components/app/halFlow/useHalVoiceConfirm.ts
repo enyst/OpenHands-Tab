@@ -20,6 +20,17 @@ interface UseHalVoiceConfirmArgs {
   halVoiceConfirmFallbackKey: string | null;
 }
 
+const stopStreamTracks = (stream: MediaStream | null) => {
+  if (!stream) return;
+  for (const track of stream.getTracks()) {
+    try {
+      track.stop();
+    } catch {
+      // ignore
+    }
+  }
+};
+
 export function useHalVoiceConfirm({
   halPhaseRef,
   halSettingsRef,
@@ -59,15 +70,7 @@ export function useHalVoiceConfirm({
     halVoiceRecorderRef.current = null;
     halVoiceChunksRef.current = [];
     const stream = halVoiceStreamRef.current;
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        try {
-          track.stop();
-        } catch {
-          // ignore
-        }
-      }
-    }
+    stopStreamTracks(stream);
     halVoiceStreamRef.current = null;
     halVoiceConfirmRequestIdRef.current = null;
   }, []);
@@ -116,13 +119,7 @@ export function useHalVoiceConfirm({
       }
 
       if (halPhaseRef.current !== 'listening' || getHalConversationKey() !== conversationKey || halActiveKeyRef.current !== sessionKey) {
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {
-            // ignore
-          }
-        }
+        stopStreamTracks(stream);
         return;
       }
 
@@ -139,13 +136,7 @@ export function useHalVoiceConfirm({
         recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {
-            // ignore
-          }
-        }
+        stopStreamTracks(stream);
         disableVoiceConfirmForConversation(`Microphone recording is not supported: ${reason}`);
         return;
       }
@@ -167,15 +158,7 @@ export function useHalVoiceConfirm({
           halVoiceRecorderRef.current = null;
           const activeStream = halVoiceStreamRef.current;
           halVoiceStreamRef.current = null;
-          if (activeStream) {
-            for (const track of activeStream.getTracks()) {
-              try {
-                track.stop();
-              } catch {
-                // ignore
-              }
-            }
-          }
+          stopStreamTracks(activeStream);
 
           if (shouldDiscard) return;
           if (chunks.length === 0) {
@@ -217,13 +200,7 @@ export function useHalVoiceConfirm({
         recorder.start();
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {
-            // ignore
-          }
-        }
+        stopStreamTracks(stream);
         disableVoiceConfirmForConversation(`Failed to start recording: ${reason}`);
       }
     })();
@@ -277,14 +254,15 @@ export function useHalVoiceConfirm({
   }, [cleanupHalVoiceConfirm, getHalConversationKey, resetHalUiState, setHalVoiceConfirmFallbackKey, showStatusMessage]);
 
   const handleHalVoiceConfirmResponse = useCallback((payload: unknown, onDecision: (decision: HalDecision) => void) => {
+    if (typeof payload !== 'object' || payload === null) return;
+    const parsedPayload = payload as Record<string, unknown>;
+
     const currentRequestId = halVoiceConfirmRequestIdRef.current;
-    const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
-    if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) return;
+    if (!currentRequestId || typeof parsedPayload.requestId !== 'string' || parsedPayload.requestId !== currentRequestId) return;
     halVoiceConfirmRequestIdRef.current = null;
 
-    const ok = (payload as { ok?: unknown } | undefined)?.ok;
-    if (ok === true) {
-      const decisionRaw = (payload as { decision?: unknown } | undefined)?.decision;
+    if (parsedPayload.ok === true) {
+      const decisionRaw = parsedPayload.decision;
       if (!isHalDecision(decisionRaw)) {
         disableVoiceConfirmForConversation('Gemini returned an invalid decision. Using buttons instead.');
         return;
@@ -294,7 +272,7 @@ export function useHalVoiceConfirm({
       return;
     }
 
-    const error = (payload as { error?: unknown } | undefined)?.error;
+    const error = parsedPayload.error;
     const message = typeof error === 'string' && error.trim() ? error.trim() : 'Gemini classification failed';
     disableVoiceConfirmForConversation(message);
   }, [disableVoiceConfirmForConversation]);
