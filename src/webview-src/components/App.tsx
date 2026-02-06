@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  isMessageEvent,
   type Event,
   type ActionEvent,
 } from '@openhands/agent-sdk-ts';
@@ -16,6 +15,8 @@ import { useHostMessages } from './app/useHostMessages';
 import { useConversationEvents } from './app/useConversationEvents';
 import { useLlmProfilesRequests } from './app/useLlmProfilesRequests';
 import { useWebviewReady } from './app/useWebviewReady';
+import { useContextSelection } from './app/useContextSelection';
+import { useSkillsAndTools } from './app/useSkillsAndTools';
 import { ConversationPane } from './app/ConversationPane';
 import { ConversationInputDock } from './app/ConversationInputDock';
 import { getWelcomePromptFlags, type WelcomeSecretStatus } from './app/welcomePrompts';
@@ -52,7 +53,6 @@ export function App() {
 
   // Input state
   const [input, setInput] = useState('');
-  const selectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const [queuedMessagesCount, setQueuedMessagesCount] = useState(0);
 
   // Attachments state
@@ -65,24 +65,6 @@ export function App() {
   const [showLlmProfiles, setShowLlmProfiles] = useState(false);
   const [llmProfilesOpenRequest, setLlmProfilesOpenRequest] = useState<LlmProfilesViewOpenRequest | null>(null);
   const [welcomeSecretStatus, setWelcomeSecretStatus] = useState<WelcomeSecretStatus>({ hasProviderKey: false, hasGeminiKey: false });
-
-  // Context picker state
-  const [showContextPicker, setShowContextPicker] = useState(false);
-  const [contextQuery, setContextQuery] = useState('');
-  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([]);
-  const [selectedContextFiles, setSelectedContextFiles] = useState<string[]>([]);
-  const [isMentionActive, setIsMentionActive] = useState(false);
-  const mentionStartRef = useRef<number | null>(null);
-  const dismissedMentionStartRef = useRef<number | null>(null);
-
-  // Skills state
-  const [showSkillsPopover, setShowSkillsPopover] = useState(false);
-  const [skills, setSkills] = useState<{ label: string; path: string }[]>([]);
-
-  // Tools state
-  const [showToolsPopover, setShowToolsPopover] = useState(false);
-  const [tools, setTools] = useState<{ id: string; label: string; description?: string; isDefault?: boolean }[]>([]);
-  const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
 
   // History state
   const [history, setHistory] = useState<Array<{ id: string; title?: string; firstMessage?: string; timestamp: number; messageCount?: number; contextTokens?: number }>>([]);
@@ -139,6 +121,64 @@ export function App() {
     maxImages: MAX_PASTED_IMAGES,
     maxBytesPerImage: MAX_PASTED_IMAGE_BYTES,
   });
+
+  const {
+    showSkillsPopover,
+    setShowSkillsPopover,
+    skills,
+    setSkills,
+    showToolsPopover,
+    setShowToolsPopover,
+    tools,
+    setTools,
+    enabledToolIds,
+    setEnabledToolIds,
+    handleOpenSkills: openSkillsPopover,
+    handleOpenSkill,
+    handleOpenTools: openToolsPopover,
+    handleToggleTool,
+  } = useSkillsAndTools({
+    events,
+    mode,
+    postMessage,
+    showStatusMessage,
+  });
+
+  const {
+    showContextPicker,
+    setShowContextPicker,
+    contextQuery,
+    setContextQuery,
+    workspaceFiles,
+    setWorkspaceFiles,
+    selectedContextFiles,
+    setSelectedContextFiles,
+    isMentionActive,
+    setIsMentionActive,
+    mentionStartRef,
+    handleSelectionChange,
+    handleInputChange,
+    handleOpenContext,
+    handleCloseContextPicker,
+    handleToggleContextFile,
+    resetContextSelection,
+  } = useContextSelection({
+    input,
+    setInput,
+    postMessage,
+    setShowSkillsPopover,
+    setShowToolsPopover,
+  });
+
+  const handleOpenSkills = useCallback(() => {
+    setShowContextPicker(false);
+    openSkillsPopover();
+  }, [openSkillsPopover, setShowContextPicker]);
+
+  const handleOpenTools = useCallback(() => {
+    setShowContextPicker(false);
+    openToolsPopover();
+  }, [openToolsPopover, setShowContextPicker]);
 
   // Keep a snapshot for E2E state queries without re-registering message listeners on every keystroke.
   useEffect(() => {
@@ -343,65 +383,6 @@ export function App() {
     }
   }, [events.length, streamingContent]);
 
-  // Shared mention detection logic
-  const updateMentionState = useCallback((text: string, caret: number) => {
-    const before = text.slice(0, caret);
-    const at = before.lastIndexOf('@');
-
-    const hasWhitespaceAfterAt = at !== -1 && /\s/.test(before.slice(at + 1));
-    const isAtTriggerPosition = at === 0 || (at > 0 && /\s/.test(before.charAt(at - 1)));
-    const shouldActivateMention = at !== -1 && isAtTriggerPosition && !hasWhitespaceAfterAt;
-
-    // Clear mention if no @ or whitespace after @
-    if (!shouldActivateMention) {
-      if (isMentionActive) {
-        setIsMentionActive(false);
-        setShowContextPicker(false);
-        setContextQuery('');
-        mentionStartRef.current = null;
-      }
-      dismissedMentionStartRef.current = null;
-      return;
-    }
-
-    if (dismissedMentionStartRef.current === at) {
-      // User dismissed the picker while the caret was in this mention token; keep it closed
-      // so it doesn't immediately steal focus back from the textarea.
-      if (isMentionActive || showContextPicker) {
-        setIsMentionActive(false);
-        setShowContextPicker(false);
-        setContextQuery('');
-        mentionStartRef.current = null;
-      }
-      return;
-    }
-
-    // Activate mention mode
-    const afterAt = before.slice(at + 1);
-    mentionStartRef.current = at;
-    dismissedMentionStartRef.current = null;
-    setIsMentionActive(true);
-    setShowSkillsPopover(false);
-    setShowToolsPopover(false);
-    if (!showContextPicker) {
-      postMessage({ type: 'requestWorkspaceFiles' });
-      setShowContextPicker(true);
-    }
-    setContextQuery(afterAt);
-  }, [isMentionActive, postMessage, showContextPicker]);
-
-  // Selection tracking from InputArea
-  const handleSelectionChange = useCallback((start: number, end: number) => {
-    selectionRef.current = { start, end };
-    updateMentionState(input, end);
-  }, [input, updateMentionState]);
-
-  // Input change with mention detection
-  const handleInputChange = useCallback((value: string) => {
-    setInput(value);
-    updateMentionState(value, selectionRef.current.end);
-  }, [updateMentionState]);
-
   // Handler functions
   const handleStartNewConversation = useCallback(() => {
     setStatusBanner({ message: 'Starting new conversation…', level: 'info' });
@@ -415,12 +396,12 @@ export function App() {
     hasLlmUsageRef.current = false;
     eventId.current = 1;
     setInput('');
-    setSelectedContextFiles([]);
+    resetContextSelection();
     setAttachments([]);
     setInlineImages([]);
     setShowToolsPopover(false);
     postMessage({ type: 'command', command: 'startNewConversation' });
-  }, [postMessage, setInlineImages, setStatusBanner]);
+  }, [postMessage, resetContextSelection, setInlineImages, setShowToolsPopover, setStatusBanner]);
 
   const openMainPanel = useCallback((panel: 'history' | 'llmProfiles' | null) => {
     setShowHistory(panel === 'history');
@@ -428,7 +409,7 @@ export function App() {
     setShowContextPicker(false);
     setShowSkillsPopover(false);
     setShowToolsPopover(false);
-  }, [setShowContextPicker, setShowHistory, setShowLlmProfiles, setShowSkillsPopover]);
+  }, [setShowContextPicker, setShowHistory, setShowLlmProfiles, setShowSkillsPopover, setShowToolsPopover]);
 
   const handleOpenHistory = useCallback(() => {
     openMainPanel('history');
@@ -471,63 +452,29 @@ export function App() {
     }
 
     setInput('');
-    setShowContextPicker(false);
+    resetContextSelection();
     setShowSkillsPopover(false);
     setShowToolsPopover(false);
-    setContextQuery('');
-    setSelectedContextFiles([]);
     setAttachments([]);
     setInlineImages([]);
-    selectionRef.current = { start: 0, end: 0 };
     postMessage({
       type: 'send',
       text: finalText,
       contextFiles: selectedContextFiles.slice(),
       attachments: attachments.map((a) => a.uri),
     });
-  }, [agentStatus, attachments, inlineImages, input, postMessage, selectedContextFiles, setInlineImages]);
-
-  // Context picker handlers
-  const handleOpenContext = useCallback(() => {
-    setShowSkillsPopover(false);
-    setShowToolsPopover(false);
-    setShowContextPicker((prev) => {
-      const willBeOpen = !prev;
-      if (willBeOpen) {
-        postMessage({ type: 'requestWorkspaceFiles' });
-      }
-      return willBeOpen;
-    });
-  }, [postMessage]);
-
-  const focusInputAtEnd = useCallback(() => {
-    const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
-    if (!textarea) return;
-    textarea.focus();
-    const pos = textarea.value.length;
-    try {
-      textarea.setSelectionRange(pos, pos);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const handleCloseContextPicker = useCallback((reason: 'escape' | 'outside') => {
-    setShowContextPicker(false);
-
-    if (isMentionActive && mentionStartRef.current !== null) {
-      // Prevent immediate re-open while the caret remains in the same mention token.
-      dismissedMentionStartRef.current = mentionStartRef.current;
-      setIsMentionActive(false);
-      setContextQuery('');
-      mentionStartRef.current = null;
-    }
-
-    if (reason === 'escape') {
-      // When Esc closes the picker, return focus to the input.
-      focusInputAtEnd();
-    }
-  }, [focusInputAtEnd, isMentionActive]);
+  }, [
+    agentStatus,
+    attachments,
+    inlineImages,
+    input,
+    postMessage,
+    resetContextSelection,
+    selectedContextFiles,
+    setInlineImages,
+    setShowSkillsPopover,
+    setShowToolsPopover,
+  ]);
 
   // Attachments handlers
   const handleOpenAttachments = useCallback(() => {
@@ -545,106 +492,6 @@ export function App() {
   const handleRemoveAttachment = useCallback((uri: string) => {
     setAttachments((prev) => prev.filter((a) => a.uri !== uri));
   }, []);
-
-  const handleToggleContextFile = useCallback((file: string) => {
-    if (isMentionActive && mentionStartRef.current !== null) {
-      // Ensure file is in selected context
-      setSelectedContextFiles((prev) => (prev.includes(file) ? prev : [...prev, file]));
-
-      const caret = selectionRef.current.end;
-      const start = mentionStartRef.current;
-      const before = input.slice(0, start);
-      const after = input.slice(caret);
-      const mention = `@${file}`;
-      const needsLeadingSpace = before.length > 0 && !/\s$/.test(before);
-      const needsTrailingSpace = after.length > 0 && !/^\s/.test(after);
-      const inserted = `${needsLeadingSpace ? ' ' : ''}${mention}${needsTrailingSpace ? ' ' : ''}`;
-      const next = before + inserted + after;
-      setInput(next);
-
-      // Place caret after inserted mention
-      setTimeout(() => {
-        const textarea = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
-        if (textarea) {
-          const pos = (before + inserted).length;
-          try { textarea.setSelectionRange(pos, pos); } catch { }
-        }
-      }, 0);
-
-      // Close mention/context picker
-      setIsMentionActive(false);
-      setShowContextPicker(false);
-      setContextQuery('');
-      mentionStartRef.current = null;
-    } else {
-      setSelectedContextFiles((prev) =>
-        prev.includes(file) ? prev.filter((f) => f !== file) : [...prev, file]
-      );
-    }
-  }, [input, isMentionActive]);
-
-  // Skills handlers
-  const handleOpenSkills = useCallback(() => {
-    setShowContextPicker(false);
-    setShowToolsPopover(false);
-    setShowSkillsPopover((prev) => {
-      const willBeOpen = !prev;
-      if (willBeOpen) {
-        postMessage({ type: 'requestSkills' });
-      }
-      return willBeOpen;
-    });
-  }, [postMessage]);
-
-  const handleOpenSkill = useCallback((path: string) => {
-    showStatusMessage('info', 'Opening skill…');
-    postMessage({ type: 'openSkill', path });
-    setShowSkillsPopover(false);
-  }, [postMessage, showStatusMessage]);
-
-  const isToolSelectionLocked = events.some((ev) => isMessageEvent(ev.event) && ev.event.source === 'user');
-
-  const handleOpenTools = useCallback(() => {
-    setShowContextPicker(false);
-    setShowSkillsPopover(false);
-    setShowToolsPopover((prev) => {
-      const willBeOpen = !prev;
-      if (willBeOpen) {
-        postMessage({ type: 'requestTools' });
-      }
-      return willBeOpen;
-    });
-  }, [postMessage]);
-
-  const handleToggleTool = useCallback((toolId: string) => {
-    if (mode !== 'local') {
-      showStatusMessage('info', 'Tools are controlled by the agent-server in remote mode.', { autoDismiss: true, autoDismissDelay: 4000 });
-      return;
-    }
-
-    if (isToolSelectionLocked) {
-      showStatusMessage('info', 'To change Tools, please start a new conversation.', { autoDismiss: true, autoDismissDelay: 4000 });
-      return;
-    }
-
-    if (toolId === 'finish') {
-      showStatusMessage('info', 'Finish is always enabled.', { autoDismiss: true, autoDismissDelay: 2500 });
-      return;
-    }
-
-    setEnabledToolIds((prev) => {
-      const known = new Set(tools.map((tool) => tool.id));
-      if (!known.has(toolId)) return prev;
-
-      const nextSet = new Set(prev);
-      if (nextSet.has(toolId)) nextSet.delete(toolId);
-      else nextSet.add(toolId);
-
-      const ordered = tools.map((t) => t.id).filter((id) => nextSet.has(id));
-      postMessage({ type: 'setEnabledTools', toolIds: ordered });
-      return ordered;
-    });
-  }, [isToolSelectionLocked, mode, postMessage, showStatusMessage, tools]);
 
   // History handlers
   const handleSelectConversation = useCallback((id: string) => {
