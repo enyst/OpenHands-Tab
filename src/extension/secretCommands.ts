@@ -340,21 +340,17 @@ export function registerSecretCommands(params: {
             const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
             const existing = await settingsMgr.get();
             const currentValue = existing.secrets[spec.secretKey];
+            const updateAndSync = async (value: string | undefined): Promise<void> => {
+              const secretsUpdate = { [spec.secretKey]: value } as Partial<OpenHandsSettings['secrets']>;
+              await settingsMgr.update({ secrets: secretsUpdate });
+              const newSettings = await settingsMgr.get();
+              params.getConversation()?.setSettings(newSettings);
+            };
             return {
               isCurrentlySet: typeof currentValue === 'string' && currentValue.trim().length > 0,
               clearConfirmationMessage: `Clear ${spec.title}?`,
-              clearSecret: async () => {
-                const secretsUpdate = { [spec.secretKey]: undefined } as Partial<OpenHandsSettings['secrets']>;
-                await settingsMgr.update({ secrets: secretsUpdate });
-                const newSettings = await settingsMgr.get();
-                params.getConversation()?.setSettings(newSettings);
-              },
-              setSecret: async (value: string) => {
-                const secretsUpdate = { [spec.secretKey]: value } as Partial<OpenHandsSettings['secrets']>;
-                await settingsMgr.update({ secrets: secretsUpdate });
-                const newSettings = await settingsMgr.get();
-                params.getConversation()?.setSettings(newSettings);
-              },
+              clearSecret: async () => updateAndSync(undefined),
+              setSecret: async (value: string) => updateAndSync(value),
             };
           });
           return;
