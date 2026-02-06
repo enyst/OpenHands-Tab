@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ActionEvent } from '@openhands/agent-sdk-ts';
 import { getHalDialogueLinesForMode, type HalScriptLine } from '../../../shared/halScript';
 import { DEFAULT_HAL_STATE } from '../../../shared/halDefaults';
-import { isHalDecision, isHalMode, type HalDecision, type HalEye, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
+import { isHalMode, type HalDecision, type HalEye, type HalPhase, type HalStateSnapshot } from '../../../shared/halTypes';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { ShowStatusMessage } from './useStatusMessages';
-import { blobToBase64 } from './halFlow/blobToBase64';
 import { DEFAULT_HAL_SETTINGS, DEFAULT_HAL_UI_STATE, type HalSettingsSnapshot, type HalUiState } from './halFlow/types';
 import { useHalBundledAudioEffects } from './halFlow/useHalBundledAudio';
+import { useHalVoiceConfirm } from './halFlow/useHalVoiceConfirm';
 
 export type { HalSettingsSnapshot };
 
@@ -44,13 +44,6 @@ export function useHalFlow(deps: {
   const halAudioUrlRef = useRef<string | null>(null);
   const halAudioPlayTokenRef = useRef(0);
   const halTtsRequestSeqRef = useRef(0);
-  const halVoiceConfirmFallbackKeyRef = useRef<string | null>(null);
-  const halVoiceConfirmRequestIdRef = useRef<string | null>(null);
-  const halVoiceConfirmSeqRef = useRef(0);
-  const halVoiceDiscardNextStopRef = useRef(false);
-  const halVoiceStreamRef = useRef<MediaStream | null>(null);
-  const halVoiceRecorderRef = useRef<MediaRecorder | null>(null);
-  const halVoiceChunksRef = useRef<Blob[]>([]);
   const halActiveKeyRef = useRef<string | null>(null);
   const halEnabledRef = useRef<boolean>(false);
   const halPhaseRef = useRef<HalPhase>('idle');
@@ -74,16 +67,14 @@ export function useHalFlow(deps: {
   }, [halSuppressedKey]);
 
   useEffect(() => {
-    halVoiceConfirmFallbackKeyRef.current = halVoiceConfirmFallbackKey;
-  }, [halVoiceConfirmFallbackKey]);
-
-  useEffect(() => {
     halSettingsRef.current = halSettings;
   }, [halSettings]);
 
   useEffect(() => {
     halStepIndexRef.current = halStepIndex;
   }, [halStepIndex]);
+
+  const getHalConversationKey = useCallback(() => deps.conversationIdRef.current ?? 'unknown', [deps.conversationIdRef]);
 
   const stopHalAudio = useCallback(() => {
     halAudioPlayTokenRef.current += 1;
@@ -102,28 +93,6 @@ export function useHalFlow(deps: {
     }
     halTtsRequestIdRef.current = null;
     halTtsRequestedKeyRef.current = null;
-  }, []);
-
-  const cleanupHalVoiceConfirm = useCallback(() => {
-    const recorder = halVoiceRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      try {
-        halVoiceDiscardNextStopRef.current = true;
-        recorder.stop();
-      } catch {}
-    }
-    halVoiceRecorderRef.current = null;
-    halVoiceChunksRef.current = [];
-    const stream = halVoiceStreamRef.current;
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        try {
-          track.stop();
-        } catch {}
-      }
-    }
-    halVoiceStreamRef.current = null;
-    halVoiceConfirmRequestIdRef.current = null;
   }, []);
 
   const clearHalTimer = useCallback(() => {
@@ -148,6 +117,28 @@ export function useHalFlow(deps: {
     setHalLastError(next.lastError);
   }, []);
 
+  const {
+    cleanupHalVoiceConfirm,
+    handleStartVoiceConfirm,
+    handleStopVoiceConfirm,
+    handleCancelVoiceConfirm,
+    handleUseButtonsInstead,
+    handleHalVoiceConfirmResponse: consumeHalVoiceConfirmResponse,
+  } = useHalVoiceConfirm({
+    halPhaseRef,
+    halSettingsRef,
+    halActiveKeyRef,
+    getHalConversationKey,
+    postMessage: deps.postMessage,
+    showStatusMessage: deps.showStatusMessage,
+    resetHalUiState,
+    setHalPhase,
+    setHalEye,
+    setHalLastError,
+    setHalVoiceConfirmFallbackKey,
+    halVoiceConfirmFallbackKey,
+  });
+
   const cleanupHalFlow = useCallback(() => {
     clearHalTimer();
     stopHalAudio();
@@ -162,8 +153,6 @@ export function useHalFlow(deps: {
   useEffect(() => {
     halDialogueRef.current = halDialogueLines;
   }, [halDialogueLines]);
-
-  const getHalConversationKey = useCallback(() => deps.conversationIdRef.current ?? 'unknown', [deps.conversationIdRef]);
 
   const maybeUpdateHalFlow = useCallback(() => {
     if (halTeleportInProgressRef.current) return;
@@ -304,191 +293,6 @@ export function useHalFlow(deps: {
     requestHalTts({ conversationId: convoId, stepIndex: halStepIndex });
   }, [deps.conversationIdRef, halDisabledConversationId, halPhase, halStepIndex, requestHalTts]);
 
-  const disableVoiceConfirmForConversation = useCallback((message: string) => {
-    const key = getHalConversationKey();
-    setHalVoiceConfirmFallbackKey(key);
-    halVoiceConfirmFallbackKeyRef.current = key;
-    cleanupHalVoiceConfirm();
-    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', lastError: message });
-    deps.showStatusMessage('warn', message);
-  }, [cleanupHalVoiceConfirm, deps.showStatusMessage, getHalConversationKey, resetHalUiState]);
-
-  const handleStartVoiceConfirm = useCallback(() => {
-    void (async () => {
-      if (halPhaseRef.current !== 'awaiting_user') return;
-      if (halSettingsRef.current.mode !== 'voice_confirm') return;
-      if (halVoiceConfirmFallbackKeyRef.current === getHalConversationKey()) return;
-      if (
-        typeof navigator === 'undefined' ||
-        typeof navigator.mediaDevices?.getUserMedia !== 'function' ||
-        typeof MediaRecorder === 'undefined'
-      ) {
-        disableVoiceConfirmForConversation('Microphone is unavailable in this environment. Using buttons instead.');
-        return;
-      }
-
-      const conversationKey = getHalConversationKey();
-      const sessionKey = halActiveKeyRef.current;
-
-      cleanupHalVoiceConfirm();
-      halVoiceDiscardNextStopRef.current = false;
-      halVoiceChunksRef.current = [];
-      setHalLastError(null);
-      halPhaseRef.current = 'listening';
-      setHalPhase('listening');
-      setHalEye('pulsating');
-
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        disableVoiceConfirmForConversation(`Microphone permission denied or unavailable: ${reason}`);
-        return;
-      }
-
-      if (halPhaseRef.current !== 'listening' || getHalConversationKey() !== conversationKey || halActiveKeyRef.current !== sessionKey) {
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {}
-        }
-        return;
-      }
-
-      const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
-      const mimeType = candidates.find((t) => {
-        try {
-          return MediaRecorder.isTypeSupported(t);
-        } catch {
-          return false;
-        }
-      });
-      let recorder: MediaRecorder;
-      try {
-        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {}
-        }
-        disableVoiceConfirmForConversation(`Microphone recording is not supported: ${reason}`);
-        return;
-      }
-
-      halVoiceStreamRef.current = stream;
-      halVoiceRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          halVoiceChunksRef.current.push(e.data);
-        }
-      };
-      recorder.onstop = () => {
-        void (async () => {
-          const shouldDiscard = halVoiceDiscardNextStopRef.current;
-          halVoiceDiscardNextStopRef.current = false;
-
-          const chunks = halVoiceChunksRef.current;
-          halVoiceChunksRef.current = [];
-          halVoiceRecorderRef.current = null;
-          const activeStream = halVoiceStreamRef.current;
-          halVoiceStreamRef.current = null;
-          if (activeStream) {
-            for (const track of activeStream.getTracks()) {
-              try {
-                track.stop();
-              } catch {}
-            }
-          }
-
-          if (shouldDiscard) return;
-          if (chunks.length === 0) {
-            disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
-            return;
-          }
-
-          try {
-            const blob = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
-            if (blob.size === 0) {
-              disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
-              return;
-            }
-            const audioBase64 = await blobToBase64(blob);
-            if (!audioBase64) {
-              disableVoiceConfirmForConversation('No audio was captured. Using buttons instead.');
-              return;
-            }
-            const requestId = `halVoiceConfirm:${Date.now().toString(36)}:${(halVoiceConfirmSeqRef.current++).toString(36)}`;
-            halVoiceConfirmRequestIdRef.current = requestId;
-            setHalLastError(null);
-            halPhaseRef.current = 'classifying';
-            setHalPhase('classifying');
-            setHalEye('pulsating');
-            deps.postMessage({
-              type: 'halVoiceConfirmRequest',
-              requestId,
-              mimeType: blob.type || 'audio/webm',
-              audioBase64,
-            });
-          } catch (err) {
-            const reason = err instanceof Error ? err.message : String(err);
-            disableVoiceConfirmForConversation(`Failed to process recorded audio: ${reason}`);
-          }
-        })();
-      };
-
-      try {
-        recorder.start();
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        for (const track of stream.getTracks()) {
-          try {
-            track.stop();
-          } catch {}
-        }
-        disableVoiceConfirmForConversation(`Failed to start recording: ${reason}`);
-        return;
-      }
-    })();
-  }, [cleanupHalVoiceConfirm, deps.postMessage, disableVoiceConfirmForConversation, getHalConversationKey]);
-
-  const handleStopVoiceConfirm = useCallback(() => {
-    if (halPhaseRef.current !== 'listening') return;
-    const recorder = halVoiceRecorderRef.current;
-    if (!recorder) return;
-    if (recorder.state === 'inactive') return;
-    try {
-      recorder.stop();
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      disableVoiceConfirmForConversation(`Failed to stop recording: ${reason}`);
-    }
-  }, [disableVoiceConfirmForConversation]);
-
-  const handleCancelVoiceConfirm = useCallback(() => {
-    if (halPhaseRef.current !== 'listening') return;
-    halVoiceDiscardNextStopRef.current = true;
-    const recorder = halVoiceRecorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      try {
-        recorder.stop();
-      } catch {}
-    }
-    cleanupHalVoiceConfirm();
-    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating' });
-  }, [cleanupHalVoiceConfirm, resetHalUiState]);
-
-  const handleUseButtonsInstead = useCallback(() => {
-    const key = getHalConversationKey();
-    setHalVoiceConfirmFallbackKey(key);
-    halVoiceConfirmFallbackKeyRef.current = key;
-    cleanupHalVoiceConfirm();
-    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating' });
-    deps.showStatusMessage('info', 'Switched to button decision for this conversation.');
-  }, [cleanupHalVoiceConfirm, deps.showStatusMessage, getHalConversationKey, resetHalUiState]);
-
   const handleHalExit = useCallback((opts?: { sessionKey?: string | null }) => {
     if (halTeleportInProgressRef.current || halPhaseRef.current === 'waiting_remote') {
       deps.postMessage({ type: 'command', command: 'cancelTeleportAction' });
@@ -598,45 +402,26 @@ export function useHalFlow(deps: {
     setHalSuppressedKeySynced,
   ]);
 
-    const applyHalVoiceConfirmDecision = useCallback((decision: HalDecision, options?: { rejectReason?: string }) => {
-      cleanupHalVoiceConfirm();
-      setHalForceRejectInput(false);
+  const applyHalVoiceConfirmDecision = useCallback((decision: HalDecision, options?: { rejectReason?: string }) => {
+    cleanupHalVoiceConfirm();
+    setHalForceRejectInput(false);
 
-      if (decision === 'teleport_remote') {
-        handleHalTeleport();
-        return;
-      }
+    if (decision === 'teleport_remote') {
+      handleHalTeleport();
+      return;
+    }
 
-      resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', decision });
-      if (decision === 'approve_local') {
-        deps.handleApprove();
-      } else {
-        deps.handleReject(options?.rejectReason);
-      }
-    }, [cleanupHalVoiceConfirm, deps.handleApprove, deps.handleReject, handleHalTeleport, resetHalUiState]);
+    resetHalUiState({ phase: 'awaiting_user', eye: 'pulsating', decision });
+    if (decision === 'approve_local') {
+      deps.handleApprove();
+    } else {
+      deps.handleReject(options?.rejectReason);
+    }
+  }, [cleanupHalVoiceConfirm, deps.handleApprove, deps.handleReject, handleHalTeleport, resetHalUiState]);
 
-    const handleHalVoiceConfirmResponse = useCallback((payload: unknown) => {
-      const currentRequestId = halVoiceConfirmRequestIdRef.current;
-      const requestId = (payload as { requestId?: unknown } | undefined)?.requestId;
-      if (!currentRequestId || typeof requestId !== 'string' || requestId !== currentRequestId) return;
-      halVoiceConfirmRequestIdRef.current = null;
-
-    const ok = (payload as { ok?: unknown } | undefined)?.ok;
-      if (ok === true) {
-        const decisionRaw = (payload as { decision?: unknown } | undefined)?.decision;
-        if (!isHalDecision(decisionRaw)) {
-          disableVoiceConfirmForConversation('Gemini returned an invalid decision. Using buttons instead.');
-          return;
-        }
-
-        applyHalVoiceConfirmDecision(decisionRaw);
-        return;
-      }
-
-    const error = (payload as { error?: unknown } | undefined)?.error;
-    const message = typeof error === 'string' && error.trim() ? error.trim() : 'Gemini classification failed';
-    disableVoiceConfirmForConversation(message);
-    }, [applyHalVoiceConfirmDecision, disableVoiceConfirmForConversation]);
+  const handleHalVoiceConfirmResponse = useCallback((payload: unknown) => {
+    consumeHalVoiceConfirmResponse(payload, applyHalVoiceConfirmDecision);
+  }, [applyHalVoiceConfirmDecision, consumeHalVoiceConfirmResponse]);
 
   const handleHalTeleportUnavailable = useCallback((error: unknown) => {
     if (halPhaseRef.current === 'idle' && halSuppressedKeyRef.current && halSuppressedKeyRef.current === halActiveKeyRef.current) {
