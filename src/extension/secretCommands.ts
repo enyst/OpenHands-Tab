@@ -86,212 +86,6 @@ export function registerSecretCommands(params: {
     }
   };
 
-  const registerSecretCommand = (
-    commandId: string,
-    options: {
-      title: string;
-      secretKey: SecretKey;
-      prompt: string;
-      placeHolder?: string;
-      successMessage: string;
-      clearedMessage: string;
-      errorPrefix: string;
-    }
-  ) =>
-    vscode.commands.registerCommand(commandId, async () => {
-      try {
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
-        const existing = await settingsMgr.get();
-        const currentValue = existing.secrets[options.secretKey];
-        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
-
-        if (isCurrentlySet) {
-          const action = await vscode.window.showQuickPick(
-            [
-              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-            ],
-            {
-              title: options.title,
-              placeHolder: 'Choose an action',
-              canPickMany: false,
-            }
-          );
-          if (!action) return;
-
-          if (action.value === 'clear') {
-            const confirmed = await vscode.window.showWarningMessage(
-              `Clear ${options.title}?`,
-              { modal: true },
-              'Clear'
-            );
-            if (confirmed !== 'Clear') return;
-
-            const secretsUpdate = { [options.secretKey]: undefined } as Partial<OpenHandsSettings['secrets']>;
-            await settingsMgr.update({ secrets: secretsUpdate });
-            vscode.window.showInformationMessage(options.clearedMessage);
-
-            const newSettings = await settingsMgr.get();
-            params.getConversation()?.setSettings(newSettings);
-            await syncSecretStatusIndicatorsBestEffort();
-            return;
-          }
-        }
-
-        const value = await vscode.window.showInputBox({
-          title: options.title,
-          password: true,
-          prompt: options.prompt,
-          placeHolder: options.placeHolder,
-        });
-
-        if (value === undefined) return;
-
-        const trimmed = value.trim();
-        if (!trimmed) return;
-
-        const secretsUpdate = { [options.secretKey]: trimmed } as Partial<OpenHandsSettings['secrets']>;
-        await settingsMgr.update({ secrets: secretsUpdate });
-        vscode.window.showInformationMessage(options.successMessage);
-
-        const newSettings = await settingsMgr.get();
-        params.getConversation()?.setSettings(newSettings);
-        await syncSecretStatusIndicatorsBestEffort();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
-      }
-    });
-
-  const registerSecretStorageCommand = (
-    commandId: string,
-    options: {
-      title: string;
-      storageKey: string;
-      prompt: string;
-      placeHolder?: string;
-      successMessage: string;
-      clearedMessage: string;
-      errorPrefix: string;
-    }
-  ) =>
-    vscode.commands.registerCommand(commandId, async () => {
-      try {
-        const currentValue = await params.context.secrets.get(options.storageKey);
-        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
-
-        if (isCurrentlySet) {
-          const action = await vscode.window.showQuickPick(
-            [
-              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-            ],
-            {
-              title: options.title,
-              placeHolder: 'Choose an action',
-              canPickMany: false,
-            }
-          );
-          if (!action) return;
-
-          if (action.value === 'clear') {
-            const confirmed = await vscode.window.showWarningMessage(
-              `Clear ${options.title}?`,
-              { modal: true },
-              'Clear'
-            );
-            if (confirmed !== 'Clear') return;
-
-            await params.context.secrets.delete(options.storageKey);
-            params.secrets.set(options.storageKey, undefined);
-            vscode.window.showInformationMessage(options.clearedMessage);
-            await syncSecretStatusIndicatorsBestEffort();
-            return;
-          }
-        }
-
-        const value = await vscode.window.showInputBox({
-          title: options.title,
-          password: true,
-          prompt: options.prompt,
-          placeHolder: options.placeHolder,
-        });
-
-        if (value === undefined) return;
-
-        const trimmed = value.trim();
-        if (!trimmed) return;
-
-        await params.context.secrets.store(options.storageKey, trimmed);
-        params.secrets.set(options.storageKey, trimmed);
-        vscode.window.showInformationMessage(options.successMessage);
-        await syncSecretStatusIndicatorsBestEffort();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
-      }
-    });
-
-  const setApiKey = registerSecretCommand('openhands.setApiKey', {
-    title: 'LLM API Key',
-    secretKey: 'llmApiKey',
-    prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    successMessage: 'LLM API Key saved securely.',
-    clearedMessage: 'LLM API Key cleared.',
-    errorPrefix: 'Failed to save API Key',
-  });
-
-  const setOpenAiApiKey = registerSecretStorageCommand('openhands.setOpenAiApiKey', {
-    title: 'OpenAI API Key',
-    storageKey: 'OPENAI_API_KEY',
-    prompt: 'Enter your OpenAI API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    successMessage: 'OpenAI API key saved securely.',
-    clearedMessage: 'OpenAI API key cleared.',
-    errorPrefix: 'Failed to save OpenAI API key',
-  });
-
-  const setAnthropicApiKey = registerSecretStorageCommand('openhands.setAnthropicApiKey', {
-    title: 'Anthropic API Key',
-    storageKey: 'ANTHROPIC_API_KEY',
-    prompt: 'Enter your Anthropic API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-ant-...',
-    successMessage: 'Anthropic API key saved securely.',
-    clearedMessage: 'Anthropic API key cleared.',
-    errorPrefix: 'Failed to save Anthropic API key',
-  });
-
-  const setOpenRouterApiKey = registerSecretStorageCommand('openhands.setOpenRouterApiKey', {
-    title: 'OpenRouter API Key',
-    storageKey: 'OPENROUTER_API_KEY',
-    prompt: 'Enter your OpenRouter API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-or-...',
-    successMessage: 'OpenRouter API key saved securely.',
-    clearedMessage: 'OpenRouter API key cleared.',
-    errorPrefix: 'Failed to save OpenRouter API key',
-  });
-
-  const setLiteLlmApiKey = registerSecretStorageCommand('openhands.setLiteLlmApiKey', {
-    title: 'LiteLLM Proxy API Key',
-    storageKey: 'LITELLM_API_KEY',
-    prompt: 'Enter your LiteLLM Proxy API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    successMessage: 'LiteLLM Proxy API key saved securely.',
-    clearedMessage: 'LiteLLM Proxy API key cleared.',
-    errorPrefix: 'Failed to save LiteLLM Proxy API key',
-  });
-
-  const setGeminiLlmApiKey = registerSecretStorageCommand('openhands.setGeminiLlmApiKey', {
-    title: 'Gemini API Key',
-    storageKey: 'GEMINI_API_KEY',
-    prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'AIza...',
-    successMessage: 'Gemini API key saved securely.',
-    clearedMessage: 'Gemini API key cleared.',
-    errorPrefix: 'Failed to save Gemini API key',
-  });
-
   const updateConversationSettingsBestEffort = async (patch: Partial<OpenHandsSettings['secrets']>): Promise<void> => {
     try {
       const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
@@ -302,182 +96,328 @@ export function registerSecretCommands(params: {
     }
   };
 
-  const registerPerServerSecretCommand = (
-    commandId: string,
-    options: {
-      title: string;
-      prompt: string;
-      placeHolder: string;
+  type SecretAction = 'update' | 'clear';
+  type SecretCommandUiSpec = {
+    commandId: string;
+    title: string;
+    prompt: string;
+    placeHolder?: string;
+    successMessage: string;
+    clearedMessage: string;
+    errorPrefix: string;
+  };
+  type SecretCommandPlan = {
+    isCurrentlySet: boolean;
+    clearConfirmationMessage: string;
+    clearSecret: () => Promise<void>;
+    setSecret: (value: string) => Promise<void>;
+  };
+  type SecretCommandSpec =
+    | (SecretCommandUiSpec & {
+      kind: 'settings';
+      secretKey: SecretKey;
+    })
+    | (SecretCommandUiSpec & {
+      kind: 'storage';
+      storageKey: string;
+    })
+    | (SecretCommandUiSpec & {
+      kind: 'perServer';
+      settingsKey: SecretKey;
       missingServerMessage: string;
       invalidServerMessage?: string;
       getSecretKey: (serverUrl: string) => PerServerSecretKeyResult;
-      settingsKey: SecretKey;
-      successMessage: string;
-      clearedMessage: string;
-      errorPrefix: string;
-    }
-  ) =>
-    vscode.commands.registerCommand(commandId, async () => {
-      try {
-        const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
-        const existing = await settingsMgr.get();
-        const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
-        if (!serverUrl) {
-          void vscode.window.showErrorMessage(options.missingServerMessage);
-          return;
-        }
-        if (options.invalidServerMessage && !isOpenHandsCloudServerUrl(serverUrl)) {
-          void vscode.window.showErrorMessage(options.invalidServerMessage);
-          return;
-        }
+    });
 
-        const keyInfo = options.getSecretKey(serverUrl);
-        if (!keyInfo.ok) {
-          void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
-          return;
-        }
+  const promptSecretAction = async (title: string): Promise<SecretAction | undefined> => {
+    const action = await vscode.window.showQuickPick(
+      [
+        { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
+        { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
+      ],
+      { title, placeHolder: 'Choose an action', canPickMany: false }
+    );
+    return action?.value as SecretAction | undefined;
+  };
 
-        let currentValue: string | undefined;
-        try {
-          currentValue = await params.context.secrets.get(keyInfo.secretKey);
-        } catch {
-          currentValue = undefined;
-        }
-        const isCurrentlySet = typeof currentValue === 'string' && currentValue.trim().length > 0;
+  const runSecretCommandFlow = async (
+    spec: SecretCommandUiSpec,
+    buildPlan: () => Promise<SecretCommandPlan | undefined>
+  ): Promise<void> => {
+    try {
+      const plan = await buildPlan();
+      if (!plan) return;
 
-        if (isCurrentlySet) {
-          const action = await vscode.window.showQuickPick(
-            [
-              { label: 'Update', value: 'update', description: 'Enter a new value (stored securely)' },
-              { label: 'Clear', value: 'clear', description: 'Remove the stored value' },
-            ],
-            { title: options.title, placeHolder: 'Choose an action', canPickMany: false }
+      if (plan.isCurrentlySet) {
+        const action = await promptSecretAction(spec.title);
+        if (!action) return;
+        if (action === 'clear') {
+          const confirmed = await vscode.window.showWarningMessage(
+            plan.clearConfirmationMessage,
+            { modal: true },
+            'Clear'
           );
-          if (!action) return;
-          if (action.value === 'clear') {
-            const confirmed = await vscode.window.showWarningMessage(
-              `Clear ${options.title} for ${keyInfo.normalizedServerUrl}?`,
-              { modal: true },
-              'Clear'
-            );
-            if (confirmed !== 'Clear') return;
-            await params.context.secrets.delete(keyInfo.secretKey);
-            params.secrets.set(keyInfo.secretKey, undefined);
-            await updateConversationSettingsBestEffort({ [options.settingsKey]: undefined } as Partial<OpenHandsSettings['secrets']>);
-            void vscode.window.showInformationMessage(options.clearedMessage);
-            await syncSecretStatusIndicatorsBestEffort();
-            return;
-          }
+          if (confirmed !== 'Clear') return;
+          await plan.clearSecret();
+          vscode.window.showInformationMessage(spec.clearedMessage);
+          await syncSecretStatusIndicatorsBestEffort();
+          return;
         }
+      }
 
-        const value = await vscode.window.showInputBox({
-          title: options.title,
-          password: true,
-          prompt: options.prompt,
-          placeHolder: options.placeHolder,
-        });
-        if (value === undefined) return;
-        const trimmed = value.trim();
-        if (!trimmed) return;
+      const value = await vscode.window.showInputBox({
+        title: spec.title,
+        password: true,
+        prompt: spec.prompt,
+        placeHolder: spec.placeHolder,
+      });
+      if (value === undefined) return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
 
-        await params.context.secrets.store(keyInfo.secretKey, trimmed);
-        params.secrets.set(keyInfo.secretKey, trimmed);
-        await updateConversationSettingsBestEffort({ [options.settingsKey]: trimmed } as Partial<OpenHandsSettings['secrets']>);
-        void vscode.window.showInformationMessage(options.successMessage);
-        await syncSecretStatusIndicatorsBestEffort();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        void vscode.window.showErrorMessage(`${options.errorPrefix}: ${message}`);
+      await plan.setSecret(trimmed);
+      vscode.window.showInformationMessage(spec.successMessage);
+      await syncSecretStatusIndicatorsBestEffort();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      vscode.window.showErrorMessage(`${spec.errorPrefix}: ${message}`);
+    }
+  };
+
+  const commandSpecs: SecretCommandSpec[] = [
+    {
+      kind: 'settings',
+      commandId: 'openhands.setApiKey',
+      title: 'LLM API Key',
+      secretKey: 'llmApiKey',
+      prompt: 'Enter your LLM API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-...',
+      successMessage: 'LLM API Key saved securely.',
+      clearedMessage: 'LLM API Key cleared.',
+      errorPrefix: 'Failed to save API Key',
+    },
+    {
+      kind: 'storage',
+      commandId: 'openhands.setOpenAiApiKey',
+      title: 'OpenAI API Key',
+      storageKey: 'OPENAI_API_KEY',
+      prompt: 'Enter your OpenAI API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-...',
+      successMessage: 'OpenAI API key saved securely.',
+      clearedMessage: 'OpenAI API key cleared.',
+      errorPrefix: 'Failed to save OpenAI API key',
+    },
+    {
+      kind: 'storage',
+      commandId: 'openhands.setAnthropicApiKey',
+      title: 'Anthropic API Key',
+      storageKey: 'ANTHROPIC_API_KEY',
+      prompt: 'Enter your Anthropic API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-ant-...',
+      successMessage: 'Anthropic API key saved securely.',
+      clearedMessage: 'Anthropic API key cleared.',
+      errorPrefix: 'Failed to save Anthropic API key',
+    },
+    {
+      kind: 'storage',
+      commandId: 'openhands.setOpenRouterApiKey',
+      title: 'OpenRouter API Key',
+      storageKey: 'OPENROUTER_API_KEY',
+      prompt: 'Enter your OpenRouter API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-or-...',
+      successMessage: 'OpenRouter API key saved securely.',
+      clearedMessage: 'OpenRouter API key cleared.',
+      errorPrefix: 'Failed to save OpenRouter API key',
+    },
+    {
+      kind: 'storage',
+      commandId: 'openhands.setLiteLlmApiKey',
+      title: 'LiteLLM Proxy API Key',
+      storageKey: 'LITELLM_API_KEY',
+      prompt: 'Enter your LiteLLM Proxy API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-...',
+      successMessage: 'LiteLLM Proxy API key saved securely.',
+      clearedMessage: 'LiteLLM Proxy API key cleared.',
+      errorPrefix: 'Failed to save LiteLLM Proxy API key',
+    },
+    {
+      kind: 'storage',
+      commandId: 'openhands.setGeminiLlmApiKey',
+      title: 'Gemini API Key',
+      storageKey: 'GEMINI_API_KEY',
+      prompt: 'Enter your Gemini API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'AIza...',
+      successMessage: 'Gemini API key saved securely.',
+      clearedMessage: 'Gemini API key cleared.',
+      errorPrefix: 'Failed to save Gemini API key',
+    },
+    {
+      kind: 'perServer',
+      commandId: 'openhands.setCloudApiKey',
+      title: 'Cloud API Key',
+      settingsKey: 'cloudApiKey',
+      prompt: 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'paste token...',
+      missingServerMessage: 'OpenHands: Select a remote server before setting a Cloud API Key.',
+      invalidServerMessage: 'OpenHands: Cloud API Key is only used for OpenHands Cloud/SaaS servers.',
+      getSecretKey: getServerCloudApiKeySecretKey,
+      successMessage: 'Cloud API Key saved securely.',
+      clearedMessage: 'Cloud API Key cleared.',
+      errorPrefix: 'Failed to save Cloud API Key',
+    },
+    {
+      kind: 'perServer',
+      commandId: 'openhands.setRuntimeSessionApiKey',
+      title: 'Runtime Session API Key',
+      settingsKey: 'runtimeSessionApiKey',
+      prompt: 'Enter the runtime session API key (`session_api_key`) for the remote agent-server. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'sk-...',
+      missingServerMessage: 'OpenHands: Select a remote server before setting a Runtime Session API Key.',
+      getSecretKey: getServerRuntimeSessionApiKeySecretKey,
+      successMessage: 'Runtime Session API Key saved securely.',
+      clearedMessage: 'Runtime Session API Key cleared.',
+      errorPrefix: 'Failed to save Runtime Session API Key',
+    },
+    {
+      kind: 'settings',
+      commandId: 'openhands.setGithubToken',
+      title: 'GitHub Token',
+      secretKey: 'githubToken',
+      prompt: 'Enter your GitHub token. It will be stored securely in VS Code SecretStorage.',
+      placeHolder: 'ghp_...',
+      successMessage: 'GitHub token saved securely.',
+      clearedMessage: 'GitHub token cleared.',
+      errorPrefix: 'Failed to save GitHub token',
+    },
+    {
+      kind: 'settings',
+      commandId: 'openhands.setHalTtsApiKey',
+      title: 'HAL TTS API Key',
+      secretKey: 'halTtsApiKey',
+      prompt: 'Enter your HAL TTS API key. It will be stored securely in VS Code SecretStorage (currently used for the ElevenLabs backend).',
+      placeHolder: 'xi-...',
+      successMessage: 'HAL TTS API key saved securely.',
+      clearedMessage: 'HAL TTS API key cleared.',
+      errorPrefix: 'Failed to save HAL TTS API key',
+    },
+    {
+      kind: 'settings',
+      commandId: 'openhands.setCustomSecret1',
+      title: 'Custom Secret 1',
+      secretKey: 'customSecret1',
+      prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+      successMessage: 'Custom secret 1 saved securely.',
+      clearedMessage: 'Custom secret 1 cleared.',
+      errorPrefix: 'Failed to save custom secret 1',
+    },
+    {
+      kind: 'settings',
+      commandId: 'openhands.setCustomSecret2',
+      title: 'Custom Secret 2',
+      secretKey: 'customSecret2',
+      prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+      successMessage: 'Custom secret 2 saved securely.',
+      clearedMessage: 'Custom secret 2 cleared.',
+      errorPrefix: 'Failed to save custom secret 2',
+    },
+    {
+      kind: 'settings',
+      commandId: 'openhands.setCustomSecret3',
+      title: 'Custom Secret 3',
+      secretKey: 'customSecret3',
+      prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
+      successMessage: 'Custom secret 3 saved securely.',
+      clearedMessage: 'Custom secret 3 cleared.',
+      errorPrefix: 'Failed to save custom secret 3',
+    },
+  ];
+
+  const registerSecretCommand = (spec: SecretCommandSpec): vscode.Disposable =>
+    vscode.commands.registerCommand(spec.commandId, async () => {
+      switch (spec.kind) {
+        case 'settings':
+          await runSecretCommandFlow(spec, async () => {
+            const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
+            const existing = await settingsMgr.get();
+            const currentValue = existing.secrets[spec.secretKey];
+            const updateAndSync = async (value: string | undefined): Promise<void> => {
+              const secretsUpdate = { [spec.secretKey]: value } as Partial<OpenHandsSettings['secrets']>;
+              await settingsMgr.update({ secrets: secretsUpdate });
+              const newSettings = await settingsMgr.get();
+              params.getConversation()?.setSettings(newSettings);
+            };
+            return {
+              isCurrentlySet: typeof currentValue === 'string' && currentValue.trim().length > 0,
+              clearConfirmationMessage: `Clear ${spec.title}?`,
+              clearSecret: async () => updateAndSync(undefined),
+              setSecret: async (value: string) => updateAndSync(value),
+            };
+          });
+          return;
+        case 'storage':
+          await runSecretCommandFlow(spec, async () => {
+            const currentValue = await params.context.secrets.get(spec.storageKey);
+            return {
+              isCurrentlySet: typeof currentValue === 'string' && currentValue.trim().length > 0,
+              clearConfirmationMessage: `Clear ${spec.title}?`,
+              clearSecret: async () => {
+                await params.context.secrets.delete(spec.storageKey);
+                params.secrets.set(spec.storageKey, undefined);
+              },
+              setSecret: async (value: string) => {
+                await params.context.secrets.store(spec.storageKey, value);
+                params.secrets.set(spec.storageKey, value);
+              },
+            };
+          });
+          return;
+        case 'perServer':
+          await runSecretCommandFlow(spec, async () => {
+            const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(params.context));
+            const existing = await settingsMgr.get();
+            const serverUrl = typeof existing.serverUrl === 'string' ? existing.serverUrl.trim() : '';
+            if (!serverUrl) {
+              void vscode.window.showErrorMessage(spec.missingServerMessage);
+              return undefined;
+            }
+            if (spec.invalidServerMessage && !isOpenHandsCloudServerUrl(serverUrl)) {
+              void vscode.window.showErrorMessage(spec.invalidServerMessage);
+              return undefined;
+            }
+
+            const keyInfo = spec.getSecretKey(serverUrl);
+            if (!keyInfo.ok) {
+              void vscode.window.showErrorMessage(`OpenHands: Invalid server URL: ${keyInfo.error}`);
+              return undefined;
+            }
+
+            let currentValue: string | undefined;
+            try {
+              currentValue = await params.context.secrets.get(keyInfo.secretKey);
+            } catch {
+              currentValue = undefined;
+            }
+
+            return {
+              isCurrentlySet: typeof currentValue === 'string' && currentValue.trim().length > 0,
+              clearConfirmationMessage: `Clear ${spec.title} for ${keyInfo.normalizedServerUrl}?`,
+              clearSecret: async () => {
+                await params.context.secrets.delete(keyInfo.secretKey);
+                params.secrets.set(keyInfo.secretKey, undefined);
+                await updateConversationSettingsBestEffort({ [spec.settingsKey]: undefined } as Partial<OpenHandsSettings['secrets']>);
+              },
+              setSecret: async (value: string) => {
+                await params.context.secrets.store(keyInfo.secretKey, value);
+                params.secrets.set(keyInfo.secretKey, value);
+                await updateConversationSettingsBestEffort({ [spec.settingsKey]: value } as Partial<OpenHandsSettings['secrets']>);
+              },
+            };
+          });
+          return;
       }
     });
 
-  const setCloudApiKey = registerPerServerSecretCommand('openhands.setCloudApiKey', {
-    title: 'Cloud API Key',
-    prompt: 'Enter your OpenHands Cloud API key. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'paste token...',
-    missingServerMessage: 'OpenHands: Select a remote server before setting a Cloud API Key.',
-    invalidServerMessage: 'OpenHands: Cloud API Key is only used for OpenHands Cloud/SaaS servers.',
-    getSecretKey: getServerCloudApiKeySecretKey,
-    settingsKey: 'cloudApiKey',
-    successMessage: 'Cloud API Key saved securely.',
-    clearedMessage: 'Cloud API Key cleared.',
-    errorPrefix: 'Failed to save Cloud API Key',
-  });
-
-  const setRuntimeSessionApiKey = registerPerServerSecretCommand('openhands.setRuntimeSessionApiKey', {
-    title: 'Runtime Session API Key',
-    prompt: 'Enter the runtime session API key (`session_api_key`) for the remote agent-server. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'sk-...',
-    missingServerMessage: 'OpenHands: Select a remote server before setting a Runtime Session API Key.',
-    getSecretKey: getServerRuntimeSessionApiKeySecretKey,
-    settingsKey: 'runtimeSessionApiKey',
-    successMessage: 'Runtime Session API Key saved securely.',
-    clearedMessage: 'Runtime Session API Key cleared.',
-    errorPrefix: 'Failed to save Runtime Session API Key',
-  });
-
-  const setGithubToken = registerSecretCommand('openhands.setGithubToken', {
-    title: 'GitHub Token',
-    secretKey: 'githubToken',
-    prompt: 'Enter your GitHub token. It will be stored securely in VS Code SecretStorage.',
-    placeHolder: 'ghp_...',
-    successMessage: 'GitHub token saved securely.',
-    clearedMessage: 'GitHub token cleared.',
-    errorPrefix: 'Failed to save GitHub token',
-  });
-
-  const setHalTtsApiKey = registerSecretCommand('openhands.setHalTtsApiKey', {
-    title: 'HAL TTS API Key',
-    secretKey: 'halTtsApiKey',
-    prompt: 'Enter your HAL TTS API key. It will be stored securely in VS Code SecretStorage (currently used for the ElevenLabs backend).',
-    placeHolder: 'xi-...',
-    successMessage: 'HAL TTS API key saved securely.',
-    clearedMessage: 'HAL TTS API key cleared.',
-    errorPrefix: 'Failed to save HAL TTS API key',
-  });
-
-  const setCustomSecret1 = registerSecretCommand('openhands.setCustomSecret1', {
-    title: 'Custom Secret 1',
-    secretKey: 'customSecret1',
-    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Custom secret 1 saved securely.',
-    clearedMessage: 'Custom secret 1 cleared.',
-    errorPrefix: 'Failed to save custom secret 1',
-  });
-
-  const setCustomSecret2 = registerSecretCommand('openhands.setCustomSecret2', {
-    title: 'Custom Secret 2',
-    secretKey: 'customSecret2',
-    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Custom secret 2 saved securely.',
-    clearedMessage: 'Custom secret 2 cleared.',
-    errorPrefix: 'Failed to save custom secret 2',
-  });
-
-  const setCustomSecret3 = registerSecretCommand('openhands.setCustomSecret3', {
-    title: 'Custom Secret 3',
-    secretKey: 'customSecret3',
-    prompt: 'Enter a secret value. It will be stored securely in VS Code SecretStorage.',
-    successMessage: 'Custom secret 3 saved securely.',
-    clearedMessage: 'Custom secret 3 cleared.',
-    errorPrefix: 'Failed to save custom secret 3',
-  });
-
   void syncSecretStatusIndicatorsBestEffort();
 
-  return [
-    setApiKey,
-    setOpenAiApiKey,
-    setAnthropicApiKey,
-    setOpenRouterApiKey,
-    setLiteLlmApiKey,
-    setGeminiLlmApiKey,
-    setCloudApiKey,
-    setRuntimeSessionApiKey,
-    setGithubToken,
-    setHalTtsApiKey,
-    setCustomSecret1,
-    setCustomSecret2,
-    setCustomSecret3,
-  ];
+  return commandSpecs.map(registerSecretCommand);
 }
