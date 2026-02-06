@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 import { listProfiles } from '@openhands/agent-sdk-ts';
-import type { OpenHandsSettings } from '../settings/SettingsManager';
+import type { OpenHandsSettings } from './settingsTypes';
 
 const PROVIDER_STORAGE_KEYS = [
   'OPENAI_API_KEY',
@@ -60,4 +60,3 @@ export async function computeWelcomeSecretStatus(args: {
   const hasProviderKey = hasGeminiKey || hasGenericKey || hasAnyProviderStorageKey || hasAnyProfileKey;
   return { hasProviderKey, hasGeminiKey };
 }
-
