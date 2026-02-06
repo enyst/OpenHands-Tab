@@ -4,6 +4,13 @@ import { promisify } from 'node:util';
 import type { ChatCompletionRequest, LLMClient } from '../llm';
 import { getGeminiClient } from './geminiClient';
 import type { SecretRegistry } from './SecretRegistry';
+import {
+  clipTextMiddle,
+  collectStreamedText,
+  maskSecrets,
+  resolveNonNegativeIntOption,
+  truncateSummary,
+} from './summarizerCommon';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,42 +31,11 @@ const DEFAULT_MAX_PROMPT_CHARS = 4_000;
 const DEFAULT_MAX_SUMMARY_CHARS = 5_000;
 const CLIP_MARKER = '<diff clipped>';
 
-const resolveNonNegativeIntOption = (value: unknown, defaultValue: number): number => {
-  if (value === undefined) return defaultValue;
-  if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
-  return Math.max(0, Math.trunc(value));
-};
-
-const clipTextMiddle = (text: string, maxChars: number): string => {
-  if (maxChars <= 0) return '';
-  if (text.length <= maxChars) return text;
-  const markerBudget = CLIP_MARKER.length + 2;
-  if (maxChars < markerBudget) return text.slice(0, maxChars);
-  const available = maxChars - markerBudget;
-  const headLen = Math.ceil(available / 2);
-  const tailLen = Math.floor(available / 2);
-  const head = text.slice(0, headLen);
-  const tail = tailLen === 0 ? '' : text.slice(-tailLen);
-  return `${head}\n${CLIP_MARKER}\n${tail}`;
-};
-
 const getLineCount = (text: string): number => {
   if (!text) return 0;
   return text.split('\n').length;
 };
 
-const maskSecrets = (text: string, secrets: SecretRegistry): string => {
-  let masked = text;
-  const values = secrets
-    .getRegisteredValues()
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0)
-    .sort((a, b) => b.length - a.length);
-  for (const value of values) {
-    masked = masked.replaceAll(value, '***');
-  }
-  return masked;
-};
 
 const computeChangedRegion = (oldContent: string, newContent: string) => {
   const oldLines = oldContent.split('\n');
@@ -158,7 +134,7 @@ export async function summarizeFileChangesWithGeminiFlash(
     newChangedText || '(empty)',
   ].join('\n');
 
-  const safePrompt = clipTextMiddle(maskSecrets(rawPrompt, options.secrets), maxPromptChars);
+  const safePrompt = clipTextMiddle(maskSecrets(rawPrompt, options.secrets), maxPromptChars, CLIP_MARKER);
   const request: ChatCompletionRequest = {
     systemPrompt: 'You summarize diffs for an IDE UI.',
     messages: [{ role: 'user', content: [{ type: 'text', text: safePrompt }] }],
@@ -170,14 +146,9 @@ export async function summarizeFileChangesWithGeminiFlash(
       usageId: 'file-diff-summarizer',
       profileId: 'gemini-flash-summarizer',
     }));
-  let text = '';
-  for await (const chunk of client.streamChat(request)) {
-    if (chunk.type === 'text') text += chunk.text;
-  }
+  const text = await collectStreamedText(client, request);
 
   const summary = maskSecrets(text, options.secrets).trim();
   if (!summary) return undefined;
-  if (summary.length <= maxSummaryChars) return summary;
-  if (maxSummaryChars === 1) return '…';
-  return summary.slice(0, maxSummaryChars - 1) + '…';
+  return truncateSummary(summary, maxSummaryChars);
 }
