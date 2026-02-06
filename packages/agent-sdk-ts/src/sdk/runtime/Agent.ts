@@ -11,7 +11,6 @@ import {
   DEFAULT_PROVIDER_BASE_URLS,
   detectProviderFromBaseUrl,
   getEffectiveLlmConfigForCondensation as resolveCondensationLlmConfig,
-  isContextLimitError,
   loadProfile,
   wouldExceedMaxInputTokens,
 } from '../llm';
@@ -48,6 +47,11 @@ import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
 import { buildChatRequestWithCondensation, tryCondenseConversation as tryCondenseConversationWithDeps } from './condensation';
+import {
+  resolveCondensationBudget,
+  shouldRetryWithCondensationAfterError,
+  shouldTryCondensationBeforeRequest,
+} from './runLoopDecisions';
 import { buildLlmRequestParametersForDebug } from '../llm/debug';
 import { StuckDetector } from '../conversation/stuckDetector';
 import type { ConfirmationPolicy, SecurityAnalyzer } from '../security';
@@ -538,28 +542,33 @@ export class Agent extends EventEmitter {
     void this.pushEventWithHooks({ kind: 'PauseEvent', source: 'agent' } as Event);
   }
 
-  private async runLoop(): Promise<Message | undefined> {
-    if (this.paused || this.pendingAction || this.cancelled || this.finished) {
-      return undefined;
-    }
+  private isRunLoopBlocked(): boolean {
+    return this.paused || Boolean(this.pendingAction) || this.cancelled || this.finished;
+  }
 
-    const maxIterations = this.clampMaxIterations();
+  private shouldContinueRunLoop(maxIterations: number): boolean {
+    return !this.isRunLoopBlocked() && this.state.snapshot.iteration < maxIterations;
+  }
 
-    // Check if we've already reached maxIterations
-    if (this.state.snapshot.iteration >= maxIterations) {
-      await this.pushEventWithHooks({
-        kind: 'ConversationErrorEvent',
-        source: 'agent',
-        code: 'max_iterations_exceeded',
-        detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
-      });
-      this.state.setStatus('IDLE');
-      return undefined;
-    }
+  private async emitMaxIterationsExceeded(maxIterations: number): Promise<void> {
+    await this.pushEventWithHooks({
+      kind: 'ConversationErrorEvent',
+      source: 'agent',
+      code: 'max_iterations_exceeded',
+      detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
+    });
+    this.state.setStatus('IDLE');
+  }
 
-    let streamer: LLMStreamer;
+  private async ensureWithinIterationLimit(maxIterations: number): Promise<boolean> {
+    if (this.state.snapshot.iteration < maxIterations) return true;
+    await this.emitMaxIterationsExceeded(maxIterations);
+    return false;
+  }
+
+  private async initializeStreamerForRunLoop(): Promise<LLMStreamer | undefined> {
     try {
-      streamer = await this.getStreamer();
+      return await this.getStreamer();
     } catch (error) {
       const classified = classifyError(error, { stage: 'llm_init' });
       await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
@@ -568,95 +577,138 @@ export class Agent extends EventEmitter {
       this.llmClientCache.clear();
       return undefined;
     }
-    let lastAssistantMessage: Message | undefined;
+  }
 
-    const stuckDetector = this.options.settings?.conversation?.stuckDetection
-      ? new StuckDetector(this.options.settings?.conversation?.stuckThresholds ?? {})
-      : undefined;
+  private createStuckDetector(): StuckDetector | undefined {
+    if (!this.options.settings?.conversation?.stuckDetection) return undefined;
+    return new StuckDetector(this.options.settings?.conversation?.stuckThresholds ?? {});
+  }
 
+  private async shouldStopCurrentIteration(stuckDetector: StuckDetector | undefined): Promise<boolean> {
+    if (await this.shouldStopByHooks({ state: this.state, events: this.events })) {
+      this.state.setStatus('IDLE');
+      return true;
+    }
 
-    while (!this.paused && !this.pendingAction && !this.cancelled && !this.finished && this.state.snapshot.iteration < maxIterations) {
-      this.state.setStatus('RUNNING');
+    if (!stuckDetector) return false;
+    const stuck = stuckDetector.detect(this.events.list());
+    if (!stuck.stuck) return false;
 
-      if (await this.shouldStopByHooks({ state: this.state, events: this.events })) {
-        this.state.setStatus('IDLE');
-        break;
-      }
+    await this.pushEventWithHooks({
+      kind: 'ConversationErrorEvent',
+      source: 'agent',
+      code: 'stuck_detected',
+      detail: stuck.reason ?? 'Agent appears to be stuck in a loop.',
+    } as Event);
+    this.state.setStatus('IDLE');
+    return true;
+  }
 
+  private async tryCondenseConversation(maxInputTokens: number): Promise<boolean> {
+    return tryCondenseConversationWithDeps({
+      maxInputTokens,
+      listEvents: () => this.events.list(),
+      getPrimaryLlmClient: () => this.getPrimaryLlmClient(),
+      pushEvent: (event) => this.pushEventWithHooks(event),
+    });
+  }
 
-      if (stuckDetector) {
-        const stuck = stuckDetector.detect(this.events.list());
-        if (stuck.stuck) {
+  private async requestAssistantResponse(
+    streamer: LLMStreamer,
+  ): Promise<Awaited<ReturnType<LLMStreamer['runChat']>> | undefined> {
+    const llmConfig = resolveCondensationLlmConfig(this.options.settings);
+
+    // Debug logging for mid-run settings tracking (oh-tab-rw1k)
+    const currentModel = this.options.settings?.llm?.model;
+    const currentProfileId = this.options.settings?.llm?.profileId;
+    const hasStreamerPromise = this.llmClientCache.hasStreamerPromise();
+    this.emitDebugStateUpdate('agent_run_loop_state', {
+      iteration: this.state.snapshot.iteration,
+      settings: {
+        profileId: currentProfileId ?? null,
+        model: currentModel ?? null,
+      },
+      cached: { streamerPromise: hasStreamerPromise },
+    });
+
+    // Condensation is token-budget based: before calling the LLM (and again if we hit a context-limit
+    // error), we may summarize the conversation to shrink the next request.
+    for (let condensationAttempt = 0; condensationAttempt <= MAX_CONDENSATIONS_PER_STEP; condensationAttempt += 1) {
+      const request = buildChatRequestWithCondensation({
+        events: this.events.list(),
+        systemPrompt: this.buildSystemPrompt(),
+        tools: this.getToolDefinitions(),
+        pastedImagesBaseDir: this.options.pastedImagesBaseDir,
+      });
+
+      // Emit a lightweight debug/state event so hosts can log what tools are actually sent
+      try {
+        const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
+        await this.pushEventWithHooks({
+          kind: 'ConversationStateUpdateEvent',
+          source: 'agent',
+          key: 'llm_request',
+          value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
+        } as Event);
+      } catch (error) {
+        if (this.debug) {
+          console.warn('[Agent] Failed to emit llm_request debug event:', error);
           await this.pushEventWithHooks({
             kind: 'ConversationErrorEvent',
             source: 'agent',
-            code: 'stuck_detected',
-            detail: stuck.reason ?? 'Agent appears to be stuck in a loop.',
+            detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
           } as Event);
-          this.state.setStatus('IDLE');
-          break;
         }
       }
 
-      const llmConfig = resolveCondensationLlmConfig(this.options.settings);
-
-      // Debug logging for mid-run settings tracking (oh-tab-rw1k)
-      const currentModel = this.options.settings?.llm?.model;
-      const currentProfileId = this.options.settings?.llm?.profileId;
-      const hasStreamerPromise = this.llmClientCache.hasStreamerPromise();
-      this.emitDebugStateUpdate('agent_run_loop_state', {
-        iteration: this.state.snapshot.iteration,
-        settings: {
-          profileId: currentProfileId ?? null,
-          model: currentModel ?? null,
-        },
-        cached: { streamerPromise: hasStreamerPromise },
-      });
-
-      let response: Awaited<ReturnType<LLMStreamer['runChat']>> | undefined;
-
-      // Condensation is token-budget based: before calling the LLM (and again if we hit a context-limit
-      // error), we may summarize the conversation to shrink the next request.
-      for (let condensationAttempt = 0; condensationAttempt <= MAX_CONDENSATIONS_PER_STEP; condensationAttempt += 1) {
-        const request = buildChatRequestWithCondensation({
-          events: this.events.list(),
-          systemPrompt: this.buildSystemPrompt(),
-          tools: this.getToolDefinitions(),
-          pastedImagesBaseDir: this.options.pastedImagesBaseDir,
-        });
-
-        // Emit a lightweight debug/state event so hosts can log what tools are actually sent
+      if (this.debug) {
         try {
-          const toolNames = (request.tools ?? []).map((t) => t.function?.name).filter(Boolean);
+          const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
+          const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
+          const debugParameters = buildLlmRequestParametersForDebug({
+            llmSettings: this.options.settings.llm,
+            model: llmConfig.model,
+          });
           await this.pushEventWithHooks({
             kind: 'ConversationStateUpdateEvent',
             source: 'agent',
-            key: 'llm_request',
-            value: { model: this.options.settings?.llm?.model, tool_count: toolNames.length, tools: toolNames },
+            key: 'llm_request_payload',
+            value: {
+              llm: {
+                provider,
+                model: llmConfig.model,
+                baseUrl,
+                ...(typeof llmConfig.openaiApiMode === 'string' ? { openaiApiMode: llmConfig.openaiApiMode } : {}),
+              },
+              request: sanitizeChatRequestForDebug(request, { parameters: debugParameters }),
+            },
           } as Event);
         } catch (error) {
-          if (this.debug) {
-            console.warn('[Agent] Failed to emit llm_request debug event:', error);
-            await this.pushEventWithHooks({
-              kind: 'ConversationErrorEvent',
-              source: 'agent',
-              detail: `Debug event emission failed: ${error instanceof Error ? error.message : String(error)}`,
-            } as Event);
-          }
+          console.warn('[Agent] Failed to emit llm_request_payload debug event:', error);
         }
+      }
 
+      const configuredMaxInputTokens = llmConfig.maxInputTokens;
+      if (shouldTryCondensationBeforeRequest({
+        attempt: condensationAttempt,
+        maxAttempts: MAX_CONDENSATIONS_PER_STEP,
+        configuredMaxInputTokens,
+        requestExceedsTokenBudget: wouldExceedMaxInputTokens({ request, maxInputTokens: configuredMaxInputTokens }),
+      }) && typeof configuredMaxInputTokens === 'number') {
+        const condensed = await this.tryCondenseConversation(configuredMaxInputTokens);
+        if (condensed) continue;
+      }
+
+      try {
+        const result = await streamer.runChat(request);
         if (this.debug) {
           try {
             const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
             const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
-            const debugParameters = buildLlmRequestParametersForDebug({
-              llmSettings: this.options.settings.llm,
-              model: llmConfig.model,
-            });
             await this.pushEventWithHooks({
               kind: 'ConversationStateUpdateEvent',
               source: 'agent',
-              key: 'llm_request_payload',
+              key: 'llm_response_payload',
               value: {
                 llm: {
                   provider,
@@ -664,197 +716,196 @@ export class Agent extends EventEmitter {
                   baseUrl,
                   ...(typeof llmConfig.openaiApiMode === 'string' ? { openaiApiMode: llmConfig.openaiApiMode } : {}),
                 },
-                request: sanitizeChatRequestForDebug(request, { parameters: debugParameters }),
+                response: {
+                  message: sanitizeMessageForDebug(result.message),
+                  usage: result.usage,
+                },
               },
             } as Event);
           } catch (error) {
-            console.warn('[Agent] Failed to emit llm_request_payload debug event:', error);
+            console.warn('[Agent] Failed to emit llm_response_payload debug event:', error);
           }
         }
-
-        const configuredMaxInputTokens = llmConfig.maxInputTokens;
-        if (
-          condensationAttempt < MAX_CONDENSATIONS_PER_STEP &&
-          typeof configuredMaxInputTokens === 'number' &&
-          wouldExceedMaxInputTokens({ request, maxInputTokens: configuredMaxInputTokens })
-        ) {
-          const condensed = await tryCondenseConversationWithDeps({
-            maxInputTokens: configuredMaxInputTokens,
-            listEvents: () => this.events.list(),
-            getPrimaryLlmClient: () => this.getPrimaryLlmClient(),
-            pushEvent: (event) => this.pushEventWithHooks(event),
-          });
+        return result;
+      } catch (error) {
+        if (shouldRetryWithCondensationAfterError({
+          attempt: condensationAttempt,
+          maxAttempts: MAX_CONDENSATIONS_PER_STEP,
+          llmProvider: llmConfig.provider,
+          error,
+        })) {
+          const budget = resolveCondensationBudget(
+            configuredMaxInputTokens,
+            FALLBACK_CONDENSATION_MAX_INPUT_TOKENS,
+          );
+          const condensed = await this.tryCondenseConversation(budget);
           if (condensed) continue;
         }
 
-        try {
-          const result = await streamer.runChat(request);
-          response = result;
-          if (this.debug) {
-            try {
-              const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
-              const baseUrl = llmConfig.baseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider];
-              await this.pushEventWithHooks({
-                kind: 'ConversationStateUpdateEvent',
-                source: 'agent',
-                key: 'llm_response_payload',
-                value: {
-                  llm: {
-                    provider,
-                    model: llmConfig.model,
-                    baseUrl,
-                    ...(typeof llmConfig.openaiApiMode === 'string' ? { openaiApiMode: llmConfig.openaiApiMode } : {}),
-                  },
-                  response: {
-                    message: sanitizeMessageForDebug(result.message),
-                    usage: result.usage,
-                  },
-                },
-              } as Event);
-            } catch (error) {
-              console.warn('[Agent] Failed to emit llm_response_payload debug event:', error);
-            }
-          }
-          break;
-        } catch (error) {
-          if (condensationAttempt < MAX_CONDENSATIONS_PER_STEP && isContextLimitError(llmConfig.provider, error)) {
-            const budget = configuredMaxInputTokens ?? FALLBACK_CONDENSATION_MAX_INPUT_TOKENS;
-            const condensed = await tryCondenseConversationWithDeps({
-              maxInputTokens: budget,
-              listEvents: () => this.events.list(),
-              getPrimaryLlmClient: () => this.getPrimaryLlmClient(),
-              pushEvent: (event) => this.pushEventWithHooks(event),
-            });
-            if (condensed) continue;
-          }
-
-          const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
-          const classified = classifyError(error, { stage: 'llm_request', llmProvider: provider });
-          await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
-          this.state.setStatus('IDLE');
-          response = undefined;
-          break;
-        }
-      }
-
-      if (!response) break;
-
-      const assistantEvent: MessageEvent = {
-        kind: 'MessageEvent',
-        source: 'agent',
-        llm_message: response.message,
-      };
-      await this.pushEventWithHooks(assistantEvent);
-      if (response.usage) {
-        this.state.setValue('llm_usage', response.usage);
-      }
-      this.state.incrementIteration();
-      lastAssistantMessage = response.message;
-
-      // Check if paused during streaming - don't execute tool calls
-      if (this.paused || this.cancelled) {
-        break;
-      }
-
-      const toolCalls = response.message.tool_calls ?? [];
-      if (!toolCalls.length) {
+        const provider = llmConfig.provider ?? detectProviderFromBaseUrl(llmConfig.baseUrl);
+        const classified = classifyError(error, { stage: 'llm_request', llmProvider: provider });
+        await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: classified.code }));
         this.state.setStatus('IDLE');
-        break;
+        return undefined;
       }
+    }
 
-      let toolExecutionFailed = false;
-      let finishedThisTurn = false;
-      for (const toolCall of toolCalls) {
-        // Log raw tool call for debugging visibility
-        try {
-          const rawArgs = toolCall.function?.arguments ?? '';
-          const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : rawArgs;
+    return undefined;
+  }
+
+  private async executeToolCallBatch(
+    responseMessage: Message,
+  ): Promise<'paused' | 'conversation_error' | 'finished' | 'failed' | 'completed'> {
+    const toolCalls = responseMessage.tool_calls ?? [];
+    let toolExecutionFailed = false;
+    let finishedThisTurn = false;
+
+    for (const toolCall of toolCalls) {
+      // Log raw tool call for debugging visibility
+      try {
+        const rawArgs = toolCall.function?.arguments ?? '';
+        const safeArgs = typeof rawArgs === 'string' ? redactAndTruncateArgs(rawArgs) : rawArgs;
+        await this.pushEventWithHooks({
+          kind: 'ConversationStateUpdateEvent',
+          source: 'agent',
+          key: 'llm_tool_call_raw',
+          value: {
+            id: toolCall.id,
+            name: toolCall.function?.name ?? '',
+            arguments: safeArgs,
+          },
+        } as Event);
+      } catch (error) {
+        if (this.debug) {
+          console.warn('[Agent] Failed to emit tool_call_raw debug event:', error);
           await this.pushEventWithHooks({
-            kind: 'ConversationStateUpdateEvent',
+            kind: 'ConversationErrorEvent',
             source: 'agent',
-            key: 'llm_tool_call_raw',
-            value: {
-              id: toolCall.id,
-              name: toolCall.function?.name ?? '',
-              arguments: safeArgs,
-            },
+            detail: `Debug event emission failed for tool call: ${error instanceof Error ? error.message : String(error)}`,
           } as Event);
-        } catch (error) {
-          if (this.debug) {
-            console.warn('[Agent] Failed to emit tool_call_raw debug event:', error);
-            await this.pushEventWithHooks({
-              kind: 'ConversationErrorEvent',
-              source: 'agent',
-              detail: `Debug event emission failed for tool call: ${error instanceof Error ? error.message : String(error)}`,
-            } as Event);
-          }
-        }
-
-        const parsed = this.parseToolArgs(toolCall);
-        if (!parsed) {
-          toolExecutionFailed = true;
-          continue;
-        }
-        const { args, securityRisk } = parsed;
-        const actionArgs = args ?? {};
-
-        const actionEvent = this.createActionEvent(response.message, toolCall, args, securityRisk);
-        const recordedAction = await this.pushEventWithHooks(actionEvent);
-
-        if (finishedThisTurn) {
-          await this.emitSkippedToolCall(toolCall, recordedAction, 'Skipped: finish tool already called in this run.');
-          continue;
-        }
-
-        const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, actionArgs);
-        if (workspaceAccess) {
-          this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs }, workspaceAccess);
-          return lastAssistantMessage;
-        }
-
-        if (this.requiresConfirmation(recordedAction)) {
-          this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs });
-          return lastAssistantMessage;
-        }
-
-        try {
-          await this.executeTool(toolCall, recordedAction, actionArgs);
-          if (toolCall.function.name === 'finish') {
-            finishedThisTurn = true;
-            this.finished = true;
-          }
-        } catch (error) {
-          if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
-            await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
-            this.state.setStatus('IDLE');
-            return lastAssistantMessage;
-          }
-          toolExecutionFailed = true;
-          // Continue processing other tool calls but mark this iteration as failed
         }
       }
+
+      const parsed = this.parseToolArgs(toolCall);
+      if (!parsed) {
+        toolExecutionFailed = true;
+        continue;
+      }
+      const { args, securityRisk } = parsed;
+      const actionArgs = args ?? {};
+
+      const actionEvent = this.createActionEvent(responseMessage, toolCall, args, securityRisk);
+      const recordedAction = await this.pushEventWithHooks(actionEvent);
 
       if (finishedThisTurn) {
-        this.state.setStatus('IDLE');
-        break;
-      }
-
-      if (toolExecutionFailed) {
-        this.state.setStatus('IDLE');
+        await this.emitSkippedToolCall(toolCall, recordedAction, 'Skipped: finish tool already called in this run.');
         continue;
       }
 
-      // Check if we've reached maxIterations
-      if (this.state.snapshot.iteration >= maxIterations) {
-        await this.pushEventWithHooks({
-          kind: 'ConversationErrorEvent',
-          source: 'agent',
-          code: 'max_iterations_exceeded',
-          detail: `Agent reached the maximum iteration limit (${maxIterations}). You can increase this limit in Settings > OpenHands > Conversation > Max Iterations and continue the conversation.`,
-        });
-        this.state.setStatus('IDLE');
-        break;
+      const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, actionArgs);
+      if (workspaceAccess) {
+        this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs }, workspaceAccess);
+        return 'paused';
       }
+
+      if (this.requiresConfirmation(recordedAction)) {
+        this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs });
+        return 'paused';
+      }
+
+      try {
+        await this.executeTool(toolCall, recordedAction, actionArgs);
+        if (toolCall.function.name === 'finish') {
+          finishedThisTurn = true;
+          this.finished = true;
+        }
+      } catch (error) {
+        if (error instanceof ClassifiedToolExecutionError && error.classification === 'conversation') {
+          await this.pushEventWithHooks(this.toConversationErrorEvent(error, { code: error.code, message: error.message }));
+          this.state.setStatus('IDLE');
+          return 'conversation_error';
+        }
+        toolExecutionFailed = true;
+        // Continue processing other tool calls but mark this iteration as failed.
+      }
+    }
+
+    if (finishedThisTurn) return 'finished';
+    if (toolExecutionFailed) return 'failed';
+    return 'completed';
+  }
+
+  private async processAssistantResponseStep(
+    response: Awaited<ReturnType<LLMStreamer['runChat']>>,
+    maxIterations: number,
+  ): Promise<{ lastAssistantMessage: Message; returnEarly: boolean; stopLoop: boolean }> {
+    const assistantEvent: MessageEvent = {
+      kind: 'MessageEvent',
+      source: 'agent',
+      llm_message: response.message,
+    };
+    await this.pushEventWithHooks(assistantEvent);
+    if (response.usage) {
+      this.state.setValue('llm_usage', response.usage);
+    }
+    this.state.incrementIteration();
+    const lastAssistantMessage = response.message;
+
+    // Check if paused during streaming - don't execute tool calls.
+    if (this.paused || this.cancelled) {
+      return { lastAssistantMessage, returnEarly: false, stopLoop: true };
+    }
+
+    const toolCalls = response.message.tool_calls ?? [];
+    if (!toolCalls.length) {
+      this.state.setStatus('IDLE');
+      return { lastAssistantMessage, returnEarly: false, stopLoop: true };
+    }
+
+    const batchResult = await this.executeToolCallBatch(response.message);
+    if (batchResult === 'paused' || batchResult === 'conversation_error') {
+      return { lastAssistantMessage, returnEarly: true, stopLoop: true };
+    }
+    if (batchResult === 'finished') {
+      this.state.setStatus('IDLE');
+      return { lastAssistantMessage, returnEarly: false, stopLoop: true };
+    }
+    if (batchResult === 'failed') {
+      this.state.setStatus('IDLE');
+      return { lastAssistantMessage, returnEarly: false, stopLoop: false };
+    }
+
+    if (!(await this.ensureWithinIterationLimit(maxIterations))) {
+      return { lastAssistantMessage, returnEarly: false, stopLoop: true };
+    }
+
+    return { lastAssistantMessage, returnEarly: false, stopLoop: false };
+  }
+
+  private async runLoop(): Promise<Message | undefined> {
+    if (this.isRunLoopBlocked()) return undefined;
+
+    const maxIterations = this.clampMaxIterations();
+    if (!(await this.ensureWithinIterationLimit(maxIterations))) return undefined;
+
+    const streamer = await this.initializeStreamerForRunLoop();
+    if (!streamer) return undefined;
+
+    let lastAssistantMessage: Message | undefined;
+    const stuckDetector = this.createStuckDetector();
+
+    while (this.shouldContinueRunLoop(maxIterations)) {
+      this.state.setStatus('RUNNING');
+
+      if (await this.shouldStopCurrentIteration(stuckDetector)) break;
+
+      const response = await this.requestAssistantResponse(streamer);
+      if (!response) break;
+
+      const stepResult = await this.processAssistantResponseStep(response, maxIterations);
+      lastAssistantMessage = stepResult.lastAssistantMessage;
+      if (stepResult.returnEarly) return lastAssistantMessage;
+      if (stepResult.stopLoop) break;
     }
 
     return lastAssistantMessage;
