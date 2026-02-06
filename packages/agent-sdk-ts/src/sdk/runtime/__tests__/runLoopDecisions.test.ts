@@ -36,22 +36,19 @@ describe('runLoopDecisions', () => {
     expect(shouldTryCondensationBeforeRequest({
       attempt: 0,
       maxAttempts: 1,
-      configuredMaxInputTokens: 4096,
       requestExceedsTokenBudget: true,
     })).toBe(true);
 
     expect(shouldTryCondensationBeforeRequest({
       attempt: 1,
       maxAttempts: 1,
-      configuredMaxInputTokens: 4096,
       requestExceedsTokenBudget: true,
     })).toBe(false);
 
     expect(shouldTryCondensationBeforeRequest({
       attempt: 0,
       maxAttempts: 1,
-      configuredMaxInputTokens: undefined,
-      requestExceedsTokenBudget: true,
+      requestExceedsTokenBudget: false,
     })).toBe(false);
   });
 

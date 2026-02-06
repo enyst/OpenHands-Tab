@@ -689,12 +689,11 @@ export class Agent extends EventEmitter {
       }
 
       const configuredMaxInputTokens = llmConfig.maxInputTokens;
-      if (shouldTryCondensationBeforeRequest({
+      if (typeof configuredMaxInputTokens === 'number' && shouldTryCondensationBeforeRequest({
         attempt: condensationAttempt,
         maxAttempts: MAX_CONDENSATIONS_PER_STEP,
-        configuredMaxInputTokens,
         requestExceedsTokenBudget: wouldExceedMaxInputTokens({ request, maxInputTokens: configuredMaxInputTokens }),
-      }) && typeof configuredMaxInputTokens === 'number') {
+      })) {
         const condensed = await this.tryCondenseConversation(configuredMaxInputTokens);
         if (condensed) continue;
       }
