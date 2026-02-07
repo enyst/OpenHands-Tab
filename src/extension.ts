@@ -23,6 +23,7 @@ import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import { registerCoreCommands } from './extension/coreCommands';
 import { registerWelcomeSecretStatusSync } from './extension/welcomeSecretStatusSync';
+import { mirrorTerminalEventToLocalTerminal } from './extension/localTerminalMirror';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
 import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
@@ -42,7 +43,6 @@ import {
   type BashEvent,
   type Event,
   isBashCommand,
-  isBashExit,
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
 import { OpenHandsChatViewProvider } from './sidebar/OpenHandsChatViewProvider';
@@ -426,51 +426,30 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    // Recreate terminal if not present or if the PTY has been closed
-    if (!terminal || !terminalLogPty || terminalLogPty.isClosed?.()) {
-      try {
-        const renderProgress =
-          vscode.workspace.getConfiguration().get<boolean>('openhands.terminal.renderProgress') ?? true;
-        terminalLogPty = new OpenHandsTerminalLogPseudoterminal({ renderProgress });
-        terminal = vscode.window.createTerminal({ name: 'OpenHands', pty: terminalLogPty });
-      } catch (e) {
-        console.error('[Terminal] Failed to create terminal log:', e);
-        terminal = undefined;
-        terminalLogPty = undefined;
-        return;
-      }
-    }
-
-    try {
-      if (isBashCommand(displayEvent)) {
-        // Add a spacer only if previous output didn't end with a newline
-        terminalLogPty.ensureNewline?.();
-        terminalLogPty.writeLine(`$ ${displayEvent.command}`);
-        if (displayEvent.command_id) printedExitFor.delete(displayEvent.command_id);
-      } else if (isBashOutput(displayEvent)) {
-        if (displayEvent.stdout) terminalLogPty.write(displayEvent.stdout);
-        if (displayEvent.stderr) terminalLogPty.write(displayEvent.stderr);
-        // Defensive: if exit_code is provided on output but no BashExit arrives, synthesize a footer once
-        const cid = 'command_id' in displayEvent ? (displayEvent as { command_id?: string }).command_id : undefined;
-        const code = 'exit_code' in displayEvent ? (displayEvent as { exit_code?: number }).exit_code : undefined;
-        if (cid && typeof code === 'number' && !printedExitFor.has(cid)) {
-          terminalLogPty.ensureNewline?.();
-          terminalLogPty.writeLine(`[Process exited with code ${code}]`);
-          markPrintedExitFor(cid);
+    const mirrored = mirrorTerminalEventToLocalTerminal({
+      event: displayEvent,
+      state: { terminal, terminalLogPty },
+      createTerminal: () => {
+        try {
+          const renderProgress =
+            vscode.workspace.getConfiguration().get<boolean>('openhands.terminal.renderProgress') ?? true;
+          const nextTerminalLogPty = new OpenHandsTerminalLogPseudoterminal({ renderProgress });
+          const nextTerminal = vscode.window.createTerminal({ name: 'OpenHands', pty: nextTerminalLogPty });
+          return { terminal: nextTerminal, terminalLogPty: nextTerminalLogPty };
+        } catch (e) {
+          console.error('[Terminal] Failed to create terminal log:', e);
+          return { terminal: undefined, terminalLogPty: undefined };
         }
-      } else if (isBashExit(displayEvent)) {
-        const cid = 'command_id' in displayEvent ? (displayEvent as { command_id?: string }).command_id : undefined;
-        if (!cid || !printedExitFor.has(cid)) {
-          terminalLogPty.ensureNewline?.();
-          terminalLogPty.writeLine(`[Process exited with code ${displayEvent.exit_code}]`);
-        }
-        if (cid) {
-          markPrintedExitFor(cid);
-        }
-      }
-    } catch (err) {
-      console.error(`[Terminal] Failed to write terminal event: ${renderError(err)}`);
-    }
+      },
+      hasPrintedExitFor: (commandId) => printedExitFor.has(commandId),
+      clearPrintedExitFor: (commandId) => {
+        printedExitFor.delete(commandId);
+      },
+      markPrintedExitFor,
+      renderError,
+    });
+    terminal = mirrored.terminal;
+    terminalLogPty = mirrored.terminalLogPty;
   };
 
   ensureConversationAndConnectionDelegate = createConversationLifecycleOrchestrator({
