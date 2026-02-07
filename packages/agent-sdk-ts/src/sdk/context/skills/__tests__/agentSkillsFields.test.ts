@@ -132,6 +132,25 @@ Hello.`,
     expect(() => Skill.load({ path: badPath })).toThrow(/1024 characters/);
   });
 
+  it('validates description length before trimming whitespace', () => {
+    const padded = `${'a'.repeat(1024)} `;
+
+    const skillRoot = join(tempDir, 'my-skill');
+    mkdirSync(skillRoot, { recursive: true });
+    const skillPath = join(skillRoot, 'SKILL.md');
+    writeFileSync(
+      skillPath,
+      `---
+description: "${padded}"
+---
+
+Hello.`,
+    );
+
+    expect(() => Skill.load({ path: skillPath })).toThrowError(SkillValidationError);
+    expect(() => Skill.load({ path: skillPath })).toThrow(/1024 characters/);
+  });
+
   it('validates description type', () => {
     const skillRoot = join(tempDir, 'my-skill');
     mkdirSync(skillRoot, { recursive: true });
@@ -149,4 +168,3 @@ Hello.`,
     expect(() => Skill.load({ path: skillPath })).toThrow(/description must be a string/);
   });
 });
-
