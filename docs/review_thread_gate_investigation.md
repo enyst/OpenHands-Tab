@@ -35,6 +35,23 @@ Extended `.github/workflows/review-thread-gate.yml` triggers to include review a
 
 Also tightened job scope to base branch `develop` at the job `if:` level (`github.event.pull_request.base.ref == 'develop'`) so all supported review events use a consistent gate condition.
 
+```yaml
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  pull_request_review_thread:
+    types: [resolved, unresolved]
+
+jobs:
+  unresolved-review-threads:
+    if: github.event.pull_request.base.ref == 'develop'
+```
+
 ## Operational Guidance
 
 - Keep `unresolved-review-threads` as a required status check.
