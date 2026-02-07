@@ -61,10 +61,11 @@ describe('Tools picker', () => {
 
     const setEnabledToolsCalls = mockApi.postMessage.mock.calls
       .map(([message]) => message)
-      .filter((message): message is { type: string; toolIds?: string[] } => (
+      .filter((message): message is { type: 'setEnabledTools'; toolIds?: string[] } => (
         typeof message === 'object'
         && message !== null
-        && (message as { type?: unknown }).type === 'setEnabledTools'
+        && 'type' in message
+        && message.type === 'setEnabledTools'
       ));
     expect(setEnabledToolsCalls).toEqual([{
       type: 'setEnabledTools',

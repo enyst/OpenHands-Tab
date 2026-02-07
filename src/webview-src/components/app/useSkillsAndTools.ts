@@ -82,15 +82,14 @@ export function useSkillsAndTools({ events, mode, postMessage, showStatusMessage
     if (!pendingSync) {
       return;
     }
+    pendingEnabledToolsSyncRef.current = null;
 
     // Only emit host sync for state transitions initiated by the toggle handler.
     if (!areSameOrderedToolIds(pendingSync, enabledToolIds)) {
-      pendingEnabledToolsSyncRef.current = null;
       return;
     }
 
     postMessage({ type: 'setEnabledTools', toolIds: pendingSync });
-    pendingEnabledToolsSyncRef.current = null;
   }, [enabledToolIds, postMessage]);
 
   const handleToggleTool = useCallback((toolId: string) => {
