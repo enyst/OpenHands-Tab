@@ -317,13 +317,22 @@ export function activate(context: vscode.ExtensionContext) {
         clearQueuedUserEditNotes: fileEditNoteTracker.clearQueuedUserEditNotes,
         flushConversationEventBacklog,
         onRenderedEventsResponse: (requestId, info) => {
-          pendingRenderedEventsRequests.get(requestId)?.(info);
+          const handler = pendingRenderedEventsRequests.get(requestId);
+          if (!handler) return;
+          pendingRenderedEventsRequests.delete(requestId);
+          handler(info);
         },
         onUiStateResponse: (requestId, info) => {
-          pendingUiStateRequests.get(requestId)?.(info);
+          const handler = pendingUiStateRequests.get(requestId);
+          if (!handler) return;
+          pendingUiStateRequests.delete(requestId);
+          handler(info);
         },
         onHalStateResponse: (requestId, info) => {
-          pendingHalStateRequests.get(requestId)?.(info);
+          const handler = pendingHalStateRequests.get(requestId);
+          if (!handler) return;
+          pendingHalStateRequests.delete(requestId);
+          handler(info);
         },
       },
       logging: {
