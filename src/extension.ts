@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { SettingsManager } from './settings/SettingsManager';
-import { VscodeSettingsAdapter } from './settings/VscodeSettingsAdapter';
 import { type HalStateSnapshot, isHalMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
 import { DEFAULT_HAL_STATE } from './shared/halDefaults';
 import { maskSecretsInText } from './shared/maskSecrets';
@@ -24,10 +22,10 @@ import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
 import { registerCoreCommands } from './extension/coreCommands';
+import { registerWelcomeSecretStatusSync } from './extension/welcomeSecretStatusSync';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
 import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
-import { computeWelcomeSecretStatus } from './shared/welcomeSecretStatus';
 import { registerCloudLoginCommand } from './extension/cloudLoginCommand';
 import { registerCloudLogoutCommand } from './extension/cloudLogoutCommand';
 import type { CloudBootstrapResult } from './cloud/cloudRemoteBootstrap';
@@ -384,44 +382,14 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  let lastWelcomeSecretStatus: { hasProviderKey: boolean; hasGeminiKey: boolean } | null = null;
-  let welcomeSecretStatusTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const postWelcomeSecretStatus = async (): Promise<void> => {
-    if (!chatView) return;
-    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
-    const settings = await settingsMgr.get();
-    const status = await computeWelcomeSecretStatus({ context, settings });
-    if (
-      lastWelcomeSecretStatus &&
-      lastWelcomeSecretStatus.hasProviderKey === status.hasProviderKey &&
-      lastWelcomeSecretStatus.hasGeminiKey === status.hasGeminiKey
-    ) {
-      return;
-    }
-    lastWelcomeSecretStatus = status;
-    void chatView.webview.postMessage({ type: 'welcomeSecretStatus', ...status } satisfies HostToWebviewMessage);
-  };
-
-  const scheduleWelcomeSecretStatusUpdate = () => {
-    if (welcomeSecretStatusTimer) clearTimeout(welcomeSecretStatusTimer);
-    welcomeSecretStatusTimer = setTimeout(() => {
-      welcomeSecretStatusTimer = null;
-      void postWelcomeSecretStatus().catch((err: unknown) => {
-        outputChannel?.appendLine(`[welcome] Failed to compute secret status: ${renderError(err)}`);
-      });
-    }, 150);
-  };
-
-  // Watch SecretStorage so welcome-page onboarding prompts reflect current key state.
-  const secretsOnDidChange = (context.secrets as unknown as { onDidChange?: vscode.Event<{ key: string }> }).onDidChange;
-  if (typeof secretsOnDidChange === 'function') {
-    context.subscriptions.push(
-      secretsOnDidChange(() => {
-        scheduleWelcomeSecretStatusUpdate();
-      })
-    );
-  }
+  context.subscriptions.push(
+    registerWelcomeSecretStatusSync({
+      context,
+      getChatView: () => chatView,
+      getOutputChannel: () => outputChannel,
+      renderError,
+    })
+  );
 
   // Enable dev bridge only for Development/Test extension modes or with user setting
   const mode = context.extensionMode;
