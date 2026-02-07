@@ -18,12 +18,14 @@ class MockWS {
   static CLOSED = 3;
 
   url: string;
+  options?: any;
   handlers: Record<string, Handler[]> = {};
   readyState = MockWS.CONNECTING;
   sent: string[] = [];
 
-  constructor(url: string) {
+  constructor(url: string, options?: any) {
     this.url = url;
+    this.options = options;
     wsInstances.push(this);
   }
 
@@ -1135,6 +1137,73 @@ describe('RemoteConversation', () => {
     const ws = getEventWS();
     expect(ws.url).toMatch(/^ws:\/\/localhost:3000\/sockets\/events\/abc\?/);
     expect(ws.url).toContain('resend_all=true');
+  });
+
+  it('does not include session_api_key in ws URL and uses ws headers for auth', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toContain('/events/search');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [], next_page_id: null }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: {
+        ...baseSettings,
+        secrets: { ...baseSettings.secrets, runtimeSessionApiKey: 'session-key' },
+      },
+    });
+
+    await conversation.restoreConversation('abc');
+
+    const ws = getEventWS();
+    expect(ws.url).toContain('resend_all=true');
+    expect(ws.url).not.toContain('session_api_key');
+    expect(ws.options?.headers?.['X-Session-API-Key']).toBe('session-key');
+  });
+
+  it('falls back to legacy session_api_key ws query auth on 403 handshake response', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toContain('/events/search');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [], next_page_id: null }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: {
+        ...baseSettings,
+        secrets: { ...baseSettings.secrets, runtimeSessionApiKey: 'session-key' },
+      },
+    });
+
+    await conversation.restoreConversation('abc');
+
+    const firstWs = getEventWS();
+    expect(firstWs.url).toContain('resend_all=true');
+    expect(firstWs.url).not.toContain('session_api_key');
+    expect(firstWs.options?.headers?.['X-Session-API-Key']).toBe('session-key');
+
+    firstWs.error(new Error('Unexpected server response: 403'));
+
+    const eventSockets = wsInstances.filter((ws) => ws.url.includes('/sockets/events'));
+    expect(eventSockets).toHaveLength(2);
+    const fallbackWs = eventSockets[1];
+    expect(fallbackWs.url).toContain('resend_all=true');
+    expect(fallbackWs.url).toContain('session_api_key=session-key');
+    expect(fallbackWs.options?.headers?.['X-Session-API-Key']).toBe('session-key');
   });
 
   it('does not attempt WebSocket connect when history fetch fails', async () => {
