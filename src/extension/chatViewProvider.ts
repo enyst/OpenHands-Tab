@@ -31,34 +31,42 @@ type UiStateSnapshot = {
 type RegisterChatViewProviderDeps = {
   context: vscode.ExtensionContext;
   secretRegistry: SecretRegistry;
-  getQueuedUserEditNotes: () => string[];
-  clearQueuedUserEditNotes: () => void;
-  getConversation: () => ConversationInstance | undefined;
-  getConversationMode: () => 'local' | 'remote';
-  getConversationStoreRoot: () => string | undefined;
-  resolveConversationStoreRoot: () => Promise<string>;
-  setChatView: (view: vscode.WebviewView | undefined) => void;
-  setChatWebviewReady: (ready: boolean) => void;
-  setChatWebviewE2EReady: (ready: boolean) => void;
-  setChatWebviewE2EInfo: (info: WebviewE2EInfo | null) => void;
-  setChatLastConversationId: (conversationId: string | undefined) => void;
-  setChatLastSeenSeq: (lastSeenSeq: number | undefined) => void;
-  setLastKnownLlmLabel: (label: string | null) => void;
-  getLastKnownLlmLabel: () => string | null;
-  flushConversationEventBacklog: (args: {
-    postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
-    clientConversationId?: string;
-    clientLastSeenSeq?: number;
-  }) => void;
-  onRenderedEventsResponse: (requestId: string, info: RenderedEventsInfo) => void;
-  onUiStateResponse: (requestId: string, info: UiStateSnapshot) => void;
-  onHalStateResponse: (requestId: string, info: HalStateSnapshot) => void;
-  isDevBridgeEnabled: () => boolean;
-  getOutputChannel: () => vscode.OutputChannel | undefined;
-  fileLog: (line: string) => void;
-  ensureConversationAndConnection: (options?: EnsureConversationOptions) => Promise<void>;
-  pauseConversation: () => Promise<void>;
-  renderError: (err: unknown) => string;
+  conversation: {
+    getConversation: () => ConversationInstance | undefined;
+    getConversationMode: () => 'local' | 'remote';
+    getConversationStoreRoot: () => string | undefined;
+    resolveConversationStoreRoot: () => Promise<string>;
+    ensureConversationAndConnection: (options?: EnsureConversationOptions) => Promise<void>;
+    pauseConversation: () => Promise<void>;
+  };
+  state: {
+    setChatView: (view: vscode.WebviewView | undefined) => void;
+    setChatWebviewReady: (ready: boolean) => void;
+    setChatWebviewE2EReady: (ready: boolean) => void;
+    setChatWebviewE2EInfo: (info: WebviewE2EInfo | null) => void;
+    setChatLastConversationId: (conversationId: string | undefined) => void;
+    setChatLastSeenSeq: (lastSeenSeq: number | undefined) => void;
+    setLastKnownLlmLabel: (label: string | null) => void;
+    getLastKnownLlmLabel: () => string | null;
+  };
+  messages: {
+    getQueuedUserEditNotes: () => string[];
+    clearQueuedUserEditNotes: () => void;
+    flushConversationEventBacklog: (args: {
+      postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
+      clientConversationId?: string;
+      clientLastSeenSeq?: number;
+    }) => void;
+    onRenderedEventsResponse: (requestId: string, info: RenderedEventsInfo) => void;
+    onUiStateResponse: (requestId: string, info: UiStateSnapshot) => void;
+    onHalStateResponse: (requestId: string, info: HalStateSnapshot) => void;
+  };
+  logging: {
+    isDevBridgeEnabled: () => boolean;
+    getOutputChannel: () => vscode.OutputChannel | undefined;
+    fileLog: (line: string) => void;
+    renderError: (err: unknown) => string;
+  };
 };
 
 export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vscode.Disposable {
@@ -70,30 +78,30 @@ export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vs
         context: deps.context,
         host: { postMessage: (message) => view.webview.postMessage(message) },
         secretRegistry: deps.secretRegistry,
-        getQueuedUserEditNotes: deps.getQueuedUserEditNotes,
-        clearQueuedUserEditNotes: deps.clearQueuedUserEditNotes,
-        getConversation: deps.getConversation,
-        getConversationMode: deps.getConversationMode,
-        getConversationStoreRoot: deps.getConversationStoreRoot,
-        resolveConversationStoreRoot: deps.resolveConversationStoreRoot,
+        getQueuedUserEditNotes: deps.messages.getQueuedUserEditNotes,
+        clearQueuedUserEditNotes: deps.messages.clearQueuedUserEditNotes,
+        getConversation: deps.conversation.getConversation,
+        getConversationMode: deps.conversation.getConversationMode,
+        getConversationStoreRoot: deps.conversation.getConversationStoreRoot,
+        resolveConversationStoreRoot: deps.conversation.resolveConversationStoreRoot,
         setWebviewReadyState: (conversationId, lastSeenSeq) => {
-          deps.setChatWebviewReady(true);
-          deps.setChatLastConversationId(conversationId);
-          deps.setChatLastSeenSeq(lastSeenSeq);
+          deps.state.setChatWebviewReady(true);
+          deps.state.setChatLastConversationId(conversationId);
+          deps.state.setChatLastSeenSeq(lastSeenSeq);
         },
-        setWebviewE2EReady: deps.setChatWebviewE2EReady,
-        setWebviewE2EInfo: deps.setChatWebviewE2EInfo,
-        setLastKnownLlmLabel: deps.setLastKnownLlmLabel,
-        getLastKnownLlmLabel: deps.getLastKnownLlmLabel,
-        flushConversationEventBacklog: deps.flushConversationEventBacklog,
-        onRenderedEventsResponse: deps.onRenderedEventsResponse,
-        onUiStateResponse: deps.onUiStateResponse,
+        setWebviewE2EReady: deps.state.setChatWebviewE2EReady,
+        setWebviewE2EInfo: deps.state.setChatWebviewE2EInfo,
+        setLastKnownLlmLabel: deps.state.setLastKnownLlmLabel,
+        getLastKnownLlmLabel: deps.state.getLastKnownLlmLabel,
+        flushConversationEventBacklog: deps.messages.flushConversationEventBacklog,
+        onRenderedEventsResponse: deps.messages.onRenderedEventsResponse,
+        onUiStateResponse: deps.messages.onUiStateResponse,
         onHalStateResponse: (requestId, info) => {
           const mode = isHalMode(info.mode) ? info.mode : DEFAULT_HAL_STATE.mode;
           const phase = isHalPhase(info.phase) ? info.phase : DEFAULT_HAL_STATE.phase;
           const eye = isHalEye(info.eye) ? info.eye : DEFAULT_HAL_STATE.eye;
           const decision = isHalDecision(info.decision) ? info.decision : null;
-          deps.onHalStateResponse(requestId, {
+          deps.messages.onHalStateResponse(requestId, {
             enabled: info.enabled === true,
             mode,
             phase,
@@ -103,19 +111,21 @@ export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vs
             lastError: typeof info.lastError === 'string' ? info.lastError : null,
           });
         },
-        isDevBridgeEnabled: deps.isDevBridgeEnabled,
-        getOutputChannel: deps.getOutputChannel,
-        fileLog: deps.fileLog,
+        isDevBridgeEnabled: deps.logging.isDevBridgeEnabled,
+        getOutputChannel: deps.logging.getOutputChannel,
+        fileLog: deps.logging.fileLog,
       }),
     onResolved: (view) => {
-      deps.setChatView(view);
-      deps.setChatWebviewReady(false);
-      deps.setChatWebviewE2EReady(false);
-      deps.setChatWebviewE2EInfo(null);
+      deps.state.setChatView(view);
+      deps.state.setChatWebviewReady(false);
+      deps.state.setChatWebviewE2EReady(false);
+      deps.state.setChatWebviewE2EInfo(null);
       lastChatViewVisibility = Boolean(view.visible);
 
-      void deps.ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
-        deps.getOutputChannel()?.appendLine(`[error] ensureConversationAndConnection failed: ${deps.renderError(err)}`);
+      void deps.conversation.ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
+        deps.logging.getOutputChannel()?.appendLine(
+          `[error] ensureConversationAndConnection failed: ${deps.logging.renderError(err)}`
+        );
       });
     },
     onVisibilityChange: (_view, visible) => {
@@ -124,9 +134,9 @@ export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vs
       lastChatViewVisibility = isVisible;
 
       if (!isVisible) {
-        void deps.pauseConversation().catch((err) => {
-          deps.getOutputChannel()?.appendLine(
-            `[pause] Failed to auto-pause when chat view was hidden: ${deps.renderError(err)}`
+        void deps.conversation.pauseConversation().catch((err) => {
+          deps.logging.getOutputChannel()?.appendLine(
+            `[pause] Failed to auto-pause when chat view was hidden: ${deps.logging.renderError(err)}`
           );
         });
       }
@@ -134,19 +144,19 @@ export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vs
     onDisposed: () => {
       const shouldPauseOnDispose = lastChatViewVisibility !== false;
       if (shouldPauseOnDispose) {
-        void deps.pauseConversation().catch((err) => {
-          deps.getOutputChannel()?.appendLine(
-            `[pause] Failed to auto-pause when chat view was disposed: ${deps.renderError(err)}`
+        void deps.conversation.pauseConversation().catch((err) => {
+          deps.logging.getOutputChannel()?.appendLine(
+            `[pause] Failed to auto-pause when chat view was disposed: ${deps.logging.renderError(err)}`
           );
         });
       }
 
-      deps.setChatView(undefined);
-      deps.setChatWebviewReady(false);
-      deps.setChatWebviewE2EReady(false);
-      deps.setChatWebviewE2EInfo(null);
-      deps.setChatLastConversationId(undefined);
-      deps.setChatLastSeenSeq(undefined);
+      deps.state.setChatView(undefined);
+      deps.state.setChatWebviewReady(false);
+      deps.state.setChatWebviewE2EReady(false);
+      deps.state.setChatWebviewE2EInfo(null);
+      deps.state.setChatLastConversationId(undefined);
+      deps.state.setChatLastSeenSeq(undefined);
       lastChatViewVisibility = undefined;
     },
   });
