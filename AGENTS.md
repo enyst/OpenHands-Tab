@@ -327,13 +327,13 @@ Pitfalls to avoid
 
 ## Further Reading
 
-- [docs/PRD.md](docs/PRD.md) - Product requirements
 - [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) - SDK architecture
 - [docs/duplication-guardrail.md](docs/duplication-guardrail.md) - Duplication threshold policy and ratchet plan
+- [docs/PRD.md](docs/PRD.md) - Product requirements
+- [docs/settings_prd.md](docs/settings_prd.md) - Settings and configuration PRD
 - [docs/webview_host_handler_boundary.md](docs/webview_host_handler_boundary.md) - Webview host handler dependency/type boundary contract
 - [docs/vscode_local_setup.md](docs/vscode_local_setup.md) - Local development setup
 - [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) - Headless/remote setup
-- [docs/settings_prd.md](docs/settings_prd.md) - Settings and configuration PRD
 - [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) - SDK-specific guidelines
 
 
