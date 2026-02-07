@@ -11,6 +11,7 @@ import { connectToWebviewCdp } from './helpers/uiHarness';
 export async function run(): Promise<void> {
   if (process.env.E2E_UI !== '1') return;
 
+  const suiteStartMs = Date.now();
   const portRaw = process.env.E2E_CDP_PORT;
   const port = portRaw ? Number(portRaw) : 0;
   if (!port) {
@@ -50,11 +51,15 @@ export async function run(): Promise<void> {
   let closeWebview: (() => Promise<void>) | null = null;
 
   try {
+    const openCommandsStartMs = Date.now();
     await vscode.commands.executeCommand('workbench.action.focusSideBar');
     await vscode.commands.executeCommand('workbench.view.extension.openhands');
     await vscode.commands.executeCommand('openhands.agent.focus');
 
     await vscode.commands.executeCommand('openhands.open');
+    console.log(`[e2e/uiFlowsUi:suite] open/focus commands completed in ${Date.now() - openCommandsStartMs}ms`);
+
+    const diagnosticsReadyStartMs = Date.now();
     const diag = await waitForDiagnostics({
       label: 'chat view ready',
       timeoutMs: 20000,
@@ -68,11 +73,19 @@ export async function run(): Promise<void> {
           diag.chat?.e2eInfo?.pathname
         ),
     });
+    console.log(`[e2e/uiFlowsUi:suite] diagnostics ready in ${Date.now() - diagnosticsReadyStartMs}ms`);
 
+    const cdpConnectStartMs = Date.now();
     const webview = await connectToWebviewCdp({ port, timeoutMs: 45000, webviewInfo: diag.chat?.e2eInfo ?? undefined });
+    console.log(`[e2e/uiFlowsUi:suite] CDP connected in ${Date.now() - cdpConnectStartMs}ms`);
     closeWebview = webview.close;
 
+    const firstSelectorStartMs = Date.now();
     await webview.waitForSelector('[data-testid="header-totals-row"]', { timeoutMs: 45000, visible: true });
+    const firstSelectorNow = Date.now();
+    console.log(
+      `[e2e/uiFlowsUi:suite] first selector [data-testid="header-totals-row"] visible in ${firstSelectorNow - firstSelectorStartMs}ms (suite_elapsed=${firstSelectorNow - suiteStartMs}ms)`
+    );
 
     // Context picker: open, select a file if options appear, close.
     // Note: in CI the workspace file list can be empty; we skip selection when no options
