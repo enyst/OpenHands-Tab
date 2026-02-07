@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isMessageEvent, type Event } from '@openhands/agent-sdk-ts';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { ShowStatusMessage } from './useStatusMessages';
@@ -29,6 +29,13 @@ interface UseSkillsAndToolsArgs {
   showStatusMessage: ShowStatusMessage;
 }
 
+function areSameOrderedToolIds(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((id, index) => id === right[index]);
+}
+
 /**
  * Manages skills/tools picker state so App.tsx can focus on wiring.
  */
@@ -38,6 +45,7 @@ export function useSkillsAndTools({ events, mode, postMessage, showStatusMessage
   const [showToolsPopover, setShowToolsPopover] = useState(false);
   const [tools, setTools] = useState<ToolItem[]>([]);
   const [enabledToolIds, setEnabledToolIds] = useState<string[]>([]);
+  const pendingEnabledToolsSyncRef = useRef<string[] | null>(null);
 
   const handleOpenSkills = useCallback(() => {
     setShowToolsPopover(false);
@@ -69,6 +77,21 @@ export function useSkillsAndTools({ events, mode, postMessage, showStatusMessage
     });
   }, [postMessage]);
 
+  useEffect(() => {
+    const pendingSync = pendingEnabledToolsSyncRef.current;
+    if (!pendingSync) {
+      return;
+    }
+    pendingEnabledToolsSyncRef.current = null;
+
+    // Only emit host sync for state transitions initiated by the toggle handler.
+    if (!areSameOrderedToolIds(pendingSync, enabledToolIds)) {
+      return;
+    }
+
+    postMessage({ type: 'setEnabledTools', toolIds: pendingSync });
+  }, [enabledToolIds, postMessage]);
+
   const handleToggleTool = useCallback((toolId: string) => {
     if (mode !== 'local') {
       showStatusMessage('info', 'Tools are controlled by the agent-server in remote mode.', { autoDismiss: true, autoDismissDelay: 4000 });
@@ -85,19 +108,22 @@ export function useSkillsAndTools({ events, mode, postMessage, showStatusMessage
       return;
     }
 
+    const knownToolIds = new Set(tools.map((tool) => tool.id));
     setEnabledToolIds((prev) => {
-      const known = new Set(tools.map((tool) => tool.id));
-      if (!known.has(toolId)) return prev;
+      if (!knownToolIds.has(toolId)) return prev;
 
       const nextSet = new Set(prev);
       if (nextSet.has(toolId)) nextSet.delete(toolId);
       else nextSet.add(toolId);
 
       const ordered = tools.map((tool) => tool.id).filter((id) => nextSet.has(id));
-      postMessage({ type: 'setEnabledTools', toolIds: ordered });
+      if (areSameOrderedToolIds(prev, ordered)) {
+        return prev;
+      }
+      pendingEnabledToolsSyncRef.current = ordered;
       return ordered;
     });
-  }, [isToolSelectionLocked, mode, postMessage, showStatusMessage, tools]);
+  }, [isToolSelectionLocked, mode, showStatusMessage, tools]);
 
   return {
     showSkillsPopover,
