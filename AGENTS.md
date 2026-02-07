@@ -202,6 +202,9 @@ Reviews (do not merge without review):
 - When merging: edit the PR description to append a `### Review` section summarizing the roasted review(s) from the designated reviewer and any back-and-forth/resolution notes, then merge.
 - If OpenHands feedback is "truly minor" (e.g., wording/typos/formatting only), you can address it without re-requesting review.
 - Merge only when CI is green, review threads are resolved/addressed, and any required branch-protection rules are satisfied.
+- CI guardrail: `Review Thread Gate` fails PRs that still have unresolved review threads.
+  - Intentional exceptions require a PR-body waiver line: `review-thread-waiver: <reason>`.
+  - Waivers must include a concrete reason and, when applicable, a follow-up bead/issue id.
 
 **Reviewer workflow** (the OpenHands roasted review via tmux):
 - Use a clean worktree to avoid clobbering shared branches/uncommitted changes:
