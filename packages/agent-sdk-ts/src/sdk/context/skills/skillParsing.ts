@@ -61,6 +61,7 @@ function parseStringMetadataField(
     throw new SkillValidationError(`${key} must be a string`);
   }
 
+  // Keep description untrimmed for Python parity; license/compatibility are normalized.
   const normalized = key === 'description' ? rawValue : rawValue.trim();
   if (key === 'description' && normalized.length > 1024) {
     throw new SkillValidationError(`description must be <= 1024 characters (got ${normalized.length})`);
@@ -112,9 +113,15 @@ function parseTriggerKeywords(metadata: Record<string, unknown>): string[] {
     throw new SkillValidationError('Triggers must be a list of strings');
   }
 
-  return Array.isArray(triggerMetadata)
-    ? (triggerMetadata as string[])
-    : [];
+  if (!Array.isArray(triggerMetadata)) {
+    return [];
+  }
+
+  if (!triggerMetadata.every((entry) => typeof entry === 'string')) {
+    throw new SkillValidationError('Triggers must be a list of strings');
+  }
+
+  return triggerMetadata;
 }
 
 function parseTaskInputs(

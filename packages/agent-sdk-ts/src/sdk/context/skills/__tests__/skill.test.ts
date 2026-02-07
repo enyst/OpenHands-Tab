@@ -500,6 +500,21 @@ Content.`;
       expect(() => Skill.load({ path: skillPath })).toThrow('Triggers must be a list of strings');
     });
 
+    it('throws SkillValidationError when triggers contain non-string entries', () => {
+      const skillPath = join(tempDir, 'invalid-trigger-values.md');
+      const content = `---
+triggers:
+  - ok
+  - 1
+---
+
+Content.`;
+      writeFileSync(skillPath, content);
+
+      expect(() => Skill.load({ path: skillPath })).toThrow(SkillValidationError);
+      expect(() => Skill.load({ path: skillPath })).toThrow('Triggers must be a list of strings');
+    });
+
     it('throws SkillValidationError for invalid inputs metadata', () => {
       const skillPath = join(tempDir, 'invalid-inputs.md');
       const content = `---
