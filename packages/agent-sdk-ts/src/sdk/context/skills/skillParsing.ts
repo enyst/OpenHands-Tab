@@ -53,12 +53,12 @@ function parseStringMetadataField(
   key: 'description' | 'license' | 'compatibility',
 ): string | null {
   const rawValue = metadata[key];
-  if (rawValue !== undefined && rawValue !== null && typeof rawValue !== 'string') {
-    throw new SkillValidationError(`${key} must be a string`);
+  if (rawValue === undefined || rawValue === null) {
+    return null;
   }
 
   if (typeof rawValue !== 'string') {
-    return null;
+    throw new SkillValidationError(`${key} must be a string`);
   }
 
   const normalized = key === 'description' ? rawValue : rawValue.trim();
@@ -71,18 +71,16 @@ function parseStringMetadataField(
 
 function parseSkillMetadataObject(metadata: Record<string, unknown>): Record<string, string> | null {
   const rawMetadata = metadata.metadata;
-  if (rawMetadata !== undefined && rawMetadata !== null) {
-    if (typeof rawMetadata !== 'object' || Array.isArray(rawMetadata)) {
-      throw new SkillValidationError('metadata must be a dictionary');
-    }
-  }
-
-  if (!rawMetadata || typeof rawMetadata !== 'object' || Array.isArray(rawMetadata)) {
+  if (rawMetadata === undefined || rawMetadata === null) {
     return null;
   }
 
+  if (typeof rawMetadata !== 'object' || Array.isArray(rawMetadata)) {
+    throw new SkillValidationError('metadata must be a dictionary');
+  }
+
   return Object.fromEntries(
-    Object.entries(rawMetadata as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+    Object.entries(rawMetadata).map(([k, v]) => [k, String(v)]),
   );
 }
 
@@ -121,14 +119,7 @@ function parseTriggerKeywords(metadata: Record<string, unknown>): string[] {
 
 function parseTaskInputs(
   metadata: Record<string, unknown>,
-  name: string,
-  keywords: string[],
 ): InputMetadata[] {
-  const triggerKeyword = `/${name}`;
-  if (!keywords.includes(triggerKeyword)) {
-    keywords.push(triggerKeyword);
-  }
-
   if (!Array.isArray(metadata.inputs)) {
     throw new SkillValidationError('inputs must be a list');
   }
@@ -224,7 +215,12 @@ export function parseSkillFile(params: {
 
   const keywords = parseTriggerKeywords(metadata);
   if (metadata.inputs) {
-    const inputs = parseTaskInputs(metadata, name, keywords);
+    const triggerKeyword = `/${name}`;
+    if (!keywords.includes(triggerKeyword)) {
+      keywords.push(triggerKeyword);
+    }
+
+    const inputs = parseTaskInputs(metadata);
     return {
       name,
       content,

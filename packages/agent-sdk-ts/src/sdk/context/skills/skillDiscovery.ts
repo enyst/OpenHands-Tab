@@ -13,7 +13,6 @@ export function findThirdPartyFiles(
 
   for (const entry of readdirSync(repoRoot)) {
     const fullPath = join(repoRoot, entry);
-    if (!existsSync(fullPath)) continue;
     const stat = lstatSync(fullPath);
     if (stat.isSymbolicLink()) continue;
     if (!stat.isFile()) continue;
