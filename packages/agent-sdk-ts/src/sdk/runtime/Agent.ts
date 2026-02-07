@@ -11,7 +11,6 @@ import {
   DEFAULT_PROVIDER_BASE_URLS,
   detectProviderFromBaseUrl,
   getEffectiveLlmConfigForCondensation as resolveCondensationLlmConfig,
-  loadProfile,
   wouldExceedMaxInputTokens,
 } from '../llm';
 import type { ActionEvent, BashEvent, ConversationStateUpdateEvent, Event, Message, MessageEvent, ObservationEvent, TextContent, ToolCall } from '../types';
@@ -41,13 +40,14 @@ import {
   sanitizeMessageForDebug,
 } from './textSanitizers';
 import { formatToolMessageText } from './toolMessageFormatting';
-import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
+import { toOptionalNonEmptyString } from './settingsUtils';
 import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
 import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
 import { buildChatRequestWithCondensation, tryCondenseConversation as tryCondenseConversationWithDeps } from './condensation';
 import { buildConversationErrorDetail } from './conversationErrorDetail';
+import { resolveSystemPromptLlmContext } from './systemPromptLlmContext';
 import {
   resolveCondensationBudget,
   shouldRetryWithCondensationAfterError,
@@ -1006,26 +1006,10 @@ export class Agent extends EventEmitter {
       systemPrompt = systemPrompt.replace(SECURITY_RISK_ASSESSMENT_SECTION, '');
     }
     if (this.agentContext) {
-      const settings = this.options.settings?.llm;
-      const profileId = toOptionalNonEmptyString(settings?.profileId);
-      let llmModel = toOptionalNonEmptyString(settings?.model) ?? null;
-      let llmProvider = toOptionalNonEmptyString(settings?.provider) ?? null;
-      let llmBaseUrl = toOptionalNonEmptyString(settings?.baseUrl) ?? null;
-
-      // When profileId is set, raw model/provider/baseUrl can be intentionally cleared (profiles-first).
-      // Load the profile config (when safe) so vendor-specific repo skills are gated correctly.
-      if (profileId && isSafeProfileId(profileId)) {
-        try {
-          const profile = loadProfile(profileId, this.options.profileStoreOptions);
-          llmModel = toOptionalNonEmptyString(profile.config.model) ?? llmModel;
-          llmProvider = toOptionalNonEmptyString(profile.config.provider) ?? llmProvider;
-          llmBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl) ?? llmBaseUrl;
-        } catch {
-          // Best-effort: profile loading failures will surface elsewhere when creating the LLM client.
-        }
-      }
-
-      llmProvider = llmProvider ?? detectProviderFromBaseUrl(llmBaseUrl ?? undefined);
+      const { llmModel, llmProvider, llmBaseUrl } = resolveSystemPromptLlmContext(
+        this.options.settings,
+        this.options.profileStoreOptions,
+      );
       const suffix = this.agentContext.getSystemMessageSuffix({
         secretNames: this.secrets.getRegisteredNames(),
         llmModel,
