@@ -3,7 +3,7 @@ import { isConversationStateUpdateEvent } from '../types';
 import { EventLog } from './EventLog';
 import type { ConversationPersistence } from './persistence';
 import type { AgentState } from './stateTypes';
-export type { AgentState } from './stateTypes';
+export type { AgentState };
 
 export interface ConversationStateOptions {
   eventLog?: EventLog;
