@@ -178,6 +178,8 @@ describe('Chat view behavior', () => {
     const secretStorage = new Map<string, string>();
     const { getServerRuntimeSessionApiKeySecretKey } = await import('../auth/serverRuntimeSessionApiKeys');
     const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(runtimeKeyInfo.ok).toBe(true);
+    if (!runtimeKeyInfo.ok) throw new Error(`Expected runtime session API key secret key to resolve for ${defaultMockSettings.serverUrl}`);
     secretStorage.set(runtimeKeyInfo.secretKey, defaultMockSettings.secrets.runtimeSessionApiKey);
     mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
 
@@ -213,6 +215,8 @@ describe('Chat view behavior', () => {
     const secretStorage = new Map<string, string>();
     const { getServerRuntimeSessionApiKeySecretKey } = await import('../auth/serverRuntimeSessionApiKeys');
     const runtimeKeyInfo = getServerRuntimeSessionApiKeySecretKey(defaultMockSettings.serverUrl);
+    expect(runtimeKeyInfo.ok).toBe(true);
+    if (!runtimeKeyInfo.ok) throw new Error(`Expected runtime session API key secret key to resolve for ${defaultMockSettings.serverUrl}`);
     secretStorage.set(runtimeKeyInfo.secretKey, defaultMockSettings.secrets.runtimeSessionApiKey);
     mockContext.secrets.get = vi.fn(async (key: string) => secretStorage.get(key));
 

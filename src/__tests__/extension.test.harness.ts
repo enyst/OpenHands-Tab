@@ -31,6 +31,22 @@ let mockSettings: any = structuredClone(defaultMockSettings);
 let registeredSecretValues: string[] = [];
 let lastConversation: any = null;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const mergeSettingsPartial = (current: Record<string, unknown>, partial: Record<string, unknown>): Record<string, unknown> => {
+  const next = { ...current };
+  for (const [key, value] of Object.entries(partial)) {
+    const existing = next[key];
+    if (isRecord(existing) && isRecord(value)) {
+      next[key] = { ...existing, ...value };
+      continue;
+    }
+    next[key] = value;
+  }
+  return next;
+};
+
 export const startDeviceAuthorizationMock = vi.fn();
 export const pollDeviceTokenMock = vi.fn();
 export const bootstrapCloudRemoteConversationMock = vi.fn(async () => ({
@@ -53,7 +69,11 @@ vi.mock('../settings/SettingsManager', () => ({
   SettingsManager: vi.fn(function (this: any) {
     this.get = vi.fn(async () => mockSettings);
     this.update = vi.fn(async (partial: any) => {
-      mockSettings = { ...mockSettings, ...partial };
+      if (isRecord(partial)) {
+        mockSettings = mergeSettingsPartial(mockSettings as Record<string, unknown>, partial);
+        return;
+      }
+      mockSettings = partial;
     });
     return this;
   }),
@@ -274,6 +294,9 @@ export async function resolveChatView(mockContext: any) {
   while (Date.now() < deadline) {
     if ((Conversation as Mock).mock.calls.length > beforeCalls) break;
     await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  if ((Conversation as Mock).mock.calls.length <= beforeCalls) {
+    throw new Error('Timed out waiting for conversation initialization after resolving chat view');
   }
 
   return view;
