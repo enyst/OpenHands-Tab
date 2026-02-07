@@ -22,7 +22,6 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
 
     const maxAttempts = 3;
     const runTestsOverallStart = Date.now();
-    let runTestsCompleted = false;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const port = await getAvailablePort();
       const attemptStart = Date.now();
@@ -54,7 +53,6 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
         console.log(
           `[e2e/uiFlowsUi] runTests attempt ${attempt}/${maxAttempts} succeeded in ${attemptElapsedMs}ms (total=${totalElapsedMs}ms)`
         );
-        runTestsCompleted = true;
         break;
       } catch (error) {
         const attemptElapsedMs = Date.now() - attemptStart;
@@ -64,15 +62,14 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
           `[e2e/uiFlowsUi] runTests attempt ${attempt}/${maxAttempts} failed in ${attemptElapsedMs}ms (port_conflict=${isPortConflict})`
         );
         if (!isPortConflict || attempt === maxAttempts) {
+          const totalElapsedMs = Date.now() - runTestsOverallStart;
+          console.warn(
+            `[e2e/uiFlowsUi] runTests terminating after attempt ${attempt}/${maxAttempts} (elapsed=${totalElapsedMs}ms)`
+          );
           throw error;
         }
         console.warn(`UI E2E run failed due to port conflict (attempt ${attempt}/${maxAttempts}); retrying...`);
       }
-    }
-    if (!runTestsCompleted) {
-      console.warn(
-        `[e2e/uiFlowsUi] runTests did not complete after ${maxAttempts} attempts (elapsed=${Date.now() - runTestsOverallStart}ms)`
-      );
     }
 
     assert.ok(true);
