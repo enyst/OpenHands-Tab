@@ -142,7 +142,8 @@ export async function run(): Promise<void> {
       throw new Error('Context picker options available but no selectable label found');
     }
 
-    const selectedOptionSelector = `[role="option"][aria-label="${selectedLabel}"]`;
+    const escapedLabel = selectedLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const selectedOptionSelector = `[role="option"][aria-label="${escapedLabel}"]`;
     await pollUntil(async () => (await webview.getAttribute(selectedOptionSelector, 'aria-selected')) === 'true', 15000);
 
     await webview.click('[data-testid="open-context-picker"]');
