@@ -17,6 +17,7 @@ export function registerWelcomeSecretStatusSync({
   getOutputChannel,
   renderError,
 }: WelcomeSecretStatusSyncDeps): vscode.Disposable {
+  const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
   let lastWelcomeSecretStatus: { hasProviderKey: boolean; hasGeminiKey: boolean } | null = null;
   let welcomeSecretStatusTimer: ReturnType<typeof setTimeout> | null = null;
   const subscriptions: vscode.Disposable[] = [];
@@ -25,7 +26,6 @@ export function registerWelcomeSecretStatusSync({
     const chatView = getChatView();
     if (!chatView) return;
 
-    const settingsMgr = new SettingsManager(new VscodeSettingsAdapter(context));
     const settings = await settingsMgr.get();
     const status = await computeWelcomeSecretStatus({ context, settings });
     if (
