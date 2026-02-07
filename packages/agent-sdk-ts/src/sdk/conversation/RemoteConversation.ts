@@ -118,6 +118,10 @@ class ReconnectBackoffPolicy {
 }
 
 export class RemoteConversation extends EventEmitter {
+  private static readonly reconnectRetryBaseMs = 1000;
+  private static readonly reconnectRetryMaxMs = 15000;
+  private static readonly reconnectMaxRetries = 6;
+
   private serverUrl: string;
   private settings: OpenHandsSettings;
   private conversationId?: string;
@@ -126,7 +130,11 @@ export class RemoteConversation extends EventEmitter {
   private ws?: WebSocket;
   private wsHandshakeTimer?: ReturnType<typeof setTimeout>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private readonly reconnectBackoffPolicy = new ReconnectBackoffPolicy(1000, 15000, 6);
+  private readonly reconnectBackoffPolicy = new ReconnectBackoffPolicy(
+    RemoteConversation.reconnectRetryBaseMs,
+    RemoteConversation.reconnectRetryMaxMs,
+    RemoteConversation.reconnectMaxRetries,
+  );
   private readonly workspaceRoot: string;
   private readonly tools?: RemoteConversationTool[];
   private readonly includeDefaultTools?: boolean | string[];
