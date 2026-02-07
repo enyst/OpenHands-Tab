@@ -319,7 +319,6 @@ export class RemoteConversation extends EventEmitter {
       this.state.reset();
       this.reconnectBackoffPolicy.resetForManualReconnect();
       this.setStatus('connecting');
-      const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
       const llm: Record<string, unknown> = {};
       const toOptionalString = (value: unknown): string | undefined => {
@@ -450,13 +449,13 @@ export class RemoteConversation extends EventEmitter {
         confirmation_policy,
         max_iterations: clampedMaxIterations,
       };
-      const res = await this.fetchWithTimeout(`${base}/api/conversations`, {
+      const res = await this.requestApi('/api/conversations', {
         method: 'POST',
         headers,
         body: JSON.stringify(req),
-      }, RemoteConversation.httpTimeoutMs);
+      });
       if (!res.ok) {
-        const info = await res.text().catch(() => '');
+        const info = await this.readHttpErrorInfo(res);
         const status = res.status;
         let userMessage = `Failed to start conversation (HTTP ${status})`;
         if (status === 401 || status === 403) {
@@ -509,15 +508,10 @@ export class RemoteConversation extends EventEmitter {
       this.emit('error', new Error('Cannot pause: no active conversation. Start a new conversation first.'));
       return;
     }
-    const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers = this.getAuthHeaders();
-      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers }, RemoteConversation.httpTimeoutMs);
-      if (!res.ok) {
-        const info = await res.text().catch(() => '');
-        const status = res.status;
-        throw new Error(`Failed to pause conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
-      }
+      const res = await this.requestApi(`/api/conversations/${this.conversationId}/pause`, { method: 'POST', headers });
+      await this.assertApiOk(res, 'Failed to pause conversation');
     } catch (e) {
       this.emit('error', e instanceof Error ? e : new Error(String(e)));
     }
@@ -528,15 +522,10 @@ export class RemoteConversation extends EventEmitter {
       this.emit('error', new Error('Cannot resume: no active conversation. Start a new conversation first.'));
       return;
     }
-    const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers = this.getAuthHeaders();
-      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/run`, { method: 'POST', headers }, RemoteConversation.httpTimeoutMs);
-      if (!res.ok) {
-        const info = await res.text().catch(() => '');
-        const status = res.status;
-        throw new Error(`Failed to resume conversation (HTTP ${status})${info ? `: ${info}` : ''}`);
-      }
+      const res = await this.requestApi(`/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
+      await this.assertApiOk(res, 'Failed to resume conversation');
     } catch (e) {
       this.emit('error', e instanceof Error ? e : new Error(String(e)));
     }
@@ -547,18 +536,14 @@ export class RemoteConversation extends EventEmitter {
       throw new Error('Cannot setConfirmationPolicy: no active conversation. Start or restore a conversation first.');
     }
 
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
-    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/confirmation_policy`, {
+    const res = await this.requestApi(`/api/conversations/${this.conversationId}/confirmation_policy`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ policy: this.serializeConfirmationPolicy(policy) }),
-    }, RemoteConversation.httpTimeoutMs);
+    });
 
-    if (!res.ok) {
-      const info = await res.text().catch(() => '');
-      throw new Error(`Failed to set confirmation policy (HTTP ${res.status})${info ? `: ${info}` : ''}`);
-    }
+    await this.assertApiOk(res, 'Failed to set confirmation policy');
   }
 
   async setSecurityAnalyzer(analyzer: SecurityAnalyzer | null): Promise<void> {
@@ -566,18 +551,14 @@ export class RemoteConversation extends EventEmitter {
       throw new Error('Cannot setSecurityAnalyzer: no active conversation. Start or restore a conversation first.');
     }
 
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
-    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/security_analyzer`, {
+    const res = await this.requestApi(`/api/conversations/${this.conversationId}/security_analyzer`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ security_analyzer: this.serializeSecurityAnalyzer(analyzer) }),
-    }, RemoteConversation.httpTimeoutMs);
+    });
 
-    if (!res.ok) {
-      const info = await res.text().catch(() => '');
-      throw new Error(`Failed to set security analyzer (HTTP ${res.status})${info ? `: ${info}` : ''}`);
-    }
+    await this.assertApiOk(res, 'Failed to set security analyzer');
   }
 
   async updateSecrets(secrets: Record<string, string>): Promise<void> {
@@ -585,18 +566,14 @@ export class RemoteConversation extends EventEmitter {
       throw new Error('Cannot updateSecrets: no active conversation. Start or restore a conversation first.');
     }
 
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
-    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/secrets`, {
+    const res = await this.requestApi(`/api/conversations/${this.conversationId}/secrets`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ secrets }),
-    }, RemoteConversation.httpTimeoutMs);
+    });
 
-    if (!res.ok) {
-      const info = await res.text().catch(() => '');
-      throw new Error(`Failed to update secrets (HTTP ${res.status})${info ? `: ${info}` : ''}`);
-    }
+    await this.assertApiOk(res, 'Failed to update secrets');
   }
 
   async askAgent(question: string): Promise<string> {
@@ -609,18 +586,14 @@ export class RemoteConversation extends EventEmitter {
       throw new Error('askAgent: question must be a non-empty string');
     }
 
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
-    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/ask_agent`, {
+    const res = await this.requestApi(`/api/conversations/${this.conversationId}/ask_agent`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ question: trimmed }),
-    }, RemoteConversation.httpTimeoutMs);
+    });
 
-    if (!res.ok) {
-      const info = await res.text().catch(() => '');
-      throw new Error(`Failed to ask agent (HTTP ${res.status})${info ? `: ${info}` : ''}`);
-    }
+    await this.assertApiOk(res, 'Failed to ask agent');
 
     const json = await res.json().catch(() => null) as unknown;
     const response = typeof (json as { response?: unknown } | null)?.response === 'string'
@@ -660,18 +633,14 @@ export class RemoteConversation extends EventEmitter {
       ...(typeof llm.reasoningSummary === 'string' ? { reasoning_summary: llm.reasoningSummary } : {}),
     } : null;
 
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
-    const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/generate_title`, {
+    const res = await this.requestApi(`/api/conversations/${this.conversationId}/generate_title`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ max_length: maxLength, llm: llmPayload }),
-    }, RemoteConversation.httpTimeoutMs);
+    });
 
-    if (!res.ok) {
-      const info = await res.text().catch(() => '');
-      throw new Error(`Failed to generate title (HTTP ${res.status})${info ? `: ${info}` : ''}`);
-    }
+    await this.assertApiOk(res, 'Failed to generate title');
 
     const json = await res.json().catch(() => null) as unknown;
     const title = typeof (json as { title?: unknown } | null)?.title === 'string'
@@ -689,18 +658,9 @@ export class RemoteConversation extends EventEmitter {
       throw new Error('Cannot condense: no active conversation. Start or restore a conversation first.');
     }
 
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
-    const res = await this.fetchWithTimeout(
-      `${base}/api/conversations/${this.conversationId}/condense`,
-      { method: 'POST', headers },
-      RemoteConversation.httpTimeoutMs,
-    );
-
-    if (!res.ok) {
-      const info = await res.text().catch(() => '');
-      throw new Error(`Failed to condense conversation (HTTP ${res.status})${info ? `: ${info}` : ''}`);
-    }
+    const res = await this.requestApi(`/api/conversations/${this.conversationId}/condense`, { method: 'POST', headers });
+    await this.assertApiOk(res, 'Failed to condense conversation');
   }
 
 
@@ -719,24 +679,19 @@ export class RemoteConversation extends EventEmitter {
       this.emit('error', new Error(`Cannot ${action}: no active conversation.`));
       return;
     }
-    const base = this.serverUrl.replace(/\/$/, '');
     try {
       const headers = this.getAuthHeaders();
 
       const payload: { accept: boolean; reason?: string } = { accept };
       if (!accept && reason !== undefined) payload.reason = reason;
 
-      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
+      const res = await this.requestApi(`/api/conversations/${this.conversationId}/events/respond_to_confirmation`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
-      }, RemoteConversation.httpTimeoutMs);
+      });
 
-      if (!res.ok) {
-        const info = await res.text().catch(() => '');
-        const status = res.status;
-        throw new Error(`Failed to ${action} action (HTTP ${status})${info ? `: ${info}` : ''}`);
-      }
+      await this.assertApiOk(res, `Failed to ${action} action`);
     } catch (e) {
       this.emit('error', e instanceof Error ? e : new Error(String(e)));
     }
@@ -758,15 +713,14 @@ export class RemoteConversation extends EventEmitter {
     }
 
     try {
-      const base = this.serverUrl.replace(/\/$/, '');
       const headers = this.getAuthHeaders();
       const httpPayload = { ...messagePayload, run };
-      const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events`, {
+      const res = await this.requestApi(`/api/conversations/${this.conversationId}/events`, {
         method: 'POST', headers, body: JSON.stringify(httpPayload)
-      }, RemoteConversation.httpTimeoutMs);
+      });
       if (!res.ok) {
-        const info = await res.text().catch(() => '');
-        this.emit('error', new Error(`Failed to send message (HTTP ${res.status})${info ? `: ${info}` : ''}`));
+        const info = await this.readHttpErrorInfo(res);
+        this.emit('error', this.formatHttpError('Failed to send message', res.status, info));
       }
     } catch (e) { this.emit('error', e); }
   }
@@ -863,9 +817,31 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
+  private getApiBaseUrl(): string {
+    return this.serverUrl;
+  }
+
+  private async requestApi(path: string, init: RequestInit): Promise<Response> {
+    return this.fetchWithTimeout(`${this.getApiBaseUrl()}${path}`, init, RemoteConversation.httpTimeoutMs);
+  }
+
+  private async readHttpErrorInfo(response: Response): Promise<string> {
+    return response.text().catch(() => '');
+  }
+
+  private formatHttpError(operation: string, status: number, info: string): Error {
+    return new Error(`${operation} (HTTP ${status})${info ? `: ${info}` : ''}`);
+  }
+
+  private async assertApiOk(response: Response, operation: string): Promise<void> {
+    if (response.ok) return;
+    const info = await this.readHttpErrorInfo(response);
+    throw this.formatHttpError(operation, response.status, info);
+  }
+
   private connect() {
     if (!this.conversationId) return;
-    const base = this.serverUrl.replace(/\/$/, '');
+    const base = this.getApiBaseUrl();
     const usedLegacyWsSessionKeyQueryAuth = this.useLegacyWsSessionKeyQueryAuth;
     const params = new URLSearchParams();
     if (usedLegacyWsSessionKeyQueryAuth) {
@@ -955,17 +931,16 @@ export class RemoteConversation extends EventEmitter {
 
   private async replayHistory(): Promise<boolean> {
     if (!this.conversationId) return true;
-    const base = this.serverUrl.replace(/\/$/, '');
     const headers = this.getAuthHeaders();
     let pageId: string | undefined;
     try {
       while (true) {
         const params = new URLSearchParams({ limit: String(RemoteConversation.historyPageLimit) });
         if (pageId) params.set('page_id', pageId);
-        const res = await this.fetchWithTimeout(`${base}/api/conversations/${this.conversationId}/events/search?${params.toString()}`, { headers }, RemoteConversation.httpTimeoutMs);
+        const res = await this.requestApi(`/api/conversations/${this.conversationId}/events/search?${params.toString()}`, { headers });
         if (!res.ok) {
-          const info = await res.text().catch(() => '');
-          this.emit('error', new Error(`Failed to fetch conversation history (HTTP ${res.status})${info ? `: ${info}` : ''}`));
+          const info = await this.readHttpErrorInfo(res);
+          this.emit('error', this.formatHttpError('Failed to fetch conversation history', res.status, info));
           return false;
         }
         const body = await res.json() as ConversationHistoryPage;
