@@ -23,6 +23,7 @@ import { resolveConversationStoreRoot } from './extension/conversationStoreRoot'
 import { registerSecretCommands } from './extension/secretCommands';
 import { summarizeWithLocalLlm } from './extension/summarizeWithLocalLlm';
 import { createHalConfigurationChangeHandler } from './extension/halConfigurationChangeHandler';
+import { registerCoreCommands } from './extension/coreCommands';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
 import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
@@ -590,18 +591,6 @@ export function activate(context: vscode.ExtensionContext) {
     },
   }).ensureConversationAndConnection;
 
-  const open = vscode.commands.registerCommand('openhands.open', async () => {
-    try {
-      // VS Code auto-creates a focus command for views: `<viewId>.focus`
-      await vscode.commands.executeCommand('openhands.agent.focus');
-    } catch {
-      // Fallback: open the container and reveal the view if already resolved
-      await vscode.commands.executeCommand('workbench.view.extension.openhands');
-      chatView?.show?.(true);
-    }
-    await ensureConversationAndConnection();
-  });
-
   const explainSelection = registerExplainSelectionCommand({
     getConversation: () => conversation,
     getConversationMode: () => conversationMode,
@@ -662,44 +651,10 @@ export function activate(context: vscode.ExtensionContext) {
     summarizeWithLocalLlm,
   });
 
-  const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {
-    await ensureConversationAndConnection();
-    sentTestEvents.length = 0;
-    printedExitFor.clear();
-    await conversation?.startNewConversation();
-  });
-
-  const configure = vscode.commands.registerCommand('openhands.configure', async () => {
-    // Open VS Code settings page for OpenHands extension
-    await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:openhands.openhands-tab');
-  });
-
-  const toggleVerboseOutput = vscode.commands.registerCommand('openhands.toggleVerboseOutput', async () => {
-    const cfg = vscode.workspace.getConfiguration();
-    const current = normalizeOutputVerbosity(cfg.get<string>('openhands.logging.verbosity'));
-    const next: OutputVerbosity = current === 'verbose' ? 'minimal' : 'verbose';
-    await cfg.update('openhands.logging.verbosity', next, vscode.ConfigurationTarget.Global);
-    outputVerbosity = next;
-    verboseEventLogging =
-      outputVerbosity === 'verbose' ||
-      Boolean(cfg.get<boolean>('openhands.agent.debug')) ||
-      Boolean(cfg.get<boolean>('openhands.devBridge.enabled'));
-    outputLogger?.info(`[settings] Output verbosity set to ${next}`);
-    if (next === 'verbose') {
-      outputLogger?.show(true);
-    }
-    void vscode.window.showInformationMessage(`OpenHands output verbosity: ${next}`);
-  });
-
   const secretCommands = registerSecretCommands({
     context,
     secrets,
     getConversation: () => conversation,
-  });
-
-  const reconnect = vscode.commands.registerCommand('openhands.reconnect', async () => {
-    await ensureConversationAndConnection();
-    conversation?.reconnect();
   });
 
   // Clear terminal references when the user closes the OpenHands terminal
@@ -712,14 +667,43 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  const pause = vscode.commands.registerCommand('openhands.pauseCurrentRun', async () => {
-    await ensureConversationAndConnection();
-    await conversation?.pause();
-  });
-
-  const resume = vscode.commands.registerCommand('openhands.resumeCurrentRun', async () => {
-    await ensureConversationAndConnection();
-    await conversation?.resume();
+  const coreCommands = registerCoreCommands({
+    ensureConversationAndConnection: () => ensureConversationAndConnection(),
+    focusOpenHandsView: async () => {
+      try {
+        // VS Code auto-creates a focus command for views: `<viewId>.focus`
+        await vscode.commands.executeCommand('openhands.agent.focus');
+      } catch {
+        // Fallback: open the container and reveal the view if already resolved
+        await vscode.commands.executeCommand('workbench.view.extension.openhands');
+        chatView?.show?.(true);
+      }
+    },
+    startNewConversation: async () => {
+      await ensureConversationAndConnection();
+      sentTestEvents.length = 0;
+      printedExitFor.clear();
+      await conversation?.startNewConversation();
+    },
+    reconnectConversation: async () => {
+      await ensureConversationAndConnection();
+      conversation?.reconnect();
+    },
+    pauseConversation: async () => {
+      await ensureConversationAndConnection();
+      await conversation?.pause();
+    },
+    resumeConversation: async () => {
+      await ensureConversationAndConnection();
+      await conversation?.resume();
+    },
+    setOutputVerbosity: (verbosity) => {
+      outputVerbosity = verbosity;
+    },
+    setVerboseEventLogging: (verbose) => {
+      verboseEventLogging = verbose;
+    },
+    getOutputLogger: () => outputLogger,
   });
 
   // Listen for runtime configuration changes
@@ -768,19 +752,13 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(onConfigurationChange));
 
   context.subscriptions.push(
-    open,
+    ...coreCommands,
     explainSelection,
     cloudLogin,
     cloudLogout,
     ...diagnosticsCommands,
     ...halCommands,
-    startNew,
-    configure,
-    toggleVerboseOutput,
     ...secretCommands,
-    reconnect,
-    pause,
-    resume
   );
 }
 
