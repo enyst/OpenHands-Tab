@@ -31,9 +31,11 @@ Extended `.github/workflows/review-thread-gate.yml` triggers to include review a
 
 - `pull_request_review` (`submitted`, `edited`, `dismissed`)
 - `pull_request_review_comment` (`created`, `edited`, `deleted`)
-- `pull_request_review_thread` (`resolved`, `unresolved`)
+- `workflow_dispatch` with `pr_number` input as a manual rerun fallback when only thread resolution state changes
 
-Also tightened job scope to base branch `develop` at the job `if:` level (`github.event.pull_request.base.ref == 'develop'`) so all supported review events use a consistent gate condition.
+GitHub exposes `pull_request_review_thread` as a webhook event, but not as a supported Actions workflow trigger. Because of that, this guardrail relies on supported review/comment triggers plus manual dispatch for thread-state-only transitions.
+
+The job now resolves PR metadata directly and skips non-`develop` base branches in-script, so `pull_request` and manual dispatch paths use the same logic.
 
 ```yaml
 on:
@@ -44,15 +46,19 @@ on:
     types: [submitted, edited, dismissed]
   pull_request_review_comment:
     types: [created, edited, deleted]
-  pull_request_review_thread:
-    types: [resolved, unresolved]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        required: true
+        type: number
 
 jobs:
   unresolved-review-threads:
-    if: github.event.pull_request.base.ref == 'develop'
+    # Base branch guard is evaluated in-script after loading PR metadata.
 ```
 
 ## Operational Guidance
 
 - Keep `unresolved-review-threads` as a required status check.
 - Continue the manual final pass in GitHub "Files changed" before merge, since review-thread resolution is still a human process step even with improved event coverage.
+- If only thread resolution changed and no supported trigger fired, rerun via `workflow_dispatch` with the PR number.

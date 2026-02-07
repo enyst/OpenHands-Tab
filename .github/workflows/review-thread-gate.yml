@@ -8,34 +8,64 @@ on:
     types: [submitted, edited, dismissed]
   pull_request_review_comment:
     types: [created, edited, deleted]
-  pull_request_review_thread:
-    types: [resolved, unresolved]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to evaluate
+        required: true
+        type: number
 
 permissions:
   contents: read
   pull-requests: read
 
 concurrency:
-  group: review-thread-gate-${{ github.event.pull_request.number || github.sha }}
+  group: review-thread-gate-${{ github.event.pull_request.number || github.event.inputs.pr_number || github.sha }}
   cancel-in-progress: true
 
 jobs:
   unresolved-review-threads:
-    if: github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-latest
     steps:
       - name: Fail when unresolved review threads remain (unless waived)
         uses: actions/github-script@v8
         with:
           script: |
-            const pr = context.payload.pull_request;
-            if (!pr) {
-              core.info('No pull_request payload available; skipping.');
+            const payloadPrNumber = context.payload.pull_request?.number;
+            const dispatchPrNumber = Number.parseInt(String(context.payload.inputs?.pr_number ?? ''), 10);
+            const prNumber = payloadPrNumber ?? (Number.isFinite(dispatchPrNumber) ? dispatchPrNumber : null);
+            if (!prNumber) {
+              core.setFailed('No pull request number found in event payload. For workflow_dispatch, provide pr_number.');
               return;
             }
 
-            const waiverMatch = pr.body?.match(/review-thread-waiver\s*:\s*(.+)/i);
-            const waiverReason = waiverMatch?.[1]?.trim() || null;
+            const metadataQuery = `
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    baseRefName
+                    body
+                  }
+                }
+              }
+            `;
+            const metadataResult = await github.graphql(metadataQuery, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              number: prNumber,
+            });
+            const pullRequest = metadataResult.repository.pullRequest;
+            if (!pullRequest) {
+              core.setFailed(`Pull request #${prNumber} was not found.`);
+              return;
+            }
+            if (pullRequest.baseRefName !== 'develop') {
+              core.info(`Skipping pull request #${prNumber} because base branch is '${pullRequest.baseRefName}', not 'develop'.`);
+              return;
+            }
+
+            const waiverMatch = pullRequest.body?.match(/review-thread-waiver\s*:\s*(.+)/i);
+            const waiverReason = waiverMatch?.[1]?.trim() ?? null;
 
             const unresolved = [];
             let cursor = null;
@@ -70,7 +100,7 @@ jobs:
               const result = await github.graphql(query, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                number: pr.number,
+                number: prNumber,
                 cursor,
               });
 
