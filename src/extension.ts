@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { type HalStateSnapshot, isHalMode, isHalDecision, isHalEye, isHalPhase } from './shared/halTypes';
-import { DEFAULT_HAL_STATE } from './shared/halDefaults';
+import { type HalStateSnapshot } from './shared/halTypes';
 import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
 import { getGlobalStorageBaseDir } from './shared/pastedImages';
@@ -24,6 +23,7 @@ import { createHalConfigurationChangeHandler } from './extension/halConfiguratio
 import { registerCoreCommands } from './extension/coreCommands';
 import { registerWelcomeSecretStatusSync } from './extension/welcomeSecretStatusSync';
 import { mirrorTerminalEventToLocalTerminal } from './extension/localTerminalMirror';
+import { registerChatViewProvider } from './extension/chatViewProvider';
 import { formatEnvironmentInformation } from './shared/environmentInformation';
 import { collectEnvironmentInfo } from './shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from './shared/uri';
@@ -45,10 +45,8 @@ import {
   isBashCommand,
   isBashOutput,
 } from '@openhands/agent-sdk-ts';
-import { OpenHandsChatViewProvider } from './sidebar/OpenHandsChatViewProvider';
 import { attachConversationListeners } from './conversation/host/attachConversationListeners';
 import { createConfigurationChangeHandler } from './settings/host/createConfigurationChangeHandler';
-import { createWebviewMessageHandler } from './webview/host/createWebviewMessageHandler';
 
 let chatView: vscode.WebviewView | undefined;
 let conversation: ConversationInstance | undefined;
@@ -275,110 +273,57 @@ export function activate(context: vscode.ExtensionContext) {
     await ensureConversationAndConnectionDelegate(options);
   }
 
-  let lastChatViewVisibility: boolean | undefined;
-
-  const chatViewProvider = new OpenHandsChatViewProvider(context, {
-    createMessageHandler: (view) =>
-      createWebviewMessageHandler({
-        context,
-        host: { postMessage: (message) => view.webview.postMessage(message) },
-        secretRegistry: secrets,
-        getQueuedUserEditNotes: fileEditNoteTracker.getQueuedUserEditNotes,
-        clearQueuedUserEditNotes: fileEditNoteTracker.clearQueuedUserEditNotes,
-        getConversation: () => conversation,
-        getConversationMode: () => conversationMode,
-        getConversationStoreRoot: () => conversationStoreRoot,
-        resolveConversationStoreRoot: () =>
-          resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }),
-        setWebviewReadyState: (conversationId, lastSeenSeq) => {
-          chatWebviewReady = true;
-          chatLastConversationId = conversationId;
-          chatLastSeenSeq = lastSeenSeq;
-        },
-        setWebviewE2EReady: (ready) => {
-          chatWebviewE2EReady = ready;
-        },
-        setWebviewE2EInfo: (info) => {
-          chatWebviewE2EInfo = info;
-        },
-        setLastKnownLlmLabel: (label) => {
-          lastKnownLlmLabel = label;
-        },
-        getLastKnownLlmLabel: () => lastKnownLlmLabel,
-        flushConversationEventBacklog,
-        onRenderedEventsResponse: (requestId, info) => {
-          pendingRenderedEventsRequests.get(requestId)?.(info);
-        },
-        onUiStateResponse: (requestId, info) => {
-          pendingUiStateRequests.get(requestId)?.(info);
-        },
-        onHalStateResponse: (requestId, info) => {
-          const mode = isHalMode(info.mode) ? info.mode : DEFAULT_HAL_STATE.mode;
-          const phase = isHalPhase(info.phase) ? info.phase : DEFAULT_HAL_STATE.phase;
-          const eye = isHalEye(info.eye) ? info.eye : DEFAULT_HAL_STATE.eye;
-          const decision = isHalDecision(info.decision) ? info.decision : null;
-          pendingHalStateRequests.get(requestId)?.({
-            enabled: info.enabled === true,
-            mode,
-            phase,
-            eye,
-            stepIndex: typeof info.stepIndex === 'number' ? info.stepIndex : null,
-            decision,
-            lastError: typeof info.lastError === 'string' ? info.lastError : null,
-          });
-        },
-        isDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
-        getOutputChannel: () => outputChannel,
-        fileLog: devBridgeLogger.fileLog,
-      }),
-    onResolved: (view) => {
-      chatView = view;
-      chatWebviewReady = false;
-      chatWebviewE2EReady = false;
-      chatWebviewE2EInfo = null;
-      lastChatViewVisibility = Boolean(view.visible);
-      void ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
-        outputChannel?.appendLine(`[error] ensureConversationAndConnection failed: ${renderError(err)}`);
-      });
-    },
-    onVisibilityChange: (_view, visible) => {
-      const isVisible = Boolean(visible);
-      if (lastChatViewVisibility === isVisible) return;
-      lastChatViewVisibility = isVisible;
-
-      if (!isVisible) {
-        void (async () => {
-          try {
-            await conversation?.pause();
-          } catch (err) {
-            outputChannel?.appendLine(`[pause] Failed to auto-pause when chat view was hidden: ${renderError(err)}`);
-          }
-        })();
-      }
-    },
-    onDisposed: () => {
-      const shouldPauseOnDispose = lastChatViewVisibility !== false;
-      if (shouldPauseOnDispose) {
-        void (async () => {
-          try {
-            await conversation?.pause();
-          } catch (err) {
-            outputChannel?.appendLine(`[pause] Failed to auto-pause when chat view was disposed: ${renderError(err)}`);
-          }
-        })();
-      }
-      chatView = undefined;
-      chatWebviewReady = false;
-      chatWebviewE2EReady = false;
-      chatWebviewE2EInfo = null;
-      chatLastConversationId = undefined;
-      chatLastSeenSeq = undefined;
-      lastChatViewVisibility = undefined;
-    },
-  });
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('openhands.agent', chatViewProvider, {
-      webviewOptions: { retainContextWhenHidden: true },
+    registerChatViewProvider({
+      context,
+      secretRegistry: secrets,
+      getQueuedUserEditNotes: fileEditNoteTracker.getQueuedUserEditNotes,
+      clearQueuedUserEditNotes: fileEditNoteTracker.clearQueuedUserEditNotes,
+      getConversation: () => conversation,
+      getConversationMode: () => conversationMode,
+      getConversationStoreRoot: () => conversationStoreRoot,
+      resolveConversationStoreRoot: () =>
+        resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }),
+      setChatView: (view) => {
+        chatView = view;
+      },
+      setChatWebviewReady: (ready) => {
+        chatWebviewReady = ready;
+      },
+      setChatWebviewE2EReady: (ready) => {
+        chatWebviewE2EReady = ready;
+      },
+      setChatWebviewE2EInfo: (info) => {
+        chatWebviewE2EInfo = info;
+      },
+      setChatLastConversationId: (conversationId) => {
+        chatLastConversationId = conversationId;
+      },
+      setChatLastSeenSeq: (lastSeenSeq) => {
+        chatLastSeenSeq = lastSeenSeq;
+      },
+      setLastKnownLlmLabel: (label) => {
+        lastKnownLlmLabel = label;
+      },
+      getLastKnownLlmLabel: () => lastKnownLlmLabel,
+      flushConversationEventBacklog,
+      onRenderedEventsResponse: (requestId, info) => {
+        pendingRenderedEventsRequests.get(requestId)?.(info);
+      },
+      onUiStateResponse: (requestId, info) => {
+        pendingUiStateRequests.get(requestId)?.(info);
+      },
+      onHalStateResponse: (requestId, info) => {
+        pendingHalStateRequests.get(requestId)?.(info);
+      },
+      isDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
+      getOutputChannel: () => outputChannel,
+      fileLog: devBridgeLogger.fileLog,
+      ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
+      pauseConversation: async () => {
+        await conversation?.pause();
+      },
+      renderError,
     })
   );
 

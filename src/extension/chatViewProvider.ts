@@ -1,0 +1,157 @@
+import * as vscode from 'vscode';
+import { type ConversationInstance, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import { DEFAULT_HAL_STATE } from '../shared/halDefaults';
+import { type HalStateSnapshot, isHalDecision, isHalEye, isHalMode, isHalPhase } from '../shared/halTypes';
+import type { HostToWebviewMessage, WebviewE2EInfo } from '../shared/webviewMessages';
+import { OpenHandsChatViewProvider } from '../sidebar/OpenHandsChatViewProvider';
+import { createWebviewMessageHandler } from '../webview/host/createWebviewMessageHandler';
+import type { EnsureConversationOptions } from './conversationLifecycle';
+
+type RenderedEventsInfo = {
+  count: number;
+  eventTypes: string[];
+  events?: Array<{ type: string; marker?: string; toolCallId?: string }>;
+};
+
+type UiStateSnapshot = {
+  input: string;
+  showContextPicker: boolean;
+  showSkillsPopover: boolean;
+  showHistory: boolean;
+  workspaceFilesCount: number;
+  selectedContextFiles: string[];
+  skillsCount: number;
+  attachmentsCount: number;
+  hasWelcomeProviderKey: boolean;
+  hasWelcomeGeminiKey: boolean;
+  showWelcomeProviderKeyMessage: boolean;
+  showWelcomeGeminiKeyMessage: boolean;
+};
+
+type RegisterChatViewProviderDeps = {
+  context: vscode.ExtensionContext;
+  secretRegistry: SecretRegistry;
+  getQueuedUserEditNotes: () => string[];
+  clearQueuedUserEditNotes: () => void;
+  getConversation: () => ConversationInstance | undefined;
+  getConversationMode: () => 'local' | 'remote';
+  getConversationStoreRoot: () => string | undefined;
+  resolveConversationStoreRoot: () => Promise<string>;
+  setChatView: (view: vscode.WebviewView | undefined) => void;
+  setChatWebviewReady: (ready: boolean) => void;
+  setChatWebviewE2EReady: (ready: boolean) => void;
+  setChatWebviewE2EInfo: (info: WebviewE2EInfo | null) => void;
+  setChatLastConversationId: (conversationId: string | undefined) => void;
+  setChatLastSeenSeq: (lastSeenSeq: number | undefined) => void;
+  setLastKnownLlmLabel: (label: string | null) => void;
+  getLastKnownLlmLabel: () => string | null;
+  flushConversationEventBacklog: (args: {
+    postMessage: (message: HostToWebviewMessage) => Thenable<boolean>;
+    clientConversationId?: string;
+    clientLastSeenSeq?: number;
+  }) => void;
+  onRenderedEventsResponse: (requestId: string, info: RenderedEventsInfo) => void;
+  onUiStateResponse: (requestId: string, info: UiStateSnapshot) => void;
+  onHalStateResponse: (requestId: string, info: HalStateSnapshot) => void;
+  isDevBridgeEnabled: () => boolean;
+  getOutputChannel: () => vscode.OutputChannel | undefined;
+  fileLog: (line: string) => void;
+  ensureConversationAndConnection: (options?: EnsureConversationOptions) => Promise<void>;
+  pauseConversation: () => Promise<void>;
+  renderError: (err: unknown) => string;
+};
+
+export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vscode.Disposable {
+  let lastChatViewVisibility: boolean | undefined;
+
+  const chatViewProvider = new OpenHandsChatViewProvider(deps.context, {
+    createMessageHandler: (view) =>
+      createWebviewMessageHandler({
+        context: deps.context,
+        host: { postMessage: (message) => view.webview.postMessage(message) },
+        secretRegistry: deps.secretRegistry,
+        getQueuedUserEditNotes: deps.getQueuedUserEditNotes,
+        clearQueuedUserEditNotes: deps.clearQueuedUserEditNotes,
+        getConversation: deps.getConversation,
+        getConversationMode: deps.getConversationMode,
+        getConversationStoreRoot: deps.getConversationStoreRoot,
+        resolveConversationStoreRoot: deps.resolveConversationStoreRoot,
+        setWebviewReadyState: (conversationId, lastSeenSeq) => {
+          deps.setChatWebviewReady(true);
+          deps.setChatLastConversationId(conversationId);
+          deps.setChatLastSeenSeq(lastSeenSeq);
+        },
+        setWebviewE2EReady: deps.setChatWebviewE2EReady,
+        setWebviewE2EInfo: deps.setChatWebviewE2EInfo,
+        setLastKnownLlmLabel: deps.setLastKnownLlmLabel,
+        getLastKnownLlmLabel: deps.getLastKnownLlmLabel,
+        flushConversationEventBacklog: deps.flushConversationEventBacklog,
+        onRenderedEventsResponse: deps.onRenderedEventsResponse,
+        onUiStateResponse: deps.onUiStateResponse,
+        onHalStateResponse: (requestId, info) => {
+          const mode = isHalMode(info.mode) ? info.mode : DEFAULT_HAL_STATE.mode;
+          const phase = isHalPhase(info.phase) ? info.phase : DEFAULT_HAL_STATE.phase;
+          const eye = isHalEye(info.eye) ? info.eye : DEFAULT_HAL_STATE.eye;
+          const decision = isHalDecision(info.decision) ? info.decision : null;
+          deps.onHalStateResponse(requestId, {
+            enabled: info.enabled === true,
+            mode,
+            phase,
+            eye,
+            stepIndex: typeof info.stepIndex === 'number' ? info.stepIndex : null,
+            decision,
+            lastError: typeof info.lastError === 'string' ? info.lastError : null,
+          });
+        },
+        isDevBridgeEnabled: deps.isDevBridgeEnabled,
+        getOutputChannel: deps.getOutputChannel,
+        fileLog: deps.fileLog,
+      }),
+    onResolved: (view) => {
+      deps.setChatView(view);
+      deps.setChatWebviewReady(false);
+      deps.setChatWebviewE2EReady(false);
+      deps.setChatWebviewE2EInfo(null);
+      lastChatViewVisibility = Boolean(view.visible);
+
+      void deps.ensureConversationAndConnection({ uiJustCreated: true }).catch((err: unknown) => {
+        deps.getOutputChannel()?.appendLine(`[error] ensureConversationAndConnection failed: ${deps.renderError(err)}`);
+      });
+    },
+    onVisibilityChange: (_view, visible) => {
+      const isVisible = Boolean(visible);
+      if (lastChatViewVisibility === isVisible) return;
+      lastChatViewVisibility = isVisible;
+
+      if (!isVisible) {
+        void deps.pauseConversation().catch((err) => {
+          deps.getOutputChannel()?.appendLine(
+            `[pause] Failed to auto-pause when chat view was hidden: ${deps.renderError(err)}`
+          );
+        });
+      }
+    },
+    onDisposed: () => {
+      const shouldPauseOnDispose = lastChatViewVisibility !== false;
+      if (shouldPauseOnDispose) {
+        void deps.pauseConversation().catch((err) => {
+          deps.getOutputChannel()?.appendLine(
+            `[pause] Failed to auto-pause when chat view was disposed: ${deps.renderError(err)}`
+          );
+        });
+      }
+
+      deps.setChatView(undefined);
+      deps.setChatWebviewReady(false);
+      deps.setChatWebviewE2EReady(false);
+      deps.setChatWebviewE2EInfo(null);
+      deps.setChatLastConversationId(undefined);
+      deps.setChatLastSeenSeq(undefined);
+      lastChatViewVisibility = undefined;
+    },
+  });
+
+  return vscode.window.registerWebviewViewProvider('openhands.agent', chatViewProvider, {
+    webviewOptions: { retainContextWhenHidden: true },
+  });
+}
