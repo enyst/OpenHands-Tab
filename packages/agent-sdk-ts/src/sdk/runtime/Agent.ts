@@ -1082,6 +1082,7 @@ export class Agent extends EventEmitter {
       message,
       debug: this.debug,
       settings: this.options.settings,
+      profileStoreOptions: this.options.profileStoreOptions,
     });
     const maskedDetail = this.secretMasker.maskText(detail);
     return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail: maskedDetail } as Event;

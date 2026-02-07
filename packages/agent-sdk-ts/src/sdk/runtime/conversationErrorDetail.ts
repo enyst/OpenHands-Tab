@@ -1,4 +1,4 @@
-import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, loadProfile } from '../llm';
+import { DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, loadProfile, type LLMProfileStoreOptions } from '../llm';
 import type { OpenHandsSettings } from '../types/settings';
 import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 
@@ -6,10 +6,11 @@ type BuildConversationErrorDetailParams = {
   message: string;
   debug: boolean;
   settings: OpenHandsSettings | undefined;
+  profileStoreOptions: LLMProfileStoreOptions | undefined;
 };
 
 export function buildConversationErrorDetail(params: BuildConversationErrorDetailParams): string {
-  const { message, debug, settings } = params;
+  const { message, debug, settings, profileStoreOptions } = params;
   if (!debug) return message;
 
   const model = toOptionalNonEmptyString(settings?.llm?.model);
@@ -36,7 +37,7 @@ export function buildConversationErrorDetail(params: BuildConversationErrorDetai
 
     if (isSafeProfileId(profileId)) {
       try {
-        const profile = loadProfile(profileId);
+        const profile = loadProfile(profileId, profileStoreOptions);
         const profileModel = toOptionalNonEmptyString(profile.config.model);
         const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
         const effectiveProfileProvider =
