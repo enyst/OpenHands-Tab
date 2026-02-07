@@ -72,7 +72,56 @@ export type RemoteConversationEventMap = {
   terminal: (event: BashEvent) => void;
 };
 
+type ReconnectDecision =
+  | { shouldReconnect: false; emitExhaustedError: boolean }
+  | { shouldReconnect: true; delayMs: number };
+
+class ReconnectBackoffPolicy {
+  private retryCount = 0;
+  private gaveUpReconnect = false;
+  private hasEverConnected = false;
+
+  constructor(
+    private readonly retryBaseMs: number,
+    private readonly retryMaxMs: number,
+    private readonly maxReconnectRetries: number,
+  ) {}
+
+  markConnected() {
+    this.retryCount = 0;
+    this.gaveUpReconnect = false;
+    this.hasEverConnected = true;
+  }
+
+  resetForManualReconnect() {
+    this.retryCount = 0;
+    this.gaveUpReconnect = false;
+  }
+
+  nextDecision(): ReconnectDecision {
+    // If we have never successfully connected, don't spin in a retry loop.
+    // In that case, surface the error and let the user manually retry.
+    if (!this.hasEverConnected) {
+      return { shouldReconnect: false, emitExhaustedError: false };
+    }
+    if (this.retryCount >= this.maxReconnectRetries) {
+      const emitExhaustedError = !this.gaveUpReconnect;
+      this.gaveUpReconnect = true;
+      return { shouldReconnect: false, emitExhaustedError };
+    }
+
+    const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
+    const jitter = Math.floor(base * 0.2 * Math.random());
+    this.retryCount += 1;
+    return { shouldReconnect: true, delayMs: base + jitter };
+  }
+}
+
 export class RemoteConversation extends EventEmitter {
+  private static readonly reconnectRetryBaseMs = 1000;
+  private static readonly reconnectRetryMaxMs = 15000;
+  private static readonly reconnectMaxRetries = 6;
+
   private serverUrl: string;
   private settings: OpenHandsSettings;
   private conversationId?: string;
@@ -81,11 +130,11 @@ export class RemoteConversation extends EventEmitter {
   private ws?: WebSocket;
   private wsHandshakeTimer?: ReturnType<typeof setTimeout>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private retryCount = 0;
-  private gaveUpReconnect = false;
-  private readonly retryBaseMs = 1000;
-  private readonly retryMaxMs = 15000;
-  private readonly maxReconnectRetries = 6;
+  private readonly reconnectBackoffPolicy = new ReconnectBackoffPolicy(
+    RemoteConversation.reconnectRetryBaseMs,
+    RemoteConversation.reconnectRetryMaxMs,
+    RemoteConversation.reconnectMaxRetries,
+  );
   private readonly workspaceRoot: string;
   private readonly tools?: RemoteConversationTool[];
   private readonly includeDefaultTools?: boolean | string[];
@@ -95,7 +144,6 @@ export class RemoteConversation extends EventEmitter {
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
-  private hasEverConnected = false;
   private useLegacyWsSessionKeyQueryAuth = false;
 
   readonly state: RemoteState;
@@ -269,6 +317,7 @@ export class RemoteConversation extends EventEmitter {
       this.clearWsHandshakeTimer();
       this.seenEventIds.clear();
       this.state.reset();
+      this.reconnectBackoffPolicy.resetForManualReconnect();
       this.setStatus('connecting');
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
@@ -444,6 +493,7 @@ export class RemoteConversation extends EventEmitter {
     this.conversationId = id;
     this.seenEventIds.clear();
     this.state.reset();
+    this.reconnectBackoffPolicy.resetForManualReconnect();
     this.setStatus('connecting');
     this.emit('conversationStarted', id);
     const ok = await this.replayHistory();
@@ -734,8 +784,7 @@ export class RemoteConversation extends EventEmitter {
 
   reconnect() {
     this.clearReconnect();
-    this.retryCount = 0;
-    this.gaveUpReconnect = false;
+    this.reconnectBackoffPolicy.resetForManualReconnect();
     if (this.conversationId) {
       this.connect();
     }
@@ -787,21 +836,14 @@ export class RemoteConversation extends EventEmitter {
 
   private scheduleReconnect() {
     this.clearReconnect();
-    // If we have never successfully connected, don't spin in a retry loop.
-    // In that case, surface the error and let the user manually retry.
-    if (!this.hasEverConnected) return;
-    if (this.retryCount >= this.maxReconnectRetries) {
-      if (!this.gaveUpReconnect) {
-        this.gaveUpReconnect = true;
+    const decision = this.reconnectBackoffPolicy.nextDecision();
+    if (!decision.shouldReconnect) {
+      if (decision.emitExhaustedError) {
         this.emit('error', new Error('Disconnected from agent-server. Reconnect retries exhausted.'));
       }
       return;
     }
-    const base = Math.min(this.retryMaxMs, Math.floor(this.retryBaseMs * Math.pow(2, this.retryCount)));
-    const jitter = Math.floor(base * 0.2 * Math.random());
-    const delay = base + jitter;
-    this.retryCount += 1;
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => this.connect(), decision.delayMs);
   }
 
   private clearWsHandshakeTimer() {
@@ -860,9 +902,7 @@ export class RemoteConversation extends EventEmitter {
     ws.on('open', () => {
       if (this.ws !== ws) return;
       this.clearWsHandshakeTimer();
-      this.retryCount = 0;
-      this.gaveUpReconnect = false;
-      this.hasEverConnected = true;
+      this.reconnectBackoffPolicy.markConnected();
       this.setStatus('online');
     });
     ws.on('close', () => {
