@@ -5,6 +5,14 @@ import { IMAGE_EXTENSIONS, MAX_INLINE_IMAGE_BASE64_CHARS, PDF_EXTENSION } from '
 import { truncateContent } from './textTransforms';
 
 type Workspace = ToolContext['workspace'];
+type WorkspaceListEntry = Awaited<ReturnType<Workspace['list']>>[number];
+type VisibleEntry = { name: string; abs: string; isDir: boolean };
+
+const getSortedVisibleEntries = (entries: WorkspaceListEntry[]): VisibleEntry[] =>
+  entries
+    .filter((entry) => !entry.name.startsWith('.'))
+    .map((entry) => ({ name: entry.name, abs: entry.path, isDir: entry.isDirectory }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
 export const viewDirectory = async (
   absPath: string,
@@ -21,11 +29,7 @@ export const viewDirectory = async (
 
   const topEntries = await workspace.list(absPath);
   const hiddenCount = topEntries.filter((entry) => entry.name.startsWith('.')).length;
-
-  const visibleTop = topEntries
-    .filter((entry) => !entry.name.startsWith('.'))
-    .map((entry) => ({ name: entry.name, abs: entry.path, isDir: entry.isDirectory }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const visibleTop = getSortedVisibleEntries(topEntries);
 
   const displayRoot = toDisplayPath(absPath);
   const lines: string[] = [`d ${displayRoot}`];
@@ -42,10 +46,7 @@ export const viewDirectory = async (
       lines.push(`skipped unreadable: ${displayEntry}`);
       continue;
     }
-    const visibleChildren = childEntries
-      .filter((child) => !child.name.startsWith('.'))
-      .map((child) => ({ name: child.name, abs: child.path, isDir: child.isDirectory }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const visibleChildren = getSortedVisibleEntries(childEntries);
     for (const child of visibleChildren) {
       const displayChild = toDisplayPath(child.abs);
       lines.push(`${child.isDir ? 'd' : 'f'} ${displayChild}`);
