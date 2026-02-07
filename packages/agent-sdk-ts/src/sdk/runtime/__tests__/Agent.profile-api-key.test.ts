@@ -207,4 +207,57 @@ describe('Agent profile api key selection', () => {
       fs.rmSync(tmpHome, { recursive: true, force: true });
     }
   });
+
+  it('uses profileStoreOptions when formatting ConversationErrorEvent detail in debug mode', async () => {
+    const tmpHome = makeTempDir('agent-profile-error-detail-store-');
+    const customProfilesRoot = path.join(tmpHome, 'custom-profiles');
+    fs.mkdirSync(customProfilesRoot, { recursive: true });
+    const originalHome = process.env.HOME;
+    const originalUserProfile = process.env.USERPROFILE;
+
+    try {
+      process.env.HOME = tmpHome;
+      process.env.USERPROFILE = tmpHome;
+      vi.resetModules();
+
+      const [{ saveProfile }, { Agent }] = await Promise.all([
+        import('../../llm'),
+        import('../Agent'),
+      ]);
+
+      // Default profile location (under HOME) intentionally conflicts with custom profile store.
+      saveProfile('p1', {
+        provider: 'openai',
+        model: 'gpt-5-mini',
+      });
+      // Custom profile store should win when profileStoreOptions is provided.
+      saveProfile(
+        'p1',
+        {
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet',
+        },
+        { rootDir: customProfilesRoot },
+      );
+
+      const agent = new Agent({
+        workspaceRoot: tmpHome,
+        profileStoreOptions: { rootDir: customProfilesRoot },
+        settings: {
+          agent: { debug: true },
+          llm: { profileId: 'p1' },
+          secrets: {},
+        } as any,
+      });
+
+      const event = (agent as any).toConversationErrorEvent(new Error('boom')) as { kind?: string; detail?: string };
+      expect(event.kind).toBe('ConversationErrorEvent');
+      expect(event.detail).toContain('llm.effectiveProvider=anthropic');
+      expect(event.detail).toContain('llm.effectiveModel=claude-3-5-sonnet');
+    } finally {
+      process.env.HOME = originalHome;
+      process.env.USERPROFILE = originalUserProfile;
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    }
+  });
 });
