@@ -818,7 +818,7 @@ export class RemoteConversation extends EventEmitter {
   }
 
   private getApiBaseUrl(): string {
-    return this.serverUrl.replace(/\/$/, '');
+    return this.serverUrl;
   }
 
   private async requestApi(path: string, init: RequestInit): Promise<Response> {
