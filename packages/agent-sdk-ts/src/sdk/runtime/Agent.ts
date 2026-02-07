@@ -47,6 +47,7 @@ import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
 import { ToolSummarizer } from './toolSummarizer';
 import { buildChatRequestWithCondensation, tryCondenseConversation as tryCondenseConversationWithDeps } from './condensation';
+import { buildConversationErrorDetail } from './conversationErrorDetail';
 import {
   resolveCondensationBudget,
   shouldRetryWithCondensationAfterError,
@@ -1077,49 +1078,11 @@ export class Agent extends EventEmitter {
   private toConversationErrorEvent(error: unknown, options?: { code?: string; message?: string }): Event {
     const message = options?.message ?? stringifyErrorWithCause(error);
     const code = options?.code ?? classifyConversationErrorCode(message);
-    const detail = (() => {
-      if (!this.debug) return message;
-
-      const model = toOptionalNonEmptyString(this.options.settings?.llm?.model);
-      const profileId = toOptionalNonEmptyString(this.options.settings?.llm?.profileId);
-      const configuredBaseUrl = toOptionalNonEmptyString(this.options.settings?.llm?.baseUrl);
-      const configuredProvider = this.options.settings?.llm?.provider ?? undefined;
-      const provider = configuredProvider ?? detectProviderFromBaseUrl(configuredBaseUrl);
-      const effectiveBaseUrl = configuredBaseUrl ?? DEFAULT_PROVIDER_BASE_URLS[provider] ?? DEFAULT_PROVIDER_BASE_URLS.openai;
-      const configuredApiKey = toOptionalNonEmptyString(this.options.settings?.secrets?.llmApiKey);
-      const apiKeyStatus = configuredApiKey ? 'set' : 'unset';
-      const mode = this.options.settings?.serverUrl ? 'remote' : 'local';
-      const serverUrl = toOptionalNonEmptyString(this.options.settings?.serverUrl);
-
-      const contextParts = [
-        `mode=${mode}`,
-        `llm.model=${model ?? '(unset)'}`,
-        `llm.provider=${provider}`,
-        `llm.baseUrl=${configuredBaseUrl ?? '(default)'}`,
-        `llm.effectiveBaseUrl=${effectiveBaseUrl}`,
-        `llm.apiKeyStatus=${apiKeyStatus}`,
-      ];
-      if (profileId) {
-        contextParts.push(`llm.profileId=${profileId}`);
-
-        if (isSafeProfileId(profileId)) {
-          try {
-            const profile = loadProfile(profileId);
-            const profileModel = toOptionalNonEmptyString(profile.config.model);
-            const profileBaseUrl = toOptionalNonEmptyString(profile.config.baseUrl);
-            const effectiveProfileProvider =
-              profile.config.provider ?? detectProviderFromBaseUrl(profileBaseUrl ?? configuredBaseUrl);
-            contextParts.push(`llm.effectiveProvider=${effectiveProfileProvider}`);
-            contextParts.push(`llm.effectiveModel=${profileModel ?? '(unset)'}`);
-          } catch {
-            // best-effort: profile may be missing or unreadable
-          }
-        }
-      }
-      if (serverUrl) contextParts.push(`serverUrl=${serverUrl}`);
-
-      return `${message} (${contextParts.join(', ')})`;
-    })();
+    const detail = buildConversationErrorDetail({
+      message,
+      debug: this.debug,
+      settings: this.options.settings,
+    });
     const maskedDetail = this.secretMasker.maskText(detail);
     return { kind: 'ConversationErrorEvent', source: 'agent', ...(code ? { code } : {}), detail: maskedDetail } as Event;
   }
