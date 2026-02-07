@@ -1007,7 +1007,7 @@ export class Agent extends EventEmitter {
     }
     if (this.agentContext) {
       const { llmModel, llmProvider, llmBaseUrl } = resolveSystemPromptLlmContext(
-        this.options.settings,
+        this.options.settings?.llm,
         this.options.profileStoreOptions,
       );
       const suffix = this.agentContext.getSystemMessageSuffix({

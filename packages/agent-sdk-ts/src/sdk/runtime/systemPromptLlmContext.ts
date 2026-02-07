@@ -1,5 +1,5 @@
 import { detectProviderFromBaseUrl, loadProfile, type LLMProfileStoreOptions } from '../llm';
-import type { OpenHandsSettings } from '../types/settings';
+import type { LLMSettings } from '../types/settings';
 import { isSafeProfileId, toOptionalNonEmptyString } from './settingsUtils';
 
 export type SystemPromptLlmContext = {
@@ -9,10 +9,9 @@ export type SystemPromptLlmContext = {
 };
 
 export function resolveSystemPromptLlmContext(
-  settings: OpenHandsSettings | undefined,
+  llmSettings: LLMSettings | undefined,
   profileStoreOptions: LLMProfileStoreOptions | undefined,
 ): SystemPromptLlmContext {
-  const llmSettings = settings?.llm;
   const profileId = toOptionalNonEmptyString(llmSettings?.profileId);
   let llmModel = toOptionalNonEmptyString(llmSettings?.model) ?? null;
   let llmProvider = toOptionalNonEmptyString(llmSettings?.provider) ?? null;
