@@ -146,6 +146,13 @@ OpenHands-Tab/
 - `packages/agent-sdk-ts/src/conversation/` - Conversation API
 - `package.json` - Commands, settings schema, dependencies
 
+## Webview Host Type Boundary
+
+- Shared host handler types live in `src/webview/host/webviewMessageHandler.types.ts`.
+- Handler modules under `src/webview/host/handlers/*` must import `CreateWebviewMessageHandlerDeps`/`WebviewHost` from `webviewMessageHandler.types.ts`, not from `createWebviewMessageHandler.ts`.
+- Dependency direction is one-way: `createWebviewMessageHandler.ts` composes handlers; handlers must not depend back on the composer module.
+- Keep this boundary aligned with cycle guardrails (`npm run lint:cycles`) before opening PRs.
+
 ## Coding Style
 
 - TypeScript ES2022, 2-space indent, single quotes, trailing semicolons
@@ -323,6 +330,7 @@ Pitfalls to avoid
 - [docs/PRD.md](docs/PRD.md) - Product requirements
 - [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) - SDK architecture
 - [docs/duplication-guardrail.md](docs/duplication-guardrail.md) - Duplication threshold policy and ratchet plan
+- [docs/webview_host_handler_boundary.md](docs/webview_host_handler_boundary.md) - Webview host handler dependency/type boundary contract
 - [docs/vscode_local_setup.md](docs/vscode_local_setup.md) - Local development setup
 - [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) - Headless/remote setup
 - [docs/settings_prd.md](docs/settings_prd.md) - Settings and configuration PRD
