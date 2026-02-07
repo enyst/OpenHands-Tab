@@ -21,8 +21,12 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
     await ensureVsCodeArgvJson(userDataDir);
 
     const maxAttempts = 3;
+    const runTestsOverallStart = Date.now();
+    let runTestsCompleted = false;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const port = await getAvailablePort();
+      const attemptStart = Date.now();
+      console.log(`[e2e/uiFlowsUi] runTests attempt ${attempt}/${maxAttempts} starting (cdp_port=${port})`);
       try {
         await runTests({
           vscodeExecutablePath,
@@ -44,15 +48,30 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
             E2E_CDP_PORT: String(port),
           },
         });
+        const attemptElapsedMs = Date.now() - attemptStart;
+        const totalElapsedMs = Date.now() - runTestsOverallStart;
+        console.log(
+          `[e2e/uiFlowsUi] runTests attempt ${attempt}/${maxAttempts} succeeded in ${attemptElapsedMs}ms (total=${totalElapsedMs}ms)`
+        );
+        runTestsCompleted = true;
         break;
       } catch (error) {
+        const attemptElapsedMs = Date.now() - attemptStart;
         const message = error instanceof Error ? error.message : String(error);
         const isPortConflict = /EADDRINUSE|address already in use|EADDRNOTAVAIL/i.test(message);
+        console.warn(
+          `[e2e/uiFlowsUi] runTests attempt ${attempt}/${maxAttempts} failed in ${attemptElapsedMs}ms (port_conflict=${isPortConflict})`
+        );
         if (!isPortConflict || attempt === maxAttempts) {
           throw error;
         }
         console.warn(`UI E2E run failed due to port conflict (attempt ${attempt}/${maxAttempts}); retrying...`);
       }
+    }
+    if (!runTestsCompleted) {
+      console.warn(
+        `[e2e/uiFlowsUi] runTests did not complete after ${maxAttempts} attempts (elapsed=${Date.now() - runTestsOverallStart}ms)`
+      );
     }
 
     assert.ok(true);
