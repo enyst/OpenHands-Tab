@@ -15,7 +15,7 @@ Each test file orchestrates a VS Code instance and runs a specific test suite:
 - **messaging.test.ts**: Tests message events and rendering
 - **uiFlows.test.ts**: Tests UI flows via command-driven harness (non-UI automation)
 - **uiFlowsUi.test.ts**: UI-driven smoke test using CDP (gated by `E2E_UI=1`). The context picker
-  selection is skipped if no workspace file options appear within the timeout (see bead `oh-tab-puxi`).
+  now retries once if options are initially empty and fails with diagnostics if options still do not load.
 - **serverSelection.test.ts**: Tests server selection and local/remote mode switching
 - **llmSwitching.test.ts**: Tests switching LLM provider/model/api mode (local, mock server)
 - **confirmation.test.ts**: Tests action confirmation workflow with security levels

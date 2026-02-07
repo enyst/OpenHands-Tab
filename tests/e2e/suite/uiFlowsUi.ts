@@ -87,46 +87,64 @@ export async function run(): Promise<void> {
       `[e2e/uiFlowsUi:suite] first selector [data-testid="header-totals-row"] visible in ${firstSelectorNow - firstSelectorStartMs}ms (suite_elapsed=${firstSelectorNow - suiteStartMs}ms)`
     );
 
-    // Context picker: open, select a file if options appear, close.
-    // Note: in CI the workspace file list can be empty; we skip selection when no options
-    // appear within the timeout (tracked in bead oh-tab-puxi).
+    // Context picker: open, select a file, close.
     await webview.click('[data-testid="open-context-picker"]');
     await webview.waitForSelector('[data-testid="context-picker"]', { timeoutMs: 15000, visible: true });
 
     const optionSelector = '[data-testid="context-picker"] [role="option"]';
-    let hasContextOptions = false;
-    try {
-      await pollUntil(async () => (await webview.count(optionSelector)) > 0, 15000);
-      hasContextOptions = true;
-    } catch (error) {
-      const debug = await webview.evaluate(() => {
+    const captureContextDebug = async () => {
+      const dom = await webview.evaluate(() => {
         if (typeof document === 'undefined') return { readyState: 'no-document' };
         const picker = document.querySelector('[data-testid="context-picker"]');
         const options = document.querySelectorAll('[data-testid="context-picker"] [role="option"]').length;
         const text = picker?.textContent?.trim() ?? '';
         return { readyState: document.readyState, options, textSample: text.slice(0, 200) };
       });
-      console.warn('UI E2E: Context picker has no options; skipping selection.', debug, error);
-    }
+      const uiState = await vscode.commands.executeCommand('openhands._queryUiState');
+      const diagnostics = await vscode.commands.executeCommand('openhands._diagnostics');
+      return { dom, uiState, diagnostics };
+    };
 
-    if (hasContextOptions) {
-      const selectedLabel = await webview.evaluate(() => {
-        if (typeof document === 'undefined') return null;
-        const shadowRoot = document.body?.shadowRoot ?? null;
-        const options = Array.from(document.querySelectorAll('[data-testid="context-picker"] [role="option"]'))
-          .concat(Array.from(shadowRoot?.querySelectorAll('[data-testid="context-picker"] [role="option"]') ?? []));
-        const first = options.find((option) => option.getAttribute('aria-label'));
-        if (!first) return null;
-        (first as HTMLElement).click();
-        return first.getAttribute('aria-label');
-      });
-      if (!selectedLabel) {
-        throw new Error('Context picker options available but no selectable label found');
+    try {
+      await pollUntil(async () => (await webview.count(optionSelector)) > 0, 15000);
+    } catch (firstError) {
+      const firstDebug = await captureContextDebug();
+      console.warn('UI E2E: Context picker has no options on first open; retrying once.', firstDebug, firstError);
+
+      await webview.click('[data-testid="open-context-picker"]');
+      await pollUntil(async () => (await webview.count('[data-testid="context-picker"]')) === 0, 15000);
+      await webview.click('[data-testid="open-context-picker"]');
+      await webview.waitForSelector('[data-testid="context-picker"]', { timeoutMs: 15000, visible: true });
+
+      try {
+        await pollUntil(async () => (await webview.count(optionSelector)) > 0, 15000);
+      } catch (retryError) {
+        const retryDebug = await captureContextDebug();
+        throw new Error(
+          `UI E2E: Context picker had no options after retry. ` +
+          `first=${JSON.stringify(firstDebug)} retry=${JSON.stringify(retryDebug)} ` +
+          `error=${retryError instanceof Error ? retryError.message : String(retryError)}`
+        );
       }
-
-      const selectedOptionSelector = `[role="option"][aria-label="${selectedLabel}"]`;
-      await pollUntil(async () => (await webview.getAttribute(selectedOptionSelector, 'aria-selected')) === 'true', 15000);
     }
+
+    const selectedLabel = await webview.evaluate(() => {
+      if (typeof document === 'undefined') return null;
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      const options = Array.from(document.querySelectorAll('[data-testid="context-picker"] [role="option"]'))
+        .concat(Array.from(shadowRoot?.querySelectorAll('[data-testid="context-picker"] [role="option"]') ?? []));
+      const first = options.find((option) => option.getAttribute('aria-label'));
+      if (!first) return null;
+      (first as HTMLElement).click();
+      return first.getAttribute('aria-label');
+    });
+    if (!selectedLabel) {
+      throw new Error('Context picker options available but no selectable label found');
+    }
+
+    const escapedLabel = selectedLabel.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const selectedOptionSelector = `[role="option"][aria-label="${escapedLabel}"]`;
+    await pollUntil(async () => (await webview.getAttribute(selectedOptionSelector, 'aria-selected')) === 'true', 15000);
 
     await webview.click('[data-testid="open-context-picker"]');
     await pollUntil(async () => (await webview.count('[data-testid="context-picker"]')) === 0, 15000);
