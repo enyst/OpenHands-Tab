@@ -18,12 +18,14 @@ class MockWS {
   static CLOSED = 3;
 
   url: string;
+  options?: any;
   handlers: Record<string, Handler[]> = {};
   readyState = MockWS.CONNECTING;
   sent: string[] = [];
 
-  constructor(url: string) {
+  constructor(url: string, options?: any) {
     this.url = url;
+    this.options = options;
     wsInstances.push(this);
   }
 
@@ -1135,6 +1137,35 @@ describe('RemoteConversation', () => {
     const ws = getEventWS();
     expect(ws.url).toMatch(/^ws:\/\/localhost:3000\/sockets\/events\/abc\?/);
     expect(ws.url).toContain('resend_all=true');
+  });
+
+  it('does not include session_api_key in ws URL and uses ws headers for auth', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(url).toContain('/events/search');
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [], next_page_id: null }),
+        text: async () => '',
+      } as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: {
+        ...baseSettings,
+        secrets: { ...baseSettings.secrets, runtimeSessionApiKey: 'session-key' },
+      },
+    });
+
+    await conversation.restoreConversation('abc');
+
+    const ws = getEventWS();
+    expect(ws.url).toContain('resend_all=true');
+    expect(ws.url).not.toContain('session_api_key');
+    expect(ws.options?.headers?.['X-Session-API-Key']).toBe('session-key');
   });
 
   it('does not attempt WebSocket connect when history fetch fails', async () => {
