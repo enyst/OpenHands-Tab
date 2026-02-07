@@ -317,6 +317,7 @@ export class RemoteConversation extends EventEmitter {
       this.clearWsHandshakeTimer();
       this.seenEventIds.clear();
       this.state.reset();
+      this.reconnectBackoffPolicy.resetForManualReconnect();
       this.setStatus('connecting');
       const base = this.serverUrl.replace(/\/$/, '');
       const s = this.settings;
@@ -492,6 +493,7 @@ export class RemoteConversation extends EventEmitter {
     this.conversationId = id;
     this.seenEventIds.clear();
     this.state.reset();
+    this.reconnectBackoffPolicy.resetForManualReconnect();
     this.setStatus('connecting');
     this.emit('conversationStarted', id);
     const ok = await this.replayHistory();
