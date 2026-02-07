@@ -82,9 +82,10 @@ export async function run(): Promise<void> {
 
     const firstSelectorStartMs = Date.now();
     await webview.waitForSelector('[data-testid="header-totals-row"]', { timeoutMs: 45000, visible: true });
+    const firstSelectorNow = Date.now();
     console.log(
-      `[e2e/uiFlowsUi:suite] first selector [data-testid="header-totals-row"] visible in ${Date.now() - firstSelectorStartMs}ms ` +
-      `(suite_elapsed=${Date.now() - suiteStartMs}ms)`
+      `[e2e/uiFlowsUi:suite] first selector [data-testid="header-totals-row"] visible in ${firstSelectorNow - firstSelectorStartMs}ms ` +
+      `(suite_elapsed=${firstSelectorNow - suiteStartMs}ms)`
     );
 
     // Context picker: open, select a file if options appear, close.

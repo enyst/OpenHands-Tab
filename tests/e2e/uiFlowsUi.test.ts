@@ -48,8 +48,9 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
             E2E_CDP_PORT: String(port),
           },
         });
-        const attemptElapsedMs = Date.now() - attemptStart;
-        const totalElapsedMs = Date.now() - runTestsOverallStart;
+        const now = Date.now();
+        const attemptElapsedMs = now - attemptStart;
+        const totalElapsedMs = now - runTestsOverallStart;
         console.log(
           `[e2e/uiFlowsUi] runTests attempt ${attempt}/${maxAttempts} succeeded in ${attemptElapsedMs}ms (total=${totalElapsedMs}ms)`
         );
