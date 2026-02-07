@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Tooltip } from '../Tooltip';
 import { openWorkspaceDiff, openWorkspaceFile } from './openers';
+import { getNumber, getString } from './summaryUtils';
 
 type FileEditorCommand = 'view' | 'create' | 'str_replace' | 'insert';
 type JsonRecord = Record<string, unknown>;
@@ -8,9 +9,6 @@ type LineRange = [number, number];
 
 const isFileEditorCommand = (value: unknown): value is FileEditorCommand =>
   value === 'view' || value === 'create' || value === 'str_replace' || value === 'insert';
-
-const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
-const getNumber = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
 
 const isLineRangeTuple = (value: unknown): value is readonly [number, number] =>
   Array.isArray(value) && value.length === 2;
@@ -177,7 +175,7 @@ export function FileEditorActionSummary({ action }: { action: JsonRecord | null 
 export function FileEditorObservationSummary({ observation }: { observation: JsonRecord }): ReactElement | null {
   const path = getString(observation.path);
   const command = getString(observation.command);
-  const prevExist = observation.prev_exist === true ? true : observation.prev_exist === false ? false : undefined;
+  const prevExist = typeof observation.prev_exist === 'boolean' ? observation.prev_exist : undefined;
   const rawOld = observation.old_content;
   const rawNew = observation.new_content;
   const oldLength = getCharCount(rawOld);

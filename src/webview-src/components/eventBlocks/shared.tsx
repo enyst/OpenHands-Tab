@@ -1,15 +1,13 @@
 import type { MouseEventHandler, ReactElement, ReactNode } from 'react';
 import { Tooltip } from '../Tooltip';
 import { InlineFileReference } from './fileEditorSummary';
+import { getNumber, getString } from './summaryUtils';
 
 export { openMarkdownLink, openWorkspaceDiff, openWorkspaceFile } from './openers';
 export { MarkdownMessage, stripEnvironmentInformationBlocks } from './markdown';
 export { FileEditorActionSummary, FileEditorObservationSummary } from './fileEditorSummary';
 
 type JsonRecord = Record<string, unknown>;
-
-const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined);
-const getNumber = (value: unknown): number | undefined => (typeof value === 'number' ? value : undefined);
 
 const TerminalCommandPreview = ({ command }: { command?: string }): ReactElement | null => {
   if (!command) return null;
