@@ -277,53 +277,61 @@ export function activate(context: vscode.ExtensionContext) {
     registerChatViewProvider({
       context,
       secretRegistry: secrets,
-      getQueuedUserEditNotes: fileEditNoteTracker.getQueuedUserEditNotes,
-      clearQueuedUserEditNotes: fileEditNoteTracker.clearQueuedUserEditNotes,
-      getConversation: () => conversation,
-      getConversationMode: () => conversationMode,
-      getConversationStoreRoot: () => conversationStoreRoot,
-      resolveConversationStoreRoot: () =>
-        resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }),
-      setChatView: (view) => {
-        chatView = view;
+      conversation: {
+        getConversation: () => conversation,
+        getConversationMode: () => conversationMode,
+        getConversationStoreRoot: () => conversationStoreRoot,
+        resolveConversationStoreRoot: () =>
+          resolveConversationStoreRoot({ context, getOutputChannel: () => outputChannel, renderError }),
+        ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
+        pauseConversation: async () => {
+          await conversation?.pause();
+        },
       },
-      setChatWebviewReady: (ready) => {
-        chatWebviewReady = ready;
+      state: {
+        setChatView: (view) => {
+          chatView = view;
+        },
+        setChatWebviewReady: (ready) => {
+          chatWebviewReady = ready;
+        },
+        setChatWebviewE2EReady: (ready) => {
+          chatWebviewE2EReady = ready;
+        },
+        setChatWebviewE2EInfo: (info) => {
+          chatWebviewE2EInfo = info;
+        },
+        setChatLastConversationId: (conversationId) => {
+          chatLastConversationId = conversationId;
+        },
+        setChatLastSeenSeq: (lastSeenSeq) => {
+          chatLastSeenSeq = lastSeenSeq;
+        },
+        setLastKnownLlmLabel: (label) => {
+          lastKnownLlmLabel = label;
+        },
+        getLastKnownLlmLabel: () => lastKnownLlmLabel,
       },
-      setChatWebviewE2EReady: (ready) => {
-        chatWebviewE2EReady = ready;
+      messages: {
+        getQueuedUserEditNotes: fileEditNoteTracker.getQueuedUserEditNotes,
+        clearQueuedUserEditNotes: fileEditNoteTracker.clearQueuedUserEditNotes,
+        flushConversationEventBacklog,
+        onRenderedEventsResponse: (requestId, info) => {
+          pendingRenderedEventsRequests.get(requestId)?.(info);
+        },
+        onUiStateResponse: (requestId, info) => {
+          pendingUiStateRequests.get(requestId)?.(info);
+        },
+        onHalStateResponse: (requestId, info) => {
+          pendingHalStateRequests.get(requestId)?.(info);
+        },
       },
-      setChatWebviewE2EInfo: (info) => {
-        chatWebviewE2EInfo = info;
+      logging: {
+        isDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
+        getOutputChannel: () => outputChannel,
+        fileLog: devBridgeLogger.fileLog,
+        renderError,
       },
-      setChatLastConversationId: (conversationId) => {
-        chatLastConversationId = conversationId;
-      },
-      setChatLastSeenSeq: (lastSeenSeq) => {
-        chatLastSeenSeq = lastSeenSeq;
-      },
-      setLastKnownLlmLabel: (label) => {
-        lastKnownLlmLabel = label;
-      },
-      getLastKnownLlmLabel: () => lastKnownLlmLabel,
-      flushConversationEventBacklog,
-      onRenderedEventsResponse: (requestId, info) => {
-        pendingRenderedEventsRequests.get(requestId)?.(info);
-      },
-      onUiStateResponse: (requestId, info) => {
-        pendingUiStateRequests.get(requestId)?.(info);
-      },
-      onHalStateResponse: (requestId, info) => {
-        pendingHalStateRequests.get(requestId)?.(info);
-      },
-      isDevBridgeEnabled: () => devBridgeLogger.isEnabled(),
-      getOutputChannel: () => outputChannel,
-      fileLog: devBridgeLogger.fileLog,
-      ensureConversationAndConnection: (options) => ensureConversationAndConnection(options),
-      pauseConversation: async () => {
-        await conversation?.pause();
-      },
-      renderError,
     })
   );
 
