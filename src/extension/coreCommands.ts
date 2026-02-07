@@ -2,8 +2,7 @@ import * as vscode from 'vscode';
 import { normalizeOutputVerbosity, type OutputLogger, type OutputVerbosity } from './outputLogger';
 
 type CoreCommandDeps = {
-  ensureConversationAndConnection: () => Promise<void>;
-  focusOpenHandsView: () => Promise<void>;
+  openCommand: () => Promise<void>;
   startNewConversation: () => Promise<void>;
   reconnectConversation: () => Promise<void>;
   pauseConversation: () => Promise<void>;
@@ -14,8 +13,7 @@ type CoreCommandDeps = {
 };
 
 export function registerCoreCommands({
-  ensureConversationAndConnection,
-  focusOpenHandsView,
+  openCommand,
   startNewConversation,
   reconnectConversation,
   pauseConversation,
@@ -25,8 +23,7 @@ export function registerCoreCommands({
   getOutputLogger,
 }: CoreCommandDeps): vscode.Disposable[] {
   const open = vscode.commands.registerCommand('openhands.open', async () => {
-    await focusOpenHandsView();
-    await ensureConversationAndConnection();
+    await openCommand();
   });
 
   const startNew = vscode.commands.registerCommand('openhands.startNewConversation', async () => {

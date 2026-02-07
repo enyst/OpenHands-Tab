@@ -668,8 +668,7 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   const coreCommands = registerCoreCommands({
-    ensureConversationAndConnection: () => ensureConversationAndConnection(),
-    focusOpenHandsView: async () => {
+    openCommand: async () => {
       try {
         // VS Code auto-creates a focus command for views: `<viewId>.focus`
         await vscode.commands.executeCommand('openhands.agent.focus');
@@ -678,6 +677,7 @@ export function activate(context: vscode.ExtensionContext) {
         await vscode.commands.executeCommand('workbench.view.extension.openhands');
         chatView?.show?.(true);
       }
+      await ensureConversationAndConnection();
     },
     startNewConversation: async () => {
       await ensureConversationAndConnection();
