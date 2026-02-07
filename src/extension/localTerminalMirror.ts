@@ -46,7 +46,7 @@ export function mirrorTerminalEventToLocalTerminal({
   try {
     if (isBashCommand(event)) {
       // Add a spacer only if previous output didn't end with a newline.
-      terminalLogPty.ensureNewline?.();
+      terminalLogPty.ensureNewline();
       terminalLogPty.writeLine(`$ ${event.command}`);
       if (event.command_id) clearPrintedExitFor(event.command_id);
     } else if (isBashOutput(event)) {
@@ -54,17 +54,17 @@ export function mirrorTerminalEventToLocalTerminal({
       if (event.stderr) terminalLogPty.write(event.stderr);
 
       // Defensive: if exit_code is provided on output but no BashExit arrives, synthesize a footer once.
-      const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
-      const code = 'exit_code' in event ? (event as { exit_code?: number }).exit_code : undefined;
+      const cid = event.command_id;
+      const code = event.exit_code;
       if (cid && typeof code === 'number' && !hasPrintedExitFor(cid)) {
-        terminalLogPty.ensureNewline?.();
+        terminalLogPty.ensureNewline();
         terminalLogPty.writeLine(`[Process exited with code ${code}]`);
         markPrintedExitFor(cid);
       }
     } else if (isBashExit(event)) {
-      const cid = 'command_id' in event ? (event as { command_id?: string }).command_id : undefined;
+      const cid = event.command_id;
       if (!cid || !hasPrintedExitFor(cid)) {
-        terminalLogPty.ensureNewline?.();
+        terminalLogPty.ensureNewline();
         terminalLogPty.writeLine(`[Process exited with code ${event.exit_code}]`);
       }
       if (cid) {
