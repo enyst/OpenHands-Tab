@@ -4,10 +4,13 @@ import type {
   Content,
   ImageContent,
   Message,
+  RedactedThinkingBlock,
   ResponsesReasoningItem,
+  Role,
   SecurityRisk,
   SourceType,
   TextContent,
+  ThinkingBlock,
   ThinkingBlockEvent,
   ToolCall,
 } from './messageTypes';
@@ -24,7 +27,7 @@ export type {
   ThinkingBlock,
   ThinkingBlockEvent,
   ToolCall,
-} from './messageTypes';
+};
 
 export interface EventBase {
   id?: string;
