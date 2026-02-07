@@ -59,10 +59,17 @@ describe('Tools picker', () => {
       expect(screen.getByRole('button', { name: 'Tools' })).toHaveTextContent('3');
     });
 
-    expect(mockApi.postMessage).toHaveBeenCalledWith({
+    const setEnabledToolsCalls = mockApi.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is { type: string; toolIds?: string[] } => (
+        typeof message === 'object'
+        && message !== null
+        && (message as { type?: unknown }).type === 'setEnabledTools'
+      ));
+    expect(setEnabledToolsCalls).toEqual([{
       type: 'setEnabledTools',
       toolIds: ['file_editor', 'task_tracker', 'finish'],
-    });
+    }]);
     expect(screen.getByLabelText('Terminal')).toHaveAttribute('aria-selected', 'false');
   });
 
@@ -149,5 +156,46 @@ describe('Tools picker', () => {
     const bashRow = await screen.findByLabelText('execute_bash');
     expect(bashRow).toBeDisabled();
     expect(bashRow).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('does not emit setEnabledTools when host updates tool selection', async () => {
+    render(<App />);
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'status', status: 'online', mode: 'local' }
+      }));
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'toolsList',
+          tools: [
+            { id: 'terminal', label: 'Terminal' },
+            { id: 'file_editor', label: 'File Editor' },
+            { id: 'finish', label: 'Finish' },
+          ],
+          enabledToolIds: ['terminal', 'file_editor', 'finish'],
+        }
+      }));
+    });
+
+    mockApi.postMessage.mockClear();
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: {
+          type: 'toolsList',
+          tools: [
+            { id: 'terminal', label: 'Terminal' },
+            { id: 'file_editor', label: 'File Editor' },
+            { id: 'finish', label: 'Finish' },
+          ],
+          enabledToolIds: ['terminal', 'finish'],
+        }
+      }));
+    });
+
+    expect(mockApi.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'setEnabledTools' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Tools' })).toHaveTextContent('2');
+    });
   });
 });
