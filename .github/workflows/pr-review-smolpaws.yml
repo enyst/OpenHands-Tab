@@ -23,5 +23,5 @@ jobs:
         uses: OpenHands/software-agent-sdk/.github/actions/pr-review@main
         with:
           review-style: roasted
-          llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          llm-api-key: ${{ secrets.OPENAI_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
