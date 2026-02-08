@@ -1,4 +1,4 @@
-import type { UserRejectObservation } from '@openhands/agent-sdk-ts';
+import type { UserRejectObservation } from '@smolpaws/agent-sdk';
 import { ERROR_ACCENT_COLOR, EventContainer, withAlpha } from './shared';
 
 /** Renders user rejection of an agent action with optional reason. */

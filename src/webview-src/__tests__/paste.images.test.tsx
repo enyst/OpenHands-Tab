@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
-import type { MessageEvent as AgentMessageEvent } from '@openhands/agent-sdk-ts';
+import type { MessageEvent as AgentMessageEvent } from '@smolpaws/agent-sdk';
 import { postToWindow } from './testUtils';
 
 describe('Pasted images', () => {

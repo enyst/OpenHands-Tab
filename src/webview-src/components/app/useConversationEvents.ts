@@ -13,7 +13,7 @@ import {
   type ActionEvent,
   type Event,
   type MessageEvent,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../../shared/llmStreaming';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS } from '../../../shared/webviewMessages';
 import { MAX_RENDERED_EVENTS } from '../../shared/constants';

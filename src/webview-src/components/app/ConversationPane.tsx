@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { Event } from '@openhands/agent-sdk-ts';
+import type { Event } from '@smolpaws/agent-sdk';
 import { StreamingMessageBlock } from '../EventBlock';
 import { RenderedEventBlock } from './RenderedEventBlock';
 import { getWelcomePromptFlags, type WelcomeSecretStatus } from './welcomePrompts';

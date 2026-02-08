@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { Event, MessageEvent } from '@openhands/agent-sdk-ts';
-import { isTextContent } from '@openhands/agent-sdk-ts';
+import type { Event, MessageEvent } from '@smolpaws/agent-sdk';
+import { isTextContent } from '@smolpaws/agent-sdk';
 import { getPastedImagePath, rewriteOpenHandsImageUrls } from '../../shared/pastedImages';
 import { summarizeAgentErrorEvent, summarizeConversationErrorEvent } from '../../shared/errorSummaries';
 

@@ -26,7 +26,7 @@ describe('Chat view behavior', () => {
   });
 
   it('creates the conversation when the chat view resolves', async () => {
-    const { Conversation, __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { Conversation, __getLastConversation } = await import('@smolpaws/agent-sdk');
     await resolveChatView(mockContext);
 
     expect(Conversation).toHaveBeenCalled();
@@ -46,7 +46,7 @@ describe('Chat view behavior', () => {
 
     await resolveChatView(mockContext);
 
-    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const { Conversation } = await import('@smolpaws/agent-sdk');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
     expect(options?.settings?.secrets?.runtimeSessionApiKey).toBe('runtime-token');
   });
@@ -57,7 +57,7 @@ describe('Chat view behavior', () => {
 
     await resolveChatView(mockContext);
 
-    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const { Conversation } = await import('@smolpaws/agent-sdk');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
     expect(options?.settings?.secrets?.runtimeSessionApiKey).toBeUndefined();
   });
@@ -65,7 +65,7 @@ describe('Chat view behavior', () => {
   it('prompts to set runtimeSessionApiKey on remote auth failure for non-cloud servers', async () => {
     await resolveChatView(mockContext);
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const conv = __getLastConversation();
     expect(conv).toBeTruthy();
 
@@ -97,7 +97,7 @@ describe('Chat view behavior', () => {
 
     await resolveChatView(mockContext);
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const conv = __getLastConversation();
     expect(conv).toBeTruthy();
 
@@ -122,7 +122,7 @@ describe('Chat view behavior', () => {
     (mockContext.workspaceState.get as Mock).mockReturnValue('saved-convo');
     await resolveChatView(mockContext);
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
     expect(conv?.restoreConversation).not.toHaveBeenCalled();
   });
 
@@ -130,7 +130,7 @@ describe('Chat view behavior', () => {
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const conv = __getLastConversation();
     expect(conv).toBeTruthy();
 
@@ -160,7 +160,7 @@ describe('Chat view behavior', () => {
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const conv = __getLastConversation();
     expect(conv).toBeTruthy();
 
@@ -186,7 +186,7 @@ describe('Chat view behavior', () => {
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const conv = __getLastConversation();
     expect(conv).toBeTruthy();
 
@@ -223,7 +223,7 @@ describe('Chat view behavior', () => {
     const view = await resolveChatView(mockContext);
     expect(view).toBeTruthy();
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const conv = __getLastConversation();
     expect(conv).toBeTruthy();
 
@@ -250,7 +250,7 @@ describe('Chat view behavior', () => {
 
   it('starts a fresh conversation on serverUrl changes (no auto-restore)', async () => {
     await resolveChatView(mockContext);
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const initial = __getLastConversation();
     expect(initial).toBeTruthy();
 
@@ -299,7 +299,7 @@ describe('Chat view behavior', () => {
 
     await resolveChatView(mockContext);
 
-    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const { Conversation } = await import('@smolpaws/agent-sdk');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
     expect(options?.agentContext).toBeTruthy();
     const agentContext = options.agentContext as any;
@@ -341,7 +341,7 @@ describe('Chat view behavior', () => {
 
     await resolveChatView(mockContext);
 
-    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const { Conversation } = await import('@smolpaws/agent-sdk');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
     expect(options?.agentContext).toBeTruthy();
     const agentContext = options.agentContext as any;
@@ -402,7 +402,7 @@ describe('Chat view behavior', () => {
 
     await resolveChatView(mockContext);
 
-    const { Conversation } = await import('@openhands/agent-sdk-ts');
+    const { Conversation } = await import('@smolpaws/agent-sdk');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
     expect(options?.agentContext).toBeTruthy();
     const agentContext = options.agentContext as any;

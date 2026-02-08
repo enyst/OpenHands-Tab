@@ -1,5 +1,5 @@
 {
-  "name": "@openhands/agent-sdk-ts",
+  "name": "@smolpaws/agent-sdk",
   "version": "0.8.0",
   "description": "TypeScript models and guards for the OpenHands agent-sdk wire protocol",
   "license": "MIT",

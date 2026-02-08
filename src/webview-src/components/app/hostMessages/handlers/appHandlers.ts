@@ -1,4 +1,4 @@
-import { isEvent } from '@openhands/agent-sdk-ts';
+import { isEvent } from '@smolpaws/agent-sdk';
 import { getVscodeApi } from '../../../../shared/vscodeApi';
 import type { HostMessageHandlerOptions, HostMessageHandlerRegistry, WebviewPersistedState } from '../types';
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type Event,
   type ActionEvent,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import { normalizeHalUserName } from '../../shared/halScript';
 import { getVscodeApi } from '../shared/vscodeApi';
 import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../shared/pasteLimits';

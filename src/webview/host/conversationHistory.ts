@@ -2,7 +2,7 @@ import * as nodeFs from 'fs';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as readline from 'readline';
-import { FileStore, isEvent, isMessageEvent, isTextContent } from '@openhands/agent-sdk-ts';
+import { FileStore, isEvent, isMessageEvent, isTextContent } from '@smolpaws/agent-sdk';
 
 export type ConversationHistoryItem = {
   id: string;

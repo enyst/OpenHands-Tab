@@ -1,4 +1,4 @@
-import type { AgentErrorEvent, ConversationErrorEvent } from '@openhands/agent-sdk-ts';
+import type { AgentErrorEvent, ConversationErrorEvent } from '@smolpaws/agent-sdk';
 import { ERROR_ACCENT_COLOR, EventContainer, withAlpha } from './shared';
 
 /** Renders agent error events with tool context. */

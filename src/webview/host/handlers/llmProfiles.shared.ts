@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import { assertValidProfileId, LLMProfileValidationError } from '@openhands/agent-sdk-ts';
+import { assertValidProfileId, LLMProfileValidationError } from '@smolpaws/agent-sdk';
 import type { CreateWebviewMessageHandlerDeps } from '../webviewMessageHandler.types';
 import * as llmProfilesStore from '../llmProfilesStore';
 

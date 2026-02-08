@@ -520,7 +520,7 @@
     }
   },
   "scripts": {
-    "build": "npm run build -w @openhands/agent-sdk-ts && npm run compile",
+    "build": "npm run build -w @smolpaws/agent-sdk && npm run compile",
     "build:tailwind": "tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --minify",
     "compile": "node esbuild.extension.mjs && npm run build:tailwind && npm run build:webview",
     "watch": "tsc -w -p . & npx tailwindcss -i ./src/webview-src/tailwind.css -o ./src/webview-src/tailwind.gen.css --watch & node --watch esbuild.webview.mjs",
@@ -528,10 +528,10 @@
     "package": "node scripts/run-vsce-package.cjs --readme-path README.vscode.md",
     "e2e": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha tests/e2e/out/**/*.test.js",
     "e2e:agent-server": "node -e \"require('fs').rmSync('tests/e2e/out', { recursive: true, force: true })\" && npm run compile && tsc -p tests/e2e/tsconfig.suite.json && tsc -p tsconfig.e2e.json && mocha \"tests/e2e/out/agentServerRemote*.test.js\"",
-    "test": "npm test -w @openhands/agent-sdk-ts && vitest run --dir src",
+    "test": "npm test -w @smolpaws/agent-sdk && vitest run --dir src",
     "test:watch": "vitest",
     "typecheck": "tsc -p . && tsc -p tsconfig.webview.json",
-    "lint": "npm run lint -w @openhands/agent-sdk-ts && eslint src tests && npm run lint:cycles && npm run lint:duplication",
+    "lint": "npm run lint -w @smolpaws/agent-sdk && eslint src tests && npm run lint:cycles && npm run lint:duplication",
     "lint:cycles": "node scripts/check-circular-deps.mjs",
     "lint:duplication": "node scripts/check-duplication.mjs",
     "lint:fix": "eslint . --fix",
@@ -574,7 +574,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
-    "@openhands/agent-sdk-ts": "workspace:*",
+    "@smolpaws/agent-sdk": "workspace:*",
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",
     "@vscode/codicons": "^0.0.36",

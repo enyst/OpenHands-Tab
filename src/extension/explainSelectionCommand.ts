@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance } from '@smolpaws/agent-sdk';
 import { formatEnvironmentInformation } from '../shared/environmentInformation';
 import { collectEnvironmentInfo } from '../shared/collectEnvironmentInfo';
 import { getFileBackedFsPath } from '../shared/uri';

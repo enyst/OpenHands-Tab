@@ -4,7 +4,7 @@ import type {
   ConversationSettings,
   LLMSettings,
   ServerSettings,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import type { HalMode } from './halTypes';
 
 export interface SavedServer {

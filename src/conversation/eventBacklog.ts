@@ -1,4 +1,4 @@
-import type { Event } from '@openhands/agent-sdk-ts';
+import type { Event } from '@smolpaws/agent-sdk';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 
 export type BufferedConversationEvent = { seq: number; event: Event };

@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import type { LLMProvider, SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { LLMProvider, SecretRegistry } from '@smolpaws/agent-sdk';
 
 export const isLlmProvider = (value: string): value is LLMProvider => {
   return value === 'openai'

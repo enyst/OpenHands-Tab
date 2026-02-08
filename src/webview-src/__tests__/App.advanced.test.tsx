@@ -8,7 +8,7 @@ import type {
   ActionEvent,
   ConversationStateUpdateEvent,
   AgentErrorEvent,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 describe('App - Advanced Test Coverage', () => {
   const mockApi = { postMessage: vi.fn() };

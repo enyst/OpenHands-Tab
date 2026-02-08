@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { SecretRegistry } from '@smolpaws/agent-sdk';
 import { maskSecretsInText } from '../shared/maskSecrets';
 
 export function createDevBridgeLogger(opts: { secretRegistry: SecretRegistry | undefined }) {

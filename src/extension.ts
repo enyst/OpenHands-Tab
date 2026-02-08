@@ -44,7 +44,7 @@ import {
   type Event,
   isBashCommand,
   isBashOutput,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import { attachConversationListeners } from './conversation/host/attachConversationListeners';
 import { createConfigurationChangeHandler } from './settings/host/createConfigurationChangeHandler';
 

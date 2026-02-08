@@ -26,7 +26,7 @@ describe('Command handlers', () => {
     await extension.activate(mockContext);
     chatView = await resolveChatView(mockContext);
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     conversationInstance = __getLastConversation();
   });
 
@@ -64,7 +64,7 @@ describe('Command handlers', () => {
 
     await vscode.commands.executeCommand('openhands.explainSelection');
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const latestConversation = __getLastConversation();
 
     expect(latestConversation.startNewConversation).toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('Command handlers', () => {
 
     await vscode.commands.executeCommand('openhands.explainSelection');
 
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     const latestConversation = __getLastConversation();
 
     expect(latestConversation.sendUserMessage).toHaveBeenCalled();

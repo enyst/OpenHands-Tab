@@ -1,6 +1,6 @@
 # Settings PRD (OpenHands-Tab)
 
-Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extension today. This is grounded in the TypeScript agent SDK (`@openhands/agent-sdk-ts`) and the extension implementation as the source of truth.
+Purpose: document the *actual* settings used by the OpenHands-Tab VS Code extension today. This is grounded in the TypeScript agent SDK (`@smolpaws/agent-sdk`) and the extension implementation as the source of truth.
 
 ## 1) Server connection (agent-server)
 

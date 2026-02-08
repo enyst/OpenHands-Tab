@@ -42,7 +42,7 @@ jobs:
         run: npm ci || npm install
 
       - name: Build SDK
-        run: npm run build -w @openhands/agent-sdk-ts
+        run: npm run build -w @smolpaws/agent-sdk
 
       - name: Determine test mode
         id: mode

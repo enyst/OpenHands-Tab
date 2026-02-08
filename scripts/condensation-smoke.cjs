@@ -11,7 +11,7 @@
  *
  * Prereqs:
  * - Build the SDK first so `packages/agent-sdk-ts/dist/index.cjs` exists:
- *   `npm run build -w @openhands/agent-sdk-ts`
+ *   `npm run build -w @smolpaws/agent-sdk`
  *
  * Usage:
  * - `OPENAI_API_KEY=... node scripts/condensation-smoke.cjs`
@@ -30,7 +30,7 @@ const path = require('path');
 const distEntry = path.join(__dirname, '..', 'packages', 'agent-sdk-ts', 'dist', 'index.cjs');
 if (!fs.existsSync(distEntry)) {
   console.error('[condensation-smoke] Missing SDK build:', distEntry);
-  console.error('[condensation-smoke] Run: npm run build -w @openhands/agent-sdk-ts');
+  console.error('[condensation-smoke] Run: npm run build -w @smolpaws/agent-sdk');
   process.exit(1);
 }
 

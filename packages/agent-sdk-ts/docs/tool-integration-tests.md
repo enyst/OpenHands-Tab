@@ -12,21 +12,21 @@ This guide documents the lightweight integration test suite for agent-sdk tools.
 Run only the integration tests:
 
 ```bash
-npm test -w @openhands/agent-sdk-ts -- --run src/tools/__tests__/integration
+npm test -w @smolpaws/agent-sdk -- --run src/tools/__tests__/integration
 ```
 
 Or run a specific test file:
 
 ```bash
-npm test -w @openhands/agent-sdk-ts -- --run src/tools/__tests__/integration/terminal.integration.test.ts
+npm test -w @smolpaws/agent-sdk -- --run src/tools/__tests__/integration/terminal.integration.test.ts
 ```
 
 ## CI behavior
 
-The integration tests are regular Vitest tests inside `@openhands/agent-sdk-ts`, so they run automatically in CI as part of:
+The integration tests are regular Vitest tests inside `@smolpaws/agent-sdk`, so they run automatically in CI as part of:
 
 ```bash
-npm test -w @openhands/agent-sdk-ts
+npm test -w @smolpaws/agent-sdk
 ```
 
 ## Environment requirements

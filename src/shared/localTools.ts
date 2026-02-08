@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '@openhands/agent-sdk-ts';
+import type { ToolDefinition } from '@smolpaws/agent-sdk';
 import {
   AskOracleTool,
   BrowserTool,
@@ -8,7 +8,7 @@ import {
   GrepTool,
   TaskTrackerTool,
   TerminalTool,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 export type LocalToolId =
   | 'terminal'

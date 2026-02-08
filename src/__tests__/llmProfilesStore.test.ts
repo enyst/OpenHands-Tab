@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { saveProfile as saveSdkProfile, SecretRegistry } from '@openhands/agent-sdk-ts';
+import { saveProfile as saveSdkProfile, SecretRegistry } from '@smolpaws/agent-sdk';
 import { createWebviewMessageHandler } from '../webview/host/createWebviewMessageHandler';
 
 describe('LLM profile host CRUD (llm-profiles store)', () => {

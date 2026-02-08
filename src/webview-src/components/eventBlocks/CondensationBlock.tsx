@@ -1,4 +1,4 @@
-import type { Condensation } from '@openhands/agent-sdk-ts';
+import type { Condensation } from '@smolpaws/agent-sdk';
 import { EventContainer, SYSTEM_ACCENT_COLOR, withAlpha } from './shared';
 
 /** Renders condensation event when conversation history is summarized. */

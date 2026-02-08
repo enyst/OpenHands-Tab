@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import * as vscode from 'vscode';
-import { SecretRegistry } from '@openhands/agent-sdk-ts';
+import { SecretRegistry } from '@smolpaws/agent-sdk';
 
 const defaultMockSettings = {
   serverUrl: '',

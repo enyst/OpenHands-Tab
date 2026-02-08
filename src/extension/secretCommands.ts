@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { SettingsManager, type OpenHandsSettings } from '../settings/SettingsManager';
 import { VscodeSettingsAdapter } from '../settings/VscodeSettingsAdapter';
-import type { ConversationInstance, SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance, SecretRegistry } from '@smolpaws/agent-sdk';
 import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
 import { getServerRuntimeSessionApiKeySecretKey } from '../auth/serverRuntimeSessionApiKeys';
 import { isOpenHandsCloudServerUrl } from '../shared/cloudServers';

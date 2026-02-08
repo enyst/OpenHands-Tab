@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance } from '@smolpaws/agent-sdk';
 import type { SettingsManager } from '../../../settings/SettingsManager';
 import { resolveConfiguredLlmLabel } from '../../../shared/llmProfiles';
 import { STATUS_MESSAGE_DISMISS_DELAY_MS, type WebviewToHostMessage } from '../../../shared/webviewMessages';

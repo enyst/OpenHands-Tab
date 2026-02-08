@@ -2,8 +2,8 @@ import type { SettingsAdapter } from './SettingsAdapter';
 import type { HalSettings, OpenHandsSettings } from '../shared/settingsTypes';
 import { DEFAULT_HAL_LLM_PROFILE_ID } from '../shared/halDefaults';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
-import type { AgentSettings, ConfirmationSettings, ConversationSettings, LLMSettings } from '@openhands/agent-sdk-ts';
-import { detectProviderFromBaseUrl } from '@openhands/agent-sdk-ts';
+import type { AgentSettings, ConfirmationSettings, ConversationSettings, LLMSettings } from '@smolpaws/agent-sdk';
+import { detectProviderFromBaseUrl } from '@smolpaws/agent-sdk';
 import { loadSelectedProfileConfig, pickDefaultProfileId } from './settingsProfileDefaults';
 import {
   clampUnitInterval,

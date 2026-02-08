@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import type { BashEvent, ConversationInstance, Event } from '@openhands/agent-sdk-ts';
+import type { BashEvent, ConversationInstance, Event } from '@smolpaws/agent-sdk';
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../../shared/llmStreaming';
 import type { HostToWebviewMessage } from '../../shared/webviewMessages';
 import type { DebugJsonOutputChannel } from '../../extension/debugJsonOutputChannel';

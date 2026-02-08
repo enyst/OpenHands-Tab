@@ -1,5 +1,5 @@
-import type { BashEvent, Event } from '@openhands/agent-sdk-ts';
-import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
+import type { BashEvent, Event } from '@smolpaws/agent-sdk';
+import type { LLMConfiguration } from '@smolpaws/agent-sdk';
 import type { HalSettings, SavedServer } from './settingsTypes';
 
 /** Default auto-dismiss delay for transient status messages (in milliseconds). */

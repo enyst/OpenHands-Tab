@@ -85,7 +85,7 @@ vi.mock('../settings/VscodeSettingsAdapter', () => ({
   }),
 }));
 
-vi.mock('@openhands/agent-sdk-ts', () => {
+vi.mock('@smolpaws/agent-sdk', () => {
   class StubTool {
     name: string;
     description = '';
@@ -285,7 +285,7 @@ export async function resolveChatView(mockContext: any) {
   expect(provider).toBeTruthy();
 
   const view = createMockWebviewView();
-  const { Conversation } = await import('@openhands/agent-sdk-ts');
+  const { Conversation } = await import('@smolpaws/agent-sdk');
   const beforeCalls = (Conversation as Mock).mock.calls.length;
   provider.resolveWebviewView(view);
 

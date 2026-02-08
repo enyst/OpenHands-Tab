@@ -1,4 +1,4 @@
-import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
+import type { LLMConfiguration } from '@smolpaws/agent-sdk';
 import type { LlmProfileApiKeyStatusInfo } from '../../../shared/webviewMessages';
 
 export type PendingLlmProfilesRequest =

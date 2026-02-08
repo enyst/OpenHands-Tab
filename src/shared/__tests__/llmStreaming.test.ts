@@ -5,7 +5,7 @@ import {
   type ConversationErrorEvent,
   type ConversationStateUpdateEvent,
   type MessageEvent,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 import { initialLlmStreamingState, reduceLlmStreamingState } from '../llmStreaming';
 

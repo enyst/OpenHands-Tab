@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance } from '@smolpaws/agent-sdk';
 
 export function createFileEditNoteTracker(opts: {
   getConversation: () => ConversationInstance | undefined;

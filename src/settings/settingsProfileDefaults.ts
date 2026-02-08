@@ -1,5 +1,5 @@
-import type { LLMConfiguration, LLMProfileStoreOptions } from '@openhands/agent-sdk-ts';
-import { ensureDefaultProfiles, listProfiles, loadProfile } from '@openhands/agent-sdk-ts';
+import type { LLMConfiguration, LLMProfileStoreOptions } from '@smolpaws/agent-sdk';
+import { ensureDefaultProfiles, listProfiles, loadProfile } from '@smolpaws/agent-sdk';
 import { isSafeProfileId } from './settingsNormalization';
 
 export const DEFAULT_LLM_PROFILE_ID = 'sonnet-45';

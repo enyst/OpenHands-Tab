@@ -3,5 +3,5 @@ module.exports = {
   '{src,tests}/**/*.{ts,tsx}': ['eslint --max-warnings=0'],
 
   // The SDK has its own eslint.config.js; run its lint script in-workspace.
-  'packages/agent-sdk-ts/**/*.{ts,tsx}': () => 'npm run lint -w @openhands/agent-sdk-ts',
+  'packages/agent-sdk-ts/**/*.{ts,tsx}': () => 'npm run lint -w @smolpaws/agent-sdk',
 };

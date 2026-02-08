@@ -69,7 +69,7 @@ A VS Code extension that provides a sidebar chat view to interact with OpenHands
 - **ConfirmationPrompt** - action approval UI
 - **LlmProfilesView** - profile management slide-over panel
 
-### SDK (@openhands/agent-sdk-ts)
+### SDK (@smolpaws/agent-sdk)
 - **Conversation Layer** - primary API (`Conversation()` factory)
   - `LocalConversation` - in-process agent execution
   - `RemoteConversation` - WebSocket to agent-server
@@ -277,8 +277,8 @@ src/
 
 ### 11.1 What ships in the VSIX (and what doesn’t)
 - The extension vendors the SDK code under `src/sdk`, `src/tools`, `src/workspace` and compiles it into `dist/`.
-- There is no runtime dependency on `@openhands/agent-sdk-ts` via npm in the extension. Users do not need the npm package to use the VS Code extension.
-- The separate `@openhands/agent-sdk-ts` publish is only for developers who want to import the SDK in their own projects.
+- There is no runtime dependency on `@smolpaws/agent-sdk` via npm in the extension. Users do not need the npm package to use the VS Code extension.
+- The separate `@smolpaws/agent-sdk` publish is only for developers who want to import the SDK in their own projects.
 
 Implication: You can publish a GitHub release with just the `.vsix` and it will work for users, even if the npm package has not been published.
 
@@ -330,22 +330,22 @@ npx vsce publish patch         # bump + publish (minor/major also supported)
 ```
 
 ### 11.6 Releasing the SDK package (optional)
-Only needed if you want others to `npm i @openhands/agent-sdk-ts` in their projects. It is NOT required for the VSIX to work.
+Only needed if you want others to `npm i @smolpaws/agent-sdk` in their projects. It is NOT required for the VSIX to work.
 ```bash
 # Preflight
 npm ci
-npm test -w @openhands/agent-sdk-ts
-npm run lint -w @openhands/agent-sdk-ts
-npm run build -w @openhands/agent-sdk-ts
+npm test -w @smolpaws/agent-sdk
+npm run lint -w @smolpaws/agent-sdk
+npm run build -w @smolpaws/agent-sdk
 # Optional: see tarball contents
-npm pack -w @openhands/agent-sdk-ts --dry-run
+npm pack -w @smolpaws/agent-sdk --dry-run
 # Version bump and publish
-npm version patch -w @openhands/agent-sdk-ts
-npm publish -w @openhands/agent-sdk-ts --access public
+npm version patch -w @smolpaws/agent-sdk
+npm publish -w @smolpaws/agent-sdk --access public
 ```
 
 ### 11.7 Troubleshooting
-- If users install from GitHub release and see missing module errors for `@openhands/agent-sdk-ts`, it means the extension started depending on the npm package. Revert to vendoring under `src/sdk` or publish the package and add it to `dependencies`.
+- If users install from GitHub release and see missing module errors for `@smolpaws/agent-sdk`, it means the extension started depending on the npm package. Revert to vendoring under `src/sdk` or publish the package and add it to `dependencies`.
 - Engine mismatch: ensure VS Code version >= `engines.vscode` and Node >= `engines.node`.
 - To exclude source maps from the VSIX, add an `.npmignore` entry like `*.map` or adjust bundler settings.
 

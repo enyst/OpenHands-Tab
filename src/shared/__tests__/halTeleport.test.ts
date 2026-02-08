@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Event } from '@openhands/agent-sdk-ts';
+import type { Event } from '@smolpaws/agent-sdk';
 import { renderCondensationSummarizingPrompt, takeLastTeleportableEvents } from '../halTeleport';
 
 describe('takeLastTeleportableEvents', () => {

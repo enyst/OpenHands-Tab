@@ -1,9 +1,9 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance } from '@smolpaws/agent-sdk';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
-import type { MessageEvent } from '@openhands/agent-sdk-ts';
+import type { MessageEvent } from '@smolpaws/agent-sdk';
 import { OPENHANDS_IMAGE_URL_PREFIX, getGlobalStorageBaseDir, getPastedImagePath, parseBase64DataImageUrl, rewriteDataImageMarkdown, rewriteOpenHandsImageUrls } from '../../../shared/pastedImages';
 import { MAX_PASTED_IMAGE_BYTES, MAX_PASTED_IMAGES } from '../../../shared/pasteLimits';
 import { buildAttachmentBlocks, safeParseUri } from '../attachments';
