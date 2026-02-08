@@ -79,7 +79,7 @@ Example:
 # Start a new tmux session that runs a headless OpenHands task
 session_name="prose_sess_001"
 log="/tmp/${session_name}.jsonl"
-TASK='Fix the failing unit tests in packages/agent-sdk-ts'
+TASK='Fix the failing unit tests in packages/agent-sdk'
 
 # -d: detached
 # bash -lc: login shell semantics

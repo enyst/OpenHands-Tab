@@ -261,7 +261,7 @@ const ensureDefaultProfilesForDefaultStore = (rootDir: string, options: LLMProfi
   } catch (error) {
     warnOnce(
       `ensure-default-profiles:${rootDir}`,
-      `[agent-sdk-ts] Failed to ensure default LLM profiles in ${rootDir}:`,
+      `[agent-sdk] Failed to ensure default LLM profiles in ${rootDir}:`,
       error,
     );
   }
@@ -447,7 +447,7 @@ export const ensureDefaultProfiles = (options: LLMProfileStoreOptions = {}): Def
       // Best-effort; users may have a read-only profile directory.
       warnOnce(
         `create-default-profile:${rootDir}:${entry.profileId}`,
-        `[agent-sdk-ts] Failed to create default LLM profile '${entry.profileId}':`,
+        `[agent-sdk] Failed to create default LLM profile '${entry.profileId}':`,
         error,
       );
     }

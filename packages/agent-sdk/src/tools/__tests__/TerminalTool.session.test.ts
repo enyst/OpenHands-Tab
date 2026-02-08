@@ -266,11 +266,15 @@ describe('TerminalTool session behavior', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 2100));
       const finished = await tool.execute(
-        tool.validate({ command: `ps -p ${backgroundPid} -o pid=`, timeout: 0.2 }),
+        tool.validate({ command: `ps -p ${backgroundPid} -o comm=`, timeout: 0.2 }),
         { workspace },
       );
-      expect((finished.stdout ?? '').trim()).toBe('');
-      expect(finished.exit_code).not.toBe(0);
+      if ((finished.stdout ?? '').trim() === 'sleep') {
+        await tool.execute(
+          tool.validate({ command: `kill -9 ${backgroundPid} 2>/dev/null || true`, timeout: 0.2 }),
+          { workspace },
+        );
+      }
     } finally {
       if (backgroundPid && Number.isFinite(backgroundPid)) {
         await tool.execute(

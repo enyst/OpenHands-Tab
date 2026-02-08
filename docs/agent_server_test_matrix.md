@@ -11,7 +11,7 @@ This document captures the minimal setup and a test matrix for running the OpenH
 
 ## References
 
-- TS RemoteConversation endpoints: `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`
+- TS RemoteConversation endpoints: `packages/agent-sdk/src/sdk/conversation/RemoteConversation.ts`
   - HTTP: `POST {serverUrl}/api/conversations`
   - WS: `ws(s)://{serverUrl}/sockets/events/{conversationId}?resend_all=true`
     - Auth: WS handshake headers for non-browser clients (`X-Session-API-Key` / `Authorization: Bearer ...`).

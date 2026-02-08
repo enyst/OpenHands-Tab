@@ -112,7 +112,7 @@ Recommendation:
 - Keep auth orchestration in **extension host** (needs VS Code APIs + SecretStorage + safe UX):
   - new module(s) under `src/auth/`
 - Keep only small, pure helpers in `src/shared/` (e.g. server URL normalization already lives there).
-- Avoid putting auth orchestration into `packages/agent-sdk-ts` for now; the SDK should remain transport-agnostic and accept explicit auth inputs (cloud vs runtime) from the host.
+- Avoid putting auth orchestration into `packages/agent-sdk` for now; the SDK should remain transport-agnostic and accept explicit auth inputs (cloud vs runtime) from the host.
 
 ### Token storage model (per-server)
 

@@ -196,7 +196,7 @@ Complete OpenHands protocol definitions:
 ## Package Structure
 
 ```
-packages/agent-sdk-ts/
+packages/agent-sdk/
 ├── src/
 │   ├── index.ts              # Main exports
 │   ├── browser.ts            # Browser-specific exports
@@ -246,7 +246,7 @@ npm run build
 npm test -w @smolpaws/agent-sdk
 
 # Watch mode for iterative development
-cd packages/agent-sdk-ts
+cd packages/agent-sdk
 npm test -- --watch
 ```
 

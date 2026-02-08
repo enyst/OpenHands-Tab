@@ -10,7 +10,7 @@
  *   context-limit error -> Condensation event emitted -> request retried -> run completes.
  *
  * Prereqs:
- * - Build the SDK first so `packages/agent-sdk-ts/dist/index.cjs` exists:
+ * - Build the SDK first so `packages/agent-sdk/dist/index.cjs` exists:
  *   `npm run build -w @smolpaws/agent-sdk`
  *
  * Usage:
@@ -27,7 +27,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const distEntry = path.join(__dirname, '..', 'packages', 'agent-sdk-ts', 'dist', 'index.cjs');
+const distEntry = path.join(__dirname, '..', 'packages', 'agent-sdk', 'dist', 'index.cjs');
 if (!fs.existsSync(distEntry)) {
   console.error('[condensation-smoke] Missing SDK build:', distEntry);
   console.error('[condensation-smoke] Run: npm run build -w @smolpaws/agent-sdk');

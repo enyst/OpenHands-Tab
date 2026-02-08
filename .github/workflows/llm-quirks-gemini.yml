@@ -62,7 +62,7 @@ jobs:
           set +e
           case "$MODE" in
             direct)
-              cd packages/agent-sdk-ts
+              cd packages/agent-sdk
               node ../../.github/workflows/scripts/llm-quirks-gemini.mjs 2>&1 | tee ../../test-output.log
               cd ../..
               ;;
@@ -72,7 +72,7 @@ jobs:
               exit 1
               ;;
             all)
-              cd packages/agent-sdk-ts
+              cd packages/agent-sdk
               node ../../.github/workflows/scripts/llm-quirks-gemini.mjs 2>&1 | tee ../../test-output.log
               cd ../..
               ;;

@@ -32,7 +32,7 @@ Additionally, there are some webview-specific errors from HAL and image attachme
 
 These are emitted by the Agent and appear in both the chat timeline AND status bar.
 
-### Location: `packages/agent-sdk-ts/src/sdk/runtime/Agent.ts`
+### Location: `packages/agent-sdk/src/sdk/runtime/Agent.ts`
 
 | Code | Message Template | Source |
 |------|-----------------|--------|
@@ -46,7 +46,7 @@ These are emitted by the Agent and appear in both the chat timeline AND status b
 | (debug mode only) | "Debug event emission failed: {message}" | Debug event errors |
 | (debug mode only) | "Debug event emission failed for tool call: {message}" | Debug tool call errors |
 
-### Location: `packages/agent-sdk-ts/src/sdk/conversation/LocalConversation.ts`
+### Location: `packages/agent-sdk/src/sdk/conversation/LocalConversation.ts`
 
 | Code | Message Template | Source |
 |------|-----------------|--------|
@@ -70,14 +70,14 @@ In `src/webview-src/components/app/useConversationEvents.ts`:
 
 These go directly to the status bar banner via `{ type: 'error', error: rendered }`.
 
-### Location: `packages/agent-sdk-ts/src/sdk/conversation/LocalConversation.ts`
+### Location: `packages/agent-sdk/src/sdk/conversation/LocalConversation.ts`
 
 | Message Template | Source |
 |-----------------|--------|
 | "Persistence is not configured; starting fresh session" | LocalConversation.restoreConversation() |
 | "{error.message}" (from restore) | LocalConversation.restoreConversation() catch |
 
-### Location: `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`
+### Location: `packages/agent-sdk/src/sdk/conversation/RemoteConversation.ts`
 
 | Message Template | Source |
 |-----------------|--------|

@@ -1,4 +1,4 @@
-# Program: Keep agent-sdk-ts aligned with upstream python Software Agent SDK
+# Program: Keep agent-sdk aligned with upstream python Software Agent SDK
 # Repo: enyst/OpenHands-Tab
 # Upstream: OpenHands/software-agent-sdk
 # Tracking: link PRs to the relevant open parity issue(s) in enyst/OpenHands-Tab.
@@ -9,10 +9,10 @@ input oh_tab_repo: "https://github.com/enyst/OpenHands-Tab.git"
 input oh_tab_branch_prefix: "openhands/"
 input upstream_repo: "https://github.com/OpenHands/software-agent-sdk.git"
 input upstream_ref: "main"  # can be branch, tag, or commit
-input ts_sdk_path: "packages/agent-sdk-ts"
+input ts_sdk_path: "packages/agent-sdk"
 
 # Output artifacts
-# - Updated parity doc: packages/agent-sdk-ts/docs/python-parity.md
+# - Updated parity doc: packages/agent-sdk/docs/python-parity.md
 # - TS architecture docs: docs/agent-sdk-architecture.md (addendum) and/or docs/settings_prd.md additions, plus new docs files as needed
 # - Implementation PRs: one PR per gap (or per cohesive cluster) with tests
 
@@ -78,7 +78,7 @@ session: reviewer
   context: { ts_map, py_map }
 
 # Phase 2: Update parity doc (part 1 goal)
-# Output: packages/agent-sdk-ts/docs/python-parity.md
+# Output: packages/agent-sdk/docs/python-parity.md
 session: reviewer
   prompt: "Update the parity doc with the real current status. Add: (a) methodology and how to re-run the audit, (b) per-feature status (Implemented / Divergent / Missing / Not planned), (c) explicit links to files/functions in both repos, (d) a prioritized gap list with estimated effort and risk."
   context: { ts_map, py_map }

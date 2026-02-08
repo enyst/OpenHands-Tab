@@ -145,8 +145,8 @@ Non-secret references are expected to use:
 
 - Files to inspect:
   - Host store wrapper: `src/webview/host/llmProfilesStore.ts`
-  - SDK store: `packages/agent-sdk-ts/src/sdk/llm/profiles.ts`
-  - Type definition: `packages/agent-sdk-ts/src/sdk/llm/types.ts` (`ApiKeyRef`)
+  - SDK store: `packages/agent-sdk/src/sdk/llm/profiles.ts`
+  - Type definition: `packages/agent-sdk/src/sdk/llm/types.ts` (`ApiKeyRef`)
 
 **Check**: profile save paths have a default mode that **excludes secrets**.
 
@@ -295,9 +295,9 @@ This is a source of audit mistakes and security regressions. We should **improve
 
 | Domain / meaning | Where it lives (structure) | Typical source (where it comes from) | Sinks (where it ends up) | What can go wrong |
 |---|---|---|---|---|
-| **LLM provider credential** (OpenAI/Anthropic/Gemini/etc.) | `LLMConfiguration.apiKeyRef` (`packages/agent-sdk-ts/src/sdk/llm/types.ts`) and on-disk profile JSON (`~/.openhands/llm-profiles/*.json` when `includeSecrets=true`) | From SecretStorage / SecretRegistry, or explicit inline opt-in (`apiKeyRef.kind="inline"`) | Network requests to provider clients (`Authorization`, `x-api-key`, `x-goog-api-key`) | Easy to accidentally persist to disk or log. Treat `apiKeyRef.kind="inline"` as a secret; treat `apiKeyRef.kind="key"` as a reference name.
+| **LLM provider credential** (OpenAI/Anthropic/Gemini/etc.) | `LLMConfiguration.apiKeyRef` (`packages/agent-sdk/src/sdk/llm/types.ts`) and on-disk profile JSON (`~/.openhands/llm-profiles/*.json` when `includeSecrets=true`) | From SecretStorage / SecretRegistry, or explicit inline opt-in (`apiKeyRef.kind="inline"`) | Network requests to provider clients (`Authorization`, `x-api-key`, `x-goog-api-key`) | Easy to accidentally persist to disk or log. Treat `apiKeyRef.kind="inline"` as a secret; treat `apiKeyRef.kind="key"` as a reference name.
 | **Webview → host payload secret** (user typed key) | Webview message: `llmProfileApiKeySetRequest.apiKey` (`src/shared/webviewMessages.ts`) | User types into webview UI (`src/webview-src/components/LlmProfilesView.tsx`) | Stored in `context.secrets.store(...)` and optionally `secretRegistry.set(...)` (`src/webview/host/handlers/llmProfiles.ts`) | Webview JS memory is a leak surface (console logs, devtools, XSS, persistence). Host must **never** echo secrets back to webview.
-| **Agent-server session API key** (auth to OpenHands server) | `RemoteWorkspaceOptions.sessionApiKey` (`packages/agent-sdk-ts/src/workspace/RemoteWorkspace.ts`) and SecretStorage keys derived from normalized server URL (`src/auth/serverSessionApiKeys.ts`) | `settings.secrets.sessionApiKey` (remote conversation setup) | Network requests to agent-server via `X-Session-API-Key` / `Authorization: Bearer ...` | Confusing it with provider credentials can cause wrong-host leakage. Ensure per-server scoping and never attach to unintended hosts/redirects.
+| **Agent-server session API key** (auth to OpenHands server) | `RemoteWorkspaceOptions.sessionApiKey` (`packages/agent-sdk/src/workspace/RemoteWorkspace.ts`) and SecretStorage keys derived from normalized server URL (`src/auth/serverSessionApiKeys.ts`) | `settings.secrets.sessionApiKey` (remote conversation setup) | Network requests to agent-server via `X-Session-API-Key` / `Authorization: Bearer ...` | Confusing it with provider credentials can cause wrong-host leakage. Ensure per-server scoping and never attach to unintended hosts/redirects.
 | **HAL / auxiliary service keys** (Gemini classifier, ElevenLabs, etc.) | Feature params objects (e.g. `src/hal/gemini/decisionClassifier.ts`, `src/hal/elevenlabs/ttsClient.ts`) | From SecretStorage-backed settings / secrets | Outbound requests to those services | Same logging/persistence risks, plus accidental reuse in unrelated contexts.
 
 ### Audit guidance

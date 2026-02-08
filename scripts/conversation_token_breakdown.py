@@ -129,7 +129,7 @@ def read_input_tokens(state_path: Path) -> Optional[int]:
 
 
 def load_base_system_prompt(repo_root: Path) -> str:
-    prompt_path = repo_root / "packages" / "agent-sdk-ts" / "src" / "sdk" / "runtime" / "systemPrompt.ts"
+    prompt_path = repo_root / "packages" / "agent-sdk" / "src" / "sdk" / "runtime" / "systemPrompt.ts"
     if not prompt_path.exists():
         return ""
     text = prompt_path.read_text(encoding="utf-8")
