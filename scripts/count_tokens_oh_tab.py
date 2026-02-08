@@ -7,8 +7,8 @@ Counts tokens (tiktoken estimate) for the repo's major surfaces:
 - extension host tests (src/**/__tests__ excluding src/webview-src)
 - webview UI source (src/webview-src excluding __tests__)
 - webview UI tests (src/webview-src/__tests__)
-- agent-sdk-ts source (packages/agent-sdk-ts/src excluding __tests__)
-- agent-sdk-ts tests (packages/agent-sdk-ts/src/**/__tests__)
+- agent-sdk source (packages/agent-sdk/src excluding __tests__)
+- agent-sdk tests (packages/agent-sdk/src/**/__tests__)
 """
 
 import argparse
@@ -238,7 +238,7 @@ def main() -> int:
     repo_root = pathlib.Path.cwd()
     src_root = repo_root / "src"
     webview_src_root = src_root / "webview-src"
-    sdk_src_root = repo_root / "packages" / "agent-sdk-ts" / "src"
+    sdk_src_root = repo_root / "packages" / "agent-sdk" / "src"
 
     if not src_root.exists():
         print("Error: expected to run from repo root (missing ./src)", file=sys.stderr)
@@ -316,7 +316,7 @@ def main() -> int:
             include_file=include_sdk_tests,
         )
     else:
-        print("Warning: missing packages/agent-sdk-ts/src; skipping agent-sdk-ts buckets", file=sys.stderr)
+        print("Warning: missing packages/agent-sdk/src; skipping agent-sdk buckets", file=sys.stderr)
 
     _print_bucket("Extension host source (src/** excluding webview-src and __tests__)", extension_src, fmt=fmt)
     _print_bucket("Extension host tests (src/**/__tests__ excluding webview-src)", extension_tests, fmt=fmt)
@@ -324,14 +324,14 @@ def main() -> int:
     _print_bucket("Webview UI tests (src/webview-src/__tests__)", webview_ui_tests, fmt=fmt)
 
     if sdk_src is not None and sdk_tests is not None:
-        _print_bucket("agent-sdk-ts source (packages/agent-sdk-ts/src excluding __tests__)", sdk_src, fmt=fmt)
-        _print_bucket("agent-sdk-ts tests (packages/agent-sdk-ts/src/**/__tests__)", sdk_tests, fmt=fmt)
+        _print_bucket("agent-sdk source (packages/agent-sdk/src excluding __tests__)", sdk_src, fmt=fmt)
+        _print_bucket("agent-sdk tests (packages/agent-sdk/src/**/__tests__)", sdk_tests, fmt=fmt)
 
     # Convenience totals (excluding tests).
     product_src = _merge_totals(extension_src, webview_ui_src)
     if sdk_src is not None:
         product_src = _merge_totals(product_src, sdk_src)
-    _print_bucket("TOTAL source (extension host + webview UI + agent-sdk-ts; excluding tests)", product_src, fmt=fmt)
+    _print_bucket("TOTAL source (extension host + webview UI + agent-sdk; excluding tests)", product_src, fmt=fmt)
     return 0
 
 

@@ -126,7 +126,7 @@ OpenHands-Tab/
 │       ├── __tests__/            # Webview unit tests
 │       ├── components/           # App, EventBlock, InputArea, Header, etc.
 │       └── shared/               # Shared webview utilities
-├── packages/agent-sdk-ts/        # TypeScript SDK
+├── packages/agent-sdk/        # TypeScript SDK
 │   └── src/
 │       ├── conversation/         # Conversation API (primary)
 │       ├── context/              # AgentContext, Skills
@@ -143,7 +143,7 @@ OpenHands-Tab/
 
 - `src/extension.ts` - Extension activation, commands
 - `src/webview-src/components/App.tsx` - Main webview component
-- `packages/agent-sdk-ts/src/conversation/` - Conversation API
+- `packages/agent-sdk/src/conversation/` - Conversation API
 - `package.json` - Commands, settings schema, dependencies
 
 ## Webview Host Type Boundary
@@ -155,9 +155,9 @@ OpenHands-Tab/
 
 ## SDK Package
 
-`packages/agent-sdk-ts` is a TypeScript port of the OpenHands Python SDK (typically checked out separately at `~/repos/agent-sdk`). It aims for behavioral parity, but it is not mechanically transpiled, so occasional impedance mismatches can exist.
+`packages/agent-sdk` is a TypeScript port of the OpenHands Python SDK (typically checked out separately at `~/repos/agent-sdk`). It aims for behavioral parity, but it is not mechanically transpiled, so occasional impedance mismatches can exist.
 
-When editing `packages/agent-sdk-ts`, rebuild before launching extension:
+When editing `packages/agent-sdk`, rebuild before launching extension:
 ```bash
 npm run build -w @smolpaws/agent-sdk
 ```
@@ -332,13 +332,13 @@ Pitfalls to avoid
 - [docs/webview_host_handler_boundary.md](docs/webview_host_handler_boundary.md) - Webview host handler dependency/type boundary contract
 - [docs/vscode_local_setup.md](docs/vscode_local_setup.md) - Local development setup
 - [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) - Headless/remote setup
-- [packages/agent-sdk-ts/AGENTS.md](packages/agent-sdk-ts/AGENTS.md) - SDK-specific guidelines
+- [packages/agent-sdk/AGENTS.md](packages/agent-sdk/AGENTS.md) - SDK-specific guidelines
 
 
 ## OpenProse notes
 
 - OpenProse skill docs are vendored at `OpenHands-Tab/.openhands/skills/open-prose/`.
-- The agent-sdk-ts parity program lives at `docs/programs/agent-sdk-ts-upstream-parity.prose`.
+- The agent-sdk parity program lives at `docs/programs/agent-sdk-upstream-parity.prose`.
 - Opening PRs via the OpenHands `create_pr` tool expects:
   - `repo_name`, `source_branch`, `target_branch`, `title`, `body`
 

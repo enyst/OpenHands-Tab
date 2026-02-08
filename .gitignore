@@ -7,7 +7,7 @@ media/*.css
 *.vsix
 out/
 dist/
-packages/agent-sdk-ts/dist/
+packages/agent-sdk/dist/
 node_modules/
 .vscode-test/
 .vscode-test-web/
@@ -16,7 +16,7 @@ node_modules/
 *.js
 *.js.map
 *.d.ts
-!packages/agent-sdk-ts/src/types/picomatch.d.ts
+!packages/agent-sdk/src/types/picomatch.d.ts
 !src/**/*.js
 !test/**/*.js
 !tests/**/*.js

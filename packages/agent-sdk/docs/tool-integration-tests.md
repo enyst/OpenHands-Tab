@@ -4,7 +4,7 @@ This guide documents the lightweight integration test suite for agent-sdk tools.
 
 ## Where the tests live
 
-- `packages/agent-sdk-ts/src/tools/__tests__/integration/`
+- `packages/agent-sdk/src/tools/__tests__/integration/`
 - Each test uses a temporary `LocalWorkspace` and cleans up after itself.
 
 ## How to run

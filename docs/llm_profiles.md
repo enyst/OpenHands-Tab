@@ -23,12 +23,12 @@ Non-goals:
 
 - Profiles live on disk as JSON files under:
   - `~/.openhands/llm-profiles/<profileId>.json`
-  - Source of truth constant: `packages/agent-sdk-ts/src/sdk/llm/profiles.ts` (`DEFAULT_LLM_PROFILES_DIR`)
+  - Source of truth constant: `packages/agent-sdk/src/sdk/llm/profiles.ts` (`DEFAULT_LLM_PROFILES_DIR`)
 - `profileId` is the **filename stem** and must be a safe filename:
   - Non-empty, trimmed
   - No path separators
   - Regex: `^[a-zA-Z0-9._-]+$`
-  - Validator: `assertValidProfileId()` in `packages/agent-sdk-ts/src/sdk/llm/profiles.ts`
+  - Validator: `assertValidProfileId()` in `packages/agent-sdk/src/sdk/llm/profiles.ts`
 
 ### Secrets (API keys)
 

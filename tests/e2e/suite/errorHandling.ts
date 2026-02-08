@@ -45,7 +45,7 @@ export async function run(): Promise<void> {
     throw new Error(`Expected 1 AgentErrorEvent, got ${errorCount}`);
   }
 
-  // Test 2: Send ConversationErrorEvent (uses detail/code per agent-sdk-ts types)
+  // Test 2: Send ConversationErrorEvent (uses detail/code per agent-sdk types)
   const conversationError = {
     kind: 'ConversationErrorEvent',
     source: 'environment',

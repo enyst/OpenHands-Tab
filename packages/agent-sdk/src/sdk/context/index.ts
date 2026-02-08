@@ -1,5 +1,5 @@
 /**
- * Context module for OpenHands agent-sdk-ts.
+ * Context module for OpenHands agent-sdk.
  * Provides skills and agent context management.
  */
 

@@ -28,7 +28,7 @@
  *   2 - Missing required environment variables
  */
 
-import { LLMFactory } from '../../../packages/agent-sdk-ts/dist/index.mjs';
+import { LLMFactory } from '../../../packages/agent-sdk/dist/index.mjs';
 import { readFile, writeFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';

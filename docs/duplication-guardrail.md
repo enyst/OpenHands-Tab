@@ -10,7 +10,7 @@ npm run lint:duplication
 
 The command runs `scripts/check-duplication.mjs`, which shells out to `jscpd` and checks:
 
-- Scope: `src`, `packages/agent-sdk-ts/src`
+- Scope: `src`, `packages/agent-sdk/src`
 - Formats: `typescript`, `tsx`
 - Excluded from scan:
   - tests (`**/__tests__/**`, `**/*.test.ts`, `**/*.test.tsx`, `**/tests/**`)

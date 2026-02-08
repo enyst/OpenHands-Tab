@@ -190,7 +190,7 @@ Settings:
     - If summarization fails **or returns empty text** (or if there are no teleportable events to summarize): intro + note + last 10 events (Action/Observation/Message only; exclude system prompt/tools/skills).
     - Intro includes: repo name, branch name, remote URL (if configured), and a note that uncommitted local changes may not be present in remote.
     - Do **not** send the system prompt, tool list, or skills list (the remote agent/runtime has its own).
-    - Do not rely on Condensation events for local mode (agent-sdk-ts defines the type but doesn't emit them today).
+    - Do not rely on Condensation events for local mode (agent-sdk defines the type but doesn't emit them today).
   - Show the "Teleporting…" overlay and play the "Rhapsody in Blue…" snippet while waiting for the remote conversation to be ready.
 
 ## Testing plan

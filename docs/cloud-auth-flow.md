@@ -5,7 +5,7 @@ This document captures the concrete code paths we inspected (Jan 17, 2026) to un
 - What the OpenHands **cloud “login key”** actually is (OAuth device flow output)
 - What an **agent-server “session API key”** is (runtime/sandbox-scoped)
 - How the **SaaS/app-server** composes these when running managed remote sandboxes
-- Implications for **OpenHands-Tab** (`oh-tab`) and `packages/agent-sdk-ts` RemoteConversation/RemoteWorkspace
+- Implications for **OpenHands-Tab** (`oh-tab`) and `packages/agent-sdk` RemoteConversation/RemoteWorkspace
 
 The key takeaway: **cloud device-flow returns a user API key / access token for the SaaS server, not the per-sandbox agent-server session key.**
 
@@ -187,7 +187,7 @@ Note: this file explicitly labels itself “LEGACY V0 CODE” and warns not to e
 
 ---
 
-## 5) OpenHands-Tab (`oh-tab`) / agent-sdk-ts: current client behavior
+## 5) OpenHands-Tab (`oh-tab`) / agent-sdk: current client behavior
 
 ### 5.1 VS Code extension cloud login stores the device-flow access token as “Cloud API Key”
 **File:** `src/extension/cloudLoginCommand.ts`
@@ -197,7 +197,7 @@ Note: this file explicitly labels itself “LEGACY V0 CODE” and warns not to e
 - Logs: `[auth] Stored cloud API key for <normalizedServerUrl>.`
 
 ### 5.2 RemoteConversation uses distinct keys for SaaS vs nested runtime
-**File:** `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`
+**File:** `packages/agent-sdk/src/sdk/conversation/RemoteConversation.ts`
 
 - For cloud/SaaS hosts, `getAuthHeaders()` uses:
   - `Authorization: Bearer <cloudApiKey>`
@@ -333,7 +333,7 @@ Never print tokens; avoid retries/loops.
   - Upstream agent-server `main` historically required `?session_api_key=...`; OpenHands/software-agent-sdk#1786 adds header auth.
 
 - Does SaaS proxy any of the agent-server WS paths?
-  - We did not find `sockets/events` routes in enterprise; the agent-sdk-ts WS path likely targets the agent-server directly.
+  - We did not find `sockets/events` routes in enterprise; the agent-sdk WS path likely targets the agent-server directly.
 
 - Which endpoint(s) should `oh-tab` call after cloud login to obtain the runtime `session_api_key` + `agent_server_url`?
   - Prefer V1 `AppConversation` endpoints:
@@ -373,7 +373,7 @@ Never print tokens; avoid retries/loops.
 - `~/repos/odie/openhands/server/listen_socket.py`
 - `~/repos/odie/openhands/server/routes/manage_conversations.py` (deprecated `/api/conversations` endpoints)
 
-### oh-tab / agent-sdk-ts
+### oh-tab / agent-sdk
 - `src/extension/cloudLoginCommand.ts`
 - `src/extension/cloudLogoutCommand.ts`
-- `packages/agent-sdk-ts/src/sdk/conversation/RemoteConversation.ts`
+- `packages/agent-sdk/src/sdk/conversation/RemoteConversation.ts`

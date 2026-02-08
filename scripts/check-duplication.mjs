@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const TARGETS = ['src', 'packages/agent-sdk-ts/src'];
+const TARGETS = ['src', 'packages/agent-sdk/src'];
 const IGNORE_PATTERNS = [
   '**/__tests__/**',
   '**/*.test.ts',

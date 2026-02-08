@@ -69,7 +69,7 @@ Alternatively, for humans in development mode:
 This is an npm workspace with two packages:
 
 1. **Root package** - VS Code extension (`src/`)
-2. **@smolpaws/agent-sdk** - TypeScript SDK (`packages/agent-sdk-ts/`)
+2. **@smolpaws/agent-sdk** - TypeScript SDK (`packages/agent-sdk/`)
 
 The SDK provides the `Conversation` API, LLM clients, tools, and protocol types.
 

@@ -1,5 +1,5 @@
 /**
- * Skills system for OpenHands agent-sdk-ts.
+ * Skills system for OpenHands agent-sdk.
  * Transpiled from Python SDK: openhands/sdk/context/skills/
  */
 

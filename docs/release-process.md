@@ -25,7 +25,7 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
      - `git fetch origin && git rebase origin/develop`
 3. Bump versions:
    - Extension (root): `package.json` + `package-lock.json`
-   - SDK (workspace): `packages/agent-sdk-ts/package.json` (and lockfile updates as needed)
+   - SDK (workspace): `packages/agent-sdk/package.json` (and lockfile updates as needed)
    - Prefer:
      - `npm version X.Y.Z --no-git-tag-version`
      - `npm version X.Y.Z --no-git-tag-version -w @smolpaws/agent-sdk`

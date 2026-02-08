@@ -1778,8 +1778,8 @@ describe('Type Guards', () => {
 ## References
 
 - [Main README](../README.md)
-- [Package AGENTS.md](../packages/agent-sdk-ts/AGENTS.md)
+- [Package AGENTS.md](../packages/agent-sdk/AGENTS.md)
 - [Repository Guidelines](../AGENTS.md)
-- [Python SDK Parity Guide](../packages/agent-sdk-ts/docs/python-parity.md) - Detailed comparison with Python SDK
+- [Python SDK Parity Guide](../packages/agent-sdk/docs/python-parity.md) - Detailed comparison with Python SDK
 - [PRD](./PRD.md)
 - [OpenHands agent-sdk (Python)](https://github.com/OpenHands/software-agent-sdk)

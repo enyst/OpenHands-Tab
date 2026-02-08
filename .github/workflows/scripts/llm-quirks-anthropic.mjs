@@ -6,7 +6,7 @@
  * 1. LiteLLM proxy (default) - uses LITELLM_API_KEY
  * 2. Direct Anthropic API - uses ANTHROPIC_API_KEY
  * 
- * This script tests the agent-sdk-ts with a simple prompt that requires:
+ * This script tests the agent-sdk with a simple prompt that requires:
  * 1. Reading a file (tool call)
  * 2. Processing the content (thinking)
  * 3. Creating a new file (tool call)
@@ -34,7 +34,7 @@
  *   2 - Missing required environment variables
  */
 
-import { LLMFactory } from '../../../packages/agent-sdk-ts/dist/index.mjs';
+import { LLMFactory } from '../../../packages/agent-sdk/dist/index.mjs';
 import { readFile, writeFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import { dirname, join } from 'path';

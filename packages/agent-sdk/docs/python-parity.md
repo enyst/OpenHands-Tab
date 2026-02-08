@@ -1,12 +1,12 @@
 # Python ↔︎ TypeScript SDK parity guide
 
-This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@smolpaws/agent-sdk` (VS Code-focused SDK). Note that agent-sdk-ts is basically a transpilation of the Python agent-sdk. It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
+This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@smolpaws/agent-sdk` (VS Code-focused SDK). Note that agent-sdk is basically a transpilation of the Python agent-sdk. It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
 
 ## Audit scope (oh-tab-0rq)
 
 This document is the living output for Beads issue `oh-tab-0rq`.
 
-- TypeScript SDK: `packages/agent-sdk-ts` (this repo).
+- TypeScript SDK: `packages/agent-sdk` (this repo).
 - Python reference SDK: `~/repos/agent-sdk` ([OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)).
 - Focus: VS Code local-mode parity and remote conversation working correctly (no agent-server implementation in TS).
 
@@ -14,7 +14,7 @@ This document is the living output for Beads issue `oh-tab-0rq`.
 
 1. Clone both repos:
 
-   - This repo: `enyst/OpenHands-Tab` (folder: `packages/agent-sdk-ts`)
+   - This repo: `enyst/OpenHands-Tab` (folder: `packages/agent-sdk`)
    - Upstream: `OpenHands/software-agent-sdk`
 
 2. Record the upstream ref/commit you audited against in this doc.
@@ -23,9 +23,9 @@ This document is the living output for Beads issue `oh-tab-0rq`.
 
 3. Compare the wire-format and runtime behavior (not just types):
 
-   - Events → LLM messages: Python `openhands-sdk/openhands/sdk/event/llm_convertible/*` vs TS `packages/agent-sdk-ts/src/sdk/runtime/*`
-   - Tool schemas + validation: Python `openhands-sdk/openhands/sdk/tool/*` vs TS `packages/agent-sdk-ts/src/sdk/tools/*`
-   - Conversation persistence + resume: Python `openhands-sdk/openhands/sdk/conversation/*` vs TS `packages/agent-sdk-ts/src/sdk/conversation/*`
+   - Events → LLM messages: Python `openhands-sdk/openhands/sdk/event/llm_convertible/*` vs TS `packages/agent-sdk/src/sdk/runtime/*`
+   - Tool schemas + validation: Python `openhands-sdk/openhands/sdk/tool/*` vs TS `packages/agent-sdk/src/sdk/tools/*`
+   - Conversation persistence + resume: Python `openhands-sdk/openhands/sdk/conversation/*` vs TS `packages/agent-sdk/src/sdk/conversation/*`
 
 4. Run TS SDK unit tests before/after changes:
 
@@ -149,8 +149,8 @@ Quick reference for module-level parity between Python and TypeScript SDKs.
 - Python: `AgentErrorEvent.to_llm_message()` emits a `role="tool"` message with plain text `error` content (no JSON encoding, no truncation).
   - Source: `openhands-sdk/openhands/sdk/event/llm_convertible/observation.py`
 - TypeScript: `createToolCallErrorEvents()` emits a `MessageEvent` with `role="tool"` and plain text `error` content (no JSON encoding, no truncation).
-  - Source: `packages/agent-sdk-ts/src/sdk/runtime/toolCallErrorEvents.ts`
-- Note: non-error tool outputs are still truncated for LLM safety (shared `<response clipped>` marker) via `packages/agent-sdk-ts/src/sdk/runtime/toolResultTruncation.ts`.
+  - Source: `packages/agent-sdk/src/sdk/runtime/toolCallErrorEvents.ts`
+- Note: non-error tool outputs are still truncated for LLM safety (shared `<response clipped>` marker) via `packages/agent-sdk/src/sdk/runtime/toolResultTruncation.ts`.
 - **Status**: Aligned.
 
 ### Tool-call argument redaction
