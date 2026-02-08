@@ -7,7 +7,7 @@ import type {
   MessageEvent as AgentMessageEvent,
   AgentErrorEvent,
   ConversationErrorEvent,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 afterEach(() => {
   cleanup();

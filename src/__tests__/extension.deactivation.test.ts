@@ -20,7 +20,7 @@ describe('Deactivation', () => {
 
     extension.deactivate();
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
     expect(conv?.disconnect).toHaveBeenCalled();
     expect(vscode.window.createTerminal).not.toHaveBeenCalled();
   });
@@ -35,7 +35,7 @@ describe('Deactivation', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
     conv?.emit('terminal', {
       id: 'bash-1',
       type: 'BashCommand',

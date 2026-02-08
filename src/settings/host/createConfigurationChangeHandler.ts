@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { ConversationInstance } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance } from '@smolpaws/agent-sdk';
 import { normalizeOutputVerbosity, type OutputVerbosity } from '../../extension/outputLogger';
 
 type TerminalLogPtyLike = { ensureNewline?: () => void };

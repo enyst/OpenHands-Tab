@@ -6,7 +6,7 @@ import { safeStringify } from '../shared/safeStringify';
 import { getEffectiveWorkspaceRoot } from '../shared/workspaceRoot';
 import type { HostToWebviewMessage } from '../shared/webviewMessages';
 import type { BufferedConversationEvent } from '../conversation/eventBacklog';
-import type { ConversationInstance, Event, SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance, Event, SecretRegistry } from '@smolpaws/agent-sdk';
 
 type EnsureConversationAndConnection = (options?: { uiJustCreated?: boolean; modeSwitched?: boolean }) => Promise<void>;
 

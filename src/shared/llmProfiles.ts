@@ -1,4 +1,4 @@
-import type { OpenHandsSettings } from '@openhands/agent-sdk-ts';
+import type { OpenHandsSettings } from '@smolpaws/agent-sdk';
 
 const toOptionalNonEmptyString = (value: unknown): string | undefined => {
   const trimmed = typeof value === 'string' ? value.trim() : '';

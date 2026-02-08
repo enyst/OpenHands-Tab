@@ -1,4 +1,4 @@
-import type { Event, MessageEvent } from '@openhands/agent-sdk-ts';
+import type { Event, MessageEvent } from '@smolpaws/agent-sdk';
 
 export const TELEPORT_SUMMARY_EVENT_LIMIT = 200;
 export const TELEPORT_FALLBACK_EVENT_LIMIT = 10;

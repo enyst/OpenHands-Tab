@@ -10,7 +10,7 @@ This repo uses [models.dev](https://models.dev) as a best-effort source of per-m
 
 ## Mapping rules
 
-We map `@openhands/agent-sdk-ts` `LLMProvider` → models.dev provider id:
+We map `@smolpaws/agent-sdk` `LLMProvider` → models.dev provider id:
 
 - `openai` → `openai`
 - `anthropic` → `anthropic`

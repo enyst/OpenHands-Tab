@@ -1,4 +1,4 @@
-import { isTextContent, type Event } from '@openhands/agent-sdk-ts';
+import { isTextContent, type Event } from '@smolpaws/agent-sdk';
 import type { BufferedConversationEvent } from '../conversation/eventBacklog';
 import { OPENHANDS_IMAGE_URL_PREFIX, isValidPastedImageId } from '../shared/pastedImages';
 import { cleanupPastedImages } from '../shared/pastedImagesCleanup';

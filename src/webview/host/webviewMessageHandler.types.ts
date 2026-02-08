@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import type { ConversationInstance, SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { ConversationInstance, SecretRegistry } from '@smolpaws/agent-sdk';
 import type { HostToWebviewMessage, WebviewE2EInfo } from '../../shared/webviewMessages';
 
 export type WebviewHost = {

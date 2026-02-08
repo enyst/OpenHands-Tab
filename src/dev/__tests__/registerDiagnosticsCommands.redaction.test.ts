@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SecretRegistry } from '@openhands/agent-sdk-ts';
+import { SecretRegistry } from '@smolpaws/agent-sdk';
 import { sanitizeDiagnosticsText } from '../registerDiagnosticsCommands';
 
 describe('sanitizeDiagnosticsText', () => {

@@ -4,7 +4,7 @@
 
 > Scope: VS Code Extension only — this SDK is intended to run inside VSCode for use of the OpenHands-Tab extension; standalone usage or non‑VS Code API integrations are not in scope.
 
-The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. It provides a runtime layer for agent orchestration, LLM integration, tool execution, workspace management, and full protocol type definitions.
+The `@smolpaws/agent-sdk` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. It provides a runtime layer for agent orchestration, LLM integration, tool execution, workspace management, and full protocol type definitions.
 
 ## Architecture
 
@@ -234,7 +234,7 @@ npm install
 ### Building
 ```bash
 # Build ESM/CJS bundles + declaration files
-npm run build -w @openhands/agent-sdk-ts
+npm run build -w @smolpaws/agent-sdk
 
 # Or from this directory
 npm run build
@@ -243,7 +243,7 @@ npm run build
 ### Testing
 ```bash
 # Run tests
-npm test -w @openhands/agent-sdk-ts
+npm test -w @smolpaws/agent-sdk
 
 # Watch mode for iterative development
 cd packages/agent-sdk-ts
@@ -253,10 +253,10 @@ npm test -- --watch
 ### Linting
 ```bash
 # Lint with ESLint
-npm run lint -w @openhands/agent-sdk-ts
+npm run lint -w @smolpaws/agent-sdk
 
 # Auto-fix issues
-npm run lint -w @openhands/agent-sdk-ts -- --fix
+npm run lint -w @smolpaws/agent-sdk -- --fix
 ```
 
 ## Coding Guidelines
@@ -279,9 +279,9 @@ or alternatives.
 - Tool tests should use temporary directories and cleanup after execution.
 
 ## Release Considerations
-- Bump the package version in `package.json` when publishing to npm and run `npm run build -w @openhands/agent-sdk-ts` beforehand.
+- Bump the package version in `package.json` when publishing to npm and run `npm run build -w @smolpaws/agent-sdk` beforehand.
 - After changes land, rebuild the VS Code extension (`npm run build`) to ensure the workspace dependency picks up the updated SDK bundle.
-- Ensure all tests pass (`npm test -w @openhands/agent-sdk-ts`) before releasing.
+- Ensure all tests pass (`npm test -w @smolpaws/agent-sdk`) before releasing.
 - Update CHANGELOG.md with notable changes.
 
 ## Usage Examples
@@ -291,7 +291,7 @@ or alternatives.
 This is the main API used by the OpenHands-Tab extension:
 
 ```typescript
-import { Conversation, type ConversationInstance } from '@openhands/agent-sdk-ts';
+import { Conversation, type ConversationInstance } from '@smolpaws/agent-sdk';
 
 // Create a conversation (auto-detects local vs remote mode)
 const conversation: ConversationInstance = Conversation({
@@ -375,7 +375,7 @@ const remoteConversation = Conversation({
 For advanced use cases, you can use the LLM clients directly:
 
 ```typescript
-import { LLMFactory, LLMConfiguration } from '@openhands/agent-sdk-ts';
+import { LLMFactory, LLMConfiguration } from '@smolpaws/agent-sdk';
 
 const config: LLMConfiguration = {
   provider: 'anthropic',
@@ -392,7 +392,7 @@ const client = await new LLMFactory(config).createClient();
 For direct orchestration without the Conversation wrapper:
 
 ```typescript
-import { LLMStreamer } from '@openhands/agent-sdk-ts';
+import { LLMStreamer } from '@smolpaws/agent-sdk';
 
 const streamer = new LLMStreamer(client);
 
@@ -407,7 +407,7 @@ console.log(response.message.content);
 ### Working with Events (Low-Level)
 
 ```typescript
-import { EventLog, isMessageEvent } from '@openhands/agent-sdk-ts';
+import { EventLog, isMessageEvent } from '@smolpaws/agent-sdk';
 
 const eventLog = new EventLog();
 
@@ -427,7 +427,7 @@ const messages = eventLog.list().filter(isMessageEvent);
 Skills extend agent capabilities with specialized knowledge and repository-specific instructions:
 
 ```typescript
-import { AgentContext, Skill } from '@openhands/agent-sdk-ts';
+import { AgentContext, Skill } from '@smolpaws/agent-sdk';
 
 // Create skills manually
 const repoSkill = new Skill({
@@ -470,7 +470,7 @@ const conversation = Conversation({
 Skills can also be loaded from markdown files:
 
 ```typescript
-import { Skill, loadUserSkills } from '@openhands/agent-sdk-ts';
+import { Skill, loadUserSkills } from '@smolpaws/agent-sdk';
 
 // Load a single skill from a file
 const skill = Skill.load({ path: '/path/to/skill.md' });

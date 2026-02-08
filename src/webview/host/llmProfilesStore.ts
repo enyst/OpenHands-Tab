@@ -7,7 +7,7 @@ import {
   type LLMConfiguration,
   type LLMProfileStoreOptions,
   type SaveProfileOptions,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 export type HostLlmProfileSaveOptions = LLMProfileStoreOptions & {
   /** When true, allow inline secrets (apiKeyRef.kind="inline"/headers) to be persisted to disk. */

@@ -5,7 +5,7 @@ import {
   isBashCommand,
   isBashExit,
   isBashOutput,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 type TerminalMirrorState = {
   terminal: vscode.Terminal | undefined;

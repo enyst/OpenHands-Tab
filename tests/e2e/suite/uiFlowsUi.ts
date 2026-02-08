@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { saveProfile as saveSdkProfile } from '@openhands/agent-sdk-ts';
+import { saveProfile as saveSdkProfile } from '@smolpaws/agent-sdk';
 import { waitForDiagnostics } from './helpers/waitForDiagnostics';
 import { pollUntil } from './pollUntil';
 import { connectToWebviewCdp } from './helpers/uiHarness';

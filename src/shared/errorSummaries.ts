@@ -1,4 +1,4 @@
-import type { AgentErrorEvent, ConversationErrorEvent } from '@openhands/agent-sdk-ts';
+import type { AgentErrorEvent, ConversationErrorEvent } from '@smolpaws/agent-sdk';
 
 type ErrorSummary = { message: string; hint?: string };
 

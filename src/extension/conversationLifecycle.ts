@@ -9,7 +9,7 @@ import {
   loadSkillsFromDir,
   type SecretRegistry,
   type Skill,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import { bootstrapCloudRemoteConversation, type CloudBootstrapResult } from '../cloud/cloudRemoteBootstrap';
 import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
 import { getServerRuntimeSessionApiKeySecretKey } from '../auth/serverRuntimeSessionApiKeys';

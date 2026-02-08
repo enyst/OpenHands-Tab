@@ -12,7 +12,7 @@ import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
 import { getServerRuntimeSessionApiKeySecretKey } from '../auth/serverRuntimeSessionApiKeys';
 import * as llmProfilesStore from '../webview/host/llmProfilesStore';
 import { OpenHandsTerminalLogPseudoterminal } from '../terminal/OpenHandsTerminalLogPseudoterminal';
-import { isBashEvent, isTextContent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import { isBashEvent, isTextContent, type BashEvent, type ConversationInstance, type Event, type SecretRegistry } from '@smolpaws/agent-sdk';
 import type { DiagnosticsInfo, LastUserMessageInfo, TerminalLogInfo } from './diagnosticsTypes';
 
 export type { DiagnosticsInfo, LastUserMessageInfo, TerminalLogInfo } from './diagnosticsTypes';

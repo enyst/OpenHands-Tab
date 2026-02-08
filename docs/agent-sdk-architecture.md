@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@openhands/agent-sdk-ts` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. This document provides an architectural overview and implementation guide for the SDK.
+The `@smolpaws/agent-sdk` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. This document provides an architectural overview and implementation guide for the SDK.
 
 ## Design Philosophy
 
@@ -24,7 +24,7 @@ The SDK follows these core principles:
 └───────────────────────┬─────────────────────────────────┘
                         │
 ┌───────────────────────┴─────────────────────────────────┐
-│              @openhands/agent-sdk-ts                     │
+│              @smolpaws/agent-sdk                          │
 ├──────────────────────────────────────────────────────────┤
 │                                                           │
 │  ┌─────────────────────────────────────────────────┐    │
@@ -297,7 +297,7 @@ class AgentContext {
 
 **Usage Example**:
 ```typescript
-import { AgentContext, Skill } from '@openhands/agent-sdk-ts';
+import { AgentContext, Skill } from '@smolpaws/agent-sdk';
 
 // Create context with skills
 const context = new AgentContext({
@@ -395,7 +395,7 @@ function loadUserSkills(): Skill[];
 
 **Usage Example**:
 ```typescript
-import { Skill } from '@openhands/agent-sdk-ts';
+import { Skill } from '@smolpaws/agent-sdk';
 
 // Create skill manually
 const skill = new Skill({
@@ -489,7 +489,7 @@ The runtime layer coordinates agent execution, manages conversation state, and o
 
 **Usage Example**:
 ```typescript
-import { LLMStreamer, LLMFactory } from '@openhands/agent-sdk-ts';
+import { LLMStreamer, LLMFactory } from '@smolpaws/agent-sdk';
 
 const client = await new LLMFactory({ provider: 'anthropic', model: 'claude-sonnet-4-20250514' }).createClient();
 const streamer = new LLMStreamer(client);
@@ -537,7 +537,7 @@ return { message, usage }
 
 **Usage Example**:
 ```typescript
-import { Agent, EventLog } from '@openhands/agent-sdk-ts';
+import { Agent, EventLog } from '@smolpaws/agent-sdk';
 
 const agent = new Agent({
   settings: {
@@ -569,7 +569,7 @@ await agent.approveAction();
 
 **Usage Example**:
 ```typescript
-import { EventLog, isMessageEvent } from '@openhands/agent-sdk-ts';
+import { EventLog, isMessageEvent } from '@smolpaws/agent-sdk';
 
 const eventLog = new EventLog();
 
@@ -598,7 +598,7 @@ const messages = allEvents.filter(isMessageEvent);
 
 **Usage Example**:
 ```typescript
-import { ConversationState } from '@openhands/agent-sdk-ts';
+import { ConversationState } from '@smolpaws/agent-sdk';
 
 const state = new ConversationState(eventLog);
 
@@ -624,7 +624,7 @@ console.log(snapshot.values.iteration);     // 5
 
 **Usage Example**:
 ```typescript
-import { SecretRegistry } from '@openhands/agent-sdk-ts';
+import { SecretRegistry } from '@smolpaws/agent-sdk';
 
 const secrets = new SecretRegistry(vscodeSecrets);
 
@@ -643,7 +643,7 @@ const apiKey = await secrets.get('OPENAI_API_KEY');
 
 **Usage Example**:
 ```typescript
-import { AsyncLock } from '@openhands/agent-sdk-ts';
+import { AsyncLock } from '@smolpaws/agent-sdk';
 
 const lock = new AsyncLock();
 
@@ -715,7 +715,7 @@ interface FileStoreOptions {
 
 **Usage Example**:
 ```typescript
-import { FileStore, EventLog, ConversationState } from '@openhands/agent-sdk-ts';
+import { FileStore, EventLog, ConversationState } from '@smolpaws/agent-sdk';
 
 // Create persistence
 const persistence = new FileStore({
@@ -747,7 +747,7 @@ console.log(conversations); // ['conv-123', 'conv-456', ...]
 LocalConversation automatically manages persistence when configured:
 
 ```typescript
-import { LocalConversation } from '@openhands/agent-sdk-ts';
+import { LocalConversation } from '@smolpaws/agent-sdk';
 
 // Option 1: Use persistenceDir (FileStore created automatically)
 const conversation = new LocalConversation({
@@ -775,7 +775,7 @@ const conversation2 = new LocalConversation({
 **Restoring Conversations**:
 
 ```typescript
-import { LocalConversation, FileStore } from '@openhands/agent-sdk-ts';
+import { LocalConversation, FileStore } from '@smolpaws/agent-sdk';
 
 // List available conversations
 const conversations = FileStore.listConversations('.openhands/conversations');
@@ -875,7 +875,7 @@ state.attachPersistence(persistence);
 You can implement custom persistence backends by implementing the `ConversationPersistence` interface:
 
 ```typescript
-import type { ConversationPersistence, AgentState, Event } from '@openhands/agent-sdk-ts';
+import type { ConversationPersistence, AgentState, Event } from '@smolpaws/agent-sdk';
 
 class DatabasePersistence implements ConversationPersistence {
   conversationId: string;
@@ -1036,7 +1036,7 @@ class AnthropicClient implements LLMClient {
 
 **Usage Example**:
 ```typescript
-import { LLMFactory } from '@openhands/agent-sdk-ts';
+import { LLMFactory } from '@smolpaws/agent-sdk';
 
 // Auto-detects Anthropic by provided model/api key
 const client1 = await new LLMFactory({
@@ -1110,7 +1110,7 @@ For **tool error** messages, the SDK aims to match Python behavior: `AgentErrorE
 
 **Usage Example**:
 ```typescript
-import { TerminalTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
+import { TerminalTool, LocalWorkspace } from '@smolpaws/agent-sdk';
 
 const workspace = new LocalWorkspace('/workspace');
 const terminal = new TerminalTool();
@@ -1138,7 +1138,7 @@ console.log(result.exit_code);
 
 **Usage Example**:
 ```typescript
-import { FileEditorTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
+import { FileEditorTool, LocalWorkspace } from '@smolpaws/agent-sdk';
 
 const workspace = new LocalWorkspace('/workspace');
 const fileEditor = new FileEditorTool();
@@ -1170,7 +1170,7 @@ await fileEditor.execute({
 
 **Usage Example**:
 ```typescript
-import { TaskTrackerTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
+import { TaskTrackerTool, LocalWorkspace } from '@smolpaws/agent-sdk';
 
 const workspace = new LocalWorkspace('/workspace');
 const tracker = new TaskTrackerTool();
@@ -1206,7 +1206,7 @@ console.log(result.tasks);
 
 **Usage Example**:
 ```typescript
-import { BrowserTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
+import { BrowserTool, LocalWorkspace } from '@smolpaws/agent-sdk';
 
 const workspace = new LocalWorkspace('/workspace');
 const browser = new BrowserTool();
@@ -1279,7 +1279,7 @@ console.log(result.content);  // Response body
 
 **Usage Example**:
 ```typescript
-import { FinishTool, LocalWorkspace } from '@openhands/agent-sdk-ts';
+import { FinishTool, LocalWorkspace } from '@smolpaws/agent-sdk';
 
 const workspace = new LocalWorkspace('/workspace');
 const finish = new FinishTool();
@@ -1448,7 +1448,7 @@ import {
   isMessageEvent,
   isActionEvent,
   isObservationEvent
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import { isOpenHandsCloudServerUrl } from '../src/shared/cloudServers';
 import { getServerCloudApiKeySecretKey } from '../src/auth/serverCloudApiKeys';
 import { getServerRuntimeSessionApiKeySecretKey } from '../src/auth/serverRuntimeSessionApiKeys';
@@ -1578,7 +1578,7 @@ context.subscriptions.push({
 For VS Code usage without an external server, run agent-server on localhost:
 
 ```typescript
-import { Conversation, isMessageEvent } from '@openhands/agent-sdk-ts';
+import { Conversation, isMessageEvent } from '@smolpaws/agent-sdk';
 
 // Workspace root selection (multi-root-safe):
 // Prefer the workspace folder containing the active editor, fall back only when the workspace has a single folder.
@@ -1636,7 +1636,7 @@ import {
   TerminalTool,
   FileEditorTool,
   LocalWorkspace
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 // Setup
 const secrets = new SecretRegistry(context.secrets);

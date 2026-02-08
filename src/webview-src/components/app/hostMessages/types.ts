@@ -1,5 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
-import type { ActionEvent, Event } from '@openhands/agent-sdk-ts';
+import type { ActionEvent, Event } from '@smolpaws/agent-sdk';
 import type { WebviewToHostMessage } from '../../../../shared/webviewMessages';
 import type { HalSettingsSnapshot } from '../useHalFlow';
 import type { PendingLlmProfilesRequest } from '../llmProfilesRequests';

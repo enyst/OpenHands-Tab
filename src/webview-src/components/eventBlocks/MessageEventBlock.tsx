@@ -1,5 +1,5 @@
-import type { MessageEvent as AgentMessageEvent } from '@openhands/agent-sdk-ts';
-import { isTextContent } from '@openhands/agent-sdk-ts';
+import type { MessageEvent as AgentMessageEvent } from '@smolpaws/agent-sdk';
+import { isTextContent } from '@smolpaws/agent-sdk';
 import { useState } from 'react';
 import {
   AGENT_ACCENT_COLOR,

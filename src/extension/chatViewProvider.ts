@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { type ConversationInstance, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import { type ConversationInstance, type SecretRegistry } from '@smolpaws/agent-sdk';
 import { DEFAULT_HAL_STATE } from '../shared/halDefaults';
 import { type HalStateSnapshot, isHalDecision, isHalEye, isHalMode, isHalPhase } from '../shared/halTypes';
 import type { HostToWebviewMessage, WebviewE2EInfo } from '../shared/webviewMessages';

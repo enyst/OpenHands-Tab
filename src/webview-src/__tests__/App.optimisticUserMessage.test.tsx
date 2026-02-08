@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
 import { postToWindow } from './testUtils';
-import type { ConversationStateUpdateEvent, MessageEvent } from '@openhands/agent-sdk-ts';
+import type { ConversationStateUpdateEvent, MessageEvent } from '@smolpaws/agent-sdk';
 
 describe('App - optimistic user MessageEvent rendering', () => {
   const mockApi = { postMessage: vi.fn() };

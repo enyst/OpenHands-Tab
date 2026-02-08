@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SystemPromptEvent } from '@openhands/agent-sdk-ts';
+import type { SystemPromptEvent } from '@smolpaws/agent-sdk';
 import { EventContainer, SYSTEM_ACCENT_COLOR, withAlpha } from './shared';
 import { Tooltip } from '../Tooltip';
 

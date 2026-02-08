@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as os from 'os';
 import type * as vscode from 'vscode';
-import { assertValidProfileId, DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMProfileValidationError } from '@openhands/agent-sdk-ts';
+import { assertValidProfileId, DEFAULT_PROVIDER_BASE_URLS, detectProviderFromBaseUrl, LLMProfileValidationError } from '@smolpaws/agent-sdk';
 import { ElevenLabsTtsService } from '../../../hal/elevenlabs/ttsService';
 import { TtsConversationGate } from '../../../hal/elevenlabs/ttsConversationGate';
 import { classifyHalVoiceDecision } from '../../../hal/gemini/decisionClassifier';

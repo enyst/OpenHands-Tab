@@ -5,7 +5,7 @@ import {
   isConversationErrorEvent,
   isConversationStateUpdateEvent,
   isMessageEvent,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 
 export type LlmStreamingPhase = 'idle' | 'streaming';
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isMessageEvent, type Event } from '@openhands/agent-sdk-ts';
+import { isMessageEvent, type Event } from '@smolpaws/agent-sdk';
 import type { WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { ShowStatusMessage } from './useStatusMessages';
 

@@ -1,4 +1,4 @@
-import { LLMFactory, type SecretRegistry } from '@openhands/agent-sdk-ts';
+import { LLMFactory, type SecretRegistry } from '@smolpaws/agent-sdk';
 import { normalizeNonEmptyString } from '../shared/stringUtils';
 import type { OpenHandsSettings } from '../settings/SettingsManager';
 

@@ -9,7 +9,7 @@ import {
   isPauseEvent,
   isCondensation,
   type Event,
-} from '@openhands/agent-sdk-ts';
+} from '@smolpaws/agent-sdk';
 import {
   SystemPromptEventBlock,
   ActionEventBlock,

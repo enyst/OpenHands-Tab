@@ -28,7 +28,7 @@ This document is a step-by-step checklist for releasing the OpenHands-Tab VS Cod
    - SDK (workspace): `packages/agent-sdk-ts/package.json` (and lockfile updates as needed)
    - Prefer:
      - `npm version X.Y.Z --no-git-tag-version`
-     - `npm version X.Y.Z --no-git-tag-version -w @openhands/agent-sdk-ts`
+     - `npm version X.Y.Z --no-git-tag-version -w @smolpaws/agent-sdk`
    - Alternatively, edit the `package.json` files manually, then run `npm i --package-lock-only`
    - Note: avoid creating a tag locally here; the tag should be created on the final commit that lands on `develop`.
 4. (Recommended) Sanity checks:

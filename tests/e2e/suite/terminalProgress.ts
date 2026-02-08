@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { pollUntil } from './pollUntil';
-import type { BashEvent } from '@openhands/agent-sdk-ts';
+import type { BashEvent } from '@smolpaws/agent-sdk';
 import type { DiagnosticsInfo } from './helpers/diagnosticsInfo';
 
 export async function run(): Promise<void> {

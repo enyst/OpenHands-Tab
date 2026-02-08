@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { maskSecretsInText } from '../shared/maskSecrets';
 import { safeStringify } from '../shared/safeStringify';
-import type { SecretRegistry } from '@openhands/agent-sdk-ts';
+import type { SecretRegistry } from '@smolpaws/agent-sdk';
 
 export interface DebugJsonOutputChannel {
   /** Log JSON data with a category badge and pretty formatting */

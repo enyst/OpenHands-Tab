@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import { listProfiles } from '@openhands/agent-sdk-ts';
+import { listProfiles } from '@smolpaws/agent-sdk';
 import type { OpenHandsSettings } from './settingsTypes';
 
 const PROVIDER_STORAGE_KEYS = [

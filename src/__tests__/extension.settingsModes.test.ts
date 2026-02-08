@@ -45,7 +45,7 @@ describe('Settings and modes', () => {
 
     const { writes, terminals } = mockOpenHandsTerminalLog();
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-1',
@@ -83,7 +83,7 @@ describe('Settings and modes', () => {
 
     const { writes } = mockOpenHandsTerminalLog();
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     const coloredOutput = '\x1b[31m' + 'red'.repeat(5500) + '\x1b[0m' + '🚀'.repeat(100);
 
@@ -119,7 +119,7 @@ describe('Settings and modes', () => {
     await extension.activate(mockContext);
     await resolveChatView(mockContext);
 
-    const sdk = await import('@openhands/agent-sdk-ts');
+    const sdk = await import('@smolpaws/agent-sdk');
     const conv = sdk.__getLastConversation?.();
     expect(conv?.mode).toBe('local');
 
@@ -137,7 +137,7 @@ describe('Settings and modes', () => {
 
     const { writes } = mockOpenHandsTerminalLog();
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     // Test 1: Basic command and stdout
     conv?.emit('terminal', {
@@ -239,7 +239,7 @@ describe('Settings and modes', () => {
 
     const { writes } = mockOpenHandsTerminalLog();
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-mixed-1',
@@ -275,7 +275,7 @@ describe('Settings and modes', () => {
 
     const { writes } = mockOpenHandsTerminalLog();
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-secret-1',
@@ -310,7 +310,7 @@ describe('Settings and modes', () => {
 
     const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-progress-1',
@@ -355,7 +355,7 @@ describe('Settings and modes', () => {
 
     const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-progress-overflow-1',
@@ -392,7 +392,7 @@ describe('Settings and modes', () => {
 
     const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-progress-color-1',
@@ -428,7 +428,7 @@ describe('Settings and modes', () => {
 
     const { writes, getLastPty } = mockOpenHandsTerminalLog({ capturePty: true });
 
-    const conv = (await import('@openhands/agent-sdk-ts')).__getLastConversation?.();
+    const conv = (await import('@smolpaws/agent-sdk')).__getLastConversation?.();
 
     conv?.emit('terminal', {
       id: 'bash-sanitize-1',

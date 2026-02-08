@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { saveProfile } from '@openhands/agent-sdk-ts';
+import { saveProfile } from '@smolpaws/agent-sdk';
 import { SettingsManager, isOpenHandsSettings, isOpenHandsSettingsSecrets } from '../SettingsManager';
 import type { SettingsAdapter } from '../SettingsAdapter';
 

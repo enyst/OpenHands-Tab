@@ -82,7 +82,7 @@ describe('Extension Activation', () => {
   });
 
   it('does not create a conversation until the chat view resolves', async () => {
-    const { __getLastConversation } = await import('@openhands/agent-sdk-ts');
+    const { __getLastConversation } = await import('@smolpaws/agent-sdk');
     await extension.activate(mockContext);
     expect(__getLastConversation()).toBeNull();
   });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ActionEvent } from '@openhands/agent-sdk-ts';
+import type { ActionEvent } from '@smolpaws/agent-sdk';
 import { SecurityRiskBadge } from './SecurityRiskBadge';
 
 interface ConfirmationPromptProps {

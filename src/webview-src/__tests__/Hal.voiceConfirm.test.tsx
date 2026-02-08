@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { App } from '../components/App';
-import type { ActionEvent, ConversationStateUpdateEvent } from '@openhands/agent-sdk-ts';
+import type { ActionEvent, ConversationStateUpdateEvent } from '@smolpaws/agent-sdk';
 import { postToWindow } from './testUtils';
 
 describe('HAL voice_confirm', () => {

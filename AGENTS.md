@@ -159,7 +159,7 @@ OpenHands-Tab/
 
 When editing `packages/agent-sdk-ts`, rebuild before launching extension:
 ```bash
-npm run build -w @openhands/agent-sdk-ts
+npm run build -w @smolpaws/agent-sdk
 ```
 
 ## Coding Style

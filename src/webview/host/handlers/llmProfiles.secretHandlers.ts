@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import { detectProviderFromBaseUrl, type LLMProvider } from '@openhands/agent-sdk-ts';
+import { detectProviderFromBaseUrl, type LLMProvider } from '@smolpaws/agent-sdk';
 import { type WebviewToHostMessage } from '../../../shared/webviewMessages';
 import type { CreateWebviewMessageHandlerDeps, WebviewHost } from '../webviewMessageHandler.types';
 import * as llmProfilesStore from '../llmProfilesStore';

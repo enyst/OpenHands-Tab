@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LLMConfiguration } from '@openhands/agent-sdk-ts';
+import type { LLMConfiguration } from '@smolpaws/agent-sdk';
 import { useCloseOnEscapeAndOutsideClick } from './useCloseOnEscapeAndOutsideClick';
 import { getVscodeApi } from '../shared/vscodeApi';
 import type { LlmProfileApiKeyStatusInfo, LlmProfileApiKeyStatusOverrides, WebviewToHostMessage } from '../../shared/webviewMessages';

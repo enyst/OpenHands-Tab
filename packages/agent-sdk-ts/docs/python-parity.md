@@ -1,6 +1,6 @@
 # Python ↔︎ TypeScript SDK parity guide
 
-This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@openhands/agent-sdk-ts` (VS Code-focused SDK). Note that agent-sdk-ts is basically a transpilation of the Python agent-sdk. It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
+This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@smolpaws/agent-sdk` (VS Code-focused SDK). Note that agent-sdk-ts is basically a transpilation of the Python agent-sdk. It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
 
 ## Audit scope (oh-tab-0rq)
 
@@ -31,7 +31,7 @@ This document is the living output for Beads issue `oh-tab-0rq`.
 
    ```bash
    npm install
-   npm test -w @openhands/agent-sdk-ts
+   npm test -w @smolpaws/agent-sdk
    ```
 
 

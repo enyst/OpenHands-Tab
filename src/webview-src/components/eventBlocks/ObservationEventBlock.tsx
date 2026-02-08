@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ObservationEvent } from '@openhands/agent-sdk-ts';
+import type { ObservationEvent } from '@smolpaws/agent-sdk';
 import {
   BrowserObservationSummary,
   EventContainer,
