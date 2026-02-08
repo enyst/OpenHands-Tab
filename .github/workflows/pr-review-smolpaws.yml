@@ -1,0 +1,27 @@
+name: PR Review (smolpaws)
+
+on:
+  pull_request_target:
+    branches: [ develop ]
+    types: [ review_requested ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-review-smolpaws-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  openhands-pr-review:
+    if: ${{ github.event.requested_reviewer.login == 'smolpaws' }}
+    runs-on: ubuntu-latest
+    environment: LLM
+    steps:
+      - name: Run OpenHands PR review
+        uses: OpenHands/software-agent-sdk/.github/actions/pr-review@main
+        with:
+          review-style: roasted
+          llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
