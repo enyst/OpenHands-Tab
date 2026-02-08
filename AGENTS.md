@@ -153,6 +153,15 @@ OpenHands-Tab/
 - Dependency direction is one-way: `createWebviewMessageHandler.ts` composes handlers; handlers must not depend back on the composer module.
 - Keep this boundary aligned with cycle guardrails (`npm run lint:cycles`) before opening PRs.
 
+## SDK Package
+
+`packages/agent-sdk-ts` is a TypeScript port of the OpenHands Python SDK (typically checked out separately at `~/repos/agent-sdk`). It aims for behavioral parity, but it is not mechanically transpiled, so occasional impedance mismatches can exist.
+
+When editing `packages/agent-sdk-ts`, rebuild before launching extension:
+```bash
+npm run build -w @smolpaws/agent-sdk
+```
+
 ## Coding Style
 
 - TypeScript ES2022, 2-space indent, single quotes, trailing semicolons
@@ -201,6 +210,8 @@ Reviews (do not merge without review):
   - **Gemini-code-assist**: starts automatically upon PR creation; treat it as "one review done" once it has posted two top-level comments and you've checked/resolved its inline threads. Re-trigger with `/gemini review` if needed.
   - **CodeRabbitAI**: only wait if its ETA is <=10 minutes (pending or rate-limited). If it would block longer than that, proceed without it.
     - if you waited for its rate-limit to expire (if it was under 10 minutes), you can re-trigger with `@coderabbitai review`.
+  - **Devin**: starts automatically upon PR creation; treat it as done if its top-level comment says it did not find issues, otherwise check inline threads.
+  - Note that there can be others sometimes. Read all comments and inline threads.
 - Always read review threads in "Files changed" (bots leave inline comments).
 - Right before merging, do a final pass on GitHub to avoid missing late feedback:
   - "Conversation" tab: scan top-level comments (including bots).
@@ -260,22 +271,9 @@ Reviews (do not merge without review):
     ```bash
     uv tool install --force --with fastapi openhands==1.6.0
     ```
-  - If you see `Item 'rs_…' of type 'reasoning' was provided without its required following item.`:
-    - This is typically triggered by OpenAI “Responses API” models (notably GPT-5 / Codex) during long interactive sessions.
-    - Workaround: end that tmux session, restart OpenHands, and re-run the review using a non-Responses model (e.g. Claude/Gemini) via the OpenHands Settings screen (system command `SETTINGS`). OpenHands requires a restart for agent-settings changes to take effect.
-    - If it still recurs: start from a fresh conversation (do not resume), i.e. kill the tmux session and run the `openhands ... -t '/codereview-roasted pr N'` command again.
     - For debugging: capture `openhands --version`, the “Agent initialized with model: …” line from the session log (`/tmp/${SESSION}.log`), and any LLM completion logs under `~/.openhands/` (if enabled).
   - `--exp` UI is noisy to log/copy (ANSI); `GIT_PAGER=cat` + `PAGER=cat` makes paste-back to Mail much easier.
 
-
-## SDK Package
-
-`packages/agent-sdk-ts` is a TypeScript port of the OpenHands Python SDK (typically checked out separately at `~/repos/agent-sdk`). It aims for behavioral parity, but it is not mechanically transpiled, so occasional impedance mismatches can exist.
-
-When editing `packages/agent-sdk-ts`, rebuild before launching extension:
-```bash
-npm run build -w @smolpaws/agent-sdk
-```
 
 ## Agent Mail (MCP) quick commands
 
