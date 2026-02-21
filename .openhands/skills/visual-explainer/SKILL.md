@@ -121,16 +121,16 @@ Apply these principles to every diagram:
 
 ### 4. Deliver
 
-**Output location:** Write to `~/.agent/diagrams/`. Use a descriptive filename based on content: `modem-architecture.html`, `pipeline-flow.html`, `schema-overview.html`. The directory persists across sessions.
+**Output location:** Write to `~/.agents/diagrams/`. Use a descriptive filename based on content: `modem-architecture.html`, `pipeline-flow.html`, `schema-overview.html`. The directory persists across sessions.
 
 **Open in browser:**
-- macOS: `open ~/.agent/diagrams/filename.html`
-- Linux: `xdg-open ~/.agent/diagrams/filename.html`
+- macOS: `open ~/.agents/diagrams/filename.html`
+- Linux: `xdg-open ~/.agents/diagrams/filename.html`
 
 **OpenHands note:** In OpenHands, the Browser tool may not load `file://` URLs directly. If so, start a local server and navigate via HTTP:
 
 ```bash
-python3 -m http.server 8008 --directory ~/.agent/diagrams
+python3 -m http.server 8008 --directory ~/.agents/diagrams
 ```
 
 Then open: `http://127.0.0.1:8008/filename.html` (and stop the server when done).
