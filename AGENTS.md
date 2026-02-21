@@ -343,7 +343,6 @@ Pitfalls to avoid
   - `repo_name`, `source_branch`, `target_branch`, `title`, `body`
 
 
-
 ## Notes & Conventions
 
 - Use real newlines in commit messages, PR/issue descriptions, and comments. Avoid literal `\n` sequences; write readable Markdown.
