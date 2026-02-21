@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>OpenHands-Tab recap since 0.8.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fbfaf7;
+      --surface: rgba(255,255,255,0.72);
+      --surface-2: rgba(255,255,255,0.88);
+      --border: rgba(20,20,20,0.10);
+      --text: #181612;
+      --text-dim: rgba(24,22,18,0.72);
+      --shadow: 0 14px 38px rgba(0,0,0,0.07);
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --sans: "IBM Plex Sans", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      --serif: "Fraunces", ui-serif, Georgia, serif;
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0c10;
+        --surface: rgba(255,255,255,0.06);
+        --surface-2: rgba(255,255,255,0.08);
+        --border: rgba(255,255,255,0.12);
+        --text: #e9e6df;
+        --text-dim: rgba(233,230,223,0.75);
+        --shadow: 0 18px 50px rgba(0,0,0,0.52);
+      }
+    }
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--text);
+      background: radial-gradient(1000px 500px at 10% -10%, rgba(43,108,176,0.18), transparent 60%),
+                  radial-gradient(800px 500px at 90% 10%, rgba(15,118,110,0.14), transparent 60%),
+                  radial-gradient(900px 700px at 50% 120%, rgba(180,83,9,0.10), transparent 55%),
+                  var(--bg);
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 42px 20px 80px; }
+    header { padding: 18px 0 26px; }
+    h1 { font-family: var(--serif); letter-spacing: -0.02em; margin: 0 0 6px; font-size: 44px; line-height: 1.05; }
+    .sub { color: var(--text-dim); font-size: 15px; }
+    .pill { display:inline-flex; gap:8px; align-items:center; font-family: var(--mono); font-size: 12px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+    .grid { display:grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); }
+    .card .hd { padding: 16px 18px 10px; border-bottom: 1px solid var(--border); display:flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .card .bd { padding: 16px 18px 18px; }
+    h2 { margin:0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; }
+    h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-dim); }
+    .kpis { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    @media (max-width: 780px) { .kpis { grid-template-columns: repeat(2,1fr); } }
+    .kpi { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 12px 10px; }
+    .kpi .n { font-family: var(--serif); font-size: 28px; line-height: 1.1; margin-bottom: 2px; }
+    .kpi .l { color: var(--text-dim); font-size: 12px; }
+    .list { display:flex; flex-direction:column; gap: 10px; }
+    .item { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+    .item a { color: inherit; text-decoration: none; }
+    .item a:hover { text-decoration: underline; }
+    .meta { display:flex; flex-wrap:wrap; gap: 10px; align-items:center; margin-top: 6px; color: var(--text-dim); font-size: 12px; font-family: var(--mono); }
+    .badge { font-family: var(--mono); font-size: 11px; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--border); background: rgba(43,108,176,0.10); }
+    .badge.testing { background: rgba(15,118,110,0.12); }
+    .badge.docs { background: rgba(180,83,9,0.12); }
+    .badge.quality { background: rgba(21,128,61,0.12); }
+    .badge.ci { background: rgba(99,102,241,0.12); }
+    .badge.agent-sdk { background: rgba(236,72,153,0.10); }
+    .badge.skills { background: rgba(234,179,8,0.12); }
+    table { width:100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align:left; padding: 10px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--text-dim); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; }
+    td code { font-family: var(--mono); font-size: 12px; }
+    .table-wrap { overflow:auto; border-radius: 14px; border: 1px solid var(--border); }
+    details { border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+    summary { cursor:pointer; padding: 12px 14px; font-weight: 600; }
+    details .details-body { padding: 0 14px 12px; }
+    .mermaid-wrap { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 14px; overflow: auto; }
+    .mermaid { transform-origin: top center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="pill">Last release tag: <strong>0.8.0</strong> <span style="opacity:.6">(2026-01-22 → 2026-02-21)</span></div>
+      <h1>Project recap: changes since 0.8.0</h1>
+      <div class="sub">OpenHands-Tab development summary from <code>0.8.0</code> to <code>HEAD</code>.</div>
+    </header>
+    <div class="grid">
+      <div class="card">
+        <div class="hd"><h2>Summary</h2><span class="sub">Git-derived</span></div>
+        <div class="bd">
+          <div class="kpis">
+            <div class="kpi"><div class="n">116</div><div class="l">Commits</div></div>
+            <div class="kpi"><div class="n">98</div><div class="l">PRs merged</div></div>
+            <div class="kpi"><div class="n">248</div><div class="l">Files touched in <code>packages/</code></div></div>
+            <div class="kpi"><div class="n">132</div><div class="l">Files touched in <code>src/</code></div></div>
+          </div>
+          <div style="height:12px"></div>
+          <h3>Highlights</h3>
+          <div class="list">
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/991" target="_blank" rel="noreferrer"><strong>#991</strong> — Vendor visual-explainer Agent Skill</a></div>
+              <div class="meta"><span class="badge skills">skills</span><span>2026-02-21</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/990" target="_blank" rel="noreferrer"><strong>#990</strong> — Rename agent-sdk-ts directory</a></div>
+              <div class="meta"><span class="badge agent-sdk">agent-sdk</span><span>2026-02-09</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/988" target="_blank" rel="noreferrer"><strong>#988</strong> — Rename agent SDK package to @smolpaws/agent-sdk</a></div>
+              <div class="meta"><span class="badge agent-sdk">agent-sdk</span><span>2026-02-08</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/987" target="_blank" rel="noreferrer"><strong>#987</strong> — Add smolpaws PR review workflow</a></div>
+              <div class="meta"><span class="badge ci">ci</span><span>2026-02-08</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/982" target="_blank" rel="noreferrer"><strong>#982</strong> — [oh-tab-4pc.1] Remove session_api_key from ws query</a></div>
+              <div class="meta"><span class="badge other">other</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/981" target="_blank" rel="noreferrer"><strong>#981</strong> — [oh-tab-b7qq.5] Group chatViewProvider dependency contract</a></div>
+              <div class="meta"><span class="badge other">other</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/976" target="_blank" rel="noreferrer"><strong>#976</strong> — [oh-tab-zhwi.9.3] Modularize FileEditorTool internals</a></div>
+              <div class="meta"><span class="badge refactor">refactor</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/975" target="_blank" rel="noreferrer"><strong>#975</strong> — Clean up type import and re-export patterns</a></div>
+              <div class="meta"><span class="badge other">other</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/974" target="_blank" rel="noreferrer"><strong>#974</strong> — [oh-tab-zhwi.8.2] Modularize skill loading internals</a></div>
+              <div class="meta"><span class="badge skills">skills</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/973" target="_blank" rel="noreferrer"><strong>#973</strong> — Guard review-thread pagination when PR disappears</a></div>
+              <div class="meta"><span class="badge other">other</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/972" target="_blank" rel="noreferrer"><strong>#972</strong> — [oh-tab-puxi] Harden context picker loading in UI E2E</a></div>
+              <div class="meta"><span class="badge testing">testing</span><span>2026-02-07</span></div>
+            </div>
+            <div class="item">
+              <div><a href="https://github.com/enyst/OpenHands-Tab/pull/971" target="_blank" rel="noreferrer"><strong>#971</strong> — [oh-tab-da1w] Add UI E2E startup timing logs</a></div>
+              <div class="meta"><span class="badge testing">testing</span><span>2026-02-07</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="hd"><h2>Where the churn happened</h2><span class="sub">Top-level dirs</span></div>
+        <div class="bd">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Area</th><th>Files touched</th></tr></thead>
+              <tbody>
+                <tr><td><code>packages/</code></td><td>248</td></tr>
+                <tr><td><code>src/</code></td><td>132</td></tr>
+                <tr><td><code>.openhands/</code></td><td>32</td></tr>
+                <tr><td><code>docs/</code></td><td>19</td></tr>
+                <tr><td><code>tests/</code></td><td>17</td></tr>
+                <tr><td><code>.github/</code></td><td>10</td></tr>
+                <tr><td><code>scripts/</code></td><td>8</td></tr>
+                <tr><td><code>.gitignore/</code></td><td>1</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="height:14px"></div>
+          <h3>Architecture snapshot</h3>
+          <div class="mermaid-wrap">
+            <pre class="mermaid">
+flowchart LR
+  U["Developer in VS Code"] --> EXT["OpenHands-Tab extension\n(src/)"]
+  EXT --> WV["Webview UI\n(src/webview-src/)"]
+  EXT --> SDK["Agent SDK\n(packages/agent-sdk)"]
+  SDK --> LLM["LLM providers\n(OpenAI/Anthropic/etc)"]
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="height:18px"></div>
+    <div class="card">
+      <div class="hd"><h2>All merged PRs since last release</h2><span class="sub">From <code>(#NNN)</code> in commit subject</span></div>
+      <div class="bd">
+        <details>
+          <summary>98 PRs (click to expand)</summary>
+          <div class="details-body">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Date</th><th>PR</th><th>Category</th><th>Title</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td><code>2026-02-21</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/991" target="_blank" rel="noreferrer"><code>#991</code></a></td>
+                    <td><span class="badge skills">skills</span></td>
+                    <td>Vendor visual-explainer Agent Skill</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-09</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/990" target="_blank" rel="noreferrer"><code>#990</code></a></td>
+                    <td><span class="badge agent-sdk">agent-sdk</span></td>
+                    <td>Rename agent-sdk-ts directory</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-08</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/988" target="_blank" rel="noreferrer"><code>#988</code></a></td>
+                    <td><span class="badge agent-sdk">agent-sdk</span></td>
+                    <td>Rename agent SDK package to @smolpaws/agent-sdk</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-08</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/987" target="_blank" rel="noreferrer"><code>#987</code></a></td>
+                    <td><span class="badge ci">ci</span></td>
+                    <td>Add smolpaws PR review workflow</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-08</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/986" target="_blank" rel="noreferrer"><code>#986</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-ycg2.2] Extract Agent system-prompt LLM context resolver</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-08</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/985" target="_blank" rel="noreferrer"><code>#985</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-ycg2.1] Extract Agent conversation-error detail helper</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/984" target="_blank" rel="noreferrer"><code>#984</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-4pc.3] Extract RemoteConversation HTTP helpers</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/983" target="_blank" rel="noreferrer"><code>#983</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-4pc.2] Extract reconnect/backoff policy helper</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/982" target="_blank" rel="noreferrer"><code>#982</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>[oh-tab-4pc.1] Remove session_api_key from ws query</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/981" target="_blank" rel="noreferrer"><code>#981</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>[oh-tab-b7qq.5] Group chatViewProvider dependency contract</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/980" target="_blank" rel="noreferrer"><code>#980</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-b7qq.4] Extract chat view provider wiring helper</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/979" target="_blank" rel="noreferrer"><code>#979</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-b7qq.3] Extract local terminal mirroring from extension.ts</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/978" target="_blank" rel="noreferrer"><code>#978</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-b7qq.2] Extract welcome secret-status sync from extension.ts</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/977" target="_blank" rel="noreferrer"><code>#977</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-b7qq.1] Extract core command registrations from extension.ts</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/976" target="_blank" rel="noreferrer"><code>#976</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.9.3] Modularize FileEditorTool internals</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/975" target="_blank" rel="noreferrer"><code>#975</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Clean up type import and re-export patterns</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/974" target="_blank" rel="noreferrer"><code>#974</code></a></td>
+                    <td><span class="badge skills">skills</span></td>
+                    <td>[oh-tab-zhwi.8.2] Modularize skill loading internals</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/973" target="_blank" rel="noreferrer"><code>#973</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Guard review-thread pagination when PR disappears</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/972" target="_blank" rel="noreferrer"><code>#972</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>[oh-tab-puxi] Harden context picker loading in UI E2E</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/971" target="_blank" rel="noreferrer"><code>#971</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>[oh-tab-da1w] Add UI E2E startup timing logs</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/970" target="_blank" rel="noreferrer"><code>#970</code></a></td>
+                    <td><span class="badge ci">ci</span></td>
+                    <td>[oh-tab-89p8] Re-run review-thread gate on review events</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/969" target="_blank" rel="noreferrer"><code>#969</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.2.3] Split extension activation test harness by domain</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/968" target="_blank" rel="noreferrer"><code>#968</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>[oh-tab-zhwi.4.3] Document host-handler type boundary contract</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/967" target="_blank" rel="noreferrer"><code>#967</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.3.2] Decompose eventBlocks/shared.tsx by concern</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/966" target="_blank" rel="noreferrer"><code>#966</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>[oh-tab-7dg3] Move tools-sync side effect out of state updater</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/965" target="_blank" rel="noreferrer"><code>#965</code></a></td>
+                    <td><span class="badge ci">ci</span></td>
+                    <td>[oh-tab-rrye] Add merge gate for unresolved review threads</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/964" target="_blank" rel="noreferrer"><code>#964</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.3.3] Extract HAL voice-confirm hook</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-07</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/963" target="_blank" rel="noreferrer"><code>#963</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.3.1] Split App orchestration into domain hooks</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/962" target="_blank" rel="noreferrer"><code>#962</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.6.3] Refactor Agent run-loop into explicit step pipeline</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/961" target="_blank" rel="noreferrer"><code>#961</code></a></td>
+                    <td><span class="badge quality">quality</span></td>
+                    <td>[oh-tab-zhwi.9.2] Extract terminal session lifecycle module</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/960" target="_blank" rel="noreferrer"><code>#960</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.9.1] Extract LocalWorkspace path-policy module</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/959" target="_blank" rel="noreferrer"><code>#959</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.5.2] Split SettingsManager normalization and profile helpers</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/958" target="_blank" rel="noreferrer"><code>#958</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.4.4] Split llmProfiles host handler modules</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/957" target="_blank" rel="noreferrer"><code>#957</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.2.2] Refactor secret command registration specs</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/956" target="_blank" rel="noreferrer"><code>#956</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>[oh-tab-zhwi.5.1] Decouple shared settings message types</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/955" target="_blank" rel="noreferrer"><code>#955</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>Extract shared runtime summarizer helpers</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/954" target="_blank" rel="noreferrer"><code>#954</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>[oh-tab-zhwi.7.1] Extract shared LLM HTTP retry helper</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-06</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/953" target="_blank" rel="noreferrer"><code>#953</code></a></td>
+                    <td><span class="badge quality">quality</span></td>
+                    <td>[oh-tab-zhwi.2.1] Extract conversation lifecycle orchestrator</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-05</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/952" target="_blank" rel="noreferrer"><code>#952</code></a></td>
+                    <td><span class="badge quality">quality</span></td>
+                    <td>Add duplication guardrail and threshold policy (oh-tab-zhwi.1.2)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-05</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/951" target="_blank" rel="noreferrer"><code>#951</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>Split host message switch into typed handler registry (oh-tab-zhwi.4.2)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-05</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/950" target="_blank" rel="noreferrer"><code>#950</code></a></td>
+                    <td><span class="badge quality">quality</span></td>
+                    <td>Harden cycle parser fallback handling (oh-tab-zhwi.1.3)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-05</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/949" target="_blank" rel="noreferrer"><code>#949</code></a></td>
+                    <td><span class="badge agent-sdk">agent-sdk</span></td>
+                    <td>Remove agent-sdk-ts circular imports (oh-tab-zhwi.6.1)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-05</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/948" target="_blank" rel="noreferrer"><code>#948</code></a></td>
+                    <td><span class="badge quality">quality</span></td>
+                    <td>Break webview host handler cycles via shared types (oh-tab-zhwi.4.1)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-05</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/947" target="_blank" rel="noreferrer"><code>#947</code></a></td>
+                    <td><span class="badge quality">quality</span></td>
+                    <td>Add circular dependency guardrail to lint (oh-tab-zhwi.1.1)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-04</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/946" target="_blank" rel="noreferrer"><code>#946</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Remove LLM settings usageId</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-02-03</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/945" target="_blank" rel="noreferrer"><code>#945</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>Trim README + link missing docs in AGENTS</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-29</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/943" target="_blank" rel="noreferrer"><code>#943</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>Document UI E2E context picker skip</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-29</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/942" target="_blank" rel="noreferrer"><code>#942</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>Add Playwright UI E2E smoke flows (oh-tab-o50x)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/941" target="_blank" rel="noreferrer"><code>#941</code></a></td>
+                    <td><span class="badge ci">ci</span></td>
+                    <td>Add tool integration test workflow (oh-tab-0cpr)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/940" target="_blank" rel="noreferrer"><code>#940</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Clarify extra-info filter logic (oh-tab-u1g)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/939" target="_blank" rel="noreferrer"><code>#939</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Add code-block copy button (oh-tab-aj2)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/938" target="_blank" rel="noreferrer"><code>#938</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Add terminal background integration test (oh-tab-adx9)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/937" target="_blank" rel="noreferrer"><code>#937</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Align think action summary with schema (oh-tab-3rg)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/936" target="_blank" rel="noreferrer"><code>#936</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Scope message hover group (oh-tab-b2k)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/933" target="_blank" rel="noreferrer"><code>#933</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Fix optimistic dedupe for extra info (oh-tab-fdz)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/935" target="_blank" rel="noreferrer"><code>#935</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Add message copy button (oh-tab-zlu)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/934" target="_blank" rel="noreferrer"><code>#934</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Render think action content (oh-tab-knm)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/932" target="_blank" rel="noreferrer"><code>#932</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>Document context token breakdown (oh-tab-4xn)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/930" target="_blank" rel="noreferrer"><code>#930</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Allow background terminal commands (oh-tab-okh)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-27</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/931" target="_blank" rel="noreferrer"><code>#931</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Deduplicate optimistic user messages (oh-tab-sxx)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-25</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/878" target="_blank" rel="noreferrer"><code>#878</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>docs(open-prose): document Task backends via CLI headless and Cloud REST</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/929" target="_blank" rel="noreferrer"><code>#929</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>Docs: clarify cloud vs runtime auth UX</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/928" target="_blank" rel="noreferrer"><code>#928</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Add settings type guards (oh-tab-922)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/927" target="_blank" rel="noreferrer"><code>#927</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Remove stale sessionApiKey redaction key</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/926" target="_blank" rel="noreferrer"><code>#926</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>Extract shared redaction heuristics</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/925" target="_blank" rel="noreferrer"><code>#925</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Redact HAL voice secrets in errors</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/924" target="_blank" rel="noreferrer"><code>#924</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Mask secrets in terminal log output</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/923" target="_blank" rel="noreferrer"><code>#923</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Tighten bash event guards (oh-tab-jte)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/918" target="_blank" rel="noreferrer"><code>#918</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Harden diagnostics redaction (oh-tab-h3v)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/917" target="_blank" rel="noreferrer"><code>#917</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Harden conversation backlog size (oh-tab-zgj)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/916" target="_blank" rel="noreferrer"><code>#916</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Redact secrets in observation output (oh-tab-ohl)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/915" target="_blank" rel="noreferrer"><code>#915</code></a></td>
+                    <td><span class="badge skills">skills</span></td>
+                    <td>Skip symlinked skill files (oh-tab-j7d)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/914" target="_blank" rel="noreferrer"><code>#914</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Harden debug JSON redaction (oh-tab-7c0)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/913" target="_blank" rel="noreferrer"><code>#913</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Guard local conversation ids (oh-tab-52g)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/912" target="_blank" rel="noreferrer"><code>#912</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Normalize security risk handling (oh-tab-sq5)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/911" target="_blank" rel="noreferrer"><code>#911</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Harden cloud bootstrap errors (oh-tab-zpm)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/910" target="_blank" rel="noreferrer"><code>#910</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Redact URL credentials in safeStringify (oh-tab-bj9)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/909" target="_blank" rel="noreferrer"><code>#909</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Audit webview host: improve secret lookup fallback (oh-tab-v1e)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/902" target="_blank" rel="noreferrer"><code>#902</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Audit runtime: mask error outputs (oh-tab-9w3)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/901" target="_blank" rel="noreferrer"><code>#901</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Audit tools: tighten secret injection (oh-tab-cx4)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/908" target="_blank" rel="noreferrer"><code>#908</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Share OpenAI header builder (oh-tab-4xv)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/907" target="_blank" rel="noreferrer"><code>#907</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Deduplicate runtime API calls (oh-tab-1ob)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/906" target="_blank" rel="noreferrer"><code>#906</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Deduplicate settings secret storage (oh-tab-us7)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/905" target="_blank" rel="noreferrer"><code>#905</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>Refactor ring buffer helpers (oh-tab-4as)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/904" target="_blank" rel="noreferrer"><code>#904</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Deduplicate per-server secret commands (oh-tab-93l)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-24</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/903" target="_blank" rel="noreferrer"><code>#903</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>Extract per-server secret helper (oh-tab-4ar)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-23</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/877" target="_blank" rel="noreferrer"><code>#877</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>[oh-tab-4xn] Document local context token breakdown</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/876" target="_blank" rel="noreferrer"><code>#876</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Optimize: use findLast() instead of reversing array</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/875" target="_blank" rel="noreferrer"><code>#875</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>Add Cloud smoke test script</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/874" target="_blank" rel="noreferrer"><code>#874</code></a></td>
+                    <td><span class="badge docs">docs</span></td>
+                    <td>[oh-tab-a1g] Docs: WS header auth (no URL secrets)</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/872" target="_blank" rel="noreferrer"><code>#872</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>fix: avoid consuming response body twice in E2E test</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/871" target="_blank" rel="noreferrer"><code>#871</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>fix: reset cloudRemoteBootstrap in deactivate() and add test coverage</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/869" target="_blank" rel="noreferrer"><code>#869</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>test: remove unnecessary &#x27;as any&#x27; assertions in host handlers</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/870" target="_blank" rel="noreferrer"><code>#870</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>E2E: hermetic remote auth + cloud bootstrap</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/868" target="_blank" rel="noreferrer"><code>#868</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>Cloud remote: V1 bootstrap to nested runtime</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/863" target="_blank" rel="noreferrer"><code>#863</code></a></td>
+                    <td><span class="badge other">other</span></td>
+                    <td>feat(open-prose): add OpenHands runner for executing .prose programs</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/865" target="_blank" rel="noreferrer"><code>#865</code></a></td>
+                    <td><span class="badge testing">testing</span></td>
+                    <td>Fix E2E: device-flow status keys</td>
+                  </tr>
+                  <tr>
+                    <td><code>2026-01-22</code></td>
+                    <td><a href="https://github.com/enyst/OpenHands-Tab/pull/864" target="_blank" rel="noreferrer"><code>#864</code></a></td>
+                    <td><span class="badge refactor">refactor</span></td>
+                    <td>Split cloud API key vs runtime session API key</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "base",
+      themeVariables: {
+        fontFamily: "IBM Plex Sans",
+        fontSize: "14px",
+        primaryColor: isDark ? "#0f172a" : "#eff6ff",
+        primaryTextColor: isDark ? "#e9e6df" : "#181612",
+        primaryBorderColor: isDark ? "#60a5fa" : "#2b6cb0",
+        lineColor: isDark ? "#5eead4" : "#0f766e",
+      }
+    });
+  </script>
+</body>
+</html>
