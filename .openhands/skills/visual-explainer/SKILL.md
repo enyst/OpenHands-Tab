@@ -121,19 +121,39 @@ Apply these principles to every diagram:
 
 ### 4. Deliver
 
-**Output location:** Write to `~/.agents/diagrams/`. Use a descriptive filename based on content: `modem-architecture.html`, `pipeline-flow.html`, `schema-overview.html`. The directory persists across sessions.
+**Output location:** Write to `docs/visual-explainer/`. Use a descriptive filename based on content: `modem-architecture.html`, `pipeline-flow.html`, `schema-overview.html`. The directory persists across sessions.
 
 **Open in browser:**
-- macOS: `open ~/.agents/diagrams/filename.html`
-- Linux: `xdg-open ~/.agents/diagrams/filename.html`
+- macOS: `open docs/visual-explainer/filename.html`
+- Linux: `xdg-open docs/visual-explainer/filename.html`
 
 **OpenHands note:** In OpenHands, the Browser tool may not load `file://` URLs directly. If so, start a local server and navigate via HTTP:
 
 ```bash
-python3 -m http.server 8008 --directory ~/.agents/diagrams
+python3 -m http.server 8008 --directory docs/visual-explainer
 ```
 
 Then open: `http://127.0.0.1:8008/filename.html` (and stop the server when done).
+
+### Publishing to GitHub Pages (for sharing in PR comments)
+
+This repository deploys `docs/visual-explainer/` to GitHub Pages via the workflow:
+`.github/workflows/pages-visual-explainer.yml`.
+
+To publish a generated page:
+
+1. Write the HTML to `docs/visual-explainer/<filename>.html`
+2. Commit and push it (or open a PR and merge to `develop`)
+3. Link it in a GitHub comment.
+
+The Pages URL is typically:
+
+- `https://<owner>.github.io/<repo>/<filename>.html`
+
+You can infer `<owner>/<repo>` from `git remote get-url origin`.
+
+If you need a stable link, re-use a deterministic filename (e.g. `diff-review.html`) or update `docs/visual-explainer/index.html` to point at the newest file.
+
 
 
 **Tell the user** the file path so they can re-open or share it.
