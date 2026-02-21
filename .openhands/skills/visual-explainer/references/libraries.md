@@ -90,7 +90,7 @@ Add `look: 'handDrawn'` for a sketchy, whiteboard-style aesthetic. Combines well
 ```
 
 Or set it per-diagram via frontmatter:
-```
+```mermaid
 ---
 config:
   look: handDrawn
@@ -180,7 +180,7 @@ Mermaid renders SVG. Override its classes for pixel-perfect control that `themeV
 
 2. **Use semi-transparent fills (8-digit hex) for node backgrounds.** They layer over whatever Mermaid's base theme background is, producing a tint that works in both light and dark modes. Use `20`–`44` alpha for subtle, `55`–`77` for prominent:
 
-```
+```mermaid
 classDef highlight fill:#b5761433,stroke:#b57614,stroke-width:2px
 classDef muted fill:#7c6f6411,stroke:#7c6f6444,stroke-width:1px
 ```
@@ -202,20 +202,20 @@ Most Mermaid failures come from a few recurring issues. Follow these rules to av
 
 **Quote labels with special characters.** Parentheses, colons, commas, brackets, and ampersands break the parser when unquoted. Wrap any label containing special characters in double quotes:
 
-```
+```mermaid
 A["handleRequest(ctx)"] --> B["DB: query users"]
 A[handleRequest] --> B[query users]
 ```
 
 **Keep IDs simple.** Node IDs should be alphanumeric with no spaces or punctuation. Put the readable name in the label, not the ID:
 
-```
+```mermaid
 userSvc["User Service"] --> authSvc["Auth Service"]
 ```
 
 **Max 15-20 nodes per diagram.** Beyond that, readability collapses even with ELK layout. Use `subgraph` blocks to group related nodes, or split into multiple diagrams:
 
-```
+```mermaid
 subgraph Auth
   login --> validate --> token
 end

@@ -342,7 +342,7 @@
 
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0/dist/mermaid-layout-elk.esm.min.mjs';
 
   const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -372,6 +372,14 @@
   });
 </script>
 <script>
+  function applyTransform(target, zoom, panX, panY) {
+    target.dataset.zoom = String(zoom);
+    target.dataset.panX = String(panX);
+    target.dataset.panY = String(panY);
+    // Scale first, then translate by panX/panY in screen pixels.
+    target.style.transform = 'scale(' + zoom + ') translate(' + (panX / zoom) + 'px, ' + (panY / zoom) + 'px)';
+  }
+
   function updateZoomState(wrap) {
     var target = wrap.querySelector('.mermaid');
     var zoom = parseFloat(target.dataset.zoom || '1');
@@ -382,19 +390,38 @@
     var wrap = btn.closest('.mermaid-wrap');
     var target = wrap.querySelector('.mermaid');
     var current = parseFloat(target.dataset.zoom || '1');
+    var panX = parseFloat(target.dataset.panX || '0');
+    var panY = parseFloat(target.dataset.panY || '0');
     var next = Math.min(Math.max(current * factor, 0.3), 5);
-    target.dataset.zoom = next;
-    target.style.transform = 'scale(' + next + ')';
+    applyTransform(target, next, panX, panY);
     updateZoomState(wrap);
   }
 
   function resetZoom(btn) {
     var wrap = btn.closest('.mermaid-wrap');
     var target = wrap.querySelector('.mermaid');
-    target.dataset.zoom = '1';
-    target.style.transform = 'scale(1)';
+    applyTransform(target, 1, 0, 0);
     updateZoomState(wrap);
   }
+
+  var activeWrap = null;
+  var startX = 0;
+  var startY = 0;
+  var startPanX = 0;
+  var startPanY = 0;
+
+  window.addEventListener('mousemove', function(e) {
+    if (!activeWrap) return;
+    var target = activeWrap.querySelector('.mermaid');
+    var zoom = parseFloat(target.dataset.zoom || '1');
+    applyTransform(target, zoom, startPanX + (e.clientX - startX), startPanY + (e.clientY - startY));
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (!activeWrap) return;
+    activeWrap.classList.remove('is-panning');
+    activeWrap = null;
+  });
 
   document.querySelectorAll('.mermaid-wrap').forEach(function(wrap) {
     // Scroll-to-zoom (Ctrl/Cmd + wheel)
@@ -403,32 +430,27 @@
       e.preventDefault();
       var target = wrap.querySelector('.mermaid');
       var current = parseFloat(target.dataset.zoom || '1');
+      var panX = parseFloat(target.dataset.panX || '0');
+      var panY = parseFloat(target.dataset.panY || '0');
       var factor = e.deltaY < 0 ? 1.1 : 0.9;
       var next = Math.min(Math.max(current * factor, 0.3), 5);
-      target.dataset.zoom = next;
-      target.style.transform = 'scale(' + next + ')';
+      applyTransform(target, next, panX, panY);
       updateZoomState(wrap);
     }, { passive: false });
 
     // Drag-to-pan
-    var startX, startY, scrollL, scrollT;
     wrap.addEventListener('mousedown', function(e) {
       if (e.target.closest('.zoom-controls')) return;
       var target = wrap.querySelector('.mermaid');
       if (parseFloat(target.dataset.zoom || '1') <= 1) return;
-      wrap.classList.add('is-panning');
+
+      e.preventDefault();
+      activeWrap = wrap;
+      activeWrap.classList.add('is-panning');
       startX = e.clientX;
       startY = e.clientY;
-      scrollL = wrap.scrollLeft;
-      scrollT = wrap.scrollTop;
-    });
-    window.addEventListener('mousemove', function(e) {
-      if (!wrap.classList.contains('is-panning')) return;
-      wrap.scrollLeft = scrollL - (e.clientX - startX);
-      wrap.scrollTop = scrollT - (e.clientY - startY);
-    });
-    window.addEventListener('mouseup', function() {
-      wrap.classList.remove('is-panning');
+      startPanX = parseFloat(target.dataset.panX || '0');
+      startPanY = parseFloat(target.dataset.panY || '0');
     });
   });
 </script>

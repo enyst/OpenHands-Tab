@@ -130,7 +130,7 @@ Apply these principles to every diagram:
 **OpenHands note:** In OpenHands, the Browser tool may not load `file://` URLs directly. If so, start a local server and navigate via HTTP:
 
 ```bash
-python3 -m http.server 8008 --directory docs/visual-explainer
+python3 -m http.server 8008 --directory docs/visual-explainer &
 ```
 
 Then open: `http://127.0.0.1:8008/filename.html` (and stop the server when done).
