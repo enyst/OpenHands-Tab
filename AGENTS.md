@@ -343,13 +343,6 @@ Pitfalls to avoid
   - `repo_name`, `source_branch`, `target_branch`, `title`, `body`
 
 
-## Vendored Agent Skills
-
-- Visual explainer skill is vendored at `OpenHands-Tab/.openhands/skills/visual-explainer/`.
-  Use it for architecture diagrams, diff/plan reviews, and large tables rendered as HTML.
-
-
-
 ## Notes & Conventions
 
 - Use real newlines in commit messages, PR/issue descriptions, and comments. Avoid literal `\n` sequences; write readable Markdown.
