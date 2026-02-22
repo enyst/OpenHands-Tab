@@ -60,6 +60,7 @@ Alternatively, for humans in development mode:
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | Quick reference for AI agents |
 | [docs/PRD.md](docs/PRD.md) | Product requirements and architecture |
+| [docs/llm_profiles.md](docs/llm_profiles.md) | LLM Profiles |
 | [docs/agent-sdk-architecture.md](docs/agent-sdk-architecture.md) | SDK architecture details |
 | [docs/vscode_local_setup.md](docs/vscode_local_setup.md) | Local development setup |
 | [docs/vscode_remote_setup.md](docs/vscode_remote_setup.md) | Headless/remote setup |
