@@ -105,17 +105,17 @@ Current selection heuristic (best-effort):
 OpenHands-Tab seeds a few Gemini Flash profiles (see `packages/agent-sdk/src/sdk/llm/profiles.ts`) and uses them for non-agent (auxiliary) LLM work:
 
 - `gemini-flash-summarizer`
-  - Tool execution summaries (usageId `tool-summarizer`) via `ToolSummarizer` ([source](packages/agent-sdk/src/sdk/runtime/toolSummarizer.ts))
-  - Terminal command summaries (usageId `terminal-observation-summarizer`) ([source](packages/agent-sdk/src/sdk/runtime/terminalObservationSummarizer.ts))
-  - File diff summaries for `file_editor` edits (usageId `file-diff-summarizer`) ([source](packages/agent-sdk/src/sdk/runtime/fileDiffSummarizer.ts))
-  - Git change-set summaries (usageId `git-change-summarizer`) ([source](packages/agent-sdk/src/sdk/runtime/gitChangeSummarizer.ts))
-  - Local VS Code “summarize” helper tries this profile first, then falls back to the primary agent profile ([source](src/extension/summarizeWithLocalLlm.ts))
+  - Tool execution summaries (usageId `tool-summarizer`) via `ToolSummarizer` ([source](../packages/agent-sdk/src/sdk/runtime/toolSummarizer.ts))
+  - Terminal command summaries (usageId `terminal-observation-summarizer`) ([source](../packages/agent-sdk/src/sdk/runtime/terminalObservationSummarizer.ts))
+  - File diff summaries for `file_editor` edits (usageId `file-diff-summarizer`) ([source](../packages/agent-sdk/src/sdk/runtime/fileDiffSummarizer.ts))
+  - Git change-set summaries (usageId `git-change-summarizer`) ([source](../packages/agent-sdk/src/sdk/runtime/gitChangeSummarizer.ts))
+  - Local VS Code “summarize” helper tries this profile first, then falls back to the primary agent profile ([source](../src/extension/summarizeWithLocalLlm.ts))
 
 - `gemini-flash-hal`
-  - HAL `voice_confirm` audio decision classification (default `DEFAULT_HAL_LLM_PROFILE_ID`; setting `openhands.hal.llmProfileId`) ([HAL source](src/webview/host/handlers/hal.ts), [HAL defaults](src/shared/halDefaults.ts))
+  - HAL `voice_confirm` audio decision classification (default `DEFAULT_HAL_LLM_PROFILE_ID`; setting `openhands.hal.llmProfileId`) ([HAL source](../src/webview/host/handlers/hal.ts), [HAL defaults](../src/shared/halDefaults.ts))
 
 - `gemini-flash`
-  - Default main agent profile picked on startup when `GEMINI_API_KEY` is set ([source](src/settings/settingsProfileDefaults.ts))
+  - Default main agent profile picked on startup when `GEMINI_API_KEY` is set ([source](../src/settings/settingsProfileDefaults.ts))
 
 ### Consistency requirement (critical)
 
