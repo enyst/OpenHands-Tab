@@ -100,6 +100,23 @@ Current selection heuristic (best-effort):
   - This keeps the main agent’s totals stable across profile changes (one bucket for the agent).
 - Usage IDs are **not user-configurable in settings**; component-specific usage IDs are set in code.
 
+### Gemini Flash profiles used for auxiliary tasks
+
+OpenHands-Tab seeds a few Gemini Flash profiles (see `packages/agent-sdk/src/sdk/llm/profiles.ts`) and uses them for non-agent (auxiliary) LLM work:
+
+- `gemini-flash-summarizer`
+  - Tool execution summaries (usageId `tool-summarizer`) via `ToolSummarizer` (`packages/agent-sdk/src/sdk/runtime/toolSummarizer.ts`)
+  - Terminal command summaries (usageId `terminal-observation-summarizer`) (`packages/agent-sdk/src/sdk/runtime/terminalObservationSummarizer.ts`)
+  - File diff summaries for `file_editor` edits (usageId `file-diff-summarizer`) (`packages/agent-sdk/src/sdk/runtime/fileDiffSummarizer.ts`)
+  - Git change-set summaries (usageId `git-change-summarizer`) (`packages/agent-sdk/src/sdk/runtime/gitChangeSummarizer.ts`)
+  - Local VS Code “summarize” helper tries this profile first, then falls back to the primary agent profile (`src/extension/summarizeWithLocalLlm.ts`)
+
+- `gemini-flash-hal`
+  - HAL `voice_confirm` audio decision classification (default `DEFAULT_HAL_LLM_PROFILE_ID`; setting `openhands.hal.llmProfileId`) (`src/webview/host/handlers/hal.ts`, `src/shared/halDefaults.ts`)
+
+- `gemini-flash`
+  - Default main agent profile picked on startup when `GEMINI_API_KEY` is set (`src/settings/settingsProfileDefaults.ts`)
+
 ### Consistency requirement (critical)
 
 These three must always match (no “snap back to session default”):
