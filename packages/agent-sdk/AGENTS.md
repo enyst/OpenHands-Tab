@@ -262,7 +262,7 @@ npm run lint -w @smolpaws/agent-sdk -- --fix
 ## Coding Guidelines
 - Match the repository defaults: TypeScript (ES2022), 2-space indentation, single quotes, and trailing semicolons.
 - Keep runtime-facing types colocated with their guards to guarantee parity between compilation and runtime validation.
-- The SDK primarily serves the OpenHands VS Code extension, so it is fine to depend on VS Code types or semantics when doing so makes integration simpler.
+- Avoid introducing new VS Code-only runtime dependencies into the shared SDK surface. If a feature needs VS Code-specific behavior, keep it optional or adapter-shaped so non-extension consumers can still reuse the same runtime package.
 - Each layer should be independently testable with minimal cross-layer dependencies.
 
 
