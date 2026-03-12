@@ -1,6 +1,6 @@
 # Python ↔︎ TypeScript SDK parity guide
 
-This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@smolpaws/agent-sdk` (VS Code-focused SDK). Note that agent-sdk is basically a transpilation of the Python agent-sdk. It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
+This document compares the Python `agent-sdk` (reference implementation) with the TypeScript `@smolpaws/agent-sdk` (canonical TypeScript runtime source). Note that the TypeScript SDK is effectively a transpilation-oriented sibling of the Python agent-sdk. It highlights where interfaces align, where behavior diverges, and what is missing for parity. Mermaid diagrams summarize key classes and relationships in each layer.
 
 ## Audit scope (oh-tab-0rq)
 
