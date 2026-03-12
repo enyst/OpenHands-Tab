@@ -2,9 +2,9 @@
 
 ## Overview
 
-> Scope: VS Code Extension only — this SDK is intended to run inside VSCode for use of the OpenHands-Tab extension; standalone usage or non‑VS Code API integrations are not in scope.
+The `@smolpaws/agent-sdk` package is the canonical source for the shared TypeScript OpenHands runtime used across OpenHands-Tab, smolpaws, and enyst-smolpaws.
 
-The `@smolpaws/agent-sdk` package is a complete TypeScript implementation for building AI agents with OpenHands on VSCode. It provides a runtime layer for agent orchestration, LLM integration, tool execution, workspace management, and full protocol type definitions.
+It still contains optional VS Code-specific integrations for the extension host, but the runtime itself is no longer treated as VS Code-only. Non-extension consumers should reuse this package rather than forking runtime behavior into app-specific copies.
 
 ## Architecture
 
@@ -262,7 +262,7 @@ npm run lint -w @smolpaws/agent-sdk -- --fix
 ## Coding Guidelines
 - Match the repository defaults: TypeScript (ES2022), 2-space indentation, single quotes, and trailing semicolons.
 - Keep runtime-facing types colocated with their guards to guarantee parity between compilation and runtime validation.
-- The SDK primarily serves the OpenHands VS Code extension, so it is fine to depend on VS Code types or semantics when doing so makes integration simpler.
+- Avoid introducing new VS Code-only runtime dependencies into the shared SDK surface. If a feature needs VS Code-specific behavior, keep it optional or adapter-shaped so non-extension consumers can still reuse the same runtime package.
 - Each layer should be independently testable with minimal cross-layer dependencies.
 
 
