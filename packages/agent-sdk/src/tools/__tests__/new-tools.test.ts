@@ -4,6 +4,10 @@ import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
+  BrowserClickTool,
+  BrowserGetContentTool,
+  BrowserGetStateTool,
+  BrowserListTabsTool,
   BrowserNavigateTool,
   DelegateTool,
   GlobTool,
@@ -21,23 +25,100 @@ const makeWorkspace = async () => {
 };
 
 const created: string[] = [];
+const previousAgentBrowserBin = process.env.SMOLPAWS_AGENT_BROWSER_BIN;
 
 afterEach(async () => {
   await Promise.all(created.map((dir) => fs.promises.rm(dir, { recursive: true, force: true })));
   created.length = 0;
+  if (previousAgentBrowserBin === undefined) {
+    delete process.env.SMOLPAWS_AGENT_BROWSER_BIN;
+  } else {
+    process.env.SMOLPAWS_AGENT_BROWSER_BIN = previousAgentBrowserBin;
+  }
 });
 
 describe('BrowserUse toolset', () => {
+  const createFakeAgentBrowser = async () => {
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-browser-stub-'));
+    created.push(dir);
+    const scriptPath = path.join(dir, 'agent-browser-stub.js');
+    const script = `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === 'snapshot' && args[1] === '-i') {
+  process.stdout.write('button Save @e1\\ntextbox Name @e2\\nlink Docs @e3\\n');
+} else if (args[0] === 'snapshot' && args[1] === '-c') {
+  process.stdout.write('compact snapshot output with links and content');
+} else if (args[0] === 'screenshot') {
+  process.stdout.write('/tmp/agent-browser-shot.png');
+} else if (args[0] === 'click') {
+  process.stdout.write('clicked ' + args[1]);
+} else if (args[0] === 'fill') {
+  process.stdout.write('filled ' + args[1] + ' ' + args.slice(2).join(' '));
+} else if (args[0] === 'open') {
+  process.stdout.write('opened ' + args[1]);
+} else if (args[0] === 'get' && args[1] === 'title') {
+  process.stdout.write('Example title');
+} else if (args[0] === 'get' && args[1] === 'url') {
+  process.stdout.write('https://example.com/current');
+} else if (args[0] === 'scroll') {
+  process.stdout.write('scrolled ' + args[1] + ' ' + args[2]);
+} else if (args[0] === 'back') {
+  process.stdout.write('went back');
+} else {
+  process.stdout.write(args.join(' '));
+}
+`;
+    await fs.promises.writeFile(scriptPath, script, 'utf8');
+    await fs.promises.chmod(scriptPath, 0o755);
+    process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
+  };
+
   it('validates and executes browser navigation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
+    await createFakeAgentBrowser();
     const tool = new BrowserNavigateTool();
     const args = tool.validate({ url: 'https://example.com' });
     expect(args.new_tab).toBe(false);
     const result = await tool.execute(args, { workspace });
     expect(result.action).toBe('browser_navigate');
     expect(result.request.url).toBe('https://example.com');
-  });
+    expect(result.output).toContain('opened https://example.com');
+  }, 15000);
+
+  it('maps browser interaction indices through the latest snapshot refs', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createFakeAgentBrowser();
+    const stateTool = new BrowserGetStateTool();
+    const clickTool = new BrowserClickTool();
+    const typeTool = new BrowserGetContentTool();
+
+    const stateResult = await stateTool.execute(stateTool.validate({ include_screenshot: true }), { workspace });
+    expect(stateResult.refs).toEqual(['@e1', '@e2', '@e3']);
+    expect(stateResult.output).toContain('/tmp/agent-browser-shot.png');
+
+    const clickResult = await clickTool.execute(clickTool.validate({ index: 1 }), { workspace });
+    expect(clickResult.output).toContain('clicked @e2');
+
+    const contentResult = await typeTool.execute(
+      typeTool.validate({ extract_links: true, start_from_char: 8 }),
+      { workspace },
+    );
+    expect(contentResult.output).toBe('snapshot output with links and content');
+    expect(contentResult.note).toContain('extract_links is accepted for compatibility');
+  }, 15000);
+
+  it('returns a synthetic single-tab listing for the local agent-browser path', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createFakeAgentBrowser();
+    const tool = new BrowserListTabsTool();
+    const result = await tool.execute(tool.validate({}), { workspace });
+    expect(result.output).toContain('"tab_id": "current"');
+    expect(result.output).toContain('https://example.com/current');
+    expect(result.note).toContain('single active browser session');
+  }, 15000);
 });
 
 describe('DelegateTool', () => {

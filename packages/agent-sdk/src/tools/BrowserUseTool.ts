@@ -1,18 +1,28 @@
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { z } from 'zod';
 import type { ToolContext } from './types';
 import { ZodTool, booleanWithDefault } from './zod-tool';
 
+const execFileAsync = promisify(execFile);
+const AGENT_BROWSER_BIN_ENV = 'SMOLPAWS_AGENT_BROWSER_BIN';
+const DEFAULT_SCROLL_DISTANCE = '800';
+const snapshotRefsByWorkspace = new Map<string, string[]>();
+
 export interface BrowserUseResult {
   action: string;
   request: Record<string, unknown>;
-  note: string;
+  commands: string[][];
+  output: string;
+  refs?: string[];
+  note?: string;
 }
 
-const stubExecution = (name: string, args: Record<string, unknown>): BrowserUseResult => ({
-  action: name,
-  request: args,
-  note: 'Stubbed browser_use action executed',
-});
+type PreparedBrowserInvocation = {
+  commands: string[][];
+  note?: string;
+  transform?: (outputs: string[], context: ToolContext) => Pick<BrowserUseResult, 'output' | 'refs' | 'note'>;
+};
 
 const navigateSchema = z.object({
   url: z.string().url().describe('The URL to navigate to'),
@@ -24,7 +34,7 @@ const clickSchema = z.object({
     .number()
     .int()
     .min(0)
-    .describe('The index of the element to click (from browser_get_state).'),
+    .describe('The zero-based element index from the latest browser_get_state output.'),
   new_tab: booleanWithDefault(false).describe(
     'Whether to open any resulting navigation in a new tab. Default: false',
   ),
@@ -35,7 +45,7 @@ const typeSchema = z.object({
     .number()
     .int()
     .min(0)
-    .describe('The index of the input element (from browser_get_state).'),
+    .describe('The zero-based input index from the latest browser_get_state output.'),
   text: z.string().describe('The text to type.'),
 });
 
@@ -70,86 +80,135 @@ const closeTabSchema = z.object({
   tab_id: z.string().describe('4 Character Tab ID of the tab to close.'),
 });
 
-const BROWSER_NAVIGATE_DESCRIPTION = `Navigate to a URL in the browser.
+const BROWSER_NAVIGATE_DESCRIPTION = `Navigate to a URL in the local agent-browser session.
 
-This tool allows you to navigate to any web page. You can optionally open the URL in a new tab.
+This uses the local \`agent-browser\` CLI instead of the Python upstream's Docker-first \`browser_use\` path.
+The \`new_tab\` flag is accepted for compatibility but ignored because the local CLI currently drives one browser session.`;
 
-Parameters:
-- url: The URL to navigate to (required)
-- new_tab: Whether to open in a new tab (optional, default: false)
+const BROWSER_CLICK_DESCRIPTION = `Click an element in the local browser session.
 
-Examples:
-- Navigate to Google: url="https://www.google.com"
-- Open GitHub in new tab: url="https://github.com", new_tab=true`;
+Call \`browser_get_state\` first. This tool maps the requested zero-based index from that latest snapshot to the underlying \`agent-browser\` ref (for example \`@e2\`).`;
 
-const BROWSER_CLICK_DESCRIPTION = `Click an element on the page by its index.
+const BROWSER_TYPE_DESCRIPTION = `Fill an input in the local browser session.
 
-Use this tool to click on interactive elements like buttons, links, or form controls.
-The index comes from the browser_get_state tool output.
+Call \`browser_get_state\` first. This tool maps the requested zero-based index from that latest snapshot to the underlying \`agent-browser\` ref and then fills it with the provided text.`;
 
-Parameters:
-- index: The index of the element to click (from browser_get_state)
-- new_tab: Whether to open any resulting navigation in a new tab (optional)
+const BROWSER_GET_STATE_DESCRIPTION = `Capture the current local browser state using \`agent-browser snapshot -i\`.
 
-Important: Only use indices that appear in your current browser_get_state output.`;
+The returned output includes the raw snapshot and caches the ref order so later \`browser_click\` and \`browser_type\` calls can keep their Python-compatible index-based schema.`;
 
-const BROWSER_TYPE_DESCRIPTION = `Type text into an input field.
+const BROWSER_GET_CONTENT_DESCRIPTION = `Capture a compact page snapshot from the local browser session.
 
-Use this tool to enter text into form fields, search boxes, or other text input elements.
-The index comes from the browser_get_state tool output.
+This currently uses \`agent-browser snapshot -c\`. \`extract_links\` is accepted for compatibility but does not change the local output format.`;
 
-Parameters:
-- index: The index of the input element (from browser_get_state)
-- text: The text to type
+const BROWSER_SCROLL_DESCRIPTION = `Scroll the page in the local browser session.
 
-Important: Only use indices that appear in your current browser_get_state output.`;
+This maps to \`agent-browser scroll <direction> 800\`.`;
 
-const BROWSER_GET_STATE_DESCRIPTION = `Get the current state of the page including all interactive elements.
+const BROWSER_GO_BACK_DESCRIPTION = `Go back to the previous page in the local browser session.`;
 
-This tool returns the current page content with numbered interactive elements that you can
-click or type into. Use this frequently to understand what's available on the page.
+const BROWSER_LIST_TABS_DESCRIPTION = `Inspect the current local browser session.
 
-Parameters:
-- include_screenshot: Whether to include a screenshot (optional, default: false)`;
+The local \`agent-browser\` path currently exposes one active browser session rather than Python-style tab ids, so this returns a synthetic single-item listing.`;
 
-const BROWSER_GET_CONTENT_DESCRIPTION = `Extract the main content of the current page in clean markdown format. It has been filtered to remove noise and advertising content.
+const BROWSER_SWITCH_TAB_DESCRIPTION = `Switching tabs is not supported by the local \`agent-browser\` path yet.`;
 
-If the content was truncated and you need more information, use start_from_char parameter to continue from where truncation occurred.`;
+const BROWSER_CLOSE_TAB_DESCRIPTION = `Closing a specific tab is not supported by the local \`agent-browser\` path yet.`;
 
-const BROWSER_SCROLL_DESCRIPTION = `Scroll the page up or down.
+function resolveAgentBrowserBinary(): string {
+  const configured = process.env[AGENT_BROWSER_BIN_ENV]?.trim();
+  return configured && configured.length > 0 ? configured : 'agent-browser';
+}
 
-Use this tool to scroll through page content when elements are not visible or when you need
-to see more content.
+function parseSnapshotRefs(output: string): string[] {
+  const matches = output.match(/@e[\w-]+/g) ?? [];
+  const seen = new Set<string>();
+  const refs: string[] = [];
+  for (const match of matches) {
+    if (seen.has(match)) {
+      continue;
+    }
+    seen.add(match);
+    refs.push(match);
+  }
+  return refs;
+}
 
-Parameters:
-- direction: Direction to scroll - "up" or "down" (optional, default: "down")`;
+function combineNotes(...notes: Array<string | undefined>): string | undefined {
+  const combined = notes
+    .map((note) => note?.trim())
+    .filter((note): note is string => Boolean(note));
+  return combined.length > 0 ? combined.join('\n') : undefined;
+}
 
-const BROWSER_GO_BACK_DESCRIPTION = `Go back to the previous page in browser history.
+function resolveRefForIndex(index: number, context: ToolContext): string {
+  const refs = snapshotRefsByWorkspace.get(context.workspace.root) ?? [];
+  const ref = refs[index];
+  if (!ref) {
+    throw new Error(
+      `No cached browser_get_state ref for index ${index}. Call browser_get_state before browser interactions.`,
+    );
+  }
+  return ref;
+}
 
-Use this tool to navigate back to the previously visited page, similar to clicking the browser's back button.`;
-
-const BROWSER_LIST_TABS_DESCRIPTION = `List all open browser tabs.
-
-This tool shows all currently open tabs with their IDs, titles, and URLs. Use the tab IDs
-with browser_switch_tab or browser_close_tab.`;
-
-const BROWSER_SWITCH_TAB_DESCRIPTION = `Switch to a different browser tab.
-
-Use this tool to switch between open tabs. Get the tab_id from browser_list_tabs.
-
-Parameters:
-- tab_id: 4 Character Tab ID of the tab to switch to`;
-
-const BROWSER_CLOSE_TAB_DESCRIPTION = `Close a specific browser tab.
-
-Use this tool to close tabs you no longer need. Get the tab_id from browser_list_tabs.
-
-Parameters:
-- tab_id: 4 Character Tab ID of the tab to close`;
+async function runAgentBrowserCommand(
+  commandArgs: string[],
+  context: ToolContext,
+): Promise<{ command: string[]; output: string }> {
+  const binary = resolveAgentBrowserBinary();
+  try {
+    const result = await execFileAsync(binary, commandArgs, {
+      cwd: context.workspace.root,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    const stdout = result.stdout?.trim() ?? '';
+    const stderr = result.stderr?.trim() ?? '';
+    const output = [stdout, stderr].filter(Boolean).join('\n');
+    return {
+      command: [binary, ...commandArgs],
+      output: output || `Executed ${[binary, ...commandArgs].join(' ')}`,
+    };
+  } catch (error) {
+    const err = error as { code?: string; stdout?: string; stderr?: string; message?: string };
+    if (err.code === 'ENOENT') {
+      throw new Error(
+        `agent-browser CLI not found. Install it and ensure it is on PATH, or set ${AGENT_BROWSER_BIN_ENV}.`,
+      );
+    }
+    const details = [err.stdout?.trim(), err.stderr?.trim(), err.message?.trim()]
+      .filter(Boolean)
+      .join('\n');
+    throw new Error(details || `agent-browser command failed: ${commandArgs.join(' ')}`);
+  }
+}
 
 abstract class BaseBrowserUseTool extends ZodTool<Record<string, unknown>, BrowserUseResult> {
-  async execute(args: Record<string, unknown>, _context: ToolContext): Promise<BrowserUseResult> {
-    return Promise.resolve(stubExecution(this.name, args));
+  protected abstract prepareExecution(
+    args: Record<string, unknown>,
+    context: ToolContext,
+  ): PreparedBrowserInvocation;
+
+  async execute(args: Record<string, unknown>, context: ToolContext): Promise<BrowserUseResult> {
+    const prepared = this.prepareExecution(args, context);
+    const outputs: string[] = [];
+    const commands: string[][] = [];
+    for (const commandArgs of prepared.commands) {
+      const result = await runAgentBrowserCommand(commandArgs, context);
+      commands.push(result.command);
+      outputs.push(result.output);
+    }
+    const transformed = prepared.transform?.(outputs, context) ?? {
+      output: outputs.filter(Boolean).join('\n\n'),
+    };
+    return {
+      action: this.name,
+      request: args,
+      commands,
+      output: transformed.output,
+      refs: transformed.refs,
+      note: combineNotes(prepared.note, transformed.note),
+    };
   }
 }
 
@@ -157,60 +216,168 @@ export class BrowserNavigateTool extends BaseBrowserUseTool {
   readonly name = 'browser_navigate';
   readonly description = BROWSER_NAVIGATE_DESCRIPTION;
   readonly schema = navigateSchema;
+
+  protected prepareExecution(args: Record<string, unknown>): PreparedBrowserInvocation {
+    const request = args as z.infer<typeof navigateSchema>;
+    return {
+      commands: [['open', request.url]],
+      note: request.new_tab
+        ? 'new_tab is ignored by the local agent-browser path and uses the current session.'
+        : undefined,
+    };
+  }
 }
 
 export class BrowserClickTool extends BaseBrowserUseTool {
   readonly name = 'browser_click';
   readonly description = BROWSER_CLICK_DESCRIPTION;
   readonly schema = clickSchema;
+
+  protected prepareExecution(
+    args: Record<string, unknown>,
+    context: ToolContext,
+  ): PreparedBrowserInvocation {
+    const request = args as z.infer<typeof clickSchema>;
+    return {
+      commands: [['click', resolveRefForIndex(request.index, context)]],
+      note: request.new_tab
+        ? 'new_tab is ignored by the local agent-browser path and uses the current session.'
+        : undefined,
+    };
+  }
 }
 
 export class BrowserTypeTool extends BaseBrowserUseTool {
   readonly name = 'browser_type';
   readonly description = BROWSER_TYPE_DESCRIPTION;
   readonly schema = typeSchema;
+
+  protected prepareExecution(
+    args: Record<string, unknown>,
+    context: ToolContext,
+  ): PreparedBrowserInvocation {
+    const request = args as z.infer<typeof typeSchema>;
+    return {
+      commands: [['fill', resolveRefForIndex(request.index, context), request.text]],
+    };
+  }
 }
 
 export class BrowserGetStateTool extends BaseBrowserUseTool {
   readonly name = 'browser_get_state';
   readonly description = BROWSER_GET_STATE_DESCRIPTION;
   readonly schema = getStateSchema;
+
+  protected prepareExecution(args: Record<string, unknown>): PreparedBrowserInvocation {
+    const request = args as z.infer<typeof getStateSchema>;
+    return {
+      commands: request.include_screenshot
+        ? [['snapshot', '-i'], ['screenshot']]
+        : [['snapshot', '-i']],
+      transform: (outputs, context) => {
+        const refs = parseSnapshotRefs(outputs[0] ?? '');
+        snapshotRefsByWorkspace.set(context.workspace.root, refs);
+        return {
+          output: outputs.filter(Boolean).join('\n\n'),
+          refs,
+          note:
+            refs.length === 0
+              ? 'No interactive refs were found in the latest snapshot.'
+              : undefined,
+        };
+      },
+    };
+  }
 }
 
 export class BrowserGetContentTool extends BaseBrowserUseTool {
   readonly name = 'browser_get_content';
   readonly description = BROWSER_GET_CONTENT_DESCRIPTION;
   readonly schema = getContentSchema;
+
+  protected prepareExecution(args: Record<string, unknown>): PreparedBrowserInvocation {
+    const request = args as z.infer<typeof getContentSchema>;
+    return {
+      commands: [['snapshot', '-c']],
+      transform: (outputs) => ({
+        output: (outputs[0] ?? '').slice(request.start_from_char),
+        note: request.extract_links
+          ? 'extract_links is accepted for compatibility but agent-browser snapshot output is returned as-is.'
+          : undefined,
+      }),
+    };
+  }
 }
 
 export class BrowserScrollTool extends BaseBrowserUseTool {
   readonly name = 'browser_scroll';
   readonly description = BROWSER_SCROLL_DESCRIPTION;
   readonly schema = scrollSchema;
+
+  protected prepareExecution(args: Record<string, unknown>): PreparedBrowserInvocation {
+    const request = args as z.infer<typeof scrollSchema>;
+    return {
+      commands: [['scroll', request.direction, DEFAULT_SCROLL_DISTANCE]],
+    };
+  }
 }
 
 export class BrowserGoBackTool extends BaseBrowserUseTool {
   readonly name = 'browser_go_back';
   readonly description = BROWSER_GO_BACK_DESCRIPTION;
   readonly schema = goBackSchema;
+
+  protected prepareExecution(): PreparedBrowserInvocation {
+    return {
+      commands: [['back']],
+    };
+  }
 }
 
 export class BrowserListTabsTool extends BaseBrowserUseTool {
   readonly name = 'browser_list_tabs';
   readonly description = BROWSER_LIST_TABS_DESCRIPTION;
   readonly schema = listTabsSchema;
+
+  protected prepareExecution(): PreparedBrowserInvocation {
+    return {
+      commands: [['get', 'title'], ['get', 'url']],
+      transform: (outputs) => ({
+        output: JSON.stringify(
+          [
+            {
+              tab_id: 'current',
+              title: outputs[0] ?? '',
+              url: outputs[1] ?? '',
+            },
+          ],
+          null,
+          2,
+        ),
+        note: 'Local agent-browser currently exposes a single active browser session.',
+      }),
+    };
+  }
 }
 
 export class BrowserSwitchTabTool extends BaseBrowserUseTool {
   readonly name = 'browser_switch_tab';
   readonly description = BROWSER_SWITCH_TAB_DESCRIPTION;
   readonly schema = switchTabSchema;
+
+  protected prepareExecution(): PreparedBrowserInvocation {
+    throw new Error('browser_switch_tab is not supported by the local agent-browser path yet.');
+  }
 }
 
 export class BrowserCloseTabTool extends BaseBrowserUseTool {
   readonly name = 'browser_close_tab';
   readonly description = BROWSER_CLOSE_TAB_DESCRIPTION;
   readonly schema = closeTabSchema;
+
+  protected prepareExecution(): PreparedBrowserInvocation {
+    throw new Error('browser_close_tab is not supported by the local agent-browser path yet.');
+  }
 }
 
 export const browserUseTools = [
@@ -225,4 +392,3 @@ export const browserUseTools = [
   BrowserSwitchTabTool,
   BrowserCloseTabTool,
 ];
-

@@ -1233,7 +1233,7 @@ console.log(result.content);  // Response body
 - Scrolling and history (`browser_scroll`, `browser_go_back`)
 - Tab management (`browser_list_tabs`, `browser_switch_tab`, `browser_close_tab`)
 
-**Notes**: These tools mirror the Python `browser_use` schemas and share stubbed execution that returns the requested action payload for unit validation.
+**Notes**: These tools keep the Python-compatible `browser_use`-style tool names, but the local TypeScript runtime now routes them through the `agent-browser` CLI. The current local path preserves index-based schemas by caching refs from `browser_get_state`, while unsupported tab-specific actions fail explicitly instead of pretending to succeed.
 
 ### DelegateTool
 
