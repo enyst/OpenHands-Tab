@@ -333,7 +333,7 @@ export class BrowserGetContentTool extends BaseBrowserUseTool {
     return {
       commands: [['snapshot', '-c']],
       transform: (results) => ({
-        output: (results[0]?.output ?? '').slice(request.start_from_char),
+        output: (results[0]?.stdout ?? '').slice(request.start_from_char),
         note: request.extract_links
           ? 'extract_links is accepted for compatibility but agent-browser snapshot output is returned as-is.'
           : undefined,
@@ -381,8 +381,8 @@ export class BrowserListTabsTool extends BaseBrowserUseTool {
           [
             {
               tab_id: 'current',
-              title: results[0]?.output ?? '',
-              url: results[1]?.output ?? '',
+              title: results[0]?.stdout ?? '',
+              url: results[1]?.stdout ?? '',
             },
           ],
           null,

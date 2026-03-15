@@ -107,6 +107,30 @@ if (args[0] === 'snapshot' && args[1] === '-i') {
     process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
   };
 
+  const createNoisyStructuredAgentBrowser = async () => {
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-browser-structured-warning-'));
+    created.push(dir);
+    const scriptPath = path.join(dir, 'agent-browser-structured-warning.js');
+    const script = `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === 'snapshot' && args[1] === '-c') {
+  process.stdout.write('compact structured content');
+  process.stderr.write('stderr content warning');
+} else if (args[0] === 'get' && args[1] === 'title') {
+  process.stdout.write('Clean title');
+  process.stderr.write('stderr title warning');
+} else if (args[0] === 'get' && args[1] === 'url') {
+  process.stdout.write('https://example.com/clean');
+  process.stderr.write('stderr url warning');
+} else {
+  process.stdout.write(args.join(' '));
+}
+`;
+    await fs.promises.writeFile(scriptPath, script, 'utf8');
+    await fs.promises.chmod(scriptPath, 0o755);
+    process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
+  };
+
   it('validates and executes browser navigation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -152,6 +176,26 @@ if (args[0] === 'snapshot' && args[1] === '-i') {
     expect(result.output).toContain('"tab_id": "current"');
     expect(result.output).toContain('https://example.com/current');
     expect(result.note).toContain('single active browser session');
+  }, 15000);
+
+  it('uses stdout only for structured content and tab fields', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createNoisyStructuredAgentBrowser();
+    const contentTool = new BrowserGetContentTool();
+    const tabsTool = new BrowserListTabsTool();
+
+    const contentResult = await contentTool.execute(
+      contentTool.validate({ extract_links: false, start_from_char: 8 }),
+      { workspace },
+    );
+    expect(contentResult.output).toBe('structured content');
+    expect(contentResult.output).not.toContain('stderr');
+
+    const tabsResult = await tabsTool.execute(tabsTool.validate({}), { workspace });
+    expect(tabsResult.output).toContain('"title": "Clean title"');
+    expect(tabsResult.output).toContain('"url": "https://example.com/clean"');
+    expect(tabsResult.output).not.toContain('stderr');
   }, 15000);
 
   it('fails browser_click when refs are not cached yet', async () => {
