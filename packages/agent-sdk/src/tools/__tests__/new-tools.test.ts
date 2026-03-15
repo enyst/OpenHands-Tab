@@ -96,7 +96,7 @@ setTimeout(() => {
     const script = `#!/usr/bin/env node
 const args = process.argv.slice(2);
 if (args[0] === 'snapshot' && args[1] === '-i') {
-  process.stdout.write('button Save @e1\\ntextbox Name @e2\\n');
+  process.stdout.write('button Save [ref=e1]\\ntextbox Name [ref=e2]\\n');
   process.stderr.write('warning: skipped stale ref @e999\\n');
 } else {
   process.stdout.write(args.join(' '));

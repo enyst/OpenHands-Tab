@@ -130,15 +130,15 @@ function resolveAgentBrowserBinary(): string {
 }
 
 function parseSnapshotRefs(output: string): string[] {
-  const matches = output.match(/@e[\w-]+/g) ?? [];
   const seen = new Set<string>();
   const refs: string[] = [];
-  for (const match of matches) {
-    if (seen.has(match)) {
+  for (const match of output.matchAll(/(?:@|ref=)(e[\w-]+)/g)) {
+    const ref = `@${match[1]}`;
+    if (seen.has(ref)) {
       continue;
     }
-    seen.add(match);
-    refs.push(match);
+    seen.add(ref);
+    refs.push(ref);
   }
   return refs;
 }
