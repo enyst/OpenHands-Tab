@@ -113,10 +113,7 @@ describe('RemoteConversation', () => {
     expect(typeof init?.body).toBe('string');
     const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
     expect(parsed.agent.kind).toBe('Agent');
-    expect(parsed.agent.tools).toEqual([
-      { name: 'GlobTool', params: { pattern: '**/*.ts' } },
-      { name: 'TerminalTool' },
-    ]);
+    expect(parsed.agent.tools).toEqual(tools);
     expect(parsed.workspace).toEqual(workspace);
   });
 
@@ -149,9 +146,9 @@ describe('RemoteConversation', () => {
     const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
     expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([
-      { name: 'TerminalTool' },
-      { name: 'FileEditorTool' },
-      { name: 'TaskTrackerTool' },
+      { name: 'terminal' },
+      { name: 'file_editor' },
+      { name: 'task_tracker' },
     ]);
     expect(parsed.workspace).toEqual({ working_dir: workspaceRoot });
   });
@@ -211,7 +208,7 @@ describe('RemoteConversation', () => {
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
     const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
     expect(parsed.agent.kind).toBe('Agent');
-    expect(parsed.agent.tools).toEqual([{ name: 'TerminalTool' }]);
+    expect(parsed.agent.tools).toEqual([{ name: 'terminal' }]);
   });
 
   it('supports includeDefaultTools=true to merge defaults with provided tools', async () => {
@@ -242,10 +239,10 @@ describe('RemoteConversation', () => {
     const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
     expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([
-      { name: 'TerminalTool' },
-      { name: 'FileEditorTool' },
-      { name: 'TaskTrackerTool' },
-      { name: 'GlobTool', params: { pattern: '**/*.ts' } },
+      { name: 'terminal' },
+      { name: 'file_editor' },
+      { name: 'task_tracker' },
+      { name: 'glob', params: { pattern: '**/*.ts' } },
     ]);
   });
 

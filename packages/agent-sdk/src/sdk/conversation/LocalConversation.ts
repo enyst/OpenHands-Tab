@@ -11,6 +11,7 @@ import {
 } from '../runtime';
 import type { LLMClient } from '../llm';
 import type { BashEvent, Event, TextContent } from '../types';
+import { isMessageEvent } from '../types';
 import { clearRawLlmFieldsWhenProfileSelected } from '../types/settings';
 import type { OpenHandsSettings } from '../types/settings';
 import type { ToolDefinition } from '../types/tools';
@@ -270,8 +271,15 @@ export class LocalConversation extends EventEmitter {
       this.emit('error', new Error('Cannot run pending: no active conversation. Start a new conversation first.'));
       return;
     }
-    this.hasUserMessage = true;
-    await this.agent.runPending();
+    await this.lock.acquire(async () => {
+      const events = this.events.list();
+      const lastEvent = events[events.length - 1];
+      if (!isMessageEvent(lastEvent) || lastEvent.source !== 'user') {
+        return;
+      }
+      this.hasUserMessage = true;
+      await this.agent.runPending();
+    });
   }
 
   setConfirmationPolicy(policy: ConfirmationPolicy): Promise<void> {
