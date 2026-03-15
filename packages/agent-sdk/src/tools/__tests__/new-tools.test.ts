@@ -89,6 +89,24 @@ setTimeout(() => {
     process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
   };
 
+  const createWarningAgentBrowser = async () => {
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-browser-warning-'));
+    created.push(dir);
+    const scriptPath = path.join(dir, 'agent-browser-warning.js');
+    const script = `#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args[0] === 'snapshot' && args[1] === '-i') {
+  process.stdout.write('button Save @e1\\ntextbox Name @e2\\n');
+  process.stderr.write('warning: skipped stale ref @e999\\n');
+} else {
+  process.stdout.write(args.join(' '));
+}
+`;
+    await fs.promises.writeFile(scriptPath, script, 'utf8');
+    await fs.promises.chmod(scriptPath, 0o755);
+    process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
+  };
+
   it('validates and executes browser navigation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -142,6 +160,22 @@ setTimeout(() => {
     await createFakeAgentBrowser();
     const clickTool = new BrowserClickTool();
     await expect(clickTool.execute(clickTool.validate({ index: 0 }), { workspace })).rejects.toThrow(
+      /Call browser_get_state before browser interactions/,
+    );
+  }, 15000);
+
+  it('parses cached refs from snapshot stdout only', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createWarningAgentBrowser();
+    const stateTool = new BrowserGetStateTool();
+    const clickTool = new BrowserClickTool();
+
+    const stateResult = await stateTool.execute(stateTool.validate({ include_screenshot: false }), { workspace });
+    expect(stateResult.refs).toEqual(['@e1', '@e2']);
+    expect(stateResult.output).toContain('warning: skipped stale ref @e999');
+
+    await expect(clickTool.execute(clickTool.validate({ index: 2 }), { workspace })).rejects.toThrow(
       /Call browser_get_state before browser interactions/,
     );
   }, 15000);

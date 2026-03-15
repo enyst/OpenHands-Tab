@@ -19,11 +19,18 @@ export interface BrowserUseResult {
   note?: string;
 }
 
+type BrowserCommandResult = {
+  command: string[];
+  stdout: string;
+  stderr: string;
+  output: string;
+};
+
 type PreparedBrowserInvocation = {
   commands: string[][];
   invalidateCachedRefs?: boolean;
   note?: string;
-  transform?: (outputs: string[], context: ToolContext) => Pick<BrowserUseResult, 'output' | 'refs' | 'note'>;
+  transform?: (results: BrowserCommandResult[], context: ToolContext) => Pick<BrowserUseResult, 'output' | 'refs' | 'note'>;
 };
 
 const navigateSchema = z.object({
@@ -157,7 +164,7 @@ function resolveRefForIndex(index: number, context: ToolContext): string {
 async function runAgentBrowserCommand(
   commandArgs: string[],
   context: ToolContext,
-): Promise<{ command: string[]; output: string }> {
+): Promise<BrowserCommandResult> {
   const binary = resolveAgentBrowserBinary();
   try {
     const result = await execFileAsync(binary, commandArgs, {
@@ -171,6 +178,8 @@ async function runAgentBrowserCommand(
     const output = [stdout, stderr].filter(Boolean).join('\n');
     return {
       command: [binary, ...commandArgs],
+      stdout,
+      stderr,
       output: output || `Executed ${[binary, ...commandArgs].join(' ')}`,
     };
   } catch (error) {
@@ -208,15 +217,18 @@ abstract class BaseBrowserUseTool extends ZodTool<Record<string, unknown>, Brows
     if (prepared.invalidateCachedRefs) {
       snapshotRefsByWorkspace.delete(context.workspace as object);
     }
-    const outputs: string[] = [];
+    const results: BrowserCommandResult[] = [];
     const commands: string[][] = [];
     for (const commandArgs of prepared.commands) {
       const result = await runAgentBrowserCommand(commandArgs, context);
       commands.push(result.command);
-      outputs.push(result.output);
+      results.push(result);
     }
-    const transformed = prepared.transform?.(outputs, context) ?? {
-      output: outputs.filter(Boolean).join('\n\n'),
+    const transformed = prepared.transform?.(results, context) ?? {
+      output: results
+        .map((result) => result.output)
+        .filter(Boolean)
+        .join('\n\n'),
     };
     return {
       action: this.name,
@@ -292,11 +304,14 @@ export class BrowserGetStateTool extends BaseBrowserUseTool {
       commands: request.include_screenshot
         ? [['snapshot', '-i'], ['screenshot']]
         : [['snapshot', '-i']],
-      transform: (outputs, context) => {
-        const refs = parseSnapshotRefs(outputs[0] ?? '');
+      transform: (results, context) => {
+        const refs = parseSnapshotRefs(results[0]?.stdout ?? '');
         snapshotRefsByWorkspace.set(context.workspace as object, refs);
         return {
-          output: outputs.filter(Boolean).join('\n\n'),
+          output: results
+            .map((result) => result.output)
+            .filter(Boolean)
+            .join('\n\n'),
           refs,
           note:
             refs.length === 0
@@ -317,8 +332,8 @@ export class BrowserGetContentTool extends BaseBrowserUseTool {
     const request = args as z.infer<typeof getContentSchema>;
     return {
       commands: [['snapshot', '-c']],
-      transform: (outputs) => ({
-        output: (outputs[0] ?? '').slice(request.start_from_char),
+      transform: (results) => ({
+        output: (results[0]?.output ?? '').slice(request.start_from_char),
         note: request.extract_links
           ? 'extract_links is accepted for compatibility but agent-browser snapshot output is returned as-is.'
           : undefined,
@@ -361,13 +376,13 @@ export class BrowserListTabsTool extends BaseBrowserUseTool {
   protected prepareExecution(): PreparedBrowserInvocation {
     return {
       commands: [['get', 'title'], ['get', 'url']],
-      transform: (outputs) => ({
+      transform: (results) => ({
         output: JSON.stringify(
           [
             {
               tab_id: 'current',
-              title: outputs[0] ?? '',
-              url: outputs[1] ?? '',
+              title: results[0]?.output ?? '',
+              url: results[1]?.output ?? '',
             },
           ],
           null,
