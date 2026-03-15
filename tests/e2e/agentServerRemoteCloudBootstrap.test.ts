@@ -195,8 +195,8 @@ async function startMockSaasServer(params: {
         'X-Session-API-Key': params.runtimeSessionApiKey,
       },
       body: JSON.stringify({
-        agent: { llm: { model: 'gpt-4o-mini' }, tools: [] },
-        workspace: { kind: 'LocalWorkspace', working_dir: path.join(agentServerStateDir, 'workspace') },
+        agent: { kind: 'Agent', llm: { model: 'gpt-4o-mini' }, tools: [] },
+        workspace: { working_dir: path.join(agentServerStateDir, 'workspace') },
         max_iterations: 1,
       }),
     });

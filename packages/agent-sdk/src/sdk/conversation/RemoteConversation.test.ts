@@ -111,7 +111,8 @@ describe('RemoteConversation', () => {
     expect(url).toBe('http://localhost:3000/api/conversations');
     expect(init?.method).toBe('POST');
     expect(typeof init?.body).toBe('string');
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual(tools);
     expect(parsed.workspace).toEqual(workspace);
   });
@@ -142,13 +143,14 @@ describe('RemoteConversation', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
     expect(url).toBe('http://localhost:3000/api/conversations');
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([
       { name: 'terminal' },
       { name: 'file_editor' },
       { name: 'task_tracker' },
     ]);
-    expect(parsed.workspace).toEqual({ kind: 'LocalWorkspace', working_dir: workspaceRoot });
+    expect(parsed.workspace).toEqual({ working_dir: workspaceRoot });
   });
 
   it('supports includeDefaultTools=false to disable default tools when tools are omitted', async () => {
@@ -175,7 +177,8 @@ describe('RemoteConversation', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([]);
   });
 
@@ -203,7 +206,8 @@ describe('RemoteConversation', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([{ name: 'terminal' }]);
   });
 
@@ -232,7 +236,8 @@ describe('RemoteConversation', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([
       { name: 'terminal' },
       { name: 'file_editor' },
@@ -280,6 +285,91 @@ describe('RemoteConversation', () => {
 
     await conversation.startNewConversation();
     await conversation.sendUserMessage('Environment note', { run: false });
+
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs queued conversation work via POST /api/conversations/:id/run', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url === 'http://localhost:3000/api/conversations') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: 'conv-run-pending' }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      if (url === 'http://localhost:3000/api/conversations/conv-run-pending/run') {
+        expect(init?.method).toBe('POST');
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+    });
+
+    await conversation.startNewConversation();
+    await conversation.runPending();
+
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces runPending HTTP failures from POST /api/conversations/:id/run', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url === 'http://localhost:3000/api/conversations') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: 'conv-run-pending-failure' }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      if (url === 'http://localhost:3000/api/conversations/conv-run-pending-failure/run') {
+        expect(init?.method).toBe('POST');
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve('server exploded'),
+        } as unknown as Response);
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+    });
+
+    await conversation.startNewConversation();
+
+    await expect(conversation.runPending()).rejects.toThrow(
+      'Failed to run pending conversation work (HTTP 500): server exploded'
+    );
 
     expect(connectSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy).toHaveBeenCalledTimes(2);

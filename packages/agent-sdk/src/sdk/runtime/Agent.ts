@@ -17,6 +17,7 @@ import type { ActionEvent, BashEvent, ConversationStateUpdateEvent, Event, Messa
 import {
   isActionEvent,
   isAgentErrorEvent,
+  isMessageEvent,
   isObservationEvent,
   isPauseEvent,
   isSystemPromptEvent,
@@ -450,6 +451,22 @@ export class Agent extends EventEmitter {
     return this.lock.acquire(async () => {
       this.ensureSystemPrompt();
       this.pushUserMessage(input, { extraExtendedContent: options?.extraExtendedContent });
+      return this.runLoop();
+    });
+  }
+
+  async runPending(): Promise<Message | undefined> {
+    const events = this.events.list();
+    const lastEvent = events[events.length - 1];
+    if (!isMessageEvent(lastEvent) || lastEvent.source !== 'user') {
+      return undefined;
+    }
+
+    this.cancelled = false;
+    this.finished = false;
+    this.paused = false;
+    return this.lock.acquire(async () => {
+      this.ensureSystemPrompt();
       return this.runLoop();
     });
   }
