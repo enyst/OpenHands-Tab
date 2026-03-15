@@ -111,8 +111,12 @@ describe('RemoteConversation', () => {
     expect(url).toBe('http://localhost:3000/api/conversations');
     expect(init?.method).toBe('POST');
     expect(typeof init?.body).toBe('string');
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
-    expect(parsed.agent.tools).toEqual(tools);
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    expect(parsed.agent.kind).toBe('Agent');
+    expect(parsed.agent.tools).toEqual([
+      { name: 'GlobTool', params: { pattern: '**/*.ts' } },
+      { name: 'TerminalTool' },
+    ]);
     expect(parsed.workspace).toEqual(workspace);
   });
 
@@ -142,13 +146,14 @@ describe('RemoteConversation', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
     expect(url).toBe('http://localhost:3000/api/conversations');
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] }; workspace: RemoteConversationWorkspace };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([
-      { name: 'terminal' },
-      { name: 'file_editor' },
-      { name: 'task_tracker' },
+      { name: 'TerminalTool' },
+      { name: 'FileEditorTool' },
+      { name: 'TaskTrackerTool' },
     ]);
-    expect(parsed.workspace).toEqual({ kind: 'LocalWorkspace', working_dir: workspaceRoot });
+    expect(parsed.workspace).toEqual({ working_dir: workspaceRoot });
   });
 
   it('supports includeDefaultTools=false to disable default tools when tools are omitted', async () => {
@@ -175,7 +180,8 @@ describe('RemoteConversation', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([]);
   });
 
@@ -203,8 +209,9 @@ describe('RemoteConversation', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
-    expect(parsed.agent.tools).toEqual([{ name: 'terminal' }]);
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
+    expect(parsed.agent.kind).toBe('Agent');
+    expect(parsed.agent.tools).toEqual([{ name: 'TerminalTool' }]);
   });
 
   it('supports includeDefaultTools=true to merge defaults with provided tools', async () => {
@@ -232,12 +239,13 @@ describe('RemoteConversation', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit | undefined];
-    const parsed = JSON.parse(init?.body as string) as { agent: { tools: RemoteConversationTool[] } };
+    const parsed = JSON.parse(init?.body as string) as { agent: { kind: string; tools: RemoteConversationTool[] } };
+    expect(parsed.agent.kind).toBe('Agent');
     expect(parsed.agent.tools).toEqual([
-      { name: 'terminal' },
-      { name: 'file_editor' },
-      { name: 'task_tracker' },
-      { name: 'glob', params: { pattern: '**/*.ts' } },
+      { name: 'TerminalTool' },
+      { name: 'FileEditorTool' },
+      { name: 'TaskTrackerTool' },
+      { name: 'GlobTool', params: { pattern: '**/*.ts' } },
     ]);
   });
 

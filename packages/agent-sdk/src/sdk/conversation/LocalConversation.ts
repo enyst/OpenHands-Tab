@@ -266,7 +266,10 @@ export class LocalConversation extends EventEmitter {
   }
 
   async runPending(): Promise<void> {
-    if (!this.conversationId) return;
+    if (!this.conversationId) {
+      this.emit('error', new Error('Cannot run pending: no active conversation. Start a new conversation first.'));
+      return;
+    }
     this.hasUserMessage = true;
     await this.agent.runPending();
   }

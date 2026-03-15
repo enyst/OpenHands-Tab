@@ -53,6 +53,17 @@ const toStaticSecret = (value: unknown): StaticSecret | undefined => {
 
 const normalizeRemoteServerUrl = normalizeRemoteUrl;
 
+const defaultRemoteToolNameToClassName = (name: string): string => {
+  const trimmed = name.trim();
+  if (!trimmed) return trimmed;
+  if (/^[A-Z][A-Za-z0-9]*Tool$/.test(trimmed)) return trimmed;
+  return trimmed
+    .split('_')
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join('') + 'Tool';
+};
+
 export interface RemoteConversationOptions {
   serverUrl: string;
   settings: OpenHandsSettings;
@@ -430,16 +441,20 @@ export class RemoteConversation extends EventEmitter {
         { name: 'file_editor' },
         { name: 'task_tracker' },
       ];
-      const workspace = this.workspace ?? { kind: 'LocalWorkspace', working_dir: this.workspaceRoot };
+      const workspace = this.workspace ?? { working_dir: this.workspaceRoot };
 
       const tools = resolveToolsWithDefaultTools({
         includeDefaultTools: this.includeDefaultTools,
         hasToolsOption: this.hasToolsOption,
         defaultTools,
         providedTools: this.tools,
-      });
+      }).map((tool) => ({
+        ...tool,
+        name: defaultRemoteToolNameToClassName(tool.name),
+      }));
       const req = {
         agent: {
+          kind: 'Agent',
           llm,
           tools,
           security_analyzer: s?.agent.enableSecurityAnalyzer ? ({ kind: 'LLMSecurityAnalyzer' } satisfies RemoteSecurityAnalyzerPayload) : undefined,
@@ -518,7 +533,7 @@ export class RemoteConversation extends EventEmitter {
   }
 
   async resume() {
-    await this.triggerRun('resume');
+    await this.triggerRun('resume conversation');
   }
 
   async runPending() {
