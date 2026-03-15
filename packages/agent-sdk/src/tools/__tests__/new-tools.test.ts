@@ -5,10 +5,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
   BrowserClickTool,
+  BrowserCloseTabTool,
   BrowserGetContentTool,
   BrowserGetStateTool,
   BrowserListTabsTool,
   BrowserNavigateTool,
+  BrowserSwitchTabTool,
   DelegateTool,
   GlobTool,
   GrepTool,
@@ -73,6 +75,20 @@ if (args[0] === 'snapshot' && args[1] === '-i') {
     process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
   };
 
+  const createSlowAgentBrowser = async () => {
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-browser-slow-'));
+    created.push(dir);
+    const scriptPath = path.join(dir, 'agent-browser-slow.js');
+    const script = `#!/usr/bin/env node
+setTimeout(() => {
+  process.stdout.write('finished late');
+}, 35_000);
+`;
+    await fs.promises.writeFile(scriptPath, script, 'utf8');
+    await fs.promises.chmod(scriptPath, 0o755);
+    process.env.SMOLPAWS_AGENT_BROWSER_BIN = scriptPath;
+  };
+
   it('validates and executes browser navigation', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
@@ -119,6 +135,57 @@ if (args[0] === 'snapshot' && args[1] === '-i') {
     expect(result.output).toContain('https://example.com/current');
     expect(result.note).toContain('single active browser session');
   }, 15000);
+
+  it('fails browser_click when refs are not cached yet', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createFakeAgentBrowser();
+    const clickTool = new BrowserClickTool();
+    await expect(clickTool.execute(clickTool.validate({ index: 0 }), { workspace })).rejects.toThrow(
+      /Call browser_get_state before browser interactions/,
+    );
+  }, 15000);
+
+  it('invalidates cached refs after page-changing navigation', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createFakeAgentBrowser();
+    const stateTool = new BrowserGetStateTool();
+    const navigateTool = new BrowserNavigateTool();
+    const clickTool = new BrowserClickTool();
+
+    await stateTool.execute(stateTool.validate({ include_screenshot: false }), { workspace });
+    await navigateTool.execute(navigateTool.validate({ url: 'https://example.com/next' }), { workspace });
+
+    await expect(clickTool.execute(clickTool.validate({ index: 0 }), { workspace })).rejects.toThrow(
+      /Call browser_get_state before browser interactions/,
+    );
+  }, 15000);
+
+  it('fails explicitly for unsupported tab actions', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createFakeAgentBrowser();
+    const switchTabTool = new BrowserSwitchTabTool();
+    const closeTabTool = new BrowserCloseTabTool();
+
+    await expect(switchTabTool.execute(switchTabTool.validate({ tab_id: 'abcd' }), { workspace })).rejects.toThrow(
+      /not supported/,
+    );
+    await expect(closeTabTool.execute(closeTabTool.validate({ tab_id: 'abcd' }), { workspace })).rejects.toThrow(
+      /not supported/,
+    );
+  }, 15000);
+
+  it('times out hung agent-browser commands', async () => {
+    const { workspace, dir } = await makeWorkspace();
+    created.push(dir);
+    await createSlowAgentBrowser();
+    const tool = new BrowserNavigateTool();
+    await expect(tool.execute(tool.validate({ url: 'https://example.com' }), { workspace })).rejects.toThrow(
+      /timed out after 30s/,
+    );
+  }, 40000);
 });
 
 describe('DelegateTool', () => {

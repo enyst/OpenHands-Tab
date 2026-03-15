@@ -6,6 +6,7 @@ import { ZodTool, booleanWithDefault } from './zod-tool';
 
 const execFileAsync = promisify(execFile);
 const AGENT_BROWSER_BIN_ENV = 'SMOLPAWS_AGENT_BROWSER_BIN';
+const AGENT_BROWSER_TIMEOUT_MS = 30_000;
 const DEFAULT_SCROLL_DISTANCE = '800';
 const snapshotRefsByWorkspace = new WeakMap<object, string[]>();
 
@@ -20,6 +21,7 @@ export interface BrowserUseResult {
 
 type PreparedBrowserInvocation = {
   commands: string[][];
+  invalidateCachedRefs?: boolean;
   note?: string;
   transform?: (outputs: string[], context: ToolContext) => Pick<BrowserUseResult, 'output' | 'refs' | 'note'>;
 };
@@ -161,6 +163,8 @@ async function runAgentBrowserCommand(
     const result = await execFileAsync(binary, commandArgs, {
       cwd: context.workspace.root,
       maxBuffer: 10 * 1024 * 1024,
+      timeout: AGENT_BROWSER_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
     });
     const stdout = result.stdout?.trim() ?? '';
     const stderr = result.stderr?.trim() ?? '';
@@ -170,11 +174,21 @@ async function runAgentBrowserCommand(
       output: output || `Executed ${[binary, ...commandArgs].join(' ')}`,
     };
   } catch (error) {
-    const err = error as { code?: string; stdout?: string; stderr?: string; message?: string };
+    const err = error as {
+      code?: string;
+      killed?: boolean;
+      signal?: string | null;
+      stdout?: string;
+      stderr?: string;
+      message?: string;
+    };
     if (err.code === 'ENOENT') {
       throw new Error(
         `agent-browser CLI not found. Install it and ensure it is on PATH, or set ${AGENT_BROWSER_BIN_ENV}.`,
       );
+    }
+    if (err.killed || err.signal === 'SIGKILL') {
+      throw new Error(`agent-browser command timed out after 30s: ${commandArgs.join(' ')}`);
     }
     const details = [err.stdout?.trim(), err.stderr?.trim(), err.message?.trim()]
       .filter(Boolean)
@@ -191,6 +205,9 @@ abstract class BaseBrowserUseTool extends ZodTool<Record<string, unknown>, Brows
 
   async execute(args: Record<string, unknown>, context: ToolContext): Promise<BrowserUseResult> {
     const prepared = this.prepareExecution(args, context);
+    if (prepared.invalidateCachedRefs) {
+      snapshotRefsByWorkspace.delete(context.workspace as object);
+    }
     const outputs: string[] = [];
     const commands: string[][] = [];
     for (const commandArgs of prepared.commands) {
@@ -221,6 +238,7 @@ export class BrowserNavigateTool extends BaseBrowserUseTool {
     const request = args as z.infer<typeof navigateSchema>;
     return {
       commands: [['open', request.url]],
+      invalidateCachedRefs: true,
       note: request.new_tab
         ? 'new_tab is ignored by the local agent-browser path and uses the current session.'
         : undefined,
@@ -330,6 +348,7 @@ export class BrowserGoBackTool extends BaseBrowserUseTool {
   protected prepareExecution(): PreparedBrowserInvocation {
     return {
       commands: [['back']],
+      invalidateCachedRefs: true,
     };
   }
 }
