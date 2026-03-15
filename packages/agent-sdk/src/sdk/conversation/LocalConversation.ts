@@ -265,6 +265,12 @@ export class LocalConversation extends EventEmitter {
     await this.agent.resume();
   }
 
+  async runPending(): Promise<void> {
+    if (!this.conversationId) return;
+    this.hasUserMessage = true;
+    await this.agent.runPending();
+  }
+
   setConfirmationPolicy(policy: ConfirmationPolicy): Promise<void> {
     this.agent.setConfirmationPolicy(policy);
     return Promise.resolve();

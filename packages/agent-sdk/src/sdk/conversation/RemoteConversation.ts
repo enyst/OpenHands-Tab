@@ -518,17 +518,11 @@ export class RemoteConversation extends EventEmitter {
   }
 
   async resume() {
-    if (!this.conversationId) {
-      this.emit('error', new Error('Cannot resume: no active conversation. Start a new conversation first.'));
-      return;
-    }
-    try {
-      const headers = this.getAuthHeaders();
-      const res = await this.requestApi(`/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
-      await this.assertApiOk(res, 'Failed to resume conversation');
-    } catch (e) {
-      this.emit('error', e instanceof Error ? e : new Error(String(e)));
-    }
+    await this.triggerRun('resume');
+  }
+
+  async runPending() {
+    await this.triggerRun('run pending conversation work');
   }
 
   async setConfirmationPolicy(policy: ConfirmationPolicy): Promise<void> {
@@ -748,6 +742,20 @@ export class RemoteConversation extends EventEmitter {
     if (this.status === s) return;
     this.status = s;
     this.emit('status', s);
+  }
+
+  private async triggerRun(actionLabel: string): Promise<void> {
+    if (!this.conversationId) {
+      this.emit('error', new Error(`Cannot ${actionLabel}: no active conversation. Start a new conversation first.`));
+      return;
+    }
+    try {
+      const headers = this.getAuthHeaders();
+      const res = await this.requestApi(`/api/conversations/${this.conversationId}/run`, { method: 'POST', headers });
+      await this.assertApiOk(res, `Failed to ${actionLabel}`);
+    } catch (e) {
+      this.emit('error', e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
   private getAuthHeaders(): Record<string, string> {

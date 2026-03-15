@@ -284,4 +284,45 @@ describe('RemoteConversation', () => {
     expect(connectSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('runs queued conversation work via POST /api/conversations/:id/run', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url === 'http://localhost:3000/api/conversations') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: 'conv-run-pending' }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      if (url === 'http://localhost:3000/api/conversations/conv-run-pending/run') {
+        expect(init?.method).toBe('POST');
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+    });
+
+    await conversation.startNewConversation();
+    await conversation.runPending();
+
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });

@@ -269,6 +269,25 @@ describe('LocalConversation', () => {
     expect(events.some((e) => isMessageEvent(e) && e.source === 'agent')).toBe(false);
   });
 
+  it('runs queued user messages without duplicating them', async () => {
+    const llm = new FakeLLM([[{ type: 'text', text: 'Queued work handled' }, { type: 'finish' }]]);
+    const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
+
+    const events: Event[] = [];
+    conversation.on('event', (e: Event) => events.push(e));
+
+    await conversation.startNewConversation();
+    await conversation.sendUserMessage('Environment note', { run: false });
+    await conversation.runPending();
+
+    const userMessages = events.filter((e): e is MessageEvent => isMessageEvent(e) && e.source === 'user');
+    expect(userMessages).toHaveLength(1);
+    expect(userMessages[0].llm_message.content[0]).toEqual({ type: 'text', text: 'Environment note' });
+
+    const assistantMessages = events.filter((e): e is MessageEvent => isMessageEvent(e) && e.source === 'agent');
+    expect(assistantMessages.at(-1)?.llm_message.content[0]).toEqual({ type: 'text', text: 'Queued work handled' });
+  });
+
   it('attaches extendedContent to user messages and includes it in the LLM request', async () => {
     const llm = new RecordingLLM();
     const conversation = new LocalConversation({ settings: baseSettings, llmClient: llm, tools: createDefaultTools() });
