@@ -70,6 +70,7 @@ class MockWS {
 vi.mock('ws', () => ({ default: MockWS }));
 
 const getEventWS = () => wsInstances.find((ws) => ws.url.includes('/sockets/events')) ?? wsInstances[0];
+const getEventWSHeaders = () => (getEventWS()?.options?.headers ?? {}) as Record<string, unknown>;
 
 const baseSettings = {
   llm: { model: 'test-model' },
@@ -1139,7 +1140,7 @@ describe('RemoteConversation', () => {
     expect(ws.url).toContain('resend_all=true');
   });
 
-  it('does not include session_api_key in ws URL and uses ws headers for auth', async () => {
+  it('does not include session_api_key in WebSocket URL query params', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toContain('/events/search');
       return {
@@ -1164,11 +1165,15 @@ describe('RemoteConversation', () => {
 
     const ws = getEventWS();
     expect(ws.url).toContain('resend_all=true');
-    expect(ws.url).not.toContain('session_api_key');
-    expect(ws.options?.headers?.['X-Session-API-Key']).toBe('session-key');
+    expect(ws.url).not.toContain('session_api_key=');
+    expect(ws.url).not.toContain('session-key');
+
+    const headers = getEventWSHeaders();
+    expect(headers['X-Session-API-Key']).toBe('session-key');
+    expect(headers['Content-Type']).toBeUndefined();
   });
 
-  it('falls back to legacy session_api_key ws query auth on 403 handshake response', async () => {
+  it('does not retry WebSocket with session_api_key query auth after a 403 handshake response', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toContain('/events/search');
       return {
@@ -1189,21 +1194,19 @@ describe('RemoteConversation', () => {
       },
     });
 
+    const errors: unknown[] = [];
+    conversation.on('error', (error) => errors.push(error));
+
     await conversation.restoreConversation('abc');
 
-    const firstWs = getEventWS();
-    expect(firstWs.url).toContain('resend_all=true');
-    expect(firstWs.url).not.toContain('session_api_key');
-    expect(firstWs.options?.headers?.['X-Session-API-Key']).toBe('session-key');
+    const ws = getEventWS();
+    ws.error(new Error('Unexpected server response: 403'));
 
-    firstWs.error(new Error('Unexpected server response: 403'));
-
-    const eventSockets = wsInstances.filter((ws) => ws.url.includes('/sockets/events'));
-    expect(eventSockets).toHaveLength(2);
-    const fallbackWs = eventSockets[1];
-    expect(fallbackWs.url).toContain('resend_all=true');
-    expect(fallbackWs.url).toContain('session_api_key=session-key');
-    expect(fallbackWs.options?.headers?.['X-Session-API-Key']).toBe('session-key');
+    const eventSockets = wsInstances.filter((socket) => socket.url.includes('/sockets/events'));
+    expect(eventSockets).toHaveLength(1);
+    expect(eventSockets[0]?.url).not.toContain('session_api_key=');
+    expect(errors).toHaveLength(1);
+    expect((errors[0] as Error).message).toContain('403');
   });
 
   it('does not attempt WebSocket connect when history fetch fails', async () => {

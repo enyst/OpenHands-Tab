@@ -20,7 +20,7 @@ Option B: remote server
 
 Runtime Session API Key (optional)
 - HTTP: the extension adds `X-Session-API-Key` when `openhands.secrets.runtimeSessionApiKey` is set
-- WebSocket: the extension appends `?session_api_key=...` to the WS URL when `openhands.secrets.runtimeSessionApiKey` is set
+- WebSocket: the extension authenticates via headers only (no `session_api_key` in the WS URL). Your agent-server must accept WS auth via `X-Session-API-Key` (or `Authorization: Bearer ...`) headers.
 
 Notes
 - The extension sends a Start Conversation payload containing LLM and tool configuration for PoC. Ensure your server accepts that.

@@ -144,7 +144,6 @@ export class RemoteConversation extends EventEmitter {
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
-  private useLegacyWsSessionKeyQueryAuth = false;
 
   readonly state: RemoteState;
   private workspaceClient?: RemoteWorkspace;
@@ -292,10 +291,6 @@ export class RemoteConversation extends EventEmitter {
     const oldApiKey = getWorkspaceAuthKey(this.serverUrl, this.settings);
     const newApiKey = getWorkspaceAuthKey(this.serverUrl, settings);
     this.settings = settings;
-    if (oldApiKey !== newApiKey) {
-      // Re-probe header auth after key rotations; fall back to legacy query auth only if needed.
-      this.useLegacyWsSessionKeyQueryAuth = false;
-    }
     if (this.workspaceClient && oldApiKey !== newApiKey) {
       this.workspaceClient = undefined;
     }
@@ -304,7 +299,6 @@ export class RemoteConversation extends EventEmitter {
   setServerUrl(url: string) {
     this.serverUrl = normalizeRemoteServerUrl(url);
     this.workspaceClient = undefined;
-    this.useLegacyWsSessionKeyQueryAuth = false;
   }
 
   async startNewConversation(): Promise<string | undefined> {
@@ -764,26 +758,6 @@ export class RemoteConversation extends EventEmitter {
     return headers;
   }
 
-  private getRuntimeSessionApiKey(): string {
-    const runtimeSessionApiKey = this.settings?.secrets?.runtimeSessionApiKey;
-    return typeof runtimeSessionApiKey === 'string' ? runtimeSessionApiKey.trim() : '';
-  }
-
-  private canUseLegacyWsSessionKeyQueryAuth(): boolean {
-    return !isOpenHandsCloudServerUrl(this.serverUrl) && Boolean(this.getRuntimeSessionApiKey());
-  }
-
-  private shouldRetryWithLegacyWsSessionKeyQueryAuth(err: unknown, usedLegacyWsSessionKeyQueryAuth: boolean): boolean {
-    if (usedLegacyWsSessionKeyQueryAuth) return false;
-    if (!this.canUseLegacyWsSessionKeyQueryAuth()) return false;
-    const message = err instanceof Error
-      ? err.message
-      : typeof err === 'string'
-        ? err
-        : '';
-    return /unexpected server response:\s*(401|403)/i.test(message);
-  }
-
   private clearReconnect() {
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = undefined; }
   }
@@ -842,11 +816,7 @@ export class RemoteConversation extends EventEmitter {
   private connect() {
     if (!this.conversationId) return;
     const base = this.getApiBaseUrl();
-    const usedLegacyWsSessionKeyQueryAuth = this.useLegacyWsSessionKeyQueryAuth;
     const params = new URLSearchParams();
-    if (usedLegacyWsSessionKeyQueryAuth) {
-      params.set('session_api_key', this.getRuntimeSessionApiKey());
-    }
     params.set('resend_all', 'true');
     const qs = params.toString();
     const wsUrl = `${base.replace(/^http/, 'ws')}/sockets/events/${this.conversationId}?${qs}`;
@@ -889,19 +859,6 @@ export class RemoteConversation extends EventEmitter {
     });
     ws.on('error', (err: Error) => {
       if (this.ws !== ws) return;
-      if (this.shouldRetryWithLegacyWsSessionKeyQueryAuth(err, usedLegacyWsSessionKeyQueryAuth)) {
-        this.clearWsHandshakeTimer();
-        this.useLegacyWsSessionKeyQueryAuth = true;
-        ws.removeAllListeners();
-        this.ws = undefined;
-        try {
-          ws.close();
-        } catch (closeErr) {
-          void closeErr;
-        }
-        this.connect();
-        return;
-      }
       this.clearWsHandshakeTimer();
       this.emit('error', err);
       this.setStatus('offline');
