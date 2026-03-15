@@ -92,7 +92,7 @@ if (args[0] === 'snapshot' && args[1] === '-i') {
     await createFakeAgentBrowser();
     const stateTool = new BrowserGetStateTool();
     const clickTool = new BrowserClickTool();
-    const typeTool = new BrowserGetContentTool();
+    const getContentTool = new BrowserGetContentTool();
 
     const stateResult = await stateTool.execute(stateTool.validate({ include_screenshot: true }), { workspace });
     expect(stateResult.refs).toEqual(['@e1', '@e2', '@e3']);
@@ -101,8 +101,8 @@ if (args[0] === 'snapshot' && args[1] === '-i') {
     const clickResult = await clickTool.execute(clickTool.validate({ index: 1 }), { workspace });
     expect(clickResult.output).toContain('clicked @e2');
 
-    const contentResult = await typeTool.execute(
-      typeTool.validate({ extract_links: true, start_from_char: 8 }),
+    const contentResult = await getContentTool.execute(
+      getContentTool.validate({ extract_links: true, start_from_char: 8 }),
       { workspace },
     );
     expect(contentResult.output).toBe('snapshot output with links and content');

@@ -7,7 +7,7 @@ import { ZodTool, booleanWithDefault } from './zod-tool';
 const execFileAsync = promisify(execFile);
 const AGENT_BROWSER_BIN_ENV = 'SMOLPAWS_AGENT_BROWSER_BIN';
 const DEFAULT_SCROLL_DISTANCE = '800';
-const snapshotRefsByWorkspace = new Map<string, string[]>();
+const snapshotRefsByWorkspace = new WeakMap<object, string[]>();
 
 export interface BrowserUseResult {
   action: string;
@@ -142,7 +142,7 @@ function combineNotes(...notes: Array<string | undefined>): string | undefined {
 }
 
 function resolveRefForIndex(index: number, context: ToolContext): string {
-  const refs = snapshotRefsByWorkspace.get(context.workspace.root) ?? [];
+  const refs = snapshotRefsByWorkspace.get(context.workspace as object) ?? [];
   const ref = refs[index];
   if (!ref) {
     throw new Error(
@@ -276,7 +276,7 @@ export class BrowserGetStateTool extends BaseBrowserUseTool {
         : [['snapshot', '-i']],
       transform: (outputs, context) => {
         const refs = parseSnapshotRefs(outputs[0] ?? '');
-        snapshotRefsByWorkspace.set(context.workspace.root, refs);
+        snapshotRefsByWorkspace.set(context.workspace as object, refs);
         return {
           output: outputs.filter(Boolean).join('\n\n'),
           refs,
