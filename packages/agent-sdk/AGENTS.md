@@ -154,7 +154,7 @@ Agent tool implementations:
   - Navigation, clicks, typing, scrolling
   - Page state/content retrieval with optional screenshots
   - Tab management (list, switch, close)
-  - Mirrors Python `browser_use` schemas with stubbed execution
+  - Mirrors Python `browser_use` tool names while routing the local TypeScript path through `agent-browser`
 
 - **`PlanningFileEditorTool`** - Restricted file editor for planning
   - View/create/str_replace/insert commands
