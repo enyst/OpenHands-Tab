@@ -330,4 +330,48 @@ describe('RemoteConversation', () => {
     expect(connectSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('surfaces runPending HTTP failures from POST /api/conversations/:id/run', async () => {
+    const connectSpy = vi
+      .spyOn(RemoteConversation.prototype as unknown as { connect: () => void }, 'connect')
+      .mockImplementation(() => {});
+
+    const fetchSpy = vi.fn((url: string, init?: RequestInit) => {
+      if (url === 'http://localhost:3000/api/conversations') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ id: 'conv-run-pending-failure' }),
+          text: () => Promise.resolve(''),
+        } as unknown as Response);
+      }
+
+      if (url === 'http://localhost:3000/api/conversations/conv-run-pending-failure/run') {
+        expect(init?.method).toBe('POST');
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve('server exploded'),
+        } as unknown as Response);
+      }
+
+      throw new Error(`Unexpected fetch url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+    });
+
+    await conversation.startNewConversation();
+
+    await expect(conversation.runPending()).rejects.toThrow(
+      'Failed to run pending conversation work (HTTP 500): server exploded'
+    );
+
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
