@@ -91,6 +91,18 @@ It will **not** match `vX.Y.Z` unless the workflow is changed.
    - Open the draft release in GitHub and add release notes (highlights, breaking changes, compatibility).
    - **Include contributors**: Add a "Contributors" section listing everyone who contributed to this release. Use `git shortlog -sne <previous-tag>..HEAD` to generate the list, or use GitHub's "Generate release notes" feature as a starting point.
    - Publish the release.
+7. Publish the SDK package to npm (when the SDK version changed for this release):
+   - This repo bundles the SDK into the extension, but `@smolpaws/agent-sdk` is also released separately on npm.
+   - Preflight (safe, non-publishing) from `packages/agent-sdk`:
+     - `cd packages/agent-sdk`
+     - `npm whoami` (confirm the intended npm account is logged in)
+     - `node -p "require('./package.json').name + '@' + require('./package.json').version"`
+     - `npm view @smolpaws/agent-sdk version --json` (confirm the registry is still on the previous version)
+     - `npm pack --dry-run` (verifies package contents/tarball without publishing)
+   - Publish:
+     - `npm publish --access public`
+   - Verify:
+     - `npm view @smolpaws/agent-sdk version --json` (should now match `X.Y.Z`)
 
 ## 4) Publishing to marketplaces (optional)
 
@@ -122,6 +134,9 @@ Token / org setup varies by publisher; document the exact token name/location in
    - Extension activates.
    - Basic chat flow works (local + remote, if applicable).
    - No missing-module errors.
+3. If the SDK version changed and was published to npm:
+   - Verify `npm view @smolpaws/agent-sdk version --json` returns the release version.
+   - (Optional) install-test in a temp dir: `npm i @smolpaws/agent-sdk@X.Y.Z`
 
 ## 6) Rollback / hotfix procedure
 
