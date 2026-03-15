@@ -221,6 +221,8 @@ describe('RemoteConversation', () => {
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       expect(url).toContain('/api/conversations');
       const body = JSON.parse(init?.body ?? '{}');
+      expect(body.agent.kind).toBe('Agent');
+      expect(body.workspace).toEqual({ working_dir: process.cwd() });
       expect(body.secrets).toEqual({
         ELEVENLABS_API_KEY: { kind: 'StaticSecret', value: 'xi-example123' },
         GITHUB_TOKEN: { kind: 'StaticSecret', value: 'ghp_example123' },
@@ -265,6 +267,7 @@ describe('RemoteConversation', () => {
     const fetchMock = vi.fn(async (url: string, init?: any) => {
       expect(url).toContain('/api/conversations');
       const body = JSON.parse(init?.body ?? '{}');
+      expect(body.agent.kind).toBe('Agent');
       if (enableSecurityAnalyzer) {
         expect(body.agent.security_analyzer).toEqual({ kind: 'LLMSecurityAnalyzer' });
       } else {
@@ -326,6 +329,7 @@ describe('RemoteConversation', () => {
       conversation.disconnect();
 
       expect(id).toBe('conv-1');
+      expect(capturedReq?.agent?.kind).toBe('Agent');
       expect(capturedReq?.agent?.llm?.usage_id).toBe('agent');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -388,6 +392,7 @@ describe('RemoteConversation', () => {
       conversation.disconnect();
 
       expect(id).toBe('conv-1');
+      expect(capturedReq?.agent?.kind).toBe('Agent');
       const llm = capturedReq?.agent?.llm ?? {};
       expect(llm.usage_id).toBe('agent');
       expect(llm.model).toBe('profile-model');
