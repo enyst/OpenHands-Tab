@@ -49,6 +49,22 @@ export function isAgentServerWorkspace(
   const candidate = workspace as Record<string, unknown>;
   return (
     (candidate.kind === 'remote' || candidate.kind === 'apple') &&
+    typeof candidate.root === 'string' &&
+    typeof candidate.allowPath === 'function' &&
+    typeof candidate.isPathAllowed === 'function' &&
+    typeof candidate.resolvePath === 'function' &&
+    typeof candidate.readFile === 'function' &&
+    typeof candidate.readFileBytes === 'function' &&
+    typeof candidate.writeFile === 'function' &&
+    typeof candidate.remove === 'function' &&
+    typeof candidate.list === 'function' &&
+    typeof candidate.ensureDirectory === 'function' &&
+    typeof candidate.runCommand === 'function' &&
+    typeof candidate.gitStatus === 'function' &&
+    typeof candidate.gitDiff === 'function' &&
+    typeof candidate.isAlive === 'function' &&
+    typeof candidate.pause === 'function' &&
+    typeof candidate.resume === 'function' &&
     typeof candidate.getServerUrl === 'function' &&
     typeof candidate.getAuthHeaders === 'function' &&
     typeof candidate.getRuntimeSessionApiKey === 'function' &&

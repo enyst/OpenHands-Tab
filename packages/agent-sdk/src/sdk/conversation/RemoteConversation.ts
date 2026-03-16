@@ -255,7 +255,10 @@ export class RemoteConversation extends EventEmitter {
     const normalizedWorkspaceRoot = typeof options.workspaceRoot === 'string' && options.workspaceRoot.trim()
       ? options.workspaceRoot.trim()
       : undefined;
-    const workspaceRoot = normalizedWorkspaceRoot ?? process.cwd();
+    const payloadWorkingDir = typeof options.workspace?.working_dir === 'string' && options.workspace.working_dir.trim()
+      ? options.workspace.working_dir.trim()
+      : undefined;
+    const workspaceRoot = normalizedWorkspaceRoot ?? payloadWorkingDir ?? process.cwd();
     const serverUrl = normalizeRemoteServerUrl(options.serverUrl);
 
     return {

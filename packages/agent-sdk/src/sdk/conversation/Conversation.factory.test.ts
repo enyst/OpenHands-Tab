@@ -87,6 +87,17 @@ describe('Conversation factory', () => {
     expect(isAgentServerWorkspace({ kind: 'remote', working_dir: '/workspace/project' })).toBe(false);
   });
 
+  it('does not treat partial remote runtime objects as agent-server workspaces', () => {
+    expect(isAgentServerWorkspace({
+      kind: 'remote',
+      root: '/workspace/project',
+      getServerUrl: () => 'http://localhost:3000',
+      getAuthHeaders: () => ({}),
+      getRuntimeSessionApiKey: () => '',
+      getConversationWorkspacePayload: () => ({ working_dir: '/workspace/project' }),
+    })).toBe(false);
+  });
+
   it('keeps auth fresh on the serverUrl factory path when settings change', async () => {
     let uploadCalls = 0;
     const fetchMock = vi.fn((url: string, init?: { headers?: Record<string, string>; method?: string }) => {

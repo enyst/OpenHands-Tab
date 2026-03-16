@@ -3,7 +3,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { Event } from '../types';
-import type { AgentServerWorkspace } from '../../workspace';
+import { Workspace, type AgentServerWorkspace } from '../../workspace';
+import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
 import { saveProfile } from '../llm';
 import { ConfirmRisky } from '../security/confirmationPolicy';
 import { LLMSecurityAnalyzer } from '../security/analyzer';
@@ -1252,25 +1253,7 @@ describe('RemoteConversation', () => {
         resolveWarmup = resolve;
       });
     });
-    const workspaceClient = {
-      kind: 'apple',
-      root: '/workspace/project',
-      allowPath: vi.fn(),
-      isPathAllowed: vi.fn(() => true),
-      resolvePath: vi.fn((targetPath: string) => targetPath),
-      readFile: vi.fn(),
-      readFileBytes: vi.fn(),
-      writeFile: vi.fn(),
-      remove: vi.fn(),
-      list: vi.fn(),
-      ensureDirectory: vi.fn(),
-      runCommand: vi.fn(),
-      gitStatus: vi.fn(),
-      gitDiff: vi.fn(),
-      isAlive,
-      pause: vi.fn(),
-      resume: vi.fn(),
-    } as unknown as AgentServerWorkspace;
+    vi.spyOn(RemoteWorkspace.prototype, 'isAlive').mockImplementation(isAlive);
 
     const fetchMock = vi.fn(async (url: string) => {
       if (url.endsWith('/api/conversations')) {
@@ -1287,10 +1270,12 @@ describe('RemoteConversation', () => {
 
     const { RemoteConversation } = await import('../conversation/RemoteConversation');
     const conversation = new RemoteConversation({
-      serverUrl: 'http://localhost:3000',
       settings: baseSettings,
-      workspace: { kind: 'apple', working_dir: '/workspace/project' },
-      workspaceClient,
+      workspace: Workspace({
+        kind: 'apple',
+        serverUrl: 'http://localhost:3000',
+        root: '/workspace/project',
+      }) as AgentServerWorkspace,
     });
 
     await expect(conversation.startNewConversation()).resolves.toBe('conv-1');
