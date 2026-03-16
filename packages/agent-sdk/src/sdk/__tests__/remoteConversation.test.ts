@@ -1128,6 +1128,47 @@ describe('RemoteConversation', () => {
     await w3.writeFile('notes.txt', 'hello');
   });
 
+  it('refreshes auth on an injected workspace without replacing it', async () => {
+    let uploadCalls = 0;
+    const fetchMock = vi.fn(async (url: string, init?: any) => {
+      if (url.includes('/api/file/upload')) {
+        expect(init?.method).toBe('POST');
+        uploadCalls += 1;
+        expect(init?.headers?.['X-Session-API-Key']).toBe(uploadCalls === 1 ? 'session-key-1' : 'session-key-2');
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+        } as any;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const workspace = Workspace({
+      kind: 'remote',
+      serverUrl: 'http://localhost:3000',
+      workingDir: '/workspace',
+      runtimeSessionApiKey: 'session-key-1',
+    }) as AgentServerWorkspace;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      settings: { ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key-1' } },
+      workspace,
+    });
+
+    const w1 = conversation.getWorkspace();
+    await w1.writeFile('notes.txt', 'hello');
+
+    conversation.setSettings({ ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key-2' } });
+    const w2 = conversation.getWorkspace();
+    expect(w2).toBe(w1);
+
+    await w2.writeFile('notes.txt', 'hello');
+  });
+
   it('normalizes serverUrl without protocol for HTTP and WebSocket', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toMatch(/^http:\/\/localhost:3000\//);
@@ -1160,6 +1201,7 @@ describe('RemoteConversation', () => {
       getAuthHeaders: vi.fn((extra?: Record<string, string>) => ({ 'Content-Type': 'application/json', ...extra })),
       getRuntimeSessionApiKey: vi.fn(() => ''),
       getConversationWorkspacePayload: vi.fn(() => ({ working_dir: '/workspace/project' })),
+      setAuth: vi.fn(),
       allowPath: vi.fn(),
       isPathAllowed: vi.fn(() => true),
       resolvePath: vi.fn((targetPath: string) => targetPath),
@@ -1210,6 +1252,7 @@ describe('RemoteConversation', () => {
       getAuthHeaders: vi.fn(() => ({ 'Content-Type': 'application/json' })),
       getRuntimeSessionApiKey: vi.fn(() => ''),
       getConversationWorkspacePayload: vi.fn(() => ({ working_dir: '/workspace/project' as const })),
+      setAuth: vi.fn(),
       allowPath: vi.fn(),
       isPathAllowed: vi.fn(() => true),
       resolvePath: vi.fn((targetPath: string) => targetPath),

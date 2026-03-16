@@ -133,6 +133,10 @@ export class AppleWorkspace implements AgentServerWorkspace {
     return this.remote.getConversationWorkspacePayload();
   }
 
+  setAuth(params: { cloudApiKey?: string; runtimeSessionApiKey?: string }): void {
+    this.remote.setAuth(params);
+  }
+
   allowPath(targetPath: string): void {
     this.remote.allowPath(targetPath);
   }

@@ -38,6 +38,7 @@ export interface AgentServerWorkspace extends BaseWorkspace {
   getAuthHeaders(extra?: Record<string, string>): Record<string, string>;
   getRuntimeSessionApiKey(): string;
   getConversationWorkspacePayload(): ConversationWorkspacePayload;
+  setAuth(params: { cloudApiKey?: string; runtimeSessionApiKey?: string }): void;
 }
 
 export function isAgentServerWorkspace(
@@ -68,6 +69,7 @@ export function isAgentServerWorkspace(
     typeof candidate.getServerUrl === 'function' &&
     typeof candidate.getAuthHeaders === 'function' &&
     typeof candidate.getRuntimeSessionApiKey === 'function' &&
-    typeof candidate.getConversationWorkspacePayload === 'function'
+    typeof candidate.getConversationWorkspacePayload === 'function' &&
+    typeof candidate.setAuth === 'function'
   );
 }

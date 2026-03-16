@@ -116,9 +116,32 @@ vi.mock('@smolpaws/agent-sdk', () => {
     getRegisteredValues = vi.fn(() => registeredSecretValues);
   }
 
+  const Workspace = vi.fn((options: any = {}) => {
+    if (options.kind === 'remote') {
+      return {
+        kind: 'remote',
+        root: options.workingDir ?? options.workspaceRoot ?? '/workspace',
+        serverUrl: options.serverUrl,
+      };
+    }
+    if (options.kind === 'apple') {
+      return {
+        kind: 'apple',
+        root: options.root ?? '/workspace',
+        serverUrl: options.serverUrl ?? null,
+      };
+    }
+    return {
+      kind: 'local',
+      root: options.root ?? '/workspace',
+    };
+  });
+
   const Conversation = vi.fn((options: any) => {
     const emitter = new EventEmitter() as any;
-    emitter.mode = options?.serverUrl ? 'remote' : 'local';
+    emitter.mode = options?.workspace?.kind === 'remote' || options?.workspace?.kind === 'apple' || options?.serverUrl
+      ? 'remote'
+      : 'local';
     emitter.conversationId = options?.conversationId ?? null;
     emitter.status = 'offline';
     emitter.getConversationId = vi.fn(() => emitter.conversationId);
@@ -162,6 +185,7 @@ vi.mock('@smolpaws/agent-sdk', () => {
     AgentContext,
     Conversation,
     SecretRegistry,
+    Workspace,
     loadSkillsFromDir: vi.fn(() => ({ repoSkills: new Map(), knowledgeSkills: new Map(), agentSkills: new Map() })),
     isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),

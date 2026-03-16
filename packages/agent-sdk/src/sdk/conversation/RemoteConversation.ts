@@ -343,6 +343,11 @@ export class RemoteConversation extends EventEmitter {
     }
     if (oldApiKey !== newApiKey && this.ownsWorkspaceClient) {
       this.workspaceClient = this.createOwnedWorkspaceClient(this.serverUrl, this.workspaceRoot);
+    } else if (oldApiKey !== newApiKey) {
+      this.workspaceClient.setAuth({
+        cloudApiKey: settings.secrets?.cloudApiKey,
+        runtimeSessionApiKey: settings.secrets?.runtimeSessionApiKey,
+      });
     }
   }
 

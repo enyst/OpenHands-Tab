@@ -31,6 +31,9 @@ const normalizeEncoding = (encoding: WorkspaceEncoding): NodeBufferEncoding => {
   return encoding as NodeBufferEncoding;
 };
 
+const normalizeSecret = (value: string | undefined): string | undefined =>
+  typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
 export interface RemoteWorkspaceOptions {
   host: string;
   /**
@@ -102,8 +105,8 @@ export class RemoteWorkspace implements AgentServerWorkspace {
   readonly root: string;
 
   private readonly host: string;
-  private readonly cloudApiKey?: string;
-  private readonly runtimeSessionApiKey?: string;
+  private cloudApiKey?: string;
+  private runtimeSessionApiKey?: string;
   private readonly pollIntervalMs: number;
   private readonly httpTimeoutMs: number;
 
@@ -116,12 +119,8 @@ export class RemoteWorkspace implements AgentServerWorkspace {
 
   constructor(options: RemoteWorkspaceOptions) {
     this.host = normalizeRemoteHostUrl(options.host);
-    this.cloudApiKey = typeof options.cloudApiKey === 'string' && options.cloudApiKey.trim()
-      ? options.cloudApiKey.trim()
-      : undefined;
-    this.runtimeSessionApiKey = typeof options.runtimeSessionApiKey === 'string' && options.runtimeSessionApiKey.trim()
-      ? options.runtimeSessionApiKey.trim()
-      : undefined;
+    this.cloudApiKey = normalizeSecret(options.cloudApiKey);
+    this.runtimeSessionApiKey = normalizeSecret(options.runtimeSessionApiKey);
     this.root = normalizePosixRoot(options.workingDir ?? '/workspace');
     this.pollIntervalMs = typeof options.pollIntervalMs === 'number' ? Math.max(0, options.pollIntervalMs) : 100;
     this.httpTimeoutMs = typeof options.httpTimeoutMs === 'number' ? Math.max(0, options.httpTimeoutMs) : 60_000;
@@ -145,6 +144,11 @@ export class RemoteWorkspace implements AgentServerWorkspace {
     return {
       working_dir: this.root,
     };
+  }
+
+  setAuth(params: { cloudApiKey?: string; runtimeSessionApiKey?: string }): void {
+    this.cloudApiKey = normalizeSecret(params.cloudApiKey);
+    this.runtimeSessionApiKey = normalizeSecret(params.runtimeSessionApiKey);
   }
 
   allowPath(targetPath: string): void {
