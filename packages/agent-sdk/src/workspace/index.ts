@@ -48,7 +48,7 @@ export type WorkspaceFactoryOptions =
   };
 
 export function Workspace(options?: WorkspaceFactoryOptions): BaseWorkspace {
-  if (!options || options.kind === 'local') {
+  if (!options || !options.kind || options.kind === 'local') {
     return new LocalWorkspace(options?.root);
   }
 

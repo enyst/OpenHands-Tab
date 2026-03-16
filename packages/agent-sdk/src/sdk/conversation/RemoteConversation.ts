@@ -136,6 +136,7 @@ export class RemoteConversation extends EventEmitter {
     RemoteConversation.reconnectRetryMaxMs,
     RemoteConversation.reconnectMaxRetries,
   );
+  private connectAttemptId = 0;
   private readonly workspaceRoot: string;
   private readonly tools?: RemoteConversationTool[];
   private readonly includeDefaultTools?: boolean | string[];
@@ -726,6 +727,7 @@ export class RemoteConversation extends EventEmitter {
   }
 
   disconnect() {
+    this.connectAttemptId += 1;
     this.clearWsHandshakeTimer();
     this.clearReconnect();
     if (this.ws) {
@@ -867,10 +869,13 @@ export class RemoteConversation extends EventEmitter {
   private connect() {
     if (!this.conversationId) return;
     if (this.externalWorkspaceClient) {
+      const connectAttemptId = ++this.connectAttemptId;
       void this.ensureServerReady().then(() => {
+        if (this.connectAttemptId !== connectAttemptId) return;
         if (!this.conversationId) return;
         this.openWebSocketConnection();
       }).catch((error) => {
+        if (this.connectAttemptId !== connectAttemptId) return;
         const err = error instanceof Error ? error : new Error(String(error));
         this.emit('error', err);
         this.setStatus('offline');
