@@ -45,6 +45,15 @@ const sleep = async (ms: number): Promise<void> =>
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
 
+/**
+ * Apple Container-backed remote workspace.
+ *
+ * When `serverImage` is configured, this workspace owns the container lifecycle
+ * for the nested runner surface. File and command operations are proxied through
+ * the remote runtime once it becomes healthy. `pause()` and `resume()` still
+ * require a dedicated runtime control surface in that managed-container mode
+ * and will throw until that exists.
+ */
 export class AppleWorkspace implements BaseWorkspace {
   readonly kind = 'apple' as const;
   readonly root: string;
@@ -176,6 +185,10 @@ export class AppleWorkspace implements BaseWorkspace {
     return await this.remote.isAlive();
   }
 
+  /**
+   * Managed AppleWorkspace containers do not yet expose a runtime pause API.
+   * Use an attached remote workspace until that control surface exists.
+   */
   async pause(): Promise<void> {
     if (!this.serverImage) {
       await this.remote.pause();
@@ -184,6 +197,10 @@ export class AppleWorkspace implements BaseWorkspace {
     throw new Error('AppleWorkspace.pause is not supported yet without a runtime API control surface');
   }
 
+  /**
+   * Managed AppleWorkspace containers do not yet expose a runtime resume API.
+   * Use an attached remote workspace until that control surface exists.
+   */
   async resume(): Promise<void> {
     if (!this.serverImage) {
       await this.remote.resume();
@@ -257,7 +274,7 @@ export class AppleWorkspace implements BaseWorkspace {
 
     for (const key of this.forwardEnv) {
       const value = process.env[key];
-      if (typeof value === 'string') {
+      if (isNonEmptyString(value)) {
         args.push('-e', `${key}=${value}`);
       }
     }
@@ -290,9 +307,10 @@ export class AppleWorkspace implements BaseWorkspace {
       child.once('error', (error) => {
         reject(error);
       });
-      child.once('close', (code) => {
+      child.once('close', (code, signal) => {
         this.process = null;
-        reject(new Error(`AppleWorkspace container exited before becoming healthy (code ${String(code)})`));
+        const exitInfo = signal ? `signal ${signal}` : `code ${String(code)}`;
+        reject(new Error(`AppleWorkspace container exited before becoming healthy (${exitInfo})`));
       });
     });
 

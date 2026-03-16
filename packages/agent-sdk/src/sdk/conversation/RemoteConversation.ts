@@ -839,7 +839,10 @@ export class RemoteConversation extends EventEmitter {
 
   private async ensureServerReady(): Promise<void> {
     if (!this.externalWorkspaceClient) return;
-    await this.externalWorkspaceClient.isAlive();
+    const isAlive = await this.externalWorkspaceClient.isAlive();
+    if (!isAlive) {
+      throw new Error('External workspace server is not ready');
+    }
   }
 
   private async requestApi(path: string, init: RequestInit): Promise<Response> {

@@ -16,6 +16,7 @@ describe('AppleWorkspace', () => {
   beforeEach(() => {
     spawnMock.mockReset();
     process.env.APPLE_WORKSPACE_TEST_TOKEN = 'secret-token';
+    process.env.APPLE_WORKSPACE_EMPTY_TOKEN = '';
   });
 
   afterEach(() => {
@@ -25,6 +26,7 @@ describe('AppleWorkspace', () => {
     } else {
       delete process.env.APPLE_WORKSPACE_TEST_TOKEN;
     }
+    delete process.env.APPLE_WORKSPACE_EMPTY_TOKEN;
   });
 
   it('builds Apple Container args from the workspace config', async () => {
@@ -81,5 +83,21 @@ describe('AppleWorkspace', () => {
     await expect(workspace.isAlive()).resolves.toBe(true);
     expect(spawnMock).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips empty forwarded env values', async () => {
+    const { AppleWorkspace } = await import('..');
+
+    const workspace = new AppleWorkspace({
+      root: '/workspace/project',
+      hostPort: 3100,
+      serverImage: 'smolpaws-agent-server:dev',
+      startupCommand: ['node', '/app/dist/runner.js', '--port', '8000'],
+      forwardEnv: ['APPLE_WORKSPACE_TEST_TOKEN', 'APPLE_WORKSPACE_EMPTY_TOKEN'],
+    });
+
+    const args = (workspace as unknown as { buildContainerArgs: () => string[] }).buildContainerArgs();
+    expect(args).toContain('APPLE_WORKSPACE_TEST_TOKEN=secret-token');
+    expect(args).not.toContain('APPLE_WORKSPACE_EMPTY_TOKEN=');
   });
 });

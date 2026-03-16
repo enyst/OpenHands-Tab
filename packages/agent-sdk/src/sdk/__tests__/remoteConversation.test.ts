@@ -1193,6 +1193,44 @@ describe('RemoteConversation', () => {
     expect(isAlive).toHaveBeenCalled();
   });
 
+  it('fails before starting a conversation when a provided workspace client is not alive', async () => {
+    const isAlive = vi.fn(async () => false);
+    const workspaceClient = {
+      kind: 'apple',
+      root: '/workspace/project',
+      allowPath: vi.fn(),
+      isPathAllowed: vi.fn(() => true),
+      resolvePath: vi.fn((targetPath: string) => targetPath),
+      readFile: vi.fn(),
+      readFileBytes: vi.fn(),
+      writeFile: vi.fn(),
+      remove: vi.fn(),
+      list: vi.fn(),
+      ensureDirectory: vi.fn(),
+      runCommand: vi.fn(),
+      gitStatus: vi.fn(),
+      gitDiff: vi.fn(),
+      isAlive,
+      pause: vi.fn(),
+      resume: vi.fn(),
+    } as unknown as BaseWorkspace;
+
+    const fetchMock = vi.fn();
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      workspace: { kind: 'apple', working_dir: '/workspace/project' },
+      workspaceClient,
+    });
+
+    await expect(conversation.startNewConversation()).rejects.toThrow('External workspace server is not ready');
+    expect(isAlive).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('does not include session_api_key in ws URL and uses ws headers for auth', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       expect(url).toContain('/events/search');
