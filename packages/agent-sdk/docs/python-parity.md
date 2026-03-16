@@ -413,7 +413,7 @@ classDiagram
 
 ### TypeScript shape
 
-- `Conversation()` selects `LocalConversation` (in-process) or `RemoteConversation` (WebSocket) based on `serverUrl` presence
+- `Conversation()` selects `LocalConversation` (in-process) or `RemoteConversation` (WebSocket) based on workspace type, matching Python's factory shape
 - `LocalConversation`: Builds Agent, EventLog, ConversationState, SecretRegistry; emits status/event/error/terminal
 - `RemoteConversation`: WebSocket client with reconnect/replay, event deduplication, dynamic settings mutation
 

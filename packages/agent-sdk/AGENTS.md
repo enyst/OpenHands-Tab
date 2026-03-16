@@ -15,8 +15,8 @@ The SDK is organized into seven main layers:
 High-level conversation management with dual-mode support (local vs remote execution):
 
 - **`Conversation()` factory** - Auto-detects mode based on configuration
-  - Returns `LocalConversation` when no serverUrl provided
-  - Returns `RemoteConversation` when serverUrl is configured
+  - Returns `LocalConversation` when given a local workspace / `workspaceRoot`
+  - Returns `RemoteConversation` when given an `AgentServerWorkspace`
   - Event-driven API with `.on()` listeners for status, events, errors
   - Unified interface for both local and remote agent execution
 
@@ -291,11 +291,10 @@ or alternatives.
 This is the main API used by the OpenHands-Tab extension:
 
 ```typescript
-import { Conversation, type ConversationInstance } from '@smolpaws/agent-sdk';
+import { Conversation, Workspace, type ConversationInstance } from '@smolpaws/agent-sdk';
 
 // Create a conversation (auto-detects local vs remote mode)
 const conversation: ConversationInstance = Conversation({
-  serverUrl: 'http://localhost:3000', // or undefined for local mode
   settings: {
     llm: {
       model: 'claude-sonnet-4-20250514',
@@ -308,7 +307,11 @@ const conversation: ConversationInstance = Conversation({
       llmApiKey: process.env.ANTHROPIC_API_KEY,
     },
   },
-  workspaceRoot: '/path/to/workspace',
+  workspace: Workspace({
+    kind: 'remote',
+    serverUrl: 'http://localhost:3000',
+    workingDir: 'workspace/project',
+  }),
 });
 
 // Listen to events
@@ -365,9 +368,12 @@ const localConversation = Conversation({
 
 // Remote mode - connects to agent-server (RECOMMENDED)
 const remoteConversation = Conversation({
-  serverUrl: 'http://localhost:3000', // can be localhost or remote
   settings: { /* ... */ },
-  workspaceRoot: '/workspace',
+  workspace: Workspace({
+    kind: 'remote',
+    serverUrl: 'http://localhost:3000', // can be localhost or remote
+    workingDir: 'workspace/project',
+  }),
 });
 ```
 ### Creating an LLM Client (Low-Level)
