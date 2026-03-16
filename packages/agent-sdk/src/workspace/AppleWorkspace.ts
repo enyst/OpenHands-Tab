@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import type { BaseWorkspace } from './BaseWorkspace';
+import type { AgentServerWorkspace, ConversationWorkspacePayload } from './BaseWorkspace';
 import { RemoteWorkspace } from './RemoteWorkspace';
 import type {
   CommandOptions,
@@ -54,7 +54,7 @@ const isNonEmptyString = (value: unknown): value is string =>
  * require a dedicated runtime control surface in that managed-container mode
  * and will throw until that exists.
  */
-export class AppleWorkspace implements BaseWorkspace {
+export class AppleWorkspace implements AgentServerWorkspace {
   readonly kind = 'apple' as const;
   readonly root: string;
 
@@ -119,6 +119,18 @@ export class AppleWorkspace implements BaseWorkspace {
 
   getServerUrl(): string {
     return this.serverUrl;
+  }
+
+  getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
+    return this.remote.getAuthHeaders(extra);
+  }
+
+  getRuntimeSessionApiKey(): string {
+    return this.remote.getRuntimeSessionApiKey();
+  }
+
+  getConversationWorkspacePayload(): ConversationWorkspacePayload {
+    return this.remote.getConversationWorkspacePayload();
   }
 
   allowPath(targetPath: string): void {

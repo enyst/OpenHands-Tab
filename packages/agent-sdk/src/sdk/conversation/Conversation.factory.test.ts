@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FileEditorTool } from '../../tools';
+import { isAgentServerWorkspace, Workspace } from '../../workspace';
 import type { Event } from '../types';
 import { isActionEvent, isMessageEvent, isObservationEvent } from '../types';
 import type { OpenHandsSettings } from '../types/settings';
@@ -71,6 +72,55 @@ describe('Conversation factory', () => {
     const conversation = Conversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
     expect(conversation.mode).toBe('remote');
     expect(conversation).toBeInstanceOf(RemoteConversation);
+  });
+
+  it('returns RemoteConversation when given a remote workspace', () => {
+    const conversation = Conversation({
+      settings: baseSettings,
+      workspace: Workspace({ kind: 'remote', serverUrl: 'http://localhost:3000', workingDir: '/workspace/project' }),
+    });
+    expect(conversation.mode).toBe('remote');
+    expect(conversation).toBeInstanceOf(RemoteConversation);
+  });
+
+  it('does not treat plain remote workspace payloads as runtime workspaces', () => {
+    expect(isAgentServerWorkspace({ kind: 'remote', working_dir: '/workspace/project' })).toBe(false);
+  });
+
+  it('keeps auth fresh on the serverUrl factory path when settings change', async () => {
+    let uploadCalls = 0;
+    const fetchMock = vi.fn((url: string, init?: { headers?: Record<string, string>; method?: string }) => {
+      if (url.includes('/api/file/upload')) {
+        expect(init?.method).toBe('POST');
+        uploadCalls += 1;
+        expect(init?.headers?.['X-Session-API-Key']).toBe(uploadCalls === 1 ? 'session-key-1' : 'session-key-2');
+        return Promise.resolve(new Response('', { status: 200 }));
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${url}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const conversation = Conversation({
+      serverUrl: 'http://localhost:3000',
+      settings: { ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key-1' } },
+      workspaceRoot: '/workspace',
+    });
+
+    expect(conversation).toBeInstanceOf(RemoteConversation);
+    const remoteConversation = conversation as RemoteConversation;
+    const workspace1 = remoteConversation.getWorkspace();
+
+    await workspace1.writeFile('notes.txt', 'hello');
+
+    remoteConversation.setSettings({
+      ...baseSettings,
+      secrets: { runtimeSessionApiKey: 'session-key-2' },
+    });
+    const workspace2 = remoteConversation.getWorkspace();
+    expect(workspace2).not.toBe(workspace1);
+
+    await workspace2.writeFile('notes.txt', 'hello');
   });
 
   it('supports local hello-world tool flow via Conversation()', async () => {
