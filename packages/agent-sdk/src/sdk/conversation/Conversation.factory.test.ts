@@ -62,16 +62,10 @@ afterEach(async () => {
 });
 
 describe('Conversation factory', () => {
-  it('returns LocalConversation when serverUrl is omitted', () => {
+  it('returns LocalConversation when no remote workspace is provided', () => {
     const conversation = Conversation({ settings: baseSettings });
     expect(conversation.mode).toBe('local');
     expect(conversation).toBeInstanceOf(LocalConversation);
-  });
-
-  it('returns RemoteConversation when serverUrl is provided', () => {
-    const conversation = Conversation({ serverUrl: 'http://localhost:3000', settings: baseSettings });
-    expect(conversation.mode).toBe('remote');
-    expect(conversation).toBeInstanceOf(RemoteConversation);
   });
 
   it('returns RemoteConversation when given a remote workspace', () => {
@@ -98,7 +92,7 @@ describe('Conversation factory', () => {
     })).toBe(false);
   });
 
-  it('keeps auth fresh on the serverUrl factory path when settings change', async () => {
+  it('keeps auth fresh on the remote workspace factory path when settings change', async () => {
     let uploadCalls = 0;
     const fetchMock = vi.fn((url: string, init?: { headers?: Record<string, string>; method?: string }) => {
       if (url.includes('/api/file/upload')) {
@@ -113,9 +107,13 @@ describe('Conversation factory', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const conversation = Conversation({
-      serverUrl: 'http://localhost:3000',
       settings: { ...baseSettings, secrets: { runtimeSessionApiKey: 'session-key-1' } },
-      workspaceRoot: '/workspace',
+      workspace: Workspace({
+        kind: 'remote',
+        serverUrl: 'http://localhost:3000',
+        workingDir: '/workspace',
+        runtimeSessionApiKey: 'session-key-1',
+      }),
     });
 
     expect(conversation).toBeInstanceOf(RemoteConversation);
@@ -129,7 +127,7 @@ describe('Conversation factory', () => {
       secrets: { runtimeSessionApiKey: 'session-key-2' },
     });
     const workspace2 = remoteConversation.getWorkspace();
-    expect(workspace2).not.toBe(workspace1);
+    expect(workspace2).toBe(workspace1);
 
     await workspace2.writeFile('notes.txt', 'hello');
   });

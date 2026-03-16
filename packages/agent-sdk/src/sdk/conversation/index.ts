@@ -16,7 +16,6 @@ export type ConversationMode = 'local' | 'remote';
 export type ConversationInstance = (LocalConversation | RemoteConversation) & { mode: ConversationMode };
 
 export interface ConversationFactoryOptions {
-  serverUrl?: string | null;
   settings: OpenHandsSettings;
   workspace?: BaseWorkspace;
   workspaceRoot?: string;
@@ -40,16 +39,6 @@ export function Conversation(options: ConversationFactoryOptions): ConversationI
     return new RemoteConversation({
       settings: options.settings,
       workspace: options.workspace,
-      conversationId: options.conversationId,
-      tools: options.tools,
-      includeDefaultTools: options.includeDefaultTools,
-    }) as ConversationInstance;
-  }
-  if (options.serverUrl) {
-    return new RemoteConversation({
-      serverUrl: options.serverUrl,
-      settings: options.settings,
-      workspaceRoot: options.workspaceRoot,
       conversationId: options.conversationId,
       tools: options.tools,
       includeDefaultTools: options.includeDefaultTools,
