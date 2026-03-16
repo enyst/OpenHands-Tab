@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LocalWorkspace, RemoteWorkspace, Workspace } from '..';
+import { AppleWorkspace, LocalWorkspace, RemoteWorkspace, Workspace } from '..';
 
 describe('Workspace() factory', () => {
   it('creates a local workspace by default', () => {
@@ -12,5 +12,11 @@ describe('Workspace() factory', () => {
     const ws = Workspace({ kind: 'remote', serverUrl: 'http://example.com', workingDir: '/workspace/project' });
     expect(ws.kind).toBe('remote');
     expect(ws).toBeInstanceOf(RemoteWorkspace);
+  });
+
+  it('creates an apple workspace when kind=apple', () => {
+    const ws = Workspace({ kind: 'apple', hostPort: 3100, serverImage: 'smolpaws-agent-server:dev', root: '/workspace/project' });
+    expect(ws.kind).toBe('apple');
+    expect(ws).toBeInstanceOf(AppleWorkspace);
   });
 });

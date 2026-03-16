@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { Event } from '../types';
+import type { BaseWorkspace } from '../../workspace';
 import { saveProfile } from '../llm';
 import { ConfirmRisky } from '../security/confirmationPolicy';
 import { LLMSecurityAnalyzer } from '../security/analyzer';
@@ -1142,6 +1143,54 @@ describe('RemoteConversation', () => {
     const ws = getEventWS();
     expect(ws.url).toMatch(/^ws:\/\/localhost:3000\/sockets\/events\/abc\?/);
     expect(ws.url).toContain('resend_all=true');
+  });
+
+  it('warms a provided workspace client before starting a conversation', async () => {
+    const isAlive = vi.fn(async () => true);
+    const workspaceClient = {
+      kind: 'apple',
+      root: '/workspace/project',
+      allowPath: vi.fn(),
+      isPathAllowed: vi.fn(() => true),
+      resolvePath: vi.fn((targetPath: string) => targetPath),
+      readFile: vi.fn(),
+      readFileBytes: vi.fn(),
+      writeFile: vi.fn(),
+      remove: vi.fn(),
+      list: vi.fn(),
+      ensureDirectory: vi.fn(),
+      runCommand: vi.fn(),
+      gitStatus: vi.fn(),
+      gitDiff: vi.fn(),
+      isAlive,
+      pause: vi.fn(),
+      resume: vi.fn(),
+    } as unknown as BaseWorkspace;
+
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(isAlive).toHaveBeenCalled();
+      if (url.endsWith('/api/conversations')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'conv-1' }),
+          text: async () => '',
+        } as any;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      workspace: { kind: 'apple', working_dir: '/workspace/project' },
+      workspaceClient,
+    });
+
+    await expect(conversation.startNewConversation()).resolves.toBe('conv-1');
+    expect(isAlive).toHaveBeenCalled();
   });
 
   it('does not include session_api_key in ws URL and uses ws headers for auth', async () => {

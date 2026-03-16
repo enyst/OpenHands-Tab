@@ -60,6 +60,7 @@ export interface RemoteConversationOptions {
   tools?: RemoteConversationTool[];
   includeDefaultTools?: boolean | string[];
   workspace?: RemoteConversationWorkspace;
+  workspaceClient?: BaseWorkspace;
   conversationId?: string;
   profileStoreOptions?: LLMProfileStoreOptions;
 }
@@ -141,13 +142,14 @@ export class RemoteConversation extends EventEmitter {
   private readonly hasToolsOption: boolean;
   private readonly workspace?: RemoteConversationWorkspace;
   private readonly profileStoreOptions?: LLMProfileStoreOptions;
+  private externalWorkspaceClient?: BaseWorkspace;
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
   private useLegacyWsSessionKeyQueryAuth = false;
 
   readonly state: RemoteState;
-  private workspaceClient?: RemoteWorkspace;
+  private workspaceClient?: BaseWorkspace;
 
 
   private asRecord(value: unknown): Record<string, unknown> | null {
@@ -205,6 +207,8 @@ export class RemoteConversation extends EventEmitter {
     this.includeDefaultTools = options.includeDefaultTools;
     this.workspace = options.workspace;
     this.profileStoreOptions = options.profileStoreOptions;
+    this.externalWorkspaceClient = options.workspaceClient;
+    this.workspaceClient = options.workspaceClient;
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
@@ -216,7 +220,7 @@ export class RemoteConversation extends EventEmitter {
           return;
         }
         if (this.conversationId === options.conversationId) {
-          this.connect();
+          void this.connect();
         }
       }).catch((err) => {
         this.emit('error', err instanceof Error ? err : new Error(String(err)));
@@ -296,13 +300,14 @@ export class RemoteConversation extends EventEmitter {
       // Re-probe header auth after key rotations; fall back to legacy query auth only if needed.
       this.useLegacyWsSessionKeyQueryAuth = false;
     }
-    if (this.workspaceClient && oldApiKey !== newApiKey) {
+    if (this.workspaceClient && oldApiKey !== newApiKey && !this.externalWorkspaceClient) {
       this.workspaceClient = undefined;
     }
   }
 
   setServerUrl(url: string) {
     this.serverUrl = normalizeRemoteServerUrl(url);
+    this.externalWorkspaceClient = undefined;
     this.workspaceClient = undefined;
     this.useLegacyWsSessionKeyQueryAuth = false;
   }
@@ -475,7 +480,7 @@ export class RemoteConversation extends EventEmitter {
         throw new Error('Server response missing conversation ID. Check agent-server logs.');
       }
       this.emit('conversationStarted', this.conversationId);
-      this.connect();
+      void this.connect();
       return this.conversationId;
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
@@ -501,7 +506,7 @@ export class RemoteConversation extends EventEmitter {
       this.setStatus('offline');
       return;
     }
-    this.connect();
+    void this.connect();
   }
 
   async pause() {
@@ -735,7 +740,7 @@ export class RemoteConversation extends EventEmitter {
     this.clearReconnect();
     this.reconnectBackoffPolicy.resetForManualReconnect();
     if (this.conversationId) {
-      this.connect();
+      void this.connect();
     }
   }
 
@@ -806,7 +811,9 @@ export class RemoteConversation extends EventEmitter {
       }
       return;
     }
-    this.reconnectTimer = setTimeout(() => this.connect(), decision.delayMs);
+    this.reconnectTimer = setTimeout(() => {
+      void this.connect();
+    }, decision.delayMs);
   }
 
   private clearWsHandshakeTimer() {
@@ -830,7 +837,13 @@ export class RemoteConversation extends EventEmitter {
     return this.serverUrl;
   }
 
+  private async ensureServerReady(): Promise<void> {
+    if (!this.externalWorkspaceClient) return;
+    await this.externalWorkspaceClient.isAlive();
+  }
+
   private async requestApi(path: string, init: RequestInit): Promise<Response> {
+    await this.ensureServerReady();
     return this.fetchWithTimeout(`${this.getApiBaseUrl()}${path}`, init, RemoteConversation.httpTimeoutMs);
   }
 
@@ -849,6 +862,23 @@ export class RemoteConversation extends EventEmitter {
   }
 
   private connect() {
+    if (!this.conversationId) return;
+    if (this.externalWorkspaceClient) {
+      void this.ensureServerReady().then(() => {
+        if (!this.conversationId) return;
+        this.openWebSocketConnection();
+      }).catch((error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.emit('error', err);
+        this.setStatus('offline');
+        this.scheduleReconnect();
+      });
+      return;
+    }
+    this.openWebSocketConnection();
+  }
+
+  private openWebSocketConnection() {
     if (!this.conversationId) return;
     const base = this.getApiBaseUrl();
     const usedLegacyWsSessionKeyQueryAuth = this.useLegacyWsSessionKeyQueryAuth;
@@ -908,7 +938,7 @@ export class RemoteConversation extends EventEmitter {
         } catch (closeErr) {
           void closeErr;
         }
-        this.connect();
+        void this.connect();
         return;
       }
       this.clearWsHandshakeTimer();
