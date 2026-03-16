@@ -10,7 +10,10 @@ import type { ConfirmationPolicy } from '../security/confirmationPolicy';
 import type { SecurityAnalyzer } from '../security/analyzer';
 import { RemoteState } from './RemoteState';
 import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
-import type { BaseWorkspace } from '../../workspace/BaseWorkspace';
+import {
+  isAgentServerWorkspace,
+  type AgentServerWorkspace,
+} from '../../workspace/BaseWorkspace';
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from '../../workspace/types';
 import { resolveToolsWithDefaultTools } from './includeDefaultTools';
 import { normalizeRemoteUrl } from '../../shared/remoteUrl';
@@ -32,7 +35,7 @@ export type RemoteConversationTool = {
 };
 
 export type RemoteConversationWorkspace = {
-  kind: string;
+  kind?: string;
   [key: string]: unknown;
 };
 
@@ -54,13 +57,12 @@ const toStaticSecret = (value: unknown): StaticSecret | undefined => {
 const normalizeRemoteServerUrl = normalizeRemoteUrl;
 
 export interface RemoteConversationOptions {
-  serverUrl: string;
   settings: OpenHandsSettings;
   workspaceRoot?: string;
   tools?: RemoteConversationTool[];
   includeDefaultTools?: boolean | string[];
-  workspace?: RemoteConversationWorkspace;
-  workspaceClient?: BaseWorkspace;
+  workspace?: AgentServerWorkspace | RemoteConversationWorkspace;
+  serverUrl?: string;
   conversationId?: string;
   profileStoreOptions?: LLMProfileStoreOptions;
 }
@@ -141,16 +143,16 @@ export class RemoteConversation extends EventEmitter {
   private readonly tools?: RemoteConversationTool[];
   private readonly includeDefaultTools?: boolean | string[];
   private readonly hasToolsOption: boolean;
-  private readonly workspace?: RemoteConversationWorkspace;
+  private readonly workspacePayload: RemoteConversationWorkspace;
   private readonly profileStoreOptions?: LLMProfileStoreOptions;
-  private externalWorkspaceClient?: BaseWorkspace;
+  private readonly ownsWorkspaceClient: boolean;
   private static readonly historyPageLimit = 100;
   private static readonly wsHandshakeTimeoutMs = 10_000;
   private static readonly httpTimeoutMs = 15_000;
   private useLegacyWsSessionKeyQueryAuth = false;
 
   readonly state: RemoteState;
-  private workspaceClient?: BaseWorkspace;
+  private workspaceClient: AgentServerWorkspace;
 
 
   private asRecord(value: unknown): Record<string, unknown> | null {
@@ -196,20 +198,19 @@ export class RemoteConversation extends EventEmitter {
   constructor(options: RemoteConversationOptions) {
     super();
     this.state = new RemoteState();
-
-    this.serverUrl = normalizeRemoteServerUrl(options.serverUrl);
     this.settings = options.settings;
-    const normalizedWorkspaceRoot = typeof options.workspaceRoot === 'string' && options.workspaceRoot.trim()
-      ? options.workspaceRoot.trim()
-      : undefined;
-    this.workspaceRoot = normalizedWorkspaceRoot ?? process.cwd();
     this.hasToolsOption = Object.prototype.hasOwnProperty.call(options, 'tools');
     this.tools = options.tools;
     this.includeDefaultTools = options.includeDefaultTools;
-    this.workspace = options.workspace;
     this.profileStoreOptions = options.profileStoreOptions;
-    this.externalWorkspaceClient = options.workspaceClient;
-    this.workspaceClient = options.workspaceClient;
+
+    const resolved = this.resolveWorkspaceOptions(options);
+    this.serverUrl = resolved.serverUrl;
+    this.workspaceRoot = resolved.workspaceRoot;
+    this.workspacePayload = resolved.workspacePayload;
+    this.workspaceClient = resolved.workspaceClient;
+    this.ownsWorkspaceClient = resolved.ownsWorkspaceClient;
+
     if (options.conversationId) {
       this.conversationId = options.conversationId;
       this.seenEventIds.clear();
@@ -229,18 +230,57 @@ export class RemoteConversation extends EventEmitter {
     }
   }
 
-  getWorkspace(): BaseWorkspace {
-    if (!this.workspaceClient) {
-      const rawWorkingDir = this.workspace?.['working_dir'];
-      const workingDir = typeof rawWorkingDir === 'string' ? rawWorkingDir : this.workspaceRoot;
-      const secrets = this.settings?.secrets;
-      this.workspaceClient = new RemoteWorkspace({
-        host: this.serverUrl,
-        cloudApiKey: secrets?.cloudApiKey,
-        runtimeSessionApiKey: secrets?.runtimeSessionApiKey,
-        workingDir,
-      });
+  private resolveWorkspaceOptions(options: RemoteConversationOptions): {
+    serverUrl: string;
+    workspaceRoot: string;
+    workspacePayload: RemoteConversationWorkspace;
+    workspaceClient: AgentServerWorkspace;
+    ownsWorkspaceClient: boolean;
+  } {
+    if (isAgentServerWorkspace(options.workspace)) {
+      const workspaceClient = options.workspace;
+      return {
+        serverUrl: normalizeRemoteServerUrl(workspaceClient.getServerUrl()),
+        workspaceRoot: workspaceClient.root,
+        workspacePayload: workspaceClient.getConversationWorkspacePayload(),
+        workspaceClient,
+        ownsWorkspaceClient: false,
+      };
     }
+
+    if (!options.serverUrl) {
+      throw new Error('RemoteConversation requires a remote workspace or serverUrl');
+    }
+
+    const normalizedWorkspaceRoot = typeof options.workspaceRoot === 'string' && options.workspaceRoot.trim()
+      ? options.workspaceRoot.trim()
+      : undefined;
+    const payloadWorkingDir = typeof options.workspace?.working_dir === 'string' && options.workspace.working_dir.trim()
+      ? options.workspace.working_dir.trim()
+      : undefined;
+    const workspaceRoot = normalizedWorkspaceRoot ?? payloadWorkingDir ?? process.cwd();
+    const serverUrl = normalizeRemoteServerUrl(options.serverUrl);
+
+    return {
+      serverUrl,
+      workspaceRoot,
+      workspacePayload: options.workspace ?? { working_dir: workspaceRoot },
+      workspaceClient: this.createOwnedWorkspaceClient(serverUrl, workspaceRoot),
+      ownsWorkspaceClient: true,
+    };
+  }
+
+  private createOwnedWorkspaceClient(serverUrl: string, workspaceRoot: string): AgentServerWorkspace {
+    const secrets = this.settings?.secrets;
+    return new RemoteWorkspace({
+      host: serverUrl,
+      cloudApiKey: secrets?.cloudApiKey,
+      runtimeSessionApiKey: secrets?.runtimeSessionApiKey,
+      workingDir: workspaceRoot,
+    });
+  }
+
+  getWorkspace(): AgentServerWorkspace {
     return this.workspaceClient;
   }
 
@@ -301,15 +341,17 @@ export class RemoteConversation extends EventEmitter {
       // Re-probe header auth after key rotations; fall back to legacy query auth only if needed.
       this.useLegacyWsSessionKeyQueryAuth = false;
     }
-    if (this.workspaceClient && oldApiKey !== newApiKey && !this.externalWorkspaceClient) {
-      this.workspaceClient = undefined;
+    if (oldApiKey !== newApiKey && this.ownsWorkspaceClient) {
+      this.workspaceClient = this.createOwnedWorkspaceClient(this.serverUrl, this.workspaceRoot);
     }
   }
 
   setServerUrl(url: string) {
+    if (!this.ownsWorkspaceClient) {
+      throw new Error('Cannot setServerUrl when RemoteConversation was created with an injected workspace');
+    }
     this.serverUrl = normalizeRemoteServerUrl(url);
-    this.externalWorkspaceClient = undefined;
-    this.workspaceClient = undefined;
+    this.workspaceClient = this.createOwnedWorkspaceClient(this.serverUrl, this.workspaceRoot);
     this.useLegacyWsSessionKeyQueryAuth = false;
   }
 
@@ -436,8 +478,6 @@ export class RemoteConversation extends EventEmitter {
         { name: 'file_editor' },
         { name: 'task_tracker' },
       ];
-      const workspace = this.workspace ?? { working_dir: this.workspaceRoot };
-
       const tools = resolveToolsWithDefaultTools({
         includeDefaultTools: this.includeDefaultTools,
         hasToolsOption: this.hasToolsOption,
@@ -451,7 +491,7 @@ export class RemoteConversation extends EventEmitter {
           tools,
           security_analyzer: s?.agent.enableSecurityAnalyzer ? ({ kind: 'LLMSecurityAnalyzer' } satisfies RemoteSecurityAnalyzerPayload) : undefined,
         },
-        workspace,
+        workspace: this.workspacePayload,
         secrets: typedSecrets,
         confirmation_policy,
         max_iterations: clampedMaxIterations,
@@ -767,22 +807,11 @@ export class RemoteConversation extends EventEmitter {
   }
 
   private getAuthHeaders(): Record<string, string> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const secrets = this.settings?.secrets;
-    const isCloud = isOpenHandsCloudServerUrl(this.serverUrl);
-    if (isCloud) {
-      const cloudApiKey = secrets?.cloudApiKey ?? '';
-      if (cloudApiKey) headers['Authorization'] = `Bearer ${cloudApiKey}`;
-      return headers;
-    }
-    const runtimeSessionApiKey = secrets?.runtimeSessionApiKey ?? '';
-    if (runtimeSessionApiKey) headers['X-Session-API-Key'] = runtimeSessionApiKey;
-    return headers;
+    return this.workspaceClient.getAuthHeaders({ 'Content-Type': 'application/json' });
   }
 
   private getRuntimeSessionApiKey(): string {
-    const runtimeSessionApiKey = this.settings?.secrets?.runtimeSessionApiKey;
-    return typeof runtimeSessionApiKey === 'string' ? runtimeSessionApiKey.trim() : '';
+    return this.workspaceClient.getRuntimeSessionApiKey();
   }
 
   private canUseLegacyWsSessionKeyQueryAuth(): boolean {
@@ -836,12 +865,12 @@ export class RemoteConversation extends EventEmitter {
   }
 
   private getApiBaseUrl(): string {
-    return this.serverUrl;
+    return this.workspaceClient.getServerUrl();
   }
 
   private async ensureServerReady(): Promise<void> {
-    if (!this.externalWorkspaceClient) return;
-    const isAlive = await this.externalWorkspaceClient.isAlive();
+    if (this.workspaceClient.kind !== 'apple') return;
+    const isAlive = await this.workspaceClient.isAlive();
     if (!isAlive) {
       throw new Error('External workspace server is not ready');
     }
@@ -868,22 +897,22 @@ export class RemoteConversation extends EventEmitter {
 
   private connect() {
     if (!this.conversationId) return;
-    if (this.externalWorkspaceClient) {
-      const connectAttemptId = ++this.connectAttemptId;
-      void this.ensureServerReady().then(() => {
-        if (this.connectAttemptId !== connectAttemptId) return;
-        if (!this.conversationId) return;
-        this.openWebSocketConnection();
-      }).catch((error) => {
-        if (this.connectAttemptId !== connectAttemptId) return;
-        const err = error instanceof Error ? error : new Error(String(error));
-        this.emit('error', err);
-        this.setStatus('offline');
-        this.scheduleReconnect();
-      });
+    if (this.workspaceClient.kind !== 'apple') {
+      this.openWebSocketConnection();
       return;
     }
-    this.openWebSocketConnection();
+    const connectAttemptId = ++this.connectAttemptId;
+    void this.ensureServerReady().then(() => {
+      if (this.connectAttemptId !== connectAttemptId) return;
+      if (!this.conversationId) return;
+      this.openWebSocketConnection();
+    }).catch((error) => {
+      if (this.connectAttemptId !== connectAttemptId) return;
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.emit('error', err);
+      this.setStatus('offline');
+      this.scheduleReconnect();
+    });
   }
 
   private openWebSocketConnection() {

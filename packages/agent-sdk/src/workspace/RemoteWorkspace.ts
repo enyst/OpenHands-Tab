@@ -1,5 +1,5 @@
 import path from 'node:path';
-import type { BaseWorkspace } from './BaseWorkspace';
+import type { AgentServerWorkspace } from './BaseWorkspace';
 import type {
   CommandOptions,
   CommandResult,
@@ -97,7 +97,7 @@ const isBashOutputItem = (value: unknown): value is BashOutputItem => {
   return true;
 };
 
-export class RemoteWorkspace implements BaseWorkspace {
+export class RemoteWorkspace implements AgentServerWorkspace {
   readonly kind = 'remote' as const;
   readonly root: string;
 
@@ -131,6 +131,20 @@ export class RemoteWorkspace implements BaseWorkspace {
     this.runtimeId = typeof options.runtimeId === 'string' && options.runtimeId.trim() ? options.runtimeId.trim() : undefined;
 
     this.allowedRoots.add(this.root);
+  }
+
+  getServerUrl(): string {
+    return this.host;
+  }
+
+  getRuntimeSessionApiKey(): string {
+    return this.runtimeSessionApiKey ?? '';
+  }
+
+  getConversationWorkspacePayload(): { working_dir: string } {
+    return {
+      working_dir: this.root,
+    };
   }
 
   allowPath(targetPath: string): void {
@@ -420,7 +434,7 @@ export class RemoteWorkspace implements BaseWorkspace {
     }
   }
 
-  private getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {
     const headers: Record<string, string> = { ...extra };
     if (isOpenHandsCloudServerUrl(this.host)) {
       if (this.cloudApiKey) headers['Authorization'] = `Bearer ${this.cloudApiKey}`;

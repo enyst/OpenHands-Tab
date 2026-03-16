@@ -4,7 +4,10 @@ import type { AgentContext } from '../context';
 import type { SecretRegistry } from '../runtime';
 import type { AgentHook } from '../runtime/hooks';
 import type { SecretStorage } from 'vscode';
-import type { BaseWorkspace } from '../../workspace';
+import {
+  isAgentServerWorkspace,
+  type BaseWorkspace,
+} from '../../workspace';
 import { LocalConversation } from './LocalConversation';
 import { RemoteConversation } from './RemoteConversation';
 
@@ -33,12 +36,22 @@ export interface ConversationFactoryOptions {
 }
 
 export function Conversation(options: ConversationFactoryOptions): ConversationInstance {
+  if (options.workspace && isAgentServerWorkspace(options.workspace)) {
+    return new RemoteConversation({
+      settings: options.settings,
+      workspace: options.workspace,
+      conversationId: options.conversationId,
+      tools: options.tools,
+      includeDefaultTools: options.includeDefaultTools,
+    }) as ConversationInstance;
+  }
   if (options.serverUrl) {
     return new RemoteConversation({
       serverUrl: options.serverUrl,
       settings: options.settings,
       workspaceRoot: options.workspaceRoot,
       conversationId: options.conversationId,
+      tools: options.tools,
       includeDefaultTools: options.includeDefaultTools,
     }) as ConversationInstance;
   }
