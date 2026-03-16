@@ -1,6 +1,6 @@
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from './types';
 
-export type WorkspaceKind = 'local' | 'remote';
+export type WorkspaceKind = 'local' | 'remote' | 'apple';
 
 export interface BaseWorkspace {
   kind: WorkspaceKind;

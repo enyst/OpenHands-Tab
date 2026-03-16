@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import type { Event } from '../types';
+import type { BaseWorkspace } from '../../workspace';
 import { saveProfile } from '../llm';
 import { ConfirmRisky } from '../security/confirmationPolicy';
 import { LLMSecurityAnalyzer } from '../security/analyzer';
@@ -586,6 +587,7 @@ describe('RemoteConversation', () => {
 
     await expect(conversation.askAgent('What is 2+2?')).resolves.toBe('4');
     expect(received).toEqual([]);
+    conversation.disconnect();
   });
 
   it('askAgent throws when server returns null JSON', async () => {
@@ -618,6 +620,7 @@ describe('RemoteConversation', () => {
     await conversation.restoreConversation('abc');
 
     await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('askAgent: server response missing "response"');
+    conversation.disconnect();
   });
 
   it('askAgent throws when server response is missing "response"', async () => {
@@ -650,6 +653,7 @@ describe('RemoteConversation', () => {
     await conversation.restoreConversation('abc');
 
     await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('askAgent: server response missing "response"');
+    conversation.disconnect();
   });
 
   it('askAgent throws on non-2xx response', async () => {
@@ -682,6 +686,7 @@ describe('RemoteConversation', () => {
     await conversation.restoreConversation('abc');
 
     await expect(conversation.askAgent('What is 2+2?')).rejects.toThrow('Failed to ask agent (HTTP 503): unavailable');
+    conversation.disconnect();
   });
 
   it('generateTitle posts /generate_title and returns the title', async () => {
@@ -1142,6 +1147,151 @@ describe('RemoteConversation', () => {
     const ws = getEventWS();
     expect(ws.url).toMatch(/^ws:\/\/localhost:3000\/sockets\/events\/abc\?/);
     expect(ws.url).toContain('resend_all=true');
+  });
+
+  it('warms a provided workspace client before starting a conversation', async () => {
+    const isAlive = vi.fn(async () => true);
+    const workspaceClient = {
+      kind: 'apple',
+      root: '/workspace/project',
+      allowPath: vi.fn(),
+      isPathAllowed: vi.fn(() => true),
+      resolvePath: vi.fn((targetPath: string) => targetPath),
+      readFile: vi.fn(),
+      readFileBytes: vi.fn(),
+      writeFile: vi.fn(),
+      remove: vi.fn(),
+      list: vi.fn(),
+      ensureDirectory: vi.fn(),
+      runCommand: vi.fn(),
+      gitStatus: vi.fn(),
+      gitDiff: vi.fn(),
+      isAlive,
+      pause: vi.fn(),
+      resume: vi.fn(),
+    } as unknown as BaseWorkspace;
+
+    const fetchMock = vi.fn(async (url: string) => {
+      expect(isAlive).toHaveBeenCalled();
+      if (url.endsWith('/api/conversations')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'conv-1' }),
+          text: async () => '',
+        } as any;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      workspace: { kind: 'apple', working_dir: '/workspace/project' },
+      workspaceClient,
+    });
+
+    await expect(conversation.startNewConversation()).resolves.toBe('conv-1');
+    expect(isAlive).toHaveBeenCalled();
+  });
+
+  it('fails before starting a conversation when a provided workspace client is not alive', async () => {
+    const isAlive = vi.fn(async () => false);
+    const workspaceClient = {
+      kind: 'apple',
+      root: '/workspace/project',
+      allowPath: vi.fn(),
+      isPathAllowed: vi.fn(() => true),
+      resolvePath: vi.fn((targetPath: string) => targetPath),
+      readFile: vi.fn(),
+      readFileBytes: vi.fn(),
+      writeFile: vi.fn(),
+      remove: vi.fn(),
+      list: vi.fn(),
+      ensureDirectory: vi.fn(),
+      runCommand: vi.fn(),
+      gitStatus: vi.fn(),
+      gitDiff: vi.fn(),
+      isAlive,
+      pause: vi.fn(),
+      resume: vi.fn(),
+    } as unknown as BaseWorkspace;
+
+    const fetchMock = vi.fn();
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      workspace: { kind: 'apple', working_dir: '/workspace/project' },
+      workspaceClient,
+    });
+
+    await expect(conversation.startNewConversation()).rejects.toThrow('External workspace server is not ready');
+    expect(isAlive).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not reconnect after disconnect when workspace warmup finishes late', async () => {
+    let resolveWarmup: ((value: boolean) => void) | undefined;
+    const isAlive = vi.fn()
+      .mockResolvedValueOnce(true)
+      .mockImplementationOnce(async () => await new Promise<boolean>((resolve) => {
+        resolveWarmup = resolve;
+      }));
+    const workspaceClient = {
+      kind: 'apple',
+      root: '/workspace/project',
+      allowPath: vi.fn(),
+      isPathAllowed: vi.fn(() => true),
+      resolvePath: vi.fn((targetPath: string) => targetPath),
+      readFile: vi.fn(),
+      readFileBytes: vi.fn(),
+      writeFile: vi.fn(),
+      remove: vi.fn(),
+      list: vi.fn(),
+      ensureDirectory: vi.fn(),
+      runCommand: vi.fn(),
+      gitStatus: vi.fn(),
+      gitDiff: vi.fn(),
+      isAlive,
+      pause: vi.fn(),
+      resume: vi.fn(),
+    } as unknown as BaseWorkspace;
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/api/conversations')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'conv-1' }),
+          text: async () => '',
+        } as any;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const { RemoteConversation } = await import('../conversation/RemoteConversation');
+    const conversation = new RemoteConversation({
+      serverUrl: 'http://localhost:3000',
+      settings: baseSettings,
+      workspace: { kind: 'apple', working_dir: '/workspace/project' },
+      workspaceClient,
+    });
+
+    await expect(conversation.startNewConversation()).resolves.toBe('conv-1');
+    expect(wsInstances).toHaveLength(0);
+
+    conversation.disconnect();
+    resolveWarmup?.(true);
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wsInstances).toHaveLength(0);
   });
 
   it('does not include session_api_key in ws URL and uses ws headers for auth', async () => {
