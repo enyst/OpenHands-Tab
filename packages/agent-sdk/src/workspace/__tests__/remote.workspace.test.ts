@@ -28,6 +28,12 @@ describe('RemoteWorkspace', () => {
     expect(() => ws.resolvePath('/etc/passwd')).toThrowError(/Path escapes workspace root/i);
   });
 
+  it('defaults to the generic server-side workspace/project root', () => {
+    const ws = new RemoteWorkspace({ host: 'http://localhost:3000' });
+    expect(ws.root).toBe('workspace/project');
+    expect(ws.getConversationWorkspacePayload()).toEqual({ working_dir: 'workspace/project' });
+  });
+
   it('executes commands via bash endpoints and returns a CommandResult', async () => {
     const commandId = '00000000-0000-0000-0000-000000000001';
     const event1Id = '00000000-0000-0000-0000-000000000002';
@@ -142,6 +148,27 @@ describe('RemoteWorkspace', () => {
 
     await ws.writeFile('hello.txt', 'hello');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('updates auth headers after setAuth', async () => {
+    let uploadCalls = 0;
+    const fetchMock = vi.fn(async (_url: string, init?: any) => {
+      uploadCalls += 1;
+      expect(init?.headers?.['X-Session-API-Key']).toBe(uploadCalls === 1 ? 'session-key-1' : 'session-key-2');
+      return okJson({ ok: true }) as any;
+    });
+    (globalThis as any).fetch = fetchMock;
+
+    const ws = new RemoteWorkspace({
+      host: 'http://localhost:3000',
+      workingDir: '/workspace/project',
+      runtimeSessionApiKey: 'session-key-1',
+    });
+
+    await ws.writeFile('hello.txt', 'hello');
+    ws.setAuth({ runtimeSessionApiKey: 'session-key-2' });
+    expect(ws.getRuntimeSessionApiKey()).toBe('session-key-2');
+    await ws.writeFile('hello.txt', 'hello');
   });
 
   it('reports liveness via /health', async () => {

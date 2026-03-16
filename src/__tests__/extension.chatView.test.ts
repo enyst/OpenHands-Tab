@@ -49,6 +49,9 @@ describe('Chat view behavior', () => {
     const { Conversation } = await import('@smolpaws/agent-sdk');
     const options = (Conversation as unknown as Mock).mock.calls.at(-1)?.[0] as any;
     expect(options?.settings?.secrets?.runtimeSessionApiKey).toBe('runtime-token');
+    expect(options?.serverUrl).toBeUndefined();
+    expect(options?.workspace?.kind).toBe('remote');
+    expect(options?.workspace?.root).toBe('workspace/project');
   });
 
   it('does not inject runtimeSessionApiKey when missing', async () => {

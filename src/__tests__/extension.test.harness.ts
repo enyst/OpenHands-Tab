@@ -116,9 +116,64 @@ vi.mock('@smolpaws/agent-sdk', () => {
     getRegisteredValues = vi.fn(() => registeredSecretValues);
   }
 
+  const Workspace = vi.fn((options: any = {}) => {
+    const remoteState = {
+      cloudApiKey: options.cloudApiKey,
+      runtimeSessionApiKey: options.runtimeSessionApiKey,
+    };
+    const getAuthHeaders = (extra: Record<string, string> = {}) => {
+      const headers = { ...extra };
+      if (remoteState.cloudApiKey) {
+        headers.Authorization = `Bearer ${remoteState.cloudApiKey}`;
+      } else if (remoteState.runtimeSessionApiKey) {
+        headers['X-Session-API-Key'] = remoteState.runtimeSessionApiKey;
+      }
+      return headers;
+    };
+    const setAuth = (next: { cloudApiKey?: string; runtimeSessionApiKey?: string }) => {
+      remoteState.cloudApiKey = next.cloudApiKey;
+      remoteState.runtimeSessionApiKey = next.runtimeSessionApiKey;
+    };
+
+    if (options.kind === 'remote') {
+      const root = options.workingDir ?? options.workspaceRoot ?? 'workspace/project';
+      const serverUrl = options.serverUrl ?? 'http://localhost:3000';
+      return {
+        kind: 'remote',
+        root,
+        serverUrl,
+        getServerUrl: () => serverUrl,
+        getAuthHeaders,
+        getRuntimeSessionApiKey: () => remoteState.runtimeSessionApiKey ?? '',
+        getConversationWorkspacePayload: () => ({ working_dir: root }),
+        setAuth,
+      };
+    }
+    if (options.kind === 'apple') {
+      const root = options.root ?? '/workspace';
+      const serverUrl = options.serverUrl ?? 'http://localhost:3000';
+      return {
+        kind: 'apple',
+        root,
+        serverUrl,
+        getServerUrl: () => serverUrl,
+        getAuthHeaders,
+        getRuntimeSessionApiKey: () => remoteState.runtimeSessionApiKey ?? '',
+        getConversationWorkspacePayload: () => ({ working_dir: root }),
+        setAuth,
+      };
+    }
+    return {
+      kind: 'local',
+      root: options.root ?? '/workspace',
+    };
+  });
+
   const Conversation = vi.fn((options: any) => {
     const emitter = new EventEmitter() as any;
-    emitter.mode = options?.serverUrl ? 'remote' : 'local';
+    emitter.mode = options?.workspace?.kind === 'remote' || options?.workspace?.kind === 'apple' || options?.serverUrl
+      ? 'remote'
+      : 'local';
     emitter.conversationId = options?.conversationId ?? null;
     emitter.status = 'offline';
     emitter.getConversationId = vi.fn(() => emitter.conversationId);
@@ -162,6 +217,7 @@ vi.mock('@smolpaws/agent-sdk', () => {
     AgentContext,
     Conversation,
     SecretRegistry,
+    Workspace,
     loadSkillsFromDir: vi.fn(() => ({ repoSkills: new Map(), knowledgeSkills: new Map(), agentSkills: new Map() })),
     isBashCommand: vi.fn((event: any) => event?.type === 'BashCommand'),
     isBashOutput: vi.fn((event: any) => event?.type === 'BashOutput'),

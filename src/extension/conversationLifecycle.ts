@@ -9,6 +9,7 @@ import {
   loadSkillsFromDir,
   type SecretRegistry,
   type Skill,
+  Workspace,
 } from '@smolpaws/agent-sdk';
 import { bootstrapCloudRemoteConversation, type CloudBootstrapResult } from '../cloud/cloudRemoteBootstrap';
 import { getServerCloudApiKeySecretKey } from '../auth/serverCloudApiKeys';
@@ -267,11 +268,22 @@ export function createConversationLifecycleOrchestrator(deps: ConversationLifecy
         savedId = bootstrapConversationId;
       }
 
+      const remoteWorkspace = desiredMode === 'remote' && effectiveServerUrl
+        ? Workspace({
+          kind: 'remote',
+          serverUrl: effectiveServerUrl,
+          // Cloud sandboxes expect absolute /workspace/project; generic remote stays on the Python-parity relative default.
+          workingDir: isCloudRemote ? '/workspace/project' : undefined,
+          cloudApiKey: settings.secrets?.cloudApiKey,
+          runtimeSessionApiKey: settings.secrets?.runtimeSessionApiKey,
+        })
+        : undefined;
+
       const conversationOptions = {
-        serverUrl: effectiveServerUrl,
         settings,
-        workspaceRoot,
-        tools: settings.serverUrl ? undefined : resolveLocalTools(),
+        workspace: remoteWorkspace,
+        workspaceRoot: desiredMode === 'local' ? workspaceRoot : undefined,
+        tools: desiredMode === 'local' ? resolveLocalTools() : undefined,
         secrets,
         persistenceDir,
         agentContext,
