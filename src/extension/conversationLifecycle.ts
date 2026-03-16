@@ -272,6 +272,7 @@ export function createConversationLifecycleOrchestrator(deps: ConversationLifecy
         ? Workspace({
           kind: 'remote',
           serverUrl: effectiveServerUrl,
+          // Cloud sandboxes expect absolute /workspace/project; generic remote stays on the Python-parity relative default.
           workingDir: isCloudRemote ? '/workspace/project' : undefined,
           cloudApiKey: settings.secrets?.cloudApiKey,
           runtimeSessionApiKey: settings.secrets?.runtimeSessionApiKey,
