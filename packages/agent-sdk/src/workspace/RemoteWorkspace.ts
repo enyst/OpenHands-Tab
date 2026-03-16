@@ -141,9 +141,8 @@ export class RemoteWorkspace implements AgentServerWorkspace {
     return this.runtimeSessionApiKey ?? '';
   }
 
-  getConversationWorkspacePayload(): { kind: 'local'; working_dir: string } {
+  getConversationWorkspacePayload(): { working_dir: string } {
     return {
-      kind: 'local',
       working_dir: this.root,
     };
   }

@@ -3,7 +3,6 @@ import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding }
 export type WorkspaceKind = 'local' | 'remote' | 'apple';
 export type RemoteWorkspaceKind = 'remote' | 'apple';
 export type ConversationWorkspacePayload = {
-  kind: 'local';
   working_dir: string;
 };
 

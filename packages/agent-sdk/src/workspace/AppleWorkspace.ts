@@ -118,7 +118,7 @@ export class AppleWorkspace implements AgentServerWorkspace {
   }
 
   getServerUrl(): string {
-    return this.serverUrl;
+    return this.remote.getServerUrl();
   }
 
   getAuthHeaders(extra: Record<string, string> = {}): Record<string, string> {

@@ -35,7 +35,7 @@ export type RemoteConversationTool = {
 };
 
 export type RemoteConversationWorkspace = {
-  kind: string;
+  kind?: string;
   [key: string]: unknown;
 };
 
@@ -261,7 +261,7 @@ export class RemoteConversation extends EventEmitter {
     return {
       serverUrl,
       workspaceRoot,
-      workspacePayload: options.workspace ?? { kind: 'local', working_dir: workspaceRoot },
+      workspacePayload: options.workspace ?? { working_dir: workspaceRoot },
       workspaceClient: this.createOwnedWorkspaceClient(serverUrl, workspaceRoot),
       ownsWorkspaceClient: true,
     };

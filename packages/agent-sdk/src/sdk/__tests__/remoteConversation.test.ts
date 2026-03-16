@@ -224,7 +224,7 @@ describe('RemoteConversation', () => {
       expect(url).toContain('/api/conversations');
       const body = JSON.parse(init?.body ?? '{}');
       expect(body.agent.kind).toBe('Agent');
-      expect(body.workspace).toEqual({ kind: 'local', working_dir: process.cwd() });
+      expect(body.workspace).toEqual({ working_dir: process.cwd() });
       expect(body.secrets).toEqual({
         ELEVENLABS_API_KEY: { kind: 'StaticSecret', value: 'xi-example123' },
         GITHUB_TOKEN: { kind: 'StaticSecret', value: 'ghp_example123' },
@@ -1158,7 +1158,7 @@ describe('RemoteConversation', () => {
       getServerUrl: vi.fn(() => 'http://localhost:3000'),
       getAuthHeaders: vi.fn((extra?: Record<string, string>) => ({ 'Content-Type': 'application/json', ...extra })),
       getRuntimeSessionApiKey: vi.fn(() => ''),
-      getConversationWorkspacePayload: vi.fn(() => ({ kind: 'local', working_dir: '/workspace/project' })),
+      getConversationWorkspacePayload: vi.fn(() => ({ working_dir: '/workspace/project' })),
       allowPath: vi.fn(),
       isPathAllowed: vi.fn(() => true),
       resolvePath: vi.fn((targetPath: string) => targetPath),
@@ -1208,7 +1208,7 @@ describe('RemoteConversation', () => {
       getServerUrl: vi.fn(() => 'http://localhost:3000'),
       getAuthHeaders: vi.fn(() => ({ 'Content-Type': 'application/json' })),
       getRuntimeSessionApiKey: vi.fn(() => ''),
-      getConversationWorkspacePayload: vi.fn(() => ({ kind: 'local', working_dir: '/workspace/project' as const })),
+      getConversationWorkspacePayload: vi.fn(() => ({ working_dir: '/workspace/project' as const })),
       allowPath: vi.fn(),
       isPathAllowed: vi.fn(() => true),
       resolvePath: vi.fn((targetPath: string) => targetPath),
