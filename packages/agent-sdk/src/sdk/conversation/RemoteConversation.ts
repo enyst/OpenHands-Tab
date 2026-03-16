@@ -10,6 +10,7 @@ import type { ConfirmationPolicy } from '../security/confirmationPolicy';
 import type { SecurityAnalyzer } from '../security/analyzer';
 import { RemoteState } from './RemoteState';
 import { RemoteWorkspace } from '../../workspace/RemoteWorkspace';
+import { DEFAULT_REMOTE_WORKING_DIR } from '../../workspace/RemoteWorkspace';
 import {
   isAgentServerWorkspace,
   type AgentServerWorkspace,
@@ -258,7 +259,7 @@ export class RemoteConversation extends EventEmitter {
     const payloadWorkingDir = typeof options.workspace?.working_dir === 'string' && options.workspace.working_dir.trim()
       ? options.workspace.working_dir.trim()
       : undefined;
-    const workspaceRoot = normalizedWorkspaceRoot ?? payloadWorkingDir ?? process.cwd();
+    const workspaceRoot = normalizedWorkspaceRoot ?? payloadWorkingDir ?? DEFAULT_REMOTE_WORKING_DIR;
     const serverUrl = normalizeRemoteServerUrl(options.serverUrl);
 
     return {

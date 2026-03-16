@@ -51,7 +51,7 @@ describe('Chat view behavior', () => {
     expect(options?.settings?.secrets?.runtimeSessionApiKey).toBe('runtime-token');
     expect(options?.serverUrl).toBeUndefined();
     expect(options?.workspace?.kind).toBe('remote');
-    expect(options?.workspace?.root).toBe('/test/workspace');
+    expect(options?.workspace?.root).toBe('workspace/project');
   });
 
   it('does not inject runtimeSessionApiKey when missing', async () => {

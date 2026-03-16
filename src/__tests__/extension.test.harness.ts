@@ -120,7 +120,7 @@ vi.mock('@smolpaws/agent-sdk', () => {
     if (options.kind === 'remote') {
       return {
         kind: 'remote',
-        root: options.workingDir ?? options.workspaceRoot ?? '/workspace',
+        root: options.workingDir ?? options.workspaceRoot ?? 'workspace/project',
         serverUrl: options.serverUrl,
       };
     }

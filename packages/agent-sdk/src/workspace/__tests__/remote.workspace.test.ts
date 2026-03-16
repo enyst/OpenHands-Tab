@@ -28,6 +28,12 @@ describe('RemoteWorkspace', () => {
     expect(() => ws.resolvePath('/etc/passwd')).toThrowError(/Path escapes workspace root/i);
   });
 
+  it('defaults to the generic server-side workspace/project root', () => {
+    const ws = new RemoteWorkspace({ host: 'http://localhost:3000' });
+    expect(ws.root).toBe('workspace/project');
+    expect(ws.getConversationWorkspacePayload()).toEqual({ working_dir: 'workspace/project' });
+  });
+
   it('executes commands via bash endpoints and returns a CommandResult', async () => {
     const commandId = '00000000-0000-0000-0000-000000000001';
     const event1Id = '00000000-0000-0000-0000-000000000002';

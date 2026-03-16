@@ -10,6 +10,7 @@ import { normalizeRemoteUrl } from '../shared/remoteUrl';
 import { isOpenHandsCloudServerUrl } from '../shared/cloudServers';
 
 const normalizeRemoteHostUrl = normalizeRemoteUrl;
+export const DEFAULT_REMOTE_WORKING_DIR = 'workspace/project';
 
 const normalizePosixRoot = (raw: string): string => {
   const normalized = path.posix.normalize(raw.trim() || '/');
@@ -121,7 +122,7 @@ export class RemoteWorkspace implements AgentServerWorkspace {
     this.host = normalizeRemoteHostUrl(options.host);
     this.cloudApiKey = normalizeSecret(options.cloudApiKey);
     this.runtimeSessionApiKey = normalizeSecret(options.runtimeSessionApiKey);
-    this.root = normalizePosixRoot(options.workingDir ?? '/workspace');
+    this.root = normalizePosixRoot(options.workingDir ?? DEFAULT_REMOTE_WORKING_DIR);
     this.pollIntervalMs = typeof options.pollIntervalMs === 'number' ? Math.max(0, options.pollIntervalMs) : 100;
     this.httpTimeoutMs = typeof options.httpTimeoutMs === 'number' ? Math.max(0, options.httpTimeoutMs) : 60_000;
 

@@ -272,7 +272,7 @@ export function createConversationLifecycleOrchestrator(deps: ConversationLifecy
         ? Workspace({
           kind: 'remote',
           serverUrl: effectiveServerUrl,
-          workingDir: workspaceRoot,
+          workingDir: isCloudRemote ? '/workspace/project' : undefined,
           cloudApiKey: settings.secrets?.cloudApiKey,
           runtimeSessionApiKey: settings.secrets?.runtimeSessionApiKey,
         })

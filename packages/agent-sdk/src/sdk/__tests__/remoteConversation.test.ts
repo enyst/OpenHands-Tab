@@ -225,7 +225,7 @@ describe('RemoteConversation', () => {
       expect(url).toContain('/api/conversations');
       const body = JSON.parse(init?.body ?? '{}');
       expect(body.agent.kind).toBe('Agent');
-      expect(body.workspace).toEqual({ working_dir: process.cwd() });
+      expect(body.workspace).toEqual({ working_dir: 'workspace/project' });
       expect(body.secrets).toEqual({
         ELEVENLABS_API_KEY: { kind: 'StaticSecret', value: 'xi-example123' },
         GITHUB_TOKEN: { kind: 'StaticSecret', value: 'ghp_example123' },
