@@ -34,7 +34,7 @@ import { SecretRegistry } from './SecretRegistry';
 import type { AgentContext } from '../context';
 import { createToolCallErrorEvents } from './toolCallErrorEvents';
 import { classifyConversationErrorCode, ClassifiedToolExecutionError, classifyError } from './errorPolicy';
-import { SYSTEM_PROMPT } from './systemPrompt';
+import { SYSTEM_PROMPT_BODY, SYSTEM_PROMPT_IDENTITY } from './systemPrompt';
 import {
   redactAndTruncateArgs,
   sanitizeChatRequestForDebug,
@@ -1018,7 +1018,8 @@ export class Agent extends EventEmitter {
   }
 
   private buildSystemPrompt(): string {
-    let systemPrompt = SYSTEM_PROMPT;
+    const promptIdentity = this.agentContext?.getSystemMessagePrefix() ?? SYSTEM_PROMPT_IDENTITY;
+    let systemPrompt = `${promptIdentity}\n\n${SYSTEM_PROMPT_BODY}`;
     if (!this.shouldIncludeSecurityRiskAssessment()) {
       systemPrompt = systemPrompt.replace(SECURITY_RISK_ASSESSMENT_SECTION, '');
     }
