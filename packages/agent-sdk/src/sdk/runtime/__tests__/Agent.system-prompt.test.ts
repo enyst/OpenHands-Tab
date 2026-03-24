@@ -69,6 +69,43 @@ describe('Agent system prompt', () => {
     expect(systemPromptEvent.system_prompt.text).toBe(systemPrompt);
   });
 
+  it('prepends the latest AgentContext systemMessagePrefix on each LLM request', async () => {
+    const settings: OpenHandsSettings = {
+      llm: { model: 'test-model' },
+      agent: {},
+      conversation: { maxIterations: 3 },
+      confirmation: { policy: 'never' },
+      secrets: {},
+    };
+    const log = new EventLog();
+    const llm = new RecordingLLM();
+    const agentContext = new AgentContext({
+      systemMessagePrefix: 'You are smolpaws, the tiny cat agent based on OpenHands.',
+    });
+
+    const agent = new Agent({
+      settings,
+      events: log,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      agentContext,
+    });
+
+    await agent.run('hi');
+    expect(llm.requests[0]?.systemPrompt.startsWith('You are smolpaws, the tiny cat agent based on OpenHands.')).toBe(true);
+    expect(llm.requests[0]?.systemPrompt).not.toContain('You are OpenHands agent');
+
+    agentContext.systemMessagePrefix = 'You are smolpaws, alive and helpful.';
+    await agent.run('hi again');
+    expect(llm.requests[1]?.systemPrompt.startsWith('You are smolpaws, alive and helpful.')).toBe(true);
+    expect(llm.requests[1]?.systemPrompt).not.toContain('You are smolpaws, the tiny cat agent based on OpenHands.');
+    expect(llm.requests[1]?.systemPrompt).not.toContain('You are OpenHands agent');
+
+    agentContext.systemMessagePrefix = undefined;
+    await agent.run('hi again (cleared)');
+    expect(llm.requests[2]?.systemPrompt.startsWith('You are OpenHands agent')).toBe(true);
+  });
+
   it('includes the latest AgentContext systemMessageSuffix on each LLM request', async () => {
     const settings: OpenHandsSettings = {
       llm: { model: 'test-model' },

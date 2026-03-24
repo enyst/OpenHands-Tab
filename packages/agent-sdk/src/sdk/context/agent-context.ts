@@ -29,6 +29,9 @@ export class AgentContext {
   /** List of available skills that can extend the user's input. */
   skills: Skill[];
 
+  /** Optional prefix to prepend to the system prompt. */
+  systemMessagePrefix?: string;
+
   /** Optional suffix to append to the system prompt. */
   systemMessageSuffix?: string;
 
@@ -40,11 +43,13 @@ export class AgentContext {
 
   constructor(params?: {
     skills?: Skill[];
+    systemMessagePrefix?: string;
     systemMessageSuffix?: string;
     userMessageSuffix?: string;
     loadUserSkills?: boolean;
   }) {
     this.skills = params?.skills ?? [];
+    this.systemMessagePrefix = params?.systemMessagePrefix;
     this.systemMessageSuffix = params?.systemMessageSuffix;
     this.userMessageSuffix = params?.userMessageSuffix;
     this.loadUserSkills = params?.loadUserSkills ?? false;
@@ -182,6 +187,11 @@ export class AgentContext {
 
     const suffix = parts.join('\n\n');
     return suffix || null;
+  }
+
+  getSystemMessagePrefix(): string | null {
+    const prefix = this.systemMessagePrefix?.trim();
+    return prefix || null;
   }
 
   /**

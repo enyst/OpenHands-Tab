@@ -9,6 +9,7 @@ describe('AgentContext', () => {
       const context = new AgentContext();
 
       expect(context.skills).toEqual([]);
+      expect(context.systemMessagePrefix).toBeUndefined();
       expect(context.systemMessageSuffix).toBeUndefined();
       expect(context.userMessageSuffix).toBeUndefined();
       expect(context.loadUserSkills).toBe(false);
@@ -29,10 +30,12 @@ describe('AgentContext', () => {
 
     it('creates context with custom suffixes', () => {
       const context = new AgentContext({
+        systemMessagePrefix: 'System identity',
         systemMessageSuffix: 'System info',
         userMessageSuffix: 'User info',
       });
 
+      expect(context.systemMessagePrefix).toBe('System identity');
       expect(context.systemMessageSuffix).toBe('System info');
       expect(context.userMessageSuffix).toBe('User info');
     });
@@ -311,6 +314,23 @@ describe('AgentContext', () => {
       expect(suffix).toContain('Additional custom instructions.');
       expect(suffix).toContain('<CUSTOM_SECRETS>');
       expect(suffix).toContain('**$API_KEY**');
+    });
+  });
+
+  describe('getSystemMessagePrefix', () => {
+    it('returns null when no prefix is configured', () => {
+      const context = new AgentContext();
+      expect(context.getSystemMessagePrefix()).toBeNull();
+    });
+
+    it('returns null for empty or whitespace-only prefixes', () => {
+      expect(new AgentContext({ systemMessagePrefix: '' }).getSystemMessagePrefix()).toBeNull();
+      expect(new AgentContext({ systemMessagePrefix: '   ' }).getSystemMessagePrefix()).toBeNull();
+    });
+
+    it('returns the trimmed prefix when configured', () => {
+      const context = new AgentContext({ systemMessagePrefix: '  You are smolpaws.  ' });
+      expect(context.getSystemMessagePrefix()).toBe('You are smolpaws.');
     });
   });
 
