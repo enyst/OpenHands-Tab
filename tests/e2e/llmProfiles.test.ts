@@ -34,6 +34,7 @@ describe('OpenHands-Tab LLM Profiles E2E', function () {
         HOME: userDataDir,
         USERPROFILE: userDataDir,
         OPENAI_API_KEY: '',
+        LLM_API_KEY: '',
         ANTHROPIC_API_KEY: 'e2e-anthropic-key',
       }
     });

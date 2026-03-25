@@ -28,6 +28,9 @@ export type UiStateSnapshot = {
   showContextPicker: boolean;
   showSkillsPopover: boolean;
   showHistory: boolean;
+  showLlmProfiles: boolean;
+  llmProfileId: string | null;
+  llmProfiles: string[];
   workspaceFilesCount: number;
   selectedContextFiles: string[];
   skillsCount: number;

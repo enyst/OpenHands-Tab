@@ -43,6 +43,13 @@ export function App() {
   const [llmProfileId, setLlmProfileId] = useState<string | null>(null);
   const [llmProfiles, setLlmProfiles] = useState<string[]>([]);
 
+  // Profile switching is async (host persists settings + applies to runtime).
+  // Track in-flight switches so we don't race the next send against the old config.
+  const pendingLlmProfileSwitchRef = useRef<string | null>(null);
+  const llmProfileSwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queuedSendAfterLlmProfileSwitchRef = useRef<Extract<WebviewToHostMessage, { type: 'send' }> | null>(null);
+
+
   // Events and conversation state
   const [events, setEvents] = useState<RenderedEvent[]>([]);
   const [agentStatus, setAgentStatus] = useState<string | undefined>(undefined);
@@ -90,6 +97,9 @@ export function App() {
     showContextPicker: false,
     showSkillsPopover: false,
     showHistory: false,
+    showLlmProfiles: false,
+    llmProfileId: null as string | null,
+    llmProfiles: [] as string[],
     workspaceFilesCount: 0,
     selectedContextFiles: [] as string[],
     skillsCount: 0,
@@ -102,9 +112,46 @@ export function App() {
 
   // Post message helper
   const postMessage = useCallback((msg: WebviewToHostMessage) => {
+    // Profile switching is async in the host. Track switches so send can't race the old config.
+    if (msg.type === 'setLlmProfileId') {
+      const raw = typeof msg.profileId === 'string' ? msg.profileId.trim() : '';
+      pendingLlmProfileSwitchRef.current = raw || null;
+
+      if (llmProfileSwitchTimeoutRef.current) {
+        clearTimeout(llmProfileSwitchTimeoutRef.current);
+        llmProfileSwitchTimeoutRef.current = null;
+      }
+
+      if (raw) {
+        llmProfileSwitchTimeoutRef.current = setTimeout(() => {
+          if (pendingLlmProfileSwitchRef.current !== raw) return;
+          pendingLlmProfileSwitchRef.current = null;
+          llmProfileSwitchTimeoutRef.current = null;
+
+          const queued = queuedSendAfterLlmProfileSwitchRef.current;
+          queuedSendAfterLlmProfileSwitchRef.current = null;
+          if (queued) {
+            showStatusMessage('warn', `Timed out switching LLM profile to '${raw}'. Sending with the current profile.`);
+            const api = getVscodeApi();
+            api.postMessage(queued);
+          }
+        }, 8000);
+      }
+    }
+
+    // Guard against races where a send happens before the host applied the new settings.
+    if (msg.type === 'send') {
+      const pendingProfileId = pendingLlmProfileSwitchRef.current;
+      if (pendingProfileId) {
+        queuedSendAfterLlmProfileSwitchRef.current = msg;
+        showStatusMessage('info', `Switching LLM profile to '${pendingProfileId}'… sending message when ready.`);
+        return;
+      }
+    }
+
     const api = getVscodeApi();
     api.postMessage(msg);
-  }, []);
+  }, [showStatusMessage]);
 
   const {
     pendingLlmProfilesRequestsRef,
@@ -188,6 +235,9 @@ export function App() {
       showContextPicker,
       showSkillsPopover,
       showHistory,
+      showLlmProfiles,
+      llmProfileId,
+      llmProfiles: llmProfiles.slice(),
       workspaceFilesCount: workspaceFiles.length,
       selectedContextFiles: selectedContextFiles.slice(),
       skillsCount: skills.length,
@@ -197,7 +247,28 @@ export function App() {
       showWelcomeProviderKeyMessage: welcome.showProviderKeyMessage,
       showWelcomeGeminiKeyMessage: welcome.showGeminiKeyMessage,
     };
-  }, [attachments.length, input, selectedContextFiles, showContextPicker, showHistory, showSkillsPopover, skills.length, welcomeSecretStatus, workspaceFiles.length]);
+  }, [attachments.length, input, llmProfileId, llmProfiles, selectedContextFiles, showContextPicker, showHistory, showLlmProfiles, showSkillsPopover, skills.length, welcomeSecretStatus, workspaceFiles.length]);
+
+  // If a message is sent immediately after switching profiles, the host might not have
+  // applied the new settings yet. Queue the send until llmProfilesUpdated confirms.
+  useEffect(() => {
+    const pending = pendingLlmProfileSwitchRef.current;
+    if (!pending) return;
+    if (llmProfileId !== pending) return;
+
+    pendingLlmProfileSwitchRef.current = null;
+    if (llmProfileSwitchTimeoutRef.current) {
+      clearTimeout(llmProfileSwitchTimeoutRef.current);
+      llmProfileSwitchTimeoutRef.current = null;
+    }
+
+    const queued = queuedSendAfterLlmProfileSwitchRef.current;
+    queuedSendAfterLlmProfileSwitchRef.current = null;
+    if (queued) {
+      postMessage(queued);
+    }
+  }, [llmProfileId, postMessage]);
+
 
   const handleApprove = useCallback(() => {
     if (isSubmitting) return;
@@ -457,12 +528,15 @@ export function App() {
     setShowToolsPopover(false);
     setAttachments([]);
     setInlineImages([]);
-    postMessage({
+
+    const message: Extract<WebviewToHostMessage, { type: 'send' }> = {
       type: 'send',
       text: finalText,
       contextFiles: selectedContextFiles.slice(),
       attachments: attachments.map((a) => a.uri),
-    });
+    };
+
+    postMessage(message);
   }, [
     agentStatus,
     attachments,
@@ -533,8 +607,9 @@ export function App() {
   }, [postMessage, showStatusMessage]);
 
   const handleSelectLlmProfileId = useCallback((profileId: string) => {
-    setLlmProfileId(profileId);
-    postMessage({ type: 'setLlmProfileId', profileId });
+    const next = profileId.trim();
+    // Do not optimistically update llmProfileId; wait for host confirmation via llmProfilesUpdated.
+    postMessage({ type: 'setLlmProfileId', profileId: next });
   }, [postMessage]);
 
   const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;

@@ -29,6 +29,9 @@ export type UiStateSnapshot = {
   showContextPicker: boolean;
   showSkillsPopover: boolean;
   showHistory: boolean;
+  showLlmProfiles: boolean;
+  llmProfileId: string | null;
+  llmProfiles: string[];
   workspaceFilesCount: number;
   selectedContextFiles: string[];
   skillsCount: number;
@@ -44,6 +47,9 @@ const DEFAULT_UI_STATE: UiStateSnapshot = {
   showContextPicker: false,
   showSkillsPopover: false,
   showHistory: false,
+  showLlmProfiles: false,
+  llmProfileId: null,
+  llmProfiles: [],
   workspaceFilesCount: 0,
   selectedContextFiles: [],
   skillsCount: 0,

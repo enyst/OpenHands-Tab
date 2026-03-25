@@ -46,7 +46,11 @@ export function createLlmProfileHandlers(
       }
 
       if (payload.ok === true && Array.isArray(payload.profiles)) {
-        pending.resolve(payload.profiles.filter((id): id is string => typeof id === 'string' && id.trim().length > 0));
+        const nextProfiles = payload.profiles.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+        // Keep global dropdown options in sync even when only list responses are used.
+        // This helps ensure the Conversation dropdown updates after profile create/save flows.
+        setLlmProfiles(nextProfiles);
+        pending.resolve(nextProfiles);
         return;
       }
 

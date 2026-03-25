@@ -19,11 +19,21 @@ describe('LLMCredentialProvider', () => {
 
   describe('getApiKey', () => {
     it('returns undefined when no keys are registered', async () => {
-      const registry = new SecretRegistry();
-      const provider = new LLMCredentialProvider(registry);
+      // This test must be hermetic: some dev environments may have LLM_API_KEY set.
+      const prev = process.env.LLM_API_KEY;
+      delete process.env.LLM_API_KEY;
 
-      const key = await provider.getApiKey();
-      expect(key).toBe(undefined);
+      try {
+        const registry = new SecretRegistry();
+        const provider = new LLMCredentialProvider(registry);
+
+        const key = await provider.getApiKey();
+        expect(key).toBe(undefined);
+      } finally {
+        if (typeof prev === 'string') {
+          process.env.LLM_API_KEY = prev;
+        }
+      }
     });
 
     it('returns key from openhands.llmApiKey', async () => {
