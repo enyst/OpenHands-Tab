@@ -47,7 +47,7 @@ export function App() {
   // Track in-flight switches so we don't race the next send against the old config.
   const pendingLlmProfileSwitchRef = useRef<string | null>(null);
   const llmProfileSwitchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const queuedSendAfterLlmProfileSwitchRef = useRef<Extract<WebviewToHostMessage, { type: 'send' }> | null>(null);
+  const queuedSendAfterLlmProfileSwitchRef = useRef<Array<Extract<WebviewToHostMessage, { type: 'send' }>>>([]);
 
 
   // Events and conversation state
@@ -128,12 +128,13 @@ export function App() {
           pendingLlmProfileSwitchRef.current = null;
           llmProfileSwitchTimeoutRef.current = null;
 
-          const queued = queuedSendAfterLlmProfileSwitchRef.current;
-          queuedSendAfterLlmProfileSwitchRef.current = null;
-          if (queued) {
+          const queued = queuedSendAfterLlmProfileSwitchRef.current.splice(0);
+          if (queued.length > 0) {
             showStatusMessage('warn', `Timed out switching LLM profile to '${raw}'. Sending with the current profile.`);
             const api = getVscodeApi();
-            api.postMessage(queued);
+            for (const queuedMessage of queued) {
+              api.postMessage(queuedMessage);
+            }
           }
         }, 8000);
       }
@@ -143,7 +144,7 @@ export function App() {
     if (msg.type === 'send') {
       const pendingProfileId = pendingLlmProfileSwitchRef.current;
       if (pendingProfileId) {
-        queuedSendAfterLlmProfileSwitchRef.current = msg;
+        queuedSendAfterLlmProfileSwitchRef.current.push(msg);
         showStatusMessage('info', `Switching LLM profile to '${pendingProfileId}'… sending message when ready.`);
         return;
       }
@@ -262,10 +263,11 @@ export function App() {
       llmProfileSwitchTimeoutRef.current = null;
     }
 
-    const queued = queuedSendAfterLlmProfileSwitchRef.current;
-    queuedSendAfterLlmProfileSwitchRef.current = null;
-    if (queued) {
-      postMessage(queued);
+    const queued = queuedSendAfterLlmProfileSwitchRef.current.splice(0);
+    if (queued.length > 0) {
+      for (const queuedMessage of queued) {
+        postMessage(queuedMessage);
+      }
     }
   }, [llmProfileId, postMessage]);
 

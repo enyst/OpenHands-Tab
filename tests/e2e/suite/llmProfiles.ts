@@ -100,10 +100,21 @@ export async function run(): Promise<void> {
     });
 
 
+    // Select a profile and verify subsequent calls use it.
+    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-openai-chat' });
+    await sendAndWaitForRequestPath({
+      text: 'E2E profiles step 2: profile (openai chat_completions)',
+      expectedPath: '/v1/chat/completions',
+      getRequests: () => mock.requests,
+    });
+
     // UI flow regression coverage (oh-tab-7svy):
     // - Creating/saving a profile should update the Conversation dropdown list.
     // - Selecting a profile should be applied before the next message is sent.
+    //   (This must hold even when switching between two OpenAI profiles, where request path alone
+    //   would not catch a stale model.)
     const uiProfileId = `e2e-ui-openai-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const uiProfileModel = 'gpt-5-mini';
 
     await vscode.commands.executeCommand('openhands._webviewAction', {
       action: 'openLlmProfilesView',
@@ -116,7 +127,7 @@ export async function run(): Promise<void> {
         profileId: uiProfileId,
         profile: {
           provider: 'openai',
-          model: 'gpt-4o-mini',
+          model: uiProfileModel,
           baseUrl: v1BaseUrl,
           openaiApiMode: 'chat_completions',
         },
@@ -146,11 +157,16 @@ export async function run(): Promise<void> {
       payload: { profileId: uiProfileId },
     });
 
-    await sendAndWaitForRequestPath({
+    const uiRequest = await sendAndWaitForRequestPath({
       text: 'E2E profiles UI step: openai selected via UI',
       expectedPath: '/v1/chat/completions',
       getRequests: () => mock.requests,
     });
+
+    const usedModel = (uiRequest.json as { model?: unknown } | undefined)?.model;
+    if (usedModel !== uiProfileModel) {
+      throw new Error(`Expected model '${uiProfileModel}' but got '${String(usedModel)}' in request: ${JSON.stringify(uiRequest.json)}`);
+    }
 
     await pollUntil(async () => {
       const active = vscode.workspace.getConfiguration('openhands').get<string>('llm.profileId');
@@ -164,14 +180,6 @@ export async function run(): Promise<void> {
 
     await vscode.commands.executeCommand('openhands._webviewAction', { action: 'closeLlmProfilesView' });
 
-
-    // Select a profile and verify subsequent calls use it.
-    await vscode.commands.executeCommand('openhands._selectProfile', { profileId: 'e2e-openai-chat' });
-    await sendAndWaitForRequestPath({
-      text: 'E2E profiles step 2: profile (openai chat_completions)',
-      expectedPath: '/v1/chat/completions',
-      getRequests: () => mock.requests,
-    });
 
     // Update profile config and verify it takes effect after re-selecting.
     await vscode.commands.executeCommand('openhands._updateProfile', {

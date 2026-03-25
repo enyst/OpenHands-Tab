@@ -19,6 +19,13 @@ function takePendingRequest<K extends PendingKind>(
   return pending as Extract<PendingLlmProfilesRequest, { kind: K }>;
 }
 
+const normalizeProfileIds = (profiles: unknown[]): string[] =>
+  profiles
+    .filter((id): id is string => typeof id === 'string')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+
+
 export function createLlmProfileHandlers(
   options: Pick<HostMessageHandlerOptions, 'pendingLlmProfilesRequestsRef' | 'setLlmProfileId' | 'setLlmProfiles'>,
 ): HostMessageHandlerRegistry {
@@ -27,7 +34,7 @@ export function createLlmProfileHandlers(
   return {
     llmProfilesUpdated: (payload) => {
       if (Array.isArray(payload.profiles)) {
-        setLlmProfiles(payload.profiles.filter((id): id is string => typeof id === 'string'));
+        setLlmProfiles(normalizeProfileIds(payload.profiles));
       }
       if (typeof payload.activeProfileId === 'string' || payload.activeProfileId === null) {
         setLlmProfileId(payload.activeProfileId);
@@ -46,7 +53,7 @@ export function createLlmProfileHandlers(
       }
 
       if (payload.ok === true && Array.isArray(payload.profiles)) {
-        const nextProfiles = payload.profiles.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+        const nextProfiles = normalizeProfileIds(payload.profiles);
         // Keep global dropdown options in sync even when only list responses are used.
         // This helps ensure the Conversation dropdown updates after profile create/save flows.
         setLlmProfiles(nextProfiles);
