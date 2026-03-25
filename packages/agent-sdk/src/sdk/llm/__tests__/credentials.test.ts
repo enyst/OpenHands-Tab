@@ -30,8 +30,10 @@ describe('LLMCredentialProvider', () => {
         const key = await provider.getApiKey();
         expect(key).toBe(undefined);
       } finally {
-        if (typeof prev === 'string') {
+        if (prev !== undefined) {
           process.env.LLM_API_KEY = prev;
+        } else {
+          delete process.env.LLM_API_KEY;
         }
       }
     });

@@ -32,6 +32,9 @@ import type { WebviewToHostMessage } from '../../shared/webviewMessages';
 
 type RenderedEvent = { id: number; event: Event };
 
+const LLM_PROFILE_SWITCH_TIMEOUT_MS = 8000;
+
+
 /**
  * Main App component: React webview root for OpenHands extension.
  */
@@ -115,37 +118,37 @@ export function App() {
     // Profile switching is async in the host. Track switches so send can't race the old config.
     if (msg.type === 'setLlmProfileId') {
       const raw = typeof msg.profileId === 'string' ? msg.profileId.trim() : '';
-      pendingLlmProfileSwitchRef.current = raw || null;
+      pendingLlmProfileSwitchRef.current = raw;
 
       if (llmProfileSwitchTimeoutRef.current) {
         clearTimeout(llmProfileSwitchTimeoutRef.current);
         llmProfileSwitchTimeoutRef.current = null;
       }
 
-      if (raw) {
-        llmProfileSwitchTimeoutRef.current = setTimeout(() => {
-          if (pendingLlmProfileSwitchRef.current !== raw) return;
-          pendingLlmProfileSwitchRef.current = null;
-          llmProfileSwitchTimeoutRef.current = null;
+      llmProfileSwitchTimeoutRef.current = setTimeout(() => {
+        if (pendingLlmProfileSwitchRef.current !== raw) return;
+        pendingLlmProfileSwitchRef.current = null;
+        llmProfileSwitchTimeoutRef.current = null;
 
-          const queued = queuedSendAfterLlmProfileSwitchRef.current.splice(0);
-          if (queued.length > 0) {
-            showStatusMessage('warn', `Timed out switching LLM profile to '${raw}'. Sending with the current profile.`);
-            const api = getVscodeApi();
-            for (const queuedMessage of queued) {
-              api.postMessage(queuedMessage);
-            }
+        const queued = queuedSendAfterLlmProfileSwitchRef.current.splice(0);
+        if (queued.length > 0) {
+          const switchLabel = raw ? `switching LLM profile to '${raw}'` : 'clearing LLM profile';
+          showStatusMessage('warn', `Timed out ${switchLabel}. Sending with the current profile.`);
+          const api = getVscodeApi();
+          for (const queuedMessage of queued) {
+            api.postMessage(queuedMessage);
           }
-        }, 8000);
-      }
+        }
+      }, LLM_PROFILE_SWITCH_TIMEOUT_MS);
     }
 
     // Guard against races where a send happens before the host applied the new settings.
     if (msg.type === 'send') {
       const pendingProfileId = pendingLlmProfileSwitchRef.current;
-      if (pendingProfileId) {
+      if (pendingProfileId !== null) {
         queuedSendAfterLlmProfileSwitchRef.current.push(msg);
-        showStatusMessage('info', `Switching LLM profile to '${pendingProfileId}'… sending message when ready.`);
+        const switchLabel = pendingProfileId ? `Switching LLM profile to '${pendingProfileId}'…` : 'Clearing LLM profile…';
+        showStatusMessage('info', `${switchLabel} sending message when ready.`);
         return;
       }
     }
@@ -254,8 +257,8 @@ export function App() {
   // applied the new settings yet. Queue the send until llmProfilesUpdated confirms.
   useEffect(() => {
     const pending = pendingLlmProfileSwitchRef.current;
-    if (!pending) return;
-    if (llmProfileId !== pending) return;
+    if (pending === null) return;
+    if ((llmProfileId ?? '') !== pending) return;
 
     pendingLlmProfileSwitchRef.current = null;
     if (llmProfileSwitchTimeoutRef.current) {
