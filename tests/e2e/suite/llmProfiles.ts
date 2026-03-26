@@ -10,6 +10,7 @@ type WebviewActionResult = {
 
 type ErrorInfo = { seq?: number; code?: unknown; detail?: unknown; error?: unknown } | null;
 
+
 export async function run(): Promise<void> {
   const mock = await startMockLlmServer();
 
@@ -150,6 +151,7 @@ export async function run(): Promise<void> {
       const ui = await vscode.commands.executeCommand<any>('openhands._queryUiState');
       return Array.isArray(ui?.llmProfiles) && ui.llmProfiles.includes(uiProfileId);
     }, 15000);
+
 
     // Select via UI and immediately send to verify no race.
     await vscode.commands.executeCommand('openhands._webviewAction', {

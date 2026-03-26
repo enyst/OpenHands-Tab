@@ -41,7 +41,13 @@ const expandHomeDir = (value: string): string => {
 };
 
 const resolveRootDir = (options: LLMProfileStoreOptions = {}): string => {
-  const rootDir = options.rootDir ?? DEFAULT_LLM_PROFILES_DIR;
+  const rawEnvRoot =
+    typeof process !== 'undefined'
+      ? (process.env.OPENHANDS_LLM_PROFILES_DIR ?? process.env.E2E_LLM_PROFILES_DIR ?? '')
+      : '';
+  const envRoot = typeof rawEnvRoot === 'string' ? rawEnvRoot.trim() : '';
+
+  const rootDir = options.rootDir ?? (envRoot || DEFAULT_LLM_PROFILES_DIR);
   return path.resolve(expandHomeDir(rootDir));
 };
 
@@ -255,7 +261,8 @@ const stripSecrets = (config: LLMConfiguration): LLMConfiguration => {
 };
 
 const ensureDefaultProfilesForDefaultStore = (rootDir: string, options: LLMProfileStoreOptions): void => {
-  if (options.rootDir) return;
+  const defaultRootDir = resolveRootDir({});
+  if (options.rootDir && path.resolve(rootDir) !== defaultRootDir) return;
   try {
     ensureDefaultProfiles({ ...options, rootDir });
   } catch (error) {
