@@ -19,13 +19,15 @@ export async function run(): Promise<void> {
   }
 
   const skillsDir = path.join(os.homedir(), '.openhands', 'skills');
-  const llmProfilesDir = path.join(os.homedir(), '.openhands', 'llm-profiles');
+  const llmProfilesDir = process.env.E2E_LLM_PROFILES_DIR
+    ? path.resolve(process.env.E2E_LLM_PROFILES_DIR)
+    : path.join(os.homedir(), '.openhands', 'llm-profiles');
   const uniqueId = randomUUID();
   const skillPath = path.join(skillsDir, `e2e-ui-skill-${uniqueId}.md`);
   const profileId = `e2e-ui-${uniqueId}`;
   const profilePath = path.join(llmProfilesDir, `${profileId}.json`);
 
-  const longListAnchorId = 'gemini-flash-summarizer';
+  const longListAnchorId = `e2e-ui-anchor-${uniqueId}`;
   const longListProfileCount = 40;
   const longListProfilePaths: string[] = [];
 
@@ -46,10 +48,10 @@ export async function run(): Promise<void> {
     saveSdkProfile(id, { model: 'gpt-5-mini' }, { rootDir: llmProfilesDir, includeSecrets: false });
   }
 
-  // This profile name matches the reported real-world case.
+  // Anchor profile used to validate that long lists remain fully populated.
   const anchorPath = path.join(llmProfilesDir, `${longListAnchorId}.json`);
   longListProfilePaths.push(anchorPath);
-  saveSdkProfile(longListAnchorId, { provider: 'gemini', model: 'gemini-2.0-flash' }, { rootDir: llmProfilesDir, includeSecrets: false });
+  saveSdkProfile(longListAnchorId, { model: 'gpt-5-mini' }, { rootDir: llmProfilesDir, includeSecrets: false });
 
   const cfg = vscode.workspace.getConfiguration();
   const settingsSnapshot: Record<string, unknown> = {

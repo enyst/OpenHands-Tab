@@ -45,6 +45,7 @@ describe('OpenHands-Tab UI Flows (Playwright) E2E', function () {
             E2E_MOCK_ATTACHMENTS: '1',
             E2E_UI: '1',
             E2E_CDP_PORT: String(port),
+            E2E_LLM_PROFILES_DIR: path.join(userDataDir, 'llm-profiles'),
           },
         });
         const now = Date.now();
