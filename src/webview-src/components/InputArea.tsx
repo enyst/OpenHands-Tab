@@ -152,7 +152,7 @@ export function InputArea({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (disabled || !onPasteImageFiles) return;
+    if (!onPasteImageFiles) return;
 
     const items = e.clipboardData?.items;
     if (!items || items.length === 0) return;
@@ -186,7 +186,7 @@ export function InputArea({
             ${isFocused
               ? 'shadow-glow-outline border-white/[0.08]'
               : 'shadow-event border-white/[0.06]'}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+            ${disabled ? 'opacity-75' : ''}
           `}
           style={{
             background: isFocused
@@ -207,7 +207,6 @@ export function InputArea({
             onFocus={() => { setIsFocused(true); emitSelection(textareaRef.current); }}
             onBlur={() => setIsFocused(false)}
             onPaste={handlePaste}
-            disabled={disabled}
             placeholder={placeholder}
             rows={1}
             className={`

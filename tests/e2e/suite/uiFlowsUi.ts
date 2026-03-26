@@ -25,21 +25,45 @@ export async function run(): Promise<void> {
   const profileId = `e2e-ui-${uniqueId}`;
   const profilePath = path.join(llmProfilesDir, `${profileId}.json`);
 
+  const longListAnchorId = 'gemini-flash-summarizer';
+  const longListProfileCount = 40;
+  const longListProfilePaths: string[] = [];
+
   await fs.mkdir(skillsDir, { recursive: true });
   await fs.writeFile(skillPath, '# E2E UI Skill\n\nHello from UI E2E.\n', 'utf8');
 
   await fs.mkdir(llmProfilesDir, { recursive: true });
+
+  // Seed one baseline profile (existing test coverage).
   saveSdkProfile(profileId, { model: 'gpt-5-mini' }, { rootDir: llmProfilesDir, includeSecrets: false });
+
+  // Seed a long list of profiles to ensure the Conversation dropdown is scrollable and complete.
+  // Include an anchor ID that we want to select near the end of the list.
+  for (let i = 0; i < longListProfileCount; i += 1) {
+    const id = `e2e-ui-long-${String(i).padStart(2, '0')}`;
+    const p = path.join(llmProfilesDir, `${id}.json`);
+    longListProfilePaths.push(p);
+    saveSdkProfile(id, { model: 'gpt-5-mini' }, { rootDir: llmProfilesDir, includeSecrets: false });
+  }
+
+  // This profile name matches the reported real-world case.
+  const anchorPath = path.join(llmProfilesDir, `${longListAnchorId}.json`);
+  longListProfilePaths.push(anchorPath);
+  saveSdkProfile(longListAnchorId, { provider: 'gemini', model: 'gemini-2.0-flash' }, { rootDir: llmProfilesDir, includeSecrets: false });
 
   const cfg = vscode.workspace.getConfiguration();
   const settingsSnapshot: Record<string, unknown> = {
     'openhands.hal.enabled': cfg.inspect('openhands.hal.enabled')?.globalValue,
     'openhands.hal.mode': cfg.inspect('openhands.hal.mode')?.globalValue,
+    'openhands.llm.profileId': cfg.inspect('openhands.llm.profileId')?.globalValue,
     'openhands.confirmation.policy': cfg.inspect('openhands.confirmation.policy')?.globalValue,
     'openhands.confirmation.risky.threshold': cfg.inspect('openhands.confirmation.risky.threshold')?.globalValue,
     'openhands.serverUrl': cfg.inspect('openhands.serverUrl')?.globalValue,
     'openhands.servers': cfg.inspect('openhands.servers')?.globalValue,
   };
+
+  // Persist the reported profile selection before opening the chat view.
+  await vscode.workspace.getConfiguration('openhands').update('llm.profileId', longListAnchorId, vscode.ConfigurationTarget.Global);
   const restoreSettings = async () => {
     await Promise.all(
       Object.entries(settingsSnapshot).map(([key, value]) =>
@@ -87,9 +111,107 @@ export async function run(): Promise<void> {
       `[e2e/uiFlowsUi:suite] first selector [data-testid="header-totals-row"] visible in ${firstSelectorNow - firstSelectorStartMs}ms (suite_elapsed=${firstSelectorNow - suiteStartMs}ms)`
     );
 
+
+    // Regression coverage (oh-tab-dhb5): input should be enabled even when a persisted
+    // LLM profile is selected (eg from a prior VS Code session).
+    await webview.waitForSelector('#openhands-chat-input', { timeoutMs: 15000, visible: true });
+    await pollUntil(async () => {
+      const disabled = await webview.evaluate(() => {
+        const el = document.getElementById('openhands-chat-input') as HTMLTextAreaElement | null;
+        return el ? el.disabled : null;
+      });
+      return disabled === false;
+    }, 15000);
+
+    // Regression coverage (oh-tab-dhb5): Conversation LLM profile dropdown should be scrollable
+    // when many profiles exist.
+    await webview.click('button[aria-label="LLM profile"]');
+    await webview.waitForSelector('[data-testid="llm-profile-selector-listbox"]', { timeoutMs: 15000, visible: true });
+
+    const scrollInfo = await webview.evaluate(() => {
+      const list = document.querySelector('[data-testid="llm-profile-selector-listbox"]') as HTMLElement | null;
+      if (!list) return null;
+      const style = window.getComputedStyle(list);
+      return {
+        overflowY: style.overflowY,
+        clientHeight: list.clientHeight,
+        scrollHeight: list.scrollHeight,
+      };
+    });
+
+    if (!scrollInfo) {
+      throw new Error('Expected LLM profile listbox to exist, but it was not found');
+    }
+
+    if (scrollInfo.overflowY !== 'auto' && scrollInfo.overflowY !== 'scroll') {
+      throw new Error(`Expected LLM profile listbox overflow-y to be auto/scroll, got '${scrollInfo.overflowY}'`);
+    }
+
+    if (scrollInfo.scrollHeight <= scrollInfo.clientHeight) {
+      throw new Error(
+        `Expected LLM profile listbox to be scrollable (scrollHeight=${scrollInfo.scrollHeight}, clientHeight=${scrollInfo.clientHeight})`
+      );
+    }
+
+    const anchorResult = await webview.evaluate((anchorId) => {
+      const shadowRoot = document.body?.shadowRoot ?? null;
+      const list = (
+        document.querySelector('[data-testid="llm-profile-selector-listbox"]') ??
+        shadowRoot?.querySelector('[data-testid="llm-profile-selector-listbox"]')
+      ) as HTMLElement | null;
+      if (!list) {
+        return { ok: false, reason: 'missing_listbox' as const };
+      }
+
+      const options = list.querySelectorAll('button[aria-label^="Select profile "]').length;
+      const selector = `button[aria-label="Select profile ${anchorId}"]`;
+      const btn = list.querySelector(selector) as HTMLElement | null;
+      if (!btn) {
+        return {
+          ok: false,
+          reason: 'missing_anchor' as const,
+          options,
+          scrollTop: list.scrollTop,
+          scrollHeight: list.scrollHeight,
+          clientHeight: list.clientHeight,
+        };
+      }
+
+      return {
+        ok: true,
+        reason: 'ok' as const,
+        options,
+        scrollTop: list.scrollTop,
+        scrollHeight: list.scrollHeight,
+        clientHeight: list.clientHeight,
+      };
+    }, longListAnchorId);
+
+    if (!anchorResult.ok) {
+      throw new Error(
+        `Expected profile '${longListAnchorId}' to be reachable in the Conversation dropdown after scrolling. ` +
+        `Debug: ${JSON.stringify(anchorResult)}`
+      );
+    }
+
+    const minExpectedProfiles = longListProfileCount + 2;
+    const optionCount = typeof anchorResult.options === 'number' ? anchorResult.options : 0;
+    if (optionCount < minExpectedProfiles) {
+      throw new Error(
+        `Expected at least ${minExpectedProfiles} profiles in the Conversation dropdown (got ${optionCount}). ` +
+        `Debug: ${JSON.stringify(anchorResult)}`
+      );
+    }
+
+
+    // Close the dropdown.
+    await webview.click('button[aria-label="LLM profile"]');
+
+
     // Context picker: open, select a file, close.
     await webview.click('[data-testid="open-context-picker"]');
     await webview.waitForSelector('[data-testid="context-picker"]', { timeoutMs: 15000, visible: true });
+
 
     const optionSelector = '[data-testid="context-picker"] [role="option"]';
     const captureContextDebug = async () => {
@@ -280,5 +402,9 @@ export async function run(): Promise<void> {
     await restoreSettings();
     await fs.rm(skillPath, { force: true });
     await fs.rm(profilePath, { force: true });
+    for (const p of longListProfilePaths) {
+      await fs.rm(p, { force: true });
+    }
+
   }
 }
