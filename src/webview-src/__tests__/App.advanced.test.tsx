@@ -944,11 +944,10 @@ describe('App - Advanced Test Coverage', () => {
       const initial = 'Please read @rethen';
       const caret = initial.indexOf('@') + 1 + 2; // after "@re"
 
-      Object.defineProperty(textarea, 'selectionStart', { value: caret, configurable: true });
-      Object.defineProperty(textarea, 'selectionEnd', { value: caret, configurable: true });
-      fireEvent.select(textarea);
-
       fireEvent.change(textarea, { target: { value: initial } });
+      textarea.focus();
+      textarea.setSelectionRange(caret, caret);
+      fireEvent.select(textarea);
 
       await waitFor(() => {
         expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'requestWorkspaceFiles' });
