@@ -81,6 +81,11 @@ describe('LLM profile dropdown', () => {
     const selection = getLastPostedOfType('setLlmProfileId');
     expect(selection.profileId).toBe('claude_4');
 
+
+
+    // Simulate the host confirming the selection via llmProfilesUpdated.
+    postToWindow({ type: 'llmProfilesUpdated', profiles: ['gpt-5', 'claude_4'], activeProfileId: 'claude_4' });
+
     await waitFor(() => {
       expect(screen.queryByLabelText('Edit selected profile gpt-5')).not.toBeInTheDocument();
     });

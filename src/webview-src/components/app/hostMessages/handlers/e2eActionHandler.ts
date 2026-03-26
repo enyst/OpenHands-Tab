@@ -13,7 +13,6 @@ export function createE2eActionHandler(
     | 'setContextQuery'
     | 'setEnabledToolIds'
     | 'setIsMentionActive'
-    | 'setLlmProfileId'
     | 'setLlmProfilesOpenRequest'
     | 'setSelectedContextFiles'
     | 'setShowContextPicker'
@@ -31,7 +30,6 @@ export function createE2eActionHandler(
     postMessage,
     setContextQuery,
     setIsMentionActive,
-    setLlmProfileId,
     setLlmProfilesOpenRequest,
     setSelectedContextFiles,
     setShowContextPicker,
@@ -113,7 +111,6 @@ export function createE2eActionHandler(
         if (profileIdRaw !== null && typeof profileIdRaw !== 'string') {
           return;
         }
-        setLlmProfileId(profileIdRaw);
         postMessage({ type: 'setLlmProfileId', profileId: profileIdRaw });
         return;
       }
@@ -141,6 +138,21 @@ export function createE2eActionHandler(
         setLlmProfilesOpenRequest(null);
         return;
       }
+      case 'saveLlmProfile': {
+        const profileIdRaw = (rawPayload as { profileId?: unknown } | undefined)?.profileId;
+        const profile = (rawPayload as { profile?: unknown } | undefined)?.profile;
+        if (typeof profileIdRaw !== 'string') {
+          return;
+        }
+        const profileId = profileIdRaw.trim();
+        if (!profileId || !profile || typeof profile !== 'object') {
+          return;
+        }
+        const requestId = `e2e:llmProfileSave:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`;
+        postMessage({ type: 'llmProfileSaveRequest', requestId, profileId, profile });
+        return;
+      }
+
       case 'closeLlmProfilesView':
         setShowLlmProfiles(false);
         setLlmProfilesOpenRequest(null);

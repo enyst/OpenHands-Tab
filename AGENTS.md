@@ -175,6 +175,9 @@ npm run build -w @smolpaws/agent-sdk
 - E2E tests: `npm run e2e` (Mocha + @vscode/test-electron)
 - Place tests in `__tests__/` directories alongside source
 
+- LLM profile switch UI can receive `llmProfilesUpdated` confirmations where `activeProfileId` is unchanged (for example when re-selecting the already-active profile). When touching `src/webview-src/components/App.tsx`, make sure pending-switch logic does not rely only on `llmProfileId` changing; `llmProfiles` refreshes can be the confirmation signal too.
+
+
 ## Git Hooks
 
 This repo uses Husky + lint-staged to run ESLint on staged `*.ts`/`*.tsx` files before commit (installed automatically by `npm install` via the `prepare` script).

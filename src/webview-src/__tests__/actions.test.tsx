@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { fireEvent, render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { App } from '../components/App';
@@ -82,5 +82,25 @@ describe('App actions post messages to extension', () => {
 
     expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'ping', contextFiles: [], attachments: [] });
     expect(screen.queryByRole('listbox', { name: 'Skills' })).not.toBeInTheDocument();
+  });
+
+  it('reselecting the active LLM profile does not delay sends', async () => {
+    render(<App />);
+
+    postToWindow({ type: 'status', status: 'online', mode: 'local' });
+    postToWindow({ type: 'llmProfilesUpdated', profiles: ['gpt-5'], activeProfileId: 'gpt-5' });
+
+    mockApi.postMessage.mockClear();
+
+    fireEvent.click(await screen.findByLabelText('LLM profile'));
+    fireEvent.click(await screen.findByLabelText('Select profile gpt-5'));
+
+    expect(mockApi.postMessage).not.toHaveBeenCalledWith({ type: 'setLlmProfileId', profileId: 'gpt-5' });
+
+    const input = document.getElementById('openhands-chat-input');
+    expect(input).toBeTruthy();
+    await userEvent.type(input as HTMLInputElement, 'hello again{enter}');
+
+    expect(mockApi.postMessage).toHaveBeenCalledWith({ type: 'send', text: 'hello again', contextFiles: [], attachments: [] });
   });
 });
