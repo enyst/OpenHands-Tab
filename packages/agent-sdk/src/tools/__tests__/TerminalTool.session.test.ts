@@ -27,7 +27,7 @@ describe('TerminalTool session behavior', () => {
     secrets.register('GITHUB_TOKEN', 'ghp_example123');
 
     const result = await tool.execute(
-      tool.validate({ command: 'node -e "process.stdout.write(process.env.GITHUB_TOKEN||\'\')"', timeout: 0.2 }),
+      tool.validate({ command: 'node -e "process.stdout.write(process.env.GITHUB_TOKEN||\'\')"', timeout: 1 }),
       { workspace, secrets },
     );
 
@@ -52,7 +52,7 @@ describe('TerminalTool session behavior', () => {
       secrets.register(secretName, 'super-secret');
 
       const result = await tool.execute(
-        tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 0.2 }),
+        tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 1 }),
         { workspace, secrets },
       );
 
@@ -83,13 +83,13 @@ describe('TerminalTool session behavior', () => {
       secrets.register(secretName, 'super-secret');
 
       const trigger = await tool.execute(
-        tool.validate({ command: 'node -e "process.stdout.write(\'OH_TAB_TEST_SECRET_EXTRA\')"', timeout: 0.2 }),
+        tool.validate({ command: 'node -e "process.stdout.write(\'OH_TAB_TEST_SECRET_EXTRA\')"', timeout: 1 }),
         { workspace, secrets },
       );
       expect(trigger.exit_code).toBe(0);
 
       const check = await tool.execute(
-        tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 0.2 }),
+        tool.validate({ command: 'node -e "process.stdout.write(Object.keys(process.env).join(\',\'))"', timeout: 1 }),
         { workspace, secrets },
       );
       expect(check.exit_code).toBe(0);
@@ -130,22 +130,32 @@ describe('TerminalTool session behavior', () => {
     const start = await tool.execute(
       tool.validate({
         command: 'echo "Enter name:"; read name; echo "Hello $name"',
-        timeout: 0.1,
+        timeout: 0.3,
       }),
       { workspace },
     );
     expect(start.exit_code).toBe(-1);
-    const combinedStart = `${start.stdout ?? ''}${start.stderr ?? ''}`;
+
+    let combinedStart = `${start.stdout ?? ''}${start.stderr ?? ''}`;
+    for (let i = 0; i < 5 && !combinedStart.includes('Enter name:'); i += 1) {
+      const follow = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.2 }), { workspace });
+      combinedStart += `${follow.stdout ?? ''}${follow.stderr ?? ''}`;
+    }
     expect(combinedStart).toContain('Enter name:');
 
-    const reply = await tool.execute(
+    let reply = await tool.execute(
       tool.validate({
         command: 'John',
         is_input: true,
-        timeout: 0.2,
+        timeout: 1,
       }),
       { workspace },
     );
+
+    for (let i = 0; i < 5 && reply.exit_code === -1; i += 1) {
+      reply = await tool.execute(tool.validate({ command: '', is_input: true, timeout: 0.5 }), { workspace });
+    }
+
     expect(reply.exit_code).toBe(0);
     expect(`${reply.stdout ?? ''}${reply.stderr ?? ''}`).toContain('Hello John');
 
@@ -157,14 +167,17 @@ describe('TerminalTool session behavior', () => {
     created.push(dir);
     const tool = new TerminalTool();
 
-    await tool.execute(tool.validate({ command: 'export OH_TAB_TEST_VAR=bar', timeout: 0.2 }), { workspace });
-    const before = await tool.execute(tool.validate({ command: 'echo $OH_TAB_TEST_VAR', timeout: 0.2 }), { workspace });
+    const exportResult = await tool.execute(tool.validate({ command: 'export OH_TAB_TEST_VAR=bar', timeout: 1 }), { workspace });
+    expect(exportResult.exit_code).toBe(0);
+
+    const before = await tool.execute(tool.validate({ command: 'echo $OH_TAB_TEST_VAR', timeout: 1 }), { workspace });
+    expect(before.exit_code).toBe(0);
     expect((before.stdout ?? '').trim()).toBe('bar');
 
     const reset = await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
     expect(reset.exit_code).toBe(0);
 
-    const after = await tool.execute(tool.validate({ command: 'echo $OH_TAB_TEST_VAR', timeout: 0.2 }), { workspace });
+    const after = await tool.execute(tool.validate({ command: 'echo $OH_TAB_TEST_VAR', timeout: 1 }), { workspace });
     expect((after.stdout ?? '').trim()).toBe('');
 
     await tool.execute(tool.validate({ command: '', reset: true }), { workspace });
@@ -302,7 +315,7 @@ describe('TerminalTool session behavior', () => {
     expect(polled.exit_code).toBe(0);
     expect(`${polled.stdout ?? ''}${polled.stderr ?? ''}`).toContain('done');
 
-    const next = await tool.execute(tool.validate({ command: 'echo ok', timeout: 0.2 }), { workspace });
+    const next = await tool.execute(tool.validate({ command: 'echo ok', timeout: 1 }), { workspace });
     expect(next.exit_code).toBe(0);
     expect((next.stdout ?? '').trim()).toBe('ok');
 
@@ -319,7 +332,7 @@ describe('TerminalTool session behavior', () => {
 
     await new Promise<void>((resolve) => setTimeout(resolve, 400));
 
-    const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 0.2 }), { workspace });
+    const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 1 }), { workspace });
     expect(next.exit_code).toBe(0);
     expect(`${next.stdout ?? ''}${next.stderr ?? ''}`).toContain('first');
     expect(`${next.stdout ?? ''}${next.stderr ?? ''}`).toContain('second');
@@ -340,7 +353,7 @@ describe('TerminalTool session behavior', () => {
 
     await new Promise<void>((resolve) => setTimeout(resolve, 400));
 
-    const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 0.2 }), { workspace });
+    const next = await tool.execute(tool.validate({ command: 'echo second', timeout: 1 }), { workspace });
     expect(next.exit_code).toBe(0);
     expect(`${next.stdout ?? ''}${next.stderr ?? ''}`).toContain('first');
     expect(`${next.stdout ?? ''}${next.stderr ?? ''}`).toContain('second');

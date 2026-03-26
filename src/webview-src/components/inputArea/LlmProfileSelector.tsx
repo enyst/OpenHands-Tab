@@ -79,7 +79,12 @@ export function LlmProfileSelector({
             </div>
           </div>
 
-          <div className="p-2 space-y-1" role="listbox" aria-label="LLM profiles">
+          <div
+            className="p-2 space-y-1 max-h-80 overflow-y-auto"
+            role="listbox"
+            aria-label="LLM profiles"
+            data-testid="llm-profile-selector-listbox"
+          >
             {sanitizedProfiles.length === 0 ? (
               <div className="px-3 py-2 text-sm opacity-60">No profiles found</div>
             ) : (

@@ -87,6 +87,10 @@ export function registerChatViewProvider(deps: RegisterChatViewProviderDeps): vs
         getConversationMode: deps.conversation.getConversationMode,
         getConversationStoreRoot: deps.conversation.getConversationStoreRoot,
         resolveConversationStoreRoot: deps.conversation.resolveConversationStoreRoot,
+        getLlmProfilesStoreRoot:
+          deps.context.extensionMode !== vscode.ExtensionMode.Production && typeof process.env.E2E_LLM_PROFILES_DIR === 'string'
+            ? () => process.env.E2E_LLM_PROFILES_DIR
+            : undefined,
         setWebviewReadyState: (conversationId, lastSeenSeq) => {
           deps.state.setChatWebviewReady(true);
           deps.state.setChatLastConversationId(conversationId);
