@@ -272,7 +272,7 @@ export function App() {
         postMessage(queuedMessage);
       }
     }
-  }, [llmProfileId, postMessage]);
+  }, [llmProfileId, llmProfiles, postMessage]);
 
 
   const handleApprove = useCallback(() => {
@@ -613,9 +613,13 @@ export function App() {
 
   const handleSelectLlmProfileId = useCallback((profileId: string) => {
     const next = profileId.trim();
+    if (next === (llmProfileId ?? '')) {
+      return;
+    }
+
     // Do not optimistically update llmProfileId; wait for host confirmation via llmProfilesUpdated.
     postMessage({ type: 'setLlmProfileId', profileId: next });
-  }, [postMessage]);
+  }, [llmProfileId, postMessage]);
 
   const hasPendingConfirmation = agentStatus === 'WAITING_FOR_CONFIRMATION' && pendingActions.length > 0;
   const hasHighRiskPendingAction = pendingActions.some((action) => action.security_risk === 'HIGH');
