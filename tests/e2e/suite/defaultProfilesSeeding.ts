@@ -16,7 +16,19 @@ const DEFAULT_PROFILE_IDS = [
 
 type LlmProfilesResult = { profiles?: string[] } | undefined;
 
-const getProfilesDir = (): string => path.join(os.homedir(), '.openhands', 'llm-profiles');
+const getProfilesDir = (): string => {
+  const fromSdkEnv = typeof process.env.OPENHANDS_LLM_PROFILES_DIR === 'string'
+    ? process.env.OPENHANDS_LLM_PROFILES_DIR.trim()
+    : '';
+  if (fromSdkEnv) return path.resolve(fromSdkEnv);
+
+  const fromEnv = typeof process.env.E2E_LLM_PROFILES_DIR === 'string'
+    ? process.env.E2E_LLM_PROFILES_DIR.trim()
+    : '';
+  if (fromEnv) return path.resolve(fromEnv);
+
+  return path.join(os.homedir(), '.openhands', 'llm-profiles');
+};
 
 const readJson = async (filePath: string): Promise<Record<string, unknown>> => {
   const raw = await fs.readFile(filePath, 'utf8');
@@ -37,8 +49,15 @@ export async function run(): Promise<void> {
     return Boolean(diag?.chat?.hasView && diag?.chat?.webviewReady);
   }, 15000);
 
+  // Trigger best-effort default profile seeding in the active store.
+  await vscode.commands.executeCommand('openhands._listProfiles');
+
+
   // 1) Fresh install: default profiles should be seeded on disk.
   const profilesDir = getProfilesDir();
+
+
+
 
   await pollUntil(async () => {
     try {

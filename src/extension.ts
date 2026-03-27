@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import fs from 'fs';
+import path from 'path';
+
 import { type HalStateSnapshot } from './shared/halTypes';
 import { maskSecretsInText } from './shared/maskSecrets';
 import { safeStringify } from './shared/safeStringify';
@@ -212,9 +215,37 @@ function syncLocalUserMessageSuffix(): void {
   localAgentContext.userMessageSuffix = env ?? undefined;
 }
 
+function ensureE2eLlmProfilesStoreDir(context: vscode.ExtensionContext): void {
+  const extensionMode = vscode.ExtensionMode;
+  const isProduction =
+    extensionMode?.Production !== undefined ? context.extensionMode === extensionMode.Production : true;
+  const isE2e =
+    !isProduction &&
+    typeof process.env.TEST_NAME === 'string' &&
+    process.env.TEST_NAME.trim().length > 0;
+  if (!isE2e) return;
+
+  const explicitSdk = process.env.OPENHANDS_LLM_PROFILES_DIR?.trim() ?? '';
+  const explicitE2e = process.env.E2E_LLM_PROFILES_DIR?.trim() ?? '';
+  const rootDir = path.resolve(explicitSdk || explicitE2e || path.join(context.globalStorageUri.fsPath, 'llm-profiles'));
+
+  try {
+    fs.mkdirSync(rootDir, { recursive: true, mode: 0o700 });
+  } catch {
+    // best-effort only
+  }
+
+  // Keep both env vars in sync so all call sites agree.
+  process.env.E2E_LLM_PROFILES_DIR = rootDir;
+  process.env.OPENHANDS_LLM_PROFILES_DIR = rootDir;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const secrets = new SecretRegistry(context.secrets);
   secretRegistry = secrets;
+
+
+  ensureE2eLlmProfilesStoreDir(context);
 
   const devBridgeLogger = createDevBridgeLogger({ secretRegistry: secrets });
   const cfg = vscode.workspace.getConfiguration();
