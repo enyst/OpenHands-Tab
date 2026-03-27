@@ -17,15 +17,15 @@ const DEFAULT_PROFILE_IDS = [
 type LlmProfilesResult = { profiles?: string[] } | undefined;
 
 const getProfilesDir = (): string => {
-  const fromEnv = typeof process.env.E2E_LLM_PROFILES_DIR === 'string'
-    ? process.env.E2E_LLM_PROFILES_DIR.trim()
-    : '';
-  if (fromEnv) return path.resolve(fromEnv);
-
   const fromSdkEnv = typeof process.env.OPENHANDS_LLM_PROFILES_DIR === 'string'
     ? process.env.OPENHANDS_LLM_PROFILES_DIR.trim()
     : '';
   if (fromSdkEnv) return path.resolve(fromSdkEnv);
+
+  const fromEnv = typeof process.env.E2E_LLM_PROFILES_DIR === 'string'
+    ? process.env.E2E_LLM_PROFILES_DIR.trim()
+    : '';
+  if (fromEnv) return path.resolve(fromEnv);
 
   return path.join(os.homedir(), '.openhands', 'llm-profiles');
 };

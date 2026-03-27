@@ -41,11 +41,11 @@ const expandHomeDir = (value: string): string => {
 };
 
 const resolveRootDir = (options: LLMProfileStoreOptions = {}): string => {
-  const rawEnvRoot =
+  const envRoot = (
     typeof process !== 'undefined'
       ? (process.env.OPENHANDS_LLM_PROFILES_DIR ?? process.env.E2E_LLM_PROFILES_DIR ?? '')
-      : '';
-  const envRoot = typeof rawEnvRoot === 'string' ? rawEnvRoot.trim() : '';
+      : ''
+  ).trim();
 
   const rootDir = options.rootDir ?? (envRoot || DEFAULT_LLM_PROFILES_DIR);
   return path.resolve(expandHomeDir(rootDir));
