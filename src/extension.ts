@@ -225,9 +225,9 @@ function ensureE2eLlmProfilesStoreDir(context: vscode.ExtensionContext): void {
     process.env.TEST_NAME.trim().length > 0;
   if (!isE2e) return;
 
-  const explicitE2e = process.env.E2E_LLM_PROFILES_DIR?.trim() ?? '';
   const explicitSdk = process.env.OPENHANDS_LLM_PROFILES_DIR?.trim() ?? '';
-  const rootDir = path.resolve(explicitE2e || explicitSdk || path.join(context.globalStorageUri.fsPath, 'llm-profiles'));
+  const explicitE2e = process.env.E2E_LLM_PROFILES_DIR?.trim() ?? '';
+  const rootDir = path.resolve(explicitSdk || explicitE2e || path.join(context.globalStorageUri.fsPath, 'llm-profiles'));
 
   try {
     fs.mkdirSync(rootDir, { recursive: true, mode: 0o700 });
