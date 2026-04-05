@@ -16,6 +16,8 @@ export function getWebviewHtml(context: vscode.ExtensionContext, webview: vscode
     `media-src ${webview.cspSource} blob:`,
     `style-src ${webview.cspSource} 'unsafe-inline'`,
     `font-src ${webview.cspSource}`,
+    // VS Code webviews rely on a service worker; allow it explicitly.
+    `worker-src ${webview.cspSource}`,
     `script-src ${webview.cspSource}`,
   ].join('; ');
 
