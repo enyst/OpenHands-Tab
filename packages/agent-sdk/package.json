@@ -1,6 +1,6 @@
 {
   "name": "@smolpaws/agent-sdk",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "TypeScript models and guards for the OpenHands agent-sdk wire protocol",
   "license": "MIT",
   "main": "dist/index.cjs",
