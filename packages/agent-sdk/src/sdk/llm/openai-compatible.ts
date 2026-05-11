@@ -1,10 +1,13 @@
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type RetryOptions, type ToolCallAccumulator } from './types';
 import { DEFAULT_PROVIDER_BASE_URLS } from './provider';
-import { supportsThinkingBlocks } from './providerQuirks';
+import { supportsPromptCaching, supportsThinkingBlocks } from './providerQuirks';
 import { buildOpenAiHeaders } from './openaiHeaders';
 import { NonRetryableHttpStatusError, requestWithRetry } from './httpRetry';
 
 const decoder = new TextDecoder();
+const EPHEMERAL_CACHE_CONTROL = { type: 'ephemeral' } as const;
+
+type OpenAICacheControl = typeof EPHEMERAL_CACHE_CONTROL;
 
 type OpenAIThinkingContentBlock = {
   type: 'thinking';
@@ -15,11 +18,13 @@ type OpenAIThinkingContentBlock = {
 type OpenAITextContentBlock = {
   type: 'text';
   text: string;
+  cache_control?: OpenAICacheControl;
 };
 
 type OpenAIImageUrlContentBlock = {
   type: 'image_url';
   image_url: { url: string; detail?: string };
+  cache_control?: OpenAICacheControl;
 };
 
 type OpenAIToolUseContentBlock = {
@@ -37,6 +42,9 @@ type OpenAIChatMessage = {
   name?: string;
   tool_call_id?: string;
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
+  // LiteLLM tool-result caching follows the Python SDK quirk: the cache marker
+  // lives on the tool message envelope instead of the text block.
+  cache_control?: OpenAICacheControl;
 };
 
 type OpenAIThinkingBlock = {
@@ -88,8 +96,13 @@ const isOpenAIStreamChunk = (value: unknown): value is OpenAIStreamChunk =>
  * tool_use blocks in content. LiteLLM converts tool_calls to tool_use when proxying to Anthropic.
  * However, thinking blocks must be sent in the content array since there's no OpenAI equivalent.
  */
-const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], config: LLMConfiguration): OpenAIChatMessage => {
+const toOpenAIMessage = (
+  message: ChatCompletionRequest['messages'][number],
+  config: LLMConfiguration,
+  options?: { cachePrompt?: boolean },
+): OpenAIChatMessage => {
   const contentText = reduceTextContent(message);
+  const shouldCachePrompt = options?.cachePrompt === true;
 
   // For Anthropic models with thinking enabled: include thinking blocks in content array
   // This is required when assistant messages have thinking content that needs to be preserved.
@@ -140,12 +153,32 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
         }
       }
     }
-    if (blocks.some((b) => b.type === 'image_url')) {
+    if (blocks.some((b) => b.type === 'image_url') || shouldCachePrompt) {
       if (!blocks.some((b) => b.type === 'text')) {
         blocks.unshift({ type: 'text', text: '' });
       }
+      if (shouldCachePrompt) {
+        const lastBlock = blocks.at(-1);
+        if (
+          lastBlock &&
+          (lastBlock.type === 'text' || lastBlock.type === 'image_url')
+        ) {
+          lastBlock.cache_control = EPHEMERAL_CACHE_CONTROL;
+        }
+      }
       return { role: 'user', content: blocks };
     }
+  }
+
+  if (message.role === 'tool' && shouldCachePrompt) {
+    const cachedToolMessage: OpenAIChatMessage = {
+      role: 'tool',
+      content: contentText,
+      cache_control: EPHEMERAL_CACHE_CONTROL,
+    };
+    if (message.name) cachedToolMessage.name = message.name;
+    if (message.tool_call_id) cachedToolMessage.tool_call_id = message.tool_call_id;
+    return cachedToolMessage;
   }
 
   // Standard case: plain text content (for non-Anthropic models or messages without thinking)
@@ -159,25 +192,58 @@ const toOpenAIMessage = (message: ChatCompletionRequest['messages'][number], con
   return base;
 };
 
-const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest) => ({
-  model: config.model,
-  messages: [
-    {
-      role: 'system',
-      content: request.systemPrompt,
-    },
-    ...request.messages.map((msg) => toOpenAIMessage(msg, config)),
-  ],
-  stream: true,
-  stream_options: { include_usage: true },
-  temperature: config.temperature ?? undefined,
-  // Do not send top_p or top_k for OpenAI-compatible endpoints to avoid proxy/model rejections
-  // top_p and top_k intentionally omitted
-  max_tokens: config.maxOutputTokens ?? undefined,
-  reasoning_effort: config.reasoningEffort && config.reasoningEffort !== 'none' ? config.reasoningEffort : undefined,
-  tools: request.tools,
-  tool_choice: request.tools?.length ? 'auto' : undefined,
-});
+const toRequestBody = (config: LLMConfiguration, request: ChatCompletionRequest) => {
+  const promptCachingEnabled = supportsPromptCaching(config);
+  const cacheableSystemPrompt =
+    typeof request.cacheableSystemPrompt === 'string' && request.cacheableSystemPrompt.trim()
+      ? request.cacheableSystemPrompt
+      : request.systemPrompt;
+  const dynamicSystemPrompt =
+    typeof request.dynamicSystemPrompt === 'string' && request.dynamicSystemPrompt.trim()
+      ? request.dynamicSystemPrompt
+      : undefined;
+  const lastCacheableMessageIndex = promptCachingEnabled
+    ? (() => {
+        for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+          const role = request.messages[index]?.role;
+          if (role === 'user' || role === 'tool') {
+            return index;
+          }
+        }
+        return -1;
+      })()
+    : -1;
+
+  return {
+    model: config.model,
+    messages: [
+      promptCachingEnabled
+        ? {
+            role: 'system' as const,
+            content: [
+              { type: 'text' as const, text: cacheableSystemPrompt, cache_control: EPHEMERAL_CACHE_CONTROL },
+              ...(dynamicSystemPrompt ? [{ type: 'text' as const, text: dynamicSystemPrompt }] : []),
+            ],
+          }
+        : {
+            role: 'system' as const,
+            content: request.systemPrompt,
+          },
+      ...request.messages.map((msg, index) =>
+        toOpenAIMessage(msg, config, { cachePrompt: index === lastCacheableMessageIndex }),
+      ),
+    ],
+    stream: true,
+    stream_options: { include_usage: true },
+    temperature: config.temperature ?? undefined,
+    // Do not send top_p or top_k for OpenAI-compatible endpoints to avoid proxy/model rejections
+    // top_p and top_k intentionally omitted
+    max_tokens: config.maxOutputTokens ?? undefined,
+    reasoning_effort: config.reasoningEffort && config.reasoningEffort !== 'none' ? config.reasoningEffort : undefined,
+    tools: request.tools,
+    tool_choice: request.tools?.length ? 'auto' : undefined,
+  };
+};
 
 const defaultBaseUrls: Record<string, string> = {
   openai: DEFAULT_PROVIDER_BASE_URLS.openai,

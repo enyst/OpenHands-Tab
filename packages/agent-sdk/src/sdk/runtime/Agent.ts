@@ -654,7 +654,8 @@ export class Agent extends EventEmitter {
     for (let condensationAttempt = 0; condensationAttempt <= MAX_CONDENSATIONS_PER_STEP; condensationAttempt += 1) {
       const request = buildChatRequestWithCondensation({
         events: this.events.list(),
-        systemPrompt: this.buildSystemPrompt(),
+        systemPrompt: this.buildCacheableSystemPrompt(),
+        dynamicSystemPrompt: this.buildDynamicSystemPrompt(),
         tools: this.getToolDefinitions(),
         pastedImagesBaseDir: this.options.pastedImagesBaseDir,
       });
@@ -1017,26 +1018,19 @@ export class Agent extends EventEmitter {
     return this.getToolDefinitions().map((tool) => tool as unknown as Record<string, unknown>);
   }
 
-  private buildSystemPrompt(): string {
+  /**
+   * Builds the stable system-prompt prefix used for Anthropic prompt caching.
+   *
+   * This prefix stays cacheable as long as the agent identity, the shared
+   * system body, security-risk assessment inclusion, and registered tool
+   * summaries do not change. Runtime-mutated context such as the current editor
+   * state belongs in buildDynamicSystemPrompt() instead.
+   */
+  private buildCacheableSystemPrompt(): string {
     const promptIdentity = this.agentContext?.getSystemMessagePrefix() ?? SYSTEM_PROMPT_IDENTITY;
     let systemPrompt = `${promptIdentity}\n\n${SYSTEM_PROMPT_BODY}`;
     if (!this.shouldIncludeSecurityRiskAssessment()) {
       systemPrompt = systemPrompt.replace(SECURITY_RISK_ASSESSMENT_SECTION, '');
-    }
-    if (this.agentContext) {
-      const { llmModel, llmProvider, llmBaseUrl } = resolveSystemPromptLlmContext(
-        this.options.settings?.llm,
-        this.options.profileStoreOptions,
-      );
-      const suffix = this.agentContext.getSystemMessageSuffix({
-        secretNames: this.secrets.getRegisteredNames(),
-        llmModel,
-        llmProvider,
-        llmBaseUrl,
-      });
-      if (suffix) {
-        systemPrompt += '\n\n' + suffix;
-      }
     }
 
     const summaries = this.getToolDefinitions()
@@ -1052,6 +1046,30 @@ export class Agent extends EventEmitter {
     }
 
     return systemPrompt;
+  }
+
+  private buildDynamicSystemPrompt(): string | null {
+    if (!this.agentContext) {
+      return null;
+    }
+
+    const { llmModel, llmProvider, llmBaseUrl } = resolveSystemPromptLlmContext(
+      this.options.settings?.llm,
+      this.options.profileStoreOptions,
+    );
+    return this.agentContext.getSystemMessageSuffix({
+      secretNames: this.secrets.getRegisteredNames(),
+      llmModel,
+      llmProvider,
+      llmBaseUrl,
+    });
+  }
+
+  private buildSystemPrompt(): string {
+    const parts = [this.buildCacheableSystemPrompt(), this.buildDynamicSystemPrompt()].filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    );
+    return parts.join('\n\n');
   }
 
   private shouldIncludeSecurityRiskAssessment(): boolean {

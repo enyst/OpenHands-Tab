@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { LLMConfiguration } from '../types';
-import { normalizeGenerationParamsForModel, isAnthropicModel, supportsThinkingBlocks, getAnthropicThinkingBudget } from '../providerQuirks';
+import {
+  normalizeGenerationParamsForModel,
+  isAnthropicModel,
+  supportsPromptCaching,
+  supportsThinkingBlocks,
+  getAnthropicThinkingBudget,
+} from '../providerQuirks';
 
 const makeConfig = (overrides: Partial<LLMConfiguration> = {}): LLMConfiguration => ({
   model: 'gpt-4o',
@@ -131,6 +137,40 @@ describe('supportsThinkingBlocks', () => {
       model: 'gpt-4o',
       provider: 'openai',
       reasoningEffort: 'high',
+    }))).toBe(false);
+  });
+});
+
+describe('supportsPromptCaching', () => {
+  it('returns true for supported Anthropic cacheable models', () => {
+    expect(supportsPromptCaching(makeConfig({
+      model: 'claude-sonnet-4-5-20250929',
+      provider: 'anthropic',
+    }))).toBe(true);
+    expect(supportsPromptCaching(makeConfig({
+      model: 'claude-opus-4-7',
+      provider: 'anthropic',
+    }))).toBe(true);
+  });
+
+  it('returns true for LiteLLM Anthropic routing with supported cacheable models', () => {
+    expect(supportsPromptCaching(makeConfig({
+      model: 'anthropic/claude-3-5-sonnet-20241022',
+      provider: 'litellm_proxy',
+    }))).toBe(true);
+  });
+
+  it('returns false for Anthropic models outside the prompt-cache allowlist', () => {
+    expect(supportsPromptCaching(makeConfig({
+      model: 'claude-2.1',
+      provider: 'anthropic',
+    }))).toBe(false);
+  });
+
+  it('returns false for non-Anthropic models', () => {
+    expect(supportsPromptCaching(makeConfig({
+      model: 'gpt-4o',
+      provider: 'openai',
     }))).toBe(false);
   });
 });

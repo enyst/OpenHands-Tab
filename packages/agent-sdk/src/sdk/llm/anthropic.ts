@@ -1,8 +1,11 @@
 import { reduceTextContent, DEFAULT_RETRY_OPTIONS, DEFAULT_TIMEOUT_MS, type ChatCompletionRequest, type LLMClient, type LLMConfiguration, type LLMStreamChunk, type LLMToolDefinition, type RetryOptions, type ToolCallAccumulator } from './types';
-import { getAnthropicThinkingBudget } from './providerQuirks';
+import { getAnthropicThinkingBudget, supportsPromptCaching } from './providerQuirks';
 import { NonRetryableHttpStatusError, requestWithRetry } from './httpRetry';
 
 const decoder = new TextDecoder();
+const EPHEMERAL_CACHE_CONTROL = { type: 'ephemeral' } as const;
+
+type AnthropicCacheControl = typeof EPHEMERAL_CACHE_CONTROL;
 
 // Anthropic content block types
 type AnthropicThinkingBlock = {
@@ -14,6 +17,7 @@ type AnthropicThinkingBlock = {
 type AnthropicTextBlock = {
   type: 'text';
   text: string;
+  cache_control?: AnthropicCacheControl;
 };
 
 type AnthropicToolUseBlock = {
@@ -27,11 +31,13 @@ type AnthropicToolResultBlock = {
   type: 'tool_result';
   tool_use_id: string;
   content: string;
+  cache_control?: AnthropicCacheControl;
 };
 
 type AnthropicImageBlock = {
   type: 'image';
   source: { type: 'base64'; media_type: string; data: string };
+  cache_control?: AnthropicCacheControl;
 };
 
 type AnthropicContentBlock =
@@ -137,10 +143,25 @@ const parseBase64DataUrl = (url: string): { mediaType: string; base64: string } 
   return { mediaType: match[1].toLowerCase(), base64: match[2] };
 };
 
-const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[] => {
+const toAnthropicMessages = (
+  request: ChatCompletionRequest,
+  options?: { cacheLastMessage?: boolean },
+): AnthropicMessage[] => {
   const result: AnthropicMessage[] = [];
+  const lastCacheableMessageIndex = options?.cacheLastMessage
+    ? (() => {
+        for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+          const role = request.messages[index]?.role;
+          if (role === 'user' || role === 'tool') {
+            return index;
+          }
+        }
+        return -1;
+      })()
+    : -1;
 
-  for (const message of request.messages) {
+  for (const [index, message] of request.messages.entries()) {
+    const shouldCacheMessage = index === lastCacheableMessageIndex;
     if (message.role === 'user') {
       const contentBlocks: AnthropicContentBlock[] = [];
       for (const part of message.content) {
@@ -161,6 +182,14 @@ const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[]
       }
       if (contentBlocks.length === 0) {
         contentBlocks.push({ type: 'text', text: '' });
+      }
+      const lastBlock = contentBlocks.at(-1);
+      if (
+        shouldCacheMessage &&
+        lastBlock &&
+        (lastBlock.type === 'text' || lastBlock.type === 'image')
+      ) {
+        lastBlock.cache_control = EPHEMERAL_CACHE_CONTROL;
       }
       result.push({ role: 'user', content: contentBlocks });
     } else if (message.role === 'assistant') {
@@ -218,6 +247,7 @@ const toAnthropicMessages = (request: ChatCompletionRequest): AnthropicMessage[]
         type: 'tool_result',
         tool_use_id: message.tool_call_id ?? '',
         content: reduceTextContent(message),
+        ...(shouldCacheMessage ? { cache_control: EPHEMERAL_CACHE_CONTROL } : {}),
       };
 
       if (lastMessage?.role === 'user') {
@@ -411,6 +441,21 @@ export class AnthropicClient implements LLMClient {
   private requestBody(request: ChatCompletionRequest): Record<string, unknown> {
     const anthropicTools = toAnthropicTools(request.tools);
     const thinkingBudget = getAnthropicThinkingBudget(this.config);
+    const cacheableSystemPrompt =
+      typeof request.cacheableSystemPrompt === 'string' && request.cacheableSystemPrompt.trim()
+        ? request.cacheableSystemPrompt
+        : request.systemPrompt;
+    const dynamicSystemPrompt =
+      typeof request.dynamicSystemPrompt === 'string' && request.dynamicSystemPrompt.trim()
+        ? request.dynamicSystemPrompt
+        : undefined;
+    const promptCachingEnabled = supportsPromptCaching(this.config);
+    const system = promptCachingEnabled
+      ? [
+          { type: 'text' as const, text: cacheableSystemPrompt, cache_control: EPHEMERAL_CACHE_CONTROL },
+          ...(dynamicSystemPrompt ? [{ type: 'text' as const, text: dynamicSystemPrompt }] : []),
+        ]
+      : [{ type: 'text' as const, text: request.systemPrompt }];
 
     return {
       model: this.config.model,
@@ -418,8 +463,8 @@ export class AnthropicClient implements LLMClient {
       // Note: temperature is normalized by providerQuirks.normalizeGenerationParamsForModel()
       // which sets temperature=1 when thinking is enabled (Anthropic requirement)
       temperature: this.config.temperature ?? 0,
-      system: [{ type: 'text', text: request.systemPrompt }],
-      messages: toAnthropicMessages(request),
+      system,
+      messages: toAnthropicMessages(request, { cacheLastMessage: promptCachingEnabled }),
       stream: true,
       ...(anthropicTools ? { tools: anthropicTools, tool_choice: { type: 'auto' } } : {}),
       thinking: thinkingBudget !== undefined

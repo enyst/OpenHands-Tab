@@ -35,15 +35,33 @@ export const getCondensationState = (events: Event[]): CondensationState => {
 export const buildChatRequestWithCondensation = (params: {
   events: Event[];
   systemPrompt: string;
+  dynamicSystemPrompt?: string | null;
   tools: LLMToolDefinition[];
   pastedImagesBaseDir?: string;
-}): { systemPrompt: string; messages: Message[]; tools: LLMToolDefinition[] } => {
+}): {
+  systemPrompt: string;
+  cacheableSystemPrompt: string;
+  dynamicSystemPrompt?: string;
+  messages: Message[];
+  tools: LLMToolDefinition[];
+} => {
   const condensationState = getCondensationState(params.events);
 
-  let systemPrompt = params.systemPrompt;
-  if (condensationState.summary) {
-    systemPrompt += `\n\n<CONVERSATION SUMMARY>\n${condensationState.summary}\n</CONVERSATION SUMMARY>`;
+  const dynamicParts: string[] = [];
+  const baseDynamicSystemPrompt =
+    typeof params.dynamicSystemPrompt === 'string' ? params.dynamicSystemPrompt.trim() : '';
+  if (baseDynamicSystemPrompt) {
+    dynamicParts.push(baseDynamicSystemPrompt);
   }
+  if (condensationState.summary) {
+    dynamicParts.push(
+      `<CONVERSATION SUMMARY>\n${condensationState.summary}\n</CONVERSATION SUMMARY>`,
+    );
+  }
+  const dynamicSystemPrompt = dynamicParts.join('\n\n') || undefined;
+  const systemPrompt = dynamicSystemPrompt
+    ? `${params.systemPrompt}\n\n${dynamicSystemPrompt}`
+    : params.systemPrompt;
 
   const messageEvents = params.events
     .filter(isMessageEvent)
@@ -171,7 +189,13 @@ export const buildChatRequestWithCondensation = (params: {
   }).map(maybeExpandOpenHandsImages);
   const messages = sanitizeChatMessages(rawMessages);
 
-  return { systemPrompt, messages, tools: params.tools };
+  return {
+    systemPrompt,
+    cacheableSystemPrompt: params.systemPrompt,
+    ...(dynamicSystemPrompt ? { dynamicSystemPrompt } : {}),
+    messages,
+    tools: params.tools,
+  };
 };
 
 export type CondensationResult = {

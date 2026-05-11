@@ -57,6 +57,22 @@ import type { LLMConfiguration } from './types';
 
 const ANTHROPIC_THINKING_MIN_BUDGET = 1024;
 const ANTHROPIC_THINKING_MAX_BUDGET = 128000;
+const PROMPT_CACHE_MODELS = [
+  'claude-3-7-sonnet',
+  'claude-sonnet-3-7-latest',
+  'claude-3-5-sonnet',
+  'claude-3-5-haiku',
+  'claude-3-haiku',
+  'claude-3-opus',
+  'claude-sonnet-4',
+  'claude-opus-4',
+  'claude-haiku-4-5',
+  'claude-sonnet-4-5',
+  'claude-sonnet-4-6',
+  'claude-opus-4-5',
+  'claude-opus-4-6',
+  'claude-opus-4-7',
+];
 
 const isGpt5Model = (model: string | undefined): boolean => {
   if (typeof model !== 'string') return false;
@@ -98,6 +114,12 @@ export const isAnthropicModel = (config: LLMConfiguration): boolean => {
  */
 export const supportsThinkingBlocks = (config: LLMConfiguration): boolean => {
   return isAnthropicModel(config) && hasExtendedThinking(config);
+};
+
+export const supportsPromptCaching = (config: LLMConfiguration): boolean => {
+  if (!isAnthropicModel(config)) return false;
+  const model = config.model?.trim().toLowerCase() ?? '';
+  return PROMPT_CACHE_MODELS.some((needle) => model.includes(needle));
 };
 
 /**

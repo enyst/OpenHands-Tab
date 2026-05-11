@@ -63,6 +63,8 @@ export interface LLMConfiguration {
 
 export interface ChatCompletionRequest {
   systemPrompt: string;
+  cacheableSystemPrompt?: string;
+  dynamicSystemPrompt?: string | null;
   messages: Message[];
   tools?: LLMToolDefinition[];
 }
