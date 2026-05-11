@@ -165,6 +165,10 @@ describe('Agent system prompt', () => {
     expect(llm.requests[0]?.dynamicSystemPrompt).toContain('/tmp/first.ts');
     expect(llm.requests[1]?.dynamicSystemPrompt).toContain('/tmp/second.ts');
     expect(llm.requests[1]?.dynamicSystemPrompt).not.toContain('/tmp/first.ts');
+    expect(llm.requests[0]?.cacheableSystemPrompt).not.toContain('/tmp/first.ts');
+    expect(llm.requests[0]?.cacheableSystemPrompt).not.toContain('/tmp/second.ts');
+    expect(llm.requests[1]?.cacheableSystemPrompt).not.toContain('/tmp/first.ts');
+    expect(llm.requests[1]?.cacheableSystemPrompt).not.toContain('/tmp/second.ts');
   });
 
   it('gates vendor-specific repo skills using LLM profile config', async () => {

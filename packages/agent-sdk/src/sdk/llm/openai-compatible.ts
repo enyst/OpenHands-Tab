@@ -42,6 +42,8 @@ type OpenAIChatMessage = {
   name?: string;
   tool_call_id?: string;
   tool_calls?: ChatCompletionRequest['messages'][number]['tool_calls'];
+  // LiteLLM tool-result caching follows the Python SDK quirk: the cache marker
+  // lives on the tool message envelope instead of the text block.
   cache_control?: OpenAICacheControl;
 };
 

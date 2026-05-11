@@ -371,7 +371,7 @@ describe('AnthropicClient thinking blocks', () => {
     expect(toolResultMsg).toBeDefined();
 
     const toolResultBlock = toolResultMsg.content.find((b: { type: string }) => b.type === 'tool_result');
-    expect(toolResultBlock).toEqual({
+    expect(toolResultBlock).toMatchObject({
       type: 'tool_result',
       tool_use_id: 'call_1',
       content: 'hi',

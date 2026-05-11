@@ -76,7 +76,7 @@ describe('Anthropic prompt caching', () => {
     });
   });
 
-  it('moves the cache marker to the tool-result message level', async () => {
+  it('moves the cache marker to the tool_result block', async () => {
     const fetchMock = vi
       .spyOn(global, 'fetch')
       .mockResolvedValue(createStreamResponse(anthropicSse));
@@ -113,8 +113,12 @@ describe('Anthropic prompt caching', () => {
 
     expect(body?.messages?.at(-1)).toEqual({
       role: 'user',
-      content: [{ type: 'tool_result', tool_use_id: 'call_1', content: 'hi' }],
-      cache_control: EPHEMERAL_CACHE_CONTROL,
+      content: [{
+        type: 'tool_result',
+        tool_use_id: 'call_1',
+        content: 'hi',
+        cache_control: EPHEMERAL_CACHE_CONTROL,
+      }],
     });
   });
 });

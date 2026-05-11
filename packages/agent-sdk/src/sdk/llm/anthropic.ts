@@ -31,6 +31,7 @@ type AnthropicToolResultBlock = {
   type: 'tool_result';
   tool_use_id: string;
   content: string;
+  cache_control?: AnthropicCacheControl;
 };
 
 type AnthropicImageBlock = {
@@ -49,7 +50,6 @@ type AnthropicContentBlock =
 interface AnthropicMessage {
   role: 'user' | 'assistant';
   content: AnthropicContentBlock[];
-  cache_control?: AnthropicCacheControl;
 }
 
 type AnthropicEventName = 'message_start' | 'content_block_start' | 'content_block_delta' | 'message_delta' | (string & {});
@@ -247,20 +247,17 @@ const toAnthropicMessages = (
         type: 'tool_result',
         tool_use_id: message.tool_call_id ?? '',
         content: reduceTextContent(message),
+        ...(shouldCacheMessage ? { cache_control: EPHEMERAL_CACHE_CONTROL } : {}),
       };
 
       if (lastMessage?.role === 'user') {
         // Append to existing user message
         lastMessage.content.push(toolResultBlock);
-        if (shouldCacheMessage) {
-          lastMessage.cache_control = EPHEMERAL_CACHE_CONTROL;
-        }
       } else {
         // Create new user message
         result.push({
           role: 'user',
           content: [toolResultBlock],
-          ...(shouldCacheMessage ? { cache_control: EPHEMERAL_CACHE_CONTROL } : {}),
         });
       }
     }
