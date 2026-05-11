@@ -66,6 +66,31 @@ describe('condensation helpers', () => {
     expect(userMessage.content).toEqual([{ type: 'text', text: 'Hello' }, { type: 'text', text: 'Context' }]);
   });
 
+  it('keeps cacheable and dynamic system prompt parts separate', () => {
+    const condense = {
+      kind: 'Condensation',
+      source: 'environment',
+      forgotten_event_ids: [],
+      summary: 'short summary',
+      summary_offset: 4,
+    } satisfies Extract<Event, { kind: 'Condensation' }>;
+
+    const request = buildChatRequestWithCondensation({
+      events: [condense],
+      systemPrompt: 'STATIC',
+      dynamicSystemPrompt: 'DYNAMIC',
+      tools: [],
+    });
+
+    expect(request.cacheableSystemPrompt).toBe('STATIC');
+    expect(request.dynamicSystemPrompt).toBe(
+      'DYNAMIC\n\n<CONVERSATION SUMMARY>\nshort summary\n</CONVERSATION SUMMARY>',
+    );
+    expect(request.systemPrompt).toBe(
+      'STATIC\n\nDYNAMIC\n\n<CONVERSATION SUMMARY>\nshort summary\n</CONVERSATION SUMMARY>',
+    );
+  });
+
   it('only keeps <environment information> for the most recent user message', () => {
     const message1 = {
       kind: 'MessageEvent',

@@ -139,6 +139,34 @@ describe('Agent system prompt', () => {
     expect(llm.requests[2]?.systemPrompt).not.toContain('Currently opened in the editor:');
   });
 
+  it('keeps the cacheable system prompt stable while dynamic context changes', async () => {
+    const settings: OpenHandsSettings = {
+      llm: { model: 'claude-sonnet-4-5-20250929' },
+      agent: {},
+      conversation: { maxIterations: 3 },
+      confirmation: { policy: 'never' },
+      secrets: {},
+    };
+    const llm = new RecordingLLM();
+    const agentContext = new AgentContext({ systemMessageSuffix: 'Currently opened in the editor: /tmp/first.ts' });
+
+    const agent = new Agent({
+      settings,
+      workspaceRoot: createWorkspaceRoot(),
+      llmClient: llm,
+      agentContext,
+    });
+
+    await agent.run('hi');
+    agentContext.systemMessageSuffix = 'Currently opened in the editor: /tmp/second.ts';
+    await agent.run('hi again');
+
+    expect(llm.requests[0]?.cacheableSystemPrompt).toBe(llm.requests[1]?.cacheableSystemPrompt);
+    expect(llm.requests[0]?.dynamicSystemPrompt).toContain('/tmp/first.ts');
+    expect(llm.requests[1]?.dynamicSystemPrompt).toContain('/tmp/second.ts');
+    expect(llm.requests[1]?.dynamicSystemPrompt).not.toContain('/tmp/first.ts');
+  });
+
   it('gates vendor-specific repo skills using LLM profile config', async () => {
     const profilesRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-system-prompt-profiles-'));
     profileRoots.push(profilesRoot);
