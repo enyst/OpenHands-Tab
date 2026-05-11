@@ -147,6 +147,10 @@ describe('supportsPromptCaching', () => {
       model: 'claude-sonnet-4-5-20250929',
       provider: 'anthropic',
     }))).toBe(true);
+    expect(supportsPromptCaching(makeConfig({
+      model: 'claude-opus-4-7',
+      provider: 'anthropic',
+    }))).toBe(true);
   });
 
   it('returns true for LiteLLM Anthropic routing with supported cacheable models', () => {

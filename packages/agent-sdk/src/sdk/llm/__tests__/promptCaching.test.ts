@@ -48,7 +48,7 @@ afterEach(() => {
 
 describe('Anthropic prompt caching', () => {
   const baseConfig: LLMConfiguration = {
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'claude-opus-4-7',
     provider: 'anthropic',
   };
 
@@ -121,7 +121,7 @@ describe('Anthropic prompt caching', () => {
 
 describe('OpenAI-compatible Anthropic prompt caching', () => {
   const baseConfig: LLMConfiguration = {
-    model: 'claude-sonnet-4-5-20250929',
+    model: 'claude-opus-4-7',
     provider: 'litellm_proxy',
     baseUrl: 'http://localhost:4000',
   };
