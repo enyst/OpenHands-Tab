@@ -535,6 +535,7 @@
     "lint:cycles": "node scripts/check-circular-deps.mjs",
     "lint:duplication": "node scripts/check-duplication.mjs",
     "lint:fix": "eslint . --fix",
+    "smoke:anthropic-cache": "npm run build -w @smolpaws/agent-sdk && node scripts/anthropic-cache-smoke.mjs",
     "build:webview": "node esbuild.webview.mjs",
     "agent-server": "bash scripts/start-agent-server.sh",
     "agent-server:prepare": "PREPARE=1 bash scripts/start-agent-server.sh",
