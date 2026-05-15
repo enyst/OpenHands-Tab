@@ -119,7 +119,7 @@ describe('LLMSecurityAnalyzer', () => {
     it('returns HIGH risk when securityRisk throws', () => {
       // Create a subclass that throws
       class ThrowingAnalyzer extends LLMSecurityAnalyzer {
-        override securityRisk(action: ActionEvent): SecurityRisk {
+        override securityRisk(_action: ActionEvent): SecurityRisk {
           throw new Error('Unexpected error');
         }
       }

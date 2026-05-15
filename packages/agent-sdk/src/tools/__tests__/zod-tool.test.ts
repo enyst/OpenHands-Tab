@@ -12,7 +12,7 @@ class TestTool extends ZodTool<{ message: string; count?: number }, string> {
     count: z.number().optional(),
   });
 
-  async execute(args: { message: string; count?: number }, context: ToolContext): Promise<string> {
+  async execute(args: { message: string; count?: number }, _context: ToolContext): Promise<string> {
     const count = args.count ?? 1;
     return args.message.repeat(count);
   }
@@ -29,7 +29,10 @@ class NestedSchemaTool extends ZodTool<{ config: { enabled: boolean; options: st
     }),
   });
 
-  async execute(args: { config: { enabled: boolean; options: string[] } }, context: ToolContext): Promise<void> {
+  async execute(
+    _args: { config: { enabled: boolean; options: string[] } },
+    _context: ToolContext,
+  ): Promise<void> {
     // Do nothing
   }
 }
@@ -46,7 +49,7 @@ class CustomParametersTool extends ZodTool<{ value: string }, string> {
     },
   };
 
-  async execute(args: { value: string }, context: ToolContext): Promise<string> {
+  async execute(args: { value: string }, _context: ToolContext): Promise<string> {
     return args.value;
   }
 }
