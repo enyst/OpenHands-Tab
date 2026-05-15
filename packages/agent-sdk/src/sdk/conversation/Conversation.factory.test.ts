@@ -30,7 +30,6 @@ vi.mock('../llm', async () => {
       ];
 
       return {
-        // eslint-disable-next-line @typescript-eslint/require-await
         async *streamChat(_request: unknown) {
           void _request;
           const next = sequences[callIndex] ?? [];

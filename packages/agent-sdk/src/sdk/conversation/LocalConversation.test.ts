@@ -14,7 +14,6 @@ class FakeLLM implements LLMClient {
     this.responses = responses;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async *streamChat(_request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     const next = this.responses.shift() ?? [];
     for (const chunk of next) {
@@ -26,7 +25,6 @@ class FakeLLM implements LLMClient {
 class RecordingLLM implements LLMClient {
   requests: ChatCompletionRequest[] = [];
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async *streamChat(request: ChatCompletionRequest): AsyncGenerator<LLMStreamChunk> {
     this.requests.push(request);
     yield { type: 'finish' };

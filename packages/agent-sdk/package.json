@@ -26,6 +26,8 @@
     "build:bundle": "tsup --config tsup.config.ts",
     "build:types": "tsc -p tsconfig.json",
     "lint": "eslint ./src",
+    "pack:verify": "npm run build && node scripts/verify-pack.mjs",
+    "prepack": "npm run build && node scripts/verify-pack.mjs",
     "test": "vitest run",
     "prepare": "npm run build"
   },

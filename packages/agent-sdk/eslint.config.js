@@ -10,7 +10,7 @@ module.exports = [
   },
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/**/__tests__/**'],
+    ignores: ['src/**/__tests__/**', 'src/**/*.test.ts', 'src/**/*.spec.ts'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -36,7 +36,7 @@ module.exports = [
     },
   },
   {
-    files: ['src/**/__tests__/**/*.ts'],
+    files: ['src/**/__tests__/**/*.ts', 'src/**/*.test.ts', 'src/**/*.spec.ts'],
     languageOptions: {
       parser: tsparser,
       parserOptions: {
@@ -51,7 +51,9 @@ module.exports = [
     rules: {
       ...eslint.configs.recommended.rules,
       ...tseslint.configs.recommended.rules,
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'off',
+      'no-undef': 'off',
       'no-tabs': 'error',
     },
   },

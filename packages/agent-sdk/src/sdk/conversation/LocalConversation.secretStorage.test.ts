@@ -25,7 +25,6 @@ vi.mock('../llm', async () => {
       }
 
       return {
-        // eslint-disable-next-line @typescript-eslint/require-await
         async *streamChat(_request: ChatCompletionRequest) {
           void _request;
           yield { type: 'finish' };
