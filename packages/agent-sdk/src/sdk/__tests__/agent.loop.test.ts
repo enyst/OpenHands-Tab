@@ -187,7 +187,7 @@ describe('Agent loop control', () => {
     expect(toolIndex).toBeGreaterThan(assistantIndex);
   });
 
-  it('prompts for confirmation before accessing files outside the workspace', async () => {
+  it('allows viewing files outside the workspace without confirmation', async () => {
     const log = new EventLog();
     const workspaceRoot = createWorkspaceRoot();
     const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-'));
@@ -211,22 +211,15 @@ describe('Agent loop control', () => {
     await agent.run('view a file');
     const eventsAfterRun = log.list();
     expect(eventsAfterRun.some(isActionEvent)).toBe(true);
-    expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
-    expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
-    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
-    expect(pausesAfterRun).toHaveLength(1);
-    expect(pausesAfterRun[0]?.source).toBe('agent');
-
-    await agent.approveAction();
-    const eventsAfterApproval = log.list();
-    const obs = eventsAfterApproval.filter(isObservationEvent).find((e) => e.tool_name === 'file_editor' && e.tool_call_id === 'call_1');
+    expect(eventsAfterRun.some(isPauseEvent)).toBe(false);
+    const obs = eventsAfterRun.filter(isObservationEvent).find((e) => e.tool_name === 'file_editor' && e.tool_call_id === 'call_1');
     expect(obs).toBeTruthy();
     expect(JSON.stringify(obs?.observation ?? {})).toContain('hello');
 
     fs.rmSync(externalDir, { recursive: true, force: true });
   });
 
-  it('allows creating an external file after approval', async () => {
+  it('allows creating an external file without approval', async () => {
     const log = new EventLog();
     const workspaceRoot = createWorkspaceRoot();
     const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-create-'));
@@ -254,20 +247,14 @@ describe('Agent loop control', () => {
     await agent.run('create a file');
     const eventsAfterRun = log.list();
     expect(eventsAfterRun.some(isActionEvent)).toBe(true);
-    expect(eventsAfterRun.some(isPauseEvent)).toBe(true);
-    expect(eventsAfterRun.some(isObservationEvent)).toBe(false);
-    const pausesAfterRun = eventsAfterRun.filter(isPauseEvent);
-    expect(pausesAfterRun).toHaveLength(1);
-    expect(pausesAfterRun[0]?.source).toBe('agent');
-
-    await agent.approveAction();
+    expect(eventsAfterRun.some(isPauseEvent)).toBe(false);
     expect(fs.existsSync(outsidePath)).toBe(true);
     expect(fs.readFileSync(outsidePath, 'utf8')).toBe('hello');
 
     fs.rmSync(externalDir, { recursive: true, force: true });
   });
 
-  it('does not grant directory access when creating an external file', async () => {
+  it('allows sequential external file_editor operations without confirmation', async () => {
     const log = new EventLog();
     const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-external-create-siblings-'));
     const outsidePath = path.join(externalDir, 'new.txt');
@@ -302,18 +289,14 @@ describe('Agent loop control', () => {
 
     await agent.run('create then view');
     const pausesAfterRun = log.list().filter(isPauseEvent);
-    expect(pausesAfterRun).toHaveLength(1);
-    expect(pausesAfterRun[0]?.source).toBe('agent');
-
-    await agent.approveAction();
+    expect(pausesAfterRun).toHaveLength(0);
     expect(fs.existsSync(outsidePath)).toBe(true);
 
     const pauses = log.list().filter(isPauseEvent);
-    expect(pauses.length).toBe(2);
-    expect(pauses.every((pause) => pause.source === 'agent')).toBe(true);
+    expect(pauses.length).toBe(0);
 
     const siblingObs = log.list().filter(isObservationEvent).find((e) => e.tool_call_id === 'call_view');
-    expect(siblingObs).toBeUndefined();
+    expect(siblingObs).toBeDefined();
 
     fs.rmSync(externalDir, { recursive: true, force: true });
   });

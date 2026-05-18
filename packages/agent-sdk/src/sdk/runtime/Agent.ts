@@ -822,8 +822,12 @@ export class Agent extends EventEmitter {
 
       const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, actionArgs);
       if (workspaceAccess) {
-        this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs }, workspaceAccess);
-        return 'paused';
+        // File-editor paths outside the current workspace are still real SDK use cases
+        // (for example, SmolPaws skills under ~/.openhands). Auto-allow the exact path
+        // instead of forcing a separate workspace-access confirmation stop here.
+        for (const p of workspaceAccess.paths) {
+          this.workspace.allowPath(p);
+        }
       }
 
       if (this.requiresConfirmation(recordedAction)) {
