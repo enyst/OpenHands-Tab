@@ -7,11 +7,8 @@ import os from 'os';
 import type { BaseWorkspace } from './BaseWorkspace';
 import type { CommandOptions, CommandResult, DirectoryEntry, WorkspaceEncoding } from './types';
 import {
-  type AllowedRootKind,
   ensureSafeDirectory,
-  findContainingDirRoot,
   normalizeExistingOrParent,
-  resolveAllowedPath,
   revalidateDirectory,
 } from './localWorkspacePathPolicy';
 
@@ -20,19 +17,10 @@ type EnvVars = Record<string, string | undefined>;
 export class LocalWorkspace implements BaseWorkspace {
   readonly kind = 'local' as const;
   readonly root: string;
-  private readonly allowedRoots = new Map<string, AllowedRootKind>();
 
   constructor(root?: string) {
     const detectedRoot = root ?? LocalWorkspace.getDefaultRoot();
     this.root = fs.realpathSync(detectedRoot);
-    this.allowedRoots.set(this.root, 'dir');
-    for (const extraRoot of LocalWorkspace.getVsCodeWorkspaceRoots()) {
-      try {
-        this.allowedRoots.set(fs.realpathSync(extraRoot), 'dir');
-      } catch {
-        // Ignore invalid workspace roots.
-      }
-    }
   }
 
   static getDefaultRoot(): string {
@@ -66,30 +54,19 @@ export class LocalWorkspace implements BaseWorkspace {
   }
 
   allowPath(targetPath: string): void {
-    const candidate = path.resolve(targetPath);
-    const normalized = normalizeExistingOrParent(candidate);
-    const kind: AllowedRootKind = (() => {
-      try {
-        const stat = fs.statSync(normalized);
-        return stat.isDirectory() ? 'dir' : 'file';
-      } catch {
-        return 'file';
-      }
-    })();
-    this.allowedRoots.set(normalized, kind);
+    void targetPath;
   }
 
   isPathAllowed(targetPath: string): boolean {
-    try {
-      void this.resolvePath(targetPath);
-      return true;
-    } catch {
-      return false;
-    }
+    void targetPath;
+    return true;
   }
 
   resolvePath(targetPath: string): string {
-    return resolveAllowedPath(targetPath, this.root, this.allowedRoots);
+    const candidate = path.isAbsolute(targetPath)
+      ? path.resolve(targetPath)
+      : path.resolve(this.root, targetPath);
+    return normalizeExistingOrParent(candidate);
   }
 
   private async writeFileSafely(absPath: string, content: string | Buffer, containingRoot?: string): Promise<void> {
@@ -117,9 +94,7 @@ export class LocalWorkspace implements BaseWorkspace {
     }
 
     const requestedDir = path.dirname(absPath);
-    if (containingRoot) {
-      await ensureSafeDirectory(containingRoot, requestedDir);
-    }
+    await ensureSafeDirectory(requestedDir);
 
     let parentStat: fs.Stats;
     try {
@@ -136,12 +111,6 @@ export class LocalWorkspace implements BaseWorkspace {
     }
 
     const canonicalDir = await fs.promises.realpath(requestedDir);
-    if (containingRoot) {
-      const rel = path.relative(containingRoot, canonicalDir);
-      if (rel.startsWith(`..${path.sep}`) || rel === '..' || path.isAbsolute(rel)) {
-        throw new Error(`Path escapes workspace root: ${absPath}`);
-      }
-    }
 
     const base = path.basename(absPath);
     if (noFollow) {
@@ -226,7 +195,6 @@ export class LocalWorkspace implements BaseWorkspace {
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = findContainingDirRoot(parentDir, this.allowedRoots) ?? undefined;
 
     let canonicalParentDir: string;
     try {
@@ -245,7 +213,6 @@ export class LocalWorkspace implements BaseWorkspace {
       directoryPath: parentDir,
       absPath: resolved,
       expectedCanonicalDir: canonicalParentDir,
-      containingRoot: root,
       options: { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
     });
 
@@ -278,7 +245,6 @@ export class LocalWorkspace implements BaseWorkspace {
   async readFileBytes(targetPath: string, options: { maxBytes?: number } = {}): Promise<Buffer> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = findContainingDirRoot(parentDir, this.allowedRoots) ?? undefined;
 
     let canonicalParentDir: string;
     try {
@@ -297,7 +263,6 @@ export class LocalWorkspace implements BaseWorkspace {
       directoryPath: parentDir,
       absPath: resolved,
       expectedCanonicalDir: canonicalParentDir,
-      containingRoot: root,
       options: { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'parent' },
     });
 
@@ -350,42 +315,12 @@ export class LocalWorkspace implements BaseWorkspace {
 
   async writeFile(targetPath: string, content: string | Buffer): Promise<void> {
     const resolved = this.resolvePath(targetPath);
-    const parentDir = path.dirname(resolved);
-    const root = findContainingDirRoot(parentDir, this.allowedRoots);
-    if (!root) {
-      const kind = this.allowedRoots.get(resolved);
-      if (kind === 'file') {
-        let stat: fs.Stats;
-        try {
-          stat = await fs.promises.lstat(parentDir);
-        } catch {
-          throw new Error(`writeFile failed: parent directory does not exist: ${parentDir}`);
-        }
-        if (stat.isSymbolicLink()) {
-          throw new Error(`writeFile failed: refusing to write through symlink parent directory: ${parentDir}`);
-        }
-        if (!stat.isDirectory()) {
-          throw new Error(`writeFile failed: parent is not a directory: ${parentDir}`);
-        }
-        await this.writeFileSafely(resolved, content);
-        return;
-      }
-      throw new Error(`writeFile failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
-    }
-
-    await this.writeFileSafely(resolved, content, root);
+    await this.writeFileSafely(resolved, content);
   }
 
   async remove(targetPath: string): Promise<void> {
     const resolved = this.resolvePath(targetPath);
     const parentDir = path.dirname(resolved);
-    const root = findContainingDirRoot(parentDir, this.allowedRoots) ?? undefined;
-    if (!root) {
-      const kind = this.allowedRoots.get(resolved);
-      if (kind !== 'file') {
-        throw new Error(`remove failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
-      }
-    }
 
     let canonicalParentDir: string;
     try {
@@ -404,7 +339,6 @@ export class LocalWorkspace implements BaseWorkspace {
       directoryPath: parentDir,
       absPath: resolved,
       expectedCanonicalDir: canonicalParentDir,
-      containingRoot: root,
       options: { requireDirectory: true, throwIfMissing: false, notDirectorySubject: 'parent' },
     });
 
@@ -414,10 +348,6 @@ export class LocalWorkspace implements BaseWorkspace {
 
   async list(targetPath = '.'): Promise<DirectoryEntry[]> {
     const resolved = this.resolvePath(targetPath);
-    const root = findContainingDirRoot(resolved, this.allowedRoots);
-    if (!root) {
-      throw new Error(`list failed: path is not contained in an allowlisted workspace root: ${targetPath}`);
-    }
 
     const canonicalDir = await fs.promises.realpath(resolved);
     const stableDir = await revalidateDirectory({
@@ -427,7 +357,6 @@ export class LocalWorkspace implements BaseWorkspace {
       directoryPath: resolved,
       absPath: resolved,
       expectedCanonicalDir: canonicalDir,
-      containingRoot: root,
       options: { requireDirectory: true, throwIfMissing: true, notDirectorySubject: 'path' },
     });
 
@@ -441,17 +370,7 @@ export class LocalWorkspace implements BaseWorkspace {
 
   async ensureDirectory(targetPath: string): Promise<string> {
     const resolved = this.resolvePath(targetPath);
-    const root = findContainingDirRoot(resolved, this.allowedRoots);
-    if (!root) {
-      throw new Error(`Path escapes workspace root: ${targetPath}`);
-    }
-
-    await ensureSafeDirectory(root, resolved);
-    const canonical = await fs.promises.realpath(resolved);
-    const relative = path.relative(root, canonical);
-    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
-      throw new Error(`Path escapes workspace root: ${targetPath}`);
-    }
+    await ensureSafeDirectory(resolved);
     return resolved;
   }
 

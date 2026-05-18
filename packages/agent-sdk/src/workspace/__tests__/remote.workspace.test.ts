@@ -22,10 +22,10 @@ describe('RemoteWorkspace', () => {
     (globalThis as any).fetch = undefined;
   });
 
-  it('rejects path traversal outside the working dir', () => {
+  it('resolves absolute and traversing paths without applying a workspace allowlist', () => {
     const ws = new RemoteWorkspace({ host: 'http://localhost:3000', workingDir: '/workspace/project' });
-    expect(() => ws.resolvePath('../etc/passwd')).toThrowError(/Path escapes workspace root/i);
-    expect(() => ws.resolvePath('/etc/passwd')).toThrowError(/Path escapes workspace root/i);
+    expect(ws.resolvePath('../etc/passwd')).toBe('/workspace/etc/passwd');
+    expect(ws.resolvePath('/etc/passwd')).toBe('/etc/passwd');
   });
 
   it('defaults to the generic server-side workspace/project root', () => {

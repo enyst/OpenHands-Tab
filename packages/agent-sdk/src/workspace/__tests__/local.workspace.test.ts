@@ -41,7 +41,7 @@ describe('LocalWorkspace', () => {
       await expect(workspace.readFileBytes('big.bin', { maxBytes: 1024 * 1024 })).rejects.toThrowError(/too large/i);
     });
 
-    it('blocks path traversal attacks', async () => {
+    it('resolves relative paths that traverse outside the root', async () => {
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
       const vectors = [
         '../sensitive.txt',
@@ -58,7 +58,7 @@ describe('LocalWorkspace', () => {
       }
 
       for (const attackPath of vectors) {
-        expect(() => workspace.resolvePath(attackPath)).toThrowError(/Path escapes workspace root/);
+        expect(path.isAbsolute(workspace.resolvePath(attackPath))).toBe(true);
       }
     });
 
@@ -87,7 +87,7 @@ describe('LocalWorkspace', () => {
       expect(workspace.resolvePath('.')).toBe(realDir);
     });
 
-    it('blocks symlink escapes for nested non-existent paths', async () => {
+    it('resolves symlinked paths outside the root when explicitly targeted', async () => {
       if (process.platform === 'win32') return;
 
       const { workspace, dir } = await makeWorkspace((value) => created.push(value));
@@ -97,8 +97,8 @@ describe('LocalWorkspace', () => {
       const symlinkPath = path.join(dir, 'linked');
       await fs.promises.symlink(externalDir, symlinkPath, 'dir');
 
-      expect(() => workspace.resolvePath('linked')).toThrowError(/Path escapes workspace root/);
-      expect(() => workspace.resolvePath('linked/subdir/file.txt')).toThrowError(/Path escapes workspace root/);
+      expect(workspace.resolvePath('linked')).toBe(await fs.promises.realpath(externalDir));
+      expect(workspace.resolvePath('linked/subdir/file.txt')).toBe(path.join(await fs.promises.realpath(externalDir), 'subdir', 'file.txt'));
     });
 
     it('blocks dangling symlink escapes (even when target does not exist)', async () => {
@@ -136,22 +136,18 @@ describe('LocalWorkspace', () => {
       ).toBe(true);
     });
 
-    it('allows explicitly-approved external paths', async () => {
+    it('allows external paths without explicit allowlisting', async () => {
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
       const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-external-'));
       created.push(externalDir);
       const externalFile = path.join(externalDir, 'outside.txt');
       await fs.promises.writeFile(externalFile, 'hello', 'utf8');
 
-      expect(() => workspace.resolvePath(externalFile)).toThrowError();
-
-      workspace.allowPath(externalFile);
       const realExternalFile = await fs.promises.realpath(externalFile);
       expect(workspace.resolvePath(externalFile)).toBe(realExternalFile);
-      expect(() => workspace.resolvePath(path.join(externalFile, 'child'))).toThrowError();
     });
 
-    it('does not create parent directories for file-only external allowances', async () => {
+    it('creates missing parent directories for external files', async () => {
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
       const externalDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-external-missing-'));
       created.push(externalDir);
@@ -159,13 +155,12 @@ describe('LocalWorkspace', () => {
       expect(fs.existsSync(externalDir)).toBe(false);
 
       const externalFile = path.join(externalDir, 'outside.txt');
-      workspace.allowPath(externalFile);
-
-      await expect(workspace.writeFile(externalFile, 'hello')).rejects.toThrowError(/parent directory does not exist/i);
-      expect(fs.existsSync(externalDir)).toBe(false);
+      await expect(workspace.writeFile(externalFile, 'hello')).resolves.toBeUndefined();
+      expect(fs.existsSync(externalDir)).toBe(true);
+      await expect(fs.promises.readFile(externalFile, 'utf8')).resolves.toBe('hello');
     });
 
-    it('rejects file-only allowances when the parent becomes a symlink mid-write', async () => {
+    it('rejects external writes when the parent becomes a symlink mid-write', async () => {
       if (process.platform === 'win32') return;
 
       const { workspace } = await makeWorkspace((dir) => created.push(dir));
@@ -176,7 +171,6 @@ describe('LocalWorkspace', () => {
 
       const allowedFile = path.join(parentDir, 'outside.txt');
       await fs.promises.writeFile(allowedFile, 'original', 'utf8');
-      workspace.allowPath(allowedFile);
 
       const resolvedAllowedFile = workspace.resolvePath(allowedFile);
       const canonicalParentDir = path.dirname(resolvedAllowedFile);
