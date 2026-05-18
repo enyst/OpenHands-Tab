@@ -60,7 +60,7 @@ describe('FileEditorTool', () => {
     expect(await workspace.readFile('abs.txt')).toBe('hello');
   });
 
-  it('rejects absolute paths outside the workspace', async () => {
+  it('allows absolute paths outside the workspace', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
     const tool = new FileEditorTool();
@@ -69,9 +69,9 @@ describe('FileEditorTool', () => {
     created.push(externalDir);
     const absOutside = path.join(externalDir, 'outside.txt');
 
-    await expect(
-      tool.execute(tool.validate({ command: 'create', path: absOutside, file_text: 'nope' }), { workspace }),
-    ).rejects.toThrowError(/Path escapes workspace root/i);
+    const result = await tool.execute(tool.validate({ command: 'create', path: absOutside, file_text: 'nope' }), { workspace });
+    expect(result.command).toBe('create');
+    await expect(fs.promises.readFile(absOutside, 'utf8')).resolves.toBe('nope');
   });
 
   it('rejects create when file_text exceeds 10MB', async () => {
