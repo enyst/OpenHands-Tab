@@ -33,6 +33,7 @@ media/webview-src/**
 .codex/**
 .beads/**
 .openhands/**
+.venv-tokens/**
 
 # Scripts and misc tooling
 scripts/**
