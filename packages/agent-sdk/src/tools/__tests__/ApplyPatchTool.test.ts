@@ -115,7 +115,7 @@ describe('ApplyPatchTool', () => {
     await expect(tool.execute(tool.validate({ patch: 'nope' }), { workspace })).rejects.toThrow('Invalid patch text');
   });
 
-  it('rejects escaping paths', async () => {
+  it('allows escaping paths when confirmation policy does not pause', async () => {
     const { workspace, dir } = await makeWorkspace();
     created.push(dir);
 
@@ -127,8 +127,12 @@ describe('ApplyPatchTool', () => {
       '*** End Patch',
     ].join('\n');
 
-    await expect(tool.execute(tool.validate({ patch }), { workspace })).rejects.toThrow(
-      'Absolute or escaping paths are not allowed',
-    );
+    const result = await tool.execute(tool.validate({ patch }), { workspace });
+    const escapedPath = path.resolve(dir, '../escape.txt');
+
+    expect(result.message).toBe('Done!');
+    expect(result.commit.changes['../escape.txt']?.type).toBe('add');
+    await expect(fs.promises.readFile(escapedPath, 'utf8')).resolves.toBe('nope');
+    await fs.promises.rm(escapedPath, { force: true });
   });
 });

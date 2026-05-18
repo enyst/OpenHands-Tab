@@ -368,12 +368,13 @@ describe('LocalConversation persistence', () => {
     expect(JSON.stringify(observation?.observation ?? {})).toContain('hi');
   });
 
-  it('restores pending workspace access confirmations so approveAction allows file_editor paths after restore', async () => {
+  it('does not enter WAITING_FOR_CONFIRMATION for external file_editor paths', async () => {
     const dir = makeTempDir('local-workspace-access-');
     const workspaceRoot = makeTempDir('local-workspace-');
     const outsideDir = makeTempDir('local-outside-workspace-');
     const outsideFile = path.join(outsideDir, 'outside.txt');
     const fileEditor = new FileEditorTool();
+    const emittedEvents: Event[] = [];
 
     const llm = new MockLLM([
       { type: 'tool_call_delta', id: 'call_1', name: 'file_editor', arguments: JSON.stringify({ command: 'create', path: outsideFile, file_text: 'hello' }) },
@@ -387,30 +388,15 @@ describe('LocalConversation persistence', () => {
       tools: [fileEditor],
       persistenceDir: dir,
     });
+    conversation.on('event', (event) => emittedEvents.push(event));
 
     const id = await conversation.startNewConversation();
     await conversation.sendUserMessage('create file');
     const stateAfterRun = (conversation as unknown as { state: ConversationState }).state.snapshot;
-    expect(stateAfterRun.status).toBe('WAITING_FOR_CONFIRMATION');
-    expect(fs.existsSync(outsideFile)).toBe(false);
-
-    const restoredEvents: Event[] = [];
-    const restored = new LocalConversation({
-      settings: baseSettings,
-      workspaceRoot,
-      llmClient: new MockLLM([{ type: 'finish' }]),
-      tools: [fileEditor],
-      persistenceDir: dir,
-    });
-    restored.on('event', (e) => restoredEvents.push(e));
-    restored.restoreConversation(id!);
-
-    const before = restoredEvents.length;
-    await restored.approveAction();
-    const newEvents = restoredEvents.slice(before);
-
+    expect(stateAfterRun.status).not.toBe('WAITING_FOR_CONFIRMATION');
     expect(fs.readFileSync(outsideFile, 'utf8')).toBe('hello');
-    const observation = newEvents.find((e) => isObservationEvent(e) && e.tool_name === 'file_editor');
+    expect(id).toBeTruthy();
+    const observation = emittedEvents.find((e) => isObservationEvent(e) && e.tool_name === 'file_editor');
     expect(observation).toBeDefined();
   });
 

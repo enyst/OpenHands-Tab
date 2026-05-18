@@ -1,6 +1,5 @@
 import EventEmitter from 'events';
 import { randomUUID } from 'crypto';
-import path from 'path';
 import { LLMStreamer } from './LLMStreamer';
 import { AsyncLock } from './AsyncLock';
 import { LlmClientCache } from './LlmClientCache';
@@ -41,7 +40,6 @@ import {
   sanitizeMessageForDebug,
 } from './textSanitizers';
 import { formatToolMessageText } from './toolMessageFormatting';
-import { toOptionalNonEmptyString } from './settingsUtils';
 import { createLlmClientFromSettings as createLlmClientFromSettingsFromConfig } from './createLlmClientFromSettings';
 import { deepTruncate, truncateToolMessage } from './toolResultTruncation';
 import { SecretMasker } from './secretMasker';
@@ -157,7 +155,6 @@ export class Agent extends EventEmitter {
   private cancelled = false;
   private finished = false;
   private pendingAction?: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> };
-  private pendingWorkspaceAccess?: { paths: string[] };
   private readonly agentContext?: AgentContext;
   private readonly activatedSkillNames: string[] = [];
   private readonly registry?: import('../llm').LLMRegistry;
@@ -438,10 +435,7 @@ export class Agent extends EventEmitter {
     }
 
     const actionArgs: Record<string, unknown> = action.action ?? {};
-    const workspaceAccess = this.getRequiredWorkspaceAccess(action.tool_name, actionArgs);
-
     this.pendingAction = { toolCall: action.tool_call, actionEvent: action, args: actionArgs };
-    this.pendingWorkspaceAccess = workspaceAccess;
   }
 
   async run(input: AgentRunInput, options?: AgentRunOptions): Promise<Message | undefined> {
@@ -488,7 +482,6 @@ export class Agent extends EventEmitter {
   cancel(): void {
     this.cancelled = true;
     this.pendingAction = undefined;
-    this.pendingWorkspaceAccess = undefined;
     this.state.setStatus('CANCELLED');
   }
 
@@ -496,14 +489,7 @@ export class Agent extends EventEmitter {
     if (!this.pendingAction) return;
     await this.lock.acquire(async () => {
       const pending = this.pendingAction!;
-      const pendingWorkspaceAccess = this.pendingWorkspaceAccess;
       this.pendingAction = undefined;
-      this.pendingWorkspaceAccess = undefined;
-      if (pendingWorkspaceAccess) {
-        for (const p of pendingWorkspaceAccess.paths) {
-          this.workspace.allowPath(p);
-        }
-      }
       this.state.setStatus('RUNNING');
       try {
         await this.executeTool(pending.toolCall, pending.actionEvent, pending.args);
@@ -523,7 +509,6 @@ export class Agent extends EventEmitter {
     const { actionEvent, toolCall } = this.pendingAction;
     const rejectionReason = reason ?? 'User rejected the action';
     this.pendingAction = undefined;
-    this.pendingWorkspaceAccess = undefined;
     void this.pushEventWithHooks({
       kind: 'UserRejectObservation',
       source: 'environment',
@@ -552,10 +537,8 @@ export class Agent extends EventEmitter {
 
   private pauseForConfirmation(
     pendingAction: { toolCall: ToolCall; actionEvent: ActionEvent; args: Record<string, unknown> },
-    pendingWorkspaceAccess?: { paths: string[] },
   ): void {
     this.pendingAction = pendingAction;
-    this.pendingWorkspaceAccess = pendingWorkspaceAccess;
     this.state.setStatus('WAITING_FOR_CONFIRMATION');
     void this.pushEventWithHooks({ kind: 'PauseEvent', source: 'agent' } as Event);
   }
@@ -820,12 +803,9 @@ export class Agent extends EventEmitter {
         continue;
       }
 
-      const workspaceAccess = this.getRequiredWorkspaceAccess(toolCall.function.name, actionArgs);
-      if (workspaceAccess) {
-        this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs }, workspaceAccess);
-        return 'paused';
-      }
-
+      // Confirmation policy is the only approval gate for tool execution. Workspace
+      // implementations can still enforce low-level filesystem safety, but they should
+      // not trigger a second "workspace access" pause that bypasses NeverConfirm.
       if (this.requiresConfirmation(recordedAction)) {
         this.pauseForConfirmation({ toolCall, actionEvent: recordedAction, args: actionArgs });
         return 'paused';
@@ -1250,17 +1230,6 @@ export class Agent extends EventEmitter {
         content: [{ type: 'text', text: clipped }],
       },
     } as Event);
-  }
-
-  private getRequiredWorkspaceAccess(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): { paths: string[] } | undefined {
-    if (toolName !== 'file_editor') return undefined;
-    const p = toOptionalNonEmptyString(args.path);
-    if (!p || !path.isAbsolute(p)) return undefined;
-    if (this.workspace.isPathAllowed(p)) return undefined;
-    return { paths: [p] };
   }
 
   private createActionEvent(

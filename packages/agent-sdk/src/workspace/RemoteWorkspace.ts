@@ -115,9 +115,6 @@ export class RemoteWorkspace implements AgentServerWorkspace {
   private readonly runtimeApiKey?: string;
   private readonly runtimeId?: string;
 
-
-  private readonly allowedRoots = new Set<string>();
-
   constructor(options: RemoteWorkspaceOptions) {
     this.host = normalizeRemoteHostUrl(options.host);
     this.cloudApiKey = normalizeSecret(options.cloudApiKey);
@@ -129,8 +126,6 @@ export class RemoteWorkspace implements AgentServerWorkspace {
     this.runtimeApiUrl = options.runtimeApiUrl ? normalizeRemoteHostUrl(options.runtimeApiUrl) : undefined;
     this.runtimeApiKey = typeof options.runtimeApiKey === 'string' && options.runtimeApiKey.trim() ? options.runtimeApiKey.trim() : undefined;
     this.runtimeId = typeof options.runtimeId === 'string' && options.runtimeId.trim() ? options.runtimeId.trim() : undefined;
-
-    this.allowedRoots.add(this.root);
   }
 
   getServerUrl(): string {
@@ -153,20 +148,12 @@ export class RemoteWorkspace implements AgentServerWorkspace {
   }
 
   allowPath(targetPath: string): void {
-    const normalized = normalizePosixRoot(targetPath);
-    if (!normalized.startsWith('/')) {
-      throw new Error(`RemoteWorkspace.allowPath requires an absolute path, got: ${targetPath}`);
-    }
-    this.allowedRoots.add(normalized);
+    void targetPath;
   }
 
   isPathAllowed(targetPath: string): boolean {
-    try {
-      void this.resolvePath(targetPath);
-      return true;
-    } catch {
-      return false;
-    }
+    void targetPath;
+    return true;
   }
 
   resolvePath(targetPath: string): string {
@@ -176,14 +163,7 @@ export class RemoteWorkspace implements AgentServerWorkspace {
     const candidate = trimmed.startsWith('/')
       ? path.posix.normalize(trimmed)
       : path.posix.normalize(path.posix.join(this.root, trimmed));
-
-    for (const root of this.allowedRoots) {
-      if (candidate === root) return candidate;
-      if (root !== '/' && candidate.startsWith(`${root}/`)) return candidate;
-      if (root === '/' && candidate.startsWith('/')) return candidate;
-    }
-
-    throw new Error(`Path escapes workspace root: ${targetPath}`);
+    return candidate;
   }
 
   async readFile(targetPath: string, encoding: WorkspaceEncoding = 'utf8'): Promise<string> {

@@ -28,7 +28,7 @@ describe('LocalWorkspace VS Code workspace roots', () => {
     expect(() => workspace.resolvePath(path.join(remoteDir, 'hello.txt'))).not.toThrow();
   });
 
-  it('does not treat non-file-backed workspace folders as allowed roots', async () => {
+  it('resolves absolute paths even when non-file-backed workspace folders are present', async () => {
     const baseDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-base-'));
     const otherDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'agent-ws-other-'));
     created.push(baseDir, otherDir);
@@ -36,6 +36,6 @@ describe('LocalWorkspace VS Code workspace roots', () => {
     (globalThis as any).vscode.workspace.workspaceFolders = [{ uri: { scheme: 'untitled', fsPath: otherDir } }];
 
     const workspace = new LocalWorkspace(baseDir);
-    expect(() => workspace.resolvePath(path.join(otherDir, 'hello.txt'))).toThrowError(/Path escapes workspace root/);
+    expect(() => workspace.resolvePath(path.join(otherDir, 'hello.txt'))).not.toThrow();
   });
 });

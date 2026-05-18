@@ -81,21 +81,19 @@ export const findContainingDirRoot = (
   return best;
 };
 
-export const ensureSafeDirectory = async (root: string, dirPath: string): Promise<void> => {
-  const relative = path.relative(root, dirPath);
+export const ensureSafeDirectory = async (dirPath: string, root?: string): Promise<void> => {
+  const start = root ?? path.parse(dirPath).root;
+  const relative = path.relative(start, dirPath);
   if (relative === '' || relative === '.') return;
-  if (!isPathContainedInRoot(root, dirPath)) {
-    throw new Error(`Path escapes workspace root: ${dirPath}`);
-  }
 
   const assertContained = (candidate: string) => {
-    if (!isPathContainedInRoot(root, candidate)) {
+    if (root && !isPathContainedInRoot(root, candidate)) {
       throw new Error(`Path escapes workspace root: ${dirPath}`);
     }
   };
 
   const parts = relative.split(path.sep).filter((part) => part.length > 0);
-  let current = root;
+  let current = start;
 
   for (const part of parts) {
     let currentStat: fs.Stats;
